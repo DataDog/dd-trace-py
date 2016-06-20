@@ -2,6 +2,7 @@
 import functools
 
 from sqlite3 import Connection, Cursor
+from tracer.ext import sql as sqlx
 
 
 def connection_factory(tracer, service="sqlite3"):
@@ -29,8 +30,8 @@ class TracedCursor(Cursor):
         if not self._datadog_tracer:
             return Cursor.execute(self, sql, *args, **kwargs)
 
-        with self._datadog_tracer.trace("sqlite3.query") as s:
-            s.set_tag("sql.query", sql)
+        with self._datadog_tracer.trace("sqlite3.query", span_type=sqlx.TYPE) as s:
+            s.set_tag(sqlx.QUERY, sql)
             s.service = self._datadog_service
             s.resource = sql # will be normalized
             return Cursor.execute(self, sql, *args, **kwargs)

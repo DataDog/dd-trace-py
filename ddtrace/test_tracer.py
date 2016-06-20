@@ -8,6 +8,22 @@ from nose.tools import eq_
 from .tracer import Tracer
 
 
+def test_tracer_vars():
+    tracer = Tracer(writer=None)
+
+    # explicit vars
+    s = tracer.trace("a", service="s", resource="r", span_type="t")
+    eq_(s.service, "s")
+    eq_(s.resource, "r")
+    eq_(s.span_type, "t")
+    s.finish()
+
+    # defaults
+    s = tracer.trace("a")
+    eq_(s.service, None)
+    eq_(s.resource, "a") # inherits
+    eq_(s.span_type, None)
+
 def test_tracer():
     # add some dummy tracing code.
     writer = DummyWriter()
@@ -56,6 +72,22 @@ def test_tracer():
     spans = writer.pop()
     for s in spans:
         assert s.trace_id != make.trace_id
+
+def test_tracer_disabled():
+    # add some dummy tracing code.
+    writer = DummyWriter()
+    tracer = Tracer(writer=writer)
+
+    tracer.enabled = True
+    with tracer.trace("foo") as s:
+        s.set_tag("a", "b")
+    assert writer.pop()
+
+    tracer.enabled = False
+    with tracer.trace("foo") as s:
+        s.set_tag("a", "b")
+    assert not writer.pop()
+
 
 
 class DummyWriter(object):

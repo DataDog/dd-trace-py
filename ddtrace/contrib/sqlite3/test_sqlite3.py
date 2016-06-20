@@ -31,6 +31,7 @@ def test_foo():
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.name, "sqlite3.query")
+        eq_(span.span_type, "sql")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
@@ -55,3 +56,4 @@ def test_foo():
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
         eq_(span.error, 1)
+        eq_(span.span_type, "sql")

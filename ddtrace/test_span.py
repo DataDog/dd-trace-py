@@ -76,6 +76,7 @@ def test_ctx_mgr():
 
 def test_span_to_dict():
     s = Span(tracer=None, name="foo.bar", service="s",  resource="r")
+    s.span_type = "foo"
     s.set_tag("a", "1")
     s.set_meta("b", "2")
     s.finish()
@@ -86,6 +87,7 @@ def test_span_to_dict():
     eq_(d["trace_id"], s.trace_id)
     eq_(d["parent_id"], s.parent_id)
     eq_(d["meta"], {"a": "1", "b": "2"})
+    eq_(d["type"], "foo")
 
 
 class DummyTracer(object):

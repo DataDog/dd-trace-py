@@ -9,6 +9,9 @@ dependency of flask signals).
 import time
 import logging
 
+# project
+from tracer.ext import http
+
 # 3p
 from flask import g, request, signals
 
@@ -22,58 +25,105 @@ class TraceMiddleware(object):
         self._tracer = tracer
         self._service = service
 
-        # Add our event handlers.
-        self.app.before_request(self._before_request)
+        self.use_signals = use_signals
 
-        if use_signals and signals.signals_available:
+        if self.use_signals and signals.signals_available:
             # if we're using signals, and things are correctly installed, use
             # signal hooks to track the responses.
-            signals.got_request_exception.connect(self._after_error, sender=self.app)
-            signals.request_finished.connect(self._after_request, sender=self.app)
+            signals.request_started.connect(self._request_started, sender=self.app)
+            signals.request_finished.connect(self._request_finished, sender=self.app)
+            signals.got_request_exception.connect(self._request_exception, sender=self.app)
+            signals.before_render_template.connect(self._template_started, sender=self.app)
+            signals.template_rendered.connect(self._template_done, sender=self.app)
         else:
-            if use_signals:
-                # if we want to use signals, warn the user that blinker isn't
-                # installed.
+            if self.use_signals: # warn the user that signals lib isn't installed
                 self.app.logger.warn(_blinker_not_installed_msg)
 
             # Fallback to using after request hook. Unfortunately, this won't
-            # handle errors.
+            # handle exceptions.
+            self.app.before_request(self._before_request)
             self.app.after_request(self._after_request)
+
+    # common methods
+
+    def _start_span(self):
+        try:
+            g.flask_datadog_span = self._tracer.trace(
+                "flask.request",
+                service=self._service,
+                span_type=http.TYPE,
+            )
+        except Exception:
+            self.app.logger.exception("error tracing request")
+
+    def _finish_span(self, response=None, exception=None):
+        """ Close and finsh the active span if it exists. """
+        span = getattr(g, 'flask_datadog_span', None)
+        if span:
+            error = 0
+            code = response.status_code if response else None
+
+            # if we didn't get a response, but we did get an exception, set
+            # codes accordingly.
+            if not response and exception:
+                error = 1
+                code = 500
+
+            span.resource = str(request.endpoint or "").lower()
+            span.set_tag(http.URL, str(request.base_url or ""))
+            span.set_tag(http.STATUS_CODE, code)
+            span.error = error
+            span.finish()
+            # Clear our span just in case.
+            g.flask_datadog_span = None
+
+    # Request hook methods
 
     def _before_request(self):
         """ Starts tracing the current request and stores it in the global
             request object.
         """
-        try:
-            g.flask_datadog_span = self._tracer.trace(
-                "flask.request",
-                service=self._service)
-        except Exception:
-            self.app.logger.exception("error tracing request")
+        self._start_span()
 
-    def _after_error(self, *args, **kwargs):
+    def _after_request(self, response):
+        """ handles a successful response. """
+        try:
+            self._finish_span(response=response)
+        except Exception:
+            self.app.logger.exception("error finishing trace")
+        finally:
+            return response
+
+    # signal handling methods
+
+    def _request_started(self, sender):
+        self._start_span()
+
+    def _request_finished(self, sender, response, **kwargs):
+        try:
+            self._finish_span(response=response)
+        except Exception:
+            self.app.logger.exception("error finishing trace")
+        return response
+
+    def _request_exception(self, *args, **kwargs):
         """ handles an error response. """
         exception = kwargs.pop("exception", None)
         try:
-            self._finish_span(exception)
+            self._finish_span(exception=exception)
         except Exception:
             self.app.logger.exception("error tracing error")
 
-    def _after_request(self, *args, **kwargs):
-        """ handles a successful response. """
+    def _template_started(self, sender, template, *args, **kwargs):
+        span = self._tracer.trace('flask.template')
         try:
-            self._finish_span()
-        except Exception:
-            self.app.logger.exception("error finishing trace")
+            span.set_tag("flask.template", template.name or "string")
+        finally:
+            g.flask_datadog_tmpl_span = span
 
-    def _finish_span(self, exception=None):
-        """ Close and finsh the active span if it exists. """
-        span = getattr(g, 'flask_datadog_span', None)
+    def _template_done(self, *arg, **kwargs):
+        span = getattr(g, 'flask_datadog_tmpl_span', None)
         if span:
-            span.resource = str(request.endpoint or "").lower()
-            span.set_tag("http.url", str(request.base_url or ""))
-            span.error = 1 if exception else 0
             span.finish()
-            g.flask_datadog_span = None
 
 _blinker_not_installed_msg = "please install blinker to use flask signals. http://flask.pocoo.org/docs/0.11/signals/"

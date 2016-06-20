@@ -15,6 +15,7 @@ class Span(object):
 
             service=None,
             resource=None,
+            span_type=None,
 
             trace_id=None,
             span_id=None,
@@ -32,6 +33,7 @@ class Span(object):
         self.name = name
         self.service = service
         self.resource = resource or name
+        self.span_type = span_type
 
         # tags / metatdata
         self.meta = {}
@@ -79,6 +81,9 @@ class Span(object):
         if self.meta:
             d['meta'] = self.meta
 
+        if self.span_type:
+            d['type'] = self.span_type
+
         return d
 
     def set_tag(self, key, value):
@@ -90,6 +95,10 @@ class Span(object):
             self.meta[key] = unicode(value)
         except Exception:
             log.warn("error setting tag. ignoring", exc_info=True)
+
+    def get_tag(self, key):
+        """ Return the given tag or None if it doesn't exist"""
+        return self.meta.get(key, None)
 
     def set_tags(self, tags):
         """ Set a dictionary of tags on the given span. Keys and values

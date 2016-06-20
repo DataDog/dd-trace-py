@@ -5,6 +5,9 @@ Tracing utilities for the psycopg potgres client library.
 # stdlib
 import functools
 
+from tracer.ext import net
+from tracer.ext import sql as sqlx
+
 # 3p
 from psycopg2.extensions import connection, cursor
 
@@ -40,7 +43,8 @@ class TracedCursor(cursor):
         with self._datadog_tracer.trace("postgres.query") as s:
             s.resource = query
             s.service = self._datadog_service
-            s.set_tag("sql.query", query)
+            s.span_type = sqlx.TYPE
+            s.set_tag(sqlx.QUERY, query)
             s.set_tags(self._datadog_tags)
             try:
                 return super(TracedCursor, self).execute(query, vars)
@@ -65,11 +69,11 @@ class TracedConnection(connection):
         # add metadata (from the connection, string, etc)
         dsn = _parse_dsn(self.dsn)
         self._datadog_tags = {
-            "out.host": dsn.get("host"),
+            net.TARGET_HOST: dsn.get("host"),
+            net.TARGET_PORT: dsn.get("port"),
             "db.name": dsn.get("dbname"),
             "db.user": dsn.get("user"),
-            "db.port": dsn.get("port"),
-            "db.application" : dsn.get("application"),
+            "db.application" : dsn.get("application_name"),
         }
 
         self._datadog_cursor_class = functools.partial(TracedCursor,

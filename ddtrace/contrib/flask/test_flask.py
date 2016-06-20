@@ -1,13 +1,15 @@
 
 import time
 import logging
+import os
 
-from flask import Flask
+from flask import Flask, render_template
 from nose.tools import eq_
 
 from tracer import Tracer
 from tracer.contrib.flask import TraceMiddleware
 from tracer.test_tracer import DummyWriter
+from tracer.ext import http
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +22,10 @@ class TestError(Exception): pass
 
 
 # define a toy flask app.
-app = Flask(__name__)
+cur_dir = os.path.dirname(os.path.realpath(__file__))
+tmpl_path = os.path.join(cur_dir, 'test_templates')
+
+app = Flask(__name__, template_folder=tmpl_path)
 
 @app.route('/')
 def index():
@@ -29,6 +34,19 @@ def index():
 @app.route('/error')
 def error():
     raise TestError()
+
+@app.route('/fatal')
+def fatal():
+    1/0
+
+@app.route('/tmpl')
+def tmpl():
+    return render_template('test.html', world="earth")
+
+@app.route('/tmpl/err')
+def tmpl_err():
+    return render_template('err.html')
+
 
 @app.route('/child')
 def child():
@@ -57,8 +75,7 @@ class TestFlask(object):
 
     def setUp(self):
         from nose.plugins.skip import SkipTest
-        raise SkipTest("matt")
-
+        raise SkipTest("fix deps")
         # ensure the last test didn't leave any trash
         spans = writer.pop()
         assert not spans, spans
@@ -116,6 +133,58 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), 200)
+
+    def test_template(self):
+        start = time.time()
+        rv = app.get('/tmpl')
+        end = time.time()
+
+        # ensure request worked
+        eq_(rv.status_code, 200)
+        eq_(rv.data, 'hello earth')
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        by_name = {s.name:s for s in spans}
+        s = by_name["flask.request"]
+        eq_(s.service, service)
+        eq_(s.resource, "tmpl")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), 200)
+
+        t = by_name["flask.template"]
+        eq_(t.get_tag("flask.template"), "test.html")
+        eq_(t.parent_id, s.span_id)
+        eq_(t.trace_id, s.trace_id)
+        assert s.start < t.start < t.start + t.duration < end
+
+    def test_template_err(self):
+        start = time.time()
+        try:
+            rv = app.get('/tmpl/err')
+        except Exception:
+            pass
+        else:
+            assert 0
+        end = time.time()
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        by_name = {s.name:s for s in spans}
+        s = by_name["flask.request"]
+        eq_(s.service, service)
+        eq_(s.resource, "tmpl_err")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 1)
+        eq_(s.meta.get(http.STATUS_CODE), 500)
 
     def test_error(self):
         start = time.time()
@@ -135,5 +204,29 @@ class TestFlask(object):
         eq_(s.resource, "error")
         assert s.start >= start
         assert s.duration <= end - start
+        eq_(s.meta.get(http.STATUS_CODE), 500)
 
+    def test_fatal(self):
+        if not traced_app.use_signals:
+            return
+
+        start = time.time()
+        try:
+            rv = app.get('/fatal')
+        except ZeroDivisionError:
+            pass
+        else:
+            assert 0
+        end = time.time()
+
+        # ensure the request was traced.
+        assert not tracer.current_span()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, service)
+        eq_(s.resource, "fatal")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.meta.get(http.STATUS_CODE), 500)
 
