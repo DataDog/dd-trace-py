@@ -1,5 +1,5 @@
 
-from dogtrace.reporter import AgentReporter
+from .reporter import AgentReporter
 
 
 class Writer(object):
