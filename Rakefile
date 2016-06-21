@@ -17,9 +17,7 @@ end
 
 task :clean do
   sh "python setup.py clean"
-  sh "rm -f *.whl"
-  sh "rm -rf dist"
-  sh "rm -rf *.egg-info"
+  sh "rm -rf *.whl dist *.egg-info build"
 end
 
 task :ci => [:clean, :test, :build]
