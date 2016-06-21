@@ -4,9 +4,9 @@ import time
 
 from nose.tools import eq_
 
-from tracer import Tracer
-from tracer.contrib.sqlite3 import connection_factory
-from tracer.test_tracer import DummyWriter
+from ... import Tracer
+from ...contrib.sqlite3 import connection_factory
+from ...test_tracer import DummyWriter
 
 def test_foo():
     writer = DummyWriter()

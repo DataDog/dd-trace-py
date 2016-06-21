@@ -3,10 +3,10 @@ import time
 
 from nose.tools import eq_
 
-from tracer import Tracer
-from tracer.contrib.pylons import PylonsTraceMiddleware
-from tracer.test_tracer import DummyWriter
-from tracer.ext import http
+from ... import Tracer
+from ...contrib.pylons import PylonsTraceMiddleware
+from ...test_tracer import DummyWriter
+from ...ext import http
 
 
 class FakeWSGIApp(object):

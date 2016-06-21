@@ -9,10 +9,10 @@ import httplib
 import logging
 import threading
 from time import sleep, time
-import ujson as json
 import os
 
-from compat import Queue
+# project
+from compat import Queue, json
 
 
 DEFAULT_TIMEOUT = 10

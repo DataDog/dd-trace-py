@@ -101,8 +101,11 @@ class Tracer(object):
         """ Submit the given spans to the agent. """
         if spans:
             if self.debug_logging:
-                log.info("submitting %s spans", len(spans))
+                log.debug("submitting %s spans", len(spans))
                 for span in spans:
-                    log.info("\n%s" % span.pprint())
+                    log.debug("\n%s" % span.pprint())
 
             self._writer.write(spans)
+
+
+

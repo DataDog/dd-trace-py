@@ -120,6 +120,7 @@ class Span(object):
             ("parent_id", self.parent_id),
             ("service", self.service),
             ("resource", self.resource),
+            ('type', self.span_type),
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", self.duration),

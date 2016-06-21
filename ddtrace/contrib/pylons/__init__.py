@@ -1,6 +1,6 @@
 import logging
 
-from tracer.ext import http
+from ...ext import http
 
 log = logging.getLogger(__name__)
 

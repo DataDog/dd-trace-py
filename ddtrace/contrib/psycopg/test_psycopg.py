@@ -1,15 +1,18 @@
 import time
 
-import psycopg2
 from nose.tools import eq_
 from nose.plugins.skip import SkipTest
 
-from tracer import Tracer
-from tracer.contrib.psycopg import connection_factory
-from tracer.test_tracer import DummyWriter
+from ... import Tracer
+from ...contrib.psycopg import connection_factory
+from ...test_tracer import DummyWriter
 
 def test_wrap():
-    raise SkipTest("matt")
+
+    try:
+        import psycopg2
+    except ImportError:
+        raise SkipTest("missing psycopg")
 
     writer = DummyWriter()
     tracer = Tracer(writer=writer)
