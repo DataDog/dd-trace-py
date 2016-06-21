@@ -1,8 +1,4 @@
 
-task :test do
-  sh "nosetests"
-end
-
 task :build do
   sh "pip wheel ./"
 end
