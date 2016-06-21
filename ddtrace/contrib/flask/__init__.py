@@ -119,6 +119,7 @@ class TraceMiddleware(object):
     def _template_started(self, sender, template, *args, **kwargs):
         span = self._tracer.trace('flask.template')
         try:
+            span.span_type = http.TEMPLATE
             span.set_tag("flask.template", template.name or "string")
         finally:
             g.flask_datadog_tmpl_span = span
