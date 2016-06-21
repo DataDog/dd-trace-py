@@ -104,5 +104,6 @@ class Tracer(object):
                 log.info("submitting %s spans", len(spans))
                 for span in spans:
                     log.info("\n%s" % span.pprint())
+                    print span.pprint()
 
             self._writer.write(spans)

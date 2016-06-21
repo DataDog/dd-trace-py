@@ -4,12 +4,21 @@ Tracing utilities for the psycopg potgres client library.
 
 # stdlib
 import functools
+import logging
 
-from tracer.ext import net
-from tracer.ext import sql as sqlx
+from ...ext import net
+from ...ext import sql as sqlx
 
 # 3p
-from psycopg2.extensions import connection, cursor
+_installed = False
+try:
+    from psycopg2.extensions import connection, cursor
+    _installed = True
+except ImportError:
+    connection, cursor = object, object
+
+
+log = logging.getLogger(__name__)
 
 
 def connection_factory(tracer, service="postgres"):
@@ -19,6 +28,10 @@ def connection_factory(tracer, service="postgres"):
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = pyscopg2.connect(..., connection_factory=factory)
     """
+    if not _installed:
+        log.info("missing psycopg import")
+        return None
+
     return functools.partial(TracedConnection,
         datadog_tracer=tracer,
         datadog_service=service,

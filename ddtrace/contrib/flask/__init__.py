@@ -10,7 +10,7 @@ import time
 import logging
 
 # project
-from tracer.ext import http
+from ...ext import http
 
 # 3p
 from flask import g, request, signals
@@ -20,6 +20,7 @@ class TraceMiddleware(object):
 
     def __init__(self, app, tracer, service="flask", use_signals=True):
         self.app = app
+        self.app.logger.info("initializing trace middleware")
 
         # save our traces.
         self._tracer = tracer
@@ -30,6 +31,7 @@ class TraceMiddleware(object):
         if self.use_signals and signals.signals_available:
             # if we're using signals, and things are correctly installed, use
             # signal hooks to track the responses.
+            self.app.logger.info("connecting trace signals")
             signals.request_started.connect(self._request_started, sender=self.app)
             signals.request_finished.connect(self._request_finished, sender=self.app)
             signals.got_request_exception.connect(self._request_exception, sender=self.app)
@@ -37,7 +39,7 @@ class TraceMiddleware(object):
             signals.template_rendered.connect(self._template_done, sender=self.app)
         else:
             if self.use_signals: # warn the user that signals lib isn't installed
-                self.app.logger.warn(_blinker_not_installed_msg)
+                self.app.logger.info(_blinker_not_installed_msg)
 
             # Fallback to using after request hook. Unfortunately, this won't
             # handle exceptions.

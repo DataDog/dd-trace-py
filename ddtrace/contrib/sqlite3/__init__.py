@@ -2,7 +2,7 @@
 import functools
 
 from sqlite3 import Connection, Cursor
-from tracer.ext import sql as sqlx
+from ...ext import sql as sqlx
 
 
 def connection_factory(tracer, service="sqlite3"):
