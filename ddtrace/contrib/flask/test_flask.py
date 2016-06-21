@@ -74,8 +74,6 @@ app = app.test_client()
 class TestFlask(object):
 
     def setUp(self):
-        from nose.plugins.skip import SkipTest
-        raise SkipTest("fix deps")
         # ensure the last test didn't leave any trash
         spans = writer.pop()
         assert not spans, spans
@@ -133,7 +131,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.error, 0)
-        eq_(s.meta.get(http.STATUS_CODE), 200)
+        eq_(s.meta.get(http.STATUS_CODE), '200')
 
     def test_template(self):
         start = time.time()
@@ -155,7 +153,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.error, 0)
-        eq_(s.meta.get(http.STATUS_CODE), 200)
+        eq_(s.meta.get(http.STATUS_CODE), '200')
 
         t = by_name["flask.template"]
         eq_(t.get_tag("flask.template"), "test.html")
@@ -184,7 +182,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.error, 1)
-        eq_(s.meta.get(http.STATUS_CODE), 500)
+        eq_(s.meta.get(http.STATUS_CODE), '500')
 
     def test_error(self):
         start = time.time()
@@ -204,7 +202,7 @@ class TestFlask(object):
         eq_(s.resource, "error")
         assert s.start >= start
         assert s.duration <= end - start
-        eq_(s.meta.get(http.STATUS_CODE), 500)
+        eq_(s.meta.get(http.STATUS_CODE), '500')
 
     def test_fatal(self):
         if not traced_app.use_signals:
@@ -228,5 +226,5 @@ class TestFlask(object):
         eq_(s.resource, "fatal")
         assert s.start >= start
         assert s.duration <= end - start
-        eq_(s.meta.get(http.STATUS_CODE), 500)
+        eq_(s.meta.get(http.STATUS_CODE), '500')
 
