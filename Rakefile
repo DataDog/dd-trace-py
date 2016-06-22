@@ -17,7 +17,7 @@ end
 
 task :clean do
   sh "python setup.py clean"
-  sh "rm -rf *.whl dist *.egg-info build"
+  sh "rm -rf *.whl dist *.egg-info build *egg wheelhouse"
 end
 
 task :upload do
