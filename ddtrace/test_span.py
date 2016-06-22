@@ -64,7 +64,7 @@ def test_traceback_with_error():
     except ZeroDivisionError:
         s.set_traceback()
     else:
-        pass
+        assert 0, "should have failed"
 
     assert s.error
     assert 'by zero' in s.get_tag(errors.ERROR_MSG)
