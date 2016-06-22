@@ -79,14 +79,17 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource, "PUT /%s/%s/(id)" % (self.ES_INDEX, self.ES_TYPE))
 
         # Search data
-        es.search(index=self.ES_INDEX, doc_type=self.ES_TYPE, body={"query":{"match_all":{}}})
+        es.search(index=self.ES_INDEX, doc_type=self.ES_TYPE, sort=['name:desc'], size=100, body={"query":{"match_all":{}}})
 
         spans = writer.pop()
         assert spans
         eq_(len(spans), 1)
         span = spans[0]
+        eq_(span.resource, "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
         eq_(span.get_tag(metadata.URL), "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.resource, "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
+        eq_(span.get_tag(metadata.PARAMS), 'sort=name%3Adesc&size=100')
+        eq_(span.get_tag(metadata.BODY), '{"query":{"match_all":{}}}')
+
         self.assertTrue(int(span.get_tag(metadata.TOOK)) > 0)
 

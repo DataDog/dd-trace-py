@@ -5,6 +5,7 @@ except ImportError:
 
 from .quantize import quantize
 from . import metadata
+from ...compat import json, urlencode
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
@@ -29,6 +30,10 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.span_type = SPAN_TYPE
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)
+                s.set_tag(metadata.PARAMS, urlencode(params))
+                if method == "GET":
+                    s.set_tag(metadata.BODY, json.dumps(body))
+
                 s = quantize(s)
 
                 try:
