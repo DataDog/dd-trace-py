@@ -3,12 +3,12 @@ from . import metadata
 
 # Replace any ID
 ID_REGEXP = re.compile(r'/([0-9]+)([/\?]|$)')
-ID_PLACEHOLDER = r'/(id)\2'
+ID_PLACEHOLDER = r'/?\2'
 
 # Remove digits from potential timestamped indexes (should be an option).
 # For now, let's say 2+ digits
 INDEX_REGEXP = re.compile(r'[0-9]{2,}')
-INDEX_PLACEHOLDER = r'(d)'
+INDEX_PLACEHOLDER = r'?'
 
 def quantize(span):
     """Quantize an elasticsearch span
