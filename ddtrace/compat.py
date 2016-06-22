@@ -11,3 +11,8 @@ except ImportError:
         import simplejson as json
     except ImportError:
         import json
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO

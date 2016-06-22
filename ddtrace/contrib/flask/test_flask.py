@@ -9,7 +9,7 @@ from nose.tools import eq_
 from ... import Tracer
 from ...contrib.flask import TraceMiddleware
 from ...test_tracer import DummyWriter
-from ...ext import http
+from ...ext import http, errors
 
 log = logging.getLogger(__name__)
 
@@ -227,4 +227,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.meta.get(http.STATUS_CODE), '500')
+        assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE)
+        msg = s.meta.get(errors.ERROR_MSG)
+        assert "integer division" in msg, msg
 

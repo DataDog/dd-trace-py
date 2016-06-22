@@ -10,7 +10,7 @@ import time
 import logging
 
 # project
-from ...ext import http
+from ...ext import http, errors
 
 # 3p
 from flask import g, request, signals
@@ -70,6 +70,8 @@ class TraceMiddleware(object):
             if not response and exception:
                 error = 1
                 code = 500
+                span.set_tag(errors.ERROR_TYPE, type(exception))
+                span.set_tag(errors.ERROR_MSG, exception)
 
             span.resource = str(request.endpoint or "").lower()
             span.set_tag(http.URL, str(request.base_url or ""))

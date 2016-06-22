@@ -31,9 +31,9 @@ class PylonsTraceMiddleware(object):
 
         try:
             return self.app(environ, _start_response)
-        except Exception as e:
+        except Exception:
             if span:
-                span.error = 1
+                span.set_traceback()
             raise
         finally:
             if not span:

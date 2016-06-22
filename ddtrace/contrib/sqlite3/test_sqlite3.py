@@ -7,6 +7,7 @@ from nose.tools import eq_
 from ... import Tracer
 from ...contrib.sqlite3 import connection_factory
 from ...test_tracer import DummyWriter
+from ...ext import errors
 
 def test_foo():
     writer = DummyWriter()
@@ -57,3 +58,8 @@ def test_foo():
         eq_(span.meta["sql.query"], q)
         eq_(span.error, 1)
         eq_(span.span_type, "sql")
+        assert span.get_tag(errors.ERROR_STACK)
+        assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
+        assert 'no such table' in span.get_tag(errors.ERROR_MSG)
+
+
