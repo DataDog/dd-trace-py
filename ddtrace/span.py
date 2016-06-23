@@ -1,7 +1,12 @@
 
+from compat import StringIO
 import logging
 import random
+import sys
 import time
+import traceback
+
+from .ext import errors
 
 
 log = logging.getLogger(__name__)
@@ -112,6 +117,39 @@ class Span(object):
     set_meta = set_tag
     set_metas = set_tags
 
+    def set_traceback(self):
+        """ If the current stack has a traceback, tag the span with the
+            relevant error info.
+
+            >>> span.set_traceback()
+
+            is equivalent to:
+
+            >>> exc = sys.exc_info()
+            >>> span.set_exc_info(*exc)
+        """
+        (exc_type, exc_val, exc_tb) = sys.exc_info()
+        self.set_exc_info(exc_type, exc_val, exc_tb)
+
+    def set_exc_info(self, exc_type, exc_val, exc_tb):
+        """ Tag the span with an error tuple as from `sys.exc_info()`. """
+        if not (exc_type and exc_val and exc_tb):
+            return # nothing to do
+
+        self.error = 1
+
+        # get the traceback
+        buff = StringIO()
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
+        tb = buff.getvalue()
+
+        # readable version of type (e.g. exceptions.ZeroDivisionError)
+        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
+
+        self.set_tag(errors.ERROR_MSG, exc_val)
+        self.set_tag(errors.ERROR_TYPE, exc_type_str)
+        self.set_tag(errors.ERROR_STACK, tb)
+
     def pprint(self):
         """ Return a human readable version of the span. """
         lines = [
@@ -133,10 +171,12 @@ class Span(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self.error = 1
-            # FIXME[matt] store traceback info
-        self.finish()
+        try:
+            if exc_type:
+                self.set_exc_info(exc_type, exc_val, exc_tb)
+            self.finish()
+        except Exception:
+            log.exception("error closing trace")
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

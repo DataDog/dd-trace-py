@@ -3,6 +3,7 @@ import time
 from nose.tools import eq_
 
 from .span import Span
+from .ext import errors
 
 
 def test_ids():
@@ -56,6 +57,28 @@ def test_finish():
     s2 = Span(tracer=None, name="foo")
     s2.finish()
 
+def test_traceback_with_error():
+    s = Span(None, "foo")
+    try:
+        1/0
+    except ZeroDivisionError:
+        s.set_traceback()
+    else:
+        assert 0, "should have failed"
+
+    assert s.error
+    assert 'by zero' in s.get_tag(errors.ERROR_MSG)
+    eq_("exceptions.ZeroDivisionError", s.get_tag(errors.ERROR_TYPE))
+    assert s.get_tag(errors.ERROR_STACK)
+
+def test_traceback_without_error():
+    s = Span(None, "foo")
+    s.set_traceback()
+    assert not s.error
+    assert not s.get_tag(errors.ERROR_MSG)
+    assert not s.get_tag(errors.ERROR_TYPE)
+    assert not s.get_tag(errors.ERROR_STACK)
+
 def test_ctx_mgr():
     dt = DummyTracer()
     s = Span(dt, "bar")
@@ -71,6 +94,10 @@ def test_ctx_mgr():
         eq_(out, e)
         assert s.duration > 0, s.duration
         assert s.error
+        eq_(s.get_tag(errors.ERROR_MSG), "boo")
+        assert "Exception" in s.get_tag(errors.ERROR_TYPE)
+        assert s.get_tag(errors.ERROR_STACK)
+
     else:
         assert 0, "should have failed"
 
