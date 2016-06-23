@@ -19,6 +19,7 @@ setup(
     packages=[
         'ddtrace',
         'ddtrace.contrib',
+        'ddtrace.contrib.elasticsearch',
         'ddtrace.contrib.flask',
         'ddtrace.contrib.psycopg',
         'ddtrace.contrib.pylons',
