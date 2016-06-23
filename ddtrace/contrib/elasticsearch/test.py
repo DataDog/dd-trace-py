@@ -28,7 +28,7 @@ class ElasticsearchTest(unittest.TestCase):
     def setUp(self):
         """Prepare ES"""
         if not elasticsearch:
-            unittest.SkipTest("elasticsearch module isn't available")
+            self.SkipTest("elasticsearch module isn't available")
 
         es = elasticsearch.Elasticsearch()
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
