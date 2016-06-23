@@ -135,6 +135,7 @@ class Span(object):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
             return # nothing to do
+
         self.error = 1
 
         # get the traceback
@@ -142,8 +143,11 @@ class Span(object):
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
         tb = buff.getvalue()
 
+        # readable version of type (e.g. exceptions.ZeroDivisionError)
+        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
+
         self.set_tag(errors.ERROR_MSG, exc_val)
-        self.set_tag(errors.ERROR_TYPE, exc_type)
+        self.set_tag(errors.ERROR_TYPE, exc_type_str)
         self.set_tag(errors.ERROR_STACK, tb)
 
     def pprint(self):
