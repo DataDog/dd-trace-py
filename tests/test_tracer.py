@@ -5,7 +5,7 @@ tests for Tracer and utilities.
 import time
 from nose.tools import eq_
 
-from .tracer import Tracer
+from ddtrace.tracer import Tracer
 
 
 def test_tracer_vars():

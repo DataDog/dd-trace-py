@@ -1,11 +1,14 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 tests_require = [
     'nose',
-    #'psycopg2',
-    #'sqlite3'
     'flask',
     'blinker',
+
+    # Not installed as long as we don't hace a proper CI setup
+    #'psycopg2',
+    #'sqlite3',
+    #'elasticsearch'.
 ]
 
 setup(
@@ -16,16 +19,7 @@ setup(
     author='Datadog, Inc.',
     author_email='dev@datadoghq.com',
     license='BSD',
-    packages=[
-        'ddtrace',
-        'ddtrace.contrib',
-        'ddtrace.contrib.elasticsearch',
-        'ddtrace.contrib.flask',
-        'ddtrace.contrib.psycopg',
-        'ddtrace.contrib.pylons',
-        'ddtrace.contrib.sqlite3',
-        'ddtrace.ext',
-    ],
+    packages=find_packages(exclude=['tests*']),
     tests_require=tests_require,
     test_suite="nose.collector",
 )

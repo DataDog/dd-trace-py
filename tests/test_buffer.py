@@ -1,10 +1,9 @@
-
 import random
 import threading
 
 from nose.tools import eq_
 
-from .buffer import ThreadLocalSpanBuffer
+from ddtrace.buffer import ThreadLocalSpanBuffer
 
 
 def _get_test_span():

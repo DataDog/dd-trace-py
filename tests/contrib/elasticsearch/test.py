@@ -7,11 +7,11 @@ try:
 except ImportError:
     elasticsearch = None
 
-from . import metadata
-from .transport import get_traced_transport
-from ...tracer import Tracer
-from ...test_tracer import DummyWriter
+from ddtrace.contrib.elasticsearch import metadata
+from ddtrace.contrib.elasticsearch import get_traced_transport
+from ddtrace.tracer import Tracer
 
+from ...test_tracer import DummyWriter
 
 
 class ElasticsearchTest(unittest.TestCase):
@@ -28,7 +28,7 @@ class ElasticsearchTest(unittest.TestCase):
     def setUp(self):
         """Prepare ES"""
         if not elasticsearch:
-            self.SkipTest("elasticsearch module isn't available")
+            raise unittest.SkipTest("elasticsearch module isn't available")
 
         es = elasticsearch.Elasticsearch()
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])

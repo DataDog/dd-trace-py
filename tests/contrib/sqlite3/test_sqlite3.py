@@ -4,10 +4,11 @@ import time
 
 from nose.tools import eq_
 
-from ... import Tracer
-from ...contrib.sqlite3 import connection_factory
+from ddtrace import Tracer
+from ddtrace.contrib.sqlite3 import connection_factory
+from ddtrace.ext import errors
+
 from ...test_tracer import DummyWriter
-from ...ext import errors
 
 def test_foo():
     writer = DummyWriter()

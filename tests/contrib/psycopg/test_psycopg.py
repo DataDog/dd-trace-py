@@ -3,9 +3,11 @@ import time
 from nose.tools import eq_
 from nose.plugins.skip import SkipTest
 
-from ... import Tracer
-from ...contrib.psycopg import connection_factory
+from ddtrace import Tracer
+from ddtrace.contrib.psycopg import connection_factory
+
 from ...test_tracer import DummyWriter
+
 
 def test_wrap():
 

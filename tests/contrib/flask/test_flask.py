@@ -6,10 +6,11 @@ import os
 from flask import Flask, render_template
 from nose.tools import eq_
 
-from ... import Tracer
-from ...contrib.flask import TraceMiddleware
+from ddtrace import Tracer
+from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.ext import http, errors
+
 from ...test_tracer import DummyWriter
-from ...ext import http, errors
 
 log = logging.getLogger(__name__)
 

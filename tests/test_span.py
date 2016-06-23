@@ -2,8 +2,8 @@ import time
 
 from nose.tools import eq_
 
-from .span import Span
-from .ext import errors
+from ddtrace.span import Span
+from ddtrace.ext import errors
 
 
 def test_ids():
