@@ -76,7 +76,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
         eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
-        eq_(span.resource, "PUT /%s/%s/(id)" % (self.ES_INDEX, self.ES_TYPE))
+        eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
         # Search data
         es.search(index=self.ES_INDEX, doc_type=self.ES_TYPE, sort=['name:desc'], size=100, body={"query":{"match_all":{}}})
