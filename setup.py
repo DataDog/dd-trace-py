@@ -10,7 +10,7 @@ tests_require = [
 
 setup(
     name='ddtrace',
-    version='0.1.3',
+    version='0.1.4',
     description='Datadog tracing code',
     url='https://github.com/DataDog/dd-trace-py',
     author='Datadog, Inc.',
