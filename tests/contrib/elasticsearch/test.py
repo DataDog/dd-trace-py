@@ -88,8 +88,8 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource, "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
         eq_(span.get_tag(metadata.URL), "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.get_tag(metadata.PARAMS), 'sort=name%3Adesc&size=100')
-        eq_(span.get_tag(metadata.BODY), '{"query":{"match_all":{}}}')
+        eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
+        eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
         self.assertTrue(int(span.get_tag(metadata.TOOK)) > 0)
 
