@@ -1,11 +1,10 @@
-
-from compat import StringIO
 import logging
 import random
 import sys
 import time
 import traceback
 
+from .compat import StringIO, stringify
 from .ext import errors
 
 
@@ -97,9 +96,9 @@ class Span(object):
             be ignored.
         """
         try:
-            self.meta[key] = unicode(value)
+            self.meta[key] = stringify(value)
         except Exception:
-            log.warn("error setting tag. ignoring", exc_info=True)
+            log.warning("error setting tag. ignoring", exc_info=True)
 
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist"""
@@ -110,7 +109,7 @@ class Span(object):
             must be strings (or stringable)
         """
         if tags:
-            for k, v in tags.iteritems():
+            for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
     # backwards compatilibility, kill this

@@ -68,7 +68,7 @@ def test_traceback_with_error():
 
     assert s.error
     assert 'by zero' in s.get_tag(errors.ERROR_MSG)
-    eq_("exceptions.ZeroDivisionError", s.get_tag(errors.ERROR_TYPE))
+    assert "ZeroDivisionError" in s.get_tag(errors.ERROR_TYPE)
     assert s.get_tag(errors.ERROR_STACK)
 
 def test_traceback_without_error():
