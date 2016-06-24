@@ -5,10 +5,7 @@ tests_require = [
     'flask',
     'blinker',
     'elasticsearch',
-
-    # Not installed as long as we don't hace a proper CI setup
-    #'psycopg2',
-    #'sqlite3',
+    'psycopg2',
 ]
 
 setup(

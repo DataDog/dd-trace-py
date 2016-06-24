@@ -20,11 +20,11 @@ def test_wrap():
     tracer = Tracer(writer=writer)
 
     params = {
-        'host' : 'localhost',
-        'port' : 5432,
-        'user' : 'dog',
-        'password' :'dog',
-        'dbname' : 'dogdata',
+        'host': 'localhost',
+        'port': 5432,
+        'user': 'test',
+        'password':'test',
+        'dbname': 'test',
     }
 
     services = ["db", "another"]
