@@ -22,7 +22,7 @@ class CassandraTest(unittest.TestCase):
         if not Cluster:
             raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
 
-        self.cluster = Cluster(port=9040)
+        self.cluster = Cluster(port=9042)
         session = self.cluster.connect()
         session.execute("""CREATE KEYSPACE test WITH REPLICATION = {
             'class' : 'SimpleStrategy',
@@ -59,7 +59,7 @@ class CassandraTest(unittest.TestCase):
         eq_(span.service, "cassandra")
         eq_(span.resource, self.TEST_QUERY)
         eq_(span.get_tag("keyspace"), self.TEST_KEYSPACE)
-        eq_(span.get_tag("port"), "9040")
+        eq_(span.get_tag("port"), "9042")
         eq_(span.get_tag("db.rowcount"), "1")
         eq_(span.get_tag("out.host"), "127.0.0.1")
 
@@ -72,7 +72,7 @@ class CassandraTest(unittest.TestCase):
 
         import cassandra.cluster
         trace_cassandra(cassandra.cluster, tracer)
-        session = Cluster(port=9040).connect("test")
+        session = Cluster(port=9042).connect("test")
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
 
@@ -89,7 +89,7 @@ class CassandraTest(unittest.TestCase):
         eq_(query.service, "cassandra")
         eq_(query.resource, self.TEST_QUERY)
         eq_(query.get_tag("keyspace"), self.TEST_KEYSPACE)
-        eq_(query.get_tag("port"), "9040")
+        eq_(query.get_tag("port"), "9042")
         eq_(query.get_tag("db.rowcount"), "1")
         eq_(query.get_tag("out.host"), "127.0.0.1")
 

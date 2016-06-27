@@ -9,6 +9,7 @@ dependencies:
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3
+    - docker run -d -p 9042:9042 cassandra:3
     - docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_USER=test -e POSTGRES_DB=test postgres:9.5
     - python2.7 setup.py test
     - python3.4 setup.py test
