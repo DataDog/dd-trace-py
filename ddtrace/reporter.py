@@ -5,14 +5,14 @@ The asnyc HTTPReporter is taken from raven.transport.threaded.
 """
 
 import atexit
-import httplib
+from .compat import httplib
 import logging
 import threading
 from time import sleep, time
 import os
 
 # project
-from compat import Queue, json
+from .compat import Queue, json
 
 
 DEFAULT_TIMEOUT = 10

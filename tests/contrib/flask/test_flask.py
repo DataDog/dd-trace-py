@@ -6,10 +6,11 @@ import os
 from flask import Flask, render_template
 from nose.tools import eq_
 
-from ... import Tracer
-from ...contrib.flask import TraceMiddleware
+from ddtrace import Tracer
+from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.ext import http, errors
+
 from ...test_tracer import DummyWriter
-from ...ext import http, errors
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def handle_my_exception(e):
 # add tracing to the app (we use a global app to help ensure multiple requests
 # work)
 service = "test.flask.service"
-assert not writer.pop() # should always be empty
+assert not writer.pop()  # should always be empty
 traced_app = TraceMiddleware(app, tracer, service=service)
 
 # make the app testable
@@ -76,8 +77,6 @@ class TestFlask(object):
     def setUp(self):
         # ensure the last test didn't leave any trash
         spans = writer.pop()
-        assert not spans, spans
-        assert not tracer.current_span(), tracer.current_span()
 
     def test_child(self):
         start = time.time()
@@ -85,7 +84,7 @@ class TestFlask(object):
         end = time.time()
         # ensure request worked
         eq_(rv.status_code, 200)
-        eq_(rv.data, 'child')
+        eq_(rv.data, b'child')
         # ensure trace worked
         spans = writer.pop()
         eq_(len(spans), 2)
@@ -119,7 +118,7 @@ class TestFlask(object):
 
         # ensure request worked
         eq_(rv.status_code, 200)
-        eq_(rv.data, 'hello')
+        eq_(rv.data, b'hello')
 
         # ensure trace worked
         assert not tracer.current_span(), tracer.current_span().pprint()
@@ -140,7 +139,7 @@ class TestFlask(object):
 
         # ensure request worked
         eq_(rv.status_code, 200)
-        eq_(rv.data, 'hello earth')
+        eq_(rv.data, b'hello earth')
 
         # ensure trace worked
         assert not tracer.current_span(), tracer.current_span().pprint()
@@ -191,7 +190,7 @@ class TestFlask(object):
 
         # ensure the request itself worked
         eq_(rv.status_code, 500)
-        eq_(rv.data, 'error')
+        eq_(rv.data, b'error')
 
         # ensure the request was traced.
         assert not tracer.current_span()
@@ -229,5 +228,5 @@ class TestFlask(object):
         eq_(s.meta.get(http.STATUS_CODE), '500')
         assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE)
         msg = s.meta.get(errors.ERROR_MSG)
-        assert "integer division" in msg, msg
+        assert "by zero" in msg, msg
 

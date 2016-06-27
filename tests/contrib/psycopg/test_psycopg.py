@@ -1,65 +1,77 @@
-
-import sqlite3
 import time
 
 from nose.tools import eq_
+from nose.plugins.skip import SkipTest
 
-from ... import Tracer
-from ...contrib.sqlite3 import connection_factory
+from ddtrace import Tracer
+from ddtrace.contrib.psycopg import connection_factory
+
 from ...test_tracer import DummyWriter
-from ...ext import errors
 
-def test_foo():
+
+def test_wrap():
+
+    try:
+        import psycopg2
+    except ImportError:
+        raise SkipTest("missing psycopg")
+
     writer = DummyWriter()
     tracer = Tracer(writer=writer)
 
-    # ensure we can trace multiple services without stomping
+    params = {
+        'host': 'localhost',
+        'port': 5432,
+        'user': 'test',
+        'password':'test',
+        'dbname': 'test',
+    }
 
     services = ["db", "another"]
     for service in services:
         conn_factory = connection_factory(tracer, service=service)
-        db = sqlite3.connect(":memory:", factory=conn_factory)
+        db = psycopg2.connect(connection_factory=conn_factory, **params)
 
         # Ensure we can run a query and it's correctly traced
-        q = "select * from sqlite_master"
+        q = "select 'foobarblah'"
         start = time.time()
-        cursor = db.execute(q)
+        cursor = db.cursor()
+        cursor.execute(q)
         rows = cursor.fetchall()
         end = time.time()
-        assert not rows
+        eq_(rows, [('foobarblah',)])
+        assert rows
         spans = writer.pop()
         assert spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, "sqlite3.query")
-        eq_(span.span_type, "sql")
+        eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
         eq_(span.error, 0)
+        eq_(span.span_type, "sql")
         assert start <= span.start <= end
         assert span.duration <= end - start
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
+        cur = db.cursor()
         try:
-            db.execute(q)
+            cur.execute(q)
         except Exception:
             pass
         else:
             assert 0, "should have an error"
         spans = writer.pop()
-        assert spans
+        assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, "sqlite3.query")
+        eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
         eq_(span.error, 1)
+        eq_(span.meta["out.host"], 'localhost')
+        eq_(span.meta["out.port"], '5432')
         eq_(span.span_type, "sql")
-        assert span.get_tag(errors.ERROR_STACK)
-        assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
-        assert 'no such table' in span.get_tag(errors.ERROR_MSG)
-
-
