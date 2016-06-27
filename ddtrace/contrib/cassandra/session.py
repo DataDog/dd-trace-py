@@ -9,89 +9,65 @@ import logging
 
 
 # project
+from ...compat import stringify
 from ...util import deep_getattr, safe_patch
+from ...ext import net as netx, cass as cassx
 
 # 3p
-_installed = False
-try:
-    from cassandra.cluster import Session as session
-    _installed = True
-except ImportError:
-    session = object
+from cassandra.cluster import Session
 
 
 log = logging.getLogger(__name__)
+
 RESOURCE_MAX_LENGTH=5000
+DEFAULT_SERVICE = "cassandra"
 
 
-def trace(cassandra, tracer, service="cassandra", meta=None):
-    """ Trace synchronous cassandra commands by patching the client """
-    if inspect.ismodule(cassandra) and deep_getattr(cassandra, "Session.execute"):
-        log.debug("Patching cassandra Session class")
-        cassandra.Session = functools.partial(
-            TracedSession,
-            datadog_tracer=tracer,
-            datadog_service=service,
-            datadog_tags=meta,
-        )
-    elif hasattr(cassandra, "execute"):
-        log.debug("Patching cassandra Session instance")
-        safe_patch(cassandra, "execute", patch_execute, service, meta, tracer)
+def get_traced_cassandra(tracer, service=DEFAULT_SERVICE, meta=None):
+    return _get_traced_cluster(cassandra.cluster, tracer, service, meta
 
 
-class TracedSession(session):
+def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
+    """ Trace synchronous cassandra commands by patching the Session class """
+    class TracedSession(Session):
 
-    def __init__(self, *args, **kwargs):
-        self._datadog_tracer = kwargs.pop("datadog_tracer", None)
-        self._datadog_service = kwargs.pop("datadog_service", None)
-        self._datadog_tags = kwargs.pop("datadog_tags", None)
-        super(TracedSession, self).__init__(*args, **kwargs)
+        def __init__(self, *args, **kwargs):
+            self._datadog_tracer = kwargs.pop("datadog_tracer", None)
+            self._datadog_service = kwargs.pop("datadog_service", None)
+            self._datadog_tags = kwargs.pop("datadog_tags", None)
+            super(TracedSession, self).__init__(*args, **kwargs)
 
-    def execute(self, query, *args, **options):
-        if not self._datadog_tracer:
-            return session.execute(query, *args, **options)
+        def execute(self, query, *args, **options):
+            if not self._datadog_tracer:
+                return session.execute(query, *args, **options)
 
-        with self._datadog_tracer.trace("cassandra.query", service=self._datadog_service) as span:
-            query_string = _sanitize_query(query)
-            span.resource = query_string
+            with self._datadog_tracer.trace("cassandra.query", service=self._datadog_service) as span:
+                query_string = _sanitize_query(query)
+                span.resource = query_string
 
-            span.set_tag("query", query_string)
+                span.set_tags(_extract_session_metas(self))
+                cluster = getattr(self, "cluster", None)
+                span.set_tags(_extract_cluster_metas(cluster))
 
-            span.set_tags(_extract_session_metas(self))
-            cluster = getattr(self, "cluster", None)
-            span.set_tags(_extract_cluster_metas(cluster))
+                result = None
+                try:
+                    result = super(TracedSession, self).execute(query, *args, **options)
+                    return result
+                finally:
+                    span.set_tags(_extract_result_metas(result))
 
-            result = None
-            try:
-                result = super(TracedSession, self).execute(query, *args, **options)
-                return result
-            finally:
-                span.set_tags(_extract_result_metas(result))
+    class TracedCluster(cassandra.Cluster):
 
+        def connect():
+            cassandra.Session = functools.partial(
+                TracedSession,
+                datadog_tracer=tracer,
+                datadog_service=service,
+                datadog_tags=meta,
+            )
+            return super(TracedCluster, self).connect()
 
-def patch_execute(orig_command, service, meta, tracer):
-    log.debug("Patching cassandra.Session.execute call for service %s", service)
-
-    def traced_execute_command(self, query, *args, **options):
-        with tracer.trace("cassandra.query", service=service) as span:
-            query_string = _sanitize_query(query)
-
-            span.resource = query_string
-            span.set_tag("query", query_string)
-
-            span.set_tags(_extract_session_metas(self))
-            cluster = getattr(self, "cluster", None)
-            span.set_tags(_extract_cluster_metas(cluster))
-
-            result = None
-            try:
-                result = orig_command(self, query, *args, **options)
-                return result
-            finally:
-                span.set_tags(_extract_result_metas(result))
-
-    return traced_execute_command
-
+    return TracedCluster
 
 def _extract_session_metas(session):
     metas = {}
@@ -101,7 +77,7 @@ def _extract_session_metas(session):
         # e.g. "Select * from trace.hash_to_resource"
         # currently we don't account for this, which is probably fine
         # since the keyspace info is contained in the query even if the metadata disagrees
-        metas["keyspace"] = session.keyspace.lower()
+        metas[cassx.KEYSPACE] = session.keyspace.lower()
 
     return metas
 
@@ -109,17 +85,15 @@ def _extract_cluster_metas(cluster):
     metas = {}
     if deep_getattr(cluster, "metadata.cluster_name"):
         metas["cluster_name"] = cluster.metadata.cluster_name
-        # Needed for hostname grouping
-        metas["out.section"] = cluster.metadata.cluster_name
 
     if getattr(cluster, "port", None):
-        metas["port"] = cluster.port
+        metas[netx.TARGET_PORT] = cluster.port
 
     if getattr(cluster, "contact_points", None):
         metas["contact_points"] = cluster.contact_points
         # Use the first contact point as a persistent host
         if isinstance(cluster.contact_points, list) and len(cluster.contact_points) > 0:
-            metas["out.host"] = cluster.contact_points[0]
+            metas[netx.TARGET_PORT] = cluster.contact_points[0]
 
     if getattr(cluster, "compression", None):
         metas["compression"] = cluster.compression
@@ -137,24 +111,24 @@ def _extract_result_metas(result):
         query = result.response_future.query
 
         if getattr(query, "consistency_level", None):
-            metas["consistency_level"] = query.consistency_level
+            metas[cassx.CONSISTENCY_LEVEL] = query.consistency_level
         if getattr(query, "keyspace", None):
             # Overrides session.keyspace if the query has been prepared against a particular
             # keyspace
-            metas["keyspace"] = query.keyspace.lower()
+            metas[cassx.KEYSPACE] = query.keyspace.lower()
 
     if hasattr(result, "has_more_pages"):
         if result.has_more_pages:
-            metas["paginated"] = True
+            metas[cassx.PAGINATED] = True
         else:
-            metas["paginated"] = False
+            metas[cassx.PAGINATED] = False
 
     # NOTE(aaditya): this number only reflects the first page of results
     # which could be misleading. But a true count would require iterating through
     # all pages which is expensive
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
-        metas["db.rowcount"] = len(result_rows)
+        metas[cassx.ROW_COUNT] = len(result_rows)
 
     return metas
 
@@ -168,4 +142,4 @@ def _sanitize_query(query):
         # reset query if a string is available
         query = getattr(query, "query_string", query)
 
-    return unicode(query)[:RESOURCE_MAX_LENGTH]
+    return stringify(query)[:RESOURCE_MAX_LENGTH]

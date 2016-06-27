@@ -1,13 +1,12 @@
 import unittest
 from nose.tools import eq_
 
-# We should probably be smarter than that
-try:
-    from cassandra.cluster import Cluster
-except ImportError:
-    Cluster = None
+from ddtrace.contrib.cassandra import missing_modules
+if missing_modules:
+    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
-from ddtrace.contrib.cassandra import trace as trace_cassandra
+from cassandra.cluster import Cluster
+from ddtrace.contrib.cassandra import trace as get_traced_cassandra
 from ddtrace.tracer import Tracer
 
 from ...test_tracer import DummyWriter
@@ -45,34 +44,11 @@ class CassandraTest(unittest.TestCase):
         """
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
-        session = self.cluster.connect("test")
 
-        trace_cassandra(session, tracer)
-        result = session.execute(self.TEST_QUERY)
-        self._assert_result_correct(result)
 
-        spans = writer.pop()
-        assert spans
-        eq_(len(spans), 1)
+        TracedCluster = get_traced_cluster(tracer)
+        session = TracedCluster(port=9042).connect()
 
-        span = spans[0]
-        eq_(span.service, "cassandra")
-        eq_(span.resource, self.TEST_QUERY)
-        eq_(span.get_tag("keyspace"), self.TEST_KEYSPACE)
-        eq_(span.get_tag("port"), "9042")
-        eq_(span.get_tag("db.rowcount"), "1")
-        eq_(span.get_tag("out.host"), "127.0.0.1")
-
-    def test_cassandra_class(self):
-        """
-        Tests patching a cassandra Session class
-        """
-        writer = DummyWriter()
-        tracer = Tracer(writer=writer)
-
-        import cassandra.cluster
-        trace_cassandra(cassandra.cluster, tracer)
-        session = Cluster(port=9042).connect("test")
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
 
@@ -85,13 +61,12 @@ class CassandraTest(unittest.TestCase):
 
         eq_(use.service, "cassandra")
         eq_(use.resource, "USE %s" % self.TEST_KEYSPACE)
-
         eq_(query.service, "cassandra")
         eq_(query.resource, self.TEST_QUERY)
-        eq_(query.get_tag("keyspace"), self.TEST_KEYSPACE)
-        eq_(query.get_tag("port"), "9042")
-        eq_(query.get_tag("db.rowcount"), "1")
-        eq_(query.get_tag("out.host"), "127.0.0.1")
+        eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
+        eq_(query.get_tag(netx.TARGET_PORT), "9042")
+        eq_(query.get_tag(cassx.ROW_COUNT), "1")
+        eq_(query.get_tag(netx.TARGET_HOST), "127.0.0.1")
 
     def tearDown(self):
         self.cluster.connect().execute("DROP KEYSPACE IF EXISTS test")
