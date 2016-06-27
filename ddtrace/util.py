@@ -44,7 +44,7 @@ def deep_getattr(obj, attr_string, default=None):
 #   But if it is, search for a "__dd_orig_{key}" method on the class, which is
 #   the original unpatched method we wish to trace.
 
-def safe_patch(patchable, key, patch_func, service, meta):
+def safe_patch(patchable, key, patch_func, service, meta, tracer):
     """ takes patch_func (signature: takes the orig_method that is
     wrapped in the monkey patch == UNBOUND + service and meta) and
     attach the patched result to patchable at patchable.key
@@ -75,7 +75,7 @@ def safe_patch(patchable, key, patch_func, service, meta):
     else:
         return
 
-    dest = patch_func(orig, service, meta)
+    dest = patch_func(orig, service, meta, tracer)
 
     if inspect.isclass(patchable) or inspect.ismodule(patchable):
         setattr(patchable, key, dest)

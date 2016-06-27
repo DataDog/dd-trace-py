@@ -3,10 +3,13 @@ Trace queries along a session to a cassandra cluster
 """
 
 # stdlib
+import functools
+import inspect
 import logging
 
+
 # project
-from ...util import deep_getattr
+from ...util import deep_getattr, safe_patch
 
 # 3p
 _installed = False
@@ -18,7 +21,7 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
-
+RESOURCE_MAX_LENGTH=5000
 
 
 def trace(cassandra, tracer, service="cassandra", meta=None):
@@ -29,10 +32,11 @@ def trace(cassandra, tracer, service="cassandra", meta=None):
             TracedSession,
             datadog_tracer=tracer,
             datadog_service=service,
+            datadog_tags=meta,
         )
     elif hasattr(cassandra, "execute"):
         log.debug("Patching cassandra Session instance")
-        safe_patch(cassandra, "execute", _patched_execute_command, service, meta, tracer)
+        safe_patch(cassandra, "execute", patch_execute, service, meta, tracer)
 
 
 class TracedSession(session):
@@ -54,7 +58,7 @@ class TracedSession(session):
             span.set_tag("query", query_string)
 
             span.set_tags(_extract_session_metas(self))
-            cluster = getattr(self, cluster, None)
+            cluster = getattr(self, "cluster", None)
             span.set_tags(_extract_cluster_metas(cluster))
 
             result = None
@@ -65,7 +69,7 @@ class TracedSession(session):
                 span.set_tags(_extract_result_metas(result))
 
 
-def _patched_execute_command(orig_command, service, meta, tracer):
+def patch_execute(orig_command, service, meta, tracer):
     log.debug("Patching cassandra.Session.execute call for service %s", service)
 
     def traced_execute_command(self, query, *args, **options):
@@ -76,9 +80,10 @@ def _patched_execute_command(orig_command, service, meta, tracer):
             span.set_tag("query", query_string)
 
             span.set_tags(_extract_session_metas(self))
-            cluster = getattr(self, cluster, None)
+            cluster = getattr(self, "cluster", None)
             span.set_tags(_extract_cluster_metas(cluster))
 
+            result = None
             try:
                 result = orig_command(self, query, *args, **options)
                 return result
@@ -125,6 +130,9 @@ def _extract_cluster_metas(cluster):
 
 def _extract_result_metas(result):
     metas = {}
+    if not result:
+        return metas
+
     if deep_getattr(result, "response_future.query"):
         query = result.response_future.query
 
