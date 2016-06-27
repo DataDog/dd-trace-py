@@ -1,4 +1,3 @@
-
 import time
 
 from nose.tools import eq_
