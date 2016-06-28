@@ -1,15 +1,15 @@
 import unittest
+
+from ddtrace.contrib.elasticsearch import missing_modules
+
+if missing_modules:
+    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
+
+import elasticsearch
 from nose.tools import eq_
 
-# We should probably be smarter than that
-try:
-    import elasticsearch
-except ImportError:
-    elasticsearch = None
-
-from ddtrace.contrib.elasticsearch import metadata
-from ddtrace.contrib.elasticsearch import get_traced_transport
 from ddtrace.tracer import Tracer
+from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
 
 from ...test_tracer import DummyWriter
 
@@ -27,9 +27,6 @@ class ElasticsearchTest(unittest.TestCase):
 
     def setUp(self):
         """Prepare ES"""
-        if not elasticsearch:
-            raise unittest.SkipTest("elasticsearch module isn't available")
-
         es = elasticsearch.Elasticsearch()
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 

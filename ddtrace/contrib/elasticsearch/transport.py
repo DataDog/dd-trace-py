@@ -1,7 +1,4 @@
-try:
-    from elasticsearch import Transport
-except ImportError:
-    Transport = object
+from elasticsearch import Transport
 
 from .quantize import quantize
 from . import metadata
