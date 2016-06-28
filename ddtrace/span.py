@@ -162,8 +162,10 @@ class Span(object):
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", self.duration),
             ("error", self.error),
+            ("tags", "")
         ]
 
+        lines.extend((" ", "%s:%s" % kv) for kv in self.meta.items())
         return "\n".join("%10s %s" % l for l in lines)
 
     def __enter__(self):
