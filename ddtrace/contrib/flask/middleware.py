@@ -62,21 +62,22 @@ class TraceMiddleware(object):
         """ Close and finsh the active span if it exists. """
         span = getattr(g, 'flask_datadog_span', None)
         if span:
-            error = 0
-            code = response.status_code if response else None
+            if not span.sampled:
+                error = 0
+                code = response.status_code if response else None
 
-            # if we didn't get a response, but we did get an exception, set
-            # codes accordingly.
-            if not response and exception:
-                error = 1
-                code = 500
-                span.set_tag(errors.ERROR_TYPE, type(exception))
-                span.set_tag(errors.ERROR_MSG, exception)
+                # if we didn't get a response, but we did get an exception, set
+                # codes accordingly.
+                if not response and exception:
+                    error = 1
+                    code = 500
+                    span.set_tag(errors.ERROR_TYPE, type(exception))
+                    span.set_tag(errors.ERROR_MSG, exception)
 
-            span.resource = str(request.endpoint or "").lower()
-            span.set_tag(http.URL, str(request.base_url or ""))
-            span.set_tag(http.STATUS_CODE, code)
-            span.error = error
+                span.resource = str(request.endpoint or "").lower()
+                span.set_tag(http.URL, str(request.base_url or ""))
+                span.set_tag(http.STATUS_CODE, code)
+                span.error = error
             span.finish()
             # Clear our span just in case.
             g.flask_datadog_span = None
