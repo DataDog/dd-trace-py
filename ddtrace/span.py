@@ -53,6 +53,9 @@ class Span(object):
         self.span_id = span_id   or _new_id()
         self.parent_id = parent_id
 
+        # sampling
+        self.sampled = False
+
         self._tracer = tracer
         self._parent = None
 
@@ -185,6 +188,7 @@ class Span(object):
                 self.name,
         )
 
+MAX_TRACE_ID = 2 ** 63
 def _new_id():
     """Generate a random trace_id"""
     return random.getrandbits(63)

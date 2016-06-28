@@ -3,6 +3,8 @@ tests for Tracer and utilities.
 """
 
 import time
+import random
+
 from nose.tools import eq_
 
 from ddtrace.tracer import Tracer
@@ -88,6 +90,36 @@ def test_tracer_disabled():
         s.set_tag("a", "b")
     assert not writer.pop()
 
+def test_sampling():
+    writer = DummyWriter()
+    tracer = Tracer(writer=writer, sample_rate=0.5)
+
+    # Set the seed so that the choice of sampled traces is deterministic, then write tests accordingly
+    random.seed(4012)
+
+    # First trace, not sampled
+    with tracer.trace("foo") as s:
+        assert not s.sampled
+    assert writer.pop()
+
+    # Second trace, sampled
+    with tracer.trace("figh") as s:
+        assert s.sampled
+        s2 = tracer.trace("what")
+        assert s2.sampled
+        s2.finish()
+        with tracer.trace("ever") as s3:
+            assert s3.sampled
+            s4 = tracer.trace("!")
+            assert s4.sampled
+            s4.finish()
+    spans = writer.pop()
+    assert not spans, spans
+
+    # Third trace, not sampled
+    with tracer.trace("ters") as s:
+        assert not s.sampled
+    assert writer.pop()
 
 
 class DummyWriter(object):
