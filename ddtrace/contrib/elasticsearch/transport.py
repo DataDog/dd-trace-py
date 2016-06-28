@@ -23,6 +23,10 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
             This is ConnectionClass-agnostic.
             """
             with self._datadog_tracer.trace("elasticsearch.query") as s:
+                # Don't instrument if the trace is sampled
+                if s.sampled:
+                    return super(TracedTransport, self).perform_request(method, url, params=params, body=body)
+
                 s.service = self._datadog_service
                 s.span_type = SPAN_TYPE
                 s.set_tag(metadata.METHOD, method)
