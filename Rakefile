@@ -24,6 +24,11 @@ task :upload do
   sh "s3cmd put ddtrace-*.whl s3://pypi.datadoghq.com/"
 end
 
+task :dev do
+  sh "pip uninstall ddtrace"
+  sh "pip install -e ."
+end
+
 task :ci => [:clean, :test, :build]
 
 task :release => [:ci, :upload]
