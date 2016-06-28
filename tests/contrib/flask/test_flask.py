@@ -1,3 +1,9 @@
+import unittest
+
+from ddtrace.contrib.flask import missing_modules
+
+if missing_modules:
+    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
 import time
 import logging

@@ -1,7 +1,14 @@
+import unittest
+
+from ddtrace.contrib.flask import missing_modules
+
+if missing_modules:
+    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
+
 import time
 
+import psycopg2
 from nose.tools import eq_
-from nose.plugins.skip import SkipTest
 
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
@@ -10,12 +17,6 @@ from ...test_tracer import DummyWriter
 
 
 def test_wrap():
-
-    try:
-        import psycopg2
-    except ImportError:
-        raise SkipTest("missing psycopg")
-
     writer = DummyWriter()
     tracer = Tracer(writer=writer)
 

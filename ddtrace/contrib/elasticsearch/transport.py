@@ -1,7 +1,4 @@
-try:
-    from elasticsearch import Transport
-except ImportError:
-    Transport = object
+from elasticsearch import Transport
 
 from .quantize import quantize
 from . import metadata
@@ -36,14 +33,14 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
                 s = quantize(s)
 
-                try:
-                    result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
-                    return result
-                finally:
-                    _, data = result
-                    took = data.get("took")
-                    if took:
-                        # TODO: move that to a metric instead
-                        s.set_tag(metadata.TOOK, took)
+                result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
+
+                _, data = result
+                took = data.get("took")
+                if took:
+                    # TODO: move that to a metric instead
+                    s.set_tag(metadata.TOOK, took)
+
+                return result
 
     return TracedTransport
