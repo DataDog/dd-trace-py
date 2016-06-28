@@ -1,10 +1,15 @@
 
 
 import logging
+from types import MethodType
+
 
 # project
 from ... import tracer
 from ...ext import http, errors
+
+# 3p
+from django.template import Template
 
 
 log = logging.getLogger(__name__)
@@ -15,14 +20,15 @@ class TraceMiddleware(object):
     def __init__(self):
         # override if necessary (can't initialize though)
         self.tracer = tracer
+        self.service = "django"
+
+        _patch_template(self.tracer)
 
     def process_request(self, request):
         try:
-            service = "django" # FIXME: app name
-
             span = self.tracer.trace(
                 "django.request",
-                service=service,
+                service=self.service,
                 resource="request", # will be filled by process view
                 span_type=http.TYPE)
 
@@ -56,6 +62,31 @@ class TraceMiddleware(object):
                 span.set_traceback() # will set the exception info
         except Exception:
             log.exception("error processing exception")
+
+
+def _patch_template(tracer):
+
+    log.debug("patching")
+
+    attr = '_datadog_original_render'
+
+    if getattr(Template, attr, None):
+        log.info("already patched")
+        return
+
+    setattr(Template, attr, Template.render)
+
+    class TracedTemplate(object):
+
+        def render(self, context):
+            with tracer.trace('django.template', span_type=http.TEMPLATE) as span:
+                try:
+                    return Template._datadog_original_render(self, context)
+                finally:
+                    span.set_tag('django.template_name', context.template_name or 'unknown')
+
+    Template.render = TracedTemplate.render.__func__
+
 
 def _view_func_name(view_func):
     return "%s.%s" % (view_func.__module__, view_func.__name__)
