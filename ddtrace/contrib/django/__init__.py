@@ -7,6 +7,7 @@ from types import MethodType
 # project
 from ... import tracer
 from ...ext import http, errors
+from ...contrib import func_name
 
 # 3p
 from django.template import Template
@@ -22,7 +23,10 @@ class TraceMiddleware(object):
         self.tracer = tracer
         self.service = "django"
 
-        _patch_template(self.tracer)
+        try:
+            _patch_template(self.tracer)
+        except Exception:
+            log.exception("error patching template class")
 
     def process_request(self, request):
         try:
@@ -41,7 +45,7 @@ class TraceMiddleware(object):
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
         if span:
-            span.resource = _view_func_name(view_func)
+            span.resource = func_name(view_func)
 
     def process_response(self, request, response):
         try:
@@ -65,13 +69,15 @@ class TraceMiddleware(object):
 
 
 def _patch_template(tracer):
+    """ will patch the django template render function to include information.
+    """
 
-    log.debug("patching")
-
+    # FIXME[matt] we're patching the template class here. ideally we'd only
+    # patch so we can use multiple tracers at once, but i suspect this is fine
+    # in practice.
     attr = '_datadog_original_render'
-
     if getattr(Template, attr, None):
-        log.info("already patched")
+        log.debug("already patched")
         return
 
     setattr(Template, attr, Template.render)
@@ -87,9 +93,6 @@ def _patch_template(tracer):
 
     Template.render = TracedTemplate.render.__func__
 
-
-def _view_func_name(view_func):
-    return "%s.%s" % (view_func.__module__, view_func.__name__)
 
 def _get_req_span(request):
     return getattr(request, '_datadog_request_span', None)
