@@ -30,6 +30,10 @@ class TracedCursor(Cursor):
             return Cursor.execute(self, sql, *args, **kwargs)
 
         with self._datadog_tracer.trace("sqlite3.query", span_type=sqlx.TYPE) as s:
+            # Don't instrument if the trace is sampled
+            if s.sampled:
+                return Cursor.execute(self, sql, *args, **kwargs)
+
             s.set_tag(sqlx.QUERY, sql)
             s.service = self._datadog_service
             s.resource = sql # will be normalized
