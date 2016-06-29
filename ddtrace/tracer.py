@@ -31,6 +31,13 @@ class Tracer(object):
         self._spans_lock = threading.Lock()
         self._spans = []
 
+        self.set_sample_rate(sample_rate)
+
+        # A hook for local debugging. shouldn't be needed or used
+        # in production.
+        self.debug_logging = False
+
+    def set_sample_rate(self, sample_rate):
         if sample_rate <= 0:
             log.error("sample_rate is negative or null, disable the Tracer")
             sample_rate = 0
@@ -39,9 +46,6 @@ class Tracer(object):
             sample_rate = 1
         self.sampler = Sampler(sample_rate)
 
-        # A hook for local debugging. shouldn't be needed or used
-        # in production.
-        self.debug_logging = False
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
@@ -59,7 +63,6 @@ class Tracer(object):
         """
         span = None
         parent = self._span_buffer.get()
-        log.error(parent)
 
         if parent:
             # if we have a current span link the parent + child nodes.
