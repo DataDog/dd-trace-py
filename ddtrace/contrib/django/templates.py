@@ -1,3 +1,7 @@
+"""
+code to measure django template rendering.
+"""
+
 
 # stdlib
 import logging
@@ -13,7 +17,8 @@ log = logging.getLogger(__name__)
 
 
 def patch_template(tracer):
-    """ will patch the django template render function to include information.
+    """ will patch django's template rendering function to include timing
+        and trace information.
     """
 
     # FIXME[matt] we're patching the template class here. ideally we'd only
