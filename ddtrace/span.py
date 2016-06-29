@@ -55,6 +55,7 @@ class Span(object):
 
         # sampling
         self.sampled = False
+        self.weight = 1
 
         self._tracer = tracer
         self._parent = None
@@ -77,6 +78,7 @@ class Span(object):
             'resource' : self.resource,
             'name' : self.name,
             'error': self.error,
+            'weight': self.weight,
         }
 
         if self.start:

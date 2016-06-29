@@ -45,6 +45,8 @@ class Tracer(object):
         elif sample_rate > 1:
             sample_rate = 1
         self.sampler = Sampler(sample_rate)
+        # `weight` is an attribute applied to all spans to help scaling related statistics
+        self.weight = 1 / (sample_rate or 1)
 
 
     def trace(self, name, service=None, resource=None, span_type=None):
@@ -86,6 +88,8 @@ class Tracer(object):
                 span_type=span_type,
             )
             span.sampled = self.sampler.should_sample(span)
+
+        span.weight = self.weight
 
         # Note the current trace.
         self._span_buffer.set(span)
