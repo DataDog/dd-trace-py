@@ -100,6 +100,7 @@ def test_sampling():
     # First trace, not sampled
     with tracer.trace("foo") as s:
         assert not s.sampled
+        assert s.weight == 2
     assert writer.pop()
 
     # Second trace, sampled
