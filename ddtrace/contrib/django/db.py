@@ -34,13 +34,19 @@ class TracedCursor(object):
         self.conn = conn
         self.cursor = cursor
 
-        self._prefix = conn.vendor or "db"                              # e.g sqlite, postgres, etc.
-        self._name = "%s.%s" % (self._prefix, "query")                  # e.g sqlite.query
-        self._service = "%s%s" % (conn.alias or self._prefix, "db")     # e.g. defaultdb or postgresdb
+        self._vendor = getattr(conn, 'vendor', 'db')     # e.g sqlite, postgres
+        self._alias = getattr(conn, 'alias', 'default')  # e.g. default, users
+
+        prefix = _vendor_to_prefix(self._vendor)
+        self._name = "%s.%s" % (prefix, "query")                # e.g sqlite3.query
+        self._service = "%s%s" % (self._alias or prefix, "db")  # e.g. defaultdb or postgresdb
 
     def _trace(self, func, sql, params):
         with self.tracer.trace(self._name, service=self._service, span_type=sqlx.TYPE) as span:
             span.set_tag(sqlx.QUERY, sql)
+            span.set_tag("django.db.vendor", self._vendor)
+            span.set_tag("django.db.alias", self._alias)
+
             return func(sql, params)
 
     def callproc(self, procname, params=None):
@@ -66,3 +72,12 @@ class TracedCursor(object):
 
     def __exit__(self, type, value, traceback):
         self.close()
+
+
+def _vendor_to_prefix(vendor):
+    if not vendor:
+        return "db" # should this ever happen?
+    elif vendor == "sqlite":
+        return "sqlite3" # for consitency with the sqlite3 integration
+    else:
+        return vendor
