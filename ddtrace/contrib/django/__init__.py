@@ -9,6 +9,7 @@ from ... import tracer
 from ...ext import http, errors
 from ...contrib import func_name
 from .templates import patch_template
+from .db import patch_db
 
 # 3p
 from django.apps import apps
@@ -26,6 +27,7 @@ class TraceMiddleware(object):
 
         try:
             patch_template(self.tracer)
+            patch_db(self.tracer)
         except Exception:
             log.exception("error patching template class")
 
