@@ -46,8 +46,12 @@ class TracedCursor(object):
             span.set_tag(sqlx.QUERY, sql)
             span.set_tag("django.db.vendor", self._vendor)
             span.set_tag("django.db.alias", self._alias)
-
-            return func(sql, params)
+            try:
+                return func(sql, params)
+            finally:
+                rows = self.cursor.cursor.rowcount
+                if rows and 0 <= rows:
+                    span.set_tag(sqlx.ROWS, self.cursor.cursor.rowcount)
 
     def callproc(self, procname, params=None):
         return self._trace(self.cursor.callproc, procname, params)
