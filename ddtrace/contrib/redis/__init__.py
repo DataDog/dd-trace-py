@@ -1,6 +1,6 @@
 from ..util import require_modules
 
-required_modules = ['redis']
+required_modules = ['redis', 'redis.client']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

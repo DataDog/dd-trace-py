@@ -4,11 +4,8 @@ tracers exposed publicly
 # stdlib
 import time
 
-try:
-    from redis import Redis
-    from redis.client import StrictPipeline
-except ImportError:
-    Redis, StrictPipeline = object, object
+from redis import StrictRedis
+from redis.client import StrictPipeline
 
 # dogtrace
 from .util import format_command_args, _extract_conn_tags
@@ -19,7 +16,7 @@ DEFAULT_SERVICE = 'redis'
 
 
 def get_traced_redis(ddtracer, service=DEFAULT_SERVICE):
-    return _get_traced_redis(ddtracer, Redis, service)
+    return _get_traced_redis(ddtracer, StrictRedis, service)
 
 
 def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE):
