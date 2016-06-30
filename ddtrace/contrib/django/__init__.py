@@ -27,12 +27,13 @@ class TraceMiddleware(object):
 
         try:
             patch_template(self.tracer)
-            patch_db(self.tracer)
         except Exception:
             log.exception("error patching template class")
 
     def process_request(self, request):
         try:
+            patch_db(self.tracer) # ensure that connections are always patched.
+
             span = self.tracer.trace(
                 "django.request",
                 service=self.service,
