@@ -6,8 +6,9 @@ if missing_modules:
     raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
 from cassandra.cluster import Cluster
-from ddtrace.contrib.cassandra import trace as get_traced_cassandra
+from ddtrace.contrib.cassandra import get_traced_cassandra
 from ddtrace.tracer import Tracer
+from ddtrace.ext import net as netx, cassandra as cassx
 
 from ...test_tracer import DummyWriter
 
@@ -38,16 +39,16 @@ class CassandraTest(unittest.TestCase):
             eq_(r.age, 100)
             eq_(r.description, "A cruel mistress")
 
-    def test_cassandra_instance(self):
+    def test_get_traced_cassandra(self):
         """
-        Tests patching a cassandra Session instance
+        Tests a traced cassandra Cluster
         """
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
 
 
-        TracedCluster = get_traced_cluster(tracer)
-        session = TracedCluster(port=9042).connect()
+        TracedCluster = get_traced_cassandra(tracer)
+        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
 
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
@@ -58,9 +59,9 @@ class CassandraTest(unittest.TestCase):
         # Should be sending one request to "USE <keyspace>" and another for the actual query
         eq_(len(spans), 2)
         use, query = spans[0], spans[1]
-
         eq_(use.service, "cassandra")
         eq_(use.resource, "USE %s" % self.TEST_KEYSPACE)
+
         eq_(query.service, "cassandra")
         eq_(query.resource, self.TEST_QUERY)
         eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)

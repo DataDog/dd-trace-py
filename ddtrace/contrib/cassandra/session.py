@@ -11,10 +11,10 @@ import logging
 # project
 from ...compat import stringify
 from ...util import deep_getattr, safe_patch
-from ...ext import net as netx, cass as cassx
+from ...ext import net as netx, cassandra as cassx
 
 # 3p
-from cassandra.cluster import Session
+import cassandra.cluster
 
 
 log = logging.getLogger(__name__)
@@ -24,12 +24,12 @@ DEFAULT_SERVICE = "cassandra"
 
 
 def get_traced_cassandra(tracer, service=DEFAULT_SERVICE, meta=None):
-    return _get_traced_cluster(cassandra.cluster, tracer, service, meta
+    return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
 
 
 def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     """ Trace synchronous cassandra commands by patching the Session class """
-    class TracedSession(Session):
+    class TracedSession(cassandra.Session):
 
         def __init__(self, *args, **kwargs):
             self._datadog_tracer = kwargs.pop("datadog_tracer", None)
@@ -58,14 +58,14 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
 
     class TracedCluster(cassandra.Cluster):
 
-        def connect():
+        def connect(self, *args, **kwargs):
             cassandra.Session = functools.partial(
                 TracedSession,
                 datadog_tracer=tracer,
                 datadog_service=service,
                 datadog_tags=meta,
             )
-            return super(TracedCluster, self).connect()
+            return super(TracedCluster, self).connect(*args, **kwargs)
 
     return TracedCluster
 
@@ -93,7 +93,7 @@ def _extract_cluster_metas(cluster):
         metas["contact_points"] = cluster.contact_points
         # Use the first contact point as a persistent host
         if isinstance(cluster.contact_points, list) and len(cluster.contact_points) > 0:
-            metas[netx.TARGET_PORT] = cluster.contact_points[0]
+            metas[netx.TARGET_HOST] = cluster.contact_points[0]
 
     if getattr(cluster, "compression", None):
         metas["compression"] = cluster.compression
