@@ -35,62 +35,61 @@ def _get_traced_redis(ddtracer, baseclass, service):
         def execute(self, *args, **kwargs):
             commands, queries = [], []
             with self._datadog_tracer.trace('redis.pipeline') as s:
-                s.service = self._datadog_service
-                s.span_type = redisx.TYPE
+                if s.sampled:
+                    s.service = self._datadog_service
+                    s.span_type = redisx.TYPE
 
-                for cargs, _ in self.command_stack:
-                    commands.append(cargs[0])
-                    queries.append(format_command_args(cargs))
+                    for cargs, _ in self.command_stack:
+                        commands.append(cargs[0])
+                        queries.append(format_command_args(cargs))
 
-                s.set_tag(redisx.CMD, ', '.join(commands))
-                query = '\n'.join(queries)
-                s.resource = query
+                    s.set_tag(redisx.CMD, ', '.join(commands))
+                    query = '\n'.join(queries)
+                    s.resource = query
 
-                s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
-                # FIXME[leo]: convert to metric?
-                s.set_tag(redisx.PIPELINE_LEN, len(self.command_stack))
-                s.set_tag(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
+                    s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    # FIXME[leo]: convert to metric?
+                    s.set_tag(redisx.PIPELINE_LEN, len(self.command_stack))
+                    s.set_tag(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
 
-                result = super(TracedPipeline, self).execute(self, *args, **kwargs)
-                return result
+                return super(TracedPipeline, self).execute(self, *args, **kwargs)
 
         def immediate_execute_command(self, *args, **kwargs):
             command_name = args[0]
 
             with self._datadog_tracer.trace('redis.command') as s:
-                s.service = self._datadog_service
-                s.span_type = redisx.TYPE
-                # currently no quantization on the client side
-                s.resource = format_command_args(args)
-                s.set_tag(redisx.CMD, (args or [None])[0])
-                s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
-                # FIXME[leo]: convert to metric?
-                s.set_tag(redisx.ARGS_LEN, len(args))
+                if s.sampled:
+                    s.service = self._datadog_service
+                    s.span_type = redisx.TYPE
+                    # currently no quantization on the client side
+                    s.resource = format_command_args(args)
+                    s.set_tag(redisx.CMD, (args or [None])[0])
+                    s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    # FIXME[leo]: convert to metric?
+                    s.set_tag(redisx.ARGS_LEN, len(args))
 
-                s.set_tag(redisx.IMMEDIATE_PIPELINE, True)
+                    s.set_tag(redisx.IMMEDIATE_PIPELINE, True)
 
-                result = super(TracedPipeline, self).immediate_execute_command(*args, **options)
-                return result
+                return super(TracedPipeline, self).immediate_execute_command(*args, **options)
 
     class TracedRedis(baseclass):
         _datadog_tracer = ddtracer
         _datadog_service = service
 
         def execute_command(self, *args, **options):
-            command_name = args[0]
-
             with self._datadog_tracer.trace('redis.command') as s:
-                s.service = self._datadog_service
-                s.span_type = redisx.TYPE
-                # currently no quantization on the client side
-                s.resource = format_command_args(args)
-                s.set_tag(redisx.CMD, (args or [None])[0])
-                s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
-                # FIXME[leo]: convert to metric?
-                s.set_tag(redisx.ARGS_LEN, len(args))
+                if s.sampled:
+                    command_name = args[0]
+                    s.service = self._datadog_service
+                    s.span_type = redisx.TYPE
+                    # currently no quantization on the client side
+                    s.resource = format_command_args(args)
+                    s.set_tag(redisx.CMD, (args or [None])[0])
+                    s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    # FIXME[leo]: convert to metric?
+                    s.set_tag(redisx.ARGS_LEN, len(args))
 
-                result = super(TracedRedis, self).execute_command(*args, **options)
-                return result
+                return super(TracedRedis, self).execute_command(*args, **options)
 
         def pipeline(self, transaction=True, shard_hint=None):
             return TracedPipeline(
