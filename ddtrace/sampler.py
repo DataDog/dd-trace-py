@@ -9,7 +9,7 @@ class RateSampler(object):
     """RateSampler manages the client-side trace sampling based on a rate
 
     Keep (100 * sample_rate)% of the traces.
-    Any sampled trace should be entirely ignored by the instrumentation and won't be written.
+    Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
@@ -24,6 +24,6 @@ class RateSampler(object):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        span.sampled = span.trace_id >= self.sampling_id_threshold
+        span.sampled = span.trace_id <= self.sampling_id_threshold
         # `weight` is an attribute applied to all spans to help scaling related statistics
         span.weight = 1 / (self.sample_rate or 1)

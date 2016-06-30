@@ -15,7 +15,7 @@ class PylonsTraceMiddleware(object):
     def __call__(self, environ, start_response):
         with self._tracer.trace("pylons.request", service=self._service, span_type=http.TYPE) as span:
 
-            if span.sampled:
+            if not span.sampled:
                 return self.app(environ, start_response)
 
             def _start_response(status, *args, **kwargs):

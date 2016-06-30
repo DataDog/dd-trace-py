@@ -100,7 +100,7 @@ class Tracer(object):
                 spans = self._spans
                 self._spans = []
 
-        if self._writer and not span.sampled:
+        if self._writer and span.sampled:
             self.write(spans)
 
     def write(self, spans):

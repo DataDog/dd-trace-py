@@ -59,10 +59,10 @@ class TraceMiddleware(object):
             self.app.logger.exception("error tracing request")
 
     def _finish_span(self, response=None, exception=None):
-        """ Close and finsh the active span if it exists. """
+        """ Close and finish the active span if it exists. """
         span = getattr(g, 'flask_datadog_span', None)
         if span:
-            if not span.sampled:
+            if span.sampled:
                 error = 0
                 code = response.status_code if response else None
 

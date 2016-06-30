@@ -54,7 +54,7 @@ class Span(object):
         self.parent_id = parent_id
 
         # sampling
-        self.sampled = False
+        self.sampled = True
         self.weight = 1
 
         self._tracer = tracer

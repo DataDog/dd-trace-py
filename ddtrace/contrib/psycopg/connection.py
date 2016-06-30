@@ -45,7 +45,7 @@ class TracedCursor(cursor):
             return cursor.execute(self, query, vars)
 
         with self._datadog_tracer.trace("postgres.query") as s:
-            if s.sampled:
+            if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)
 
             s.resource = query
