@@ -2,7 +2,7 @@ import logging
 import threading
 
 from .buffer import ThreadLocalSpanBuffer
-from .sampler import Sampler
+from .sampler import RateSampler
 from .span import Span
 from .writer import AgentWriter
 
@@ -31,23 +31,11 @@ class Tracer(object):
         self._spans_lock = threading.Lock()
         self._spans = []
 
-        self.set_sample_rate(sample_rate)
+        self.sampler = RateSampler(sample_rate)
 
         # A hook for local debugging. shouldn't be needed or used
         # in production.
         self.debug_logging = False
-
-    def set_sample_rate(self, sample_rate):
-        if sample_rate <= 0:
-            log.error("sample_rate is negative or null, disable the Tracer")
-            sample_rate = 0
-            self.enabled = False
-        elif sample_rate > 1:
-            sample_rate = 1
-        self.sampler = Sampler(sample_rate)
-        # `weight` is an attribute applied to all spans to help scaling related statistics
-        self.weight = 1 / (sample_rate or 1)
-
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
@@ -87,9 +75,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
             )
-            span.sampled = self.sampler.should_sample(span)
-
-        span.weight = self.weight
+            self.sampler.sample(span)
 
         # Note the current trace.
         self._span_buffer.set(span)
