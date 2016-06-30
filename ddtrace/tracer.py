@@ -1,8 +1,8 @@
-
 import logging
 import threading
 
 from .buffer import ThreadLocalSpanBuffer
+from .sampler import RateSampler
 from .span import Span
 from .writer import AgentWriter
 
@@ -12,16 +12,18 @@ log = logging.getLogger(__name__)
 
 class Tracer(object):
 
-    def __init__(self, enabled=True, writer=None, span_buffer=None):
+    def __init__(self, enabled=True, writer=None, span_buffer=None, sample_rate=1):
         """
         Create a new tracer object.
 
-        enabled: if False, no spans will be submitted to the writer.
-
+        enabled: if False, no spans will be submitted to the writer
         writer: an instance of Writer
         span_buffer: a span buffer instance. used to store inflight traces. by
-                     default, will use thread local storage.
+                     default, will use thread local storage
+        sample_rate: Pre-sampling rate.
         """
+        self.enabled = enabled
+
         self._writer = writer or AgentWriter()
         self._span_buffer = span_buffer or ThreadLocalSpanBuffer()
 
@@ -29,7 +31,7 @@ class Tracer(object):
         self._spans_lock = threading.Lock()
         self._spans = []
 
-        self.enabled = enabled
+        self.sampler = RateSampler(sample_rate)
 
         # A hook for local debugging. shouldn't be needed or used
         # in production.
@@ -49,26 +51,31 @@ class Tracer(object):
         >>> parent.finish()
         >>> parent2 = tracer.trace("parent2") # has no parent span
         """
-        # if we have a current span link the parent + child nodes.
+        span = None
         parent = self._span_buffer.get()
-        trace_id, parent_id = None, None
-        if parent:
-            trace_id, parent_id = parent.trace_id, parent.span_id
 
-        # Create the trace.
-        span = Span(self,
-            name,
-            service=service,
-            resource=resource,
-            trace_id=trace_id,
-            parent_id=parent_id,
-            span_type=span_type,
-        )
-
-        # if there's a parent, link them and inherit the service.
         if parent:
+            # if we have a current span link the parent + child nodes.
+            span = Span(
+                self,
+                name,
+                trace_id=parent.trace_id,
+                parent_id=parent.span_id,
+                service=(service or parent.service),
+                resource=resource,
+                span_type=span_type,
+            )
             span._parent = parent
-            span.service = span.service or parent.service
+            span.sampled = parent.sampled
+        else:
+            span = Span(
+                self,
+                name,
+                service=service,
+                resource=resource,
+                span_type=span_type,
+            )
+            self.sampler.sample(span)
 
         # Note the current trace.
         self._span_buffer.set(span)
@@ -84,18 +91,17 @@ class Tracer(object):
         if not self.enabled:
             return
 
-        if self._writer:
-            spans = None
-            with self._spans_lock:
-                self._spans.append(span)
-                parent = span._parent
-                self._span_buffer.set(parent)
-                if not parent:
-                    spans = self._spans
-                    self._spans = []
+        spans = []
+        with self._spans_lock:
+            self._spans.append(span)
+            parent = span._parent
+            self._span_buffer.set(parent)
+            if not parent:
+                spans = self._spans
+                self._spans = []
 
-            if spans:
-                self.write(spans)
+        if self._writer and span.sampled:
+            self.write(spans)
 
     def write(self, spans):
         """ Submit the given spans to the agent. """
@@ -103,9 +109,6 @@ class Tracer(object):
             if self.debug_logging:
                 log.debug("submitting %s spans", len(spans))
                 for span in spans:
-                    log.debug("\n%s" % span.pprint())
+                    log.debug("\n%s", span.pprint())
 
             self._writer.write(spans)
-
-
-

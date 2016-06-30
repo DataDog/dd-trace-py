@@ -13,32 +13,22 @@ class PylonsTraceMiddleware(object):
         self._tracer = tracer
 
     def __call__(self, environ, start_response):
-        span = None
-        try:
-            span = self._tracer.trace("pylons.request", service=self._service, span_type=http.TYPE)
-            log.debug("Initialize new trace %d", span.trace_id)
+        with self._tracer.trace("pylons.request", service=self._service, span_type=http.TYPE) as span:
+
+            if not span.sampled:
+                return self.app(environ, start_response)
 
             def _start_response(status, *args, **kwargs):
                 """ a patched response callback which will pluck some metadata. """
-                span.span_type = http.TYPE
                 http_code = int(status.split()[0])
                 span.set_tag(http.STATUS_CODE, http_code)
                 if http_code >= 500:
                     span.error = 1
                 return start_response(status, *args, **kwargs)
-        except Exception:
-            log.exception("error starting span")
 
-        try:
-            return self.app(environ, _start_response)
-        except Exception:
-            if span:
-                span.set_traceback()
-            raise
-        finally:
-            if not span:
-                return
             try:
+                return self.app(environ, _start_response)
+            finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')
                 span.resource = "%s.%s" % (controller, action)
@@ -50,6 +40,3 @@ class PylonsTraceMiddleware(object):
                     "pylons.route.controller": controller,
                     "pylons.route.action": action,
                 })
-                span.finish()
-            except Exception:
-                log.exception("Error finishing trace")
