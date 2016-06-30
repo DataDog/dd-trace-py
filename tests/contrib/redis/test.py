@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import unittest
 
 from ddtrace.contrib.redis import missing_modules
@@ -55,7 +58,7 @@ class RedisTest(unittest.TestCase):
 
         with r.pipeline() as p:
             p.set('blah', 32)
-            p.rpush('foo', 'soethus')
+            p.rpush('foo', u'éé')
             p.hgetall('xxx')
 
             p.execute()
@@ -73,7 +76,7 @@ class RedisTest(unittest.TestCase):
         eq_(span.get_tag('redis.pipeline_length'), '3')
         eq_(span.get_tag('redis.command'), 'SET, RPUSH, HGETALL')
         eq_(span.get_tag('out.port'), '6379')
-        eq_(span.resource, 'SET blah 32\nRPUSH foo soethus\nHGETALL xxx')
+        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
 
     def test_custom_class(self):
         class MyCustomRedis(redis.Redis):
