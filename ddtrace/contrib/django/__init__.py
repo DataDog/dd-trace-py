@@ -37,7 +37,7 @@ class TraceMiddleware(object):
             span = self.tracer.trace(
                 "django.request",
                 service=self.service,
-                resource="request", # will be filled by process view
+                resource="unknown", # will be filled by process view
                 span_type=http.TYPE)
 
             span.set_tag(http.METHOD, request.method)
