@@ -16,7 +16,6 @@ def patch_db(tracer):
 
 def patch_conn(tracer, conn):
     attr = '_datadog_original_cursor'
-
     if hasattr(conn, attr):
         log.debug("already patched")
         return
@@ -42,7 +41,7 @@ class TracedCursor(object):
         self._service = "%s%s" % (self._alias or prefix, "db")  # e.g. defaultdb or postgresdb
 
     def _trace(self, func, sql, params):
-        with self.tracer.trace(self._name, service=self._service, span_type=sqlx.TYPE) as span:
+        with self.tracer.trace(self._name, resource=sql, service=self._service, span_type=sqlx.TYPE) as span:
             span.set_tag(sqlx.QUERY, sql)
             span.set_tag("django.db.vendor", self._vendor)
             span.set_tag("django.db.alias", self._alias)
