@@ -6,6 +6,7 @@ machine:
 dependencies:
   pre:
     - sudo service postgresql stop
+    - sudo service redis-server stop
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3
