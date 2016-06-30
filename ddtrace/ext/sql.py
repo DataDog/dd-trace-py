@@ -3,4 +3,5 @@
 TYPE = "sql"
 
 # tags
-QUERY = "sql.query"
+QUERY = "sql.query"   # the query text
+ROWS = "sql.rows"     # number of rows returned by a query

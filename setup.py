@@ -6,6 +6,7 @@ tests_require = [
     'blinker',
     'elasticsearch',
     'psycopg2',
+    'django'
 ]
 
 setup(
