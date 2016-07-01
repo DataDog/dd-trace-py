@@ -31,14 +31,12 @@ def patch_template(tracer):
 
     setattr(Template, attr, Template.render)
 
-    class TracedTemplate(object):
+    def traced_render(self, context):
+        with tracer.trace('django.template', span_type=http.TEMPLATE) as span:
+            try:
+                return Template._datadog_original_render(self, context)
+            finally:
+                span.set_tag('django.template_name', context.template_name or 'unknown')
 
-        def render(self, context):
-            with tracer.trace('django.template', span_type=http.TEMPLATE) as span:
-                try:
-                    return Template._datadog_original_render(self, context)
-                finally:
-                    span.set_tag('django.template_name', context.template_name or 'unknown')
-
-    Template.render = TracedTemplate.render.__func__
+    Template.render = traced_render
 
