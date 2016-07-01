@@ -30,11 +30,11 @@ def get_traced_cassandra(tracer, service=DEFAULT_SERVICE, meta=None):
 def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     """ Trace synchronous cassandra commands by patching the Session class """
     class TracedSession(cassandra.Session):
+        _datadog_tracer = tracer
+        _datadog_service = service
+        _datadog_tags  = meta
 
         def __init__(self, *args, **kwargs):
-            self._datadog_tracer = kwargs.pop("datadog_tracer", None)
-            self._datadog_service = kwargs.pop("datadog_service", None)
-            self._datadog_tags = kwargs.pop("datadog_tags", None)
             super(TracedSession, self).__init__(*args, **kwargs)
 
         def execute(self, query, *args, **options):
@@ -59,13 +59,14 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     class TracedCluster(cassandra.Cluster):
 
         def connect(self, *args, **kwargs):
-            cassandra.Session = functools.partial(
-                TracedSession,
-                datadog_tracer=tracer,
-                datadog_service=service,
-                datadog_tags=meta,
-            )
-            return super(TracedCluster, self).connect(*args, **kwargs)
+            orig = cassandra.Session
+            cassandra.Session = TracedSession
+            traced_session = super(TracedCluster, self).connect(*args, **kwargs)
+
+            # unpatch the Session class so we don't wrap already traced sessions
+            cassandra.Session = orig
+
+            return traced_session
 
     return TracedCluster
 

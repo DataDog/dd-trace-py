@@ -8,7 +8,7 @@ if missing_modules:
 from cassandra.cluster import Cluster
 from ddtrace.contrib.cassandra import get_traced_cassandra
 from ddtrace.tracer import Tracer
-from ddtrace.ext import net as netx, cassandra as cassx
+from ddtrace.ext import net as netx, cassandra as cassx, errors as errx
 
 from ...test_tracer import DummyWriter
 
@@ -39,15 +39,18 @@ class CassandraTest(unittest.TestCase):
             eq_(r.age, 100)
             eq_(r.description, "A cruel mistress")
 
+    def _traced_cluster(self):
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+        TracedCluster = get_traced_cassandra(tracer)
+        return TracedCluster, writer
+
+
     def test_get_traced_cassandra(self):
         """
         Tests a traced cassandra Cluster
         """
-        writer = DummyWriter()
-        tracer = Tracer(writer=writer)
-
-
-        TracedCluster = get_traced_cassandra(tracer)
+        TracedCluster, writer = self._traced_cluster()
         session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
 
         result = session.execute(self.TEST_QUERY)
@@ -68,6 +71,37 @@ class CassandraTest(unittest.TestCase):
         eq_(query.get_tag(netx.TARGET_PORT), "9042")
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
         eq_(query.get_tag(netx.TARGET_HOST), "127.0.0.1")
+
+    def test_trace_with_service(self):
+        """
+        Tests tracing with a custom service
+        """
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+        TracedCluster = get_traced_cassandra(tracer, service="custom")
+        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
+
+        result = session.execute(self.TEST_QUERY)
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+        use, query = spans[0], spans[1]
+        eq_(use.service, "custom")
+        eq_(query.service, "custom")
+
+    def test_trace_error(self):
+        TracedCluster, writer = self._traced_cluster()
+        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
+
+        with self.assertRaises(Exception):
+            session.execute("select * from test.i_dont_exist limit 1")
+
+        spans = writer.pop()
+        assert spans
+        use, query = spans[0], spans[1]
+        eq_(query.error, 1)
+        for k in (errx.ERROR_MSG, errx.ERROR_TYPE, errx.ERROR_STACK):
+            assert query.get_tag(k)
 
     def tearDown(self):
         self.cluster.connect().execute("DROP KEYSPACE IF EXISTS test")
