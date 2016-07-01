@@ -48,6 +48,19 @@ class RedisTest(unittest.TestCase):
         eq_(span.meta, {'out.host': u'localhost', 'redis.command': u'GET', 'out.port': u'6379', 'redis.args_length': u'2', 'out.redis_db': u'0'})
         eq_(span.resource, 'GET cheese')
 
+    def test_meta_override(self):
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+
+        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE, meta={'cheese': 'camembert'})
+        r = TracedRedisCache()
+
+        r.get('cheese')
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        ok_('cheese' in span.meta and span.meta['cheese'] == 'camembert')
 
     def test_basic_class_pipeline(self):
         writer = DummyWriter()

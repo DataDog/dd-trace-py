@@ -15,18 +15,19 @@ from ...ext import redis as redisx
 DEFAULT_SERVICE = 'redis'
 
 
-def get_traced_redis(ddtracer, service=DEFAULT_SERVICE):
-    return _get_traced_redis(ddtracer, StrictRedis, service)
+def get_traced_redis(ddtracer, service=DEFAULT_SERVICE, meta=None):
+    return _get_traced_redis(ddtracer, StrictRedis, service, meta)
 
 
-def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE):
-    return _get_traced_redis(ddtracer, baseclass, service)
+def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=None):
+    return _get_traced_redis(ddtracer, baseclass, service, meta)
 
 # pylint: disable=protected-access
-def _get_traced_redis(ddtracer, baseclass, service):
+def _get_traced_redis(ddtracer, baseclass, service, meta):
     class TracedPipeline(StrictPipeline):
         _datadog_tracer = ddtracer
         _datadog_service = service
+        _datadog_meta = meta
 
         def __init__(self, *args, **kwargs):
             self._datadog_pipeline_creation = time.time()
@@ -48,6 +49,7 @@ def _get_traced_redis(ddtracer, baseclass, service):
                     s.resource = query
 
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    s.set_tags(self._datadog_meta)
                     # FIXME[leo]: convert to metric?
                     s.set_tag(redisx.PIPELINE_LEN, len(self.command_stack))
                     s.set_tag(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
@@ -65,6 +67,7 @@ def _get_traced_redis(ddtracer, baseclass, service):
                     s.resource = format_command_args(args)
                     s.set_tag(redisx.CMD, (args or [None])[0])
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    s.set_tags(self._datadog_meta)
                     # FIXME[leo]: convert to metric?
                     s.set_tag(redisx.ARGS_LEN, len(args))
 
@@ -75,6 +78,11 @@ def _get_traced_redis(ddtracer, baseclass, service):
     class TracedRedis(baseclass):
         _datadog_tracer = ddtracer
         _datadog_service = service
+        _datadog_meta = meta
+
+        @classmethod
+        def set_datadog_meta(cls, meta):
+            cls._datadog_meta = meta
 
         def execute_command(self, *args, **options):
             with self._datadog_tracer.trace('redis.command') as s:
@@ -86,17 +94,20 @@ def _get_traced_redis(ddtracer, baseclass, service):
                     s.resource = format_command_args(args)
                     s.set_tag(redisx.CMD, (args or [None])[0])
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
+                    s.set_tags(self._datadog_meta)
                     # FIXME[leo]: convert to metric?
                     s.set_tag(redisx.ARGS_LEN, len(args))
 
                 return super(TracedRedis, self).execute_command(*args, **options)
 
         def pipeline(self, transaction=True, shard_hint=None):
-            return TracedPipeline(
+            tp = TracedPipeline(
                 self.connection_pool,
                 self.response_callbacks,
                 transaction,
                 shard_hint
             )
+            tp._datadog_meta = meta
+            return tp
 
     return TracedRedis
