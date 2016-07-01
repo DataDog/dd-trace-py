@@ -6,7 +6,8 @@ tests_require = [
     'blinker',
     'elasticsearch',
     'psycopg2',
-    'django'
+    'django',
+    'cassandra-driver'
 ]
 
 setup(
