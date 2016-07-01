@@ -44,6 +44,7 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
             with self._datadog_tracer.trace("cassandra.query", service=self._datadog_service) as span:
                 query_string = _sanitize_query(query)
                 span.resource = query_string
+                span.span_type = cassx.TYPE
 
                 span.set_tags(_extract_session_metas(self))
                 cluster = getattr(self, "cluster", None)

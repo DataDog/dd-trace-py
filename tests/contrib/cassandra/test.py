@@ -67,6 +67,8 @@ class CassandraTest(unittest.TestCase):
 
         eq_(query.service, "cassandra")
         eq_(query.resource, self.TEST_QUERY)
+        eq_(query.span_type, cassx.TYPE)
+
         eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
         eq_(query.get_tag(netx.TARGET_PORT), "9042")
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
