@@ -1,4 +1,6 @@
+from ddtrace import __version__
 from setuptools import setup, find_packages
+import os
 
 tests_require = [
     'nose',
@@ -7,12 +9,20 @@ tests_require = [
     'elasticsearch',
     'psycopg2',
     'django',
-    'cassandra-driver'
+    'cassandra-driver',
 ]
+
+version = __version__
+# Append a suffix to the version for dev builds
+if os.environ.get('VERSION_SUFFIX'):
+    version = '{v}+{s}'.format(
+        v=version,
+        s=os.environ.get('VERSION_SUFFIX'),
+    )
 
 setup(
     name='ddtrace',
-    version='0.1.8',
+    version=version,
     description='Datadog tracing code',
     url='https://github.com/DataDog/dd-trace-py',
     author='Datadog, Inc.',
