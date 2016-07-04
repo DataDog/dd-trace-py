@@ -18,11 +18,13 @@ test:
 deployment:
   dev:
     branch: /(master)|(develop)/
+    # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
     commands:
-      - pip install wheel
-      - rake ci:dev:release
+      - pip install mkwheelhouse
+      - S3_DIR=apm_dev rake release
   unstable:
     tag: /v[0-9]+(\.[0-9]+)*/
+    # Nullify VERSION_SUFFIX to deploy the package with its public version
     commands:
-      - pip install wheel
-      - rake ci:unstable:release
+      - pip install mkwheelhouse
+      - S3_DIR=apm_unstable VERSION_SUFFIX= rake release

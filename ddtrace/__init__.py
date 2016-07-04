@@ -1,4 +1,4 @@
-"""Datadaog Tracing client"""
+"""Datadog Tracing client"""
 from .tracer import Tracer
 
 __version__ = '0.2.0'

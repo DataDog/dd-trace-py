@@ -8,32 +8,14 @@ task :dev do
   sh "pip install -e ."
 end
 
-# CI and deploy commands
-namespace :ci do
-  namespace :dev do
-    task :build do
-      branch = ENV['CIRCLE_BRANCH']
-      build_number = ENV['CIRCLE_BUILD_NUM']
-      ENV['VERSION_SUFFIX'] = "#{branch}#{build_number}"
-      sh "python setup.py bdist_wheel"
-    end
+task :release do
+  # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
+  # If at some point, we need only the 2 first steps:
+  #  - python setup.py bdist_wheel
+  #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
+  s3_bucket = 'pypi.datadoghq.com'
+  s3_dir = ENV['S3_DIR']
+  fail "Missing environment variable S3_DIR" if !s3_dir or s3_dir.empty?
 
-    task :push_package do
-      sh "aws s3 cp dist/*.whl s3://pypi.datadoghq.com/apm_dev/"
-    end
-
-    task :release => [:build, :push_package]
-  end
-
-  namespace :unstable do
-    task :build do
-      sh "python setup.py bdist_wheel"
-    end
-
-    task :push_package do
-      sh "aws s3 cp dist/*.whl s3://pypi.datadoghq.com/apm_unstable/"
-    end
-
-    task :release => [:build, :push_package]
-  end
+  sh "mkwheelhouse s3://#{s3_bucket}/#{s3_dir}/ ."
 end
