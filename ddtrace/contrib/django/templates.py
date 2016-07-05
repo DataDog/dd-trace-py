@@ -7,7 +7,7 @@ code to measure django template rendering.
 import logging
 
 # project
-from ...ext import http, errors
+from ...ext import http
 
 # 3p
 from django.template import Template
@@ -36,7 +36,8 @@ def patch_template(tracer):
             try:
                 return Template._datadog_original_render(self, context)
             finally:
-                span.set_tag('django.template_name', context.template_name or 'unknown')
+                template_name = self.name or context.template_name or 'unknown'
+                span.resource = template_name
+                span.set_tag('django.template_name', template_name)
 
     Template.render = traced_render
-

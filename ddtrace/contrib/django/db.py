@@ -79,8 +79,8 @@ class TracedCursor(object):
 
 def _vendor_to_prefix(vendor):
     if not vendor:
-        return "db" # should this ever happen?
+        return "db"  # should this ever happen?
     elif vendor == "sqlite":
-        return "sqlite3" # for consitency with the sqlite3 integration
+        return "sqlite3"  # for consistency with the sqlite3 integration
     else:
         return vendor
