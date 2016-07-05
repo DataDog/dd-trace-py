@@ -9,6 +9,7 @@ from .db import patch_db
 
 # 3p
 from django.apps import apps
+from django.conf import settings
 
 
 log = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ class TraceMiddleware(object):
     def __init__(self):
         # override if necessary (can't initialize though)
         self.tracer = tracer
-        self.service = "django"
+        self.service = getattr(settings, 'DATADOG_SERVICE', 'django')
 
         try:
             patch_template(self.tracer)
@@ -28,13 +29,14 @@ class TraceMiddleware(object):
 
     def process_request(self, request):
         try:
-            patch_db(self.tracer) # ensure that connections are always patched.
+            patch_db(self.tracer)  # ensure that connections are always patched.
 
             span = self.tracer.trace(
                 "django.request",
                 service=self.service,
-                resource="unknown", # will be filled by process view
-                span_type=http.TYPE)
+                resource="unknown",  # will be filled by process view
+                span_type=http.TYPE,
+            )
 
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, request.path)
