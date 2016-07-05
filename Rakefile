@@ -1,36 +1,21 @@
-
-task :build do
-  sh "pip wheel ./"
-end
-
+# Dev commands
 task :test do
   sh "python setup.py test"
 end
 
-task :install do
-  sh "pip install *.whl"
-end
-
-task :upgrade do
-  sh "pip install -U *.whl"
-end
-
-task :clean do
-  sh "python setup.py clean"
-  sh "rm -rf *.whl dist *.egg-info build *egg wheelhouse"
-end
-
-task :upload do
-  sh "s3cmd put ddtrace-*.whl s3://pypi.datadoghq.com/"
-end
-
 task :dev do
-  sh "pip uninstall ddtrace"
+  sh "pip uninstall -y ddtrace"
   sh "pip install -e ."
 end
 
-task :ci => [:clean, :test, :build]
+task :release do
+  # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
+  # If at some point, we need only the 2 first steps:
+  #  - python setup.py bdist_wheel
+  #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
+  s3_bucket = 'pypi.datadoghq.com'
+  s3_dir = ENV['S3_DIR']
+  fail "Missing environment variable S3_DIR" if !s3_dir or s3_dir.empty?
 
-task :release => [:ci, :upload]
-
-task :default => :test
+  sh "mkwheelhouse s3://#{s3_bucket}/#{s3_dir}/ ."
+end
