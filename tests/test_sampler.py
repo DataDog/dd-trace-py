@@ -98,27 +98,26 @@ class ThroughputSamplerTest(unittest.TestCase):
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
 
-        with patch_time() as fake_time:
-            limit = 100
-            over = 5
-            tracer.sampler = ThroughputSampler(limit, over)
+        # Test a big matrix of combinaisons
+        for (limit, over) in [(10, 1), (100, 5), (85, 6), (10, 10)]:
+            for (traces_per_s, total_time) in [(80, 10), (75, 23), (1000, 30)]:
 
-            with patch_time() as fake_time:
-                traces_per_s = 80
-                total_time = 10
-                for i in range(traces_per_s * total_time):
-                    s = tracer.trace("whatever")
-                    s.finish()
-                    print s.sampled
-                    if not (i + 1) % traces_per_s:
-                        fake_time.sleep(1)
+                with patch_time() as fake_time:
+                    tracer.sampler = ThroughputSampler(limit, over)
 
-            traces = writer.pop()
-            # We expect 100 traces, but the initialization of the current sampler implementation can introduce
-            # an error of up-to `limit/over` traces
-            got = len(traces)
-            expected = (limit * total_time / over)
-            error_delta = limit / over
+                    with patch_time() as fake_time:
+                        for i in range(traces_per_s * total_time):
+                            s = tracer.trace("whatever")
+                            s.finish()
+                            if not (i + 1) % traces_per_s:
+                                fake_time.sleep(1)
 
-            assert abs(got == expected) <= error_delta, \
-                "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
+                    traces = writer.pop()
+                    # The current sampler implementation can introduce an error of up-to `limit/over` traces
+                    # (because of the way we count in our circular buffer)
+                    got = len(traces)
+                    expected = (limit * total_time / over)
+                    error_delta = limit / over
+
+                assert abs(got == expected) <= error_delta, \
+                    "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
