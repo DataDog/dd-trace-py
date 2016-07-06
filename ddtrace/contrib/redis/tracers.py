@@ -40,19 +40,19 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
             super(TracedPipeline, self).__init__(*args, **kwargs)
 
         def execute(self, *args, **kwargs):
-            commands, queries = [], []
+            queries = []
             with self._datadog_tracer.trace('redis.pipeline') as s:
                 if s.sampled:
                     s.service = self._datadog_service
                     s.span_type = redisx.TYPE
 
                     for cargs, _ in self.command_stack:
-                        commands.append(cargs[0])
                         queries.append(format_command_args(cargs))
 
-                    s.set_tag(redisx.CMD, ', '.join(commands))
                     query = '\n'.join(queries)
                     s.resource = query
+                    # non quantized version
+                    s.set_tag(redisx.RAWCMD, query)
 
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
@@ -69,9 +69,12 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
                 if s.sampled:
                     s.service = self._datadog_service
                     s.span_type = redisx.TYPE
-                    # currently no quantization on the client side
-                    s.resource = format_command_args(args)
-                    s.set_tag(redisx.CMD, (args or [None])[0])
+
+                    query = format_command_args(args)
+                    s.resource = query
+                    # non quantized version
+                    s.set_tag(redisx.RAWCMD, query)
+
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
                     # FIXME[leo]: convert to metric?
@@ -93,12 +96,14 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
         def execute_command(self, *args, **options):
             with self._datadog_tracer.trace('redis.command') as s:
                 if s.sampled:
-                    command_name = args[0]
                     s.service = self._datadog_service
                     s.span_type = redisx.TYPE
-                    # currently no quantization on the client side
-                    s.resource = format_command_args(args)
-                    s.set_tag(redisx.CMD, (args or [None])[0])
+
+                    query = format_command_args(args)
+                    s.resource = query
+                    # non quantized version
+                    s.set_tag(redisx.RAWCMD, query)
+
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
                     # FIXME[leo]: convert to metric?
