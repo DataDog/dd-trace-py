@@ -1,6 +1,7 @@
 """
 Some utils used by the dogtrace redis integration
 """
+from ...compat import stringify
 from ...ext import redis as redisx, net
 
 VALUE_PLACEHOLDER = "?"
@@ -32,7 +33,7 @@ def format_command_args(args):
     formatted_args = []
     for arg in args:
         try:
-            command = unicode(arg)
+            command = stringify(arg)
             if len(command) > VALUE_MAX_LENGTH:
                 command = command[:VALUE_MAX_LENGTH] + VALUE_TOO_LONG_MARK
             if formatted_length + len(command) > COMMAND_MAX_LENGTH:
