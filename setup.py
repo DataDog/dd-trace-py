@@ -5,6 +5,7 @@ import os
 tests_require = [
     'mock',
     'nose',
+    # contrib
     'blinker',
     'cassandra-driver',
     'django',
@@ -13,6 +14,8 @@ tests_require = [
     'psycopg2',
     'redis',
 ]
+
+
 
 version = __version__
 # Append a suffix to the version for dev builds

@@ -7,6 +7,8 @@ dependencies:
   pre:
     - sudo service postgresql stop
     - sudo service redis-server stop
+    # install of mock fails otherwise
+    - pip3.4 install -U setuptools
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3

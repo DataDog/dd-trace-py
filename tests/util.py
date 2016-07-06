@@ -1,6 +1,5 @@
 import mock
 
-
 class FakeTime(object):
     """"Allow to mock time.time for tests
 
