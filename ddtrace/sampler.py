@@ -66,7 +66,7 @@ class ThroughputSampler(object):
         return t % self.over
 
     def expire_buckets(self, start, end):
-        period = min(self.over, (end - start) - 1)
+        period = min(self.over, (end - start))
         for i in xrange(period):
             self._counter[self.key_from_time(start + i + 1)] = 0
 

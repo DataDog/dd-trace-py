@@ -1,3 +1,5 @@
+from __future__ import division
+
 import unittest
 import random
 
@@ -7,10 +9,9 @@ from .test_tracer import DummyWriter
 from .util import patch_time
 
 
-class SamplerTest(unittest.TestCase):
+class RateSamplerTest(unittest.TestCase):
 
-
-    def test_rate_sampler(self):
+    def test_random_sequence(self):
         writer = DummyWriter()
         sampler = RateSampler(0.5)
         tracer = Tracer(writer=writer)
@@ -45,7 +46,9 @@ class SamplerTest(unittest.TestCase):
         assert writer.pop()
 
 
-    def test_throughput_sampler(self):
+class ThroughputSamplerTest(unittest.TestCase):
+
+    def test_simple_limit(self):
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
 
@@ -68,6 +71,10 @@ class SamplerTest(unittest.TestCase):
             traces = writer.pop()
             assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
 
+    def test_sleep(self):
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+
         with patch_time() as fake_time:
 
             tracer.sampler = ThroughputSampler(10, 3)
@@ -86,3 +93,32 @@ class SamplerTest(unittest.TestCase):
                 s.finish()
             traces = writer.pop()
             assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
+
+    def test_long_run(self):
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+
+        with patch_time() as fake_time:
+            limit = 100
+            over = 5
+            tracer.sampler = ThroughputSampler(limit, over)
+
+            with patch_time() as fake_time:
+                traces_per_s = 80
+                total_time = 10
+                for i in range(traces_per_s * total_time):
+                    s = tracer.trace("whatever")
+                    s.finish()
+                    print s.sampled
+                    if not (i + 1) % traces_per_s:
+                        fake_time.sleep(1)
+
+            traces = writer.pop()
+            # We expect 100 traces, but the initialization of the current sampler implementation can introduce
+            # an error of up-to `limit/over` traces
+            got = len(traces)
+            expected = (limit * total_time / over)
+            error_delta = limit / over
+
+            assert abs(got == expected) <= error_delta, \
+                "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
