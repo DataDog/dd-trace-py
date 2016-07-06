@@ -24,7 +24,13 @@ def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=Non
 
 # pylint: disable=protected-access
 def _get_traced_redis(ddtracer, baseclass, service, meta):
-    class TracedPipeline(StrictPipeline):
+    basepipeline = StrictPipeline
+    try:
+        basepipeline = baseclass().pipeline().__class__
+    except:
+        pass
+
+    class TracedPipeline(basepipeline):
         _datadog_tracer = ddtracer
         _datadog_service = service
         _datadog_meta = meta
