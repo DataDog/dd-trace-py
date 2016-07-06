@@ -67,7 +67,7 @@ class ThroughputSampler(object):
 
     def expire_buckets(self, start, end):
         period = min(self.over, (end - start))
-        for i in xrange(period):
+        for i in range(period):
             self._counter[self.key_from_time(start + i + 1)] = 0
 
     def count_traces(self):
