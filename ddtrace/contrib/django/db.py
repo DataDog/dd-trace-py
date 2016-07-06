@@ -40,6 +40,12 @@ class TracedCursor(object):
         self._name = "%s.%s" % (prefix, "query")                # e.g sqlite3.query
         self._service = "%s%s" % (self._alias or prefix, "db")  # e.g. defaultdb or postgresdb
 
+        self.tracer.set_service_info(
+            service=self._service,
+            app=prefix,
+            app_type=sqlx.TYPE,
+        )
+
     def _trace(self, func, sql, params):
         with self.tracer.trace(self._name, resource=sql, service=self._service, span_type=sqlx.TYPE) as span:
             span.set_tag(sqlx.QUERY, sql)
@@ -82,5 +88,7 @@ def _vendor_to_prefix(vendor):
         return "db"  # should this ever happen?
     elif vendor == "sqlite":
         return "sqlite3"  # for consistency with the sqlite3 integration
+    elif vendor == "postgresql":
+        return "postgres"
     else:
         return vendor

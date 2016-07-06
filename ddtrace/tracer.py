@@ -129,3 +129,7 @@ class Tracer(object):
             "app_type": app_type,
         }
 
+        if self.debug_logging:
+            log.debug("set_service_info: service:%s app:%s type:%s",
+                service, app, app_type)
+
