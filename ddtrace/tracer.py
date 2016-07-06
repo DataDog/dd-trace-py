@@ -31,6 +31,9 @@ class Tracer(object):
         self._spans_lock = threading.Lock()
         self._spans = []
 
+        # a collection of registered services by name.
+        self._services = {}
+
         self.sampler = RateSampler(sample_rate)
 
         # A hook for local debugging. shouldn't be needed or used
@@ -111,4 +114,18 @@ class Tracer(object):
                 for span in spans:
                     log.debug("\n%s", span.pprint())
 
-            self._writer.write(spans)
+            self._writer.write(spans, self._services)
+
+    def set_service_info(self, service, app, app_type):
+        """
+        Set the information about the given service.
+
+        @service: the internal name of the service (e.g. acme_search, datadog_web)
+        @app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
+        @app_type: the type of the application (e.g. db, web)
+        """
+        self._services[service] = {
+            "app" : app,
+            "app_type": app_type,
+        }
+

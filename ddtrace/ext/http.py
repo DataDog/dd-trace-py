@@ -17,3 +17,6 @@ STATUS_CODE = "http.status_code"
 
 # template render span type
 TEMPLATE = 'template'
+
+# the type of full stack web servers
+APP_TYPE_WEB = "web"

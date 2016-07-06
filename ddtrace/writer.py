@@ -6,5 +6,6 @@ class AgentWriter(object):
     def __init__(self):
         self._reporter = AgentReporter()
 
-    def write(self, spans):
-        self._reporter.report(spans, [])
+    def write(self, spans, services=None):
+        self._reporter.report(spans, services)
+

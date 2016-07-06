@@ -29,6 +29,13 @@ def get_traced_cassandra(tracer, service=DEFAULT_SERVICE, meta=None):
 
 def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     """ Trace synchronous cassandra commands by patching the Session class """
+
+    tracer.set_service_info(
+        service=service,
+        app="cassandra",
+        app_type="db",
+    )
+
     class TracedSession(cassandra.Session):
         _datadog_tracer = tracer
         _datadog_service = service

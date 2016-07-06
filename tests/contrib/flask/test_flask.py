@@ -138,6 +138,13 @@ class TestFlask(object):
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
 
+        services = writer.pop_services()
+        expected = {
+            service : {"app":"flask", "app_type":"web"}
+        }
+        eq_(services, expected)
+
+
     def test_template(self):
         start = time.time()
         rv = app.get('/tmpl')

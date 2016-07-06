@@ -27,8 +27,14 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
     basepipeline = StrictPipeline
     try:
         basepipeline = baseclass().pipeline().__class__
-    except:
+    except Exception:
         pass
+
+    ddtracer.set_service_info(
+        service=service,
+        app="redis",
+        app_type="db",
+    )
 
     class TracedPipeline(basepipeline):
         _datadog_tracer = ddtracer

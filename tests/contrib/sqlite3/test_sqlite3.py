@@ -63,4 +63,13 @@ def test_foo():
         assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
         assert 'no such table' in span.get_tag(errors.ERROR_MSG)
 
+    # ensure we have the service types
+    services = writer.pop_services()
+    expected = {
+        "db" : {"app":"sqlite3", "app_type":"sql"},
+        "another" : {"app":"sqlite3", "app_type":"sql"},
+    }
+    eq_(services, expected)
+
+
 

@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 
 
 class AgentReporter(object):
-    SERVICES_FLUSH_INTERVAL = 60
+
+    SERVICES_FLUSH_INTERVAL = 120
 
     def __init__(self):
         self.transport = ThreadedHTTPTransport()

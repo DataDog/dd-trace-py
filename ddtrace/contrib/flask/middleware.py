@@ -26,6 +26,12 @@ class TraceMiddleware(object):
         self._tracer = tracer
         self._service = service
 
+        self._tracer.set_service_info(
+            service=service,
+            app="flask",
+            app_type=http.APP_TYPE_WEB,
+        )
+
         self.use_signals = use_signals
 
         if self.use_signals and signals.signals_available:

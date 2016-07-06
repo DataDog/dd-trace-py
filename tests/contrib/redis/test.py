@@ -48,6 +48,13 @@ class RedisTest(unittest.TestCase):
         eq_(span.meta, {'out.host': u'localhost', 'redis.raw_command': u'GET cheese', 'out.port': u'6379', 'redis.args_length': u'2', 'out.redis_db': u'0'})
         eq_(span.resource, 'GET cheese')
 
+        services = writer.pop_services()
+        expected = {
+            self.SERVICE: {"app":"redis", "app_type":"db"}
+        }
+        eq_(services, expected)
+
+
     def test_meta_override(self):
         writer = DummyWriter()
         tracer = Tracer(writer=writer)

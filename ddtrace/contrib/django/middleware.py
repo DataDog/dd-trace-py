@@ -22,6 +22,12 @@ class TraceMiddleware(object):
         self.tracer = tracer
         self.service = getattr(settings, 'DATADOG_SERVICE', 'django')
 
+        self.tracer.set_service_info(
+            service=self.service,
+            app='django',
+            app_type=http.APP_TYPE_WEB,
+        )
+
         try:
             patch_template(self.tracer)
         except Exception:

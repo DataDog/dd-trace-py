@@ -76,3 +76,13 @@ def test_wrap():
         eq_(span.meta["out.host"], 'localhost')
         eq_(span.meta["out.port"], '5432')
         eq_(span.span_type, "sql")
+
+    # ensure we have the service types
+    services = writer.pop_services()
+    expected = {
+        "db" : {"app":"postgres", "app_type":"sql"},
+        "another" : {"app":"postgres", "app_type":"sql"},
+    }
+    eq_(services, expected)
+
+

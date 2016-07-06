@@ -11,6 +11,13 @@ def connection_factory(tracer, service="sqlite3"):
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = sqlite3.connect(":memory:", factory=factory)
     """
+
+    tracer.set_service_info(
+        service=service,
+        app="sqlite3",
+        app_type=sqlx.TYPE,
+    )
+
     return functools.partial(TracedConnection,
         datadog_tracer=tracer,
         datadog_service=service,

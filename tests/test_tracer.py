@@ -128,11 +128,22 @@ class DummyWriter(object):
 
     def __init__(self):
         self.spans = []
+        self.services = {}
 
-    def write(self, spans):
+    def write(self, spans, services=None):
         self.spans += spans
+        if services:
+            self.services.update(services)
+
+    # dummy methods
 
     def pop(self):
         s = self.spans
         self.spans = []
         return s
+
+    def pop_services(self):
+        s = self.services
+        self.services = {}
+        return s
+
