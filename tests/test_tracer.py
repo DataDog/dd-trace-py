@@ -3,7 +3,6 @@ tests for Tracer and utilities.
 """
 
 import time
-import random
 
 from nose.tools import eq_
 
@@ -103,39 +102,6 @@ def test_tracer_disabled_mem_leak():
     assert not s2._parent, s2._parent
     s2.finish()
     assert not p1, p1
-
-def test_sampling():
-    writer = DummyWriter()
-    tracer = Tracer(writer=writer, sample_rate=0.5)
-
-    # Set the seed so that the choice of sampled traces is deterministic, then write tests accordingly
-    random.seed(4012)
-
-    # First trace, sampled
-    with tracer.trace("foo") as s:
-        assert s.sampled
-        assert s.weight == 2
-    assert writer.pop()
-
-    # Second trace, not sampled
-    with tracer.trace("figh") as s:
-        assert not s.sampled
-        s2 = tracer.trace("what")
-        assert not s2.sampled
-        s2.finish()
-        with tracer.trace("ever") as s3:
-            assert not s3.sampled
-            s4 = tracer.trace("!")
-            assert not s4.sampled
-            s4.finish()
-    spans = writer.pop()
-    assert not spans, spans
-
-    # Third trace, not sampled
-    with tracer.trace("ters") as s:
-        assert s.sampled
-    assert writer.pop()
-
 
 class DummyWriter(object):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
