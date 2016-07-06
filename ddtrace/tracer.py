@@ -2,7 +2,7 @@ import logging
 import threading
 
 from .buffer import ThreadLocalSpanBuffer
-from .sampler import RateSampler
+from .sampler import DefaultSampler
 from .span import Span
 from .writer import AgentWriter
 
@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 class Tracer(object):
 
-    def __init__(self, enabled=True, writer=None, span_buffer=None, sample_rate=1):
+    def __init__(self, enabled=True, writer=None, span_buffer=None, sampler=None):
         """
         Create a new tracer object.
 
@@ -20,12 +20,13 @@ class Tracer(object):
         writer: an instance of Writer
         span_buffer: a span buffer instance. used to store inflight traces. by
                      default, will use thread local storage
-        sample_rate: Pre-sampling rate.
+        sampler: Trace sampler.
         """
         self.enabled = enabled
 
         self._writer = writer or AgentWriter()
         self._span_buffer = span_buffer or ThreadLocalSpanBuffer()
+        self.sampler = sampler or DefaultSampler()
 
         # a list of buffered spans.
         self._spans_lock = threading.Lock()
@@ -33,8 +34,6 @@ class Tracer(object):
 
         # a collection of registered services by name.
         self._services = {}
-
-        self.sampler = RateSampler(sample_rate)
 
         # A hook for local debugging. shouldn't be needed or used
         # in production.

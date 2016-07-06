@@ -11,10 +11,17 @@ from .span import MAX_TRACE_ID
 log = logging.getLogger(__name__)
 
 
-class RateSampler(object):
-    """Sampling based on a rate
+class DefaultSampler(object):
+    """Default sampler, sampling all the traces"""
 
-    Keep (100 * sample_rate)% of the traces.
+    def sample(self, span):
+        span.sampled = True
+
+
+class RateSampler(object):
+    """Sampler based on a rate
+
+    Keep (100 * `sample_rate`)% of the traces.
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
@@ -28,6 +35,8 @@ class RateSampler(object):
         self.sample_rate = sample_rate
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
+        log.info("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
+
     def sample(self, span):
         span.sampled = span.trace_id <= self.sampling_id_threshold
         # `weight` is an attribute applied to all spans to help scaling related statistics
@@ -35,10 +44,10 @@ class RateSampler(object):
 
 
 class ThroughputSampler(object):
-    """Sampling based on a limit over the trace volume
+    """Sampler based on a limit over the trace volume
 
-    Stop tracing once reached more than `X` traces over the last `Y` seconds.
-    Count each sampled trace based on the modulo of its time, kept in 1s count buckets with a circular buffer.
+    Stop tracing once reached more than `limit` traces over the last `over` seconds.
+    Count each sampled trace based on the modulo of its time inside a circular buffer, with 1s count bucket.
     """
 
     def __init__(self, limit, over):
@@ -47,6 +56,8 @@ class ThroughputSampler(object):
 
         self._counter = array.array('L', [0] * self.over)
         self.last_track_time = 0
+
+        log.info("initialized ThroughputSampler, sample up to %s traces over %s seconds", limit, over)
 
     def sample(self, span):
         now = int(span.start)

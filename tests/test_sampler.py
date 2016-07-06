@@ -14,8 +14,7 @@ class RateSamplerTest(unittest.TestCase):
     def test_random_sequence(self):
         writer = DummyWriter()
         sampler = RateSampler(0.5)
-        tracer = Tracer(writer=writer)
-        tracer.sampler = sampler
+        tracer = Tracer(writer=writer, sampler=sampler)
 
         # Set the seed so that the choice of sampled traces is deterministic, then write tests accordingly
         random.seed(4012)
