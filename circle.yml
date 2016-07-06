@@ -1,6 +1,8 @@
 machine:
   services:
     - docker
+  environment:
+    CASS_DRIVER_NO_EXTENSIONS: 1
   post:
     - pyenv global 2.7.9 3.4.2
 dependencies:
