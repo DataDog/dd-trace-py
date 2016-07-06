@@ -3,12 +3,13 @@ from setuptools import setup, find_packages
 import os
 
 tests_require = [
+    'mock',
+    'nose',
     'blinker',
     'cassandra-driver',
     'django',
     'elasticsearch',
     'flask',
-    'nose',
     'psycopg2',
     'redis',
 ]

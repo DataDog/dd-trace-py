@@ -1,10 +1,10 @@
 import unittest
 import random
-import time
 
 from ddtrace.tracer import Tracer
 from ddtrace.sampler import RateSampler, ThroughputSampler
 from .test_tracer import DummyWriter
+from .util import patch_time
 
 
 class SamplerTest(unittest.TestCase):
@@ -49,38 +49,40 @@ class SamplerTest(unittest.TestCase):
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
 
-        tracer.sampler = ThroughputSampler(10, 2)
+        with patch_time() as fake_time:
 
-        for _ in range(15):
-            s = tracer.trace("whatever")
-            s.finish()
-        traces = writer.pop()
-        assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
+            tracer.sampler = ThroughputSampler(10, 2)
 
-        # Wait 3s to reset
-        time.sleep(3)
+            for _ in range(15):
+                s = tracer.trace("whatever")
+                s.finish()
+            traces = writer.pop()
+            assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
 
-        for _ in range(15):
-            s = tracer.trace("whatever")
-            s.finish()
-        traces = writer.pop()
-        assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
+            # Wait 3s to reset
+            fake_time.sleep(3)
 
-        tracer.sampler = ThroughputSampler(10, 3)
+            for _ in range(15):
+                s = tracer.trace("whatever")
+                s.finish()
+            traces = writer.pop()
+            assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
 
-        for _ in range(5):
-            s = tracer.trace("whatever")
-            s.finish()
-        traces = writer.pop()
-        assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
+        with patch_time() as fake_time:
 
-        # Less than the sampler period, but enough to change bucket
-        time.sleep(1)
+            tracer.sampler = ThroughputSampler(10, 3)
 
-        for _ in range(15):
-            s = tracer.trace("whatever")
-            s.finish()
-        traces = writer.pop()
-        assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
+            for _ in range(5):
+                s = tracer.trace("whatever")
+                s.finish()
+            traces = writer.pop()
+            assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
 
+            # Less than the sampler period, but enough to change bucket
+            fake_time.sleep(1)
 
+            for _ in range(15):
+                s = tracer.trace("whatever")
+                s.finish()
+            traces = writer.pop()
+            assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
