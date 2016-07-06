@@ -98,25 +98,26 @@ class ThroughputSamplerTest(unittest.TestCase):
         tracer = Tracer(writer=writer)
 
         # Test a big matrix of combinaisons
-        for (limit, over) in [(10, 1), (100, 5), (85, 6), (10, 10)]:
-            for (traces_per_s, total_time) in [(80, 10), (75, 23), (1000, 30)]:
+        # Ensure to have total_time >> over to avoid edge effects
+        for (limit, over) in [(10, 1), (100, 3), (85, 6), (10, 9)]:
+            for (traces_per_s, total_time) in [(80, 23), (75, 66), (1000, 77)]:
 
                 with patch_time() as fake_time:
+                    fake_time.set_delta(0)
                     tracer.sampler = ThroughputSampler(limit, over)
 
-                    with patch_time() as fake_time:
-                        for i in range(traces_per_s * total_time):
+                    for _ in range(total_time):
+                        for _ in range(traces_per_s):
                             s = tracer.trace("whatever")
                             s.finish()
-                            if not (i + 1) % traces_per_s:
-                                fake_time.sleep(1)
+                        fake_time.sleep(1)
 
-                    traces = writer.pop()
-                    # The current sampler implementation can introduce an error of up-to `limit/over` traces
-                    # (because of the way we count in our circular buffer)
-                    got = len(traces)
-                    expected = (limit * total_time / over)
-                    error_delta = limit / over
+                traces = writer.pop()
+                # The current sampler implementation can introduce an error of up-to
+                # `limit * (over -1) / over` traces at initialization (the sampler starts empty)
+                got = len(traces)
+                expected = (limit * total_time / over)
+                error_delta = limit * (over -1) / over
 
-                assert abs(got == expected) <= error_delta, \
+                assert abs(got - expected) <= error_delta, \
                     "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
