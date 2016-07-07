@@ -10,6 +10,7 @@ from redis.client import StrictPipeline
 # dogtrace
 from .util import format_command_args, _extract_conn_tags
 from ...ext import redis as redisx
+from ...ext import AppTypes
 
 
 DEFAULT_SERVICE = 'redis'
@@ -33,7 +34,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
     ddtracer.set_service_info(
         service=service,
         app="redis",
-        app_type="db",
+        app_type=AppTypes.db,
     )
 
     class TracedPipeline(basepipeline):

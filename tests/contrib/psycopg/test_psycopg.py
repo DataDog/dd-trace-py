@@ -80,8 +80,8 @@ def test_wrap():
     # ensure we have the service types
     services = writer.pop_services()
     expected = {
-        "db" : {"app":"postgres", "app_type":"sql"},
-        "another" : {"app":"postgres", "app_type":"sql"},
+        "db" : {"app":"postgres", "app_type":"db"},
+        "another" : {"app":"postgres", "app_type":"db"},
     }
     eq_(services, expected)
 

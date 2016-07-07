@@ -2,6 +2,7 @@ import functools
 
 from sqlite3 import Connection, Cursor
 from ...ext import sql as sqlx
+from ...ext import AppTypes
 
 
 def connection_factory(tracer, service="sqlite3"):
@@ -15,7 +16,7 @@ def connection_factory(tracer, service="sqlite3"):
     tracer.set_service_info(
         service=service,
         app="sqlite3",
-        app_type=sqlx.TYPE,
+        app_type=AppTypes.db,
     )
 
     return functools.partial(TracedConnection,

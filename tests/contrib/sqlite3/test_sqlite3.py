@@ -66,8 +66,8 @@ def test_foo():
     # ensure we have the service types
     services = writer.pop_services()
     expected = {
-        "db" : {"app":"sqlite3", "app_type":"sql"},
-        "another" : {"app":"sqlite3", "app_type":"sql"},
+        "db" : {"app":"sqlite3", "app_type":"db"},
+        "another" : {"app":"sqlite3", "app_type":"db"},
     }
     eq_(services, expected)
 

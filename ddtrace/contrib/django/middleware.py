@@ -2,7 +2,7 @@ import logging
 
 # project
 from ... import tracer
-from ...ext import http
+from ...ext import http, AppTypes
 from ...contrib import func_name
 from .templates import patch_template
 from .db import patch_db
@@ -25,7 +25,7 @@ class TraceMiddleware(object):
         self.tracer.set_service_info(
             service=self.service,
             app='django',
-            app_type=http.APP_TYPE_WEB,
+            app_type=AppTypes.web,
         )
 
         try:

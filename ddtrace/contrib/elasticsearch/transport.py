@@ -3,12 +3,19 @@ from elasticsearch import Transport
 from .quantize import quantize
 from . import metadata
 from ...compat import json, urlencode
+from ...ext import AppTypes
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
+
+    datadog_tracer.set_service_info(
+        service=datadog_service,
+        app=SPAN_TYPE,
+        app_type=AppTypes.db,
+    )
 
     class TracedTransport(Transport):
         """Extend elasticseach transport layer to allow Datadog tracer to catch any performed request"""

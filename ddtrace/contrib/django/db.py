@@ -5,6 +5,7 @@ from django.db import connections
 
 # project
 from ...ext import sql as sqlx
+from ...ext import AppTypes
 
 
 log = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class TracedCursor(object):
         self.tracer.set_service_info(
             service=self._service,
             app=prefix,
-            app_type=sqlx.TYPE,
+            app_type=AppTypes.db,
         )
 
     def _trace(self, func, sql, params):

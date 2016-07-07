@@ -10,7 +10,7 @@ import time
 import logging
 
 # project
-from ...ext import http, errors
+from ...ext import http, errors, AppTypes
 
 # 3p
 from flask import g, request, signals
@@ -29,7 +29,7 @@ class TraceMiddleware(object):
         self._tracer.set_service_info(
             service=service,
             app="flask",
-            app_type=http.APP_TYPE_WEB,
+            app_type=AppTypes.web,
         )
 
         self.use_signals = use_signals

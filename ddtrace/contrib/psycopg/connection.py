@@ -8,6 +8,7 @@ import logging
 
 from ...ext import net
 from ...ext import sql as sqlx
+from ...ext import AppTypes
 
 # 3p
 from psycopg2.extensions import connection, cursor
@@ -27,7 +28,7 @@ def connection_factory(tracer, service="postgres"):
     tracer.set_service_info(
         service=service,
         app="postgres",
-        app_type=sqlx.TYPE,
+        app_type=AppTypes.db,
     )
 
     return functools.partial(TracedConnection,
@@ -95,12 +96,6 @@ class TracedConnection(connection):
             datadog_service=self._datadog_service,
             datadog_tags=self._datadog_tags,
         )
-
-        # DogTrace.register_service(
-        #     service=self._dogtrace_service,
-        #     app="postgres",
-        #     app_type="sql",
-        # )
 
     def cursor(self, *args, **kwargs):
         """ register our custom cursor factory """

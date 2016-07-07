@@ -12,6 +12,7 @@ import logging
 from ...compat import stringify
 from ...util import deep_getattr, safe_patch
 from ...ext import net as netx, cassandra as cassx
+from ...ext import AppTypes
 
 # 3p
 import cassandra.cluster
@@ -33,7 +34,7 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     tracer.set_service_info(
         service=service,
         app="cassandra",
-        app_type="db",
+        app_type=AppTypes.db,
     )
 
     class TracedSession(cassandra.Session):
