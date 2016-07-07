@@ -52,59 +52,48 @@ class ThroughputSamplerTest(unittest.TestCase):
         tracer = Tracer(writer=writer)
 
         with patch_time() as fake_time:
+            tps = 5
+            tracer.sampler = ThroughputSampler(tps)
 
-            tracer.sampler = ThroughputSampler(10, 2)
-
-            for _ in range(15):
+            for _ in range(10):
                 s = tracer.trace("whatever")
                 s.finish()
             traces = writer.pop()
-            assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
 
-            # Wait 3s to reset
-            fake_time.sleep(3)
+            got = len(traces)
+            expected = 10
 
-            for _ in range(15):
+            assert got == expected, \
+                "Wrong number of traces sampled, %s instead of %s" % (got, expected)
+
+            # Wait enough to reset
+            fake_time.sleep(tracer.sampler.BUFFER_DURATION + 1)
+
+            for _ in range(100):
                 s = tracer.trace("whatever")
                 s.finish()
             traces = writer.pop()
-            assert len(traces) == 10, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 10)
 
-    def test_sleep(self):
-        writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+            got = len(traces)
+            expected = tps * tracer.sampler.BUFFER_DURATION
 
-        with patch_time() as fake_time:
-
-            tracer.sampler = ThroughputSampler(10, 3)
-
-            for _ in range(5):
-                s = tracer.trace("whatever")
-                s.finish()
-            traces = writer.pop()
-            assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
-
-            # Less than the sampler period, but enough to change bucket
-            fake_time.sleep(1)
-
-            for _ in range(15):
-                s = tracer.trace("whatever")
-                s.finish()
-            traces = writer.pop()
-            assert len(traces) == 5, "Wrong number of traces sampled, %s instead of %s" % (len(traces), 5)
+            assert got == expected, \
+                "Wrong number of traces sampled, %s instead of %s" % (got, expected)
 
     def test_long_run(self):
         writer = DummyWriter()
         tracer = Tracer(writer=writer)
 
         # Test a big matrix of combinaisons
-        # Ensure to have total_time >> over to avoid edge effects
-        for (limit, over) in [(10, 1), (100, 3), (85, 6), (10, 9)]:
+        # Ensure to have total_time >> BUFFER_DURATION to reduce edge effects
+        for tps in [10, 23, 15, 31]:
             for (traces_per_s, total_time) in [(80, 23), (75, 66), (1000, 77)]:
 
                 with patch_time() as fake_time:
+                    # We do tons of operations in this test, do not let the time slowly shift
                     fake_time.set_delta(0)
-                    tracer.sampler = ThroughputSampler(limit, over)
+
+                    tracer.sampler = ThroughputSampler(tps)
 
                     for _ in range(total_time):
                         for _ in range(traces_per_s):
@@ -113,11 +102,11 @@ class ThroughputSamplerTest(unittest.TestCase):
                         fake_time.sleep(1)
 
                 traces = writer.pop()
-                # The current sampler implementation can introduce an error of up-to
-                # `limit * (over -1) / over` traces at initialization (the sampler starts empty)
+                # The current sampler implementation can introduce an error of up to
+                # `tps * BUFFER_DURATION` traces at initialization (since the sampler starts empty)
                 got = len(traces)
-                expected = (limit * total_time / over)
-                error_delta = limit * (over -1) / over
+                expected = tps * total_time
+                error_delta = tps * tracer.sampler.BUFFER_DURATION
 
                 assert abs(got - expected) <= error_delta, \
                     "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)

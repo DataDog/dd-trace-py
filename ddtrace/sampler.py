@@ -32,10 +32,13 @@ class RateSampler(object):
         elif sample_rate > 1:
             sample_rate = 1
 
-        self.sample_rate = sample_rate
-        self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
+        self.set_sample_rate(sample_rate)
 
         log.info("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
+
+    def set_sample_rate(self, sample_rate):
+        self.sample_rate = sample_rate
+        self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
         span.sampled = span.trace_id <= self.sampling_id_threshold
@@ -44,23 +47,31 @@ class RateSampler(object):
 
 
 class ThroughputSampler(object):
-    """Sampler based on a limit over the trace volume
+    """Sampler applying a strict limit over the trace volume
 
-    Stop tracing once reached more than `limit` traces over the last `over` seconds.
-    Count each sampled trace based on the modulo of its time inside a circular buffer, with 1s count bucket.
+    Stop tracing once reached more than `tps` traces per second.
+    Computation is based on a circular buffer over the last `BUFFER_DURATION` with a `BUFFER_SIZE` size.
     """
 
-    def __init__(self, limit, over):
-        self.limit = limit
-        self.over = over
+    # Reasonable values
+    BUCKETS_PER_S = 5
+    BUFFER_DURATION = 4
+    BUFFER_SIZE = BUCKETS_PER_S * BUFFER_DURATION
 
-        self._counter = array.array('L', [0] * self.over)
+    def __init__(self, tps):
+        self.tps = tps
+
+        self.limit = tps * self.BUFFER_DURATION
+
+        # Circular buffer counting sampled traces over the last `BUFFER_DURATION`
+        self.counter = array.array('L', [0] * self.BUFFER_SIZE)
+        # Last time we sampled a trace, multiplied by `BUCKETS_PER_S`
         self.last_track_time = 0
 
-        log.info("initialized ThroughputSampler, sample up to %s traces over %s seconds", limit, over)
+        log.info("initialized ThroughputSampler, sample up to %s traces/s", tps)
 
     def sample(self, span):
-        now = int(span.start)
+        now = int(span.start * self.BUCKETS_PER_S)
         last_track_time = self.last_track_time
         if now > last_track_time:
             self.last_track_time = now
@@ -69,17 +80,17 @@ class ThroughputSampler(object):
         span.sampled = self.count_traces() < self.limit
 
         if span.sampled:
-            self._counter[self.key_from_time(now)] += 1
+            self.counter[self.key_from_time(now)] += 1
 
         return span
 
     def key_from_time(self, t):
-        return t % self.over
+        return t % self.BUFFER_SIZE
 
     def expire_buckets(self, start, end):
-        period = min(self.over, (end - start))
+        period = min(self.BUFFER_SIZE, (end - start))
         for i in range(period):
-            self._counter[self.key_from_time(start + i + 1)] = 0
+            self.counter[self.key_from_time(start + i + 1)] = 0
 
     def count_traces(self):
-        return sum(self._counter)
+        return sum(self.counter)
