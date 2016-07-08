@@ -63,7 +63,8 @@ class ThroughputSampler(object):
         self.buffer_limit = tps * self.BUFFER_DURATION
 
         # Circular buffer counting sampled traces over the last `BUFFER_DURATION`
-        self.counter = array.array('L', [0] * self.BUFFER_SIZE)
+        self.counter = 0
+        self.counter_buffer = array.array('L', [0] * self.BUFFER_SIZE)
         self._buffer_lock = threading.Lock()
         # Last time we sampled a trace, multiplied by `BUCKETS_PER_S`
         self.last_track_time = 0
@@ -79,10 +80,11 @@ class ThroughputSampler(object):
                 self.last_track_time = now
                 self.expire_buckets(last_track_time, now)
 
-        span.sampled = self.count_traces() < self.buffer_limit
+            span.sampled = self.counter < self.buffer_limit
 
-        if span.sampled:
-            self.counter[self.key_from_time(now)] += 1
+            if span.sampled:
+                self.counter += 1
+                self.counter_buffer[self.key_from_time(now)] += 1
 
         return span
 
@@ -92,7 +94,6 @@ class ThroughputSampler(object):
     def expire_buckets(self, start, end):
         period = min(self.BUFFER_SIZE, (end - start))
         for i in range(period):
-            self.counter[self.key_from_time(start + i + 1)] = 0
-
-    def count_traces(self):
-        return sum(self.counter)
+            key = self.key_from_time(start + i + 1)
+            self.counter -= self.counter_buffer[key]
+            self.counter_buffer[key] = 0

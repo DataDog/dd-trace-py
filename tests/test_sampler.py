@@ -122,30 +122,23 @@ class ThroughputSamplerTest(unittest.TestCase):
 
         total_time = 10
         concurrency = 100
+        end_time = time.time() + total_time
 
         # Let's sample to a multiple of BUFFER_SIZE, so that we can pre-populate the buffer
         tps = 15 * ThroughputSampler.BUFFER_SIZE
         tracer.sampler = ThroughputSampler(tps)
 
-        # Let's cheat and populate the sampler buffer to avoid the initialization imprecision
-        for i in tracer.sampler.counter:
-            tracer.sampler.counter[i] = tps // ThroughputSampler.BUFFER_SIZE
-
-        total_count = 0
         threads = []
 
-        end_time = time.time() + total_time
-
-        def run_simulation(tracer, end_time, total_count):
+        def run_simulation(tracer, end_time):
             while time.time() < end_time:
                 s = tracer.trace("whatever")
                 s.finish()
-                total_count += 1
                 # ~1000 traces per s per thread
                 time.sleep(0.001)
 
         for i in range(concurrency):
-            thread = threading.Thread(target=run_simulation, args=(tracer, end_time, total_count))
+            thread = threading.Thread(target=run_simulation, args=(tracer, end_time))
             threads.append(thread)
 
         for t in threads:
