@@ -11,6 +11,7 @@ tests_require = [
     'nose',
     'psycopg2',
     'redis',
+    'sphinx'
 ]
 
 version = __version__
