@@ -94,21 +94,21 @@ def _extract_session_metas(session):
 def _extract_cluster_metas(cluster):
     metas = {}
     if deep_getattr(cluster, "metadata.cluster_name"):
-        metas["cluster_name"] = cluster.metadata.cluster_name
+        metas[cassx.CLUSTER] = cluster.metadata.cluster_name
 
     if getattr(cluster, "port", None):
         metas[netx.TARGET_PORT] = cluster.port
 
     if getattr(cluster, "contact_points", None):
-        metas["contact_points"] = cluster.contact_points
+        metas[cassx.CONTACT_POINTS] = cluster.contact_points
         # Use the first contact point as a persistent host
         if isinstance(cluster.contact_points, list) and len(cluster.contact_points) > 0:
             metas[netx.TARGET_HOST] = cluster.contact_points[0]
 
     if getattr(cluster, "compression", None):
-        metas["compression"] = cluster.compression
+        metas[cassx.COMPRESSION] = cluster.compression
     if getattr(cluster, "cql_version", None):
-        metas["cql_version"] = cluster.cql_version
+        metas[cassx.CQL_VERSION] = cluster.cql_version
 
     return metas
 
