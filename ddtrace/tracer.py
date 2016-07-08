@@ -1,3 +1,7 @@
+"""
+this is a thing.
+"""
+
 import logging
 import threading
 
@@ -11,16 +15,22 @@ log = logging.getLogger(__name__)
 
 
 class Tracer(object):
+    """
+    Tracer is used to create, sample and submit spans that measure the
+    execution time of sections of code.
+
+    If you're running an application that will serve a single trace per thread,
+    you can use the global traced instance:
+
+    >>> from ddtrace import tracer
+    >>> tracer.trace("foo").finish()
+    """
 
     def __init__(self, enabled=True, writer=None, span_buffer=None, sample_rate=1):
         """
-        Create a new tracer object.
+        Create a new tracer.
 
-        enabled: if False, no spans will be submitted to the writer
-        writer: an instance of Writer
-        span_buffer: a span buffer instance. used to store inflight traces. by
-                     default, will use thread local storage
-        sample_rate: Pre-sampling rate.
+        :param bool enabled: If true, finished traces will be submitted to the API. Otherwise they'll be dropped.
         """
         self.enabled = enabled
 
@@ -44,15 +54,32 @@ class Tracer(object):
         """
         Return a span that will trace an operation called `name`.
 
-        It will store the created span in the span buffer and until it's
-        finished, any new spans will be a child of this span.
+        :param str name: the name of the operation being traced
+        :param str service: the name of the service being traced. If not set,
+                            it will inherit the service from it's parent.
+        :param str resource: an optional name of the resource being tracked.
+
+        You must call `finish` on all spans, either directly or with a context
+        manager.
+
+        >>> span = tracer.trace("web.request")
+            try:
+                # do something
+            finally:
+                span.finish()
+        >>> with tracer.trace("web.request") as span:
+            # do something
+
+        Trace will store the created span and subsequent child traces will
+        become it's children.
 
         >>> tracer = Tracer()
-        >>> parent = tracer.trace("parent") # has no parent span
-        >>> child  = tracer.child("child")  # is a child of a parent
+        >>> parent = tracer.trace("parent")     # has no parent span
+        >>> child  = tracer.trace("child")      # is a child of a parent
         >>> child.finish()
         >>> parent.finish()
-        >>> parent2 = tracer.trace("parent2") # has no parent span
+        >>> parent2 = tracer.trace("parent2")   # has no parent span
+        >>> parent2.finish()
         """
         span = None
         parent = self._span_buffer.get()
@@ -107,7 +134,6 @@ class Tracer(object):
             self.write(spans)
 
     def write(self, spans):
-        """ Submit the given spans to the agent. """
         if spans:
             if self.debug_logging:
                 log.debug("submitting %s spans", len(spans))
@@ -120,9 +146,9 @@ class Tracer(object):
         """
         Set the information about the given service.
 
-        @service: the internal name of the service (e.g. acme_search, datadog_web)
-        @app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
-        @app_type: the type of the application (e.g. db, web)
+        :param str service: the internal name of the service (e.g. acme_search, datadog_web)
+        :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
+        :param str app_type: the type of the application (e.g. db, web)
         """
         self._services[service] = {
             "app" : app,

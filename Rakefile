@@ -23,3 +23,18 @@ end
 task :clean do
   sh 'rm -rf build *egg*'
 end
+
+
+task :docs do
+  Dir.chdir 'docs' do
+    sh "make html"
+  end
+end
+
+task :'docs:loop' do
+  # FIXME do something real here
+  while true do
+    sleep 2
+    Rake::Task["docs"].execute
+  end
+end

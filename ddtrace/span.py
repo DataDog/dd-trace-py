@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 
 class Span(object):
+    """ Span represents a piece of work """
 
     def __init__(self,
             tracer,
@@ -26,12 +27,21 @@ class Span(object):
             parent_id=None,
             start=None):
         """
-        tracer: a link to the tracer that will store this span
-        name: the name of the operation we're measuring.
-        service: the name of the service that is being measured
-        resource: an optional way of specifying the 'normalized' params
-                  of the request (i.e. the sql query, the url handler, etc)
-        start: the start time of request as a unix epoch in seconds
+        Create a new span. You must call `finish` on all spans.
+
+        :param Tracer tracer: the tracer that will submit this span when
+                              finished.
+        :param str name: the name of the traced operation.
+        :param str service: the service name
+        :param str resource: the resource name
+
+        :param int start: the start time of the span in seconds from the epoch
+
+        :param int trace_id: the id of this trace's root span.
+        :param int parent_id: the id of this span's direct parent span.
+        :param int span_id: the id of this span.
+
+        :param int start: the start time of request as a unix epoch in seconds
         """
         # required span info
         self.name = name
@@ -61,15 +71,47 @@ class Span(object):
         self._parent = None
 
     def finish(self, finish_time=None):
-        """ Mark the end time of the span and submit it to the tracer. """
+        """ Mark the end time of the span and submit it to the tracer.
+
+            :param int finish_time: the end time of the span in seconds.
+                                    Defaults to now.
+        """
         ft = finish_time or time.time()
         # be defensive so we don't die if start isn't set
         self.duration = ft - (self.start or ft)
         if self._tracer:
             self._tracer.record(self)
 
+    def set_tag(self, key, value):
+        """ Set the given key / value tag pair on the span. Keys and values
+            must be strings (or stringable). If a casting error occurs, it will
+            be ignored.
+        """
+        try:
+            self.meta[key] = stringify(value)
+        except Exception:
+            log.warning("error setting tag. ignoring", exc_info=True)
+
+    def get_tag(self, key):
+        """ Return the given tag or None if it doesn't exist.
+        """
+        return self.meta.get(key, None)
+
+    def set_tags(self, tags):
+        """ Set a dictionary of tags on the given span. Keys and values
+            must be strings (or stringable)
+        """
+        if tags:
+            for k, v in iter(tags.items()):
+                self.set_tag(k, v)
+
+    def set_meta(self, k, v):
+        self.set_tag(k, v)
+
+    def set_metas(self, kvs):
+        self.set_tags(kvs)
+
     def to_dict(self):
-        """ Return a json serializable dictionary of the span's attributes. """
         d = {
             'trace_id' : self.trace_id,
             'parent_id' : self.parent_id,
@@ -94,32 +136,6 @@ class Span(object):
             d['type'] = self.span_type
 
         return d
-
-    def set_tag(self, key, value):
-        """ Set the given key / value tag pair on the span. Keys and values
-            must be strings (or stringable). If a casting error occurs, it will
-            be ignored.
-        """
-        try:
-            self.meta[key] = stringify(value)
-        except Exception:
-            log.warning("error setting tag. ignoring", exc_info=True)
-
-    def get_tag(self, key):
-        """ Return the given tag or None if it doesn't exist"""
-        return self.meta.get(key, None)
-
-    def set_tags(self, tags):
-        """ Set a dictionary of tags on the given span. Keys and values
-            must be strings (or stringable)
-        """
-        if tags:
-            for k, v in iter(tags.items()):
-                self.set_tag(k, v)
-
-    # backwards compatilibility, kill this
-    set_meta = set_tag
-    set_metas = set_tags
 
     def set_traceback(self):
         """ If the current stack has a traceback, tag the span with the

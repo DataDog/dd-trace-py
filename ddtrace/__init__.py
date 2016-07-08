@@ -1,4 +1,6 @@
-"""Datadog Tracing client"""
+"""
+"""
+
 from .tracer import Tracer
 from .span import Span
 

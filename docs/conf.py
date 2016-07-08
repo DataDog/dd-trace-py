@@ -16,9 +16,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
 
 # -- General configuration ------------------------------------------------
 
@@ -53,6 +54,10 @@ master_doc = 'index'
 project = u'ddtrace'
 copyright = u'2016, Datadog, Inc'
 author = u'Datadog, Inc'
+
+# document in order of source
+autodoc_member_order = 'bysource'
+
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
