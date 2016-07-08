@@ -91,9 +91,32 @@ API
 
 
 Integrations
-============
+------------
 
-.. automodule:: ddtrace.contrib
+
+Django
+~~~~~~
+
+.. automodule:: ddtrace.contrib.django
+
+
+Flask
+~~~~~
+
+.. automodule:: ddtrace.contrib.flask
+
+
+Postgres
+~~~~~~~~
+
+.. autofunction:: ddtrace.contrib.psycopg.connection_factory
+
+
+SQLite
+~~~~~~
+
+.. autofunction:: ddtrace.contrib.sqlite3.connection_factory
+
 
 
 Indices and tables

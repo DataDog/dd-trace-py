@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 
 
 class Span(object):
-    """ Span represents a piece of work """
 
     def __init__(self,
             tracer,
