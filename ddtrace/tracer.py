@@ -91,9 +91,6 @@ class Tracer(object):
 
     def record(self, span):
         """ Record the given finished span. """
-        if not self.enabled:
-            return
-
         spans = []
         with self._spans_lock:
             self._spans.append(span)
@@ -108,12 +105,16 @@ class Tracer(object):
 
     def write(self, spans):
         """ Submit the given spans to the agent. """
-        if spans:
-            if self.debug_logging:
-                log.debug("submitting %s spans", len(spans))
-                for span in spans:
-                    log.debug("\n%s", span.pprint())
+        if not spans:
+            return  # nothing to do
 
+        if self.debug_logging:
+            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+            for span in spans:
+                log.debug("\n%s", span.pprint())
+
+        if self.enabled:
+            # only submit the spans if we're actually enabled.
             self._writer.write(spans, self._services)
 
     def set_service_info(self, service, app, app_type):

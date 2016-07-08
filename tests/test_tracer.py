@@ -90,6 +90,20 @@ def test_tracer_disabled():
         s.set_tag("a", "b")
     assert not writer.pop()
 
+def test_tracer_disabled_mem_leak():
+    # ensure that if the tracer is disabled, we still remove things from the
+    # span buffer upon finishing.
+    writer = DummyWriter()
+    tracer = Tracer(writer=writer)
+    tracer.enabled = False
+    s1 = tracer.trace("foo")
+    s1.finish()
+    p1 = tracer.current_span()
+    s2 = tracer.trace("bar")
+    assert not s2._parent, s2._parent
+    s2.finish()
+    assert not p1, p1
+
 def test_sampling():
     writer = DummyWriter()
     tracer = Tracer(writer=writer, sample_rate=0.5)
