@@ -62,11 +62,11 @@ class Tracer(object):
             span = Span(
                 self,
                 name,
-                trace_id=parent.trace_id,
-                parent_id=parent.span_id,
                 service=(service or parent.service),
                 resource=resource,
                 span_type=span_type,
+                trace_id=parent.trace_id,
+                parent_id=parent.span_id,
             )
             span._parent = parent
             span.sampled = parent.sampled

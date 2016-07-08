@@ -19,3 +19,7 @@ task :release do
 
   sh "mkwheelhouse s3://#{s3_bucket}/#{s3_dir}/ ."
 end
+
+task :clean do
+  sh 'rm -rf build *egg*'
+end
