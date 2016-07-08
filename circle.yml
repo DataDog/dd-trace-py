@@ -1,12 +1,16 @@
 machine:
   services:
     - docker
+  environment:
+    CASS_DRIVER_NO_EXTENSIONS: 1
   post:
     - pyenv global 2.7.9 3.4.2
 dependencies:
   pre:
     - sudo service postgresql stop
     - sudo service redis-server stop
+    # install of mock fails otherwise
+    - pip3.4 install -U setuptools
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3
