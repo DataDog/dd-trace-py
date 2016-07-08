@@ -5,6 +5,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 
 import logging
 import array
+import threading
 
 from .span import MAX_TRACE_ID
 
@@ -54,17 +55,16 @@ class ThroughputSampler(object):
     """
 
     # Reasonable values
-    BUCKETS_PER_S = 5
-    BUFFER_DURATION = 4
+    BUCKETS_PER_S = 10
+    BUFFER_DURATION = 2
     BUFFER_SIZE = BUCKETS_PER_S * BUFFER_DURATION
 
     def __init__(self, tps):
-        self.tps = tps
-
-        self.limit = tps * self.BUFFER_DURATION
+        self.buffer_limit = tps * self.BUFFER_DURATION
 
         # Circular buffer counting sampled traces over the last `BUFFER_DURATION`
         self.counter = array.array('L', [0] * self.BUFFER_SIZE)
+        self._buffer_lock = threading.Lock()
         # Last time we sampled a trace, multiplied by `BUCKETS_PER_S`
         self.last_track_time = 0
 
@@ -72,12 +72,14 @@ class ThroughputSampler(object):
 
     def sample(self, span):
         now = int(span.start * self.BUCKETS_PER_S)
-        last_track_time = self.last_track_time
-        if now > last_track_time:
-            self.last_track_time = now
-            self.expire_buckets(last_track_time, now)
 
-        span.sampled = self.count_traces() < self.limit
+        with self._buffer_lock:
+            last_track_time = self.last_track_time
+            if now > last_track_time:
+                self.last_track_time = now
+                self.expire_buckets(last_track_time, now)
+
+        span.sampled = self.count_traces() < self.buffer_limit
 
         if span.sampled:
             self.counter[self.key_from_time(now)] += 1

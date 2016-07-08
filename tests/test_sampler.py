@@ -2,6 +2,8 @@ from __future__ import division
 
 import unittest
 import random
+import time
+import threading
 
 from ddtrace.tracer import Tracer
 from ddtrace.sampler import RateSampler, ThroughputSampler
@@ -46,6 +48,7 @@ class RateSamplerTest(unittest.TestCase):
 
 
 class ThroughputSamplerTest(unittest.TestCase):
+    """Test suite for the ThroughputSampler"""
 
     def test_simple_limit(self):
         writer = DummyWriter()
@@ -110,3 +113,52 @@ class ThroughputSamplerTest(unittest.TestCase):
 
                 assert abs(got - expected) <= error_delta, \
                     "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
+
+
+    def test_concurrency(self):
+        # Test that the sampler works well when used in different threads
+        writer = DummyWriter()
+        tracer = Tracer(writer=writer)
+
+        total_time = 10
+        concurrency = 100
+
+        # Let's sample to a multiple of BUFFER_SIZE, so that we can pre-populate the buffer
+        tps = 15 * ThroughputSampler.BUFFER_SIZE
+        tracer.sampler = ThroughputSampler(tps)
+
+        # Let's cheat and populate the sampler buffer to avoid the initialization imprecision
+        for i in tracer.sampler.counter:
+            tracer.sampler.counter[i] = tps // ThroughputSampler.BUFFER_SIZE
+
+        total_count = 0
+        threads = []
+
+        end_time = time.time() + total_time
+
+        def run_simulation(tracer, end_time, total_count):
+            while time.time() < end_time:
+                s = tracer.trace("whatever")
+                s.finish()
+                total_count += 1
+                # ~1000 traces per s per thread
+                time.sleep(0.001)
+
+        for i in range(concurrency):
+            thread = threading.Thread(target=run_simulation, args=(tracer, end_time, total_count))
+            threads.append(thread)
+
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        traces = writer.pop()
+
+        got = len(traces)
+        expected = tps * total_time
+        error_delta = tps * ThroughputSampler.BUFFER_DURATION
+
+        assert abs(got - expected) <= error_delta, \
+            "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
