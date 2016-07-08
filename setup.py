@@ -3,16 +3,20 @@ from setuptools import setup, find_packages
 import os
 
 tests_require = [
+    'mock',
+    'nose',
+    # contrib
     'blinker',
     'cassandra-driver',
     'django',
     'elasticsearch',
     'flask',
-    'nose',
     'psycopg2',
     'redis',
     'sphinx'
 ]
+
+
 
 version = __version__
 # Append a suffix to the version for dev builds

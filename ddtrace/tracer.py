@@ -3,7 +3,7 @@ import logging
 import threading
 
 from .buffer import ThreadLocalSpanBuffer
-from .sampler import RateSampler
+from .sampler import DefaultSampler
 from .span import Span
 from .writer import AgentWriter
 
@@ -23,7 +23,7 @@ class Tracer(object):
     >>> tracer.trace("foo").finish()
     """
 
-    def __init__(self, enabled=True, writer=None, span_buffer=None, sample_rate=1):
+    def __init__(self, enabled=True, writer=None, span_buffer=None, sampler=None):
         """
         Create a new tracer.
 
@@ -33,6 +33,7 @@ class Tracer(object):
 
         self._writer = writer or AgentWriter()
         self._span_buffer = span_buffer or ThreadLocalSpanBuffer()
+        self.sampler = sampler or DefaultSampler()
 
         # a list of buffered spans.
         self._spans_lock = threading.Lock()
@@ -40,8 +41,6 @@ class Tracer(object):
 
         # a collection of registered services by name.
         self._services = {}
-
-        self.sampler = RateSampler(sample_rate)
 
         # A hook for local debugging. shouldn't be needed or used
         # in production.
@@ -115,9 +114,6 @@ class Tracer(object):
 
     def record(self, span):
         """ Record the given finished span. """
-        if not self.enabled:
-            return
-
         spans = []
         with self._spans_lock:
             self._spans.append(span)
@@ -131,12 +127,16 @@ class Tracer(object):
             self.write(spans)
 
     def write(self, spans):
-        if spans:
-            if self.debug_logging:
-                log.debug("submitting %s spans", len(spans))
-                for span in spans:
-                    log.debug("\n%s", span.pprint())
+        if not spans:
+            return  # nothing to do
 
+        if self.debug_logging:
+            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+            for span in spans:
+                log.debug("\n%s", span.pprint())
+
+        if self.enabled:
+            # only submit the spans if we're actually enabled.
             self._writer.write(spans, self._services)
 
     def set_service_info(self, service, app, app_type):
