@@ -1,6 +1,3 @@
-"""
-this is a thing.
-"""
 
 import logging
 import threading
