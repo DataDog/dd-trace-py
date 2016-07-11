@@ -24,11 +24,14 @@ deployment:
     branch: /(master)|(develop)/
     # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
     commands:
-      - pip install mkwheelhouse
-      - S3_DIR=apm_dev rake release
+      - pip install mkwheelhouse sphinx
+      - S3_DIR=apm_dev rake release_wheel
+      # Release the documentation from the master branch only
+      - [[ $CIRCLE_BRANCH == "master" ]] && S3_DIR=apm_dev rake release_docs || echo "No doc release for develop"
   unstable:
     tag: /v[0-9]+(\.[0-9]+)*/
     # Nullify VERSION_SUFFIX to deploy the package with its public version
     commands:
-      - pip install mkwheelhouse
-      - S3_DIR=apm_unstable VERSION_SUFFIX= rake release
+      - pip install mkwheelhouse sphinx
+      - S3_DIR=apm_unstable VERSION_SUFFIX= rake release_wheel
+      - S3_DIR=apm_unstable rake release_docs
