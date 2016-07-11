@@ -9,6 +9,10 @@ def connection_factory(tracer, service="sqlite3"):
     """ Return a connection factory class that will can be used to trace
         sqlite queries.
 
+
+        :param ddtrace.Tracer tracer: the tracer that will report the spans.
+        :param str service: the name of the database's service.
+
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = sqlite3.connect(":memory:", factory=factory)
     """

@@ -13,6 +13,7 @@ tests_require = [
     'flask',
     'psycopg2',
     'redis',
+    'sphinx'
 ]
 
 
