@@ -15,6 +15,11 @@ dependencies:
     # Pre-install all dependencies
     - python2.7 setup.py test -n
     - python3.4 setup.py test -n
+    # Pre-pull containers
+    - docker pull elasticsearch:2.3
+    - docker pull cassandra:3
+    - docker pull postgres:9.5 
+    - docker pull redis:3.2
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3
