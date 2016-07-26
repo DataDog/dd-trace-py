@@ -4,19 +4,30 @@ machine:
   environment:
     CASS_DRIVER_NO_EXTENSIONS: 1
   post:
-    - pyenv global 2.7.9 3.4.2
+    - pyenv global 2.7.11 3.4.4
 dependencies:
   pre:
-    - sudo service postgresql stop
-    - sudo service redis-server stop
     # install of mock fails otherwise
+    - pip2.7 install -U setuptools
     - pip3.4 install -U setuptools
+    # Pre-install all dependencies
+    - python2.7 setup.py test -n
+    - python3.4 setup.py test -n
+    # Pre-pull containers
+    - docker pull elasticsearch:2.3
+    - docker pull cassandra:3
+    - docker pull postgres:9.5
+    - docker pull redis:3.2
 test:
   override:
+    - sudo service postgresql stop
+    - sudo service redis-server stop
     - docker run -d -p 9200:9200 elasticsearch:2.3
     - docker run -d -p 9042:9042 cassandra:3
     - docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_USER=test -e POSTGRES_DB=test postgres:9.5
     - docker run -d -p 6379:6379 redis:3.2
+    # Cassandra is long to start, wait for it to be ready
+    - until nc -v -z localhost 9042 ; do sleep 0.2 ; done
     - python2.7 setup.py test
     - python3.4 setup.py test
 deployment:
@@ -25,12 +36,12 @@ deployment:
     # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
     commands:
       - pip install mkwheelhouse sphinx
-      - S3_DIR=apm_dev rake release_wheel
-      - S3_DIR=apm_dev rake release_docs
+      - S3_DIR=trace-dev rake release_wheel
+      - S3_DIR=trace-dev rake release_docs
   unstable:
     tag: /v[0-9]+(\.[0-9]+)*/
     # Nullify VERSION_SUFFIX to deploy the package with its public version
     commands:
       - pip install mkwheelhouse sphinx
-      - S3_DIR=apm_unstable VERSION_SUFFIX= rake release_wheel
-      - S3_DIR=apm_unstable rake release_docs
+      - S3_DIR=trace VERSION_SUFFIX= rake release_wheel
+      - S3_DIR=trace rake release_docs

@@ -1,17 +1,21 @@
-# Dev commands
+
+desc "run tests"
 task :test do
   sh "python setup.py test"
 end
 
+desc "install the library in dev mode"
 task :dev do
   sh "pip uninstall -y ddtrace"
   sh "pip install -e ."
 end
 
+desc "remove artifacts"
 task :clean do
   sh 'rm -rf build *egg*'
 end
 
+desc "build the docs"
 task :docs do
   Dir.chdir 'docs' do
     sh "make html"
