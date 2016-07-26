@@ -16,7 +16,7 @@ Installation
 
 Install with :code:`pip` but point to Datadog's package repo::
 
-    $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/apm_unstable/index.html
+    $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
 
 
 Quick Start
