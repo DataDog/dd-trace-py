@@ -14,6 +14,10 @@ have great visiblity into bottlenecks and troublesome requests.
 Installation
 ------------
 
+Install with :code:`pip` but point to Datadog's package repo::
+
+    $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/apm_unstable/index.html
+
 
 Quick Start
 -----------
