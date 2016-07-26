@@ -6,7 +6,10 @@ Flask uses for signalling.
 To install the middleware, do the following::
 
     from flask import Flask
+    import blinker as _
+
     from ddtrace import tracer
+    from ddtrace.contrib.flask import TraceMiddleware
 
     app = Flask(...)
 
