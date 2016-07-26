@@ -4,7 +4,7 @@ machine:
   environment:
     CASS_DRIVER_NO_EXTENSIONS: 1
   post:
-    - pyenv global 2.7.9 3.4.2
+    - pyenv global 2.7.11 3.4.4
 dependencies:
   pre:
     - sudo service postgresql stop
@@ -18,7 +18,7 @@ dependencies:
     # Pre-pull containers
     - docker pull elasticsearch:2.3
     - docker pull cassandra:3
-    - docker pull postgres:9.5 
+    - docker pull postgres:9.5
     - docker pull redis:3.2
 test:
   override:
