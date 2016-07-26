@@ -53,6 +53,14 @@ def test_finish():
     assert s.duration >= sleep, "%s < %s" % (s.duration, sleep)
     eq_(s, dt.last_span)
 
+    # ensure that calling finish a second time is a no-op
+    assert s.duration is not None  # make sure we've already called finish
+    original_duration = s.duration
+    dt.last_span = None
+    s.finish()
+    assert dt.last_span is None
+    assert s.duration == original_duration
+
     # ensure finish works with no tracer
     s2 = Span(tracer=None, name="foo")
     s2.finish()
