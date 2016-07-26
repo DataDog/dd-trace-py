@@ -12,6 +12,9 @@ dependencies:
     # install of mock fails otherwise
     - pip2.7 install -U setuptools
     - pip3.4 install -U setuptools
+    # Pre-install all dependencies
+    - python2.7 setup.py test -n
+    - python3.4 setup.py test -n
 test:
   override:
     - docker run -d -p 9200:9200 elasticsearch:2.3
