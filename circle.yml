@@ -10,6 +10,7 @@ dependencies:
     - sudo service postgresql stop
     - sudo service redis-server stop
     # install of mock fails otherwise
+    - pip2.7 install -U setuptools
     - pip3.4 install -U setuptools
 test:
   override:
