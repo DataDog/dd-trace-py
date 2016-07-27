@@ -21,15 +21,21 @@ class Tracer(object):
     >>> tracer.trace("foo").finish()
     """
 
+    DEFAULT_HOSTNAME = 'localhost'
+    DEFAULT_PORT = 7777
+
     def __init__(self):
         """Create a new tracer."""
 
         # Apply the default configuration
-        self.configure()
+        self.configure(enabled=True, hostname=self.DEFAULT_HOSTNAME, port=self.DEFAULT_PORT, sampler=AllSampler())
 
         # a list of buffered spans.
         self._spans_lock = threading.Lock()
         self._spans = []
+
+        # track the active span
+        self.span_buffer = ThreadLocalSpanBuffer()
 
         # a collection of registered services by name.
         self._services = {}
@@ -38,19 +44,24 @@ class Tracer(object):
         # in production.
         self.debug_logging = False
 
-    def configure(self, enabled=True, hostname='localhost', port=7777, sampler=None):
+    def configure(self, enabled=None, hostname=None, port=None, sampler=None):
         """Configure an existing Tracer the easy way.
 
-        :param bool enabled: If true, finished traces will be submitted to the API. Otherwise they'll be dropped.
+        Allow to configure or reconfigure a Tracer instance.
+
+        :param bool enabled: If True, finished traces will be submitted to the API. Otherwise they'll be dropped.
         :param string hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
         """
-        self.enabled = enabled
+        if enabled is not None:
+            self.enabled = enabled
 
-        self.writer = AgentWriter(hostname, port)
-        self.span_buffer = ThreadLocalSpanBuffer()
-        self.sampler = sampler or AllSampler()
+        if hostname is not None or port is not None:
+            self.writer = AgentWriter(hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT)
+
+        if sampler is not None:
+            self.sampler = sampler
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """Return a span that will trace an operation called `name`.
