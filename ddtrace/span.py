@@ -120,6 +120,9 @@ class Span(object):
         except Exception:
             log.warning("error setting metric %s, ignoring it", key, exc_info=True)
 
+    def get_metric(self, key):
+        return self.metrics.get(key)
+
     def to_dict(self):
         d = {
             'trace_id' : self.trace_id,

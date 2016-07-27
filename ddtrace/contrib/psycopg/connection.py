@@ -64,7 +64,7 @@ class TracedCursor(cursor):
             try:
                 return super(TracedCursor, self).execute(query, vars)
             finally:
-                s.set_tag("db.rowcount", self.rowcount)
+                s.set_metric("db.rowcount", self.rowcount)
 
     def callproc(self, procname, vars=None):
         """ just wrap the execution in a span """

@@ -49,8 +49,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 _, data = result
                 took = data.get("took")
                 if took:
-                    # TODO: move that to a metric instead
-                    s.set_tag(metadata.TOOK, took)
+                    s.set_metric(metadata.TOOK, int(took))
 
                 return result
 
