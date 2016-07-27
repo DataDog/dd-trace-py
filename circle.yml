@@ -18,7 +18,7 @@ dependencies:
     - docker pull cassandra:3
     - docker pull postgres:9.5
     - docker pull redis:3.2
-test:
+database:
   override:
     - sudo service postgresql stop
     - sudo service redis-server stop
@@ -30,6 +30,8 @@ test:
     - until nc -v -z localhost 9042 ; do sleep 0.2 ; done
     # Wait for Postgres to be ready
     - until PGPASSWORD=test PGUSER=test PGDATABASE=test psql -h localhost -p 5432 -c "select 1" ; do sleep 0.2 ; done
+test:
+  override:
     - python2.7 setup.py test
     - python3.4 setup.py test
 deployment:
