@@ -69,15 +69,25 @@ class Span(object):
         self._tracer = tracer
         self._parent = None
 
+        # state
+        self._finished = False
+
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
+            If the span has already been finished don't do anything
 
             :param int finish_time: the end time of the span in seconds.
                                     Defaults to now.
         """
-        ft = finish_time or time.time()
-        # be defensive so we don't die if start isn't set
-        self.duration = ft - (self.start or ft)
+        if self._finished:
+            return
+        self._finished = True
+
+        if self.duration is None:
+            ft = finish_time or time.time()
+            # be defensive so we don't die if start isn't set
+            self.duration = ft - (self.start or ft)
+
         if self._tracer:
             self._tracer.record(self)
 

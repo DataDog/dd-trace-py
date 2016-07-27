@@ -57,6 +57,26 @@ def test_finish():
     s2 = Span(tracer=None, name="foo")
     s2.finish()
 
+def test_finish_called_multiple_times():
+    # we should only record a span the first time finish is called on it
+    dt = DummyTracer()
+    assert dt.spans_recorded == 0
+    s = Span(dt, 'bar')
+    s.finish()
+    s.finish()
+    assert dt.spans_recorded == 1
+
+
+def test_finish_set_span_duration():
+    # If set the duration on a span, the span should be recorded with this
+    # duration
+    dt = DummyTracer()
+    assert dt.last_span is None
+    s = Span(dt, 'foo')
+    s.duration = 1337.0
+    s.finish()
+    assert dt.last_span.duration == 1337.0
+
 def test_traceback_with_error():
     s = Span(None, "foo")
     try:
@@ -121,7 +141,8 @@ class DummyTracer(object):
 
     def __init__(self):
         self.last_span = None
+        self.spans_recorded = 0
 
     def record(self, span):
         self.last_span = span
-
+        self.spans_recorded += 1
