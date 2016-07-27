@@ -66,6 +66,18 @@ def test_finish_called_multiple_times():
     s.finish()
     assert dt.spans_recorded == 1
 
+
+def test_finish_set_span_duration():
+    # If set the duration on a span, the span should be recorded
+    # with this duration
+    # TODO elijah: this fails right now
+    dt = DummyTracer()
+    assert dt.last_span is None
+    s = Span(dt, 'foo')
+    s.duration = 1337.0
+    s.finish()
+    assert dt.last_span.duration == 1337.0
+
 def test_traceback_with_error():
     s = Span(None, "foo")
     try:
