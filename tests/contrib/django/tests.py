@@ -12,9 +12,9 @@ from ...test_tracer import DummyWriter
 
 def test_template():
     # trace and ensure it works
-    writer = DummyWriter()
-    tracer = Tracer(writer=writer)
-    assert not writer.pop()
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+    assert not tracer.writer.pop()
     patch_template(tracer)
 
     # setup a test template
@@ -36,7 +36,7 @@ def test_template():
     eq_(t.render(c), 'hello matt')
     end = time.time()
 
-    spans = writer.pop()
+    spans = tracer.writer.pop()
     assert spans, spans
     eq_(len(spans), 1)
 

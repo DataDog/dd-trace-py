@@ -41,7 +41,8 @@ class CassandraTest(unittest.TestCase):
 
     def _traced_cluster(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
         TracedCluster = get_traced_cassandra(tracer)
         return TracedCluster, writer
 
@@ -79,7 +80,8 @@ class CassandraTest(unittest.TestCase):
         Tests tracing with a custom service
         """
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
         TracedCluster = get_traced_cassandra(tracer, service="custom")
         session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
 

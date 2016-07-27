@@ -12,8 +12,8 @@ from .span import MAX_TRACE_ID
 log = logging.getLogger(__name__)
 
 
-class DefaultSampler(object):
-    """Default sampler, sampling all the traces"""
+class AllSampler(object):
+    """Sampler sampling all the traces"""
 
     def sample(self, span):
         span.sampled = True

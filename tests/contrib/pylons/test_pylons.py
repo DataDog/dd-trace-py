@@ -29,7 +29,8 @@ class FakeWSGIApp(object):
 
 def test_pylons():
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
     app = FakeWSGIApp()
     traced = PylonsTraceMiddleware(app, tracer, service="p")
 
