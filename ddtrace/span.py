@@ -116,7 +116,7 @@ class Span(object):
             # If the value isn't a typed as a number (ex: a string), try to cast it
             if not isinstance(value, numbers.Number):
                 value = float(value)
-            self.metrics[key] = float(value)
+            self.metrics[key] = value
         except Exception:
             log.warning("error setting metric %s, ignoring it", key, exc_info=True)
 

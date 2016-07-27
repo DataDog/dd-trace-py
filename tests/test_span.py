@@ -31,6 +31,32 @@ def test_tags():
     }
     eq_(d["meta"], expected)
 
+def test_set_valid_metrics():
+    s = Span(tracer=None, name="foo")
+    s.set_metric("a", 0)
+    s.set_metric("b", -12)
+    s.set_metric("c", 12.134)
+    s.set_metric("d", 1231543543265475686787869123)
+    s.set_metric("e", "12.34")
+    d = s.to_dict()
+    expected = {
+        "a": 0,
+        "b": -12,
+        "c": 12.134,
+        "d": 1231543543265475686787869123,
+        "e": 12.34,
+    }
+    eq_(d["metrics"], expected)
+
+
+def test_set_invalid_metric():
+    s = Span(tracer=None, name="foo")
+
+    # Set an invalid metric: shouldn't crash nor set any value
+    s.set_metric("a", "forty-twelve")
+
+    eq_(s.get_metric("a"), None)
+
 def test_tags_not_string():
     # ensure we can cast as strings
     class Foo(object):
