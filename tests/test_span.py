@@ -68,9 +68,8 @@ def test_finish_called_multiple_times():
 
 
 def test_finish_set_span_duration():
-    # If set the duration on a span, the span should be recorded
-    # with this duration
-    # TODO elijah: this fails right now
+    # If set the duration on a span, the span should be recorded with this
+    # duration
     dt = DummyTracer()
     assert dt.last_span is None
     s = Span(dt, 'foo')
