@@ -45,12 +45,18 @@ class RedisTest(unittest.TestCase):
         eq_(span.name, 'redis.command')
         eq_(span.span_type, 'redis')
         eq_(span.error, 0)
-        eq_(span.meta, {'out.host': u'localhost', 'redis.raw_command': u'GET cheese', 'out.port': u'6379', 'redis.args_length': u'2', 'out.redis_db': u'0'})
+        eq_(span.meta, {
+            'out.host': u'localhost',
+            'redis.raw_command': u'GET cheese',
+            'out.port': u'6379',
+            'out.redis_db': u'0',
+        })
+        eq_(span.get_metric('redis.args_length'), 2)
         eq_(span.resource, 'GET cheese')
 
         services = writer.pop_services()
         expected = {
-            self.SERVICE: {"app":"redis", "app_type":"db"}
+            self.SERVICE: {"app": "redis", "app_type": "db"}
         }
         eq_(services, expected)
 
@@ -88,15 +94,15 @@ class RedisTest(unittest.TestCase):
         span = spans[0]
         eq_(span.service, self.SERVICE)
         eq_(span.name, 'redis.pipeline')
+        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
         eq_(span.span_type, 'redis')
         eq_(span.error, 0)
         eq_(span.get_tag('out.redis_db'), '0')
         eq_(span.get_tag('out.host'), 'localhost')
-        ok_(float(span.get_tag('redis.pipeline_age')) > 0)
-        eq_(span.get_tag('redis.pipeline_length'), '3')
         eq_(span.get_tag('out.port'), '6379')
-        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
         eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
+        ok_(span.get_metric('redis.pipeline_age') > 0)
+        eq_(span.get_metric('redis.pipeline_length'), 3)
 
     def test_custom_class(self):
         class MyCustomRedis(redis.Redis):

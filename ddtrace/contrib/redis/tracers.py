@@ -63,9 +63,8 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
 
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
-                    # FIXME[leo]: convert to metric?
-                    s.set_tag(redisx.PIPELINE_LEN, len(self.command_stack))
-                    s.set_tag(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
+                    s.set_metric(redisx.PIPELINE_LEN, len(self.command_stack))
+                    s.set_metric(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
 
                 return super(TracedPipeline, self).execute(self, *args, **kwargs)
 
@@ -84,8 +83,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
 
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
-                    # FIXME[leo]: convert to metric?
-                    s.set_tag(redisx.ARGS_LEN, len(args))
+                    s.set_metric(redisx.ARGS_LEN, len(args))
 
                     s.set_tag(redisx.IMMEDIATE_PIPELINE, True)
 
@@ -113,8 +111,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
 
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
-                    # FIXME[leo]: convert to metric?
-                    s.set_tag(redisx.ARGS_LEN, len(args))
+                    s.set_metric(redisx.ARGS_LEN, len(args))
 
                 return super(TracedRedis, self).execute_command(*args, **options)
 

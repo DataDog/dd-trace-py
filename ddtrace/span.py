@@ -1,4 +1,5 @@
 import logging
+import numbers
 import random
 import sys
 import time
@@ -99,7 +100,7 @@ class Span(object):
         try:
             self.meta[key] = stringify(value)
         except Exception:
-            log.warning("error setting tag. ignoring", exc_info=True)
+            log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist.
@@ -119,6 +120,18 @@ class Span(object):
 
     def set_metas(self, kvs):
         self.set_tags(kvs)
+
+    def set_metric(self, key, value):
+        try:
+            # If the value isn't a typed as a number (ex: a string), try to cast it
+            if not isinstance(value, numbers.Number):
+                value = float(value)
+            self.metrics[key] = value
+        except Exception:
+            log.warning("error setting metric %s, ignoring it", key, exc_info=True)
+
+    def get_metric(self, key):
+        return self.metrics.get(key)
 
     def to_dict(self):
         d = {
@@ -140,6 +153,9 @@ class Span(object):
 
         if self.meta:
             d['meta'] = self.meta
+
+        if self.metrics:
+            d['metrics'] = self.metrics
 
         if self.span_type:
             d['type'] = self.span_type

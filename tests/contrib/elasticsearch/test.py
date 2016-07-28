@@ -88,5 +88,4 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
-        self.assertTrue(int(span.get_tag(metadata.TOOK)) > 0)
-
+        self.assertTrue(span.get_metric(metadata.TOOK) > 0)
