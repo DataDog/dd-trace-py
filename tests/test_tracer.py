@@ -10,7 +10,9 @@ from ddtrace.tracer import Tracer
 
 
 def test_tracer_vars():
-    tracer = Tracer(writer=None)
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
 
     # explicit vars
     s = tracer.trace("a", service="s", resource="r", span_type="t")
@@ -28,7 +30,8 @@ def test_tracer_vars():
 def test_tracer():
     # add some dummy tracing code.
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
     sleep = 0.05
 
     def _mix():
@@ -77,7 +80,8 @@ def test_tracer():
 def test_tracer_disabled():
     # add some dummy tracing code.
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
 
     tracer.enabled = True
     with tracer.trace("foo") as s:
@@ -93,7 +97,9 @@ def test_tracer_disabled_mem_leak():
     # ensure that if the tracer is disabled, we still remove things from the
     # span buffer upon finishing.
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
+
     tracer.enabled = False
     s1 = tracer.trace("foo")
     s1.finish()

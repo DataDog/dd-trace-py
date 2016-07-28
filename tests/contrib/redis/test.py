@@ -31,7 +31,8 @@ class RedisTest(unittest.TestCase):
 
     def test_basic_class(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
         r = TracedRedisCache()
@@ -63,7 +64,8 @@ class RedisTest(unittest.TestCase):
 
     def test_meta_override(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE, meta={'cheese': 'camembert'})
         r = TracedRedisCache()
@@ -77,7 +79,8 @@ class RedisTest(unittest.TestCase):
 
     def test_basic_class_pipeline(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
         r = TracedRedisCache()
@@ -115,7 +118,8 @@ class RedisTest(unittest.TestCase):
 
 
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         TracedRedisCache = get_traced_redis_from(tracer, MyCustomRedis, service=self.SERVICE)
         r = TracedRedisCache()

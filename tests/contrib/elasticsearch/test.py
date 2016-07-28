@@ -41,7 +41,8 @@ class ElasticsearchTest(unittest.TestCase):
         All in this for now. Will split it later.
         """
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
         transport_class = get_traced_transport(datadog_tracer=tracer, datadog_service=self.TEST_SERVICE)
 
         es = elasticsearch.Elasticsearch(transport_class=transport_class)

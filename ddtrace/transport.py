@@ -21,6 +21,10 @@ class ThreadedHTTPTransport(object):
     # Async worker, to be defined at first run
     _worker = None
 
+    def __init__(self, hostname, port):
+        self.hostname = hostname
+        self.port = port
+
     def send(self, method, endpoint, data, headers):
         return self.async_send(
             method, endpoint, data, headers,
@@ -33,7 +37,7 @@ class ThreadedHTTPTransport(object):
 
     def send_sync(self, method, endpoint, data, headers, success_cb, failure_cb):
         try:
-            conn = httplib.HTTPConnection('localhost', 7777)
+            conn = httplib.HTTPConnection(self.hostname, self.port)
             conn.request(method, endpoint, data, headers)
         except Exception as e:
             failure_cb(e)

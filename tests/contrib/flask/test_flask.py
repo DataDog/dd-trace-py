@@ -22,7 +22,8 @@ log = logging.getLogger(__name__)
 
 # global writer tracer for the tests.
 writer = DummyWriter()
-tracer = Tracer(writer=writer)
+tracer = Tracer()
+tracer.writer =writer
 
 
 class TestError(Exception): pass

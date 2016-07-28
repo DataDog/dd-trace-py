@@ -12,7 +12,8 @@ from ...test_tracer import DummyWriter
 
 def test_foo():
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
 
     # ensure we can trace multiple services without stomping
 

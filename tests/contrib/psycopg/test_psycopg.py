@@ -18,7 +18,8 @@ from ...test_tracer import DummyWriter
 
 def test_wrap():
     writer = DummyWriter()
-    tracer = Tracer(writer=writer)
+    tracer = Tracer()
+    tracer.writer = writer
 
     params = {
         'host': 'localhost',

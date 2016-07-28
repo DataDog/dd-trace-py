@@ -15,8 +15,9 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_random_sequence(self):
         writer = DummyWriter()
-        sampler = RateSampler(0.5)
-        tracer = Tracer(writer=writer, sampler=sampler)
+        tracer = Tracer()
+        tracer.writer = writer
+        tracer.sampler = RateSampler(0.5)
 
         # Set the seed so that the choice of sampled traces is deterministic, then write tests accordingly
         random.seed(4012)
@@ -52,7 +53,8 @@ class ThroughputSamplerTest(unittest.TestCase):
 
     def test_simple_limit(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         with patch_time() as fake_time:
             tps = 5
@@ -85,7 +87,8 @@ class ThroughputSamplerTest(unittest.TestCase):
 
     def test_long_run(self):
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         # Test a big matrix of combinaisons
         # Ensure to have total_time >> BUFFER_DURATION to reduce edge effects
@@ -118,7 +121,8 @@ class ThroughputSamplerTest(unittest.TestCase):
     def test_concurrency(self):
         # Test that the sampler works well when used in different threads
         writer = DummyWriter()
-        tracer = Tracer(writer=writer)
+        tracer = Tracer()
+        tracer.writer = writer
 
         total_time = 10
         concurrency = 100

@@ -16,8 +16,8 @@ class AgentReporter(object):
 
     SERVICES_FLUSH_INTERVAL = 120
 
-    def __init__(self):
-        self.transport = ThreadedHTTPTransport()
+    def __init__(self, hostname, port):
+        self.transport = ThreadedHTTPTransport(hostname, port)
         self.last_services_flush = 0
 
     def report(self, spans, services):
