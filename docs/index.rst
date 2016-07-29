@@ -97,6 +97,10 @@ API
 Integrations
 ------------
 
+Cassandra
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.cassandra
 
 Django
 ~~~~~~
@@ -113,7 +117,12 @@ Flask
 Postgres
 ~~~~~~~~
 
-.. autofunction:: ddtrace.contrib.psycopg.connection_factory
+.. automodule:: ddtrace.contrib.psycopg
+
+Redis
+~~~~~
+
+.. automodule:: ddtrace.contrib.redis
 
 
 SQLite
