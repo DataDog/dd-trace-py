@@ -21,12 +21,10 @@ dependencies:
 database:
   override:
     - sudo service postgresql stop
-    # Wait for Postgres to stop, sometimes this takes a bit of time
-    - while nc -v -z localhost 5432 ; do sleep 0.2 ; done
-    - sudo service redis-server stop
-    - docker run -d -p 9200:9200 elasticsearch:2.3
-    - docker run -d -p 9042:9042 cassandra:3
     - docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_USER=test -e POSTGRES_DB=test postgres:9.5
+    - docker run -d -p 9042:9042 cassandra:3
+    - docker run -d -p 9200:9200 elasticsearch:2.3
+    - sudo service redis-server stop
     - docker run -d -p 6379:6379 redis:3.2
     # Wait for Cassandra to be ready
     - until nc -v -z localhost 9042 ; do sleep 0.2 ; done
