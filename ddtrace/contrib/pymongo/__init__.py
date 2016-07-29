@@ -37,7 +37,7 @@ class TracedMongoCollection(ObjectProxy):
         self._collection_name = collection.name
 
     def find(self, filter=None, *args, **kwargs):
-        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
+        with self.__trace() as span:
             span.set_tags(self._tags)
             nf = '{}'
             if filter:
@@ -49,17 +49,21 @@ class TracedMongoCollection(ObjectProxy):
             return cursor
 
     def insert_one(self, *args, **kwargs):
-        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
+        with self.__trace() as span:
             span.resource = _create_resource("insert_one", self._collection_name)
             span.set_tags(self._tags)
             return self.__wrapped__.insert(*args, **kwargs)
 
     def insert_many(self, *args, **kwargs):
-        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
+        with self.__trace() as span:
             span.resource = _create_resource("insert_many", self._collection_name)
             span.set_tags(self._tags)
             span.set_tag(mongox.ROWS, len(args[0]))
             return self.__wrapped__.insert_many(*args, **kwargs)
+
+    def __trace(self):
+        return self._tracer.trace("pymongo.cmd", span_type=mongox.TYPE, service=self._srv)
+
 
 
 class TracedMongoDatabase(ObjectProxy):
