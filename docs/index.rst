@@ -115,6 +115,11 @@ Postgres
 
 .. autofunction:: ddtrace.contrib.psycopg.connection_factory
 
+Redis
+~~~~~
+
+.. automodule:: ddtrace.contrib.redis
+
 
 SQLite
 ~~~~~~
