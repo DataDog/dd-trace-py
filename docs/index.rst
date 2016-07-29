@@ -97,6 +97,10 @@ API
 Integrations
 ------------
 
+Cassandra
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.cassandra
 
 Django
 ~~~~~~
