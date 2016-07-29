@@ -117,7 +117,7 @@ Flask
 Postgres
 ~~~~~~~~
 
-.. autofunction:: ddtrace.contrib.psycopg.connection_factory
+.. automodule:: ddtrace.contrib.psycopg
 
 Redis
 ~~~~~
