@@ -1,3 +1,4 @@
+import functools
 import logging
 import numbers
 import random
@@ -224,6 +225,18 @@ class Span(object):
             self.finish()
         except Exception:
             log.exception("error closing trace")
+
+    def __call__(self, func):
+        # Default to the function name if span name was not provided
+        # TODO elijah: Think about if we want to include the module here
+        if not self.name:
+            self.name = func.__name__
+
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            with self:
+                func(*args, **kwargs)
+        return wrapped
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
