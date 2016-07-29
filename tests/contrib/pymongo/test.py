@@ -1,4 +1,7 @@
 
+# stdlib
+import time
+
 # 3p
 from nose.tools import eq_
 from pymongo import MongoClient
@@ -38,12 +41,13 @@ def test_normalize_filter():
 
 def test_wrap():
     tracer = Tracer()
-    tracer._writer = DummyWriter()
+    writer = DummyWriter()
+    tracer.writer = writer
 
     original_client = MongoClient()
-    client = trace_mongo_client(original_client, tracer, service="foo")
+    client = trace_mongo_client(original_client, tracer, service="pokemongodb")
 
-    db = client["test"]
+    db = client["testdb"]
     db.drop_collection("teams")
 
     teams = [
@@ -62,34 +66,40 @@ def test_wrap():
     ]
 
     # create some data (exercising both ways of inserting)
-    from dd.utils.dtime import Timer
+    start = time.time()
 
     db.teams.insert_one(teams[0])
     db.teams.insert_many(teams[1:])
 
-    timer = Timer()
-    out = []
-    for i in range(100000):
-        out.append({'name': i, 'established':i})
-    db.teams.insert_many(out)
-    print 'inert many', timer.step()
-
-
     # query some data
     cursor = db.teams.find()
-    print 'find', timer.step()
     count = 0
     for row in cursor:
         count += 1
-    print 'iter', timer.step()
-    #eq_(count, 3)
+    eq_(count, len(teams))
 
-    cursor = db.restaurants.find({"name": "Toronto Maple Leafs"})
+    queried = list(db.teams.find({"name": "Toronto Maple Leafs"}))
+    end = time.time()
+    eq_(len(queried), 1)
+    eq_(queried[0]["name"], "Toronto Maple Leafs")
+    eq_(queried[0]["established"], 1917)
 
-    spans = tracer._writer.pop()
-
+    spans = writer.pop()
     for span in spans:
-        print ""
-        print span.pprint()
+        # ensure all the of the common metadata is set
+        eq_(span.service, "pokemongodb")
+        eq_(span.span_type, "mongodb")
+        eq_(span.meta.get("mongodb.collection"), "teams")
+        eq_(span.meta.get("mongodb.db"), "testdb")
+        assert span.start > start
+        assert span.duration < end - start
 
-    1/0
+    expected_resources = set([
+        "insert_many teams",
+        "insert_one teams",
+        "query teams {}",
+        "query teams {'name': '?'}",
+    ])
+
+    eq_(expected_resources, {s.resource for s in spans})
+

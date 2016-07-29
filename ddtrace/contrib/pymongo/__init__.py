@@ -23,35 +23,40 @@ def trace_mongo_client(client, tracer, service="mongodb"):
 class TracedMongoCollection(ObjectProxy):
 
     _tracer = None
-    _service = None
+    _srv = None
+    _collection_name = None
 
     def __init__(self, tracer, service, database_name, collection):
         super(TracedMongoCollection, self).__init__(collection)
         self._tracer = tracer
-        self._service = service
+        self._srv = service
         self._tags = {
             mongox.COLLECTION: collection.name,
             mongox.DB: database_name,
-
         }
+        self._collection_name = collection.name
 
     def find(self, filter=None, *args, **kwargs):
-        with self._tracer.trace("pymongo.find", service=self._service) as span:
+        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
             span.set_tags(self._tags)
-            span.set_tag(mongox.QUERY, normalize_filter(filter))
-            cursor = self.__wrapped__.find(*args, **kwargs)
-            try:
-                _set_cursor_tags(span, cursor)
-            finally:
-                return cursor
+            nf = '{}'
+            if filter:
+                nf = normalize_filter(filter)
+            span.set_tag(mongox.QUERY, nf)
+            span.resource = _create_resource("query", self._collection_name, nf)
+            cursor = self.__wrapped__.find(filter=filter, *args, **kwargs)
+            _set_cursor_tags(span, cursor)
+            return cursor
 
     def insert_one(self, *args, **kwargs):
-        with self._tracer.trace("pymongo.insert_one", service=self._service) as span:
+        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
+            span.resource = _create_resource("insert_one", self._collection_name)
             span.set_tags(self._tags)
             return self.__wrapped__.insert(*args, **kwargs)
 
     def insert_many(self, *args, **kwargs):
-        with self._tracer.trace("pymongo.insert_many", service=self._service) as span:
+        with self._tracer.trace("pymongo.command", span_type=mongox.TYPE, service=self._srv) as span:
+            span.resource = _create_resource("insert_many", self._collection_name)
             span.set_tags(self._tags)
             span.set_tag(mongox.ROWS, len(args[0]))
             return self.__wrapped__.insert_many(*args, **kwargs)
@@ -60,40 +65,39 @@ class TracedMongoCollection(ObjectProxy):
 class TracedMongoDatabase(ObjectProxy):
 
     _tracer = None
-    _service = None
+    _srv = None
     _name = None
 
     def __init__(self, tracer, service, db):
         super(TracedMongoDatabase, self).__init__(db)
         self._tracer = tracer
-        self._service = service
+        self._srv = service
         self._name = db.name
 
     def __getattr__(self, name):
         c = getattr(self.__wrapped__, name)
         if isinstance(c, Collection) and not isinstance(c, TracedMongoCollection):
-            return TracedMongoCollection(self._tracer, self._service, self._name, c)
+            return TracedMongoCollection(self._tracer, self._srv, self._name, c)
         else:
             return c
 
     def __getitem__(self, name):
         c = self.__wrapped__[name]
-        return TracedMongoCollection(self._tracer, self._service, self._name, c)
+        return TracedMongoCollection(self._tracer, self._srv, self._name, c)
 
 class TracedMongoClient(ObjectProxy):
 
     _tracer = None
-    _service = None
+    _srv = None
 
     def __init__(self, tracer, service, client):
         super(TracedMongoClient, self).__init__(client)
         self._tracer = tracer
-        self._service = service
+        self._srv = service
 
     def __getitem__(self, name):
         db = self.__wrapped__[name]
-        return TracedMongoDatabase(self._tracer, self._service, db)
-
+        return TracedMongoDatabase(self._tracer, self._srv, db)
 
 def normalize_filter(f=None):
     if f is None:
@@ -117,4 +121,12 @@ def _set_cursor_tags(span, cursor):
     if cursor and cursor.address:
         span.set_tag(netx.TARGET_HOST, cursor.address[0])
         span.set_tag(netx.TARGET_PORT, cursor.address[1])
+
+def _create_resource(op, collection=None, filter=None):
+    if op and collection and filter:
+        return "%s %s %s" % (op, collection, filter)
+    elif op and collection:
+        return "%s %s" % (op, collection)
+    else:
+        return op
 
