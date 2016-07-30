@@ -10,6 +10,7 @@ from pymongo import MongoClient
 from ddtrace.contrib.pymongo import trace_mongo_client, normalize_filter
 from ddtrace import Tracer
 
+
 from ...test_tracer import DummyWriter
 
 
@@ -71,6 +72,7 @@ def test_delete():
     spans = writer.pop()
     assert spans, spans
     for span in spans:
+        print span.pprint()
         # ensure all the of the common metadata is set
         eq_(span.service, "songdb")
         eq_(span.span_type, "mongodb")
@@ -78,9 +80,9 @@ def test_delete():
         eq_(span.meta.get("mongodb.db"), "testdb")
 
     expected_resources = set([
-        "insert_many songs",
-        "delete_one songs {'artist': '?'}",
-        "delete_many songs {'artist': '?'}",
+        "insert songs",
+        "delete songs {'artist': '?'}",
+        "delete songs {'artist': '?'}",
     ])
 
     eq_(expected_resources, {s.resource for s in spans})
@@ -90,6 +92,7 @@ def test_insert_find():
     tracer, client = _get_tracer_and_client("pokemongodb")
     writer = tracer.writer
 
+    start = time.time()
     db = client["testdb"]
     db.drop_collection("teams")
     teams = [
@@ -108,7 +111,6 @@ def test_insert_find():
     ]
 
     # create some data (exercising both ways of inserting)
-    start = time.time()
 
     db.teams.insert_one(teams[0])
     db.teams.insert_many(teams[1:])
@@ -133,12 +135,14 @@ def test_insert_find():
         eq_(span.span_type, "mongodb")
         eq_(span.meta.get("mongodb.collection"), "teams")
         eq_(span.meta.get("mongodb.db"), "testdb")
+        print span.pprint()
         assert span.start > start
         assert span.duration < end - start
 
     expected_resources = set([
-        "insert_many teams",
-        "insert_one teams",
+        "drop teams",
+        "insert teams",
+        "insert teams",
         "query teams {}",
         "query teams {'name': '?'}",
     ])
