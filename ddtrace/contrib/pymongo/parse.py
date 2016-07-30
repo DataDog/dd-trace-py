@@ -2,13 +2,14 @@
 
 class Command(object):
 
-    __slots__ = ['name', 'coll', 'tags', 'metrics']
+    __slots__ = ['name', 'coll', 'tags', 'metrics', 'query']
 
     def __init__(self, name, coll):
         self.name = name
         self.coll = coll
         self.tags = {}
         self.metrics = {}
+        self.query = None
 
 
 def parse_query(query):
@@ -36,7 +37,8 @@ def parse_spec(spec):
     elif cmd.name == 'delete':
         dels = spec.get('deletes')
         if dels:
-            pass
+            # FIXME[matt] is there ever more than one here?
+            cmd.query = dels[0].get("q")
 
     return cmd
 

@@ -72,17 +72,20 @@ def test_delete():
     spans = writer.pop()
     assert spans, spans
     for span in spans:
-        print span.pprint()
         # ensure all the of the common metadata is set
         eq_(span.service, "songdb")
         eq_(span.span_type, "mongodb")
-        eq_(span.meta.get("mongodb.collection"), "songs")
-        eq_(span.meta.get("mongodb.db"), "testdb")
+        if span.resource != "insert_many":
+            eq_(span.meta.get("mongodb.collection"), "songs")
+            eq_(span.meta.get("mongodb.db"), "testdb")
+        assert span.meta.get("out.host")
+        assert span.meta.get("out.port")
 
     expected_resources = set([
-        "insert songs",
+        "drop songs",
+        "count songs",
         "delete songs {'artist': '?'}",
-        "delete songs {'artist': '?'}",
+        "insert_many",
     ])
 
     eq_(expected_resources, {s.resource for s in spans})
@@ -133,16 +136,18 @@ def test_insert_find():
         # ensure all the of the common metadata is set
         eq_(span.service, "pokemongodb")
         eq_(span.span_type, "mongodb")
-        eq_(span.meta.get("mongodb.collection"), "teams")
-        eq_(span.meta.get("mongodb.db"), "testdb")
-        print span.pprint()
+        if span.resource != "insert_many":
+            eq_(span.meta.get("mongodb.collection"), "teams")
+            eq_(span.meta.get("mongodb.db"), "testdb")
+        assert span.meta.get("out.host"), span.pprint()
+        assert span.meta.get("out.port"), span.pprint()
         assert span.start > start
         assert span.duration < end - start
 
     expected_resources = set([
         "drop teams",
         "insert teams",
-        "insert teams",
+        "insert_many",
         "query teams {}",
         "query teams {'name': '?'}",
     ])

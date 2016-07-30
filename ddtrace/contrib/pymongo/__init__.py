@@ -38,12 +38,20 @@ class TracedSocket(ObjectProxy):
         # traced command
         cmd = parse_spec(spec)
         with self.__trace(dbname, cmd) as span:
-            span.resource = "%s %s" % (cmd.name, cmd.coll)
-            span.set_tag("spec", spec)
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
     def write_command(self, *args, **kwargs):
-        return self.__wrapped__.write_command(*args, **kwargs)
+        with self._tracer.trace("pymongo.cmd", service=self._srv, span_type=mongox.TYPE) as s:
+            # FIXME[matt] pluck the collection from the msg.
+            s.resource = "insert_many"
+            result = self.__wrapped__.write_command(*args, **kwargs)
+            if self.address:
+                s.set_tag(netx.TARGET_HOST, self.address[0])
+                s.set_tag(netx.TARGET_PORT, self.address[1])
+            if not result:
+                return result
+            s.set_metric(mongox.ROWS, result.get("n", -1))
+            return result
 
     def __trace(self, db, cmd):
         s = self._tracer.trace("pymongo.cmd", span_type=mongox.TYPE, service=self._srv)
@@ -53,6 +61,8 @@ class TracedSocket(ObjectProxy):
             s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
             # s.set_metrics(cmd.metrics) FIXME[matt] uncomment whe rebase
+
+        s.resource = _resource_from_cmd(cmd)
 
         if self.address:
             s.set_tag(netx.TARGET_HOST, self.address[0])
@@ -87,8 +97,9 @@ class TracedServer(ObjectProxy):
             span.set_tags(cmd.tags)
 
             result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
-            if result:
+            if result and result.address:
                 span.set_tag(netx.TARGET_HOST, result.address[0])
+                span.set_tag(netx.TARGET_PORT, result.address[1])
             return result
 
 
@@ -266,3 +277,9 @@ def _create_resource(op, collection=None, filter=None):
     else:
         return op
 
+def _resource_from_cmd(cmd):
+    if cmd.query is not None:
+        nq = normalize_filter(cmd.query)
+        return "%s %s %s" % (cmd.name, cmd.coll, nq)
+    else:
+        return "%s %s" % (cmd.name, cmd.coll)
