@@ -61,6 +61,24 @@ class TracedMongoCollection(ObjectProxy):
             span.set_tag(mongox.ROWS, len(args[0]))
             return self.__wrapped__.insert_many(*args, **kwargs)
 
+    def delete_one(self, filter):
+        with self.__trace() as span:
+            nf = '{}'
+            if filter:
+                nf = normalize_filter(filter)
+            span.resource = _create_resource("delete_one", self._collection_name, nf)
+            span.set_tags(self._tags)
+            return self.__wrapped__.delete_one(filter)
+
+    def delete_many(self, filter):
+        with self.__trace() as span:
+            nf = '{}'
+            if filter:
+                nf = normalize_filter(filter)
+            span.resource = _create_resource("delete_many", self._collection_name, nf)
+            span.set_tags(self._tags)
+            return self.__wrapped__.delete_many(filter)
+
     def __trace(self):
         return self._tracer.trace("pymongo.cmd", span_type=mongox.TYPE, service=self._srv)
 
@@ -106,7 +124,7 @@ class TracedMongoClient(ObjectProxy):
 def normalize_filter(f=None):
     if f is None:
         return {}
-    if isinstance(f, list):
+    elif isinstance(f, list):
         # normalize lists of filters (e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         return [normalize_filter(s) for s in f]
     else:
