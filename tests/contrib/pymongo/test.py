@@ -7,7 +7,7 @@ from nose.tools import eq_
 from pymongo import MongoClient
 
 # project
-from ddtrace.contrib.pymongo import trace_mongo_client, normalize_filter
+from ddtrace.contrib.pymongo.trace import trace_mongo_client, normalize_filter
 from ddtrace import Tracer
 
 
