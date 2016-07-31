@@ -28,6 +28,12 @@ except ImportError:
     except ImportError:
         import json
 
+def iteritems(obj, **kwargs):
+    func = getattr(obj, "iteritems", None)
+    if not func:
+        func = obj.items
+    return func(**kwargs)
+
 
 __all__ = [
     'PY2',
@@ -37,4 +43,5 @@ __all__ = [
     'Queue',
     'StringIO',
     'json',
+    'iteritems'
 ]

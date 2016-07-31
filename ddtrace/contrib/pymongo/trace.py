@@ -25,10 +25,11 @@ from pymongo.collection import Collection
 from wrapt import ObjectProxy
 
 # project
+from ...compat import iteritems
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
-from  .parse import parse_spec, parse_query, Command
+from .parse import parse_spec, parse_query, Command
 
 
 log = logging.getLogger(__name__)
@@ -189,7 +190,7 @@ def normalize_filter(f=None):
         # normalize dicts of filters
         # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         out = {}
-        for k, v in f.iteritems():
+        for k, v in iteritems(f):
             if isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
                 out[k] = normalize_filter(v)
