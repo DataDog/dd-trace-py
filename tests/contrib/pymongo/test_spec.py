@@ -7,6 +7,10 @@ from nose.tools import eq_
 
 from ddtrace.contrib.pymongo.parse import parse_spec
 
+def test_empty():
+    cmd = parse_spec(SON([]))
+    assert cmd is None
+
 def test_create():
     cmd = parse_spec(SON([("create", "foo")]))
     eq_(cmd.name, "create")

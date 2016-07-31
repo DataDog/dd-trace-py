@@ -25,7 +25,10 @@ def parse_spec(spec):
     """
 
     # the first element is the command and collection
-    name, coll = spec.iteritems().next()
+    items = list(spec.items())
+    if not items:
+        return None
+    name, coll = items[0]
     cmd = Command(name, coll)
 
     if 'ordered' in spec: # in insert and update
