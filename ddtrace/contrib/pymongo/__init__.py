@@ -1,4 +1,22 @@
+"""
+The pymongo integration works by wrapping pymongo's MongoClient to trace
+network calls. Basic usage::
+
+    from pymongo import MongoClient
+    from ddtrace import tracer
+    from ddtrace.contrib.pymongo import trace_mongo_client
+
+    original_client = MongoClient()
+    client = trace_mongo_client(
+        MongoClient(), tracer, "my-mongo-db")
+
+    db = client["test-db"]
+    db.teams.find({"name": "Toronto Maple Leafs"})
+"""
+
+# stdlib
 import contextlib
+
 # 3p
 from pymongo import MongoClient
 from pymongo.database import Database

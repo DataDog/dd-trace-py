@@ -119,6 +119,11 @@ Postgres
 
 .. automodule:: ddtrace.contrib.psycopg
 
+Pymongo
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.pymongo
+
 Redis
 ~~~~~
 
