@@ -15,7 +15,7 @@ class Command(object):
 
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
-    cmd = Command(query.name, query.coll)
+    cmd = Command("query", query.coll)
     cmd.query = query.spec
     return cmd
 

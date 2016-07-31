@@ -94,7 +94,7 @@ class TracedServer(ObjectProxy):
                 span_type=mongox.TYPE,
                 service=self._srv) as span:
 
-            span.resource = "query %s %s" % (cmd.coll, normalize_filter(cmd.query))
+            span.resource = _resource_from_cmd(cmd)
             span.set_tag(mongox.DB, operation.db)
             span.set_tag(mongox.COLLECTION, cmd.coll)
             span.set_tags(cmd.tags)
@@ -171,14 +171,6 @@ def _set_address_tags(span, address):
     if address:
         span.set_tag(netx.TARGET_HOST, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
-
-def _create_resource(op, collection=None, filter=None):
-    if op and collection and filter:
-        return "%s %s %s" % (op, collection, filter)
-    elif op and collection:
-        return "%s %s" % (op, collection)
-    else:
-        return op
 
 def _resource_from_cmd(cmd):
     if cmd.query is not None:
