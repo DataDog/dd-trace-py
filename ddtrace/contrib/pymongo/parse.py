@@ -36,9 +36,10 @@ def parse_spec(spec):
             cmd.metrics['mongodb.documents'] = len(spec['documents'])
 
     elif cmd.name == 'update':
-        updates = cmd.get('updates')
+        updates = spec.get('updates')
         if updates:
-            pass
+            # FIXME[matt] is there ever more than one here?
+            cmd.query = updates[0].get("q")
 
     elif cmd.name == 'delete':
         dels = spec.get('deletes')

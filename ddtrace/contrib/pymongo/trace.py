@@ -16,6 +16,7 @@ network calls. Basic usage::
 
 # stdlib
 import contextlib
+import logging
 
 # 3p
 from pymongo import MongoClient
@@ -28,6 +29,9 @@ from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from  .parse import parse_spec, parse_query, Command
+
+
+log = logging.getLogger(__name__)
 
 
 def trace_mongo_client(client, tracer, service=mongox.TYPE):
@@ -50,11 +54,16 @@ class TracedSocket(ObjectProxy):
         self._srv = service
 
     def command(self, dbname, spec, *args, **kwargs):
-        if not dbname or not spec:
+        cmd = None
+        try:
+            cmd = parse_spec(spec)
+        except Exception:
+            log.exception("error parsing spec. skipping trace")
+
+        # skip tracing if we don't have a piece of data we need
+        if not dbname or not cmd:
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
-        # traced command
-        cmd = parse_spec(spec)
         with self.__trace(dbname, cmd) as span:
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 

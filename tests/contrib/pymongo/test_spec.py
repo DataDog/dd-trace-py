@@ -26,3 +26,21 @@ def test_insert():
     eq_(cmd.tags, {'mongodb.ordered':True})
     eq_(cmd.metrics, {'mongodb.documents':2})
 
+def test_update():
+    spec = SON([
+        ('update', u'songs'),
+        ('ordered', True),
+        ('updates', [
+            SON([
+                ('q', {'artist': 'Neil'}),
+                ('u', {'$set': {'artist': 'Shakey'}}),
+                ('multi', True),
+                ('upsert', False)
+            ])
+        ])
+    ])
+    cmd = parse_spec(spec)
+    eq_(cmd.name, "update")
+    eq_(cmd.coll, "songs")
+    eq_(cmd.query, {'artist':'Neil'})
+

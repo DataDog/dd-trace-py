@@ -42,6 +42,50 @@ def test_normalize_filter():
         eq_(expected, out)
 
 
+def test_update():
+    # ensure we trace deletes
+    tracer, client = _get_tracer_and_client("songdb")
+    writer = tracer.writer
+    db = client["testdb"]
+    db.drop_collection("songs")
+    input_songs = [
+        {'name' : 'Powderfinger', 'artist':'Neil'},
+        {'name' : 'Harvest', 'artist':'Neil'},
+        {'name' : 'Suzanne', 'artist':'Leonard'},
+        {'name' : 'Partisan', 'artist':'Leonard'},
+    ]
+    db.songs.insert_many(input_songs)
+
+    result = db.songs.update_many(
+        {"artist":"Neil"},
+        {"$set": {"artist":"Shakey"}},
+    )
+
+    eq_(result.matched_count, 2)
+    eq_(result.modified_count, 2)
+
+    # ensure all is traced.
+    spans = writer.pop()
+    assert spans, spans
+    for span in spans:
+        # ensure all the of the common metadata is set
+        eq_(span.service, "songdb")
+        eq_(span.span_type, "mongodb")
+        if span.resource != "insert_many":
+            eq_(span.meta.get("mongodb.collection"), "songs")
+            eq_(span.meta.get("mongodb.db"), "testdb")
+        assert span.meta.get("out.host")
+        assert span.meta.get("out.port")
+
+    expected_resources = set([
+        "drop songs",
+        "update songs {'artist': '?'}",
+        "insert_many",
+    ])
+
+    eq_(expected_resources, {s.resource for s in spans})
+
+
 def test_delete():
     # ensure we trace deletes
     tracer, client = _get_tracer_and_client("songdb")
