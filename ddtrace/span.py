@@ -211,7 +211,7 @@ class Span(object):
             ("tags", "")
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in self.meta.items())
+        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
 
     def __enter__(self):
