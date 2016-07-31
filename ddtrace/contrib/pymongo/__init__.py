@@ -9,10 +9,10 @@ from wrapt import ObjectProxy
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
-from  .parse import parse_spec, parse_query
+from  .parse import parse_spec, parse_query, Command
 
 
-def trace_mongo_client(client, tracer, service="mongodb"):
+def trace_mongo_client(client, tracer, service=mongox.TYPE):
     tracer.set_service_info(
         service=service,
         app=mongox.TYPE,
@@ -41,28 +41,32 @@ class TracedSocket(ObjectProxy):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
     def write_command(self, *args, **kwargs):
-        with self._tracer.trace("pymongo.cmd", service=self._srv, span_type=mongox.TYPE) as s:
-            # FIXME[matt] pluck the collection from the msg.
+        # FIXME[matt] parse the db name and collection from the
+        # message.
+        coll = ""
+        db = ""
+        cmd = Command("insert_many", coll)
+        with self.__trace(db, cmd) as s:
             s.resource = "insert_many"
             result = self.__wrapped__.write_command(*args, **kwargs)
-            if self.address:
-                _set_address_tags(s, self.address)
-            if not result:
-                return result
-            s.set_metric(mongox.ROWS, result.get("n", -1))
+            if result:
+                s.set_metric(mongox.ROWS, result.get("n", -1))
             return result
 
     def __trace(self, db, cmd):
-        s = self._tracer.trace("pymongo.cmd", span_type=mongox.TYPE, service=self._srv)
-        if db:
-            s.set_tag(mongox.DB, db)
+        s = self._tracer.trace(
+            "pymongo.cmd",
+            span_type=mongox.TYPE,
+            service=self._srv,
+        )
+
+        if db: s.set_tag(mongox.DB, db)
         if cmd:
             s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
             # s.set_metrics(cmd.metrics) FIXME[matt] uncomment whe rebase
 
         s.resource = _resource_from_cmd(cmd)
-
         if self.address:
             _set_address_tags(s, self.address)
         return s
