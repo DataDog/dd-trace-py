@@ -1,6 +1,7 @@
 
 
 class Command(object):
+    """ Command stores information about a pymongo network command, """
 
     __slots__ = ['name', 'coll', 'tags', 'metrics', 'query']
 
@@ -13,10 +14,15 @@ class Command(object):
 
 
 def parse_query(query):
+    """ Return a command parsed from the given mongo db query. """
     cmd = Command(query.name, query.coll)
+    cmd.query = query.spec
     return cmd
 
 def parse_spec(spec):
+    """ Return a Command that has parsed the relevant detail for the given
+        pymongo SON spec.
+    """
 
     # the first element is the command and collection
     name, coll = spec.iteritems().next()
