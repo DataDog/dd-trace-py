@@ -12,9 +12,9 @@ tests_require = [
     'elasticsearch',
     'flask',
     'psycopg2',
+    'pymongo',
     'redis',
 ]
-
 
 
 version = __version__
