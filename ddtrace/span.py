@@ -206,7 +206,7 @@ class Span(object):
             ('type', self.span_type),
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", self.duration),
+            ("duration", "%fs" % self.duration),
             ("error", self.error),
             ("tags", "")
         ]

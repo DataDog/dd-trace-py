@@ -12,7 +12,8 @@ end
 
 desc "remove artifacts"
 task :clean do
-  sh 'rm -rf build *egg*'
+  sh 'python setup.py clean'
+  sh 'rm -rf build *egg* *.whl dist'
 end
 
 desc "build the docs"
