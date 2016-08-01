@@ -1,47 +1,30 @@
+"""
+To trace mongoengine queries, we patch it's connect method::
 
-# 3p
-import mongoengine
-import wrapt
+    # to patch all mongoengine connections, do the following
+    # before you import mongoengine yourself.
 
-# project
-from ddtrace.ext import mongo as mongox
-from ddtrace.contrib.pymongo import trace_mongo_client
-
-
-def trace_mongoengine(tracer, service=mongox.TYPE, patch=False):
-    connect = mongoengine.connect
-    wrapped = WrappedConnect(connect, tracer, service)
-    if patch:
-        mongoengine.connect = wrapped
-    return wrapped
+    from ddtrace import tracer
+    from ddtrace.contrib.mongoengine import trace_mongoengine
+    trace_mongoengine(tracer, service="my-mongo-db", patch=True)
 
 
-class WrappedConnect(wrapt.ObjectProxy):
-    """ WrappedConnect wraps mongoengines 'connect' function to ensure
-        that all returned connections are wrapped for tracing.
-    """
+    # to patch a single mongoengine connection, your can do this:
+    connect = trace_mongoengine(tracer, service="my-mongo-db", patch=False()
+    connect()
 
-    _service = None
-    _tracer = None
-
-    def __init__(self, connect, tracer, service):
-        super(WrappedConnect, self).__init__(connect)
-        self._service = service
-        self._tracer = tracer
-
-    def __call__(self, *args, **kwargs):
-        client = self.__wrapped__(*args, **kwargs)
-        if _is_traced(client):
-            return client
-        # mongoengine uses pymongo internally, so we can just piggyback on the
-        # existing pymongo integration and make sure that the connections it
-        # uses internally are traced.
-        return trace_mongo_client(
-            client,
-            tracer=self._tracer,
-            service=self._service)
+    # now use mongoengine ....
+    User.objects(name="Mongo")
+"""
 
 
-def _is_traced(client):
-    return isinstance(client, wrapt.ObjectProxy)
+from ..util import require_modules
 
+
+required_modules = ['mongoengine']
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from .trace import trace_mongoengine
+
+        __all__ = ['trace_mongoengine']
