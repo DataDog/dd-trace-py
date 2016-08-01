@@ -60,12 +60,10 @@ class CassandraTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
 
-        # Should be sending one request to "USE <keyspace>" and another for the actual query
-        eq_(len(spans), 2)
-        use, query = spans[0], spans[1]
-        eq_(use.service, "cassandra")
-        eq_(use.resource, "USE %s" % self.TEST_KEYSPACE)
+        # another for the actual query
+        eq_(len(spans), 1)
 
+        query = spans[0]
         eq_(query.service, "cassandra")
         eq_(query.resource, self.TEST_QUERY)
         eq_(query.span_type, cassx.TYPE)
@@ -88,9 +86,8 @@ class CassandraTest(unittest.TestCase):
         result = session.execute(self.TEST_QUERY)
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 2)
-        use, query = spans[0], spans[1]
-        eq_(use.service, "custom")
+        eq_(len(spans), 1)
+        query = spans[0]
         eq_(query.service, "custom")
 
     def test_trace_error(self):
@@ -102,7 +99,7 @@ class CassandraTest(unittest.TestCase):
 
         spans = writer.pop()
         assert spans
-        use, query = spans[0], spans[1]
+        query = spans[0]
         eq_(query.error, 1)
         for k in (errx.ERROR_MSG, errx.ERROR_TYPE, errx.ERROR_STACK):
             assert query.get_tag(k)

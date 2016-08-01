@@ -7,7 +7,7 @@ tests_require = [
     'nose',
     # contrib
     'blinker',
-    'cassandra-driver',
+    'cassandra-driver==3.6.0',
     'django',
     'elasticsearch',
     'flask',
