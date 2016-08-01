@@ -77,7 +77,7 @@ class TracedSocket(ObjectProxy):
         if cmd:
             s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
-            # s.set_metrics(cmd.metrics) FIXME[matt] uncomment whe rebase
+            s.set_metrics(cmd.metrics)
 
         s.resource = _resource_from_cmd(cmd)
         if self.address:

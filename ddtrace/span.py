@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 
-from .compat import StringIO, stringify
+from .compat import StringIO, stringify, iteritems
 from .ext import errors
 
 
@@ -129,6 +129,11 @@ class Span(object):
             self.metrics[key] = value
         except Exception:
             log.warning("error setting metric %s, ignoring it", key, exc_info=True)
+
+    def set_metrics(self, metrics):
+        if metrics:
+            for k, v in iteritems(metrics):
+                self.set_metric(k, v)
 
     def get_metric(self, key):
         return self.metrics.get(key)
