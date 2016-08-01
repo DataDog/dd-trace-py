@@ -6,7 +6,6 @@ network calls. Basic usage::
     from ddtrace import tracer
     from ddtrace.contrib.pymongo import trace_mongo_client
 
-    original_client = MongoClient()
     client = trace_mongo_client(
         MongoClient(), tracer, "my-mongo-db")
 
