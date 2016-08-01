@@ -9,7 +9,7 @@ To trace mongoengine queries, we patch it's connect method::
     trace_mongoengine(tracer, service="my-mongo-db", patch=True)
 
 
-    # to patch a single mongoengine connection, your can do this:
+    # to patch a single mongoengine connection, do this:
     connect = trace_mongoengine(tracer, service="my-mongo-db", patch=False()
     connect()
 
