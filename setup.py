@@ -11,6 +11,7 @@ tests_require = [
     'django',
     'elasticsearch',
     'flask',
+    'mongoengine',
     'psycopg2',
     'pymongo',
     'redis',
