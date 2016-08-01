@@ -1,6 +1,7 @@
 import time
 
 from nose.tools import eq_
+from nose.tools import assert_raises
 
 from ddtrace.span import Span
 from ddtrace.ext import errors
@@ -115,13 +116,7 @@ def test_decorator_exception():
     def f():
         raise Exception('test')
 
-    exception_occurred = False
-    try:
-        f()
-    except:
-        exception_occurred = True
-
-    assert exception_occurred
+    assert_raises(Exception, f)
     assert dt.last_span.error
 
 def test_finish_called_multiple_times():
