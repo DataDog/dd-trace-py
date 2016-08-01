@@ -12,9 +12,9 @@ tests_require = [
     'elasticsearch',
     'flask',
     'psycopg2',
+    'pymongo',
     'redis',
 ]
-
 
 
 version = __version__
@@ -36,4 +36,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     tests_require=tests_require,
     test_suite="nose.collector",
+    install_requires=[
+        "wrapt"
+    ]
 )

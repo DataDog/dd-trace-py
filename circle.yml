@@ -18,6 +18,7 @@ dependencies:
     - docker pull cassandra:3
     - docker pull postgres:9.5
     - docker pull redis:3.2
+    - docker pull mongo:3.2
 database:
   override:
     - sudo service postgresql stop
@@ -26,6 +27,7 @@ database:
     - docker run -d -p 9200:9200 elasticsearch:2.3
     - sudo service redis-server stop
     - docker run -d -p 6379:6379 redis:3.2
+    - docker run -d mongo:3.2
     # Wait for Cassandra to be ready
     - until nc -v -z localhost 9042 ; do sleep 0.2 ; done
     # Wait for Postgres to be ready
