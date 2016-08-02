@@ -5,6 +5,8 @@ import os
 tests_require = [
     'mock',
     'nose',
+    'tox',
+
     # contrib
     'blinker',
     'cassandra-driver==3.6.0',
