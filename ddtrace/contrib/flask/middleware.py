@@ -6,14 +6,17 @@ dependency of flask signals).
 """
 
 # stdlib
-import time
 import logging
 
 # project
 from ...ext import http, errors, AppTypes
 
 # 3p
+import flask.templating
 from flask import g, request, signals
+
+
+log = logging.getLogger(__name__)
 
 
 class TraceMiddleware(object):
@@ -32,25 +35,52 @@ class TraceMiddleware(object):
             app_type=AppTypes.web,
         )
 
-        self.use_signals = use_signals
+        # warn the user if signals are unavailable (because blinker isn't
+        # installed) if they are asking to use them.
+        if use_signals and not signals.signals_available:
+            self.app.logger.info(_blinker_not_installed_msg)
+        self.use_signals = use_signals and signals.signals_available
 
-        if self.use_signals and signals.signals_available:
-            # if we're using signals, and things are correctly installed, use
-            # signal hooks to track the responses.
-            self.app.logger.info("connecting trace signals")
-            signals.request_started.connect(self._request_started, sender=self.app)
-            signals.request_finished.connect(self._request_finished, sender=self.app)
-            signals.got_request_exception.connect(self._request_exception, sender=self.app)
-            signals.before_render_template.connect(self._template_started, sender=self.app)
-            signals.template_rendered.connect(self._template_done, sender=self.app)
+        # instrument request timings
+        timing_signals = {
+            'request_started': self._request_started,
+            'request_finished': self._request_finished,
+            'got_request_exception': self._request_exception,
+        }
+        if self.use_signals and _signals_exist(timing_signals):
+            self._connect(timing_signals)
         else:
-            if self.use_signals: # warn the user that signals lib isn't installed
-                self.app.logger.info(_blinker_not_installed_msg)
-
-            # Fallback to using after request hook. Unfortunately, this won't
+            # Fallback to request hooks. Won't catch exceptions.
             # handle exceptions.
             self.app.before_request(self._before_request)
             self.app.after_request(self._after_request)
+
+        # Instrument template rendering. If it's flask >= 0.11, we can use
+        # signals, Otherwise we have to patch a global method.
+        template_signals = {
+            'before_render_template': self._template_started,  # added in 0.11
+            'template_rendered': self._template_done
+        }
+        if self.use_signals and _signals_exist(template_signals):
+            self._connect(template_signals)
+        else:
+            _patch_render(tracer)
+
+    def _flask_signals_exist(self, names):
+        """ Return true if the current version of flask has all of the given
+            signals.
+        """
+        return all(getattr(signals, n, None) for n in names)
+
+    def _connect(self, signal_to_handler):
+        connected = True
+        for name, handler in signal_to_handler.items():
+            s = getattr(signals, name, None)
+            if not s:
+                connected = False
+                log.warn("trying to instrument missing signal %s", name)
+            s.connect(handler, sender=self.app)
+        return connected
 
     # common methods
 
@@ -138,4 +168,27 @@ class TraceMiddleware(object):
         if span:
             span.finish()
 
-_blinker_not_installed_msg = "please install blinker to use flask signals. http://flask.pocoo.org/docs/0.11/signals/"
+
+def _patch_render(tracer):
+    """ patch flask's render template methods with the given tracer. """
+    # fall back to patching  global method
+    _render = flask.templating._render
+
+    def _traced_render(template, context, app):
+        with tracer.trace('flask.template') as span:
+            span.span_type = http.TEMPLATE
+            span.set_tag("flask.template", template.name or "string")
+            return _render(template, context, app)
+
+    flask.templating._render = _traced_render
+
+
+def _signals_exist(names):
+    """ Return true if all of the given signals exist in this version of flask.
+    """
+    return all(getattr(signals, n, False) for n in names)
+
+_blinker_not_installed_msg = (
+    "please install blinker to use flask signals. "
+    "http://flask.pocoo.org/docs/0.11/signals/"
+)
