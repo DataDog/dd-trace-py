@@ -129,6 +129,9 @@ class Tracer(object):
         """Return the current active span or None."""
         return self.span_buffer.get()
 
+    def clear_current_span(self):
+        self.span_buffer.set(None)
+
     def record(self, span):
         """Record the given finished span."""
         spans = []
