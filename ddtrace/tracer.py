@@ -1,4 +1,4 @@
-
+import functools
 import logging
 import threading
 
@@ -62,6 +62,16 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
+
+    def trace_function(self, name=None, service=None, resource=None, span_type=None):
+        def trace_function_decorator(func):
+            span_name = name if name is None else func.__name__
+            @functools.wraps(func)
+            def func_wrapper(*args, **kwargs):
+                with self.trace(name, service=service, resource=resource, span_type=span_type):
+                    func(*args, **kwargs)
+            return func_wrapper
+        return trace_function_decorator
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """Return a span that will trace an operation called `name`.
