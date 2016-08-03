@@ -1,6 +1,7 @@
 import time
 
 from nose.tools import eq_
+import numpy as np
 
 from ddtrace.span import Span
 from ddtrace.ext import errors
@@ -62,13 +63,9 @@ def test_set_invalid_metric():
     s.set_metric("a", float("inf"))
     eq_(s.get_metric("a"), None)
 
-    try:
-        import numpy as np
-        s.set_metric("a", np.int64(1))
-        eq_(s.get_metric("a"), 1)
-        eq_(type(s.get_metric("a")), float)
-    except ImportError:
-        pass
+    s.set_metric("a", np.int64(1))
+    eq_(s.get_metric("a"), 1)
+    eq_(type(s.get_metric("a")), float)
 
 def test_tags_not_string():
     # ensure we can cast as strings
