@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 
-from .compat import StringIO, stringify
+from .compat import StringIO, stringify, iteritems
 from .ext import errors
 
 
@@ -130,6 +130,11 @@ class Span(object):
         except Exception:
             log.warning("error setting metric %s, ignoring it", key, exc_info=True)
 
+    def set_metrics(self, metrics):
+        if metrics:
+            for k, v in iteritems(metrics):
+                self.set_metric(k, v)
+
     def get_metric(self, key):
         return self.metrics.get(key)
 
@@ -206,12 +211,12 @@ class Span(object):
             ('type', self.span_type),
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", self.duration),
+            ("duration", "%fs" % (self.duration or 0)),
             ("error", self.error),
             ("tags", "")
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in self.meta.items())
+        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
 
     def __enter__(self):

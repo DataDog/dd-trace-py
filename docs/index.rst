@@ -113,11 +113,20 @@ Flask
 
 .. automodule:: ddtrace.contrib.flask
 
+Mongoengine
+~~~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.mongoengine
 
 Postgres
 ~~~~~~~~
 
 .. automodule:: ddtrace.contrib.psycopg
+
+Pymongo
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.pymongo
 
 Redis
 ~~~~~
