@@ -5,6 +5,7 @@ import time
 # 3p
 from nose.tools import eq_
 from mongoengine import (
+    connect,
     Document,
     StringField
 )

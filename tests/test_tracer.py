@@ -5,7 +5,6 @@ tests for Tracer and utilities.
 import time
 
 from nose.tools import eq_
-import numpy as np
 
 from ddtrace.tracer import Tracer
 from ddtrace import encoding
@@ -96,6 +95,11 @@ def test_tracer_disabled():
     assert not writer.pop()
 
 def test_unserializable_span_with_finish():
+    try:
+        # FIXME[matt] i don't want numpy as a test dependency.
+        import numpy as np
+    except ImportError:
+        return
 
     # a weird case where manually calling finish with an unserializable
     # span was causing an loop of serialization.
