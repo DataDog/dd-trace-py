@@ -79,6 +79,7 @@ class TraceMiddleware(object):
             if not s:
                 connected = False
                 log.warn("trying to instrument missing signal %s", name)
+                continue
             s.connect(handler, sender=self.app)
         return connected
 
