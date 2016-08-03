@@ -1,7 +1,6 @@
 import time
 
 from nose.tools import eq_
-from nose.tools import assert_raises
 
 from ddtrace.span import Span
 from ddtrace.ext import errors
