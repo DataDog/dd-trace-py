@@ -34,6 +34,11 @@ def iteritems(obj, **kwargs):
         func = obj.items
     return func(**kwargs)
 
+if PY2:
+    numeric_types = (int, long, float)
+else:
+    numeric_types = (int, float)
+
 
 __all__ = [
     'PY2',

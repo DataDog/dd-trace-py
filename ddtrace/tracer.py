@@ -190,7 +190,7 @@ class Tracer(object):
                 spans = self._spans
                 self._spans = []
 
-        if self.writer and span.sampled:
+        if spans and span.sampled:
             self.write(spans)
 
     def write(self, spans):
@@ -202,8 +202,8 @@ class Tracer(object):
             for span in spans:
                 log.debug("\n%s", span.pprint())
 
-        if self.enabled:
-            # only submit the spans if we're actually enabled.
+        if self.enabled and self.writer:
+            # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans, self._services)
 
     def set_service_info(self, service, app, app_type):

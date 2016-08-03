@@ -1,11 +1,12 @@
 import logging
+import math
 import numbers
 import random
 import sys
 import time
 import traceback
 
-from .compat import StringIO, stringify, iteritems
+from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
 
 
@@ -90,7 +91,10 @@ class Span(object):
             self.duration = ft - (self.start or ft)
 
         if self._tracer:
-            self._tracer.record(self)
+            try:
+                self._tracer.record(self)
+            except Exception:
+                log.exception("error recording finished trace")
 
     def set_tag(self, key, value):
         """ Set the given key / value tag pair on the span. Keys and values
@@ -122,13 +126,24 @@ class Span(object):
         self.set_tags(kvs)
 
     def set_metric(self, key, value):
-        try:
-            # If the value isn't a typed as a number (ex: a string), try to cast it
-            if not isinstance(value, numbers.Number):
+        # FIXME[matt] we could push this check to serialization time as well.
+
+        # only permit types that are commonly serializable (don't use
+        # isinstance so that we convert unserializable types like numpy
+        # numbers)
+        if type(value) not in numeric_types:
+            try:
                 value = float(value)
-            self.metrics[key] = value
-        except Exception:
-            log.warning("error setting metric %s, ignoring it", key, exc_info=True)
+            except (ValueError, TypeError):
+                log.warn("ignoring not number metric %s:%s", key, value)
+                return
+
+        # don't allow nan or inf
+        if math.isnan(value) or math.isinf(value):
+            log.warn("ignoring not real metric %s:%s", key, value)
+            return
+
+        self.metrics[key] = value
 
     def set_metrics(self, metrics):
         if metrics:
