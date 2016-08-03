@@ -48,14 +48,27 @@ def test_set_valid_metrics():
     }
     eq_(d["metrics"], expected)
 
-
 def test_set_invalid_metric():
     s = Span(tracer=None, name="foo")
 
     # Set an invalid metric: shouldn't crash nor set any value
     s.set_metric("a", "forty-twelve")
-
     eq_(s.get_metric("a"), None)
+
+    # Set an invalid number tyupe
+    s.set_metric("a", float("nan"))
+    eq_(s.get_metric("a"), None)
+
+    s.set_metric("a", float("inf"))
+    eq_(s.get_metric("a"), None)
+
+    try:
+        import numpy as np
+        s.set_metric("a", np.int64(1))
+        eq_(s.get_metric("a"), 1)
+        eq_(type(s.get_metric("a")), float)
+    except ImportError:
+        pass
 
 def test_tags_not_string():
     # ensure we can cast as strings
