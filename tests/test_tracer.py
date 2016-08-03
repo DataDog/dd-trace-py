@@ -156,7 +156,7 @@ def test_tracer_wrap_span_nesting():
     spans = writer.pop()
     eq_(len(spans), 3)
 
-    # sift through the list so we're note dependent on span ordering within the
+    # sift through the list so we're not dependent on span ordering within the
     # writer
     for span in spans:
         if span.name == 'outer':
