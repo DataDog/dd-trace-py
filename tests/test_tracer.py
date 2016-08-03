@@ -106,7 +106,7 @@ def test_tracer_wrap_default_name():
         pass
     f()
 
-    eq_(writer.spans[0].name, 'f')
+    eq_(writer.spans[0].name, 'tests.test_tracer.f')
 
 def test_tracer_wrap_exception():
     writer = DummyWriter()
@@ -144,10 +144,10 @@ def test_tracer_wrap_span_nesting():
     tracer = Tracer()
     tracer.writer = writer
 
-    @tracer.wrap()
+    @tracer.wrap('inner')
     def inner():
         pass
-    @tracer.wrap()
+    @tracer.wrap('outer')
     def outer():
         with tracer.trace('mid'):
             inner()
