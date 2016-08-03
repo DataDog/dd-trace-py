@@ -37,7 +37,7 @@ def iteritems(obj, **kwargs):
 if PY2:
     numeric_types = (int, long, float)
 else:
-    numeric_types (int, float)
+    numeric_types = (int, float)
 
 
 __all__ = [
