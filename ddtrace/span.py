@@ -6,7 +6,7 @@ import sys
 import time
 import traceback
 
-from .compat import StringIO, stringify, iteritems
+from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
 
 
@@ -131,7 +131,7 @@ class Span(object):
         # only permit types that are commonly serializable (don't use
         # isinstance so that we convert unserializable types like numpy
         # numbers)
-        if type(value) not in (int, float, long):
+        if type(value) not in numeric_types:
             try:
                 value = float(value)
             except ValueError:
