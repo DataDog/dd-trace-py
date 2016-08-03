@@ -28,7 +28,7 @@ database:
     - docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_USER=test -e POSTGRES_DB=test postgres:9.5
     - docker run -d -p 9042:9042 cassandra:3
     - docker run -d -p 9200:9200 elasticsearch:2.3
-    - sudo service redis-server stop
+    - sudo service redis-server stop || true
     - docker run -d -p 6379:6379 redis:3.2
     - docker run -d mongo:3.2
     # Wait for Cassandra to be ready
