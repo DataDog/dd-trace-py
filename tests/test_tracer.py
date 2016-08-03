@@ -7,6 +7,7 @@ import time
 from nose.tools import eq_
 
 from ddtrace.tracer import Tracer
+from ddtrace import encoding
 
 
 def test_tracer_vars():
@@ -93,6 +94,23 @@ def test_tracer_disabled():
         s.set_tag("a", "b")
     assert not writer.pop()
 
+def test_unserializable_span_with_finish():
+    try:
+        # FIXME[matt] i don't want numpy as a test dependency.
+        import numpy as np
+    except ImportError:
+        return
+
+    # a weird case where manually calling finish with an unserializable
+    # span was causing an loop of serialization.
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    with tracer.trace("parent") as span:
+        span.metrics['as'] = np.int64(1) # circumvent the data checks
+        span.finish()
+
 def test_tracer_disabled_mem_leak():
     # ensure that if the tracer is disabled, we still remove things from the
     # span buffer upon finishing.
@@ -109,6 +127,7 @@ def test_tracer_disabled_mem_leak():
     s2.finish()
     assert not p1, p1
 
+
 class DummyWriter(object):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
@@ -117,6 +136,13 @@ class DummyWriter(object):
         self.services = {}
 
     def write(self, spans, services=None):
+        # even though it's going nowhere, still encode / decode the spans
+        # as an extra safety check.
+        if spans:
+            encoding.encode_spans(spans)
+        if services:
+            encoding.encode_services(services)
+
         self.spans += spans
         if services:
             self.services.update(services)

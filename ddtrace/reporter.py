@@ -7,6 +7,7 @@ from time import time
 # project
 from .compat import json
 from .transport import ThreadedHTTPTransport
+import encoding
 
 
 log = logging.getLogger(__name__)
@@ -31,12 +32,12 @@ class AgentReporter(object):
 
     def send_spans(self, spans):
         log.debug("Reporting %d spans", len(spans))
-        data = json.dumps([span.to_dict() for span in spans])
+        data = encoding.encode_spans(spans)
         headers = {}
         self.transport.send("PUT", "/spans", data, headers)
 
     def send_services(self, services):
         log.debug("Reporting %d services", len(services))
-        data = json.dumps(services)
+        data = encoding.encode_services(services)
         headers = {}
         self.transport.send("PUT", "/services", data, headers)
