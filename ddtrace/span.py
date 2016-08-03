@@ -134,7 +134,7 @@ class Span(object):
         if type(value) not in numeric_types:
             try:
                 value = float(value)
-            except ValueError:
+            except (ValueError, TypeError):
                 log.warn("ignoring not number metric %s:%s", key, value)
                 return
 

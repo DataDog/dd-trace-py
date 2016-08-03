@@ -52,16 +52,21 @@ def test_set_valid_metrics():
 def test_set_invalid_metric():
     s = Span(tracer=None, name="foo")
 
-    # Set an invalid metric: shouldn't crash nor set any value
-    s.set_metric("a", "forty-twelve")
-    eq_(s.get_metric("a"), None)
+    invalid_metrics = [
+        None,
+        {},
+        [],
+        s,
+        "quarante-douze",
+        float("nan"),
+        float("inf"),
+        1j
+    ]
 
-    # Set an invalid number tyupe
-    s.set_metric("a", float("nan"))
-    eq_(s.get_metric("a"), None)
-
-    s.set_metric("a", float("inf"))
-    eq_(s.get_metric("a"), None)
+    for i, m in enumerate(invalid_metrics):
+        k = str(i)
+        s.set_metric(k, m)
+        eq_(s.get_metric(k), None)
 
 def test_set_numpy_metric():
     try:
