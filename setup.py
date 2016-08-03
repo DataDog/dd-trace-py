@@ -17,6 +17,7 @@ tests_require = [
     'psycopg2',
     'pymongo',
     'redis',
+    'sqlalchemy',
 ]
 
 
