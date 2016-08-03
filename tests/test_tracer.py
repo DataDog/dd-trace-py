@@ -85,7 +85,9 @@ def test_tracer_wrap():
     @tracer.wrap('decorated_function', service='s', resource='r',
             span_type='t')
     def f():
-        pass
+        # make sure we can still set tags
+        span = tracer.current_span()
+        span.set_tag('a', 'b')
     f()
 
     spans = writer.pop()
@@ -95,6 +97,7 @@ def test_tracer_wrap():
     eq_(s.service, 's')
     eq_(s.resource, 'r')
     eq_(s.span_type, 't')
+    eq_(s.to_dict()['meta']['a'], 'b')
 
 def test_tracer_wrap_default_name():
     writer = DummyWriter()
