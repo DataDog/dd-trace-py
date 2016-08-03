@@ -4,7 +4,7 @@ tests for Tracer and utilities.
 
 import time
 
-from nose.tools import eq_
+from nose.tools import assert_raises, eq_
 
 from ddtrace.tracer import Tracer
 
@@ -76,6 +76,108 @@ def test_tracer():
     spans = writer.pop()
     for s in spans:
         assert s.trace_id != make.trace_id
+
+def test_tracer_wrap():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap('decorated_function', service='s', resource='r',
+            span_type='t')
+    def f(tag_name, tag_value):
+        # make sure we can still set tags
+        span = tracer.current_span()
+        span.set_tag(tag_name, tag_value)
+    f('a', 'b')
+
+    spans = writer.pop()
+    eq_(len(spans), 1)
+    s = spans[0]
+    eq_(s.name, 'decorated_function')
+    eq_(s.service, 's')
+    eq_(s.resource, 'r')
+    eq_(s.span_type, 't')
+    eq_(s.to_dict()['meta']['a'], 'b')
+
+def test_tracer_wrap_default_name():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap()
+    def f():
+        pass
+    f()
+
+    eq_(writer.spans[0].name, 'tests.test_tracer.f')
+
+def test_tracer_wrap_exception():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap()
+    def f():
+        raise Exception('bim')
+
+    assert_raises(Exception, f)
+
+    eq_(len(writer.spans), 1)
+    eq_(writer.spans[0].error, 1)
+
+def test_tracer_wrap_multiple_calls():
+    # Make sure that we create a new span each time the function is called
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap()
+    def f():
+        pass
+    f()
+    f()
+
+    spans = writer.pop()
+    eq_(len(spans), 2)
+    assert spans[0].span_id != spans[1].span_id
+
+def test_tracer_wrap_span_nesting():
+    # Make sure that nested spans have the correct parents
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap('inner')
+    def inner():
+        pass
+    @tracer.wrap('outer')
+    def outer():
+        with tracer.trace('mid'):
+            inner()
+    outer()
+
+    spans = writer.pop()
+    eq_(len(spans), 3)
+
+    # sift through the list so we're not dependent on span ordering within the
+    # writer
+    for span in spans:
+        if span.name == 'outer':
+            outer_span = span
+        elif span.name == 'mid':
+            mid_span = span
+        elif span.name == 'inner':
+            inner_span = span
+        else:
+            assert False, 'unknown span found'  # should never get here
+
+    assert outer_span
+    assert mid_span
+    assert inner_span
+
+    eq_(outer_span.parent_id, None)
+    eq_(mid_span.parent_id, outer_span.span_id)
+    eq_(inner_span.parent_id, mid_span.span_id)
 
 def test_tracer_disabled():
     # add some dummy tracing code.
