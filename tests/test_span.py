@@ -84,41 +84,6 @@ def test_finish():
     s2 = Span(tracer=None, name="foo")
     s2.finish()
 
-def test_decorator():
-    dt = DummyTracer()
-
-    @Span(dt, 'test')
-    def f():
-        return
-
-    f()
-
-    assert dt.last_span
-    assert dt.last_span.name == 'test'
-
-def test_decorator_name():
-    dt = DummyTracer()
-
-    # TODO elijah: Test if we can get None as name for tracer.trace. Perhaps
-    # name should default to None? Think about implications of this
-    @Span(dt, None)
-    def f():
-        return
-
-    f()
-
-    assert dt.last_span.name == 'f'
-
-def test_decorator_exception():
-    dt = DummyTracer()
-
-    @Span(dt, None)
-    def f():
-        raise Exception('test')
-
-    assert_raises(Exception, f)
-    assert dt.last_span.error
-
 def test_finish_called_multiple_times():
     # we should only record a span the first time finish is called on it
     dt = DummyTracer()
