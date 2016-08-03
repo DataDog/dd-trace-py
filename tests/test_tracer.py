@@ -84,11 +84,11 @@ def test_tracer_wrap():
 
     @tracer.wrap('decorated_function', service='s', resource='r',
             span_type='t')
-    def f():
+    def f(tag_name, tag_value):
         # make sure we can still set tags
         span = tracer.current_span()
-        span.set_tag('a', 'b')
-    f()
+        span.set_tag(tag_name, tag_value)
+    f('a', 'b')
 
     spans = writer.pop()
     eq_(len(spans), 1)
