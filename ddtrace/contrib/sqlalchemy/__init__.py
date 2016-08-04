@@ -65,11 +65,14 @@ class EngineTracer(object):
 
         # set address tags
         url = conn.engine.url
-        span.set_tag(sqlx.DB, url.database)
-        if url.host and url.port:
-            # sqlite has no host and port
-            span.set_tag(netx.TARGET_HOST, url.host)
-            span.set_tag(netx.TARGET_PORT, url.port)
+        if url.database:
+            span.set_tag(sqlx.DB, url.database)
+
+        (host, port) = _get_host_port(url, self.vendor, cursor)
+        if host:
+            span.set_tag(netx.TARGET_HOST, host)
+        if port:
+            span.set_tag(netx.TARGET_PORT, port)
 
         self._span_buffer.set(span)
 
@@ -84,6 +87,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
+
     def _dbapi_error(self, conn, cursor, statement, parameters, context, exception):
         span = self._span_buffer.pop()
         if not span:
@@ -93,4 +97,19 @@ class EngineTracer(object):
             span.set_traceback()
         finally:
             span.finish()
+
+def _get_host_port(url, vendor, cursor):
+
+    # if we can get the host and port from the url, perfect.
+    if url and url.host and url.port:
+        return (url.host, url.port)
+
+    # otherwise if we're using a creator_func, pluck it from the cursor.
+    if 'postgres' == vendor:
+        if hasattr(cursor, 'connection') and hasattr(cursor.connection, 'dsn'):
+            dsn = getattr(cursor.connection, 'dsn', None)
+            if dsn:
+                parsed = sqlx.parse_pg_dsn(dsn)
+                return (parsed.get('host'), parsed.get('port'))
+    return (None, None)
 
