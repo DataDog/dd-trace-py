@@ -18,3 +18,14 @@ def normalize_vendor(vendor):
         return "postgres"
     else:
         return vendor
+
+def parse_pg_dsn(dsn):
+    """
+    Return a dictionary of the components of a postgres DSN.
+
+    >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')
+    {"user":"dog", "port":"1543", "dbname":"dogdata"}
+    """
+    # FIXME: replace by psycopg2.extensions.parse_dsn when available
+    # https://github.com/psycopg/psycopg2/pull/321
+    return {chunk.split("=")[0]: chunk.split("=")[1] for chunk in dsn.split() if "=" in chunk}

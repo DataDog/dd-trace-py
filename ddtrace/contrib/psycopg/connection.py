@@ -82,7 +82,7 @@ class TracedConnection(connection):
         super(TracedConnection, self).__init__(*args, **kwargs)
 
         # add metadata (from the connection, string, etc)
-        dsn = _parse_dsn(self.dsn)
+        dsn = sqlx.parse_pg_dsn(self.dsn)
         self._datadog_tags = {
             net.TARGET_HOST: dsn.get("host"),
             net.TARGET_PORT: dsn.get("port"),
@@ -101,18 +101,6 @@ class TracedConnection(connection):
         """ register our custom cursor factory """
         kwargs.setdefault('cursor_factory', self._datadog_cursor_class)
         return super(TracedConnection, self).cursor(*args, **kwargs)
-
-
-def _parse_dsn(dsn):
-    """
-    Return a diciontary of the components of a postgres DSN.
-
-    >>> _parse_dsn('user=dog port=1543 dbname=dogdata')
-    {"user":"dog", "port":"1543", "dbname":"dogdata"}
-    """
-    # FIXME: replace by psycopg2.extensions.parse_dsn when available
-    # https://github.com/psycopg/psycopg2/pull/321
-    return {chunk.split("=")[0]: chunk.split("=")[1] for chunk in dsn.split() if "=" in chunk}
 
 
 
