@@ -63,16 +63,8 @@ class EngineTracer(object):
         # keep the unnormalized query
         span.set_tag(sqlx.QUERY, statement)
 
-        # set address tags
-        url = conn.engine.url
-        if url.database:
-            span.set_tag(sqlx.DB, url.database)
-
-        (host, port) = _get_host_port(url, self.vendor, cursor)
-        if host:
-            span.set_tag(netx.TARGET_HOST, host)
-        if port:
-            span.set_tag(netx.TARGET_PORT, port)
+        if not _set_tags_from_url(span, conn.engine.url):
+            _set_tags_from_cursor(span, self.vendor, cursor)
 
         self._span_buffer.set(span)
 
@@ -98,18 +90,22 @@ class EngineTracer(object):
         finally:
             span.finish()
 
-def _get_host_port(url, vendor, cursor):
+def _set_tags_from_url(span, url):
+    """ set connection tags from the url. return true if successful. """
+    if url.host:        span.set_tag(netx.TARGET_HOST, url.host)
+    if url.port:        span.set_tag(netx.TARGET_PORT, url.port)
+    if url.database:    span.set_tag(sqlx.DB, url.database)
 
-    # if we can get the host and port from the url, perfect.
-    if url and url.host and url.port:
-        return (url.host, url.port)
+    return bool(span.get_tag(netx.TARGET_HOST))
 
-    # otherwise if we're using a creator_func, pluck it from the cursor.
+def _set_tags_from_cursor(span, vendor, cursor):
+    """ attempt to set db connection tags by introspecting the cursor. """
     if 'postgres' == vendor:
         if hasattr(cursor, 'connection') and hasattr(cursor.connection, 'dsn'):
             dsn = getattr(cursor.connection, 'dsn', None)
             if dsn:
-                parsed = sqlx.parse_pg_dsn(dsn)
-                return (parsed.get('host'), parsed.get('port'))
-    return (None, None)
+                d = sqlx.parse_pg_dsn(dsn)
+                span.set_tag(sqlx.DB, d.get("dbname"))
+                span.set_tag(netx.TARGET_HOST, d.get("host"))
+                span.set_tag(netx.TARGET_PORT, d.get("port"))
 

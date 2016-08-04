@@ -3,6 +3,7 @@ import time
 
 # 3p
 from nose.tools import eq_
+import psycopg2
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import (
@@ -15,7 +16,9 @@ from sqlalchemy import (
 # project
 from ddtrace import Tracer
 from ddtrace.contrib.sqlalchemy import trace_engine
+from ddtrace.ext import sql as sqlx
 from ddtrace.ext import errors as errorsx
+from ddtrace.ext import net as netx
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import get_pg_config
 
@@ -32,23 +35,53 @@ class Player(Base):
 
 
 def test_sqlite():
-    _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite", {})
+    engine_args = {
+        'url' : 'sqlite:///:memory:'
+    }
+    _test_engine(engine_args, "sqlite-foo", "sqlite", {})
+    meta = {
+        sqlx.DB, ":memory:"
+    }
 
 def test_postgres():
     cfg = get_pg_config()
-    url = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
-    _test_engine(url, "pg-foo", "postgres", cfg)
+    engine_args = {
+        'url' : 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
+    }
+    meta = {
+        sqlx.DB: cfg["dbname"],
+        netx.TARGET_HOST : cfg['host'],
+        netx.TARGET_PORT: str(cfg['port']),
+    }
 
-def _test_engine(url, service, vendor, cfg=None):
+    _test_engine(engine_args, "pg-foo", "postgres", meta)
+
+def test_postgres_creator_func():
+    cfg = get_pg_config()
+
+    def _creator():
+        return psycopg2.connect(**cfg)
+
+    engine_args = {'url' : 'postgresql://', 'creator' : _creator}
+
+    meta = {
+        sqlx.DB: cfg["dbname"],
+        netx.TARGET_HOST : cfg['host'],
+        netx.TARGET_PORT: str(cfg['port']),
+    }
+    _test_engine(engine_args, "pg-foo", "postgres", meta)
+
+
+def _test_engine(engine_args, service, vendor, expected_meta):
     """ a test suite for various sqlalchemy engines. """
     tracer = Tracer()
     tracer.writer = DummyWriter()
 
     # create an engine and start tracing.
-    engine = create_engine(url, echo=False)
+    url = engine_args.pop("url")
+    engine = create_engine(url, **engine_args)
     trace_engine(engine, tracer, service=service)
     start = time.time()
-
 
     conn = engine.connect()
     conn.execute("drop table if exists players")
@@ -84,12 +117,9 @@ def _test_engine(url, service, vendor, cfg=None):
         eq_(span.name, "%s.query" % vendor)
         eq_(span.service, service)
         eq_(span.span_type, "sql")
-        if cfg:
-            eq_(span.meta["sql.db"], cfg["dbname"])
-            eq_(span.meta["out.host"], cfg["host"])
-            eq_(span.meta["out.port"], str(cfg["port"]))
-        else:
-            eq_(span.meta["sql.db"], ":memory:")
+
+        for k, v in expected_meta.items():
+            eq_(span.meta[k], v)
 
         # FIXME[matt] could be finer grained but i'm lazy
         assert start < span.start < end
