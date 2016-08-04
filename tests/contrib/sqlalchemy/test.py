@@ -80,9 +80,9 @@ def _test_engine(url, service, vendor):
         eq_(span.service, service)
         eq_(span.span_type, "sql")
         if "sqlite" not in vendor:
-            eq_(span.meta["sql.db"], "dogdata")
-            eq_(span.meta["out.host"], "localhost")
-            eq_(span.meta["out.port"], "5432")
+            eq_(span.meta["sql.db"], PG_CONFIG["dbname"])
+            eq_(span.meta["out.host"], PG_CONFIG["host"])
+            eq_(span.meta["out.port"], str(PG_CONFIG["port"]))
         else:
             eq_(span.meta["sql.db"], ":memory:")
 
