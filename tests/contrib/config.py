@@ -4,6 +4,10 @@ testing config.
 
 import os
 
+
+# an env var that will be present during circle ci builds
+CIRCLECI_ENVVAR="CIRCLE_BUILD_NUM"
+
 PG_CONFIG = {
     'host' : 'localhost',
     'port' : 5432,
@@ -20,10 +24,9 @@ CIRCLECI_PG_CONFIG = {
     'dbname' : 'test',
 }
 
-if 'CIRCLECI' in os.environ:
-    PG_CONFIG = CIRCLECI_PG_CONFIG
+
 
 def get_pg_config():
     print os.environ
-    return CIRCLECI_PG_CONFIG if ('CIRCLECI' in os.environ) else PG_CONFIG
+    return CIRCLECI_PG_CONFIG if (CIRCLECI_ENVVAR in os.environ) else PG_CONFIG
 
