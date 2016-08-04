@@ -1,8 +1,10 @@
 # stdlib
+import contextlib
 import time
 
 # 3p
 from nose.tools import eq_
+from nose.plugins.attrib import attr
 import psycopg2
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -38,11 +40,12 @@ def test_sqlite():
     engine_args = {
         'url' : 'sqlite:///:memory:'
     }
-    _test_engine(engine_args, "sqlite-foo", "sqlite", {})
+    _test_create_engine(engine_args, "sqlite-foo", "sqlite", {})
     meta = {
         sqlx.DB, ":memory:"
     }
 
+@attr('postgres')
 def test_postgres():
     cfg = get_pg_config()
     engine_args = {
@@ -54,8 +57,9 @@ def test_postgres():
         netx.TARGET_PORT: str(cfg['port']),
     }
 
-    _test_engine(engine_args, "pg-foo", "postgres", meta)
+    _test_create_engine(engine_args, "pg-foo", "postgres", meta)
 
+@attr('postgres')
 def test_postgres_creator_func():
     cfg = get_pg_config()
 
@@ -69,22 +73,39 @@ def test_postgres_creator_func():
         netx.TARGET_HOST : cfg['host'],
         netx.TARGET_PORT: str(cfg['port']),
     }
-    _test_engine(engine_args, "pg-foo", "postgres", meta)
 
+    _test_create_engine(engine_args, "pg-foo", "postgres", meta)
 
-def _test_engine(engine_args, service, vendor, expected_meta):
+def _test_create_engine(engine_args, service, vendor, expected_meta):
+    url = engine_args.pop("url")
+    engine = create_engine(url, **engine_args)
+    try:
+        _test_engine(engine, service, vendor, expected_meta)
+    finally:
+        engine.dispose()
+
+def _test_engine(engine, service, vendor, expected_meta):
     """ a test suite for various sqlalchemy engines. """
     tracer = Tracer()
     tracer.writer = DummyWriter()
 
     # create an engine and start tracing.
-    url = engine_args.pop("url")
-    engine = create_engine(url, **engine_args)
     trace_engine(engine, tracer, service=service)
     start = time.time()
 
-    conn = engine.connect()
-    conn.execute("drop table if exists players")
+    @contextlib.contextmanager
+    def _connect():
+        try:
+            conn = engine.connect()
+            yield conn
+        finally:
+            conn.close()
+
+    with _connect() as conn:
+        try:
+            conn.execute("delete from players")
+        except Exception:
+            pass
 
     # boilerplate
     Base.metadata.create_all(engine)
@@ -100,15 +121,18 @@ def _test_engine(engine_args, service, vendor, expected_meta):
     eq_(len(out), 0)
 
     # do a regular old query that works
-    conn = engine.connect()
-    rows = conn.execute("select * from players").fetchall()
-    eq_(len(rows), 1)
-    eq_(rows[0]['name'], 'wayne')
+    with _connect() as conn:
+        rows = conn.execute("select * from players").fetchall()
+        eq_(len(rows), 1)
+        eq_(rows[0]['name'], 'wayne')
 
-    try:
-        conn.execute("select * from foo_Bah_blah")
-    except Exception:
-        pass
+    with _connect() as conn:
+        try:
+            conn.execute("select * from foo_Bah_blah")
+        except Exception:
+            pass
+        else:
+            assert 0
 
     end = time.time()
 
