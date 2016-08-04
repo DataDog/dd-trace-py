@@ -20,5 +20,10 @@ CIRCLECI_PG_CONFIG = {
     'dbname' : 'test',
 }
 
-if os.getenv('CIRCLECI'):
+if 'CIRCLECI' in os.environ:
     PG_CONFIG = CIRCLECI_PG_CONFIG
+
+def get_pg_config():
+    print os.environ
+    return CIRCLECI_PG_CONFIG if ('CIRCLECI' in os.environ) else PG_CONFIG
+

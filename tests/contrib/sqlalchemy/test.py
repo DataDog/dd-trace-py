@@ -16,7 +16,7 @@ from sqlalchemy import (
 from ddtrace import Tracer
 from ddtrace.contrib.sqlalchemy import trace_engine
 from tests.test_tracer import DummyWriter
-from tests.contrib.config import PG_CONFIG
+from tests.contrib.config import get_pg_config
 
 
 Base = declarative_base()
@@ -31,13 +31,14 @@ class Player(Base):
 
 
 def test_sqlite():
-    _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite")
+    _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite", {})
 
 def test_postgres():
-    url = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % PG_CONFIG
-    _test_engine(url, "pg-foo", "postgres")
+    cfg = get_pg_config()
+    url = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
+    _test_engine(url, "pg-foo", "postgres", cfg)
 
-def _test_engine(url, service, vendor):
+def _test_engine(url, service, vendor, cfg=None):
     """ a test suite for various sqlalchemy engines. """
     tracer = Tracer()
     tracer.writer = DummyWriter()
@@ -79,10 +80,10 @@ def _test_engine(url, service, vendor):
         eq_(span.name, "%s.query" % vendor)
         eq_(span.service, service)
         eq_(span.span_type, "sql")
-        if "sqlite" not in vendor:
-            eq_(span.meta["sql.db"], PG_CONFIG["dbname"])
-            eq_(span.meta["out.host"], PG_CONFIG["host"])
-            eq_(span.meta["out.port"], str(PG_CONFIG["port"]))
+        if cfg:
+            eq_(span.meta["sql.db"], cfg["dbname"])
+            eq_(span.meta["out.host"], cfg["host"])
+            eq_(span.meta["out.port"], str(cfg["port"]))
         else:
             eq_(span.meta["sql.db"], ":memory:")
 

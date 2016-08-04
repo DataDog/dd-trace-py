@@ -10,7 +10,7 @@ from nose.tools import eq_
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
 from tests.test_tracer import DummyWriter
-from tests.contrib.config import PG_CONFIG
+from tests.contrib.config import get_pg_config
 
 
 def test_wrap():
@@ -18,12 +18,12 @@ def test_wrap():
     tracer = Tracer()
     tracer.writer = writer
 
-    params = PG_CONFIG
+    pg_config = get_pg_config()
 
     services = ["db", "another"]
     for service in services:
         conn_factory = connection_factory(tracer, service=service)
-        db = psycopg2.connect(connection_factory=conn_factory, **params)
+        db = psycopg2.connect(connection_factory=conn_factory, **pg_config)
 
         # Ensure we can run a query and it's correctly traced
         q = "select 'foobarblah'"
