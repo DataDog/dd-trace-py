@@ -15,6 +15,7 @@ from sqlalchemy import (
 # project
 from ddtrace import Tracer
 from ddtrace.contrib.sqlalchemy import trace_engine
+from ddtrace.ext import errors as errorsx
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import get_pg_config
 
@@ -57,10 +58,13 @@ def _test_engine(url, service, vendor, cfg=None):
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    # do an ORM query
+    # do an ORM insert
     wayne = Player(id=1, name="wayne")
     session.add(wayne)
     session.commit()
+
+    out = list(session.query(Player).filter_by(name="nothing"))
+    eq_(len(out), 0)
 
     # do a regular old query that works
     conn = engine.connect()
@@ -87,7 +91,23 @@ def _test_engine(url, service, vendor, cfg=None):
         else:
             eq_(span.meta["sql.db"], ":memory:")
 
+        # FIXME[matt] could be finer grained but i'm lazy
         assert start < span.start < end
         assert span.duration
         assert span.duration < end - start
 
+    by_rsc = {s.resource:s for s in spans}
+
+    # ensure errors work
+    s = by_rsc["select * from foo_Bah_blah"]
+    eq_(s.error, 1)
+    assert "foo_Bah_blah" in s.get_tag(errorsx.ERROR_MSG)
+    assert "foo_Bah_blah" in s.get_tag(errorsx.ERROR_STACK)
+
+    expected = [
+        "select * from players",
+        "select * from foo_Bah_blah",
+    ]
+
+    for i in expected:
+        assert i in by_rsc, "%s not in %s" % (i, by_rsc.keys())
