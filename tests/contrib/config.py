@@ -27,6 +27,5 @@ CIRCLECI_PG_CONFIG = {
 
 
 def get_pg_config():
-    print os.environ
     return CIRCLECI_PG_CONFIG if (CIRCLECI_ENVVAR in os.environ) else PG_CONFIG
 
