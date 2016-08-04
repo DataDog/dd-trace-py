@@ -94,7 +94,7 @@ class AsyncWorker(object):
                 # add or remove items
                 size = self._queue.qsize()
 
-                print("Sentry is attempting to send %i pending error messages"
+                print("ddtrace is attempting to send %i pending error messages"
                       % size)
                 print("Waiting up to %s seconds" % timeout)
 
