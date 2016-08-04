@@ -26,3 +26,8 @@ class ThreadLocalSpanBuffer(object):
     def get(self):
         return getattr(self._spans, 'span', None)
 
+    def pop(self):
+        span = self.get()
+        self.set(None)
+        return span
+
