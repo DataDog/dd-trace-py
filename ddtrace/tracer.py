@@ -170,7 +170,6 @@ class Tracer(object):
         # Note the current trace.
         self.span_buffer.set(span)
 
-        span.sampled = True
         return span
 
     def current_span(self):
@@ -190,9 +189,6 @@ class Tracer(object):
             if not parent:
                 spans = self._spans
                 self._spans = []
-
-        for span in spans:
-            print span.pprint()
 
         if spans and span.sampled:
             self.write(spans)
