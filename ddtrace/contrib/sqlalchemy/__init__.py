@@ -1,6 +1,15 @@
 """
+To trace sqlalchemy queries, add instrumentation to the engine class or
+instance you are using::
 
+    from ddtrace import tracer
+    from ddtrace.contrib.sqlalchemy import trace_engine
+    from sqlalchemy import create_engine
 
+    engine = create_engine('sqlite:///:memory:')
+    trace_engine(engine, tracer, "my-database")
+
+    engine.connect().execute("select count(*) from users")
 """
 
 # 3p
