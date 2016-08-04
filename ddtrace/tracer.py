@@ -177,7 +177,7 @@ class Tracer(object):
         return self.span_buffer.get()
 
     def clear_current_span(self):
-        self.span_buffer.set(None)
+        self.span_buffer.pop()
 
     def record(self, span):
         """Record the given finished span."""

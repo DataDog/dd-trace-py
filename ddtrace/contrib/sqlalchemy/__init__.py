@@ -6,8 +6,10 @@ from sqlalchemy.event import listen
 
 # project
 import ddtrace
+from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import sql as sqlx
 from ddtrace.ext import errors as errorsx
+from ddtrace.ext import net as netx
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -23,22 +25,39 @@ class EngineTracer(object):
         self.tracer = tracer
         self.service = service
         self.engine = engine
-        self.vendor = engine.name or "db"
+        self.vendor = sqlx.normalize_vendor(engine.name)
+        self.name = "%s.query" % self.vendor
 
-        self.span = None
+        self._span_buffer = ThreadLocalSpanBuffer()
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
         listen(engine, 'dbapi_error', self._dbapi_error)
 
     def _before_cur_exec(self, conn, cursor, statement, parameters, context, executemany):
-        self.span = None
-        self.span = self.tracer.trace("foo", span_type=sqlx.TYPE)
-        self.span.resource = statement
-        self.span.set_tag(sqlx.QUERY, statement)
+        self._span_buffer.pop() # should always be empty
+
+        span = self.tracer.trace(
+            self.name,
+            service=self.service,
+            span_type=sqlx.TYPE,
+            resource=statement)
+
+        # keep the unnormalized query
+        span.set_tag(sqlx.QUERY, statement)
+
+        # set address tags
+        url = conn.engine.url
+        span.set_tag(sqlx.DB, url.database)
+        if url.host and url.port:
+            # sqlite has no host and port
+            span.set_tag(netx.TARGET_HOST, url.host)
+            span.set_tag(netx.TARGET_PORT, url.port)
+
+        self._span_buffer.set(span)
 
     def _after_cur_exec(self, conn, cursor, statement, parameters, context, executemany):
-        span = self._pop_span()
+        span = self._span_buffer.pop()
         if not span:
             return
 
@@ -49,7 +68,7 @@ class EngineTracer(object):
             span.finish()
 
     def _dbapi_error(self, conn, cursor, statement, parameters, context, exception):
-        span = self._pop_span()
+        span = self._span_buffer.pop()
         if not span:
             return
 
@@ -57,9 +76,4 @@ class EngineTracer(object):
             span.set_traceback()
         finally:
             span.finish()
-
-    def _pop_span(self):
-        span = self.span
-        self.span = None
-        return span
 
