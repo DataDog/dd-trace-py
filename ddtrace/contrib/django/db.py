@@ -37,8 +37,8 @@ class TracedCursor(object):
         self._vendor = getattr(conn, 'vendor', 'db')     # e.g sqlite, postgres
         self._alias = getattr(conn, 'alias', 'default')  # e.g. default, users
 
-        prefix = _vendor_to_prefix(self._vendor)
-        self._name = "%s.%s" % (prefix, "query")                # e.g sqlite3.query
+        prefix = sqlx.normalize_vendor(self._vendor)
+        self._name = "%s.%s" % (prefix, "query")                # e.g sqlite.query
         self._service = "%s%s" % (self._alias or prefix, "db")  # e.g. defaultdb or postgresdb
 
         self.tracer.set_service_info(
@@ -84,12 +84,3 @@ class TracedCursor(object):
         self.close()
 
 
-def _vendor_to_prefix(vendor):
-    if not vendor:
-        return "db"  # should this ever happen?
-    elif vendor == "sqlite":
-        return "sqlite3"  # for consistency with the sqlite3 integration
-    elif vendor == "postgresql":
-        return "postgres"
-    else:
-        return vendor

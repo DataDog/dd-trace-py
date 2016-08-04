@@ -1,19 +1,16 @@
-import unittest
 
-from ddtrace.contrib.flask import missing_modules
-
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
-
+# stdlib
 import time
 
+# 3p
 import psycopg2
 from nose.tools import eq_
 
+# project
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
-
-from ...test_tracer import DummyWriter
+from tests.test_tracer import DummyWriter
+from tests.contrib.config import get_pg_config
 
 
 def test_wrap():
@@ -21,18 +18,12 @@ def test_wrap():
     tracer = Tracer()
     tracer.writer = writer
 
-    params = {
-        'host': 'localhost',
-        'port': 5432,
-        'user': 'test',
-        'password':'test',
-        'dbname': 'test',
-    }
+    pg_config = get_pg_config()
 
     services = ["db", "another"]
     for service in services:
         conn_factory = connection_factory(tracer, service=service)
-        db = psycopg2.connect(connection_factory=conn_factory, **params)
+        db = psycopg2.connect(connection_factory=conn_factory, **pg_config)
 
         # Ensure we can run a query and it's correctly traced
         q = "select 'foobarblah'"

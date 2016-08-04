@@ -5,7 +5,7 @@ from ...ext import sql as sqlx
 from ...ext import AppTypes
 
 
-def connection_factory(tracer, service="sqlite3"):
+def connection_factory(tracer, service="sqlite"):
     """ Return a connection factory class that will can be used to trace
         sqlite queries.
 
@@ -19,7 +19,7 @@ def connection_factory(tracer, service="sqlite3"):
 
     tracer.set_service_info(
         service=service,
-        app="sqlite3",
+        app="sqlite",
         app_type=AppTypes.db,
     )
 
@@ -41,7 +41,7 @@ class TracedCursor(Cursor):
         if not self._datadog_tracer:
             return Cursor.execute(self, sql, *args, **kwargs)
 
-        with self._datadog_tracer.trace("sqlite3.query", span_type=sqlx.TYPE) as s:
+        with self._datadog_tracer.trace("sqlite.query", span_type=sqlx.TYPE) as s:
             # Don't instrument if the trace is not sampled
             if not s.sampled:
                 return Cursor.execute(self, sql, *args, **kwargs)

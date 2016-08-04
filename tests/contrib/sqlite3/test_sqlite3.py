@@ -33,7 +33,7 @@ def test_foo():
         assert spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, "sqlite3.query")
+        eq_(span.name, "sqlite.query")
         eq_(span.span_type, "sql")
         eq_(span.resource, q)
         eq_(span.service, service)
@@ -54,7 +54,7 @@ def test_foo():
         assert spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, "sqlite3.query")
+        eq_(span.name, "sqlite.query")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
@@ -67,10 +67,9 @@ def test_foo():
     # ensure we have the service types
     services = writer.pop_services()
     expected = {
-        "db" : {"app":"sqlite3", "app_type":"db"},
-        "another" : {"app":"sqlite3", "app_type":"db"},
+        "db" : {"app":"sqlite", "app_type":"db"},
+        "another" : {"app":"sqlite", "app_type":"db"},
     }
     eq_(services, expected)
-
 
 
