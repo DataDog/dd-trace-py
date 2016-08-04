@@ -31,7 +31,7 @@ class Player(Base):
 
 
 def test_sqlite():
-    _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite3")
+    _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite")
 
 def test_postgres():
     url = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % PG_CONFIG

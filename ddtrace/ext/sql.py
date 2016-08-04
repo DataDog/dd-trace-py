@@ -12,8 +12,8 @@ def normalize_vendor(vendor):
     """ Return a canonical name for a type of database. """
     if not vendor:
         return "db"  # should this ever happen?
-    elif vendor == "sqlite":
-        return "sqlite3"  # for consistency with the sqlite3 integration
+    elif vendor == "sqlite3":
+        return "sqlite"
     elif vendor == "postgresql":
         return "postgres"
     else:
