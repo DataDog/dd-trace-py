@@ -63,53 +63,6 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
-        """A decorator used to trace an entire function.
-
-        :param str name: the name of the operation being traced. If not set,
-                         defaults to the fully qualified function name.
-        :param str service: the name of the service being traced. If not set,
-                            it will inherit the service from it's parent.
-        :param str resource: an optional name of the resource being tracked.
-        :param str span_type: an optional operation type.
-
-        >>> @tracer.wrap('my.wrapped.function', service='my.service')
-            def run():
-                return 'run'
-        >>> @tracer.wrap()  # name will default to 'execute' if unset
-            def execute():
-                return 'executed'
-
-        You can access the parent span using `tracer.current_span()` to set
-        tags:
-
-        >>> @tracer.wrap()
-            def execute():
-                span = tracer.current_span()
-                span.set_tag('a', 'b')
-
-        You can also create more spans within a traced function. These spans
-        will be children of the decorator's span:
-
-        >>> @tracer.wrap('parent')
-            def parent_function():
-                with tracer.trace('child'):
-                    pass
-        """
-
-        def wrap_decorator(func):
-            if name is None:
-                span_name = '{}.{}'.format(func.__module__, func.__name__)
-            else:
-                span_name = name
-
-            @functools.wraps(func)
-            def func_wrapper(*args, **kwargs):
-                with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                    func(*args, **kwargs)
-            return func_wrapper
-        return wrap_decorator
-
     def trace(self, name, service=None, resource=None, span_type=None):
         """Return a span that will trace an operation called `name`.
 
@@ -221,3 +174,50 @@ class Tracer(object):
         if self.debug_logging:
             log.debug("set_service_info: service:%s app:%s type:%s",
                 service, app, app_type)
+
+    def wrap(self, name=None, service=None, resource=None, span_type=None):
+        """A decorator used to trace an entire function.
+
+        :param str name: the name of the operation being traced. If not set,
+                         defaults to the fully qualified function name.
+        :param str service: the name of the service being traced. If not set,
+                            it will inherit the service from it's parent.
+        :param str resource: an optional name of the resource being tracked.
+        :param str span_type: an optional operation type.
+
+        >>> @tracer.wrap('my.wrapped.function', service='my.service')
+            def run():
+                return 'run'
+        >>> @tracer.wrap()  # name will default to 'execute' if unset
+            def execute():
+                return 'executed'
+
+        You can access the parent span using `tracer.current_span()` to set
+        tags:
+
+        >>> @tracer.wrap()
+            def execute():
+                span = tracer.current_span()
+                span.set_tag('a', 'b')
+
+        You can also create more spans within a traced function. These spans
+        will be children of the decorator's span:
+
+        >>> @tracer.wrap('parent')
+            def parent_function():
+                with tracer.trace('child'):
+                    pass
+        """
+
+        def wrap_decorator(func):
+            if name is None:
+                span_name = '{}.{}'.format(func.__module__, func.__name__)
+            else:
+                span_name = name
+
+            @functools.wraps(func)
+            def func_wrapper(*args, **kwargs):
+                with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                    func(*args, **kwargs)
+            return func_wrapper
+        return wrap_decorator
