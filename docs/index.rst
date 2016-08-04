@@ -133,6 +133,10 @@ Redis
 
 .. automodule:: ddtrace.contrib.redis
 
+SQLAlchemy
+~~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.sqlalchemy
 
 SQLite
 ~~~~~~

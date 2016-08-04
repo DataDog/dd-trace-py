@@ -1,4 +1,7 @@
+"""
 
+
+"""
 
 # 3p
 import sqlalchemy
@@ -13,9 +16,14 @@ from ddtrace.ext import net as netx
 
 
 def trace_engine(engine, tracer=None, service=None):
+    """
+    Add tracing instrumentation to the given sqlalchemy engine or instance.
 
+    :param sqlalchemy.Engine engine: a SQLAlchemy engine class or instance
+    :param ddtrace.Tracer tracer: a tracer instance. will default to the global
+    :param str service: the name of the service to trace.
+    """
     tracer = tracer or ddtrace.tracer # by default use the global tracing instance.
-
     EngineTracer(tracer, service, engine)
 
 
@@ -23,9 +31,9 @@ class EngineTracer(object):
 
     def __init__(self, tracer, service, engine):
         self.tracer = tracer
-        self.service = service
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
+        self.service = service or self.vendor
         self.name = "%s.query" % self.vendor
 
         self._span_buffer = ThreadLocalSpanBuffer()

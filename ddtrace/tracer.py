@@ -50,7 +50,7 @@ class Tracer(object):
         Allow to configure or reconfigure a Tracer instance.
 
         :param bool enabled: If True, finished traces will be submitted to the API. Otherwise they'll be dropped.
-        :param string hostname: Hostname running the Trace Agent
+        :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
         """
