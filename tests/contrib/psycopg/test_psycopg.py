@@ -1,18 +1,14 @@
-import unittest
 
-from ddtrace.contrib.flask import missing_modules
-
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
-
+# stdlib
 import time
 
+# 3p
 import psycopg2
 from nose.tools import eq_
 
+# project
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
-
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import PG_CONFIG
 
