@@ -15,7 +15,8 @@ from sqlalchemy import (
 # project
 from ddtrace import Tracer
 from ddtrace.contrib.sqlalchemy import trace_engine
-from ...test_tracer import DummyWriter
+from tests.test_tracer import DummyWriter
+from tests.contrib.config import PG_CONFIG
 
 
 Base = declarative_base()
@@ -33,7 +34,8 @@ def test_sqlite():
     _test_engine('sqlite:///:memory:', "sqlite-foo", "sqlite3")
 
 def test_postgres():
-    _test_engine('postgresql://dog:dog@localhost:5432/dogdata', "pg-foo", "postgres")
+    url = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % PG_CONFIG
+    _test_engine(url, "pg-foo", "postgres")
 
 def _test_engine(url, service, vendor):
     """ a test suite for various sqlalchemy engines. """

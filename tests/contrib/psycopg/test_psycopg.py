@@ -13,7 +13,8 @@ from nose.tools import eq_
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
 
-from ...test_tracer import DummyWriter
+from tests.test_tracer import DummyWriter
+from tests.contrib.config import PG_CONFIG
 
 
 def test_wrap():
@@ -21,13 +22,7 @@ def test_wrap():
     tracer = Tracer()
     tracer.writer = writer
 
-    params = {
-        'host': 'localhost',
-        'port': 5432,
-        'user': 'test',
-        'password':'test',
-        'dbname': 'test',
-    }
+    params = PG_CONFIG
 
     services = ["db", "another"]
     for service in services:
