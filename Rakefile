@@ -66,10 +66,10 @@ namespace :version do
 
   def set_version(old, new)
     branch = `git name-rev --name-only HEAD`.strip()
-    # if  branch != "master"
-    #   puts "you should only tag the master branch"
-    #   return
-    # end
+    if  branch != "master"
+      puts "you should only tag the master branch"
+      return
+    end
     msg = "bumping version #{old} => #{new}"
     puts msg
 
