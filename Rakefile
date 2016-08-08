@@ -71,13 +71,11 @@ namespace :version do
       return
     end
     msg = "bumping version #{old} => #{new}"
-    puts msg
-
     path = "ddtrace/__init__.py"
-
     sh "sed -i 's/#{old}/#{new}/' #{path}"
     sh "git commit -m '#{msg}' #{path}"
     sh "git tag v#{new}"
+    puts "Verify everything looks good, then `git push && git push --tags`"
   end
 
   def inc_version_num(version, type)
