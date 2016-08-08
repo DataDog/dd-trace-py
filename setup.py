@@ -1,24 +1,33 @@
 from ddtrace import __version__
+
 from setuptools import setup, find_packages
+from setuptools.command.test import test as TestCommand
+
 import os
+import sys
 
-tests_require = [
-    'mock',
-    'nose',
-    'tox',
+class Tox(TestCommand):
 
-    # contrib
-    'blinker',
-    'cassandra-driver==3.6.0',
-    'django',
-    'elasticsearch',
-    'flask',
-    'mongoengine',
-    'psycopg2',
-    'pymongo',
-    'redis',
-    'sqlalchemy',
-]
+    user_options = [('tox-args=', 'a', "Arguments to pass to tox")]
+
+    def initialize_options(self):
+        TestCommand.initialize_options(self)
+        self.tox_args = None
+
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        #import here, cause outside the eggs aren't loaded
+        import tox
+        import shlex
+        args = self.tox_args
+        if args:
+            args = shlex.split(self.tox_args)
+        errno = tox.cmdline(args=args)
+        sys.exit(errno)
 
 
 version = __version__
@@ -38,9 +47,11 @@ setup(
     author_email='dev@datadoghq.com',
     license='BSD',
     packages=find_packages(exclude=['tests*']),
-    tests_require=tests_require,
-    test_suite="nose.collector",
     install_requires=[
         "wrapt"
-    ]
+    ],
+    # plugin tox
+    tests_require=['tox'],
+    cmdclass = {'test': Tox},
 )
+
