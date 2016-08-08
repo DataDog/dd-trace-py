@@ -36,22 +36,24 @@ end
 S3_BUCKET = 'pypi.datadoghq.com'
 S3_DIR = ENV['S3_DIR']
 
-task :release_wheel do
-  # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
-  # If at some point, we need only the 2 first steps:
-  #  - python setup.py bdist_wheel
-  #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
+namespace :release do
 
-  sh "mkwheelhouse s3://#{S3_BUCKET}/#{S3_DIR}/ ."
-end
+  desc "release the a new wheel"
+  task :wheel do
+    # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
+    # If at some point, we need only the 2 first steps:
+    #  - python setup.py bdist_wheel
+    #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
+    fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
 
-task :release_docs do
-  # Build the documentation then it to S3
-  Dir.chdir 'docs' do
-    sh "make html"
+    sh "mkwheelhouse s3://#{S3_BUCKET}/#{S3_DIR}/ ."
   end
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
 
-  sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
+
+  desc "release the docs website"
+  task :docs => :docs do
+    fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
+    sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
+  end
+
 end
