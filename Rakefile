@@ -31,7 +31,6 @@ task :'docs:loop' do
   end
 end
 
-
 # Deploy tasks
 S3_BUCKET = 'pypi.datadoghq.com'
 S3_DIR = ENV['S3_DIR']
@@ -57,3 +56,63 @@ namespace :release do
   end
 
 end
+
+
+namespace :version do
+
+  def get_version()
+    return `python setup.py --version`.strip()
+  end
+
+  def set_version(old, new)
+    branch = `git name-rev --name-only HEAD`.strip()
+    # if  branch != "master"
+    #   puts "you should only tag the master branch"
+    #   return
+    # end
+    msg = "bumping version #{old} => #{new}"
+    puts msg
+
+    path = "ddtrace/__init__.py"
+
+    sh "sed -i 's/#{old}/#{new}/' #{path}"
+    sh "git commit -m '#{msg}' #{path}"
+    sh "git tag v#{new}"
+  end
+
+  def inc_version_num(version, type)
+    split = version.split(".").map{|v| v.to_i}
+    if type == 'bugfix'
+      split[2] += 1
+    elsif type == 'minor'
+       split[1] += 1
+       split[2] = 0
+    elsif type == 'major'
+       split[0] += 1
+       split[1] = 0
+       split[2] = 0
+    end
+    return split.join(".")
+  end
+
+  def inc_version(type)
+    old = get_version()
+    new = inc_version_num(old, type)
+    set_version(old, new)
+  end
+
+  task :bugfix do
+    inc_version("bugfix")
+  end
+
+  task :minor do
+    inc_version("minor")
+  end
+
+  task :major do
+    inc_version("major")
+  end
+
+end
+
+
