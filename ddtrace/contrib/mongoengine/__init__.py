@@ -1,5 +1,5 @@
 """
-To trace mongoengine queries, we patch it's connect method::
+To trace mongoengine queries, we patch its connect method::
 
     # to patch all mongoengine connections, do the following
     # before you import mongoengine yourself.
