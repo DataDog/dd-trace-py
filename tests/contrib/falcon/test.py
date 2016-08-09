@@ -143,7 +143,6 @@ if __name__ == '__main__':
 
     port = 8000
     httpd = simple_server.make_server('127.0.0.1', port, app)
-    print('running test app on %s. routes:' % port)
-    for r in resources:
-        print '\t%s' % r.ROUTE
+    routes = [r.ROUTE for r in resources]
+    print('running test app on %s. routes: %s'  % (port, ' '.join(routes)))
     httpd.serve_forever()
