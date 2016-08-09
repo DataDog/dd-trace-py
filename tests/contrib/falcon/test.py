@@ -99,7 +99,7 @@ class TestMiddleware(falcon.testing.TestCase):
     def test_200(self):
         out = self.simulate_get(Resource200.ROUTE)
         eq_(out.status_code, 200)
-        eq_(out.content, Resource200.BODY)
+        eq_(out.content.decode('utf-8'), Resource200.BODY)
 
         spans = self._writer.pop()
         eq_(len(spans), 1)
@@ -112,7 +112,7 @@ class TestMiddleware(falcon.testing.TestCase):
     def test_500(self):
         out = self.simulate_get(Resource500.ROUTE)
         eq_(out.status_code, 500)
-        eq_(out.content, Resource500.BODY)
+        eq_(out.content.decode('utf-8'), Resource500.BODY)
 
         spans = self._writer.pop()
         eq_(len(spans), 1)
