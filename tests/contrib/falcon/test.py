@@ -1,3 +1,9 @@
+"""
+test for falcon. run this module with python to run the test web server.
+"""
+
+# stdlib
+from wsgiref import simple_server
 
 # 3p
 import falcon
@@ -123,3 +129,21 @@ class TestMiddleware(falcon.testing.TestCase):
         eq_(span.name, "falcon.request")
 
 
+if __name__ == '__main__':
+    mt = TraceMiddleware(Tracer())
+    app = falcon.API(middleware=[mt])
+
+    resources = [
+        Resource200,
+        Resource500,
+        ResourceExc,
+    ]
+    for r in resources:
+        app.add_route(r.ROUTE, r())
+
+    port = 8000
+    httpd = simple_server.make_server('127.0.0.1', port, app)
+    print('running test app on %s. routes:' % port)
+    for r in resources:
+        print '\t%s' % r.ROUTE
+    httpd.serve_forever()
