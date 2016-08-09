@@ -44,9 +44,8 @@ def test_sqlite():
 @attr('postgres')
 def test_postgres():
     cfg = get_pg_config()
-    engine_args = {
-        'url' : 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
-    }
+    u = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
+    engine_args = {'url' : u}
     meta = {
         sqlx.DB: cfg["dbname"],
         netx.TARGET_HOST : cfg['host'],

@@ -1,32 +1,31 @@
-import unittest
 
-from ddtrace.contrib.flask import missing_modules
 
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
-
+# stdlib
 import time
 import logging
 import os
 
+# 3p
 from flask import Flask, render_template
 from nose.tools import eq_
 
+# project
 from ddtrace import Tracer
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import http, errors
-
 from ...test_tracer import DummyWriter
+
 
 log = logging.getLogger(__name__)
 
 # global writer tracer for the tests.
 writer = DummyWriter()
 tracer = Tracer()
-tracer.writer =writer
+tracer.writer = writer
 
 
-class TestError(Exception): pass
+class TestError(Exception):
+    pass
 
 
 # define a toy flask app.
@@ -35,21 +34,26 @@ tmpl_path = os.path.join(cur_dir, 'test_templates')
 
 app = Flask(__name__, template_folder=tmpl_path)
 
+
 @app.route('/')
 def index():
     return 'hello'
+
 
 @app.route('/error')
 def error():
     raise TestError()
 
+
 @app.route('/fatal')
 def fatal():
-    1/0
+    1 / 0
+
 
 @app.route('/tmpl')
 def tmpl():
     return render_template('test.html', world="earth")
+
 
 @app.route('/tmpl/err')
 def tmpl_err():
@@ -61,6 +65,7 @@ def child():
     with tracer.trace('child') as span:
         span.set_tag('a', 'b')
         return 'child'
+
 
 @app.errorhandler(TestError)
 def handle_my_exception(e):
@@ -144,7 +149,6 @@ class TestFlask(object):
             service : {"app":"flask", "app_type":"web"}
         }
         eq_(services, expected)
-
 
     def test_template(self):
         start = time.time()
