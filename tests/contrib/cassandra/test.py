@@ -24,11 +24,11 @@ class CassandraTest(unittest.TestCase):
 
         self.cluster = Cluster(port=9042)
         session = self.cluster.connect()
-        session.execute("""CREATE KEYSPACE test WITH REPLICATION = {
+        session.execute("""CREATE KEYSPACE if not exists test WITH REPLICATION = {
             'class' : 'SimpleStrategy',
             'replication_factor': 1
         }""")
-        session.execute("CREATE TABLE test.person (name text PRIMARY KEY, age int, description text)")
+        session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
         session.execute("""INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')""")
 
 
