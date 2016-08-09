@@ -52,7 +52,7 @@ setup(
         "wrapt"
     ],
     # plugin tox
-    tests_require=['tox'],
+    tests_require=['tox', 'flake8'],
     cmdclass = {'test': Tox},
 )
 
