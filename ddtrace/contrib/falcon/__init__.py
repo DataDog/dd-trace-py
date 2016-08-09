@@ -44,7 +44,8 @@ class TraceMiddleware(object):
 
         # falcon does not map unhandled errors to status codes
         # before this runs, so we have to try to infer status codes
-        # if we have an unhandled error.
+        # if we have an unhandled error. See:
+        #   https://github.com/falconry/falcon/issues/606
         span.set_traceback()
         err_msg = span.get_tag(errx.ERROR_MSG)
         if err_msg:
