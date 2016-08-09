@@ -47,23 +47,24 @@ class TraceMiddleware(object):
 
         status = httpx.normalize_status_code(resp.status)
 
-        # if we never mapped to a resource, note this is a 400.
+        # FIXME[matt] falcon does not map errors or unmatched routes
+        # to proper status codes, so we we have to try to infer them
+        # here. See https://github.com/falconry/falcon/issues/606
         if resource is None:
             span.resource = "%s 404" % req.method
             status = '404'
 
-        # falcon does not map unhandled errors to status codes
-        # before this runs, so we have to try to infer status codes
-        # if we have an unhandled error. See:
-        #   https://github.com/falconry/falcon/issues/606
+        # If we have an active unhandled error, treat it as a 500
         span.set_traceback()
         err_msg = span.get_tag(errx.ERROR_MSG)
-        if err_msg:
-            status = '404' if 'HTTPNotFound' in err_msg else '500'
+        if err_msg and not _is_404(err_msg):
+            status = '500'
 
         span.set_tag(httpx.STATUS_CODE, status)
         span.finish()
 
+def _is_404(err_msg):
+    return 'HTTPNotFound' in err_msg
 
 def _name(r):
     return "%s.%s" % (r.__module__, r.__class__.__name__)
