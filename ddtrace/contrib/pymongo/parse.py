@@ -3,11 +3,12 @@
 class Command(object):
     """ Command stores information about a pymongo network command, """
 
-    __slots__ = ['name', 'coll', 'tags', 'metrics', 'query']
+    __slots__ = ['name', 'coll', 'db', 'tags', 'metrics', 'query']
 
     def __init__(self, name, coll):
         self.name = name
         self.coll = coll
+        self.db = None
         self.tags = {}
         self.metrics = {}
         self.query = None
@@ -15,8 +16,16 @@ class Command(object):
 
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
-    cmd = Command("query", query.coll)
+    coll = getattr(query, "coll", None)
+    db = getattr(query, "db", None)
+    if coll is None:
+        # versions 3.1 below store this as a string
+        ns = getattr(query, "ns", None)
+        if ns:
+            db, coll = ns.split(".")
+    cmd = Command("query", coll)
     cmd.query = query.spec
+    cmd.db = db
     return cmd
 
 def parse_spec(spec):

@@ -109,7 +109,7 @@ class TracedServer(ObjectProxy):
                 service=self._srv) as span:
 
             span.resource = _resource_from_cmd(cmd)
-            span.set_tag(mongox.DB, operation.db)
+            span.set_tag(mongox.DB, cmd.db)
             span.set_tag(mongox.COLLECTION, cmd.coll)
             span.set_tags(cmd.tags)
 
