@@ -13,14 +13,12 @@ instance you are using::
 """
 
 # 3p
-import sqlalchemy
 from sqlalchemy.event import listen
 
 # project
 import ddtrace
 from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import sql as sqlx
-from ddtrace.ext import errors as errorsx
 from ddtrace.ext import net as netx
 
 

@@ -4,9 +4,6 @@ import contextlib
 import logging
 
 # 3p
-from pymongo import MongoClient
-from pymongo.database import Database
-from pymongo.collection import Collection
 from wrapt import ObjectProxy
 
 # project
@@ -50,7 +47,7 @@ class TracedSocket(ObjectProxy):
         if not dbname or not cmd:
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
-        with self.__trace(dbname, cmd) as span:
+        with self.__trace(dbname, cmd):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
     def write_command(self, *args, **kwargs):
@@ -154,14 +151,14 @@ class TracedTopology(ObjectProxy):
 
 class TracedMongoClient(ObjectProxy):
 
-     _tracer = None
-     _srv = None
+    _tracer = None
+    _srv = None
 
-     def __init__(self, tracer, service, client):
-         client._topology = TracedTopology(tracer, service, client._topology)
-         super(TracedMongoClient, self).__init__(client)
-         self._tracer = tracer
-         self._srv = service
+    def __init__(self, tracer, service, client):
+        client._topology = TracedTopology(tracer, service, client._topology)
+        super(TracedMongoClient, self).__init__(client)
+        self._tracer = tracer
+        self._srv = service
 
 
 def normalize_filter(f=None):

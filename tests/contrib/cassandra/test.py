@@ -83,7 +83,7 @@ class CassandraTest(unittest.TestCase):
         TracedCluster = get_traced_cassandra(tracer, service="custom")
         session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
 
-        result = session.execute(self.TEST_QUERY)
+        session.execute(self.TEST_QUERY)
         spans = writer.pop()
         assert spans
         eq_(len(spans), 1)

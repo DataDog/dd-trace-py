@@ -1,16 +1,13 @@
+
 import unittest
 
-from ddtrace.contrib.elasticsearch import missing_modules
-
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
-
+# 3p
 import elasticsearch
 from nose.tools import eq_
 
+# project
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
-
 from ...test_tracer import DummyWriter
 
 
@@ -43,7 +40,9 @@ class ElasticsearchTest(unittest.TestCase):
         writer = DummyWriter()
         tracer = Tracer()
         tracer.writer = writer
-        transport_class = get_traced_transport(datadog_tracer=tracer, datadog_service=self.TEST_SERVICE)
+        transport_class = get_traced_transport(
+                datadog_tracer=tracer,
+                datadog_service=self.TEST_SERVICE)
 
         es = elasticsearch.Elasticsearch(transport_class=transport_class)
 
@@ -63,9 +62,10 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
         # Put data
-        es.index(index=self.ES_INDEX, doc_type=self.ES_TYPE, id=10, body={'name': 'ten'})
-        es.index(index=self.ES_INDEX, doc_type=self.ES_TYPE, id=11, body={'name': 'eleven'})
-        es.index(index=self.ES_INDEX, doc_type=self.ES_TYPE, id=12, body={'name': 'twelve'})
+        args = {'index':self.ES_INDEX, 'doc_type':self.ES_TYPE}
+        es.index(id=10, body={'name': 'ten'}, **args)
+        es.index(id=11, body={'name': 'eleven'}, **args)
+        es.index(id=12, body={'name': 'twelve'}, **args)
 
         spans = writer.pop()
         assert spans
@@ -77,15 +77,18 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
         # Search data
-        es.search(index=self.ES_INDEX, doc_type=self.ES_TYPE, sort=['name:desc'], size=100, body={"query":{"match_all":{}}})
+        es.search(sort=['name:desc'], size=100,
+                body={"query":{"match_all":{}}}, **args)
 
         spans = writer.pop()
         assert spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.resource, "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
+        eq_(span.resource,
+                "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
-        eq_(span.get_tag(metadata.URL), "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
+        eq_(span.get_tag(metadata.URL),
+                "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 

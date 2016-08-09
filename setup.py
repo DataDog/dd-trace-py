@@ -6,6 +6,7 @@ from setuptools.command.test import test as TestCommand
 import os
 import sys
 
+
 class Tox(TestCommand):
 
     user_options = [('tox-args=', 'a', "Arguments to pass to tox")]
@@ -51,7 +52,7 @@ setup(
         "wrapt"
     ],
     # plugin tox
-    tests_require=['tox'],
+    tests_require=['tox', 'flake8'],
     cmdclass = {'test': Tox},
 )
 
