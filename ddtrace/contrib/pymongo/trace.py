@@ -47,7 +47,7 @@ class TracedSocket(ObjectProxy):
         if not dbname or not cmd:
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
-        with self.__trace(dbname, cmd) as span:
+        with self.__trace(dbname, cmd):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
     def write_command(self, *args, **kwargs):

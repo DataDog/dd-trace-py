@@ -69,8 +69,6 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
                 return super(TracedPipeline, self).execute(self, *args, **kwargs)
 
         def immediate_execute_command(self, *args, **kwargs):
-            command_name = args[0]
-
             with self._datadog_tracer.trace('redis.command') as s:
                 if s.sampled:
                     s.service = self._datadog_service

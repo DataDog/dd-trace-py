@@ -83,7 +83,7 @@ class TestFlask(object):
 
     def setUp(self):
         # ensure the last test didn't leave any trash
-        spans = writer.pop()
+        writer.pop()
 
     def test_child(self):
         start = time.time()
@@ -177,7 +177,7 @@ class TestFlask(object):
     def test_template_err(self):
         start = time.time()
         try:
-            rv = app.get('/tmpl/err')
+            app.get('/tmpl/err')
         except Exception:
             pass
         else:
@@ -223,7 +223,7 @@ class TestFlask(object):
 
         start = time.time()
         try:
-            rv = app.get('/fatal')
+            app.get('/fatal')
         except ZeroDivisionError:
             pass
         else:

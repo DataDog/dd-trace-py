@@ -37,13 +37,9 @@ class Player(Base):
 
 
 def test_sqlite():
-    engine_args = {
-        'url' : 'sqlite:///:memory:'
-    }
-    _test_create_engine(engine_args, "sqlite-foo", "sqlite", {})
-    meta = {
-        sqlx.DB, ":memory:"
-    }
+    engine_args = {'url': 'sqlite:///:memory:'}
+    meta = {sqlx.DB: ":memory:"}
+    _test_create_engine(engine_args, "sqlite-foo", "sqlite", meta)
 
 @attr('postgres')
 def test_postgres():
