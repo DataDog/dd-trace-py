@@ -62,7 +62,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
         # Put data
-        args = {index=self.ES_INDEX, doc_type=self.ES_TYPE}
+        args = {index:self.ES_INDEX, doc_type:self.ES_TYPE}
         es.index(id=10, body={'name': 'ten'}, **args)
         es.index(id=11, body={'name': 'eleven'}, **args)
         es.index(id=12, body={'name': 'twelve'}, **args)
