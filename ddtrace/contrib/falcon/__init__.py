@@ -1,3 +1,13 @@
+"""
+To trace the falcon web framework, install the trace middleware::
+
+    import falcon
+    from ddtrace import tracer
+
+    trace_middleware = TraceMiddleware(tracer, 'my-falcon-app')
+    falcon.API(middleware=[trace_middleware])
+"""
+
 
 from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import http as httpx, errors as errx
