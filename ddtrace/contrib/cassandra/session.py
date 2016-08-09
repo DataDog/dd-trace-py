@@ -3,14 +3,12 @@ Trace queries along a session to a cassandra cluster
 """
 
 # stdlib
-import functools
-import inspect
 import logging
 
 
 # project
 from ...compat import stringify
-from ...util import deep_getattr, safe_patch
+from ...util import deep_getattr
 from ...ext import net as netx, cassandra as cassx
 from ...ext import AppTypes
 

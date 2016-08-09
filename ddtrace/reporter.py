@@ -5,7 +5,6 @@ import logging
 from time import time
 
 # project
-from .compat import json
 from .transport import ThreadedHTTPTransport
 from .encoding import encode_spans, encode_services
 
