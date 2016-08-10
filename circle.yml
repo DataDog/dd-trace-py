@@ -3,19 +3,9 @@ machine:
     - docker
   environment:
     CASS_DRIVER_NO_EXTENSIONS: 1
-  post:
-    - pyenv global 2.7.11 3.4.4
 dependencies:
   pre:
-    # install of mock fails otherwise
-    - pip2.7 install -U setuptools
-    - pip3.4 install -U setuptools
-    # Pre-install all dependencies
-    # FIXME[matt] django install started failing on 2.7 because it was choking
-    # on a unicode path error
-    - pip2.7 install django
-    - python2.7 setup.py test -n
-    - python3.4 setup.py test -n
+    - pip install tox
     # Pre-pull containers
     - docker pull elasticsearch:2.3
     - docker pull cassandra:3
