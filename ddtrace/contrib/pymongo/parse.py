@@ -100,7 +100,7 @@ def parse_query(query):
     ns = getattr(query, "ns", None)
     if ns:
         # version < 3.1 stores the full namespace
-        db, coll = ns.split(".")
+        db, coll = ns.decode("utf-8").split(".")
     else:
         # version >= 3.1 stores the db and coll seperately
         coll = getattr(query, "coll", None)
