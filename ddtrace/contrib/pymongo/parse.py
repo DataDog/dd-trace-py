@@ -82,10 +82,8 @@ def parse_msg(msg_bytes):
 
         # FIXME[matt] this is likely the only performance cost here. could we
         # be processing a massive message? maybe cap the size here?
-        spec = bson.decode_iter(
-            msg_bytes[offset:],
-            codec_options=CodecOptions(SON),
-        ).next()
+        codec = codec_options=CodecOptions(SON)
+        spec = next(bson.decode_iter(msg_bytes[offset:], codec))
         cmd = parse_spec(spec)
         cmd.db = db
 
