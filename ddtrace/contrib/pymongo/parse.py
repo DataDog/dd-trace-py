@@ -1,4 +1,32 @@
 
+import ctypes
+import logging
+import struct
+
+import bson
+from bson.codec_options import CodecOptions
+from bson.son import SON
+
+
+
+# MongoDB wire protocol commands
+# http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
+OP_CODES = {
+    1    : "reply",
+    1000 : "msg",
+    2001 : "update",
+    2002 : "insert",
+    2003 : "reserved",
+    2004 : "query",
+    2005 : "get_more",
+    2006 : "delete",
+    2007 : "kill_cursors",
+    2010 : "command",
+    2011 : "command_reply",
+}
+
+header_struct = struct.Struct("<iiii")
+
 
 class Command(object):
     """ Command stores information about a pymongo network command, """
@@ -13,6 +41,58 @@ class Command(object):
         self.metrics = {}
         self.query = None
 
+    def __repr__(self):
+        return (
+            "Command("
+            "name=%s,"
+            "coll=%s)"
+        ) % (self.name, self.coll)
+
+
+def parse_msg(msg_bytes):
+    """ Return a command from a binary mongo db message or None if we shoudln't
+        trace it. The protocol is documented here:
+        http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
+    """
+    header = header_struct.unpack_from(msg_bytes, 0)
+    (length, req_id, response_to, op_code) = header
+
+    op = OP_CODES.get(op_code)
+    if not op:
+        log.debug("unknown op code: %s", op_code)
+        return None
+
+    db = None
+    coll = None
+
+    offset = header_struct.size
+    cmd = None
+    if op == "query":
+        # all of these commands have an int32 that for flags or reserved use.
+        # skip that
+        offset += 4
+        ns = _cstring(msg_bytes[offset:])
+        offset += len(ns) + 1  # include null terminator
+
+        # note: here coll could be '$cmd' because it can be overridden in the
+        # query itself (like {"insert":"songs"})
+        db, coll = ns.split(".")
+
+        offset += 8  # skip num skip & num to return
+
+        # FIXME[matt] this is likely the only performance cost here. could we
+        # be processing a massive message? maybe cap the size here?
+        spec = bson.decode_iter(
+            msg_bytes[offset:],
+            codec_options=CodecOptions(SON),
+        ).next()
+        cmd = parse_spec(spec)
+        cmd.db = db
+
+    return cmd
+
+def _cstring(raw):
+    return ctypes.create_string_buffer(raw).value
 
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
@@ -23,6 +103,9 @@ def parse_query(query):
         ns = getattr(query, "ns", None)
         if ns:
             db, coll = ns.split(".")
+
+    # FIXME[matt] mongo < 3.1 _Query doesn't not have a name field,
+    # so hardcode to query.
     cmd = Command("query", coll)
     cmd.query = query.spec
     cmd.db = db

@@ -71,16 +71,15 @@ def test_update():
         # ensure all the of the common metadata is set
         eq_(span.service, "songdb")
         eq_(span.span_type, "mongodb")
-        if span.resource != "insert_many":
-            eq_(span.meta.get("mongodb.collection"), "songs")
-            eq_(span.meta.get("mongodb.db"), "testdb")
+        eq_(span.meta.get("mongodb.collection"), "songs")
+        eq_(span.meta.get("mongodb.db"), "testdb")
         assert span.meta.get("out.host")
         assert span.meta.get("out.port")
 
     expected_resources = set([
         "drop songs",
-        "update songs {'artist': '?'}",
-        "insert_many",
+        'update songs {"artist": "?"}',
+        "insert songs",
     ])
 
     eq_(expected_resources, {s.resource for s in spans})
@@ -119,20 +118,23 @@ def test_delete():
         # ensure all the of the common metadata is set
         eq_(span.service, "songdb")
         eq_(span.span_type, "mongodb")
-        if span.resource != "insert_many":
-            eq_(span.meta.get("mongodb.collection"), "songs")
-            eq_(span.meta.get("mongodb.db"), "testdb")
+        eq_(span.meta.get("mongodb.collection"), "songs")
+        eq_(span.meta.get("mongodb.db"), "testdb")
         assert span.meta.get("out.host")
         assert span.meta.get("out.port")
 
-    expected_resources = set([
+    expected_resources = [
         "drop songs",
         "count songs",
-        "delete songs {'artist': '?'}",
-        "insert_many",
-    ])
+        "count songs",
+        "count songs",
+        "count songs",
+        'delete songs {"artist": "?"}',
+        'delete songs {"artist": "?"}',
+        "insert songs",
+    ]
 
-    eq_(expected_resources, {s.resource for s in spans})
+    eq_(sorted(expected_resources), sorted(s.resource for s in spans))
 
 
 def test_insert_find():
@@ -169,7 +171,9 @@ def test_insert_find():
         count += 1
     eq_(count, len(teams))
 
-    queried = list(db.teams.find({"name": "Toronto Maple Leafs"}))
+    q = {"name": "Toronto Maple Leafs"}
+    teams_coll = db.teams
+    queried = list(teams_coll.find(q))
     end = time.time()
     eq_(len(queried), 1)
     eq_(queried[0]["name"], "Toronto Maple Leafs")
@@ -180,23 +184,22 @@ def test_insert_find():
         # ensure all the of the common metadata is set
         eq_(span.service, "pokemongodb")
         eq_(span.span_type, "mongodb")
-        if span.resource != "insert_many":
-            eq_(span.meta.get("mongodb.collection"), "teams")
-            eq_(span.meta.get("mongodb.db"), "testdb")
+        eq_(span.meta.get("mongodb.collection"), "teams")
+        eq_(span.meta.get("mongodb.db"), "testdb")
         assert span.meta.get("out.host"), span.pprint()
         assert span.meta.get("out.port"), span.pprint()
         assert span.start > start
         assert span.duration < end - start
 
-    expected_resources = set([
+    expected_resources = [
         "drop teams",
         "insert teams",
-        "insert_many",
+        "insert teams",
         "query teams {}",
-        "query teams {'name': '?'}",
-    ])
+        'query teams {"name": "?"}',
+    ]
 
-    eq_(expected_resources, {s.resource for s in spans})
+    eq_(sorted(expected_resources), sorted(s.resource for s in spans))
 
 def _get_tracer_and_client(service):
     """ Return a tuple of (tracer, mongo_client) for testing. """
