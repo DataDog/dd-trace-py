@@ -58,7 +58,8 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
 
                 result = None
                 try:
-                    return super(TracedSession, self).execute(query, *args, **options)
+                    result = super(TracedSession, self).execute(query, *args, **options)
+                    return result
                 finally:
                     span.set_tags(_extract_result_metas(result))
 
