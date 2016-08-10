@@ -142,7 +142,7 @@ def test_insert_find():
     writer = tracer.writer
 
     start = time.time()
-    db = client["testdb"]
+    db = client.testdb
     db.drop_collection("teams")
     teams = [
         {
@@ -164,16 +164,16 @@ def test_insert_find():
     db.teams.insert_one(teams[0])
     db.teams.insert_many(teams[1:])
 
-    # query some data
-    cursor = db.teams.find()
+    # wildcard query (using the [] syntax)
+    cursor = db["teams"].find()
     count = 0
     for row in cursor:
         count += 1
     eq_(count, len(teams))
 
+    # scoped query (using the getattr syntax)
     q = {"name": "Toronto Maple Leafs"}
-    teams_coll = db.teams
-    queried = list(teams_coll.find(q))
+    queried = list(db.teams.find(q))
     end = time.time()
     eq_(len(queried), 1)
     eq_(queried[0]["name"], "Toronto Maple Leafs")
