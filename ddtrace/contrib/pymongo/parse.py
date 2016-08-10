@@ -96,13 +96,15 @@ def _cstring(raw):
 
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
-    coll = getattr(query, "coll", None)
-    db = getattr(query, "db", None)
-    if coll is None:
-        # versions 3.1 below store this as a string
-        ns = getattr(query, "ns", None)
-        if ns:
-            db, coll = ns.split(".")
+    db, coll = None, None
+    ns = getattr(query, "ns", None)
+    if ns:
+        # version < 3.1 stores the full namespace
+        db, coll = ns.split(".")
+    else:
+        # version >= 3.1 stores the db and coll seperately
+        coll = getattr(query, "coll", None)
+        db = getattr(query, "db", None)
 
     # FIXME[matt] mongo < 3.1 _Query doesn't not have a name field,
     # so hardcode to query.
