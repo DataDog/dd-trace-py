@@ -60,7 +60,7 @@ class Span(object):
 
         # tracing
         self.trace_id = trace_id or _new_id()
-        self.span_id = span_id   or _new_id()
+        self.span_id = span_id or _new_id()
         self.parent_id = parent_id
 
         # sampling

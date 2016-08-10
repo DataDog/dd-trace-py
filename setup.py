@@ -21,7 +21,7 @@ class Tox(TestCommand):
         self.test_suite = True
 
     def run_tests(self):
-        #import here, cause outside the eggs aren't loaded
+        # import here, cause outside the eggs aren't loaded
         import tox
         import shlex
         args = self.tox_args
@@ -53,6 +53,6 @@ setup(
     ],
     # plugin tox
     tests_require=['tox', 'flake8'],
-    cmdclass = {'test': Tox},
+    cmdclass={'test': Tox},
 )
 

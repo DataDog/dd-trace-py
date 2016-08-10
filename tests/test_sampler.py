@@ -19,7 +19,8 @@ class RateSamplerTest(unittest.TestCase):
         tracer.writer = writer
         tracer.sampler = RateSampler(0.5)
 
-        # Set the seed so that the choice of sampled traces is deterministic, then write tests accordingly
+        # Set the seed so that the choice of sampled traces
+        # is deterministic, then write tests accordingly
         random.seed(4012)
 
         # First trace, sampled

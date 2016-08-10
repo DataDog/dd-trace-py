@@ -48,10 +48,11 @@ class RateSampler(object):
 
 
 class ThroughputSampler(object):
-    """Sampler applying a strict limit over the trace volume
+    """ Sampler applying a strict limit over the trace volume.
 
-    Stop tracing once reached more than `tps` traces per second.
-    Computation is based on a circular buffer over the last `BUFFER_DURATION` with a `BUFFER_SIZE` size.
+        Stop tracing once reached more than `tps` traces per second.
+        Computation is based on a circular buffer over the last
+        `BUFFER_DURATION` with a `BUFFER_SIZE` size.
     """
 
     # Reasonable values

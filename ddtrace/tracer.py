@@ -12,13 +12,14 @@ log = logging.getLogger(__name__)
 
 
 class Tracer(object):
-    """Tracer is used to create, sample and submit spans that measure the execution time of sections of code.
+    """ Tracer is used to create, sample and submit spans that measure the
+        execution time of sections of code.
 
-    If you're running an application that will serve a single trace per thread,
-    you can use the global traced instance:
+        If you're running an application that will serve a single trace per thread,
+        you can use the global traced instance:
 
-    >>> from ddtrace import tracer
-    >>> tracer.trace("foo").finish()
+        >>> from ddtrace import tracer
+        >>> tracer.trace("foo").finish()
     """
 
     DEFAULT_HOSTNAME = 'localhost'
@@ -28,7 +29,11 @@ class Tracer(object):
         """Create a new tracer."""
 
         # Apply the default configuration
-        self.configure(enabled=True, hostname=self.DEFAULT_HOSTNAME, port=self.DEFAULT_PORT, sampler=AllSampler())
+        self.configure(
+            enabled=True,
+            hostname=self.DEFAULT_HOSTNAME,
+            port=self.DEFAULT_PORT,
+            sampler=AllSampler())
 
         # a list of buffered spans.
         self._spans_lock = threading.Lock()
@@ -49,7 +54,8 @@ class Tracer(object):
 
         Allow to configure or reconfigure a Tracer instance.
 
-        :param bool enabled: If True, finished traces will be submitted to the API. Otherwise they'll be dropped.
+        :param bool enabled: If True, finished traces will be
+            submitted to the API. Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance

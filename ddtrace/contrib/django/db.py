@@ -22,8 +22,10 @@ def patch_conn(tracer, conn):
         return
 
     conn._datadog_original_cursor = conn.cursor
+
     def cursor():
         return TracedCursor(tracer, conn, conn._datadog_original_cursor())
+
     conn.cursor = cursor
 
 
@@ -48,7 +50,12 @@ class TracedCursor(object):
         )
 
     def _trace(self, func, sql, params):
-        with self.tracer.trace(self._name, resource=sql, service=self._service, span_type=sqlx.TYPE) as span:
+        span = self.tracer.trace(self._name,
+            resource=sql,
+            service=self._service,
+            span_type=sqlx.TYPE)
+
+        with span:
             span.set_tag(sqlx.QUERY, sql)
             span.set_tag("django.db.vendor", self._vendor)
             span.set_tag("django.db.alias", self._alias)
@@ -82,5 +89,3 @@ class TracedCursor(object):
 
     def __exit__(self, type, value, traceback):
         self.close()
-
-
