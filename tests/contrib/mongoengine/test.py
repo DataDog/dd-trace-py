@@ -86,7 +86,7 @@ def test_insert_update_delete_query():
     spans = tracer.writer.pop()
     eq_(len(spans), 1)
     span = spans[0]
-    eq_(span.resource, "query artist {'first_name': '?'}")
+    eq_(span.resource, 'query artist {"first_name": "?"}')
     eq_(span.span_type, 'mongodb')
     eq_(span.service, 'my-mongo')
     _assert_timing(span, start, end)
@@ -100,7 +100,7 @@ def test_insert_update_delete_query():
     spans = tracer.writer.pop()
     eq_(len(spans), 1)
     span = spans[0]
-    eq_(span.resource, "update artist {'_id': '?'}")
+    eq_(span.resource, 'update artist {"_id": "?"}')
     eq_(span.span_type, 'mongodb')
     eq_(span.service, 'my-mongo')
     _assert_timing(span, start, end)
@@ -113,7 +113,7 @@ def test_insert_update_delete_query():
     spans = tracer.writer.pop()
     eq_(len(spans), 1)
     span = spans[0]
-    eq_(span.resource, "delete artist {'_id': '?'}")
+    eq_(span.resource, 'delete artist {"_id": "?"}')
     eq_(span.span_type, 'mongodb')
     eq_(span.service, 'my-mongo')
     _assert_timing(span, start, end)
