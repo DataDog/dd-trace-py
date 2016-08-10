@@ -76,7 +76,7 @@ def parse_msg(msg_bytes):
 
         # note: here coll could be '$cmd' because it can be overridden in the
         # query itself (like {"insert":"songs"})
-        db, coll = ns.split(".")
+        db, coll = _split_namespace(ns)
 
         offset += 8  # skip num skip & num to return
 
@@ -91,16 +91,13 @@ def parse_msg(msg_bytes):
 
     return cmd
 
-def _cstring(raw):
-    return ctypes.create_string_buffer(raw).value
-
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
     db, coll = None, None
     ns = getattr(query, "ns", None)
     if ns:
         # version < 3.1 stores the full namespace
-        db, coll = ns.decode("utf-8").split(".")
+        db, coll = _split_namespace(ns)
     else:
         # version >= 3.1 stores the db and coll seperately
         coll = getattr(query, "coll", None)
@@ -146,4 +143,12 @@ def parse_spec(spec):
 
     return cmd
 
+def _cstring(raw):
+    """ Return the first null terminated cstring from the bufffer. """
+    return ctypes.create_string_buffer(raw).value
 
+def _split_namespace(ns):
+    """ Return a tuple of (db, collecton) from the "db.coll" string. """
+    if ns:
+        return ns.decode("utf-8").split(".")
+    return (None, None)
