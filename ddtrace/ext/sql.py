@@ -28,4 +28,4 @@ def parse_pg_dsn(dsn):
     """
     # FIXME: replace by psycopg2.extensions.parse_dsn when available
     # https://github.com/psycopg/psycopg2/pull/321
-    return {chunk.split("=")[0]: chunk.split("=")[1] for chunk in dsn.split() if "=" in chunk}
+    return {c.split("=")[0]: c.split("=")[1] for c in dsn.split() if "=" in c}

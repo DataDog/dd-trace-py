@@ -13,14 +13,12 @@ instance you are using::
 """
 
 # 3p
-import sqlalchemy
 from sqlalchemy.event import listen
 
 # project
 import ddtrace
 from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import sql as sqlx
-from ddtrace.ext import errors as errorsx
 from ddtrace.ext import net as netx
 
 
@@ -32,7 +30,7 @@ def trace_engine(engine, tracer=None, service=None):
     :param ddtrace.Tracer tracer: a tracer instance. will default to the global
     :param str service: the name of the service to trace.
     """
-    tracer = tracer or ddtrace.tracer # by default use the global tracing instance.
+    tracer = tracer or ddtrace.tracer  # by default use global
     EngineTracer(tracer, service, engine)
 
 
@@ -51,7 +49,7 @@ class EngineTracer(object):
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
         listen(engine, 'dbapi_error', self._dbapi_error)
 
-    def _before_cur_exec(self, conn, cursor, statement, parameters, context, executemany):
+    def _before_cur_exec(self, conn, cursor, statement, *args):
         self._span_buffer.pop() # should always be empty
 
         span = self.tracer.trace(
@@ -68,7 +66,7 @@ class EngineTracer(object):
 
         self._span_buffer.set(span)
 
-    def _after_cur_exec(self, conn, cursor, statement, parameters, context, executemany):
+    def _after_cur_exec(self, conn, cursor, statement, *args):
         span = self._span_buffer.pop()
         if not span:
             return
@@ -79,8 +77,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
-
-    def _dbapi_error(self, conn, cursor, statement, parameters, context, exception):
+    def _dbapi_error(self, conn, cursor, statement, *args):
         span = self._span_buffer.pop()
         if not span:
             return
@@ -92,9 +89,12 @@ class EngineTracer(object):
 
 def _set_tags_from_url(span, url):
     """ set connection tags from the url. return true if successful. """
-    if url.host:        span.set_tag(netx.TARGET_HOST, url.host)
-    if url.port:        span.set_tag(netx.TARGET_PORT, url.port)
-    if url.database:    span.set_tag(sqlx.DB, url.database)
+    if url.host:
+        span.set_tag(netx.TARGET_HOST, url.host)
+    if url.port:
+        span.set_tag(netx.TARGET_PORT, url.port)
+    if url.database:
+        span.set_tag(sqlx.DB, url.database)
 
     return bool(span.get_tag(netx.TARGET_HOST))
 

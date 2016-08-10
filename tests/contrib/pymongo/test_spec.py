@@ -7,6 +7,7 @@ from nose.tools import eq_
 
 from ddtrace.contrib.pymongo.parse import parse_spec
 
+
 def test_empty():
     cmd = parse_spec(SON([]))
     assert cmd is None
@@ -47,4 +48,3 @@ def test_update():
     eq_(cmd.name, "update")
     eq_(cmd.coll, "songs")
     eq_(cmd.query, {'artist':'Neil'})
-

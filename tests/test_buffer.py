@@ -10,7 +10,9 @@ def _get_test_span():
     return random.randint(0, 10000) # FIXME[matt] make this real
 
 def test_thread_local_buffer():
+
     tb = ThreadLocalSpanBuffer()
+
     def _set_get():
         eq_(tb.get(), None)
         span = _get_test_span()

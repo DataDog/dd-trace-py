@@ -28,13 +28,13 @@ def test_normalize_filter():
         ),
         (
             {
-               "status": "A",
-               "$or": [ { "age": { "$lt": 30 } }, { "type": 1 } ]
-             },
-             {
-               "status": "?",
-               "$or": [ { "age": { "$lt": "?" } }, { "type": "?" } ]
-             }
+                "status": "A",
+                "$or": [ { "age": { "$lt": 30 } }, { "type": 1 } ]
+            },
+            {
+                "status": "?",
+                "$or": [ { "age": { "$lt": "?" } }, { "type": "?" } ]
+            }
         )
     ]
     for i, expected in cases:

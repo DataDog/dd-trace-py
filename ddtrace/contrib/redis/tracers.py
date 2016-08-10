@@ -64,13 +64,13 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
                     s.set_tags(_extract_conn_tags(self.connection_pool.connection_kwargs))
                     s.set_tags(self._datadog_meta)
                     s.set_metric(redisx.PIPELINE_LEN, len(self.command_stack))
-                    s.set_metric(redisx.PIPELINE_AGE, time.time()-self._datadog_pipeline_creation)
+                    s.set_metric(
+                        redisx.PIPELINE_AGE,
+                        time.time() - self._datadog_pipeline_creation)
 
                 return super(TracedPipeline, self).execute(self, *args, **kwargs)
 
         def immediate_execute_command(self, *args, **kwargs):
-            command_name = args[0]
-
             with self._datadog_tracer.trace('redis.command') as s:
                 if s.sampled:
                     s.service = self._datadog_service
@@ -87,7 +87,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
 
                     s.set_tag(redisx.IMMEDIATE_PIPELINE, True)
 
-                return super(TracedPipeline, self).immediate_execute_command(*args, **options)
+                return super(TracedPipeline, self).immediate_execute_command(*args, **kwargs)
 
     class TracedRedis(baseclass):
         _datadog_tracer = ddtracer

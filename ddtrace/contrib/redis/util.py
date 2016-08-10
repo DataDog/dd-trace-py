@@ -5,9 +5,9 @@ from ...compat import stringify
 from ...ext import redis as redisx, net
 
 VALUE_PLACEHOLDER = "?"
-VALUE_MAX_LENGTH = 100
+VALUE_MAX_LEN = 100
 VALUE_TOO_LONG_MARK = "..."
-COMMAND_MAX_LENGTH = 1000
+CMD_MAX_LEN = 1000
 
 
 def _extract_conn_tags(conn_kwargs):
@@ -29,24 +29,24 @@ def format_command_args(args):
       - Skip binary content
       - Truncate
     """
-    formatted_length = 0
-    formatted_args = []
+    length = 0
+    out = []
     for arg in args:
         try:
-            command = stringify(arg)
-            if len(command) > VALUE_MAX_LENGTH:
-                command = command[:VALUE_MAX_LENGTH] + VALUE_TOO_LONG_MARK
-            if formatted_length + len(command) > COMMAND_MAX_LENGTH:
-                formatted_args.append(
-                    command[:COMMAND_MAX_LENGTH-formatted_length]
-                    + VALUE_TOO_LONG_MARK
-                )
+            cmd = stringify(arg)
+
+            if len(cmd) > VALUE_MAX_LEN:
+                cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
+
+            if length + len(cmd) > CMD_MAX_LEN:
+                prefix = cmd[:CMD_MAX_LEN - length]
+                out.append("%s%s" % (prefix, VALUE_TOO_LONG_MARK))
                 break
 
-            formatted_args.append(command)
-            formatted_length += len(command)
+            out.append(cmd)
+            length += len(cmd)
         except Exception:
-            formatted_args.append(VALUE_PLACEHOLDER)
+            out.append(VALUE_PLACEHOLDER)
             break
 
-    return " ".join(formatted_args)
+    return " ".join(out)
