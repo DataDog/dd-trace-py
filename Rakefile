@@ -95,10 +95,12 @@ namespace :version do
     set_version(old, new)
   end
 
+  desc "Cut a new bugfix release"
   task :bugfix do
     inc_version("bugfix")
   end
 
+  desc "Cut a new minor release"
   task :minor do
     inc_version("minor")
   end
