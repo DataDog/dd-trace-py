@@ -107,6 +107,10 @@ Django
 
 .. automodule:: ddtrace.contrib.django
 
+Falcon
+~~~~~~
+
+.. automodule:: ddtrace.contrib.falcon
 
 Flask
 ~~~~~
@@ -142,7 +146,6 @@ SQLite
 ~~~~~~
 
 .. autofunction:: ddtrace.contrib.sqlite3.connection_factory
-
 
 
 Indices and tables
