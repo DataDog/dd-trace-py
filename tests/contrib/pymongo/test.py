@@ -90,26 +90,29 @@ def test_delete():
     tracer, client = _get_tracer_and_client("songdb")
     writer = tracer.writer
     db = client["testdb"]
-    db.drop_collection("songs")
+    collection_name = "here.are.songs"
+    db.drop_collection(collection_name)
     input_songs = [
         {'name' : 'Powderfinger', 'artist':'Neil'},
         {'name' : 'Harvest', 'artist':'Neil'},
         {'name' : 'Suzanne', 'artist':'Leonard'},
         {'name' : 'Partisan', 'artist':'Leonard'},
     ]
-    db.songs.insert_many(input_songs)
+
+    songs = db[collection_name]
+    songs.insert_many(input_songs)
 
     # test delete one
     af = {'artist':'Neil'}
-    eq_(db.songs.count(af), 2)
-    db.songs.delete_one(af)
-    eq_(db.songs.count(af), 1)
+    eq_(songs.count(af), 2)
+    songs.delete_one(af)
+    eq_(songs.count(af), 1)
 
     # test delete many
     af = {'artist':'Leonard'}
-    eq_(db.songs.count(af), 2)
-    db.songs.delete_many(af)
-    eq_(db.songs.count(af), 0)
+    eq_(songs.count(af), 2)
+    songs.delete_many(af)
+    eq_(songs.count(af), 0)
 
     # ensure all is traced.
     spans = writer.pop()
@@ -118,20 +121,20 @@ def test_delete():
         # ensure all the of the common metadata is set
         eq_(span.service, "songdb")
         eq_(span.span_type, "mongodb")
-        eq_(span.meta.get("mongodb.collection"), "songs")
+        eq_(span.meta.get("mongodb.collection"), collection_name)
         eq_(span.meta.get("mongodb.db"), "testdb")
         assert span.meta.get("out.host")
         assert span.meta.get("out.port")
 
     expected_resources = [
-        "drop songs",
-        "count songs",
-        "count songs",
-        "count songs",
-        "count songs",
-        'delete songs {"artist": "?"}',
-        'delete songs {"artist": "?"}',
-        "insert songs",
+        "drop here.are.songs",
+        "count here.are.songs",
+        "count here.are.songs",
+        "count here.are.songs",
+        "count here.are.songs",
+        'delete here.are.songs {"artist": "?"}',
+        'delete here.are.songs {"artist": "?"}',
+        "insert here.are.songs",
     ]
 
     eq_(sorted(expected_resources), sorted(s.resource for s in spans))

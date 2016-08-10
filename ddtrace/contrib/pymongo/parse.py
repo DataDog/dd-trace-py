@@ -3,9 +3,13 @@ import ctypes
 import logging
 import struct
 
+# 3p
 import bson
 from bson.codec_options import CodecOptions
 from bson.son import SON
+
+# project
+from ...compat import to_unicode
 
 
 
@@ -148,5 +152,10 @@ def _cstring(raw):
 def _split_namespace(ns):
     """ Return a tuple of (db, collecton) from the "db.coll" string. """
     if ns:
-        return ns.decode("utf-8").split(".")
+        # NOTE[matt] ns is unicode or bytes depending on the client version
+        # so force cast to unicode
+        split = to_unicode(ns).split(".", 1)
+        if len(split) == 1:
+            raise Exception("namespace doesn't contain period: %s" % ns)
+        return split
     return (None, None)
