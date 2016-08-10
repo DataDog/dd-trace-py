@@ -81,7 +81,6 @@ class TraceMiddleware(object):
             log.exception("error processing exception")
 
 
-
 def _get_req_span(request):
     """ Return the datadog span from the given request. """
     return getattr(request, '_datadog_request_span', None)
@@ -89,7 +88,6 @@ def _get_req_span(request):
 def _set_req_span(request, span):
     """ Set the datadog span on the given request. """
     return setattr(request, '_datadog_request_span', span)
-
 
 def _set_auth_tags(span, request):
     """ Patch any available auth tags from the request onto the span. """

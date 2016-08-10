@@ -18,7 +18,7 @@ import cassandra.cluster
 
 log = logging.getLogger(__name__)
 
-RESOURCE_MAX_LENGTH=5000
+RESOURCE_MAX_LENGTH = 5000
 DEFAULT_SERVICE = "cassandra"
 
 
@@ -36,18 +36,18 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
     )
 
     class TracedSession(cassandra.Session):
-        _datadog_tracer = tracer
-        _datadog_service = service
-        _datadog_tags  = meta
+        _dd_tracer = tracer
+        _dd_service = service
+        _dd_tags = meta
 
         def __init__(self, *args, **kwargs):
             super(TracedSession, self).__init__(*args, **kwargs)
 
         def execute(self, query, *args, **options):
-            if not self._datadog_tracer:
-                return session.execute(query, *args, **options)
+            if not self._dd_tracer:
+                return super(TracedSession, self).execute(query, *args, **options)
 
-            with self._datadog_tracer.trace("cassandra.query", service=self._datadog_service) as span:
+            with self._dd_tracer.trace("cassandra.query", service=self._dd_service) as span:
                 query_string = _sanitize_query(query)
                 span.resource = query_string
                 span.span_type = cassx.TYPE
@@ -58,8 +58,7 @@ def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
 
                 result = None
                 try:
-                    result = super(TracedSession, self).execute(query, *args, **options)
-                    return result
+                    return super(TracedSession, self).execute(query, *args, **options)
                 finally:
                     span.set_tags(_extract_result_metas(result))
 

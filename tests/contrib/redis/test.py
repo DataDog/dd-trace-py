@@ -29,6 +29,36 @@ class RedisTest(unittest.TestCase):
         r = redis.Redis()
         r.flushall()
 
+    def test_long_command(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
+        r = TracedRedisCache()
+
+        long_cmd = "mget %s" % " ".join(map(str, range(1000)))
+        us = r.execute_command(long_cmd)
+
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        eq_(span.name, 'redis.command')
+        eq_(span.span_type, 'redis')
+        eq_(span.error, 0)
+        meta = {
+            'out.host': u'localhost',
+            'out.port': u'6379',
+            'out.redis_db': u'0',
+        }
+        for k, v in meta.items():
+            eq_(span.get_tag(k), v)
+
+        assert span.get_tag('redis.raw_command').startswith(u'mget 0 1 2 3')
+        assert span.get_tag('redis.raw_command').endswith(u'...')
+
+
     def test_basic_class(self):
         writer = DummyWriter()
         tracer = Tracer()

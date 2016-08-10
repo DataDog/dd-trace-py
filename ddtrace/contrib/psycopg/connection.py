@@ -33,9 +33,7 @@ def connection_factory(tracer, service="postgres"):
 
     return functools.partial(TracedConnection,
         datadog_tracer=tracer,
-        datadog_service=service,
-    )
-
+        datadog_service=service)
 
 
 class TracedCursor(cursor):
@@ -92,15 +90,11 @@ class TracedConnection(connection):
         }
 
         self._datadog_cursor_class = functools.partial(TracedCursor,
-            datadog_tracer=self._datadog_tracer,
-            datadog_service=self._datadog_service,
-            datadog_tags=self._datadog_tags,
-        )
+                datadog_tracer=self._datadog_tracer,
+                datadog_service=self._datadog_service,
+                datadog_tags=self._datadog_tags)
 
     def cursor(self, *args, **kwargs):
         """ register our custom cursor factory """
         kwargs.setdefault('cursor_factory', self._datadog_cursor_class)
         return super(TracedConnection, self).cursor(*args, **kwargs)
-
-
-

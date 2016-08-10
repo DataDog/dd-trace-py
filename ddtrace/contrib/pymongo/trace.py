@@ -67,10 +67,10 @@ class TracedSocket(ObjectProxy):
         s = self._tracer.trace(
             "pymongo.cmd",
             span_type=mongox.TYPE,
-            service=self._srv,
-        )
+            service=self._srv)
 
-        if db: s.set_tag(mongox.DB, db)
+        if db:
+            s.set_tag(mongox.DB, db)
         if cmd:
             s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
