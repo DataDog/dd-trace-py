@@ -12,6 +12,8 @@ from bson.son import SON
 from ...compat import to_unicode
 
 
+log = logging.getLogger(__name__)
+
 
 # MongoDB wire protocol commands
 # http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
@@ -86,8 +88,8 @@ def parse_msg(msg_bytes):
 
         # FIXME[matt] this is likely the only performance cost here. could we
         # be processing a massive message? maybe cap the size here?
-        codec = codec_options=CodecOptions(SON)
-        spec = next(bson.decode_iter(msg_bytes[offset:], codec))
+        codec = CodecOptions(SON)
+        spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
         cmd = parse_spec(spec)
         cmd.db = db
 
