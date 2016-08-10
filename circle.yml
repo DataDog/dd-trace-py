@@ -14,7 +14,6 @@ dependencies:
     # FIXME[matt] django install started failing on 2.7 because it was choking
     # on a unicode path error
     - pip2.7 install django
-    - pip install flake8
     - python2.7 setup.py test -n
     - python3.4 setup.py test -n
     # Pre-pull containers
@@ -40,7 +39,6 @@ database:
     - until PGPASSWORD=test PGUSER=test PGDATABASE=test psql -h localhost -p 5432 -c "select 1" ; do sleep 0.2 ; done
 test:
   override:
-    - flake8 | true # don't fail on flake8 yet
     - tox
 deployment:
   dev:
