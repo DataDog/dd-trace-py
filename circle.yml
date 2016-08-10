@@ -14,6 +14,7 @@ dependencies:
     # FIXME[matt] django install started failing on 2.7 because it was choking
     # on a unicode path error
     - pip2.7 install django
+    - pip install flake8
     - python2.7 setup.py test -n
     - python3.4 setup.py test -n
     # Pre-pull containers
