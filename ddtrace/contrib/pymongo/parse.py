@@ -43,10 +43,10 @@ class Command(object):
 
     __slots__ = ['name', 'coll', 'db', 'tags', 'metrics', 'query']
 
-    def __init__(self, name, coll):
+    def __init__(self, name, db, coll):
         self.name = name
         self.coll = coll
-        self.db = None
+        self.db = db
         self.tags = {}
         self.metrics = {}
         self.query = None
@@ -55,8 +55,9 @@ class Command(object):
         return (
             "Command("
             "name=%s,"
+            "db=%s,"
             "coll=%s)"
-        ) % (self.name, self.coll)
+        ) % (self.name, self.db, self.coll)
 
 
 def parse_msg(msg_bytes):
@@ -103,14 +104,12 @@ def parse_msg(msg_bytes):
             # inserts will be affected.
             codec = CodecOptions(SON)
             spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
-            cmd = parse_spec(spec)
+            cmd = parse_spec(spec, db)
         else:
             # let's still note that a command happened.
-            cmd = Command("command", "untraced_message_too_large")
+            cmd = Command("command", db, "untraced_message_too_large")
 
         # If the command didn't contain namespace info, set it here.
-        if not cmd.db:
-            cmd.db = db
         if not cmd.coll:
             cmd.coll = coll
 
@@ -131,12 +130,11 @@ def parse_query(query):
 
     # FIXME[matt] mongo < 3.1 _Query doesn't not have a name field,
     # so hardcode to query.
-    cmd = Command("query", coll)
+    cmd = Command("query", db, coll)
     cmd.query = query.spec
-    cmd.db = db
     return cmd
 
-def parse_spec(spec):
+def parse_spec(spec, db=None):
     """ Return a Command that has parsed the relevant detail for the given
         pymongo SON spec.
     """
@@ -146,7 +144,7 @@ def parse_spec(spec):
     if not items:
         return None
     name, coll = items[0]
-    cmd = Command(name, coll)
+    cmd = Command(name, db, coll)
 
     if 'ordered' in spec: # in insert and update
         cmd.tags['mongodb.ordered'] = spec['ordered']

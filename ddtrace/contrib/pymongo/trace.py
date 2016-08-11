@@ -39,7 +39,7 @@ class TracedSocket(ObjectProxy):
     def command(self, dbname, spec, *args, **kwargs):
         cmd = None
         try:
-            cmd = parse_spec(spec)
+            cmd = parse_spec(spec, dbname)
         except Exception:
             log.exception("error parsing spec. skipping trace")
 
