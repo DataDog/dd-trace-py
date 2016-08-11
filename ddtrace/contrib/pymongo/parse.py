@@ -10,6 +10,7 @@ from bson.son import SON
 
 # project
 from ...compat import to_unicode
+from ...ext import net as netx
 
 
 log = logging.getLogger(__name__)
@@ -30,6 +31,9 @@ OP_CODES = {
     2010 : "command",
     2011 : "command_reply",
 }
+
+# The maximum message length we'll try to parse
+MAX_MSG_PARSE_LEN = 1024 * 1024
 
 header_struct = struct.Struct("<iiii")
 
@@ -60,6 +64,12 @@ def parse_msg(msg_bytes):
         trace it. The protocol is documented here:
         http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
     """
+    # NOTE[matt] this is used for queries in pymongo <= 3.0.0 and for inserts
+    # in up to date versions.
+    msg_len = len(msg_bytes)
+    if msg_len <= 0:
+        return None
+
     header = header_struct.unpack_from(msg_bytes, 0)
     (length, req_id, response_to, op_code) = header
 
@@ -74,9 +84,9 @@ def parse_msg(msg_bytes):
     offset = header_struct.size
     cmd = None
     if op == "query":
-        # all of these commands have an int32 that for flags or reserved use.
-        # skip that
-        offset += 4
+        # NOTE[matt] inserts, updates and queries can all use this opcode
+
+        offset += 4  # skip flags
         ns = _cstring(msg_bytes[offset:])
         offset += len(ns) + 1  # include null terminator
 
@@ -84,15 +94,27 @@ def parse_msg(msg_bytes):
         # query itself (like {"insert":"songs"})
         db, coll = _split_namespace(ns)
 
-        offset += 8  # skip num skip & num to return
+        offset += 8  # skip numberToSkip & numberToReturn
+        if msg_len <= MAX_MSG_PARSE_LEN:
+            # FIXME[matt] don't try to parse large messages for performance
+            # reasons. ideally we'd just peek at the first bytes to get
+            # the critical info (op type, collection, query, # of docs)
+            # rather than parse the whole thing. i suspect only massive
+            # inserts will be affected.
+            codec = CodecOptions(SON)
+            spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
+            cmd = parse_spec(spec)
+        else:
+            # let's still note that a command happened.
+            cmd = Command("command", "untraced_message_too_large")
 
-        # FIXME[matt] this is likely the only performance cost here. could we
-        # be processing a massive message? maybe cap the size here?
-        codec = CodecOptions(SON)
-        spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
-        cmd = parse_spec(spec)
-        cmd.db = db
+        # If the command didn't contain namespace info, set it here.
+        if not cmd.db:
+            cmd.db = db
+        if not cmd.coll:
+            cmd.coll = coll
 
+    cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
 def parse_query(query):
