@@ -34,6 +34,13 @@ def iteritems(obj, **kwargs):
         func = obj.items
     return func(**kwargs)
 
+def to_unicode(s):
+    """ Return a unicode string for the given bytes or string instance. """
+    if hasattr(s, "decode"):
+        return s.decode("utf-8")
+    else:
+        return stringify(s)
+
 if PY2:
     numeric_types = (int, long, float)
 else:

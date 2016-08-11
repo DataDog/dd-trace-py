@@ -1,7 +1,17 @@
 
-desc "run tests"
+desc "run all tests"
 task :test do
-  sh "python setup.py test"
+  sh "tox"
+end
+
+desc "Run tests with envs matching the given pattern."
+task :"test:envs", [:grep] do |t, args|
+  pattern = args[:grep]
+  if !pattern
+    puts 'specify a pattern like rake test:envs["py27.*mongo"]'
+  else
+    sh "tox -l | grep '#{pattern}' | xargs tox -e"
+  end
 end
 
 desc "install the library in dev mode"
