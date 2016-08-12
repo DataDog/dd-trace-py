@@ -160,3 +160,11 @@ def _test_engine(engine, service, vendor, expected_meta):
 
     for i in expected:
         assert i in by_rsc, "%s not in %s" % (i, by_rsc.keys())
+
+    # ensure we have the service types
+    services = tracer.writer.pop_services()
+    expected = {
+        service : {"app":vendor, "app_type":"db"}
+    }
+    eq_(services, expected)
+
