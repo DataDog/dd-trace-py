@@ -43,6 +43,12 @@ class EngineTracer(object):
         self.service = service or self.vendor
         self.name = "%s.query" % self.vendor
 
+        # set the service info.
+        self.tracer.set_service_info(
+            service=self.service,
+            app=self.vendor,
+            app_type=sqlx.APP_TYPE)
+
         self._span_buffer = ThreadLocalSpanBuffer()
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
