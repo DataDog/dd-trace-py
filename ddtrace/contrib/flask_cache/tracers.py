@@ -35,9 +35,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
         """
         Traced cache backend that monitors any operations done by flask_cash. Observed actions are:
             * get, set, add, delete, clear
-            * inc and dec atomic operations
             * all many_ operations
-            * cached and memoize decorators
         """
         _datadog_tracer = ddtracer
         _datadog_service = service

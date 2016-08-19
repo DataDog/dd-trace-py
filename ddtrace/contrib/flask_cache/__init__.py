@@ -17,9 +17,9 @@ To install the tracer, do the following::
     # use the Cache as usual
     cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
-    @cache.cached(timeout=50)
-    def home():
-        return "Hello world!"
+    def counter():
+        # this access is traced
+        conn_counter = cache.get("conn_counter")
 """
 
 from ..util import require_modules
