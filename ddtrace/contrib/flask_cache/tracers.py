@@ -94,6 +94,56 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
 
                 return super(TracedCache, self).delete(*args, **kwargs)
 
+        def delete_many(self, *args, **kwargs):
+            """
+            Track ``delete_many`` operation
+            """
+            with self._datadog_tracer.trace("flask_cache.command") as span:
+                if span.sampled:
+                    # add default attributes and metas
+                    _set_span_metas(self, span, resource="DELETE_MANY")
+                    # add span metadata for this tracing
+                    span.set_tag(flaskx.COMMAND_KEY, list(args))
+
+                return super(TracedCache, self).delete_many(*args, **kwargs)
+
+        def clear(self, *args, **kwargs):
+            """
+            Track ``clear`` operation
+            """
+            with self._datadog_tracer.trace("flask_cache.command") as span:
+                if span.sampled:
+                    # add default attributes and metas
+                    _set_span_metas(self, span, resource="CLEAR")
+
+                return super(TracedCache, self).clear(*args, **kwargs)
+
+        def get_many(self, *args, **kwargs):
+            """
+            Track ``get_many`` operation
+            """
+            with self._datadog_tracer.trace("flask_cache.command") as span:
+                if span.sampled:
+                    # add default attributes and metas
+                    _set_span_metas(self, span, resource="GET_MANY")
+                    # add span metadata for this tracing
+                    span.set_tag(flaskx.COMMAND_KEY, list(args))
+
+                return super(TracedCache, self).get_many(*args, **kwargs)
+
+        def set_many(self, *args, **kwargs):
+            """
+            Track ``set_many`` operation
+            """
+            with self._datadog_tracer.trace("flask_cache.command") as span:
+                if span.sampled:
+                    # add default attributes and metas
+                    _set_span_metas(self, span, resource="SET_MANY")
+                    # add span metadata for this tracing
+                    span.set_tag(flaskx.COMMAND_KEY, list(args[0].keys()))
+
+                return super(TracedCache, self).set_many(*args, **kwargs)
+
     return TracedCache
 
 
