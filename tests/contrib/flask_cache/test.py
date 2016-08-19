@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
 import unittest
+
+from nose.tools import eq_, ok_, assert_raises
 
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
@@ -11,10 +14,7 @@ from ...test_tracer import DummyWriter
 class FlaskCacheTest(unittest.TestCase):
     SERVICE = "test-flask-cache"
 
-    def test_constructor(self):
-        """
-        TracedCache must behave like the original flask ``Cache`` class
-        """
+    def test_simple_cache_get(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -25,50 +25,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # the cache must be connected to the current app
-        assert app == cache.app
-        assert cache.cache is not None
-        # but it should be traced (with defaults)
-        assert cache._datadog_tracer == tracer
-        assert cache._datadog_service == self.SERVICE
-        assert cache._datadog_meta is None
-
-    def test_cache_get(self):
-        """
-        Flask-cache get must register a span
-        """
-        # initialize the dummy writer
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-
-        # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(tracer, service=self.SERVICE)
-        app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
-
-        # test get operation
-        cache.get("complex_operation")
+        cache.get(u"á_complex_operation")
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "GET")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "GET")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": "complex_operation",
+            "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_cache_set(self):
-        """
-        Flask-cache set must register a span
-        """
+    def test_simple_cache_get_without_arguments(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -79,28 +53,52 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
-        cache.set("complex_operation", "with_a_result")
+        # wrong usage of a get()
+        with assert_raises(TypeError) as ex:
+            cache.get()
+
+        # ensure that the error is not caused by our tracer
+        ok_("get()" in ex.exception.args[0])
+        ok_("argument" in ex.exception.args[0])
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        # an error trace must be sent
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "SET")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "GET")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 1)
+
+    def test_simple_cache_set(self):
+        # initialize the dummy writer
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+
+        cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "SET")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": "complex_operation",
+            "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_cache_add(self):
-        """
-        Flask-cache add must register a span
-        """
+    def test_simple_cache_add(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -111,28 +109,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
-        cache.add("complex_operation", 50)
+        cache.add(u"á_complex_number", 50)
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "ADD")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "ADD")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": "complex_operation",
+            "flask_cache.key": u"á_complex_number",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_cache_delete(self):
-        """
-        Flask-cache delete must register a span
-        """
+    def test_simple_cache_delete(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -143,28 +137,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
-        cache.delete("complex_operation")
+        cache.delete(u"á_complex_operation")
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "DELETE")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "DELETE")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
-            "flask_cache.key": "complex_operation",
+            "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_cache_delete_many(self):
-        """
-        Flask-cache delete_many must register a span
-        """
+    def test_simple_cache_delete_many(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -175,28 +165,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
         cache.delete_many("complex_operation", "another_complex_op")
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "DELETE_MANY")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "DELETE_MANY")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
             "flask_cache.key": "['complex_operation', 'another_complex_op']",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_cache_clear(self):
-        """
-        Flask-cache clear must register a span
-        """
+    def test_simple_cache_clear(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -207,27 +193,23 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
         cache.clear()
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "CLEAR")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "CLEAR")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_get_many(self):
-        """
-        Flask-cache get_many must register a span
-        """
+    def test_simple_cache_get_many(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -238,28 +220,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
         cache.get_many('first_complex_op', 'second_complex_op')
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "GET_MANY")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "GET_MANY")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
             "flask_cache.key": "['first_complex_op', 'second_complex_op']",
             "flask_cache.backend": "simple",
         }
 
-        self.assertDictEqual(span.meta, expected_meta)
+        eq_(span.meta, expected_meta)
 
-    def test_set_many(self):
-        """
-        Flask-cache set_many must register a span
-        """
+    def test_simple_cache_set_many(self):
         # initialize the dummy writer
         writer = DummyWriter()
         tracer = Tracer()
@@ -270,25 +248,24 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
-        # test get operation
         cache.set_many({
             'first_complex_op': 10,
             'second_complex_op': 20,
         })
         spans = writer.pop()
-        self.assertEqual(len(spans), 1)
+        eq_(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.service, self.SERVICE)
-        self.assertEqual(span.resource, "SET_MANY")
-        self.assertEqual(span.name, "flask_cache.command")
-        self.assertEqual(span.span_type, "flask_cache")
-        self.assertEqual(span.error, 0)
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "SET_MANY")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "flask_cache")
+        eq_(span.error, 0)
 
         expected_meta = {
             "flask_cache.key": "['first_complex_op', 'second_complex_op']",
             "flask_cache.backend": "simple",
         }
 
-        self.assertEqual(span.meta["flask_cache.backend"], "simple")
-        self.assertIn("first_complex_op", span.meta["flask_cache.key"])
-        self.assertIn("second_complex_op", span.meta["flask_cache.key"])
+        eq_(span.meta["flask_cache.backend"], "simple")
+        ok_("first_complex_op" in span.meta["flask_cache.key"])
+        ok_("second_complex_op" in span.meta["flask_cache.key"])

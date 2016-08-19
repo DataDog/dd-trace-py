@@ -1,48 +1,36 @@
 # project
-from . import metadata as flaskx
 from ...ext import net
+from ..redis.util import _extract_conn_tags as extract_redis_tags
 
 
-def _set_span_metas(traced_cache, span, resource=None):
+def _resource_from_cache_prefix(resource, config):
     """
-    Add default attributes to the given ``span``
+    Combine the resource name with the cache prefix (if any)
     """
-    # set span attributes
-    span.resource = resource
-    span.service = traced_cache._datadog_service
-    span.span_type = flaskx.TYPE
-
-    # set span metadata
-    span.set_tag(flaskx.CACHE_BACKEND, traced_cache.config["CACHE_TYPE"])
-    span.set_tags(traced_cache._datadog_meta)
-    # add connection meta if there is one
-    if getattr(traced_cache.cache, "_client", None):
-        span.set_tags(_extract_conn_metas(traced_cache.cache._client))
+    if "CACHE_KEY_PREFIX" in config and config["CACHE_KEY_PREFIX"]:
+        return "{} {}".format(resource, config["CACHE_KEY_PREFIX"])
+    else:
+        return resource
 
 
-def _extract_conn_metas(client):
+def _extract_conn_tags(client):
     """
-    For the given client, extracts connection tags
+    For the given client extracts connection tags
     """
-    metas = {}
+    tags = {}
 
     if getattr(client, "servers", None):
         # Memcached backend supports an address pool
         if isinstance(client.servers, list) and len(client.servers) > 0:
-            # add the pool list that are in the format [('<host>', '<port>')]
-            pool = [conn.address[0] for conn in client.servers]
-            metas[flaskx.CONTACT_POINTS] = pool
-
-            # use the first contact point as a host because
+            # use the first address of the pool as a host because
             # the code doesn't expose more information
             contact_point = client.servers[0].address
-            metas[net.TARGET_HOST] = contact_point[0]
-            metas[net.TARGET_PORT] = contact_point[1]
+            tags[net.TARGET_HOST] = contact_point[0]
+            tags[net.TARGET_PORT] = contact_point[1]
 
     if getattr(client, "connection_pool", None):
         # Redis main connection
-        conn_kwargs = client.connection_pool.connection_kwargs
-        metas[net.TARGET_HOST] = conn_kwargs["host"]
-        metas[net.TARGET_PORT] = conn_kwargs["port"]
+        redis_tags = extract_redis_tags(client.connection_pool.connection_kwargs)
+        tags.update(**redis_tags)
 
-    return metas
+    return tags
