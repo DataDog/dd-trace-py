@@ -16,7 +16,7 @@ def _set_span_metas(traced_cache, span, resource=None):
     span.set_tag(flaskx.CACHE_BACKEND, traced_cache.config["CACHE_TYPE"])
     span.set_tags(traced_cache._datadog_meta)
     # add connection meta if there is one
-    if getattr(traced_cache.cache, '_client', None):
+    if getattr(traced_cache.cache, "_client", None):
         span.set_tags(_extract_conn_metas(traced_cache.cache._client))
 
 
@@ -42,7 +42,7 @@ def _extract_conn_metas(client):
     if getattr(client, "connection_pool", None):
         # Redis main connection
         conn_kwargs = client.connection_pool.connection_kwargs
-        metas[net.TARGET_HOST] = conn_kwargs['host']
-        metas[net.TARGET_PORT] = conn_kwargs['port']
+        metas[net.TARGET_HOST] = conn_kwargs["host"]
+        metas[net.TARGET_PORT] = conn_kwargs["port"]
 
     return metas
