@@ -30,7 +30,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "GET")
+        eq_(span.resource, "get")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -65,7 +65,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "GET")
+        eq_(span.resource, "get")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 1)
@@ -86,7 +86,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "SET")
+        eq_(span.resource, "set")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -114,7 +114,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "ADD")
+        eq_(span.resource, "add")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -142,7 +142,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "DELETE")
+        eq_(span.resource, "delete")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -170,7 +170,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "DELETE_MANY")
+        eq_(span.resource, "delete_many")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -198,7 +198,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "CLEAR")
+        eq_(span.resource, "clear")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -225,7 +225,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "GET_MANY")
+        eq_(span.resource, "get_many")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)
@@ -256,7 +256,7 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
-        eq_(span.resource, "SET_MANY")
+        eq_(span.resource, "set_many")
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "flask_cache")
         eq_(span.error, 0)

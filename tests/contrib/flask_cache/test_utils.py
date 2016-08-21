@@ -108,7 +108,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         app = Flask(__name__)
         traced_cache = Cache(app, config={"CACHE_TYPE": "redis", "CACHE_KEY_PREFIX": "users"})
         # expect a resource with a prefix
-        expected_resource = "GET users"
+        expected_resource = "get users"
         resource = _resource_from_cache_prefix("GET", traced_cache.cache)
         eq_(resource, expected_resource)
 
@@ -119,7 +119,7 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         app = Flask(__name__)
         traced_cache = Cache(app, config={"CACHE_TYPE": "redis", "CACHE_KEY_PREFIX": ""})
         # expect a resource with a prefix
-        expected_resource = "GET"
+        expected_resource = "get"
         resource = _resource_from_cache_prefix("GET", traced_cache.cache)
         eq_(resource, expected_resource)
 
@@ -130,6 +130,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "redis"})
         # expect only the resource name
-        expected_resource = "GET"
+        expected_resource = "get"
         resource = _resource_from_cache_prefix("GET", cache.config)
         eq_(resource, expected_resource)

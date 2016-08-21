@@ -8,9 +8,12 @@ def _resource_from_cache_prefix(resource, cache):
     Combine the resource name with the cache prefix (if any)
     """
     if getattr(cache, "key_prefix", None):
-        return "{} {}".format(resource, cache.key_prefix)
+        name = "{} {}".format(resource, cache.key_prefix)
     else:
-        return resource
+        name = resource
+
+    # enforce lowercase to make the output nicer to read
+    return name.lower()
 
 
 def _extract_conn_tags(client):
