@@ -6,7 +6,6 @@ Datadog trace code for flask_cache
 import logging
 
 # project
-from . import metadata
 from .utils import _extract_conn_tags, _resource_from_cache_prefix
 from ...ext import AppTypes
 
@@ -16,7 +15,13 @@ from flask.ext.cache import Cache
 
 log = logging.Logger(__name__)
 
+TYPE = "flask_cache"
 DEFAULT_SERVICE = "flask-cache"
+
+# standard tags
+COMMAND_KEY = "flask_cache.key"
+CACHE_BACKEND = "flask_cache.backend"
+CONTACT_POINTS = "flask_cache.contact_points"
 
 
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
@@ -48,11 +53,11 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             # create a new span
             s = self._datadog_tracer.trace(
                 cmd,
-                span_type=metadata.TYPE,
+                span_type=TYPE,
                 service=self._datadog_service
             )
-            # set span metadata
-            s.set_tag(metadata.CACHE_BACKEND, self.config["CACHE_TYPE"])
+            # set span tags
+            s.set_tag(CACHE_BACKEND, self.config["CACHE_TYPE"])
             s.set_tags(self._datadog_meta)
             # add connection meta if there is one
             if getattr(self.cache, "_client", None):
@@ -67,7 +72,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
-                    span.set_tag(metadata.COMMAND_KEY, args[0])
+                    span.set_tag(COMMAND_KEY, args[0])
                 return super(TracedCache, self).get(*args, **kwargs)
 
         def set(self, *args, **kwargs):
@@ -76,7 +81,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
-                span.set_tag(metadata.COMMAND_KEY, args[0])
+                span.set_tag(COMMAND_KEY, args[0])
                 return super(TracedCache, self).set(*args, **kwargs)
 
         def add(self, *args, **kwargs):
@@ -85,7 +90,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
-                span.set_tag(metadata.COMMAND_KEY, args[0])
+                span.set_tag(COMMAND_KEY, args[0])
                 return super(TracedCache, self).add(*args, **kwargs)
 
         def delete(self, *args, **kwargs):
@@ -94,7 +99,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
-                span.set_tag(metadata.COMMAND_KEY, args[0])
+                span.set_tag(COMMAND_KEY, args[0])
                 return super(TracedCache, self).delete(*args, **kwargs)
 
         def delete_many(self, *args, **kwargs):
@@ -103,7 +108,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE_MANY", self.config)
-                span.set_tag(metadata.COMMAND_KEY, list(args))
+                span.set_tag(COMMAND_KEY, list(args))
                 return super(TracedCache, self).delete_many(*args, **kwargs)
 
         def clear(self, *args, **kwargs):
@@ -120,7 +125,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET_MANY", self.config)
-                span.set_tag(metadata.COMMAND_KEY, list(args))
+                span.set_tag(COMMAND_KEY, list(args))
                 return super(TracedCache, self).get_many(*args, **kwargs)
 
         def set_many(self, *args, **kwargs):
@@ -129,7 +134,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             """
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET_MANY", self.config)
-                span.set_tag(metadata.COMMAND_KEY, list(args[0].keys()))
+                span.set_tag(COMMAND_KEY, list(args[0].keys()))
                 return super(TracedCache, self).set_many(*args, **kwargs)
 
     return TracedCache

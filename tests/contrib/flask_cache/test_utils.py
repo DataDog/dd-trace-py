@@ -6,8 +6,8 @@ from nose.tools import eq_, ok_
 from ddtrace.ext import net
 from ddtrace.tracer import Tracer, Span
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache import metadata
 from ddtrace.contrib.flask_cache.utils import _extract_conn_tags, _resource_from_cache_prefix
+from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
@@ -68,8 +68,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         # test tags and attributes
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, metadata.TYPE)
-            eq_(span.meta[metadata.CACHE_BACKEND], "simple")
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "simple")
             ok_(net.TARGET_HOST not in span.meta)
             ok_(net.TARGET_PORT not in span.meta)
 
@@ -82,8 +82,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         # test tags and attributes
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, metadata.TYPE)
-            eq_(span.meta[metadata.CACHE_BACKEND], "redis")
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "redis")
             eq_(span.meta[net.TARGET_HOST], 'localhost')
             eq_(span.meta[net.TARGET_PORT], '6379')
 
@@ -96,8 +96,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         # test tags and attributes
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, metadata.TYPE)
-            eq_(span.meta[metadata.CACHE_BACKEND], "memcached")
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "memcached")
             eq_(span.meta[net.TARGET_HOST], "127.0.0.1")
             eq_(span.meta[net.TARGET_PORT], "11211")
 
