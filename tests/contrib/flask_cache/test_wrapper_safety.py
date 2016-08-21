@@ -7,9 +7,11 @@ from nose.tools import eq_, ok_, assert_raises
 from ddtrace.ext import net
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
+from redis.exceptions import ConnectionError
 
 # testing
 from ...test_tracer import DummyWriter
@@ -157,3 +159,70 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "cache")
         eq_(span.error, 1)
+
+    def test_redis_cache_tracing_with_a_wrong_connection(self):
+        # initialize the dummy writer
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        config = {
+            "CACHE_TYPE": "redis",
+            "CACHE_REDIS_PORT": 22230,
+        }
+        cache = Cache(app, config=config)
+
+        # use a wrong redis connection
+        with assert_raises(ConnectionError) as ex:
+            cache.get(u"á_complex_operation")
+
+        # ensure that the error is not caused by our tracer
+        ok_("localhost:22230. Connection refused." in ex.exception.args[0])
+        spans = writer.pop()
+        # an error trace must be sent
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "get")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "cache")
+        eq_(span.meta[CACHE_BACKEND], "redis")
+        eq_(span.meta[net.TARGET_HOST], 'localhost')
+        eq_(span.meta[net.TARGET_PORT], '22230')
+        eq_(span.error, 1)
+
+    def test_memcached_cache_tracing_with_a_wrong_connection(self):
+        # initialize the dummy writer
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        config = {
+            "CACHE_TYPE": "memcached",
+            "CACHE_MEMCACHED_SERVERS": ['localhost:22230'],
+        }
+        cache = Cache(app, config=config)
+
+        # use a wrong memcached connection
+        # unfortunately, the library doesn't raise an error
+        cache.get(u"á_complex_operation")
+
+        # ensure that the error is not caused by our tracer
+        spans = writer.pop()
+        # an error trace must be sent
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, "get")
+        eq_(span.name, "flask_cache.cmd")
+        eq_(span.span_type, "cache")
+        eq_(span.meta[CACHE_BACKEND], "memcached")
+        eq_(span.meta[net.TARGET_HOST], 'localhost')
+        eq_(span.meta[net.TARGET_PORT], '22230')
+        eq_(span.error, 0)

@@ -3,11 +3,16 @@ import unittest
 
 from nose.tools import eq_, ok_
 
+# project
+from ddtrace.ext import net
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
+from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 
+# 3rd party
 from flask import Flask
 
+# testing
 from ...test_tracer import DummyWriter
 
 
@@ -241,3 +246,45 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(span.meta["flask_cache.backend"], "simple")
         ok_("first_complex_op" in span.meta["flask_cache.key"])
         ok_("second_complex_op" in span.meta["flask_cache.key"])
+
+    def test_default_span_tags(self):
+        # create the TracedCache instance for a Flask app
+        tracer = Tracer()
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+        # test tags and attributes
+        with cache._TracedCache__trace("flask_cache.cmd") as span:
+            eq_(span.service, cache._datadog_service)
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "simple")
+            ok_(net.TARGET_HOST not in span.meta)
+            ok_(net.TARGET_PORT not in span.meta)
+
+    def test_default_span_tags_for_redis(self):
+        # create the TracedCache instance for a Flask app
+        tracer = Tracer()
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        cache = Cache(app, config={"CACHE_TYPE": "redis"})
+        # test tags and attributes
+        with cache._TracedCache__trace("flask_cache.cmd") as span:
+            eq_(span.service, cache._datadog_service)
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "redis")
+            eq_(span.meta[net.TARGET_HOST], 'localhost')
+            eq_(span.meta[net.TARGET_PORT], '6379')
+
+    def test_default_span_tags_memcached(self):
+        # create the TracedCache instance for a Flask app
+        tracer = Tracer()
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        cache = Cache(app, config={"CACHE_TYPE": "memcached"})
+        # test tags and attributes
+        with cache._TracedCache__trace("flask_cache.cmd") as span:
+            eq_(span.service, cache._datadog_service)
+            eq_(span.span_type, TYPE)
+            eq_(span.meta[CACHE_BACKEND], "memcached")
+            eq_(span.meta[net.TARGET_HOST], "127.0.0.1")
+            eq_(span.meta[net.TARGET_PORT], "11211")

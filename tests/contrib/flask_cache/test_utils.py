@@ -59,48 +59,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         }
         eq_(meta, expected_meta)
 
-    def test_default_span_tags(self):
-        # create the TracedCache instance for a Flask app
-        tracer = Tracer()
-        Cache = get_traced_cache(tracer, service=self.SERVICE)
-        app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "simple"})
-        # test tags and attributes
-        with cache._TracedCache__trace("flask_cache.cmd") as span:
-            eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, TYPE)
-            eq_(span.meta[CACHE_BACKEND], "simple")
-            ok_(net.TARGET_HOST not in span.meta)
-            ok_(net.TARGET_PORT not in span.meta)
-
-    def test_default_span_tags_for_redis(self):
-        # create the TracedCache instance for a Flask app
-        tracer = Tracer()
-        Cache = get_traced_cache(tracer, service=self.SERVICE)
-        app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "redis"})
-        # test tags and attributes
-        with cache._TracedCache__trace("flask_cache.cmd") as span:
-            eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, TYPE)
-            eq_(span.meta[CACHE_BACKEND], "redis")
-            eq_(span.meta[net.TARGET_HOST], 'localhost')
-            eq_(span.meta[net.TARGET_PORT], '6379')
-
-    def test_default_span_tags_memcached(self):
-        # create the TracedCache instance for a Flask app
-        tracer = Tracer()
-        Cache = get_traced_cache(tracer, service=self.SERVICE)
-        app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "memcached"})
-        # test tags and attributes
-        with cache._TracedCache__trace("flask_cache.cmd") as span:
-            eq_(span.service, cache._datadog_service)
-            eq_(span.span_type, TYPE)
-            eq_(span.meta[CACHE_BACKEND], "memcached")
-            eq_(span.meta[net.TARGET_HOST], "127.0.0.1")
-            eq_(span.meta[net.TARGET_PORT], "11211")
-
     def test_resource_from_cache_with_prefix(self):
         # create the TracedCache instance for a Flask app
         tracer = Tracer()
