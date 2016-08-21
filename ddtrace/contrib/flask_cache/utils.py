@@ -3,12 +3,12 @@ from ...ext import net
 from ..redis.util import _extract_conn_tags as extract_redis_tags
 
 
-def _resource_from_cache_prefix(resource, config):
+def _resource_from_cache_prefix(resource, cache):
     """
     Combine the resource name with the cache prefix (if any)
     """
-    if "CACHE_KEY_PREFIX" in config and config["CACHE_KEY_PREFIX"]:
-        return "{} {}".format(resource, config["CACHE_KEY_PREFIX"])
+    if getattr(cache, "key_prefix", None):
+        return "{} {}".format(resource, cache.key_prefix)
     else:
         return resource
 
