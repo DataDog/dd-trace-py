@@ -27,6 +27,7 @@ class PylonsTraceMiddleware(object):
             if not span.sampled:
                 return self.app(environ, start_response)
 
+            # tentative on status code, otherwise will be caught by except below
             def _start_response(status, *args, **kwargs):
                 """ a patched response callback which will pluck some metadata. """
                 http_code = int(status.split()[0])
@@ -37,6 +38,12 @@ class PylonsTraceMiddleware(object):
 
             try:
                 return self.app(environ, _start_response)
+            except Exception as e:
+                # "unexpected errors"
+                # exc_info set by __exit__ on current tracer
+                span.set_tag(http.STATUS_CODE, getattr(e, 'code', 500))
+                span.error = 1
+                raise
             finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')
