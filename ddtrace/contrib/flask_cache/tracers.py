@@ -38,7 +38,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
 
     class TracedCache(Cache):
         """
-        Traced cache backend that monitors any operations done by flask_cash. Observed actions are:
+        Traced cache backend that monitors any operations done by flask_cache. Observed actions are:
             * get, set, add, delete, clear
             * all many_ operations
         """
