@@ -1,6 +1,6 @@
 """
 The flask cache tracer will track any access to a cache backend.
-You can this tracer together with the Flask tracer middleware.
+You can use this tracer together with the Flask tracer middleware.
 
 To install the tracer, do the following::
 
@@ -12,14 +12,15 @@ To install the tracer, do the following::
     app = Flask(__name__)
 
     # get the traced Cache class
-    Cache = get_traced_cache(tracer, service='flask-cache-experiments')
+    Cache = get_traced_cache(tracer, service='my-flask-cache-app')
 
-    # use the Cache as usual
+    # use the Cache as usual with your preferred CACHE_TYPE
     cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
     def counter():
         # this access is traced
         conn_counter = cache.get("conn_counter")
+
 """
 
 from ..util import require_modules

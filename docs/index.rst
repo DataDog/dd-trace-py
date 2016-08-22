@@ -117,6 +117,11 @@ Flask
 
 .. automodule:: ddtrace.contrib.flask
 
+Flask-cache
+~~~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.flask_cache
+
 Mongoengine
 ~~~~~~~~~~~
 
