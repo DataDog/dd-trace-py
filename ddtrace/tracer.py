@@ -1,4 +1,5 @@
 import functools
+import inspect
 import logging
 import threading
 
@@ -205,25 +206,17 @@ class Tracer(object):
             def execute():
                 span = tracer.current_span()
                 span.set_tag('a', 'b')
-
-        You can also create more spans within a traced function. These spans
-        will be children of the decorator's span:
-
-        >>> @tracer.wrap('parent')
-            def parent_function():
-                with tracer.trace('child'):
-                    pass
         """
 
-        def wrap_decorator(func):
-            if name is None:
-                span_name = '{}.{}'.format(func.__module__, func.__name__)
-            else:
-                span_name = name
+        def wrap_decorator(f):
 
-            @functools.wraps(func)
+            # FIXME[matt] include the class name for methods.
+            span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
+
+            @functools.wraps(f)
             def func_wrapper(*args, **kwargs):
                 with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                    func(*args, **kwargs)
+                    return f(*args, **kwargs)
             return func_wrapper
+
         return wrap_decorator

@@ -181,6 +181,40 @@ def test_tracer_wrap_span_nesting():
     eq_(mid_span.parent_id, outer_span.span_id)
     eq_(inner_span.parent_id, mid_span.span_id)
 
+def test_tracer_wrap_class():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    class Foo(object):
+
+        @staticmethod
+        @tracer.wrap()
+        def s():
+            return 1
+
+        @classmethod
+        @tracer.wrap()
+        def c(cls):
+            return 2
+
+        @tracer.wrap()
+        def i(cls):
+            return 3
+
+    f = Foo()
+    eq_(f.s(), 1)
+    eq_(f.c(), 2)
+    eq_(f.i(), 3)
+
+    spans = writer.pop()
+    eq_(len(spans), 3)
+    names = [s.name for s in spans]
+    # FIXME[matt] include the class name here.
+    eq_(sorted(names), sorted(["tests.test_tracer.%s" % n for n in ["s", "c", "i"]]))
+
+
+
 def test_tracer_disabled():
     # add some dummy tracing code.
     writer = DummyWriter()
