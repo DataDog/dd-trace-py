@@ -32,4 +32,15 @@ class MySQLTest(unittest.TestCase):
 
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
-        #cursor = conn.execute("SELECT 6*7 AS the_answer;")
+        conn.close()
+
+    def test_simple_query(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        conn = MySQL(**MYSQL_CONFIG)
+        cursor = conn.cursor()
+        rows = cursor.execute("SELECT 1;")
+        conn.close()
