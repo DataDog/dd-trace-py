@@ -45,7 +45,14 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 result = super(TracedTransport, self).perform_request(
                         method, url, params=params, body=body)
 
-                _, data = result
+                try:
+                    # elasticsearch<2.4; it returns both the status and the body
+                    _, data = result
+                except ValueError:
+                    # elasticsearch>=2.4; internal change for ``Transport.perform_request``
+                    # that just returns the body
+                    data = result
+
                 took = data.get("took")
                 if took:
                     s.set_metric(metadata.TOOK, int(took))
