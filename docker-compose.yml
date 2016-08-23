@@ -1,31 +1,29 @@
 # remember to use this compose file __ONLY__ for development/testing purposes
-version: '2'
-services:
-    elasticsearch:
-        image: elasticsearch:2.3
-        ports:
-            - "127.0.0.1:${TEST_ELASTICSEARCH_PORT}:9200"
-    cassandra:
-        image: cassandra:3
-        ports:
-            - "127.0.0.1:${TEST_CASSANDRA_PORT}:9042"
-    postgres:
-        image: postgres:9.5
-        environment:
-            - POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD
-            - POSTGRES_USER=$TEST_POSTGRES_PASSWORD
-            - POSTGRES_DB=$TEST_POSTGRES_DB
-        ports:
-            - "127.0.0.1:${TEST_POSTGRES_PORT}:5432"
-    redis:
-        image: redis:3.2
-        ports:
-            - "127.0.0.1:${TEST_REDIS_PORT}:6379"
-    mongo:
-        image: mongo:3.2
-        ports:
-            - "127.0.0.1:${TEST_MONGO_PORT}:27017"
-    memcached:
-        image: memcached:1.4
-        ports:
-            - "127.0.0.1:${TEST_MEMCACHED_PORT}:11211"
+elasticsearch:
+    image: elasticsearch:2.3
+    ports:
+        - "127.0.0.1:${TEST_ELASTICSEARCH_PORT}:9200"
+cassandra:
+    image: cassandra:3
+    ports:
+        - "127.0.0.1:${TEST_CASSANDRA_PORT}:9042"
+postgres:
+    image: postgres:9.5
+    environment:
+        - POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD
+        - POSTGRES_USER=$TEST_POSTGRES_PASSWORD
+        - POSTGRES_DB=$TEST_POSTGRES_DB
+    ports:
+        - "127.0.0.1:${TEST_POSTGRES_PORT}:5432"
+redis:
+    image: redis:3.2
+    ports:
+        - "127.0.0.1:${TEST_REDIS_PORT}:6379"
+mongo:
+    image: mongo:3.2
+    ports:
+        - "127.0.0.1:${TEST_MONGO_PORT}:27017"
+memcached:
+    image: memcached:1.4
+    ports:
+        - "127.0.0.1:${TEST_MEMCACHED_PORT}:11211"
