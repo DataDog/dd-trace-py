@@ -4,7 +4,7 @@ elasticsearch:
     ports:
         - "127.0.0.1:${TEST_ELASTICSEARCH_PORT}:9200"
 cassandra:
-    image: cassandra:3
+    image: cassandra:3.7
     ports:
         - "127.0.0.1:${TEST_CASSANDRA_PORT}:9042"
 postgres:
