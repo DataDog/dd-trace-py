@@ -12,15 +12,9 @@ dependencies:
     # only docker-engine==1.9
     - pip install docker-compose==1.7.1
 
-database:
-  override:
-    # starts backing services and wait until they are available
-    - docker-compose up -d
-    - sh wait-for-services.sh
-
 test:
   override:
-    - tox
+    - rake test
 
 deployment:
   dev:
