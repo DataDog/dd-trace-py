@@ -4,7 +4,7 @@ import time
 from psycopg2 import connect, OperationalError
 from cassandra.cluster import Cluster, NoHostAvailable
 
-from tests.contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG
+from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG
 
 
 def try_until_timeout(exception):
