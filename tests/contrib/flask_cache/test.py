@@ -271,7 +271,7 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "redis",
-            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
+            "CACHE_REDIS_PORT": self.TEST_REDIS_PORT,
         }
         cache = Cache(app, config=config)
         # test tags and attributes
@@ -289,7 +289,7 @@ class FlaskCacheTest(unittest.TestCase):
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "memcached",
-            "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(MEMCACHED_CONFIG['port'])],
+            "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(self.TEST_MEMCACHED_PORT)],
         }
         cache = Cache(app, config=config)
         # test tags and attributes
