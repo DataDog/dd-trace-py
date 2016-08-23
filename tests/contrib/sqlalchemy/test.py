@@ -1,11 +1,12 @@
 # stdlib
-import contextlib
 import time
+import contextlib
 
-# 3p
+# 3rd party
+import psycopg2
 from nose.tools import eq_
 from nose.plugins.attrib import attr
-import psycopg2
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import (
@@ -21,15 +22,16 @@ from ddtrace.contrib.sqlalchemy import trace_engine
 from ddtrace.ext import sql as sqlx
 from ddtrace.ext import errors as errorsx
 from ddtrace.ext import net as netx
-from tests.test_tracer import DummyWriter
-from tests.contrib.config import get_pg_config
+
+# testing
+from ..config import POSTGRES_CONFIG
+from ...test_tracer import DummyWriter
 
 
 Base = declarative_base()
 
 
 class Player(Base):
-
     __tablename__ = 'players'
 
     id = Column(Integer, primary_key=True)
@@ -41,35 +43,35 @@ def test_sqlite():
     meta = {sqlx.DB: ":memory:"}
     _test_create_engine(engine_args, "sqlite-foo", "sqlite", meta)
 
+
 @attr('postgres')
 def test_postgres():
-    cfg = get_pg_config()
-    u = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % cfg
+    u = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG
     engine_args = {'url' : u}
     meta = {
-        sqlx.DB: cfg["dbname"],
-        netx.TARGET_HOST : cfg['host'],
-        netx.TARGET_PORT: str(cfg['port']),
+        sqlx.DB: POSTGRES_CONFIG["dbname"],
+        netx.TARGET_HOST: POSTGRES_CONFIG['host'],
+        netx.TARGET_PORT: str(POSTGRES_CONFIG['port']),
     }
 
     _test_create_engine(engine_args, "pg-foo", "postgres", meta)
 
+
 @attr('postgres')
 def test_postgres_creator_func():
-    cfg = get_pg_config()
-
     def _creator():
-        return psycopg2.connect(**cfg)
+        return psycopg2.connect(**POSTGRES_CONFIG)
 
     engine_args = {'url' : 'postgresql://', 'creator' : _creator}
 
     meta = {
-        sqlx.DB: cfg["dbname"],
-        netx.TARGET_HOST : cfg['host'],
-        netx.TARGET_PORT: str(cfg['port']),
+        netx.TARGET_HOST: POSTGRES_CONFIG['host'],
+        netx.TARGET_PORT: str(POSTGRES_CONFIG['port']),
+        sqlx.DB: POSTGRES_CONFIG["dbname"],
     }
 
     _test_create_engine(engine_args, "pg-foo", "postgres", meta)
+
 
 def _test_create_engine(engine_args, service, vendor, expected_meta):
     url = engine_args.pop("url")
@@ -78,6 +80,7 @@ def _test_create_engine(engine_args, service, vendor, expected_meta):
         _test_engine(engine, service, vendor, expected_meta)
     finally:
         engine.dispose()
+
 
 def _test_engine(engine, service, vendor, expected_meta):
     """ a test suite for various sqlalchemy engines. """
@@ -167,4 +170,3 @@ def _test_engine(engine, service, vendor, expected_meta):
         service : {"app":vendor, "app_type":"db"}
     }
     eq_(services, expected)
-

@@ -1,12 +1,16 @@
 import time
 
-# 3p
-from django import template
-from django.template.backends.dummy import TemplateStrings
+# 3rd party
 from nose.tools import eq_
 
-from ddtrace.contrib.django.templates import patch_template
+from django import template
+from django.template.backends.dummy import TemplateStrings
+
+# project
 from ddtrace.tracer import Tracer
+from ddtrace.contrib.django.templates import patch_template
+
+# testing
 from ...test_tracer import DummyWriter
 
 
@@ -45,4 +49,3 @@ def test_template():
     eq_(span.name, 'django.template')
     eq_(span.get_tag('django.template_name'), 'unknown')
     assert start < span.start < span.start + span.duration < end
-

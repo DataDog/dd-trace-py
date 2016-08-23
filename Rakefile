@@ -1,7 +1,9 @@
 
-desc "run all tests"
+desc "Starts all backing services and run all tests"
 task :test do
+  sh "docker-compose up -d"
   sh "tox"
+  sh "docker-compose kill"
 end
 
 desc "Run tests with envs matching the given pattern."

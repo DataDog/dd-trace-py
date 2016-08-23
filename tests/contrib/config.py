@@ -5,27 +5,34 @@ testing config.
 import os
 
 
-# an env var that will be present during circle ci builds
-CIRCLECI_ENVVAR="CIRCLE_BUILD_NUM"
+# default config for backing services
+# NOTE: defaults may be duplicated in the .env file; update both or
+# simply write down a function that parses the .env file
 
-PG_CONFIG = {
-    'host' : 'localhost',
-    'port' : 5432,
-    'user' : 'dog',
-    'password' : 'dog',
-    'dbname' : 'dogdata',
+ELASTICSEARCH_CONFIG = {
+    'port': int(os.getenv("TEST_ELASTICSEARCH_PORT", 59200)),
 }
 
-CIRCLECI_PG_CONFIG = {
-    'host' : 'localhost',
-    'port' : 5432,
-    'user' : 'test',
-    'password' : 'test',
-    'dbname' : 'test',
+CASSANDRA_CONFIG = {
+    'port': int(os.getenv("TEST_CASSANDRA_PORT", 59042)),
 }
 
+POSTGRES_CONFIG = {
+    'host' : 'localhost',
+    'port': int(os.getenv("TEST_POSTGRES_PORT", 55432)),
+    'user' : os.getenv("TEST_POSTGRES_USER", "postgres"),
+    'password' : os.getenv("TEST_POSTGRES_PASSWORD", "postgres"),
+    'dbname' : os.getenv("TEST_POSTGRES_DB", "postgres"),
+}
 
+REDIS_CONFIG = {
+    'port': int(os.getenv("TEST_REDIS_PORT", 56379)),
+}
 
-def get_pg_config():
-    return CIRCLECI_PG_CONFIG if (CIRCLECI_ENVVAR in os.environ) else PG_CONFIG
+MONGO_CONFIG = {
+    'port': int(os.getenv("TEST_MONGO_PORT", 57017)),
+}
 
+MEMCACHED_CONFIG = {
+    'port': int(os.getenv("TEST_MEMCACHED_PORT", 51211)),
+}

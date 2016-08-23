@@ -76,8 +76,9 @@ target/
 # celery beat schedule file
 celerybeat-schedule
 
-# dotenv
-.env
+# docker-compose env file
+# it must be versioned to keep track of backing services defaults
+!.env
 
 # virtualenv
 venv/

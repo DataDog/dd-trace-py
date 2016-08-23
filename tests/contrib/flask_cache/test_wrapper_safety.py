@@ -210,12 +210,10 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         cache = Cache(app, config=config)
 
         # use a wrong memcached connection
-        # unfortunately, the library doesn't raise an error
         cache.get(u"á_complex_operation")
 
         # ensure that the error is not caused by our tracer
         spans = writer.pop()
-        # an error trace must be sent
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.SERVICE)
@@ -225,4 +223,6 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         eq_(span.meta[CACHE_BACKEND], "memcached")
         eq_(span.meta[net.TARGET_HOST], 'localhost')
         eq_(span.meta[net.TARGET_PORT], '22230')
+        # unfortunately, the library doesn't raise an error
+        # but at least we don't raise an exception
         eq_(span.error, 0)

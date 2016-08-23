@@ -1,4 +1,3 @@
-
 # stdib
 import time
 
@@ -6,13 +5,15 @@ import time
 from nose.tools import eq_
 from mongoengine import (
     Document,
-    StringField
+    StringField,
 )
-
 
 # project
 from ddtrace import Tracer
 from ddtrace.contrib.mongoengine import trace_mongoengine
+
+# testing
+from ..config import MONGO_CONFIG
 from ...test_tracer import DummyWriter
 
 
@@ -27,7 +28,7 @@ def test_insert_update_delete_query():
 
     # patch the mongo db connection
     traced_connect = trace_mongoengine(tracer, service='my-mongo')
-    traced_connect()
+    traced_connect(port=MONGO_CONFIG['port'])
 
     start = time.time()
     Artist.drop_collection()
@@ -117,8 +118,6 @@ def test_insert_update_delete_query():
     eq_(span.span_type, 'mongodb')
     eq_(span.service, 'my-mongo')
     _assert_timing(span, start, end)
-
-
 
 
 def _assert_timing(span, start, end):

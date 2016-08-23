@@ -1,4 +1,3 @@
-
 # stdlib
 import time
 
@@ -9,8 +8,13 @@ from nose.tools import eq_
 # project
 from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
-from tests.test_tracer import DummyWriter
-from tests.contrib.config import get_pg_config
+
+# testing
+from ..config import POSTGRES_CONFIG
+from ...test_tracer import DummyWriter
+
+
+TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
 def test_wrap():
@@ -18,12 +22,10 @@ def test_wrap():
     tracer = Tracer()
     tracer.writer = writer
 
-    pg_config = get_pg_config()
-
     services = ["db", "another"]
     for service in services:
         conn_factory = connection_factory(tracer, service=service)
-        db = psycopg2.connect(connection_factory=conn_factory, **pg_config)
+        db = psycopg2.connect(connection_factory=conn_factory, **POSTGRES_CONFIG)
 
         # Ensure we can run a query and it's correctly traced
         q = "select 'foobarblah'"
@@ -65,8 +67,8 @@ def test_wrap():
         eq_(span.service, service)
         eq_(span.meta["sql.query"], q)
         eq_(span.error, 1)
-        eq_(span.meta["out.host"], 'localhost')
-        eq_(span.meta["out.port"], '5432')
+        eq_(span.meta["out.host"], "localhost")
+        eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
     # ensure we have the service types
@@ -76,5 +78,3 @@ def test_wrap():
         "another" : {"app":"postgres", "app_type":"db"},
     }
     eq_(services, expected)
-
-
