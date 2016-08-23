@@ -77,7 +77,11 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
 
                 def __init__(self, db=None):
                     if db is None:
-                        raise NotSupportedError("db is None, it should be defined before cursor creation when tracing with ddtrace")
+                        raise NotSupportedError(
+                            "db is None, "
+                            "it should be defined before cursor "
+                            "creation when using ddtrace, "
+                            "please check your connection param")
                     self._datadog_cursor_creation = time.time()
                     super(TracedMySQLCursor, self).__init__(db)
 
