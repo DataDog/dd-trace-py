@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 def connection_factory(tracer, service="postgres"):
     """ Return a connection factory class that will can be used to trace
-        sqlite queries.
+        postgres queries.
 
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = pyscopg2.connect(..., connection_factory=factory)
