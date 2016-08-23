@@ -13,11 +13,14 @@ from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 from flask import Flask
 
 # testing
+from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 from ...test_tracer import DummyWriter
 
 
 class FlaskCacheTest(unittest.TestCase):
     SERVICE = "test-flask-cache"
+    TEST_REDIS_PORT = str(REDIS_CONFIG['port'])
+    TEST_MEMCACHED_PORT = str(MEMCACHED_CONFIG['port'])
 
     def test_simple_cache_get(self):
         # initialize the dummy writer
@@ -266,25 +269,33 @@ class FlaskCacheTest(unittest.TestCase):
         tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "redis"})
+        config = {
+            "CACHE_TYPE": "redis",
+            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
+        }
+        cache = Cache(app, config=config)
         # test tags and attributes
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             eq_(span.service, cache._datadog_service)
             eq_(span.span_type, TYPE)
             eq_(span.meta[CACHE_BACKEND], "redis")
             eq_(span.meta[net.TARGET_HOST], 'localhost')
-            eq_(span.meta[net.TARGET_PORT], '6379')
+            eq_(span.meta[net.TARGET_PORT], self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
         tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
-        cache = Cache(app, config={"CACHE_TYPE": "memcached"})
+        config = {
+            "CACHE_TYPE": "memcached",
+            "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(MEMCACHED_CONFIG['port'])],
+        }
+        cache = Cache(app, config=config)
         # test tags and attributes
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             eq_(span.service, cache._datadog_service)
             eq_(span.span_type, TYPE)
             eq_(span.meta[CACHE_BACKEND], "memcached")
             eq_(span.meta[net.TARGET_HOST], "127.0.0.1")
-            eq_(span.meta[net.TARGET_PORT], "11211")
+            eq_(span.meta[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)

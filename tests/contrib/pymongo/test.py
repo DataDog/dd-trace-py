@@ -1,4 +1,3 @@
-
 # stdlib
 import time
 
@@ -7,10 +6,11 @@ from nose.tools import eq_
 from pymongo import MongoClient
 
 # project
-from ddtrace.contrib.pymongo.trace import trace_mongo_client, normalize_filter
 from ddtrace import Tracer
+from ddtrace.contrib.pymongo.trace import trace_mongo_client, normalize_filter
 
-
+# testing
+from ..config import MONGO_CONFIG
 from ...test_tracer import DummyWriter
 
 
@@ -204,13 +204,12 @@ def test_insert_find():
 
     eq_(sorted(expected_resources), sorted(s.resource for s in spans))
 
+
 def _get_tracer_and_client(service):
     """ Return a tuple of (tracer, mongo_client) for testing. """
     tracer = Tracer()
     writer = DummyWriter()
     tracer.writer = writer
-    original_client = MongoClient()
+    original_client = MongoClient(port=MONGO_CONFIG['port'])
     client = trace_mongo_client(original_client, tracer, service=service)
     return tracer, client
-
-

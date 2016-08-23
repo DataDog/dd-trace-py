@@ -1,6 +1,4 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import unittest
 
 from ddtrace.contrib.redis import missing_modules
@@ -14,19 +12,21 @@ from nose.tools import eq_, ok_
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.redis import get_traced_redis, get_traced_redis_from
 
+from ..config import REDIS_CONFIG
 from ...test_tracer import DummyWriter
 
 
 class RedisTest(unittest.TestCase):
     SERVICE = 'test-cache'
+    TEST_PORT = str(REDIS_CONFIG['port'])
 
     def setUp(self):
         """ purge redis """
-        r = redis.Redis()
+        r = redis.Redis(port=REDIS_CONFIG['port'])
         r.flushall()
 
     def tearDown(self):
-        r = redis.Redis()
+        r = redis.Redis(port=REDIS_CONFIG['port'])
         r.flushall()
 
     def test_long_command(self):
@@ -35,7 +35,7 @@ class RedisTest(unittest.TestCase):
         tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache()
+        r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
         long_cmd = "mget %s" % " ".join(map(str, range(1000)))
         us = r.execute_command(long_cmd)
@@ -49,7 +49,7 @@ class RedisTest(unittest.TestCase):
         eq_(span.error, 0)
         meta = {
             'out.host': u'localhost',
-            'out.port': u'6379',
+            'out.port': self.TEST_PORT,
             'out.redis_db': u'0',
         }
         for k, v in meta.items():
@@ -58,14 +58,13 @@ class RedisTest(unittest.TestCase):
         assert span.get_tag('redis.raw_command').startswith(u'mget 0 1 2 3')
         assert span.get_tag('redis.raw_command').endswith(u'...')
 
-
     def test_basic_class(self):
         writer = DummyWriter()
         tracer = Tracer()
         tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache()
+        r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
         us = r.get('cheese')
         eq_(us, None)
@@ -77,9 +76,9 @@ class RedisTest(unittest.TestCase):
         eq_(span.span_type, 'redis')
         eq_(span.error, 0)
         eq_(span.meta, {
-            'out.host': u'localhost',
             'redis.raw_command': u'GET cheese',
-            'out.port': u'6379',
+            'out.host': u'localhost',
+            'out.port': self.TEST_PORT,
             'out.redis_db': u'0',
         })
         eq_(span.get_metric('redis.args_length'), 2)
@@ -91,14 +90,13 @@ class RedisTest(unittest.TestCase):
         }
         eq_(services, expected)
 
-
     def test_meta_override(self):
         writer = DummyWriter()
         tracer = Tracer()
         tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE, meta={'cheese': 'camembert'})
-        r = TracedRedisCache()
+        r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
         r.get('cheese')
         spans = writer.pop()
@@ -113,7 +111,7 @@ class RedisTest(unittest.TestCase):
         tracer.writer = writer
 
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache()
+        r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
         with r.pipeline() as p:
             p.set('blah', 32)
@@ -132,7 +130,7 @@ class RedisTest(unittest.TestCase):
         eq_(span.error, 0)
         eq_(span.get_tag('out.redis_db'), '0')
         eq_(span.get_tag('out.host'), 'localhost')
-        eq_(span.get_tag('out.port'), '6379')
+        eq_(span.get_tag('out.port'), self.TEST_PORT)
         eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
         ok_(span.get_metric('redis.pipeline_age') > 0)
         eq_(span.get_metric('redis.pipeline_length'), 3)
@@ -152,7 +150,7 @@ class RedisTest(unittest.TestCase):
         tracer.writer = writer
 
         TracedRedisCache = get_traced_redis_from(tracer, MyCustomRedis, service=self.SERVICE)
-        r = TracedRedisCache()
+        r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
         r.set('foo', 42)
         resp = r.get('foo')

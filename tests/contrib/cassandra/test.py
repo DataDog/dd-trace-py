@@ -1,28 +1,34 @@
 import unittest
+
 from nose.tools import eq_
 
 from ddtrace.contrib.cassandra import missing_modules
 if missing_modules:
     raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
-from cassandra.cluster import Cluster
-from ddtrace.contrib.cassandra import get_traced_cassandra
 from ddtrace.tracer import Tracer
+from ddtrace.contrib.cassandra import get_traced_cassandra
 from ddtrace.ext import net as netx, cassandra as cassx, errors as errx
 
+from cassandra.cluster import Cluster
+
+from ..config import CASSANDRA_CONFIG
 from ...test_tracer import DummyWriter
 
-class CassandraTest(unittest.TestCase):
-    """Needs a running cassandra at localhost:9042"""
 
+class CassandraTest(unittest.TestCase):
+    """
+    Needs a running Cassandra
+    """
     TEST_QUERY = "SELECT * from test.person"
     TEST_KEYSPACE = "test"
+    TEST_PORT = str(CASSANDRA_CONFIG['port'])
 
     def setUp(self):
         if not Cluster:
             raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
 
-        self.cluster = Cluster(port=9042)
+        self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
         session = self.cluster.connect()
         session.execute("""CREATE KEYSPACE if not exists test WITH REPLICATION = {
             'class' : 'SimpleStrategy',
@@ -30,7 +36,6 @@ class CassandraTest(unittest.TestCase):
         }""")
         session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
         session.execute("""INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')""")
-
 
     def _assert_result_correct(self, result):
         eq_(len(result.current_rows), 1)
@@ -48,11 +53,8 @@ class CassandraTest(unittest.TestCase):
 
 
     def test_get_traced_cassandra(self):
-        """
-        Tests a traced cassandra Cluster
-        """
         TracedCluster, writer = self._traced_cluster()
-        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
+        session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
 
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
@@ -69,7 +71,7 @@ class CassandraTest(unittest.TestCase):
         eq_(query.span_type, cassx.TYPE)
 
         eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
-        eq_(query.get_tag(netx.TARGET_PORT), "9042")
+        eq_(query.get_tag(netx.TARGET_PORT), self.TEST_PORT)
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
         eq_(query.get_tag(netx.TARGET_HOST), "127.0.0.1")
 
@@ -81,7 +83,7 @@ class CassandraTest(unittest.TestCase):
         tracer = Tracer()
         tracer.writer = writer
         TracedCluster = get_traced_cassandra(tracer, service="custom")
-        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
+        session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
 
         session.execute(self.TEST_QUERY)
         spans = writer.pop()
@@ -92,7 +94,7 @@ class CassandraTest(unittest.TestCase):
 
     def test_trace_error(self):
         TracedCluster, writer = self._traced_cluster()
-        session = TracedCluster(port=9042).connect(self.TEST_KEYSPACE)
+        session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
 
         with self.assertRaises(Exception):
             session.execute("select * from test.i_dont_exist limit 1")

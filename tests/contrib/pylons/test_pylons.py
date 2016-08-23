@@ -8,6 +8,7 @@ from ddtrace.ext import http
 
 from ...test_tracer import DummyWriter
 
+
 class FakeWSGIApp(object):
 
     code = None
@@ -64,4 +65,3 @@ def test_pylons():
     assert s.duration <= end - start
     eq_(s.error, 0)
     eq_(s.meta.get(http.STATUS_CODE), '200')
-

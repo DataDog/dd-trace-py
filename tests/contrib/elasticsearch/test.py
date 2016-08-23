@@ -1,4 +1,3 @@
-
 import unittest
 
 # 3p
@@ -8,28 +7,31 @@ from nose.tools import eq_
 # project
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
+
+# testing
+from ..config import ELASTICSEARCH_CONFIG
 from ...test_tracer import DummyWriter
 
 
 class ElasticsearchTest(unittest.TestCase):
-    """Elasticsearch integration test suite
-
-    Need a running ES on localhost:9200
     """
-
+    Elasticsearch integration test suite.
+    Need a running ElasticSearch
+    """
     ES_INDEX = 'ddtrace_index'
     ES_TYPE = 'ddtrace_type'
 
     TEST_SERVICE = 'test'
+    TEST_PORT = str(ELASTICSEARCH_CONFIG['port'])
 
     def setUp(self):
         """Prepare ES"""
-        es = elasticsearch.Elasticsearch()
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def tearDown(self):
         """Clean ES"""
-        es = elasticsearch.Elasticsearch()
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def test_elasticsearch(self):
@@ -44,7 +46,7 @@ class ElasticsearchTest(unittest.TestCase):
                 datadog_tracer=tracer,
                 datadog_service=self.TEST_SERVICE)
 
-        es = elasticsearch.Elasticsearch(transport_class=transport_class)
+        es = elasticsearch.Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
