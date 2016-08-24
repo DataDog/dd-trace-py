@@ -102,21 +102,25 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                     self._datadog_cursor_creation = time.time()
                     super(TracedMySQLCursor, self).__init__(db)
 
-                def execute(self, operation, params=None):
+                def execute(self, *args, **kwargs):
                     with self._datadog_tracer.trace('mysql.execute') as s:
                         if s.sampled:
                             s.service = self._datadog_service
                             s.span_type = sqlx.TYPE
+                            if len(args) >= 1:
+                                operation = args[0]
+                            if "operation" in kwargs:
+                                operation = kwargs["operation"]
                             s.resource = operation
                             s.set_tag(sqlx.QUERY, operation)
                             s.set_tag(sqlx.DB, 'mysql')
                             s.set_tags(self._datadog_tags)
-                            result = super(TracedMySQLCursor, self).execute(operation, params)
                             s.set_tags(self._datadog_meta)
+                            result = super(TracedMySQLCursor, self).execute(*args, **kwargs)
                             s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
 
-                        return super(TracedMySQLCursor, self).execute(self, operation, params)
+                        return super(TracedMySQLCursor, self).execute(*args, **kwargs)
 
             return TracedMySQLCursor(db=db)
 
