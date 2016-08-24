@@ -24,9 +24,9 @@ DEFAULT_SERVICE = 'mysql'
 def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None):
     return _get_traced_mysql(ddtracer, MySQLConnection, service, meta)
 
-## _mysql_connector unsupported for now, main reason being:
-## not widespread yet, not easily instalable on our test envs.
-## Once this is fixed, no reason not to support it.
+# # _mysql_connector unsupported for now, main reason being:
+# # not widespread yet, not easily instalable on our test envs.
+# # Once this is fixed, no reason not to support it.
 # def get_traced_mysql_connection_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=None):
 #    return _get_traced_mysql(ddtracer, baseclass, service, meta)
 
