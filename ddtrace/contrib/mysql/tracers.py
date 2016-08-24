@@ -120,7 +120,9 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             s.set_tags(self._datadog_tags)
                             s.set_tags(self._datadog_meta)
                             result = super(TracedMySQLCursor, self).execute(*args, **kwargs)
-                            s.set_metric(sqlx.ROWS, self.rowcount)
+                            # FIXME: to investigate, looks like rowcount
+                            # works only once fetchrow or similar is called
+                            # s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
 
                         return super(TracedMySQLCursor, self).execute(*args, **kwargs)
