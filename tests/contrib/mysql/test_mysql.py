@@ -64,6 +64,7 @@ class MySQLTest(unittest.TestCase):
             'sql.db': u'mysql',
             META_KEY: META_VALUE,
              })
+        eq_(span.get_metric('sql.rows'), -1)
         conn.close()
 
     def test_query_with_several_rows(self):
