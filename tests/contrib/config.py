@@ -27,10 +27,10 @@ POSTGRES_CONFIG = {
 
 MYSQL_CONFIG = {
     'host' : '127.0.0.1',
-    'port' : 3306,
-    'user' : 'test',
-    'password' : 'test',
-    'database' : 'test',
+    'port' : int(os.getenv("TEST_MYSQL_PORT", 53306)),
+    'user' : os.getenv("TEST_MYSQL_USER", 'test'),
+    'password' : os.getenv("TEST_MYSQL_PASSWORD", 'test'),
+    'database' : os.getenv("TEST_MYSQL_DATABASE", 'test'),
 }
 
 REDIS_CONFIG = {
@@ -44,4 +44,3 @@ MONGO_CONFIG = {
 MEMCACHED_CONFIG = {
     'port': int(os.getenv("TEST_MEMCACHED_PORT", 51211)),
 }
-
