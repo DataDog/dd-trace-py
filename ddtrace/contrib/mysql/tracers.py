@@ -120,9 +120,12 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             s.set_tags(self._datadog_tags)
                             s.set_tags(self._datadog_meta)
                             result = super(TracedMySQLCursor, self).execute(*args, **kwargs)
-                            # FIXME: to investigate, looks like rowcount
-                            # works only once fetchrow or similar is called
-                            # s.set_metric(sqlx.ROWS, self.rowcount)
+                            # Note, as stated on
+                            # https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html
+                            # rowcount is not known before rows are fetched,
+                            # unless the cursor is a buffered one.
+                            # Don't be surprised if it's "-1"
+                            s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
 
                         return super(TracedMySQLCursor, self).execute(*args, **kwargs)
