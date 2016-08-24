@@ -8,7 +8,8 @@ MySQL connection classes which will trace API calls. For basic usage::
     # Trace the mysql.connector.connection.MySQLConnection class ...
     MySQL = get_traced_mysql_connection(tracer, service="my-mysql-server")
     conn = MySQL(user="alice", password="b0b", host="localhost", port=3306, database="test")
-    cursor = conn.execute("SELECT 6*7 AS the_answer;")
+    cursor = conn.cursor()
+    cursor.execute("SELECT 6*7 AS the_answer;")
 
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
