@@ -13,6 +13,9 @@ from ddtrace.contrib.mysql import get_traced_mysql_connection
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
+META_KEY = "i.am"
+META_VALUE = "Your Father"
+
 if missing_modules:
     raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
@@ -39,12 +42,28 @@ class MySQLTest(unittest.TestCase):
         tracer = Tracer()
         tracer.writer = writer
 
-        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE, meta={META_KEY: META_VALUE})
         conn = MySQL(**MYSQL_CONFIG)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         eq_(len(rows), 1)
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.SERVICE)
+        eq_(span.name, 'mysql.execute')
+        eq_(span.span_type, 'sql')
+        eq_(span.error, 0)
+        eq_(span.meta, {
+            'out.host': u'127.0.0.1',
+            'out.port': u'53306',
+            'db.name': u'test',
+            'db.user': u'test',
+            'sql.query': u'SELECT 1',
+            'sql.db': u'mysql',
+            META_KEY: META_VALUE,
+             })
         conn.close()
 
     def test_query_with_several_rows(self):

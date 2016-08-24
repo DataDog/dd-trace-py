@@ -102,6 +102,9 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                     self._datadog_cursor_creation = time.time()
                     super(TracedMySQLCursor, self).__init__(db)
 
+                # using *args, **kwargs instead of "operation, params, multi"
+                # as multi, typically, might be available or not depending
+                # on the version of mysql.connector
                 def execute(self, *args, **kwargs):
                     with self._datadog_tracer.trace('mysql.execute') as s:
                         if s.sampled:
