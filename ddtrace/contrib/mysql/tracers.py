@@ -10,8 +10,11 @@ from mysql.connector.cursor import MySQLCursorRaw
 from mysql.connector.cursor import MySQLCursorBuffered
 from mysql.connector.cursor import MySQLCursorBufferedRaw
 from mysql.connector.errors import NotSupportedError
+from mysql.connector.errors import ProgrammingError
 
 # dogtrace
+from ...ext import net
+from ...ext import db
 from ...ext import sql as sqlx
 from ...ext import AppTypes
 
@@ -21,7 +24,9 @@ DEFAULT_SERVICE = 'mysql'
 def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None):
     return _get_traced_mysql(ddtracer, MySQLConnection, service, meta)
 
-# _mysql_connector unsupported for now
+## _mysql_connector unsupported for now, main reason being:
+## not widespread yet, not easily instalable on our test envs.
+## Once this is fixed, no reason not to support it.
 # def get_traced_mysql_connection_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=None):
 #    return _get_traced_mysql(ddtracer, baseclass, service, meta)
 
@@ -45,6 +50,13 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
         def __init__(self, *args, **kwargs):
             self._datadog_connection_creation = time.time()
             super(TracedMySQLConnection, self).__init__(*args, **kwargs)
+            self._datadog_tags = {}
+            for v in ((net.TARGET_HOST, "host"),
+                      (net.TARGET_PORT, "port"),
+                      (db.NAME, "database"),
+                      (db.USER, "user")):
+                if v[1] in kwargs:
+                    self._datadog_tags[v[0]] = kwargs[v[1]]
 
         def cursor(self, buffered=None, raw=None, cursor_class=None):
             db = self
@@ -82,6 +94,11 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             "it should be defined before cursor "
                             "creation when using ddtrace, "
                             "please check your connection param")
+                    if not hasattr(db, "_datadog_tags"):
+                        raise ProgrammingError(
+                            "TracedMySQLCursor should be initialized"
+                            "with a TracedMySQLConnection")
+                    self._datadog_tags = db._datadog_tags
                     self._datadog_cursor_creation = time.time()
                     super(TracedMySQLCursor, self).__init__(db)
 
@@ -90,12 +107,10 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                         if s.sampled:
                             s.service = self._datadog_service
                             s.span_type = sqlx.TYPE
-
-                            # FIXME query = format_command_args(args)
                             s.resource = operation
-                            # non quantized version
                             s.set_tag(sqlx.QUERY, operation)
                             s.set_tag(sqlx.DB, 'mysql')
+                            s.set_tags(self._datadog_tags)
                             result = super(TracedMySQLCursor, self).execute(operation, params)
                             s.set_tags(self._datadog_meta)
                             s.set_metric(sqlx.ROWS, self.rowcount)
