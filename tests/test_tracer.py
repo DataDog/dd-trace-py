@@ -181,7 +181,75 @@ def test_tracer_wrap_span_nesting():
     eq_(mid_span.parent_id, outer_span.span_id)
     eq_(inner_span.parent_id, mid_span.span_id)
 
+
 def test_tracer_wrap_class():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    class Foo(object):
+
+        @tracer.wrap()
+        @staticmethod
+        def s():
+            return 1
+
+        @tracer.wrap()
+        @classmethod
+        def c(cls):
+            return 2
+
+        @tracer.wrap()
+        def i(cls):
+            return 3
+
+    f = Foo()
+    eq_(f.s(), 1)
+    eq_(f.c(), 2)
+    eq_(f.i(), 3)
+
+    spans = writer.pop()
+    eq_(len(spans), 3)
+    names = [s.name for s in spans]
+    eq_(names, ['tests.test_tracer.s', 'tests.test_tracer.Foo.c', 'tests.test_tracer.Foo.i'])
+
+
+def test_tracer_wrap_class_with_arguments():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    class Foo(object):
+
+        @tracer.wrap()
+        @staticmethod
+        def s(something):
+            return 1
+
+        @tracer.wrap()
+        @classmethod
+        def c(cls, something):
+            return 2
+
+        @tracer.wrap()
+        def i(cls, something):
+            return 3
+
+    f = Foo()
+    eq_(f.s('bar'), 1)
+    eq_(f.c('bar'), 2)
+    eq_(f.i('bar'), 3)
+
+    spans = writer.pop()
+    eq_(len(spans), 3)
+    names = [s.name for s in spans]
+    eq_(names, ['tests.test_tracer.s', 'tests.test_tracer.Foo.c', 'tests.test_tracer.Foo.i'])
+
+
+def test_tracer_wrap_class_with_inverse_order():
+    # this tests that if developers invert the order of our wrapper,
+    # the wrap() still works but in that case we loose the class name
+    # for the method decorated with @classmethod
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -210,9 +278,7 @@ def test_tracer_wrap_class():
     spans = writer.pop()
     eq_(len(spans), 3)
     names = [s.name for s in spans]
-    # FIXME[matt] include the class name here.
-    eq_(sorted(names), sorted(["tests.test_tracer.%s" % n for n in ["s", "c", "i"]]))
-
+    eq_(names, ['tests.test_tracer.s', 'tests.test_tracer.c', 'tests.test_tracer.Foo.i'])
 
 
 def test_tracer_disabled():

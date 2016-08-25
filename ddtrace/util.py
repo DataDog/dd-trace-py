@@ -81,3 +81,34 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         setattr(patchable, key, dest)
     elif hasattr(patchable, '__class__'):
         setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
+
+
+def get_wrapper_class_name(wrapped, instance):
+    """
+    For the given decorated function, it tries to detect the class name if the
+    function is defined within a class.
+    This method works together with the ``wrapt`` library and it handles:
+        * if ``wrapped`` is decorated with @staticmethod; in this case
+          it doesn't return the class name because it's not so easy to detect
+        * if ``wrapped`` is decorated with @classmethod
+        * if ``wrapped`` is an instance method
+        * if ``wrapped`` is a plain function
+    """
+    if instance is None:
+        if not inspect.isclass(wrapped):
+            # Decorator was applied to a function or a staticmethod;
+            # here we cannot deduce the class_name because static methods
+            # are not bounded to a class in any way. Collecting the class
+            # name may be complicated and we prefer to keep it simple
+            name = None
+    else:
+        if inspect.isclass(instance):
+            # Decorator was applied to a classmethod;
+            # the instance is the class that defines the class method
+            name = instance.__name__
+        else:
+            # Decorator was applied to an instancemethod;
+            # the instance is the ``self`` argument
+            name = instance.__class__.__name__
+
+    return name
