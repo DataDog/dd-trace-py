@@ -11,13 +11,11 @@ def trace(tracer):
         s.set_tag("b", 1)
         with tracer.trace("another.thing"): pass
         with tracer.trace("another.thing"): pass
-        try:
-            with tracer.trace("another.thing"):
-                1/0
-        except ZeroDivisionError:
-            pass
-            
-
+        # try:
+        #     with tracer.trace("another.thing"):
+        #         1/0
+        # except ZeroDivisionError:
+        #     pass
 
 def trace_error(tracer):
     # explicit vars
