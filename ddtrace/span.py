@@ -14,6 +14,15 @@ log = logging.getLogger(__name__)
 
 class Span(object):
 
+    __slots__ = [
+        'service', 'name', 'resource',
+        'span_id', 'trace_id', 'parent_id',
+        'meta', 'error', 'metrics', 'span_type',
+        'start', 'duration',
+        'sampled', 'weight',
+        '_tracer', '_finished', '_parent'
+    ]
+
     def __init__(self,
             tracer,
             name,
