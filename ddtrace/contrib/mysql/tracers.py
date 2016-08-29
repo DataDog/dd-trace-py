@@ -157,6 +157,7 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                         if s.sampled:
                             s.service = self._datadog_service
                             s.span_type = sqlx.TYPE
+                            # _datadog_operation refers to last execute* call
                             if hasattr(self,"_datadog_operation"):
                                 s.resource = self._datadog_operation
                                 s.set_tag(sqlx.QUERY, self._datadog_operation)
@@ -164,11 +165,6 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             s.set_tags(self._datadog_tags)
                             s.set_tags(self._datadog_meta)
                             result = super_func(*args,**kwargs)
-                            # Note, as stated on
-                            # https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html
-                            # rowcount is not known before rows are fetched,
-                            # unless the cursor is a buffered one.
-                            # Don't be surprised if it's "-1"
                             s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
                         # not sampled

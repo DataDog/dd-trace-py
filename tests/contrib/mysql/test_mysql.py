@@ -5,13 +5,15 @@ import unittest
 
 from ddtrace.contrib.mysql import missing_modules
 
-from nose.tools import eq_
+from nose.tools import eq_, assert_greater_equal, assert_is_not_none
 
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.mysql import get_traced_mysql_connection
 
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
+
+from md5 import md5 as md5sum
 
 META_KEY = "this.is"
 META_VALUE = "A simple test value"
@@ -39,6 +41,7 @@ class MySQLTest(unittest.TestCase):
 
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
+        assert_is_not_none(conn)
         conn.close()
 
     def test_simple_query(self):
@@ -50,46 +53,47 @@ class MySQLTest(unittest.TestCase):
                                             service=MySQLTest.SERVICE,
                                             meta={META_KEY: META_VALUE})
         conn = MySQL(**MYSQL_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        eq_(len(rows), 1)
-        spans = writer.pop()
-        eq_(len(spans), 2)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
+            eq_(len(spans), 2)
 
-        span = spans[0]
-        eq_(span.service, self.SERVICE)
-        eq_(span.name, 'mysql.execute')
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
-        eq_(span.meta, {
-            'out.host': u'127.0.0.1',
-            'out.port': u'53306',
-            'db.name': u'test',
-            'db.user': u'test',
-            'sql.query': u'SELECT 1',
-            'sql.db': u'mysql',
-            META_KEY: META_VALUE,
-             })
-        eq_(span.get_metric('sql.rows'), -1)
+            span = spans[0]
+            eq_(span.service, self.SERVICE)
+            eq_(span.name, 'mysql.execute')
+            eq_(span.span_type, 'sql')
+            eq_(span.error, 0)
+            eq_(span.meta, {
+                'out.host': u'127.0.0.1',
+                'out.port': u'53306',
+                'db.name': u'test',
+                'db.user': u'test',
+                'sql.query': u'SELECT 1',
+                'sql.db': u'mysql',
+                META_KEY: META_VALUE,
+            })
+            eq_(span.get_metric('sql.rows'), -1)
 
-        span = spans[1]
-        eq_(span.service, self.SERVICE)
-        eq_(span.name, 'mysql.fetchall')
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
-        eq_(span.meta, {
-            'out.host': u'127.0.0.1',
-            'out.port': u'53306',
-            'db.name': u'test',
-            'db.user': u'test',
-            'sql.query': u'SELECT 1',
-            'sql.db': u'mysql',
-            META_KEY: META_VALUE,
-             })
-        eq_(span.get_metric('sql.rows'), 1)
-
-        conn.close()
+            span = spans[1]
+            eq_(span.service, self.SERVICE)
+            eq_(span.name, 'mysql.fetchall')
+            eq_(span.span_type, 'sql')
+            eq_(span.error, 0)
+            eq_(span.meta, {
+                'out.host': u'127.0.0.1',
+                'out.port': u'53306',
+                'db.name': u'test',
+                'db.user': u'test',
+                'sql.query': u'SELECT 1',
+                'sql.db': u'mysql',
+                META_KEY: META_VALUE,
+            })
+            eq_(span.get_metric('sql.rows'), 1)
+        finally:
+            conn.close()
 
     def test_query_with_several_rows(self):
         writer = DummyWriter()
@@ -98,12 +102,14 @@ class MySQLTest(unittest.TestCase):
 
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT n FROM "
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT n FROM "
                        "(SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m")
-        rows = cursor.fetchall()
-        eq_(len(rows), 3)
-        conn.close()
+            rows = cursor.fetchall()
+            eq_(len(rows), 3)
+        finally:
+            conn.close()
 
     def test_query_many(self):
         writer = DummyWriter()
@@ -112,22 +118,24 @@ class MySQLTest(unittest.TestCase):
 
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute(CREATE_TABLE_DUMMY)
-        stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
-        data = [("foo","this is foo"),
+        try:
+            cursor = conn.cursor()
+            cursor.execute(CREATE_TABLE_DUMMY)
+            stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
+            data = [("foo","this is foo"),
                 ("bar","this is bar")]
-        cursor.executemany(stmt, data)
-        cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
+            cursor.executemany(stmt, data)
+            cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
                        "ORDER BY dummy_key")
-        rows = cursor.fetchall()
-        eq_(len(rows), 2)
-        eq_(rows[0][0], "bar")
-        eq_(rows[0][1], "this is bar")
-        eq_(rows[1][0], "foo")
-        eq_(rows[1][1], "this is foo")
-        cursor.execute(DROP_TABLE_DUMMY)
-        conn.close()
+            rows = cursor.fetchall()
+            eq_(len(rows), 2)
+            eq_(rows[0][0], "bar")
+            eq_(rows[0][1], "this is bar")
+            eq_(rows[1][0], "foo")
+            eq_(rows[1][1], "this is foo")
+            cursor.execute(DROP_TABLE_DUMMY)
+        finally:
+            conn.close()
 
     def test_cursor_buffered_raw(self):
         writer = DummyWriter()
@@ -136,22 +144,25 @@ class MySQLTest(unittest.TestCase):
 
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
-        for buffered in (None, False, True):
-            for raw in (None, False, True):
-                cursor = conn.cursor(buffered=buffered, raw=raw)
-                if buffered:
-                    if raw:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+        try:
+            for buffered in (None, False, True):
+                for raw in (None, False, True):
+                    cursor = conn.cursor(buffered=buffered, raw=raw)
+                    if buffered:
+                        if raw:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+                        else:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
                     else:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
-                else:
-                    if raw:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
-                    else:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursor")
-                cursor.execute("SELECT 1")
-                rows = cursor.fetchall()
-                eq_(len(rows), 1)
+                        if raw:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
+                        else:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursor")
+                    cursor.execute("SELECT 1")
+                    rows = cursor.fetchall()
+                    eq_(len(rows), 1)
+        finally:
+            conn.close()
 
     def test_connection_buffered_raw(self):
         writer = DummyWriter()
@@ -162,17 +173,55 @@ class MySQLTest(unittest.TestCase):
         for buffered in (None, False, True):
             for raw in (None, False, True):
                 conn = MySQL(buffered=buffered, raw=raw, **MYSQL_CONFIG)
-                cursor = conn.cursor()
-                if buffered:
-                    if raw:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+                try:
+                    cursor = conn.cursor()
+                    if buffered:
+                        if raw:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+                        else:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
                     else:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
-                else:
-                    if raw:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
-                    else:
-                        eq_(cursor._datadog_baseclass_name, "MySQLCursor")
-                cursor.execute("SELECT 1")
-                rows = cursor.fetchall()
-                eq_(len(rows), 1)
+                        if raw:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
+                        else:
+                            eq_(cursor._datadog_baseclass_name, "MySQLCursor")
+                            cursor.execute("SELECT 1")
+                            rows = cursor.fetchall()
+                            eq_(len(rows), 1)
+                finally:
+                    conn.close()
+
+    def test_fetch(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        conn = MySQL(**MYSQL_CONFIG)
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute(CREATE_TABLE_DUMMY)
+
+            NB_FETCH_TOTAL = 1000
+            NB_FETCH_MANY = 10
+            stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
+            data = [(str(i), md5sum(str(i)).hexdigest()) for i in range(NB_FETCH_TOTAL)]
+            cursor.executemany(stmt, data)
+            cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
+                           "ORDER BY dummy_key")
+            rows = cursor.fetchmany(size=NB_FETCH_MANY)
+            fetchmany_rows = len(rows)
+            assert_greater_equal(fetchmany_rows, NB_FETCH_MANY)
+            rows = cursor.fetchone()
+            fetchone_rows = len(rows)
+            assert_greater_equal(fetchone_rows, 1)
+            rows = cursor.fetchall()
+            eq_(len(rows), NB_FETCH_TOTAL - fetchmany_rows - fetchone_rows)
+
+            cursor.execute(DROP_TABLE_DUMMY)
+
+            spans = writer.pop()
+            assert_greater_equal(len(spans), 6)
+        finally:
+            conn.close()
