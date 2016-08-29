@@ -28,7 +28,9 @@ def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None, tr
     ddtracer -- the tracer to use
     service -- the service name
     meta -- your custom meta data
-    trace_fetch -- set to True if you want fetchall, fetchone, fetchmany and fetchwarnings to be traced. By default only execute and executemany are traced.
+    trace_fetch -- set to True if you want fetchall, fetchone,
+        fetchmany and fetchwarnings to be traced. By default
+        only execute and executemany are traced.
     """
     return _get_traced_mysql(ddtracer, MySQLConnection, service, meta, trace_fetch)
 
