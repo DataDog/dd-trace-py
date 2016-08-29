@@ -55,7 +55,8 @@ class MySQLTest(unittest.TestCase):
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
+
         span = spans[0]
         eq_(span.service, self.SERVICE)
         eq_(span.name, 'mysql.execute')
@@ -71,6 +72,23 @@ class MySQLTest(unittest.TestCase):
             META_KEY: META_VALUE,
              })
         eq_(span.get_metric('sql.rows'), -1)
+
+        span = spans[1]
+        eq_(span.service, self.SERVICE)
+        eq_(span.name, 'mysql.fetchall')
+        eq_(span.span_type, 'sql')
+        eq_(span.error, 0)
+        eq_(span.meta, {
+            'out.host': u'127.0.0.1',
+            'out.port': u'53306',
+            'db.name': u'test',
+            'db.user': u'test',
+            'sql.query': u'SELECT 1',
+            'sql.db': u'mysql',
+            META_KEY: META_VALUE,
+             })
+        eq_(span.get_metric('sql.rows'), 1)
+
         conn.close()
 
     def test_query_with_several_rows(self):

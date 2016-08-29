@@ -126,6 +126,8 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                                 operation = kwargs["operation"]
                             s.resource = operation
                             s.set_tag(sqlx.QUERY, operation)
+                            # keep it for fetch* methods
+                            self._datadog_operation = operation
                             s.set_tag(sqlx.DB, 'mysql')
                             s.set_tags(self._datadog_tags)
                             s.set_tags(self._datadog_meta)
@@ -145,6 +147,44 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
 
                 def executemany(self, *args, **kwargs):
                     return self._datadog_execute('executemany', *args, **kwargs)
+
+                def _datadog_fetch(self, dd_func_name, *args, **kwargs):
+                    # using *args, **kwargs instead of "operation, params, multi"
+                    # as multi, typically, might be available or not depending
+                    # on the version of mysql.connector
+                    with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
+                        super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
+                        if s.sampled:
+                            s.service = self._datadog_service
+                            s.span_type = sqlx.TYPE
+                            if hasattr(self,"_datadog_operation"):
+                                s.resource = self._datadog_operation
+                                s.set_tag(sqlx.QUERY, self._datadog_operation)
+                            s.set_tag(sqlx.DB, 'mysql')
+                            s.set_tags(self._datadog_tags)
+                            s.set_tags(self._datadog_meta)
+                            result = super_func(*args,**kwargs)
+                            # Note, as stated on
+                            # https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html
+                            # rowcount is not known before rows are fetched,
+                            # unless the cursor is a buffered one.
+                            # Don't be surprised if it's "-1"
+                            s.set_metric(sqlx.ROWS, self.rowcount)
+                            return result
+                        # not sampled
+                        return super_func(*args,**kwargs)
+
+                def fetchall(self, *args, **kwargs):
+                    return self._datadog_fetch('fetchall', *args, **kwargs)
+
+                def fetchmany(self, *args, **kwargs):
+                    return self._datadog_fetch('fetchmany', *args, **kwargs)
+
+                def fetchone(self, *args, **kwargs):
+                    return self._datadog_fetch('fetchone', *args, **kwargs)
+
+                def fetchwarnings(self, *args, **kwargs):
+                    return self._datadog_fetch('fetchwarnings', *args, **kwargs)
 
             return TracedMySQLCursor(db=db)
 
