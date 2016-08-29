@@ -138,6 +138,9 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                     self._datadog_baseclass_name = cursor_baseclass.__name__
                     super(TracedMySQLCursor, self).__init__(db)
 
+                # using *args, **kwargs instead of "operation, params, multi"
+                # as multi, typically, might be available or not depending
+                # on the version of mysql.connector
                 def _datadog_execute(self, dd_func_name, *args, **kwargs):
                     super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
                     if len(args) >= 1:
@@ -147,9 +150,6 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                     # keep it for fetch* methods
                     self._datadog_operation = operation
                     if dd_func_name in db._datadog_traced_funcs:
-                        # using *args, **kwargs instead of "operation, params, multi"
-                        # as multi, typically, might be available or not depending
-                        # on the version of mysql.connector
                         with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
                             if s.sampled:
                                 s.service = self._datadog_service
@@ -182,9 +182,6 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                 def _datadog_fetch(self, dd_func_name, *args, **kwargs):
                     super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
                     if dd_func_name in db._datadog_traced_funcs:
-                        # using *args, **kwargs instead of "operation, params, multi"
-                        # as multi, typically, might be available or not depending
-                        # on the version of mysql.connector
                         with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
                             if s.sampled:
                                 s.service = self._datadog_service
