@@ -57,10 +57,18 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                       (db.USER, "user")):
                 if v[1] in kwargs:
                     self._datadog_tags[v[0]] = kwargs[v[1]]
+            self._datadog_cursor_kwargs = {}
+            for v in ("buffered", "raw"):
+                if v in kwargs:
+                    self._datadog_cursor_kwargs[v] = kwargs[v]
 
         def cursor(self, buffered=None, raw=None, cursor_class=None):
             db = self
 
+            if "buffered" in db._datadog_cursor_kwargs and db._datadog_cursor_kwargs["buffered"]:
+                buffered = True
+            if "raw" in db._datadog_cursor_kwargs and db._datadog_cursor_kwargs["raw"]:
+                raw = True
             # using MySQLCursor* constructors instead of super cursor
             # method as this one does not give a direct access to the
             # class makes overriding tricky
@@ -100,6 +108,7 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             "with a TracedMySQLConnection")
                     self._datadog_tags = db._datadog_tags
                     self._datadog_cursor_creation = time.time()
+                    self._datadog_baseclass_name = cursor_baseclass.__name__
                     super(TracedMySQLCursor, self).__init__(db)
 
                 def _datadog_execute(self, dd_func_name, *args, **kwargs):

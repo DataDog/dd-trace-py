@@ -110,3 +110,51 @@ class MySQLTest(unittest.TestCase):
         eq_(rows[1][1], "this is foo")
         cursor.execute(DROP_TABLE_DUMMY)
         conn.close()
+
+    def test_cursor_buffered_raw(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        conn = MySQL(**MYSQL_CONFIG)
+        for buffered in (None, False, True):
+            for raw in (None, False, True):
+                cursor = conn.cursor(buffered=buffered, raw=raw)
+                if buffered:
+                    if raw:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+                    else:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
+                else:
+                    if raw:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
+                    else:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursor")
+                cursor.execute("SELECT 1")
+                rows = cursor.fetchall()
+                eq_(len(rows), 1)
+
+    def test_connection_buffered_raw(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        for buffered in (None, False, True):
+            for raw in (None, False, True):
+                conn = MySQL(buffered=buffered, raw=raw, **MYSQL_CONFIG)
+                cursor = conn.cursor()
+                if buffered:
+                    if raw:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBufferedRaw")
+                    else:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorBuffered")
+                else:
+                    if raw:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursorRaw")
+                    else:
+                        eq_(cursor._datadog_baseclass_name, "MySQLCursor")
+                cursor.execute("SELECT 1")
+                rows = cursor.fetchall()
+                eq_(len(rows), 1)
