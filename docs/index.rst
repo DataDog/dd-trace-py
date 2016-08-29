@@ -18,12 +18,13 @@ Install with :code:`pip` but point to Datadog's package repo::
 
     $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
 
+If you are using a supported integration, next see the :ref:`relevant instructions <integrations>`
 
 Quick Start
 -----------
 
-Adding tracing to your code is very simple. Let's imagine we were adding
-tracing to a small web app::
+Adding tracing to your code is very simple. As an example, let's imagine we are adding
+tracing from scratch to a small web app::
 
     from ddtrace import tracer
 
@@ -93,9 +94,11 @@ API
 .. toctree::
    :maxdepth: 2
 
+.. _integrations:
 
 Integrations
 ------------
+
 
 Cassandra
 ~~~~~~~~~
@@ -122,20 +125,21 @@ Flask-cache
 
 .. automodule:: ddtrace.contrib.flask_cache
 
-Mongoengine
+MongoDB
 ~~~~~~~~~~~
 
+**Mongoengine**
+
 .. automodule:: ddtrace.contrib.mongoengine
+
+**Pymongo**
+
+.. automodule:: ddtrace.contrib.pymongo
 
 Postgres
 ~~~~~~~~
 
 .. automodule:: ddtrace.contrib.psycopg
-
-Pymongo
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.pymongo
 
 Redis
 ~~~~~
