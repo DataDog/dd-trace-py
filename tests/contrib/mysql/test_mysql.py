@@ -203,21 +203,43 @@ class MySQLTest(unittest.TestCase):
 
             cursor.execute(CREATE_TABLE_DUMMY)
 
-            NB_FETCH_TOTAL = 1000
-            NB_FETCH_MANY = 10
+            NB_FETCH_TOTAL = 30
+            NB_FETCH_MANY = 5
             stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
-            data = [(str(i), md5sum(str(i)).hexdigest()) for i in range(NB_FETCH_TOTAL)]
+            data = [("%02d" % i, md5sum(str(i)).hexdigest()) for i in range(NB_FETCH_TOTAL)]
             cursor.executemany(stmt, data)
             cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
                            "ORDER BY dummy_key")
+
             rows = cursor.fetchmany(size=NB_FETCH_MANY)
-            fetchmany_rows = len(rows)
-            assert_greater_equal(fetchmany_rows, NB_FETCH_MANY)
+            fetchmany_rowcount_a = cursor.rowcount
+            fetchmany_nbrows_a = len(rows)
+            eq_(fetchmany_rowcount_a, NB_FETCH_MANY)
+            eq_(fetchmany_nbrows_a, NB_FETCH_MANY)
+
             rows = cursor.fetchone()
-            fetchone_rows = len(rows)
-            assert_greater_equal(fetchone_rows, 1)
-            rows = cursor.fetchall()
-            eq_(len(rows), NB_FETCH_TOTAL - fetchmany_rows - fetchone_rows)
+            fetchone_rowcount_a = cursor.rowcount
+            eq_(fetchone_rowcount_a, NB_FETCH_MANY + 1)
+            # carefull: rows contains only one line with the values,
+            # not an array of lines, so since we're SELECTing 2 columns
+            # (dummy_key, dummy_value) we get len()==2.
+            eq_(len(rows), 2)
+
+            rows = cursor.fetchone()
+            fetchone_rowcount_a = cursor.rowcount
+            eq_(fetchone_rowcount_a, NB_FETCH_MANY + 2)
+            eq_(len(rows), 2)
+
+            # Todo: check what happens when using fetchall(),
+            # on some tests a line was missing when calling fetchall()
+            # after fetchone().
+            rows = cursor.fetchmany(size=NB_FETCH_TOTAL)
+            fetchmany_rowcount_b = cursor.rowcount
+            fetchmany_nbrows_b = len(rows)
+            eq_(fetchmany_rowcount_b, NB_FETCH_TOTAL)
+            eq_(fetchmany_nbrows_b, NB_FETCH_TOTAL - fetchmany_nbrows_a - 2)
+
+            eq_(NB_FETCH_TOTAL, fetchmany_nbrows_a + fetchmany_nbrows_b + 2)
 
             cursor.execute(DROP_TABLE_DUMMY)
 
