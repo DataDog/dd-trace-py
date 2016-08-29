@@ -18,13 +18,13 @@ class ThreadLocalSpanBuffer(object):
     """
 
     def __init__(self):
-        self._spans = threading.local()
+        self._locals = threading.local()
 
     def set(self, span):
-        self._spans.span = span
+        self._locals.span = span
 
     def get(self):
-        return getattr(self._spans, 'span', None)
+        return getattr(self._locals, 'span', None)
 
     def pop(self):
         span = self.get()

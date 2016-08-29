@@ -14,28 +14,52 @@ log = logging.getLogger(__name__)
 
 class Span(object):
 
-    def __init__(self,
-            tracer,
-            name,
+    __slots__ = [
+        # Public span attributes
+        'service',
+        'name',
+        'resource',
+        'span_id',
+        'trace_id',
+        'parent_id',
+        'meta',
+        'error',
+        'metrics',
+        'span_type',
+        'start',
+        'duration',
+        # Sampler attributes
+        'sampled',
+        'weight',
+        # Internal attributes
+        '_tracer',
+        '_finished',
+        '_parent',
+    ]
 
-            service=None,
-            resource=None,
-            span_type=None,
+    def __init__(
+        self,
+        tracer,
+        name,
 
-            trace_id=None,
-            span_id=None,
-            parent_id=None,
-            start=None):
+        service=None,
+        resource=None,
+        span_type=None,
+        trace_id=None,
+        span_id=None,
+        parent_id=None,
+        start=None,
+    ):
         """
-        Create a new span. You must call `finish` on all spans.
+        Create a new span. Call `finish` once the traced operation is over.
 
         :param Tracer tracer: the tracer that will submit this span when
                               finished.
         :param str name: the name of the traced operation.
+
         :param str service: the service name
         :param str resource: the resource name
-
-        :param int start: the start time of the span in seconds from the epoch
+        :param str span_type: the span type
 
         :param int trace_id: the id of this trace's root span.
         :param int parent_id: the id of this span's direct parent span.
@@ -246,10 +270,10 @@ class Span(object):
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
-                self.span_id,
-                self.trace_id,
-                self.parent_id,
-                self.name,
+            self.span_id,
+            self.trace_id,
+            self.parent_id,
+            self.name,
         )
 
 MAX_TRACE_ID = 2 ** 63
