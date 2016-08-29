@@ -21,8 +21,16 @@ from ...ext import AppTypes
 
 DEFAULT_SERVICE = 'mysql'
 
-def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None):
-    return _get_traced_mysql(ddtracer, MySQLConnection, service, meta)
+def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None, trace_fetch=False):
+    """Return a class which can be used to instanciante MySQL connections.
+
+    Keyword arguments:
+    ddtracer -- the tracer to use
+    service -- the service name
+    meta -- your custom meta data
+    trace_fetch -- set to True if you want fetchall, fetchone, fetchmany and fetchwarnings to be traced. By default only execute and executemany are traced.
+    """
+    return _get_traced_mysql(ddtracer, MySQLConnection, service, meta, trace_fetch)
 
 # # _mysql_connector unsupported for now, main reason being:
 # # not widespread yet, not easily instalable on our test envs.
@@ -31,7 +39,7 @@ def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None):
 #    return _get_traced_mysql(ddtracer, baseclass, service, meta)
 
 # pylint: disable=protected-access
-def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
+def _get_traced_mysql(ddtracer, connection_baseclass, service, meta, trace_fetch):
     ddtracer.set_service_info(
         service=service,
         app='mysql',
@@ -49,6 +57,7 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
 
         def __init__(self, *args, **kwargs):
             self._datadog_connection_creation = time.time()
+            self._datadog_trace_fetch = trace_fetch
             super(TracedMySQLConnection, self).__init__(*args, **kwargs)
             self._datadog_tags = {}
             for v in ((net.TARGET_HOST, "host"),
@@ -112,11 +121,11 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                     super(TracedMySQLCursor, self).__init__(db)
 
                 def _datadog_execute(self, dd_func_name, *args, **kwargs):
+                    super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
                     # using *args, **kwargs instead of "operation, params, multi"
                     # as multi, typically, might be available or not depending
                     # on the version of mysql.connector
                     with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
-                        super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
                         if s.sampled:
                             s.service = self._datadog_service
                             s.span_type = sqlx.TYPE
@@ -140,7 +149,7 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
                         # not sampled
-                        return super_func(*args,**kwargs)
+                        return super_func(*args, **kwargs)
 
                 def execute(self, *args, **kwargs):
                     return self._datadog_execute('execute', *args, **kwargs)
@@ -149,26 +158,30 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                     return self._datadog_execute('executemany', *args, **kwargs)
 
                 def _datadog_fetch(self, dd_func_name, *args, **kwargs):
-                    # using *args, **kwargs instead of "operation, params, multi"
-                    # as multi, typically, might be available or not depending
-                    # on the version of mysql.connector
-                    with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
-                        super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
-                        if s.sampled:
-                            s.service = self._datadog_service
-                            s.span_type = sqlx.TYPE
-                            # _datadog_operation refers to last execute* call
-                            if hasattr(self,"_datadog_operation"):
-                                s.resource = self._datadog_operation
-                                s.set_tag(sqlx.QUERY, self._datadog_operation)
-                            s.set_tag(sqlx.DB, 'mysql')
-                            s.set_tags(self._datadog_tags)
-                            s.set_tags(self._datadog_meta)
-                            result = super_func(*args,**kwargs)
-                            s.set_metric(sqlx.ROWS, self.rowcount)
-                            return result
-                        # not sampled
-                        return super_func(*args,**kwargs)
+                    super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
+                    if db._datadog_trace_fetch:
+                        # using *args, **kwargs instead of "operation, params, multi"
+                        # as multi, typically, might be available or not depending
+                        # on the version of mysql.connector
+                        with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
+                            if s.sampled:
+                                s.service = self._datadog_service
+                                s.span_type = sqlx.TYPE
+                                # _datadog_operation refers to last execute* call
+                                if hasattr(self,"_datadog_operation"):
+                                    s.resource = self._datadog_operation
+                                    s.set_tag(sqlx.QUERY, self._datadog_operation)
+                                s.set_tag(sqlx.DB, 'mysql')
+                                s.set_tags(self._datadog_tags)
+                                s.set_tags(self._datadog_meta)
+                                result = super_func(*args, **kwargs)
+                                s.set_metric(sqlx.ROWS, self.rowcount)
+                                return result
+                            # not sampled
+                            return super_func(*args, **kwargs)
+                    else:
+                        # not using traces on fetch operations
+                        return super_func(*args, **kwargs)
 
                 def fetchall(self, *args, **kwargs):
                     return self._datadog_fetch('fetchall', *args, **kwargs)

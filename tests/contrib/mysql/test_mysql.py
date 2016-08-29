@@ -57,6 +57,42 @@ class MySQLTest(unittest.TestCase):
             rows = cursor.fetchall()
             eq_(len(rows), 1)
             spans = writer.pop()
+            eq_(len(spans), 1)
+
+            span = spans[0]
+            eq_(span.service, self.SERVICE)
+            eq_(span.name, 'mysql.execute')
+            eq_(span.span_type, 'sql')
+            eq_(span.error, 0)
+            eq_(span.meta, {
+                'out.host': u'127.0.0.1',
+                'out.port': u'53306',
+                'db.name': u'test',
+                'db.user': u'test',
+                'sql.query': u'SELECT 1',
+                'sql.db': u'mysql',
+                META_KEY: META_VALUE,
+            })
+            eq_(span.get_metric('sql.rows'), -1)
+        finally:
+            conn.close()
+
+    def test_simple_fetch(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer,
+                                            service=MySQLTest.SERVICE,
+                                            meta={META_KEY: META_VALUE},
+                                            trace_fetch=True)
+        conn = MySQL(**MYSQL_CONFIG)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
             eq_(len(spans), 2)
 
             span = spans[0]
@@ -189,12 +225,14 @@ class MySQLTest(unittest.TestCase):
                 finally:
                     conn.close()
 
-    def test_fetch(self):
+    def test_fetch_variants(self):
         writer = DummyWriter()
         tracer = Tracer()
         tracer.writer = writer
 
-        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        MySQL = get_traced_mysql_connection(tracer,
+                                            service=MySQLTest.SERVICE,
+                                            trace_fetch=True)
         conn = MySQL(**MYSQL_CONFIG)
         try:
             cursor = conn.cursor()
@@ -204,7 +242,7 @@ class MySQLTest(unittest.TestCase):
             NB_FETCH_TOTAL = 30
             NB_FETCH_MANY = 5
             stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
-            data = [("%02d" % i, "this is %d" %i) for i in range(NB_FETCH_TOTAL)]
+            data = [("%02d" % i, "this is %d" % i) for i in range(NB_FETCH_TOTAL)]
             cursor.executemany(stmt, data)
             cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
                            "ORDER BY dummy_key")
