@@ -102,11 +102,12 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                     self._datadog_cursor_creation = time.time()
                     super(TracedMySQLCursor, self).__init__(db)
 
-                # using *args, **kwargs instead of "operation, params, multi"
-                # as multi, typically, might be available or not depending
-                # on the version of mysql.connector
-                def execute(self, *args, **kwargs):
-                    with self._datadog_tracer.trace('mysql.execute') as s:
+                def _datadog_execute(self, dd_func_name, *args, **kwargs):
+                    # using *args, **kwargs instead of "operation, params, multi"
+                    # as multi, typically, might be available or not depending
+                    # on the version of mysql.connector
+                    with self._datadog_tracer.trace('mysql.' + dd_func_name) as s:
+                        super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
                         if s.sampled:
                             s.service = self._datadog_service
                             s.span_type = sqlx.TYPE
@@ -119,7 +120,7 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             s.set_tag(sqlx.DB, 'mysql')
                             s.set_tags(self._datadog_tags)
                             s.set_tags(self._datadog_meta)
-                            result = super(TracedMySQLCursor, self).execute(*args, **kwargs)
+                            result = super_func(*args,**kwargs)
                             # Note, as stated on
                             # https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html
                             # rowcount is not known before rows are fetched,
@@ -127,8 +128,14 @@ def _get_traced_mysql(ddtracer, connection_baseclass, service, meta):
                             # Don't be surprised if it's "-1"
                             s.set_metric(sqlx.ROWS, self.rowcount)
                             return result
+                        # not sampled
+                        return super_func(*args,**kwargs)
 
-                        return super(TracedMySQLCursor, self).execute(*args, **kwargs)
+                def execute(self, *args, **kwargs):
+                    return self._datadog_execute('execute', *args, **kwargs)
+
+                def executemany(self, *args, **kwargs):
+                    return self._datadog_execute('executemany', *args, **kwargs)
 
             return TracedMySQLCursor(db=db)
 

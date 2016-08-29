@@ -13,8 +13,12 @@ from ddtrace.contrib.mysql import get_traced_mysql_connection
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
-META_KEY = "i.am"
-META_VALUE = "Your Father"
+META_KEY = "this.is"
+META_VALUE = "A simple test value"
+CREATE_TABLE_DUMMY = "CREATE TABLE IF NOT EXISTS dummy " \
+                     "( dummy_key VARCHAR(32) PRIMARY KEY, " \
+                     "dummy_value TEXT NOT NULL)"
+DROP_TABLE_DUMMY = "DROP TABLE IF EXISTS dummy"
 
 if missing_modules:
     raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
@@ -42,7 +46,9 @@ class MySQLTest(unittest.TestCase):
         tracer = Tracer()
         tracer.writer = writer
 
-        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE, meta={META_KEY: META_VALUE})
+        MySQL = get_traced_mysql_connection(tracer,
+                                            service=MySQLTest.SERVICE,
+                                            meta={META_KEY: META_VALUE})
         conn = MySQL(**MYSQL_CONFIG)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
@@ -75,7 +81,32 @@ class MySQLTest(unittest.TestCase):
         MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
         conn = MySQL(**MYSQL_CONFIG)
         cursor = conn.cursor()
-        cursor.execute("SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m")
+        cursor.execute("SELECT n FROM "
+                       "(SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m")
         rows = cursor.fetchall()
         eq_(len(rows), 3)
+        conn.close()
+
+    def test_query_many(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        conn = MySQL(**MYSQL_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute(CREATE_TABLE_DUMMY)
+        stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
+        data = [("foo","this is foo"),
+                ("bar","this is bar")]
+        cursor.executemany(stmt, data)
+        cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
+                       "ORDER BY dummy_key")
+        rows = cursor.fetchall()
+        eq_(len(rows), 2)
+        eq_(rows[0][0], "bar")
+        eq_(rows[0][1], "this is bar")
+        eq_(rows[1][0], "foo")
+        eq_(rows[1][1], "this is foo")
+        cursor.execute(DROP_TABLE_DUMMY)
         conn.close()
