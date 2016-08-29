@@ -13,8 +13,6 @@ from ddtrace.contrib.mysql import get_traced_mysql_connection
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
-from md5 import md5 as md5sum
-
 META_KEY = "this.is"
 META_VALUE = "A simple test value"
 CREATE_TABLE_DUMMY = "CREATE TABLE IF NOT EXISTS dummy " \
@@ -206,7 +204,7 @@ class MySQLTest(unittest.TestCase):
             NB_FETCH_TOTAL = 30
             NB_FETCH_MANY = 5
             stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
-            data = [("%02d" % i, md5sum(str(i)).hexdigest()) for i in range(NB_FETCH_TOTAL)]
+            data = [("%02d" % i, "this is %d" %i) for i in range(NB_FETCH_TOTAL)]
             cursor.executemany(stmt, data)
             cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
                            "ORDER BY dummy_key")
