@@ -1,6 +1,7 @@
 """
 The pymongo integration works by wrapping pymongo's MongoClient to trace
-network calls. Basic usage::
+network calls. Pymongo 3.0 and greater are the currently supported versions.
+Basic usage::
 
     from pymongo import MongoClient
     from ddtrace import tracer
