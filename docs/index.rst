@@ -18,7 +18,7 @@ Install with :code:`pip` but point to Datadog's package repo::
 
     $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
 
-If you are using a supported integration, next see the :ref:`relevant instructions <integrations>`
+If you are using a supported integration, proceed to the :ref:`relevant instructions <integrations>` next.
 
 Quick Start
 -----------
