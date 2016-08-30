@@ -136,6 +136,11 @@ MongoDB
 
 .. automodule:: ddtrace.contrib.pymongo
 
+MySQL
+~~~~~
+
+.. automodule:: ddtrace.contrib.mysql
+
 Postgres
 ~~~~~~~~
 
