@@ -19,6 +19,13 @@ CREATE_TABLE_DUMMY = "CREATE TABLE IF NOT EXISTS dummy " \
                      "( dummy_key VARCHAR(32) PRIMARY KEY, " \
                      "dummy_value TEXT NOT NULL)"
 DROP_TABLE_DUMMY = "DROP TABLE IF EXISTS dummy"
+CREATE_PROC_SUM = "CREATE PROCEDURE\n" \
+                     "sp_sum (IN p1 INTEGER, IN p2 INTEGER,\n" \
+                     "OUT p3 INTEGER)\n" \
+                     "BEGIN\n" \
+                     "  SET p3 := p1 + p2;\n" \
+                     "END;"
+DROP_PROC_SUM = "DROP PROCEDURE IF EXISTS sp_sum"
 
 if missing_modules:
     raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
@@ -168,6 +175,47 @@ class MySQLTest(unittest.TestCase):
             eq_(rows[1][0], "foo")
             eq_(rows[1][1], "this is foo")
             cursor.execute(DROP_TABLE_DUMMY)
+        finally:
+            conn.close()
+
+    def test_query_proc(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        MySQL = get_traced_mysql_connection(tracer, service=MySQLTest.SERVICE)
+        conn = MySQL(**MYSQL_CONFIG)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(DROP_PROC_SUM)
+            cursor.execute(CREATE_PROC_SUM)
+            proc = "sp_sum"
+            data = (40, 2, None)
+            output = cursor.callproc(proc, data)
+            eq_(len(output), 3)
+            eq_(output[2], 42)
+
+            spans = writer.pop()
+
+            # number of spans depends on MySQL implementation details,
+            # typically, internal calls to execute, but at least we
+            # can expect the last closed span to be our proc.
+            span = spans[len(spans) - 1]
+            eq_(span.service, self.SERVICE)
+            eq_(span.name, 'mysql.callproc')
+            eq_(span.span_type, 'sql')
+            eq_(span.error, 0)
+            eq_(span.meta, {
+                'out.host': u'127.0.0.1',
+                'out.port': u'53306',
+                'db.name': u'test',
+                'db.user': u'test',
+                'sql.query': u'sp_sum',
+                'sql.db': u'mysql',
+            })
+            eq_(span.get_metric('sql.rows'), 1)
+
+            cursor.execute(DROP_PROC_SUM)
         finally:
             conn.close()
 

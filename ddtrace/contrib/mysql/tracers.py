@@ -21,7 +21,8 @@ from ...ext import AppTypes
 
 
 DEFAULT_SERVICE = 'mysql'
-_TRACEABLE_EXECUTE_FUNCS = ["execute",
+_TRACEABLE_EXECUTE_FUNCS = ["callproc",
+                            "execute",
                             "executemany"]
 _TRACEABLE_FETCH_FUNCS = ["fetchall",
                           "fetchone",
@@ -172,6 +173,9 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                     else:
                         # not using traces on this callback
                         return super_func(*args, **kwargs)
+
+                def callproc(self, *args, **kwargs):
+                    return self._datadog_execute('callproc', *args, **kwargs)
 
                 def execute(self, *args, **kwargs):
                     return self._datadog_execute('execute', *args, **kwargs)
