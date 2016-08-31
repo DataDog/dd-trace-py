@@ -324,7 +324,7 @@ def test_connection_class():
     """
     for cases in CLASSNAME_MATRIX:
         f = check_connection_class
-        setattr(f,"description","Class returned by Connection.__init__() "
+        setattr(f, "description", "Class returned by Connection.__init__() "
                 "when raw=%(raw)s buffered=%(buffered)s" % cases)
         yield f, cases["buffered"], cases["raw"], cases["baseclass_name"]
 
@@ -352,7 +352,7 @@ def test_cursor_class():
     """
     for cases in CLASSNAME_MATRIX:
         f = check_cursor_class
-        setattr(f,"description","Class returned by Connection.cursor() when "
+        setattr(f, "description", "Class returned by Connection.cursor() when "
                 "raw=%(raw)s buffered=%(buffered)s" % cases)
-        yield check_cursor_class, cases["buffered"], \
+        yield f, cases["buffered"], \
             cases["raw"], cases["baseclass_name"]
