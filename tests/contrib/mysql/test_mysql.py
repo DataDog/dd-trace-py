@@ -33,11 +33,11 @@ if missing_modules:
 class MySQLTest(unittest.TestCase):
     SERVICE = 'test-db'
 
-    def setUp(self):
-        True
-
     def tearDown(self):
-        True
+        # FIXME: get rid of jumbo try/finally and
+        # let this tearDown close all connections
+        if hasattr(self, "conn") and self.conn:
+            self.conn.close()
 
     def test_connection(self):
         writer = DummyWriter()
@@ -77,7 +77,6 @@ class MySQLTest(unittest.TestCase):
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'SELECT 1',
-                'sql.db': u'mysql',
                 META_KEY: META_VALUE,
             })
             eq_(span.get_metric('sql.rows'), -1)
@@ -113,7 +112,6 @@ class MySQLTest(unittest.TestCase):
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'SELECT 1',
-                'sql.db': u'mysql',
                 META_KEY: META_VALUE,
             })
             eq_(span.get_metric('sql.rows'), -1)
@@ -129,7 +127,6 @@ class MySQLTest(unittest.TestCase):
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'SELECT 1',
-                'sql.db': u'mysql',
                 META_KEY: META_VALUE,
             })
             eq_(span.get_metric('sql.rows'), 1)
@@ -211,7 +208,6 @@ class MySQLTest(unittest.TestCase):
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'sp_sum',
-                'sql.db': u'mysql',
             })
             eq_(span.get_metric('sql.rows'), 1)
 

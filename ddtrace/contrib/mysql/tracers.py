@@ -65,18 +65,14 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
     class TracedMySQLConnection(connection_baseclass):
         _datadog_tracer = ddtracer
         _datadog_service = service
-        _datadog_meta = meta
+        _datadog_conn_meta = meta
 
         @classmethod
         def set_datadog_meta(cls, meta):
-            cls._datadog_meta = meta
-
-        def set_datadog_traced_funcs(self, traced_funcs):
-            self._datadog_traced_funcs = traced_funcs
+            cls._datadog_conn_meta = meta
 
         def __init__(self, *args, **kwargs):
-            self._datadog_connection_creation = time.time()
-            self.set_datadog_traced_funcs(traced_funcs)
+            self._datadog_traced_funcs = traced_funcs
             super(TracedMySQLConnection, self).__init__(*args, **kwargs)
             self._datadog_tags = {}
             for v in ((net.TARGET_HOST, "host"),
@@ -93,9 +89,9 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
         def cursor(self, buffered=None, raw=None, cursor_class=None):
             db = self
 
-            if "buffered" in db._datadog_cursor_kwargs and db._datadog_cursor_kwargs["buffered"]:
+            if db._datadog_cursor_kwargs.get("buffered"):
                 buffered = True
-            if "raw" in db._datadog_cursor_kwargs and db._datadog_cursor_kwargs["raw"]:
+            if db._datadog_cursor_kwargs.get("raw"):
                 raw = True
             # using MySQLCursor* constructors instead of super cursor
             # method as this one does not give a direct access to the
@@ -117,11 +113,11 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
             class TracedMySQLCursor(cursor_baseclass):
                 _datadog_tracer = ddtracer
                 _datadog_service = service
-                _datadog_meta = meta
+                _datadog_conn_meta = meta
 
                 @classmethod
                 def set_datadog_meta(cls, meta):
-                    cls._datadog_meta = meta
+                    cls._datadog_conn_meta = meta
 
                 def __init__(self, db=None):
                     if db is None:
@@ -157,9 +153,9 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                                 s.span_type = sqlx.TYPE
                                 s.resource = operation
                                 s.set_tag(sqlx.QUERY, operation)
-                                s.set_tag(sqlx.DB, 'mysql')
+                                # dababase name available through db.NAME
                                 s.set_tags(self._datadog_tags)
-                                s.set_tags(self._datadog_meta)
+                                s.set_tags(self._datadog_conn_meta)
                                 result = super_func(*args,**kwargs)
                                 # Note, as stated on
                                 # https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-rowcount.html
@@ -194,9 +190,9 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                                 if hasattr(self,"_datadog_operation"):
                                     s.resource = self._datadog_operation
                                     s.set_tag(sqlx.QUERY, self._datadog_operation)
-                                s.set_tag(sqlx.DB, 'mysql')
+                                # dababase name available through db.NAME
                                 s.set_tags(self._datadog_tags)
-                                s.set_tags(self._datadog_meta)
+                                s.set_tags(self._datadog_conn_meta)
                                 result = super_func(*args, **kwargs)
                                 s.set_metric(sqlx.ROWS, self.rowcount)
                                 return result
