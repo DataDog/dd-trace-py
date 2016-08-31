@@ -312,7 +312,7 @@ def check_connection_class(buffered, raw, baseclass_name):
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     eq_(len(rows), 1)
-    eq_(str(rows[0][0]), "1")
+    eq_(int(rows[0][0]), 1)
 
 def test_connection_class():
     """
@@ -323,8 +323,10 @@ def test_connection_class():
     instanciated.
     """
     for cases in CLASSNAME_MATRIX:
-        yield check_cursor_class, cases["buffered"], \
-            cases["raw"], cases["baseclass_name"]
+        f = check_connection_class
+        setattr(f,"description","Class returned by Connection.__init__() "
+                "when raw=%(raw)s buffered=%(buffered)s" % cases)
+        yield f, cases["buffered"], cases["raw"], cases["baseclass_name"]
 
 def check_cursor_class(buffered, raw, baseclass_name):
     writer = DummyWriter()
@@ -338,7 +340,7 @@ def check_cursor_class(buffered, raw, baseclass_name):
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     eq_(len(rows), 1)
-    eq_(str(rows[0][0]), "1")
+    eq_(int(rows[0][0]), 1)
 
 def test_cursor_class():
     """
@@ -349,5 +351,8 @@ def test_cursor_class():
     right class is instanciated.
     """
     for cases in CLASSNAME_MATRIX:
+        f = check_cursor_class
+        setattr(f,"description","Class returned by Connection.cursor() when "
+                "raw=%(raw)s buffered=%(buffered)s" % cases)
         yield check_cursor_class, cases["buffered"], \
             cases["raw"], cases["baseclass_name"]
