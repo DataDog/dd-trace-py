@@ -79,7 +79,7 @@ def tearDown():
 def test_version():
     """Print client version"""
     # trick to bypass nose output capture -> spawn a subprocess
-    call(["echo", "\nmysql.connection.__version__: %s" % str(connector_version)])
+    call(["echo", "\nmysql.connector.__version__: %s" % str(connector_version)])
 
 def test_connection():
     """Tests that a connection can be opened."""
