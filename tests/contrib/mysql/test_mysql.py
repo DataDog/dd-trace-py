@@ -5,7 +5,11 @@ import unittest
 
 from ddtrace.contrib.mysql import missing_modules
 
-from nose.tools import eq_, assert_greater_equal, assert_is_not_none, assert_true
+from nose.tools import eq_, \
+    assert_dict_contains_subset, \
+    assert_greater_equal, \
+    assert_is_not_none, \
+    assert_true
 
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.mysql import get_traced_mysql_connection
@@ -181,10 +185,14 @@ def test_query_with_several_rows():
     MySQL = get_traced_mysql_connection(tracer, service=SERVICE)
     conn = MySQL(**MYSQL_CONFIG)
     cursor = conn.cursor()
-    cursor.execute("SELECT n FROM "
-                   "(SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m")
+    query = "SELECT n FROM " \
+            "(SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
+    cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 3)
+    spans = writer.pop()
+    for span in spans:
+        assert_dict_contains_subset({'sql.query': query}, span.meta)
 
 def test_query_many():
     """Tests that the executemany method is correctly wrapped."""
@@ -208,7 +216,13 @@ def test_query_many():
     eq_(rows[0][1], "this is bar")
     eq_(rows[1][0], "foo")
     eq_(rows[1][1], "this is foo")
+
     cursor.execute(DROP_TABLE_DUMMY)
+
+    spans = writer.pop()
+    assert_greater_equal(len(spans), 3)
+    span = spans[2]
+    assert_dict_contains_subset({'sql.query': stmt}, span.meta)
 
 def test_query_proc():
     """Tests that callproc works as expected, and generates a correct span."""
@@ -270,8 +284,10 @@ def test_fetch_variants():
     stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
     data = [("%02d" % i, "this is %d" % i) for i in range(NB_FETCH_TOTAL)]
     cursor.executemany(stmt, data)
-    cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
-                   "ORDER BY dummy_key")
+    query = "SELECT dummy_key, dummy_value FROM dummy " \
+            "ORDER BY dummy_key"
+    cursor.execute(query)
+    writer.pop() # flushing traces
 
     rows = cursor.fetchmany(size=NB_FETCH_MANY)
     fetchmany_rowcount_a = cursor.rowcount
@@ -303,10 +319,11 @@ def test_fetch_variants():
 
     eq_(NB_FETCH_TOTAL, fetchmany_nbrows_a + fetchmany_nbrows_b + 2)
 
-    cursor.execute(DROP_TABLE_DUMMY)
-
     spans = writer.pop()
-    assert_greater_equal(len(spans), 6)
+    for span in spans:
+        assert_dict_contains_subset({'sql.query': query}, span.meta)
+
+    cursor.execute(DROP_TABLE_DUMMY)
 
 def check_connection_class(buffered, raw, baseclass_name):
     writer = DummyWriter()
@@ -317,10 +334,14 @@ def check_connection_class(buffered, raw, baseclass_name):
     conn = MySQL(buffered=buffered, raw=raw, **MYSQL_CONFIG)
     cursor = conn.cursor()
     eq_(cursor._datadog_baseclass_name, baseclass_name)
-    cursor.execute("SELECT 1")
+    query = "SELECT 1"
+    cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 1)
     eq_(int(rows[0][0]), 1)
+    spans = writer.pop()
+    for span in spans:
+        assert_dict_contains_subset({'sql.query': query}, span.meta)
 
 def test_connection_class():
     """
@@ -345,10 +366,14 @@ def check_cursor_class(buffered, raw, baseclass_name):
     conn = MySQL(**MYSQL_CONFIG)
     cursor = conn.cursor(buffered=buffered, raw=raw)
     eq_(cursor._datadog_baseclass_name, baseclass_name)
+    query = "SELECT 1"
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     eq_(len(rows), 1)
     eq_(int(rows[0][0]), 1)
+    spans = writer.pop()
+    for span in spans:
+        assert_dict_contains_subset({'sql.query': query}, span.meta)
 
 def test_cursor_class():
     """
