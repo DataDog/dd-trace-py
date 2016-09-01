@@ -3,7 +3,6 @@ tracers exposed publicly
 """
 # stdlib
 import time
-import copy
 
 from mysql.connector.connection import MySQLConnection
 from mysql.connector.cursor import MySQLCursor
@@ -21,15 +20,14 @@ from ...ext import AppTypes
 
 
 DEFAULT_SERVICE = 'mysql'
-_TRACEABLE_EXECUTE_FUNCS = ["callproc",
+_TRACEABLE_EXECUTE_FUNCS = {"callproc",
                             "execute",
-                            "executemany"]
-_TRACEABLE_FETCH_FUNCS = ["fetchall",
+                            "executemany"}
+_TRACEABLE_FETCH_FUNCS = {"fetchall",
                           "fetchone",
                           "fetchmany",
-                          "fetchwarnings"]
-_TRACEABLE_FUNCS = copy.deepcopy(_TRACEABLE_EXECUTE_FUNCS)
-_TRACEABLE_FUNCS.extend(_TRACEABLE_FETCH_FUNCS)
+                          "fetchwarnings"}
+_TRACEABLE_FUNCS = _TRACEABLE_EXECUTE_FUNCS.union(_TRACEABLE_FETCH_FUNCS)
 
 def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None, trace_fetch=False):
     """Return a class which can be used to instanciante MySQL connections.
