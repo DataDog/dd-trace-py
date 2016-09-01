@@ -13,6 +13,9 @@ from ddtrace.contrib.mysql import get_traced_mysql_connection
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
+from mysql.connector import __version__ as connector_version
+from subprocess import call
+
 META_KEY = "this.is"
 META_VALUE = "A simple test value"
 CREATE_TABLE_DUMMY = "CREATE TABLE IF NOT EXISTS dummy " \
@@ -72,6 +75,11 @@ def tearDown():
     # let this tearDown close all connections
     if conn and conn.is_connected():
         conn.close()
+
+def test_version():
+    """Print client version"""
+    # trick to bypass nose output capture -> spawn a subprocess
+    call(["echo", "\nmysql.connection.__version__: %s" % str(connector_version)])
 
 def test_connection():
     """Tests that a connection can be opened."""
