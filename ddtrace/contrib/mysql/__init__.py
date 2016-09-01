@@ -11,6 +11,8 @@ MySQL connection classes which will trace API calls. For basic usage::
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
 
+This package works for mysql.connector version 2.1.x.
+
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
 """
