@@ -138,6 +138,7 @@ def _get_traced_mysql_connection(ddtracer, connection_baseclass, service, meta, 
                 # on the version of mysql.connector
                 def _datadog_execute(self, dd_func_name, *args, **kwargs):
                     super_func = getattr(super(TracedMySQLCursor, self),dd_func_name)
+                    operation = ""
                     if len(args) >= 1:
                         operation = args[0]
                     if "operation" in kwargs:

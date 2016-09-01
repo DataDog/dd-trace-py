@@ -18,7 +18,7 @@ from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
 from mysql.connector import __version__ as connector_version
-from subprocess import call
+from subprocess import check_call
 
 META_KEY = "this.is"
 META_VALUE = "A simple test value"
@@ -83,7 +83,7 @@ def tearDown():
 def test_version():
     """Print client version"""
     # trick to bypass nose output capture -> spawn a subprocess
-    call(["echo", "\nmysql.connector.__version__: %s" % str(connector_version)])
+    check_call(["echo", "\nmysql.connector.__version__: %s" % str(connector_version)])
 
 def test_connection():
     """Tests that a connection can be opened."""
@@ -190,7 +190,9 @@ def test_query_with_several_rows():
     cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 3)
+
     spans = writer.pop()
+    assert_greater_equal(len(spans), 1)
     for span in spans:
         assert_dict_contains_subset({'sql.query': query}, span.meta)
 
@@ -204,12 +206,14 @@ def test_query_many():
     conn = MySQL(**MYSQL_CONFIG)
     cursor = conn.cursor()
     cursor.execute(CREATE_TABLE_DUMMY)
+
     stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
     data = [("foo","this is foo"),
             ("bar","this is bar")]
     cursor.executemany(stmt, data)
-    cursor.execute("SELECT dummy_key, dummy_value FROM dummy "
-                   "ORDER BY dummy_key")
+    query = "SELECT dummy_key, dummy_value FROM dummy " \
+            "ORDER BY dummy_key"
+    cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 2)
     eq_(rows[0][0], "bar")
@@ -217,12 +221,12 @@ def test_query_many():
     eq_(rows[1][0], "foo")
     eq_(rows[1][1], "this is foo")
 
-    cursor.execute(DROP_TABLE_DUMMY)
-
     spans = writer.pop()
-    assert_greater_equal(len(spans), 3)
-    span = spans[2]
-    assert_dict_contains_subset({'sql.query': stmt}, span.meta)
+    assert_greater_equal(len(spans), 2)
+    span = spans[-1]
+    assert_dict_contains_subset({'sql.query': query}, span.meta)
+
+    cursor.execute(DROP_TABLE_DUMMY)
 
 def test_query_proc():
     """Tests that callproc works as expected, and generates a correct span."""
@@ -287,7 +291,6 @@ def test_fetch_variants():
     query = "SELECT dummy_key, dummy_value FROM dummy " \
             "ORDER BY dummy_key"
     cursor.execute(query)
-    writer.pop() # flushing traces
 
     rows = cursor.fetchmany(size=NB_FETCH_MANY)
     fetchmany_rowcount_a = cursor.rowcount
@@ -320,8 +323,9 @@ def test_fetch_variants():
     eq_(NB_FETCH_TOTAL, fetchmany_nbrows_a + fetchmany_nbrows_b + 2)
 
     spans = writer.pop()
-    for span in spans:
-        assert_dict_contains_subset({'sql.query': query}, span.meta)
+    assert_greater_equal(len(spans), 1)
+    span = spans[-1]
+    assert_dict_contains_subset({'sql.query': query}, span.meta)
 
     cursor.execute(DROP_TABLE_DUMMY)
 
@@ -339,7 +343,9 @@ def check_connection_class(buffered, raw, baseclass_name):
     rows = cursor.fetchall()
     eq_(len(rows), 1)
     eq_(int(rows[0][0]), 1)
+
     spans = writer.pop()
+    assert_greater_equal(len(spans), 1)
     for span in spans:
         assert_dict_contains_subset({'sql.query': query}, span.meta)
 
@@ -371,7 +377,9 @@ def check_cursor_class(buffered, raw, baseclass_name):
     rows = cursor.fetchall()
     eq_(len(rows), 1)
     eq_(int(rows[0][0]), 1)
+
     spans = writer.pop()
+    assert_greater_equal(len(spans), 1)
     for span in spans:
         assert_dict_contains_subset({'sql.query': query}, span.meta)
 
