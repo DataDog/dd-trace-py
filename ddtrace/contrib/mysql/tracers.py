@@ -38,7 +38,7 @@ def get_traced_mysql_connection(ddtracer, service=DEFAULT_SERVICE, meta=None, tr
     meta -- your custom meta data
     trace_fetch -- set to True if you want fetchall, fetchone,
         fetchmany and fetchwarnings to be traced. By default
-        only execute and executemany are traced.
+        only execute, executemany and callproc are traced.
     """
     if trace_fetch:
         traced_funcs = _TRACEABLE_FUNCS
