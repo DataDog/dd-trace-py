@@ -25,6 +25,14 @@ POSTGRES_CONFIG = {
     'dbname' : os.getenv("TEST_POSTGRES_DB", "postgres"),
 }
 
+MYSQL_CONFIG = {
+    'host' : '127.0.0.1',
+    'port' : int(os.getenv("TEST_MYSQL_PORT", 53306)),
+    'user' : os.getenv("TEST_MYSQL_USER", 'test'),
+    'password' : os.getenv("TEST_MYSQL_PASSWORD", 'test'),
+    'database' : os.getenv("TEST_MYSQL_DATABASE", 'test'),
+}
+
 REDIS_CONFIG = {
     'port': int(os.getenv("TEST_REDIS_PORT", 56379)),
 }

@@ -6,6 +6,7 @@ Tracing utilities for the psycopg potgres client library.
 import functools
 import logging
 
+from ...ext import db
 from ...ext import net
 from ...ext import sql as sqlx
 from ...ext import AppTypes
@@ -19,7 +20,7 @@ log = logging.getLogger(__name__)
 
 def connection_factory(tracer, service="postgres"):
     """ Return a connection factory class that will can be used to trace
-        sqlite queries.
+        postgres queries.
 
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = pyscopg2.connect(..., connection_factory=factory)
@@ -84,8 +85,8 @@ class TracedConnection(connection):
         self._datadog_tags = {
             net.TARGET_HOST: dsn.get("host"),
             net.TARGET_PORT: dsn.get("port"),
-            "db.name": dsn.get("dbname"),
-            "db.user": dsn.get("user"),
+            db.NAME: dsn.get("dbname"),
+            db.USER: dsn.get("user"),
             "db.application" : dsn.get("application_name"),
         }
 
