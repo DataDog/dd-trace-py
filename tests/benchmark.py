@@ -72,7 +72,6 @@ def benchmark_tracer_wrap_with_classname():
     print("- method execution time: {:8.6f}".format(min(result)))
 
 
-# Run it with `python -m tests.benchmark`
 if __name__ == '__main__':
     benchmark_tracer_wrap_with_classname()
     run()
