@@ -1,11 +1,12 @@
-import functools
 import logging
 import threading
+import wrapt
 
 from .buffer import ThreadLocalSpanBuffer
 from .sampler import AllSampler
 from .span import Span
 from .writer import AgentWriter
+from .util import get_wrapper_class_name
 
 
 log = logging.getLogger(__name__)
@@ -182,7 +183,8 @@ class Tracer(object):
                 service, app, app_type)
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
-        """A decorator used to trace an entire function.
+        """
+        A decorator used to trace an entire function.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
@@ -207,15 +209,18 @@ class Tracer(object):
                 span.set_tag('a', 'b')
         """
 
-        def wrap_decorator(f):
+        @wrapt.decorator
+        def func_wrapper(wrapped, instance, args, kwargs):
+            if name:
+                # use defined span_name
+                span_name = name
+            else:
+                # get the class name and use it for a pretty print name
+                class_name = get_wrapper_class_name(wrapped, instance)
+                names_order = [wrapped.__module__, class_name, wrapped.__name__]
+                span_name = ".".join(filter(None, names_order))
 
-            # FIXME[matt] include the class name for methods.
-            span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
-
-            @functools.wraps(f)
-            def func_wrapper(*args, **kwargs):
-                with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                    return f(*args, **kwargs)
-            return func_wrapper
-
-        return wrap_decorator
+            # start the tracing
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                return wrapped(*args, **kwargs)
+        return func_wrapper
