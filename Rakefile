@@ -4,6 +4,7 @@ task :test do
   sh "docker-compose up -d"
   sh "tox"
   sh "docker-compose kill"
+  sh "python -m tests.benchmark"
 end
 
 desc "Run tests with envs matching the given pattern."
