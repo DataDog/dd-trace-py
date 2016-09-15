@@ -1,10 +1,18 @@
-from ddtrace import __version__
+import os
+import sys
+import re
 
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
-import os
-import sys
+
+def get_version(package):
+    """
+    Return package version as listed in `__version__` in `__init__.py`.
+    This method prevents to import packages at setup-time.
+    """
+    init_py = open(os.path.join(package, '__init__.py')).read()
+    return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
 
 class Tox(TestCommand):
@@ -31,7 +39,7 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
-version = __version__
+version = get_version('ddtrace')
 # Append a suffix to the version for dev builds
 if os.environ.get('VERSION_SUFFIX'):
     version = '{v}+{s}'.format(
@@ -55,4 +63,3 @@ setup(
     tests_require=['tox', 'flake8'],
     cmdclass={'test': Tox},
 )
-
