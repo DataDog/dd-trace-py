@@ -1,9 +1,11 @@
-
 desc "Starts all backing services and run all tests"
 task :test do
-  sh "docker-compose up -d"
-  sh "tox"
-  sh "docker-compose kill"
+  sh "docker-compose up -d | cat"
+  begin
+    sh "tox"
+  ensure
+    sh "docker-compose kill"
+  end
   sh "python -m tests.benchmark"
 end
 
@@ -59,13 +61,11 @@ task :'release:wheel' do
   sh "mkwheelhouse s3://#{S3_BUCKET}/#{S3_DIR}/ ."
 end
 
-
 desc "release the docs website"
 task :'release:docs' => :docs do
   fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
   sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
 end
-
 
 namespace :version do
 
@@ -123,5 +123,3 @@ namespace :version do
   end
 
 end
-
-
