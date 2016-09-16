@@ -9,6 +9,7 @@ from wrapt import ObjectProxy
 # project
 from ddtrace.ext import AppTypes
 from ddtrace.ext import net
+from .addrs import parse_addresses
 
 
 log = logging.getLogger(__name__)
@@ -27,10 +28,8 @@ class TracedClient(ObjectProxy):
         self._tracer = tracer
 
         # attempt to collect the pool of urls this client talks to
-        self._addresses = []
         try:
-            from pylibmc.client import translate_server_specs
-            self._addresses = translate_server_specs(client.addresses)
+            self._addresses = parse_addresses(client.addresses)
         except Exception:
             log.exception("error setting addresses")
 
@@ -115,6 +114,5 @@ class TracedClient(ObjectProxy):
             _, host, port, _ = random.choice(self._addresses)
             span.set_meta(net.TARGET_HOST, host)
             span.set_meta(net.TARGET_PORT, port)
-
 
 
