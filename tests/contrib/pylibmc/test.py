@@ -31,7 +31,7 @@ class TestPylibmc(object):
         client.set("a", "crow")
         client.prepend("a", "holy ")
         client.append("a", "!")
-        assert client.get("a") == "holy crow!"
+        eq_(client.get("a"), "holy crow!")
         end = time.time()
         # verify spans
         spans = tracer.writer.pop()
