@@ -42,5 +42,6 @@ MONGO_CONFIG = {
 }
 
 MEMCACHED_CONFIG = {
+    'host' : os.getenv('TEST_MEMCACHED_HOST', '127.0.0.1'),
     'port': int(os.getenv("TEST_MEMCACHED_PORT", 51211)),
 }
