@@ -1,2 +1,4 @@
 
-from .client import TracedClient
+from .client import TracedClient # flake8: noqa
+
+
