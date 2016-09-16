@@ -241,6 +241,7 @@ class Span(object):
     def pprint(self):
         """ Return a human readable version of the span. """
         lines = [
+            ('name', self.name),
             ("id", self.span_id),
             ("trace_id", self.trace_id),
             ("parent_id", self.parent_id),
