@@ -30,6 +30,7 @@ def check_postgres():
 
     @try_until_timeout(OperationalError)
     def _ping():
+        print('checking postgres')
         conn = connect(**POSTGRES_CONFIG)
         try:
             conn.cursor().execute("SELECT 1;")
@@ -48,6 +49,7 @@ def check_cassandra():
     # wait for cassandra connection
     @try_until_timeout(NoHostAvailable)
     def _ping():
+        print('checking cassandra')
         with Cluster(**CASSANDRA_CONFIG).connect() as conn:
             conn.execute("SELECT now() FROM system.local")
 
