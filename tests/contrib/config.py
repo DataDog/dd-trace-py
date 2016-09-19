@@ -14,7 +14,7 @@ ELASTICSEARCH_CONFIG = {
 }
 
 CASSANDRA_CONFIG = {
-    'port': int(os.getenv("TEST_CASSANDRA_PORT", 9042)),
+    'port': int(os.getenv("TEST_CASSANDRA_PORT", 59042)),
 }
 
 POSTGRES_CONFIG = {
