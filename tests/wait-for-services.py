@@ -1,9 +1,5 @@
 import sys
 import time
-import logging
-
-logging.basicConfig()
-log = logging.getLogger()
 
 from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG
 
@@ -14,12 +10,14 @@ def try_until_timeout(exception):
     """
     def wrap(fn):
         def wrapper(*args, **kwargs):
-            for attempt in range(100):
+            for i in range(100):
                 try:
                     fn()
                 except exception:
-                    log.exception("A")
-                    time.sleep(0.1)
+                    if i % 20 == 0:
+                        import traceback
+                        print(traceback.format_exc())
+                    time.sleep(0.2)
                 else:
                     break;
             else:
@@ -35,7 +33,6 @@ def check_postgres():
 
     @try_until_timeout(OperationalError)
     def _ping():
-        print('checking postgres')
         conn = connect(**POSTGRES_CONFIG)
         try:
             conn.cursor().execute("SELECT 1;")
@@ -51,10 +48,11 @@ def check_cassandra():
     except ImportError:
         return False
 
+    print('checking cass')
+
     # wait for cassandra connection
     @try_until_timeout(NoHostAvailable)
     def _ping():
-        print('checking cassandra')
         with Cluster(**CASSANDRA_CONFIG).connect() as conn:
             conn.execute("SELECT now() FROM system.local")
 
