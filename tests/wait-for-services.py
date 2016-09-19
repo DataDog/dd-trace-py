@@ -1,5 +1,6 @@
 import sys
 import time
+import traceback
 
 from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG
 
@@ -15,7 +16,6 @@ def try_until_timeout(exception):
                     fn()
                 except exception:
                     if i % 20 == 0:
-                        import traceback
                         print(traceback.format_exc())
                     time.sleep(0.2)
                 else:
