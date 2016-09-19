@@ -100,10 +100,29 @@ class TestPylibmc(object):
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
+    def test_get_set_multi_prefix(self):
+        client, tracer = _setup()
+        # test
+        start = time.time()
+        client.set_multi({"a":1, "b":2}, key_prefix='foo')
+        out = client.get_multi(["a", "c"], key_prefix='foo')
+        eq_(out, {"a":1})
+        client.delete_multi(["a", "c"], key_prefix='foo')
+        end = time.time()
+        # verify
+        spans = tracer.writer.pop()
+        for s in spans:
+            _verify_cache_span(s, start, end)
+            eq_(s.get_tag("memcached.query"), "%s foo" % s.resource,)
+        expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
+        resources = sorted(s.resource for s in spans)
+        eq_(expected_resources, resources)
+
+
     def test_get_set_delete(self):
         client, tracer = _setup()
         # test
-        k = "key-foo"
+        k = u'cafe'
         v = "val-foo"
         start = time.time()
         client.delete(k) # just in case
@@ -117,9 +136,11 @@ class TestPylibmc(object):
         spans = tracer.writer.pop()
         for s in spans:
             _verify_cache_span(s, start, end)
+            eq_(s.get_tag("memcached.query"), "%s %s" % (s.resource, k))
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
+
 
 def _verify_cache_span(s, start, end):
     assert s.start > start
@@ -139,5 +160,5 @@ def _setup():
     tracer = Tracer()
     tracer.writer = DummyWriter()
 
-    client = TracedClient(raw_client, tracer, TEST_SERVICE)
+    client = TracedClient(raw_client, tracer=tracer, service=TEST_SERVICE)
     return client, tracer

@@ -7,7 +7,8 @@ import random
 from wrapt import ObjectProxy
 
 # project
-from ddtrace.ext import AppTypes
+import ddtrace
+from ddtrace.ext import memcached
 from ddtrace.ext import net
 from .addrs import parse_addresses
 
@@ -21,11 +22,11 @@ class TracedClient(ObjectProxy):
     _service = None
     _tracer = None
 
-    def __init__(self, client, tracer, service="memcached"):
+    def __init__(self, client, service=memcached.SERVICE, tracer=None):
         """ Create a traced client that wraps the given memcached client. """
         super(TracedClient, self).__init__(client)
         self._service = service
-        self._tracer = tracer
+        self._tracer = tracer or ddtrace.tracer  # default to the global client
 
         # attempt to collect the pool of urls this client talks to
         try:
@@ -37,59 +38,76 @@ class TracedClient(ObjectProxy):
         try:
             self._tracer.set_service_info(
                 service=service,
-                app="memcached",
-                app_type=AppTypes.cache)
+                app=memcached.SERVICE,
+                app_type=memcached.TYPE)
         except Exception:
             log.exception("error setting service info")
 
     def clone(self, *args, **kwargs):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
-        return TracedClient(cloned, self._tracer, self._service)
+        return TracedClient(cloned, tracer=self._tracer, service=self._service)
 
     def get(self, *args, **kwargs):
-        return self._trace("get", *args, **kwargs)
-
-    def get_multi(self, *args, **kwargs):
-        return self._trace("get_multi", *args, **kwargs)
-
-    def set_multi(self, *args, **kwargs):
-        return self._trace("set_multi", *args, **kwargs)
-
-    def delete_multi(self, *args, **kwargs):
-        self._trace("delete_multi", *args, **kwargs)
+        return self._trace_cmd("get", *args, **kwargs)
 
     def set(self, *args, **kwargs):
-        return self._trace("set", *args, **kwargs)
+        return self._trace_cmd("set", *args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        return self._trace("delete", *args, **kwargs)
+        return self._trace_cmd("delete", *args, **kwargs)
 
     def gets(self, *args, **kwargs):
-        return self._trace("gets", *args, **kwargs)
+        return self._trace_cmd("gets", *args, **kwargs)
 
     def touch(self, *args, **kwargs):
-        return self._trace("touch", *args, **kwargs)
+        return self._trace_cmd("touch", *args, **kwargs)
 
     def cas(self, *args, **kwargs):
-        return self._trace("cas", *args, **kwargs)
+        return self._trace_cmd("cas", *args, **kwargs)
 
     def incr(self, *args, **kwargs):
-        return self._trace("incr", *args, **kwargs)
+        return self._trace_cmd("incr", *args, **kwargs)
 
     def decr(self, *args, **kwargs):
-        return self._trace("decr", *args, **kwargs)
+        return self._trace_cmd("decr", *args, **kwargs)
 
     def append(self, *args, **kwargs):
-        return self._trace("append", *args, **kwargs)
+        return self._trace_cmd("append", *args, **kwargs)
 
     def prepend(self, *args, **kwargs):
-        return self._trace("prepend", *args, **kwargs)
+        return self._trace_cmd("prepend", *args, **kwargs)
 
-    def _trace(self, method_name, *args, **kwargs):
-        """ trace the execution of the method with the given name. """
+    def get_multi(self, *args, **kwargs):
+        return self._trace_multi_cmd("get_multi", *args, **kwargs)
+
+    def set_multi(self, *args, **kwargs):
+        return self._trace_multi_cmd("set_multi", *args, **kwargs)
+
+    def delete_multi(self, *args, **kwargs):
+        return self._trace_multi_cmd("delete_multi", *args, **kwargs)
+
+    def _trace_cmd(self, method_name, *args, **kwargs):
+        """ trace the execution of the method with the given name and will
+            patch the first arg.
+        """
         method = getattr(self.__wrapped__, method_name)
-        with self._span(method_name):
+        with self._span(method_name) as span:
+
+            if args:
+                span.set_tag(memcached.QUERY, "%s %s" % (method_name, args[0]))
+
+            return method(*args, **kwargs)
+
+    def _trace_multi_cmd(self, method_name, *args, **kwargs):
+        """ trace the execution of the multi command with the given name. """
+        method = getattr(self.__wrapped__, method_name)
+        with self._span(method_name) as span:
+
+            pre = kwargs.get('key_prefix')
+            if pre:
+                span.set_tag(memcached.QUERY, "%s %s" % (method_name, pre))
+
             return method(*args, **kwargs)
 
     def _span(self, cmd_name):
@@ -104,8 +122,8 @@ class TracedClient(ObjectProxy):
             self._tag_span(span)
         except Exception:
             log.exception("error tagging span")
-        finally:
-            return span
+
+        return span
 
     def _tag_span(self, span):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually

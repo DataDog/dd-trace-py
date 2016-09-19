@@ -228,4 +228,5 @@ class FlaskCacheWrapperTest(unittest.TestCase):
         eq_(span.meta[net.TARGET_HOST], 'localhost')
         eq_(span.meta[net.TARGET_PORT], '22230')
 
-        # pylibmc raises an exception, memcached doesn't, so don't test that.
+        # the pylibmc backend raises an exception and memcached backend does
+        # not, so don't test anything about the status.

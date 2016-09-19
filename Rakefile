@@ -33,6 +33,7 @@ end
 
 desc "build the docs"
 task :docs do
+  sh "pip install sphinx"
   Dir.chdir 'docs' do
     sh "make html"
   end
