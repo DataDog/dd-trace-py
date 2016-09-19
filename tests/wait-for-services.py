@@ -1,5 +1,9 @@
 import sys
 import time
+import logging
+
+logging.basicConfig()
+log = logging.getLogger()
 
 from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG
 
@@ -14,7 +18,8 @@ def try_until_timeout(exception):
                 try:
                     fn()
                 except exception:
-                    time.sleep(0.2)
+                    log.exception("A")
+                    time.sleep(0.1)
                 else:
                     break;
             else:
