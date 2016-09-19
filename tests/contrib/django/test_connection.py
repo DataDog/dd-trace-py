@@ -2,7 +2,6 @@ import time
 
 # 3rd party
 from nose.tools import eq_
-from django.db import connections
 from django.test import TransactionTestCase
 from django.contrib.auth.models import User
 
@@ -11,6 +10,7 @@ from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.db import patch_db
 
 # testing
+from .utils import unpatch_connection
 from ...test_tracer import DummyWriter
 
 
@@ -27,9 +27,7 @@ class DjangoConnectionTest(TransactionTestCase):
 
     def tearDown(self):
         # unpatch the database connection
-        for conn in connections.all():
-            conn.cursor = conn._datadog_original_cursor
-            del conn._datadog_original_cursor
+        unpatch_connection()
 
     def test_connection(self):
         # trace a simple query

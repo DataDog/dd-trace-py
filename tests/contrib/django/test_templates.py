@@ -10,6 +10,7 @@ from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.templates import patch_template
 
 # testing
+from .utils import unpatch_template
 from ...test_tracer import DummyWriter
 
 
@@ -26,8 +27,7 @@ class TraceTemplateTest(SimpleTestCase):
 
     def tearDown(self):
         # unpatch the template system
-        Template.render = Template._datadog_original_render
-        del Template._datadog_original_render
+        unpatch_template()
 
     def test_template(self):
         # prepare a base template using the default engine
