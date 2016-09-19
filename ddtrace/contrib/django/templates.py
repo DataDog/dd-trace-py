@@ -36,7 +36,7 @@ def patch_template(tracer):
             try:
                 return Template._datadog_original_render(self, context)
             finally:
-                template_name = self.name or context.template_name or 'unknown'
+                template_name = self.name or getattr(context, 'template_name', None) or 'unknown'
                 span.resource = template_name
                 span.set_tag('django.template_name', template_name)
 
