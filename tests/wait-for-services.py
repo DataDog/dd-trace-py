@@ -17,7 +17,7 @@ def try_until_timeout(exception):
                 except exception:
                     if i % 20 == 0:
                         print(traceback.format_exc())
-                    time.sleep(0.2)
+                    time.sleep(0.25)
                 else:
                     break;
             else:
