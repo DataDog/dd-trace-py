@@ -146,6 +146,11 @@ Postgres
 
 .. automodule:: ddtrace.contrib.psycopg
 
+Pylibmc
+~~~~~~~~
+
+.. automodule:: ddtrace.contrib.pylibmc
+
 Redis
 ~~~~~
 

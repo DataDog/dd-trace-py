@@ -7,6 +7,7 @@ import random
 from wrapt import ObjectProxy
 
 # project
+import ddtrace
 from ddtrace.ext import AppTypes
 from ddtrace.ext import net
 from .addrs import parse_addresses
@@ -21,11 +22,11 @@ class TracedClient(ObjectProxy):
     _service = None
     _tracer = None
 
-    def __init__(self, client, tracer, service="memcached"):
+    def __init__(self, client, service="memcached", tracer=None):
         """ Create a traced client that wraps the given memcached client. """
         super(TracedClient, self).__init__(client)
         self._service = service
-        self._tracer = tracer
+        self._tracer = tracer or ddtrace.tracer  # default to the global client
 
         # attempt to collect the pool of urls this client talks to
         try:
@@ -45,7 +46,7 @@ class TracedClient(ObjectProxy):
     def clone(self, *args, **kwargs):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
-        return TracedClient(cloned, self._tracer, self._service)
+        return TracedClient(cloned, tracer=self._tracer, service=self._service)
 
     def get(self, *args, **kwargs):
         return self._trace("get", *args, **kwargs)

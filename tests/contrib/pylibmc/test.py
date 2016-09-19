@@ -139,5 +139,5 @@ def _setup():
     tracer = Tracer()
     tracer.writer = DummyWriter()
 
-    client = TracedClient(raw_client, tracer, TEST_SERVICE)
+    client = TracedClient(raw_client, tracer=tracer, service=TEST_SERVICE)
     return client, tracer
