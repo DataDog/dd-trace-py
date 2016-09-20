@@ -1,35 +1,24 @@
 # 3rd party
 from nose.tools import eq_
 
-from django.test import TestCase, override_settings
-from django.conf import settings
+from django.test import TestCase
 from django.core.urlresolvers import reverse
 
 # project
-from ddtrace.tracer import Tracer
+from ddtrace.contrib.django.settings import settings
 from ddtrace.contrib.django import TraceMiddleware
 
 # testing
 from .utils import unpatch_connection, unpatch_template
-from ...test_tracer import DummyWriter
 
 
-# testing tracer
-test_tracer = Tracer()
-test_tracer.writer = DummyWriter()
-
-
-@override_settings(
-    MIDDLEWARE_CLASSES=['ddtrace.contrib.django.TraceMiddleware'] + settings.MIDDLEWARE_CLASSES,
-    DATADOG_TRACER='tests.contrib.django.test_middleware.test_tracer',
-)
 class TraceMiddlewareTest(TestCase):
     """
     Ensures that the middleware traces all Django internals
     """
     def setUp(self):
         # expose the right tracer to all tests
-        self.tracer = test_tracer
+        self.tracer = settings.DEFAULT_TRACER
         self.tracer.writer.spans = []
 
     @classmethod

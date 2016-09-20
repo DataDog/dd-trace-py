@@ -14,13 +14,18 @@ from __future__ import unicode_literals
 
 import importlib
 
+from django.conf import settings as django_settings
+
 from django.test.signals import setting_changed
 from django.utils import six
 
 
+USER_SETTINGS = getattr(django_settings, 'DATADOG_APM', None)
+
 # List of available settings with their defaults
 DEFAULTS = {
     'DEFAULT_TRACER': 'ddtrace.tracer',
+    'DEFAULT_SERVICE': 'django',
 }
 
 # List of settings that may be in string import notation.
@@ -100,7 +105,7 @@ class DatadogSettings(object):
         return user_settings
 
 
-settings = DatadogSettings(None, DEFAULTS, IMPORT_STRINGS)
+settings = DatadogSettings(USER_SETTINGS, DEFAULTS, IMPORT_STRINGS)
 
 
 def reload_settings(*args, **kwargs):

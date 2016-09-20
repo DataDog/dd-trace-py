@@ -1,5 +1,17 @@
+# 3rd party
 from django.db import connections
 from django.template import Template
+
+# project
+from ddtrace.tracer import Tracer
+
+# testing
+from ...test_tracer import DummyWriter
+
+
+# testing tracer
+tracer = Tracer()
+tracer.writer = DummyWriter()
 
 
 def unpatch_template():

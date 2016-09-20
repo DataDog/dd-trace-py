@@ -41,6 +41,9 @@ TEMPLATES = [
 ]
 
 MIDDLEWARE_CLASSES = [
+    # tracer middleware
+    'ddtrace.contrib.django.TraceMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -57,3 +60,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
 ]
+
+DATADOG_APM = {
+    # tracer with a DummyWriter
+    'DEFAULT_TRACER': 'tests.contrib.django.utils.tracer',
+}
