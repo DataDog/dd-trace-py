@@ -57,3 +57,16 @@ class TraceMiddlewareTest(TestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
+
+    def test_middleware_trace_errors(self):
+        # ensures that the internals are properly traced
+        url = reverse('forbidden-view')
+        response = self.client.get(url)
+        eq_(response.status_code, 403)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.get_tag('http.status_code'), '403')
+        eq_(span.get_tag('http.url'), '/fail-view/')
