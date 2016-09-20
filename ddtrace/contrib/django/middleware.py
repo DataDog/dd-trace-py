@@ -18,6 +18,8 @@ log = logging.getLogger(__name__)
 
 class TraceMiddleware(object):
     def __init__(self):
+        # TODO[manu]: maybe we can formalize better DJANGO_SETTINGS_* stuff
+        # providing defaults or raise ImproperlyConfigured errors
         tracer_import = getattr(settings, 'DATADOG_TRACER', 'ddtrace.tracer')
         self.tracer = import_from_string(tracer_import, 'DATADOG_TRACER')
         self.service = getattr(settings, 'DATADOG_SERVICE', 'django')
@@ -29,6 +31,9 @@ class TraceMiddleware(object):
         )
 
         try:
+            # TODO[manu]: maybe it's better to provide a Django app that
+            # will patch everything once instead of trying that for
+            # each request (in the case of patch_db)?
             patch_template(self.tracer)
         except Exception:
             log.exception("error patching template class")
