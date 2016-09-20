@@ -1,4 +1,35 @@
+"""
+Settings for Datadog tracer are all namespaced in the DATADOG_APM setting.
+For example your project's `settings.py` file might look like this:
+
+DATADOG_APM = {
+    'DEFAULT_TRACER': 'myapp.tracer',
+}
+
+This module provides the `setting` object, that is used to access
+Datadog settings, checking for user settings first, then falling
+back to the defaults.
+"""
+from __future__ import unicode_literals
+
 import importlib
+
+from django.test.signals import setting_changed
+from django.utils import six
+
+
+# List of available settings with their defaults
+DEFAULTS = {
+    'DEFAULT_TRACER': 'ddtrace.tracer',
+}
+
+# List of settings that may be in string import notation.
+IMPORT_STRINGS = (
+    'DEFAULT_TRACER',
+)
+
+# List of settings that have been removed
+REMOVED_SETTINGS = ()
 
 
 def import_from_string(val, setting_name):
@@ -18,3 +49,68 @@ def import_from_string(val, setting_name):
         )
 
         raise ImportError(msg)
+
+
+class DatadogSettings(object):
+    """
+    A settings object, that allows Datadog settings to be accessed as properties.
+    For example:
+
+        # TODO
+
+    Any setting with string import paths will be automatically resolved
+    and return the class, rather than the string literal.
+    """
+    def __init__(self, user_settings=None, defaults=None, import_strings=None):
+        if user_settings:
+            self._user_settings = self.__check_user_settings(user_settings)
+        self.defaults = defaults or DEFAULTS
+        self.import_strings = import_strings or IMPORT_STRINGS
+
+    @property
+    def user_settings(self):
+        if not hasattr(self, '_user_settings'):
+            self._user_settings = getattr(settings, 'DATADOG_APM', {})
+        return self._user_settings
+
+    def __getattr__(self, attr):
+        if attr not in self.defaults:
+            raise AttributeError("Invalid setting: '%s'" % attr)
+
+        try:
+            # Check if present in user settings
+            val = self.user_settings[attr]
+        except KeyError:
+            # Otherwise, fall back to defaults
+            val = self.defaults[attr]
+
+        # Coerce import strings into classes
+        if attr in self.import_strings:
+            val = import_from_string(val, attr)
+
+        # Cache the result
+        setattr(self, attr, val)
+        return val
+
+    def __check_user_settings(self, user_settings):
+        SETTINGS_DOC = 'http://pypi.datadoghq.com/trace-dev/docs/#module-ddtrace.contrib.django'
+        for setting in REMOVED_SETTINGS:
+            if setting in user_settings:
+                raise RuntimeError("The '%s' setting has been removed. Please refer to '%s' for available settings." % (setting, SETTINGS_DOC))
+        return user_settings
+
+
+settings = DatadogSettings(None, DEFAULTS, IMPORT_STRINGS)
+
+
+def reload_settings(*args, **kwargs):
+    """
+    Triggers a reload when Django emits the reloading signal
+    """
+    global settings
+    setting, value = kwargs['setting'], kwargs['value']
+    if setting == 'DATADOG_APM':
+        settings = DatadogSettings(value, DEFAULTS, IMPORT_STRINGS)
+
+
+setting_changed.connect(reload_settings)
