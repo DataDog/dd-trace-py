@@ -17,7 +17,6 @@ import importlib
 from django.conf import settings as django_settings
 
 from django.test.signals import setting_changed
-from django.utils import six
 
 
 USER_SETTINGS = getattr(django_settings, 'DATADOG_APM', None)
@@ -48,7 +47,7 @@ def import_from_string(val, setting_name):
         module = importlib.import_module(module_path)
         return getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        msg = "Could not import '{}' for setting '{}'. {}: {}.".format(
+        msg = 'Could not import "{}" for setting "{}". {}: {}.'.format(
                 val, setting_name,
                 e.__class__.__name__, e
         )
@@ -80,7 +79,7 @@ class DatadogSettings(object):
 
     def __getattr__(self, attr):
         if attr not in self.defaults:
-            raise AttributeError("Invalid setting: '%s'" % attr)
+            raise AttributeError('Invalid setting: "{}"'.format(attr))
 
         try:
             # Check if present in user settings
@@ -101,7 +100,9 @@ class DatadogSettings(object):
         SETTINGS_DOC = 'http://pypi.datadoghq.com/trace-dev/docs/#module-ddtrace.contrib.django'
         for setting in REMOVED_SETTINGS:
             if setting in user_settings:
-                raise RuntimeError("The '%s' setting has been removed. Please refer to '%s' for available settings." % (setting, SETTINGS_DOC))
+                raise RuntimeError(
+                    'The "{}" setting has been removed, check "{}".'.format(setting, SETTINGS_DOC)
+                )
         return user_settings
 
 

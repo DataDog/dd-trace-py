@@ -20,7 +20,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'app.views'
+ROOT_URLCONF = 'tests.contrib.django.app.views'
 
 TEMPLATES = [
     {
@@ -59,6 +59,9 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+
+    # tracer app
+    'ddtrace.contrib.django',
 ]
 
 DATADOG_APM = {

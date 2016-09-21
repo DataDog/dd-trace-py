@@ -15,8 +15,8 @@ application's installed in middleware in settings.py::
     DATADOG_SERVICE = 'my-app'
 
 """
-
 from ..util import require_modules
+
 
 required_modules = ['django']
 
@@ -24,3 +24,7 @@ with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
         __all__ = ['TraceMiddleware']
+
+
+# define the Django app configuration
+default_app_config = 'ddtrace.contrib.django.apps.TracerConfig'
