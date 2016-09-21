@@ -1,51 +1,36 @@
 import logging
 
 # project
-from ...ext import http, AppTypes
-from ...contrib import func_name
+from .conf import settings
 
-from .db import patch_db
-from .settings import import_from_string
-from .templates import patch_template
+from ...ext import http
+from ...contrib import func_name
 
 # 3p
 from django.apps import apps
-from django.conf import settings
+from django.core.exceptions import MiddlewareNotUsed
 
 
 log = logging.getLogger(__name__)
 
 
 class TraceMiddleware(object):
+    """
+    Middleware that traces Django requests
+    """
     def __init__(self):
-        # TODO[manu]: maybe we can formalize better DJANGO_SETTINGS_* stuff
-        # providing defaults or raise ImproperlyConfigured errors
-        tracer_import = getattr(settings, 'DATADOG_TRACER', 'ddtrace.tracer')
-        self.tracer = import_from_string(tracer_import, 'DATADOG_TRACER')
-        self.service = getattr(settings, 'DATADOG_SERVICE', 'django')
-
-        self.tracer.set_service_info(
-            service=self.service,
-            app='django',
-            app_type=AppTypes.web,
-        )
-
-        try:
-            # TODO[manu]: maybe it's better to provide a Django app that
-            # will patch everything once instead of trying that for
-            # each request (in the case of patch_db)?
-            patch_template(self.tracer)
-        except Exception:
-            log.exception("error patching template class")
+        # disable the middleware if the tracer is not enabled
+        if not settings.ENABLED:
+            raise MiddlewareNotUsed
 
     def process_request(self, request):
-        try:
-            patch_db(self.tracer)  # ensure that connections are always patched.
+        tracer = settings.TRACER
 
-            span = self.tracer.trace(
-                "django.request",
-                service=self.service,
-                resource="unknown",  # will be filled by process view
+        try:
+            span = tracer.trace(
+                'django.request',
+                service=settings.DEFAULT_SERVICE,
+                resource='unknown',  # will be filled by process view
                 span_type=http.TYPE,
             )
 
@@ -53,7 +38,7 @@ class TraceMiddleware(object):
             span.set_tag(http.URL, request.path)
             _set_req_span(request, span)
         except Exception:
-            log.exception("error tracing request")
+            log.exception('error tracing request')
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)

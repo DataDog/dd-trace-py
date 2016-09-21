@@ -20,7 +20,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'app.views'
+ROOT_URLCONF = 'tests.contrib.django.app.views'
 
 TEMPLATES = [
     {
@@ -41,6 +41,9 @@ TEMPLATES = [
 ]
 
 MIDDLEWARE_CLASSES = [
+    # tracer middleware
+    'ddtrace.contrib.django.TraceMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -56,4 +59,13 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+
+    # tracer app
+    'ddtrace.contrib.django',
 ]
+
+DATADOG_TRACE = {
+    # tracer with a DummyWriter
+    'TRACER': 'tests.contrib.django.utils.tracer',
+    'ENABLED': True,
+}

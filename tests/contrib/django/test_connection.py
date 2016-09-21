@@ -7,28 +7,15 @@ from django.contrib.auth.models import User
 
 # project
 from ddtrace.tracer import Tracer
-from ddtrace.contrib.django.db import patch_db
 
 # testing
-from .utils import unpatch_connection
-from ...test_tracer import DummyWriter
+from .utils import DjangoTraceTestCase
 
 
-class DjangoConnectionTest(TransactionTestCase):
+class DjangoConnectionTest(DjangoTraceTestCase):
     """
     Ensures that database connections are properly traced
     """
-    def setUp(self):
-        # create a tracer and patch the database connection
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
-        patch_db(tracer)
-        self.tracer = tracer
-
-    def tearDown(self):
-        # unpatch the database connection
-        unpatch_connection()
-
     def test_connection(self):
         # trace a simple query
         start = time.time()
