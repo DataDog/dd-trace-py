@@ -25,6 +25,7 @@ USER_SETTINGS = getattr(django_settings, 'DATADOG_APM', None)
 DEFAULTS = {
     'DEFAULT_TRACER': 'ddtrace.tracer',
     'DEFAULT_SERVICE': 'django',
+    'ENABLED': not django_settings.DEBUG,
 }
 
 # List of settings that may be in string import notation.

@@ -8,6 +8,7 @@ from ...contrib import func_name
 
 # 3p
 from django.apps import apps
+from django.core.exceptions import MiddlewareNotUsed
 
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,11 @@ class TraceMiddleware(object):
     """
     Middleware that traces Django requests
     """
+    def __init__(self):
+        # disable the middleware if the tracer is not enabled
+        if not settings.ENABLED:
+            raise MiddlewareNotUsed
+
     def process_request(self, request):
         tracer = settings.DEFAULT_TRACER
 

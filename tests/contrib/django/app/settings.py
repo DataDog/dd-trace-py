@@ -67,4 +67,5 @@ INSTALLED_APPS = [
 DATADOG_APM = {
     # tracer with a DummyWriter
     'DEFAULT_TRACER': 'tests.contrib.django.utils.tracer',
+    'ENABLED': True,
 }

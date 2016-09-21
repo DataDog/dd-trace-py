@@ -23,19 +23,20 @@ class TracerConfig(AppConfig):
         Tracing capabilities must be enabled in this function so that
         all Django internals are properly configured.
         """
-        tracer = settings.DEFAULT_TRACER
+        if settings.ENABLED:
+            tracer = settings.DEFAULT_TRACER
 
-        # define the service details
-        tracer.set_service_info(
-            service=settings.DEFAULT_SERVICE,
-            app='django',
-            app_type=AppTypes.web,
-        )
+            # define the service details
+            tracer.set_service_info(
+                service=settings.DEFAULT_SERVICE,
+                app='django',
+                app_type=AppTypes.web,
+            )
 
-        try:
-            # trace Django internals
-            patch_template(tracer)
-            patch_db(tracer)
-        except Exception:
-            # TODO[manu]: we can provide better details there
-            log.exception('error patching Django internals')
+            try:
+                # trace Django internals
+                patch_template(tracer)
+                patch_db(tracer)
+            except Exception:
+                # TODO[manu]: we can provide better details there
+                log.exception('error patching Django internals')
