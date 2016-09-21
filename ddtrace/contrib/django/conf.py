@@ -19,13 +19,11 @@ from django.conf import settings as django_settings
 from django.test.signals import setting_changed
 
 
-USER_SETTINGS = getattr(django_settings, 'DATADOG_TRACE', None)
-
 # List of available settings with their defaults
 DEFAULTS = {
     'TRACER': 'ddtrace.tracer',
     'DEFAULT_SERVICE': 'django',
-    'ENABLED': not django_settings.DEBUG,
+    'ENABLED': True,
 }
 
 # List of settings that may be in string import notation.
@@ -77,7 +75,11 @@ class DatadogSettings(object):
     @property
     def user_settings(self):
         if not hasattr(self, '_user_settings'):
-            self._user_settings = getattr(settings, 'DATADOG_TRACE', {})
+            self._user_settings = getattr(django_settings, 'DATADOG_TRACE', {})
+
+        # TODO[manu]: prevents docs import errors; provide a better implementation
+        if 'ENABLED' not in self._user_settings:
+            self._user_settings['ENABLED'] = not django_settings.DEBUG
         return self._user_settings
 
     def __getattr__(self, attr):
@@ -109,7 +111,7 @@ class DatadogSettings(object):
         return user_settings
 
 
-settings = DatadogSettings(USER_SETTINGS, DEFAULTS, IMPORT_STRINGS)
+settings = DatadogSettings(None, DEFAULTS, IMPORT_STRINGS)
 
 
 def reload_settings(*args, **kwargs):
