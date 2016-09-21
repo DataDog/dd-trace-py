@@ -4,7 +4,7 @@ from nose.tools import eq_
 from django.core.urlresolvers import reverse
 
 # project
-from ddtrace.contrib.django.settings import settings
+from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django import TraceMiddleware
 
 # testing

@@ -4,8 +4,8 @@ import logging
 from django.apps import AppConfig
 
 # project
-from .settings import settings
 from .db import patch_db
+from .conf import settings
 from .templates import patch_template
 
 from ...ext import AppTypes

@@ -5,7 +5,7 @@ from django.template import Template
 
 # project
 from ddtrace.tracer import Tracer
-from ddtrace.contrib.django.settings import settings
+from ddtrace.contrib.django.conf import settings
 
 # testing
 from ...test_tracer import DummyWriter

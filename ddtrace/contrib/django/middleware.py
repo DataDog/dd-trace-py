@@ -1,7 +1,7 @@
 import logging
 
 # project
-from .settings import settings
+from .conf import settings
 
 from ...ext import http
 from ...contrib import func_name
