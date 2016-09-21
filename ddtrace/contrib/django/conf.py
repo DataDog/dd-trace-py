@@ -1,9 +1,9 @@
 """
-Settings for Datadog tracer are all namespaced in the DATADOG_APM setting.
+Settings for Datadog tracer are all namespaced in the DATADOG_TRACE setting.
 For example your project's `settings.py` file might look like this:
 
-DATADOG_APM = {
-    'DEFAULT_TRACER': 'myapp.tracer',
+DATADOG_TRACE = {
+    'TRACER': 'myapp.tracer',
 }
 
 This module provides the `setting` object, that is used to access
@@ -19,18 +19,18 @@ from django.conf import settings as django_settings
 from django.test.signals import setting_changed
 
 
-USER_SETTINGS = getattr(django_settings, 'DATADOG_APM', None)
+USER_SETTINGS = getattr(django_settings, 'DATADOG_TRACE', None)
 
 # List of available settings with their defaults
 DEFAULTS = {
-    'DEFAULT_TRACER': 'ddtrace.tracer',
+    'TRACER': 'ddtrace.tracer',
     'DEFAULT_SERVICE': 'django',
     'ENABLED': not django_settings.DEBUG,
 }
 
 # List of settings that may be in string import notation.
 IMPORT_STRINGS = (
-    'DEFAULT_TRACER',
+    'TRACER',
 )
 
 # List of settings that have been removed
@@ -63,7 +63,7 @@ class DatadogSettings(object):
 
         from ddtrace.contrib.django.conf import settings
 
-        tracer = settings.DEFAULT_TRACER
+        tracer = settings.TRACER
 
     Any setting with string import paths will be automatically resolved
     and return the class, rather than the string literal.
@@ -77,7 +77,7 @@ class DatadogSettings(object):
     @property
     def user_settings(self):
         if not hasattr(self, '_user_settings'):
-            self._user_settings = getattr(settings, 'DATADOG_APM', {})
+            self._user_settings = getattr(settings, 'DATADOG_TRACE', {})
         return self._user_settings
 
     def __getattr__(self, attr):
@@ -118,7 +118,7 @@ def reload_settings(*args, **kwargs):
     """
     global settings
     setting, value = kwargs['setting'], kwargs['value']
-    if setting == 'DATADOG_APM':
+    if setting == 'DATADOG_TRACE':
         settings = DatadogSettings(value, DEFAULTS, IMPORT_STRINGS)
 
 

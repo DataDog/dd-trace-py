@@ -19,24 +19,24 @@ installed apps and in your middleware classes in ``settings.py``::
     )
 
 The configuration of this integration is all namespaced inside a single
-Django setting, named ``DATADOG_APM``. For example, your ``settings.py``
+Django setting, named ``DATADOG_TRACE``. For example, your ``settings.py``
 may contain::
 
-    DATADOG_APM = {
+    DATADOG_TRACE = {
         'DEFAULT_SERVICE': 'my-django-app',
     }
 
 If you need to access to the tracing settings, you should::
 
-    from ddtrace.contrib.django.conf import settings as dd_settings
+    from ddtrace.contrib.django.conf import settings
 
-    tracer = dd_settings.DEFAULT_TRACER
+    tracer = settings.TRACER
     tracer.trace("something")
     # your code ...
 
 The available settings are:
 
-* ``DEFAULT_TRACER`` (default ``ddtrace.tracer``): set the default tracer
+* ``TRACER`` (default ``ddtrace.tracer``): set the default tracer
   instance that is used to trace Django internals. By default the ``ddtrace``
   tracer is used.
 * ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the

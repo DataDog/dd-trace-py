@@ -24,7 +24,7 @@ class TracerConfig(AppConfig):
         all Django internals are properly configured.
         """
         if settings.ENABLED:
-            tracer = settings.DEFAULT_TRACER
+            tracer = settings.TRACER
 
             # define the service details
             tracer.set_service_info(
@@ -33,10 +33,13 @@ class TracerConfig(AppConfig):
                 app_type=AppTypes.web,
             )
 
+            # trace Django internals
             try:
-                # trace Django internals
-                patch_template(tracer)
                 patch_db(tracer)
             except Exception:
-                # TODO[manu]: we can provide better details there
-                log.exception('error patching Django internals')
+                log.exception('error patching Django database connections')
+
+            try:
+                patch_template(tracer)
+            except Exception:
+                log.exception('error patching Django template rendering')

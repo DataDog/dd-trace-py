@@ -25,7 +25,7 @@ class DjangoTraceTestCase(TestCase):
     """
     def setUp(self):
         # assign the default tracer
-        self.tracer = settings.DEFAULT_TRACER
+        self.tracer = settings.TRACER
         # empty the tracer spans from previous operations
         # such as database creation queries
         self.tracer.writer.spans = []

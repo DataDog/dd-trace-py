@@ -64,8 +64,8 @@ INSTALLED_APPS = [
     'ddtrace.contrib.django',
 ]
 
-DATADOG_APM = {
+DATADOG_TRACE = {
     # tracer with a DummyWriter
-    'DEFAULT_TRACER': 'tests.contrib.django.utils.tracer',
+    'TRACER': 'tests.contrib.django.utils.tracer',
     'ENABLED': True,
 }

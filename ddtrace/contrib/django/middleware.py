@@ -24,7 +24,7 @@ class TraceMiddleware(object):
             raise MiddlewareNotUsed
 
     def process_request(self, request):
-        tracer = settings.DEFAULT_TRACER
+        tracer = settings.TRACER
 
         try:
             span = tracer.trace(
