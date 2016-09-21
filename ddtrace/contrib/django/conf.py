@@ -61,7 +61,9 @@ class DatadogSettings(object):
     A settings object, that allows Datadog settings to be accessed as properties.
     For example:
 
-        # TODO
+        from ddtrace.contrib.django.conf import settings
+
+        tracer = settings.DEFAULT_TRACER
 
     Any setting with string import paths will be automatically resolved
     and return the class, rather than the string literal.
