@@ -1,9 +1,11 @@
 # 3rd party
 from django.db import connections
+from django.test import TestCase
 from django.template import Template
 
 # project
 from ddtrace.tracer import Tracer
+from ddtrace.contrib.django.settings import settings
 
 # testing
 from ...test_tracer import DummyWriter
@@ -14,20 +16,17 @@ tracer = Tracer()
 tracer.writer = DummyWriter()
 
 
-def unpatch_template():
+class DjangoTraceTestCase(TestCase):
     """
-    Remove tracing from the Django template engine
+    Base class that provides an internal tracer according to given
+    Datadog settings. This class ensures that the tracer spans are
+    properly reset after each run. The tracer is available in
+    the ``self.tracer`` attribute.
     """
-    if hasattr(Template, '_datadog_original_render'):
-        Template.render = Template._datadog_original_render
-        del Template._datadog_original_render
+    def setUp(self):
+        # assign the default tracer
+        self.tracer = settings.DEFAULT_TRACER
 
-
-def unpatch_connection():
-    """
-    Remove tracing from the Django connection engine
-    """
-    for conn in connections.all():
-        if hasattr(conn, '_datadog_original_cursor'):
-            conn.cursor = conn._datadog_original_cursor
-            del conn._datadog_original_cursor
+    def tearDown(self):
+        # empty the tracer spans
+        self.tracer.writer.spans = []

@@ -6,29 +6,16 @@ from django.test import SimpleTestCase
 from django.template import Context, Template
 
 # project
-from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.templates import patch_template
 
 # testing
-from .utils import unpatch_template
-from ...test_tracer import DummyWriter
+from .utils import DjangoTraceTestCase
 
 
-class TraceTemplateTest(SimpleTestCase):
+class DjangoTemplateTest(DjangoTraceTestCase):
     """
     Ensures that the template system is properly traced
     """
-    def setUp(self):
-        # create a tracer and patch the template
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
-        patch_template(tracer)
-        self.tracer = tracer
-
-    def tearDown(self):
-        # unpatch the template system
-        unpatch_template()
-
     def test_template(self):
         # prepare a base template using the default engine
         template = Template("Hello {{name}}!")
