@@ -131,7 +131,7 @@ Flask-cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 MongoDB
-~~~~~~~~~~~
+~~~~~~~
 
 **Mongoengine**
 
@@ -140,6 +140,13 @@ MongoDB
 **Pymongo**
 
 .. automodule:: ddtrace.contrib.pymongo
+
+Memcached
+~~~~~~~~~
+
+**pylibmc**
+
+.. automodule:: ddtrace.contrib.pylibmc
 
 MySQL
 ~~~~~
@@ -150,11 +157,6 @@ Postgres
 ~~~~~~~~
 
 .. automodule:: ddtrace.contrib.psycopg
-
-Pylibmc
-~~~~~~~~
-
-.. automodule:: ddtrace.contrib.pylibmc
 
 Redis
 ~~~~~
