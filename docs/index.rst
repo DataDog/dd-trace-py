@@ -110,6 +110,11 @@ Django
 
 .. automodule:: ddtrace.contrib.django
 
+Pylons
+~~~~~~
+
+.. automodule:: ddtrace.contrib.pylons
+
 Falcon
 ~~~~~~
 
