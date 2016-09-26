@@ -15,6 +15,13 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
 SITE_ID = 1
 SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True

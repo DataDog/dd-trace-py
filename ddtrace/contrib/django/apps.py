@@ -6,6 +6,7 @@ from django.apps import AppConfig
 # project
 from .db import patch_db
 from .conf import settings
+from .cache import patch_cache
 from .templates import patch_template
 
 from ...ext import AppTypes
@@ -28,9 +29,9 @@ class TracerConfig(AppConfig):
 
             # define the service details
             tracer.set_service_info(
-                service=settings.DEFAULT_SERVICE,
                 app='django',
                 app_type=AppTypes.web,
+                service=settings.DEFAULT_SERVICE,
             )
 
             # trace Django internals
@@ -43,3 +44,8 @@ class TracerConfig(AppConfig):
                 patch_template(tracer)
             except Exception:
                 log.exception('error patching Django template rendering')
+
+            try:
+                patch_cache(tracer)
+            except Exception:
+                log.exception('error patching Django cache')
