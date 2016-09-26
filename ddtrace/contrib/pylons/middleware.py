@@ -47,7 +47,12 @@ class PylonsTraceMiddleware(object):
             finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')
-                span.resource = "%s.%s" % (controller, action)
+
+                # There are cases where users re-route requests and manually
+                # set resources. If this is so, don't do anything, otherwise
+                # set the resource to the controller / action that handled it.
+                if span.resource == span.name:
+                    span.resource = "%s.%s" % (controller, action)
 
                 span.set_tags({
                     http.METHOD: environ.get('REQUEST_METHOD'),
