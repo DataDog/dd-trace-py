@@ -56,3 +56,35 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
 
         eq_(span_view.meta, expected_meta_view)
         eq_(span_header.meta, expected_meta_header)
+
+    def test_cached_template(self):
+        # make the first request so that the view is cached
+        url = reverse('cached-template-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check the first call for a non-cached view
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 5)
+        # the cache miss
+        eq_(spans[0].resource, 'get')
+        # store the result in the cache
+        eq_(spans[2].resource, 'set')
+
+        # check if the cache hit is traced
+        response = self.client.get(url)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+
+        span_template_cache = spans[0]
+        eq_(span_template_cache.resource, 'get')
+        eq_(span_template_cache.name, 'django.cache')
+        eq_(span_template_cache.span_type, 'cache')
+        eq_(span_template_cache.error, 0)
+
+        expected_meta = {
+            'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+            'django.cache.key': 'template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e',
+        }
+
+        eq_(span_template_cache.meta, expected_meta)
