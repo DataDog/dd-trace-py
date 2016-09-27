@@ -3,8 +3,9 @@ Class based views used for Django tests.
 """
 from django.http import HttpResponse
 from django.conf.urls import url
-from django.views.generic import ListView, TemplateView
 from django.contrib.auth.models import User
+from django.views.generic import ListView, TemplateView
+from django.views.decorators.cache import cache_page
 
 
 class UserList(ListView):
@@ -20,5 +21,6 @@ class ForbiddenView(TemplateView):
 # use this url patterns for tests
 urlpatterns = [
     url(r'^users/$', UserList.as_view(), name='users-list'),
+    url(r'^cached-users/$', cache_page(60)(UserList.as_view()), name='cached-users-list'),
     url(r'^fail-view/$', ForbiddenView.as_view(), name='forbidden-view'),
 ]
