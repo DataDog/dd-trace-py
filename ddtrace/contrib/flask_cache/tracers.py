@@ -6,7 +6,8 @@ Datadog trace code for flask_cache
 import logging
 
 # project
-from .utils import _extract_conn_tags, _resource_from_cache_prefix
+from .utils import _extract_conn_tags
+from ..util import _resource_from_cache_prefix
 from ...ext import AppTypes
 
 # 3rd party
