@@ -5,6 +5,7 @@ from functools import wraps
 from django.conf import settings
 
 from .conf import import_from_string
+from .utils import quantize_key_values
 from ..util import _resource_from_cache_prefix
 
 
@@ -58,7 +59,8 @@ def patch_cache(tracer):
                 span.set_tag(CACHE_BACKEND, cache_backend)
 
                 if args:
-                    span.set_tag(CACHE_COMMAND_KEY, args[0])
+                    keys = quantize_key_values(args[0])
+                    span.set_tag(CACHE_COMMAND_KEY, keys)
 
                 return method(*args, **kwargs)
         return wrapped
