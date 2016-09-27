@@ -10,6 +10,10 @@ log = logging.getLogger(__name__)
 
 MAX_TRACE_ID = 2 ** 64
 
+# Has to be the same factor and key as the Agent to allow chained sampling
+KNUTH_FACTOR = 1111111111111111111
+SAMPLE_RATE_METRIC_KEY = "_sample_rate"
+
 class AllSampler(object):
     """Sampler sampling all the traces"""
 
@@ -40,8 +44,8 @@ class RateSampler(object):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        span.sampled = span.trace_id <= self.sampling_id_threshold
-
+        span.sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
+        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
 
 class ThroughputSampler(object):
     """ Sampler applying a strict limit over the trace volume.
@@ -49,6 +53,8 @@ class ThroughputSampler(object):
         Stop tracing once reached more than `tps` traces per second.
         Computation is based on a circular buffer over the last
         `BUFFER_DURATION` with a `BUFFER_SIZE` size.
+
+        DEPRECATED: Outdated implementation.
     """
 
     # Reasonable values

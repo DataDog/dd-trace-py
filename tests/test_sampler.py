@@ -6,46 +6,39 @@ import time
 import threading
 
 from ddtrace.tracer import Tracer
-from ddtrace.sampler import RateSampler, ThroughputSampler
+from ddtrace.sampler import RateSampler, ThroughputSampler, SAMPLE_RATE_METRIC_KEY
 from .test_tracer import DummyWriter
 from .util import patch_time
 
 
 class RateSamplerTest(unittest.TestCase):
 
-    def test_random_sequence(self):
+    def test_sample_rate_deviation(self):
         writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-        tracer.sampler = RateSampler(0.5)
 
-        # Set the seed so that the choice of sampled traces
-        # is deterministic, then write tests accordingly
-        random.seed(4012)
+        for sample_rate in [0.1, 0.25, 0.5, 1]:
+            tracer = Tracer()
+            tracer.writer = writer
 
-        # First trace, sampled
-        with tracer.trace("foo") as s:
-            assert s.sampled
-        assert writer.pop()
+            sample_rate = 0.5
+            tracer.sampler = RateSampler(sample_rate)
 
-        # Second trace, not sampled
-        with tracer.trace("figh") as s:
-            assert not s.sampled
-            s2 = tracer.trace("what")
-            assert not s2.sampled
-            s2.finish()
-            with tracer.trace("ever") as s3:
-                assert not s3.sampled
-                s4 = tracer.trace("!")
-                assert not s4.sampled
-                s4.finish()
-        spans = writer.pop()
-        assert not spans, spans
+            random.seed(1234)
 
-        # Third trace, not sampled
-        with tracer.trace("ters") as s:
-            assert s.sampled
-        assert writer.pop()
+            iterations = int(2e4)
+
+            for i in range(iterations):
+                span = tracer.trace(i)
+                span.finish()
+
+            samples = writer.pop()
+
+            # We must have at least 1 sample, check that it has its sample rate properly assigned
+            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == 0.5
+
+            # Less than 1% deviation when "enough" iterations (arbitrary, just check if it converges)
+            deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
+            assert deviation < 0.01, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
 
 class ThroughputSamplerTest(unittest.TestCase):
