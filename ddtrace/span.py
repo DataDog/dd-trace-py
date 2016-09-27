@@ -274,8 +274,6 @@ class Span(object):
             self.name,
         )
 
-MAX_TRACE_ID = 2 ** 63
 def _new_id():
-    """Generate a random trace_id"""
-    return random.getrandbits(63)
-
+    """Generate a random trace_id or span_id"""
+    return random.getrandbits(64)

@@ -2,15 +2,13 @@
 
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
-
 import logging
 import array
 import threading
 
-from .span import MAX_TRACE_ID
-
 log = logging.getLogger(__name__)
 
+MAX_TRACE_ID = 2 ** 64
 
 class AllSampler(object):
     """Sampler sampling all the traces"""
