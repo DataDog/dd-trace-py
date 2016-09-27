@@ -5,8 +5,9 @@ from nose.tools import eq_, ok_
 # project
 from ddtrace.ext import net
 from ddtrace.tracer import Tracer, Span
+from ddtrace.contrib.util import _resource_from_cache_prefix
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.utils import _extract_conn_tags, _resource_from_cache_prefix
+from ddtrace.contrib.flask_cache.utils import _extract_conn_tags
 from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 
 # 3rd party
