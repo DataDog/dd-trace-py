@@ -30,7 +30,6 @@ class Span(object):
         'duration',
         # Sampler attributes
         'sampled',
-        'weight',
         # Internal attributes
         '_tracer',
         '_finished',
@@ -89,7 +88,6 @@ class Span(object):
 
         # sampling
         self.sampled = True
-        self.weight = 1
 
         self._tracer = tracer
         self._parent = None
@@ -185,7 +183,6 @@ class Span(object):
             'resource' : self.resource,
             'name' : self.name,
             'error': self.error,
-            'weight': self.weight,
         }
 
         if self.start:

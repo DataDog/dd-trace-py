@@ -26,7 +26,6 @@ class RateSamplerTest(unittest.TestCase):
         # First trace, sampled
         with tracer.trace("foo") as s:
             assert s.sampled
-            assert s.weight == 2
         assert writer.pop()
 
         # Second trace, not sampled

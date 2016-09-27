@@ -43,8 +43,6 @@ class RateSampler(object):
 
     def sample(self, span):
         span.sampled = span.trace_id <= self.sampling_id_threshold
-        # `weight` is an attribute applied to all spans to help scaling related statistics
-        span.weight = 1 / (self.sample_rate or 1)
 
 
 class ThroughputSampler(object):
