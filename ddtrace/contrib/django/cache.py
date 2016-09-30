@@ -2,9 +2,9 @@ import logging
 
 from functools import wraps
 
-from django.conf import settings
+from django.conf import settings as django_settings
 
-from .conf import import_from_string
+from .conf import settings, import_from_string
 from .utils import quantize_key_values
 from ..util import _resource_from_cache_prefix
 
@@ -42,7 +42,7 @@ def patch_cache(tracer):
           Django supported cache servers (Redis, Memcached, Database, Custom)
     """
     # discover used cache backends
-    cache_backends = [cache['BACKEND'] for cache in settings.CACHES.values()]
+    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
 
     def _trace_operation(fn, method_name):
         """
@@ -52,7 +52,8 @@ def patch_cache(tracer):
         def wrapped(self, *args, **kwargs):
             # get the original function method
             method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
-            with tracer.trace('django.cache', span_type=TYPE) as span:
+            with tracer.trace('django.cache',
+                    span_type=TYPE, service=settings.DEFAULT_SERVICE) as span:
                 # update the resource name and tag the cache backend
                 span.resource = _resource_from_cache_prefix(method_name, self)
                 cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)

@@ -35,10 +35,12 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
 
         span_header = spans[0]
         span_view = spans[1]
+        eq_(span_view.service, 'django')
         eq_(span_view.resource, 'get')
         eq_(span_view.name, 'django.cache')
         eq_(span_view.span_type, 'cache')
         eq_(span_view.error, 0)
+        eq_(span_header.service, 'django')
         eq_(span_header.resource, 'get')
         eq_(span_header.name, 'django.cache')
         eq_(span_header.span_type, 'cache')
@@ -77,6 +79,7 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         eq_(len(spans), 3)
 
         span_template_cache = spans[0]
+        eq_(span_template_cache.service, 'django')
         eq_(span_template_cache.resource, 'get')
         eq_(span_template_cache.name, 'django.cache')
         eq_(span_template_cache.span_type, 'cache')
