@@ -1,0 +1,91 @@
+import logging
+
+from functools import wraps
+
+from django.conf import settings as django_settings
+
+from .conf import settings, import_from_string
+from .utils import quantize_key_values, _resource_from_cache_prefix
+
+
+log = logging.getLogger(__name__)
+
+# code instrumentation
+DATADOG_NAMESPACE = '__datadog_original_{method}'
+TRACED_METHODS = [
+    'get',
+    'set',
+    'add',
+    'delete',
+    'incr',
+    'decr',
+    'get_many',
+    'set_many',
+    'delete_many',
+]
+
+# standard tags
+TYPE = 'cache'
+CACHE_BACKEND = 'django.cache.backend'
+CACHE_COMMAND_KEY = 'django.cache.key'
+
+
+def patch_cache(tracer):
+    """
+    Function that patches the inner cache system. Because the cache backend
+    can have different implementations and connectors, this function must
+    handle all possible interactions with the Django cache. What follows
+    is currently traced:
+        * in-memory cache
+        * the cache client wrapper that could use any of the common
+          Django supported cache servers (Redis, Memcached, Database, Custom)
+    """
+    # discover used cache backends
+    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+
+    def _trace_operation(fn, method_name):
+        """
+        Return a wrapped function that traces a cache operation
+        """
+        @wraps(fn)
+        def wrapped(self, *args, **kwargs):
+            # get the original function method
+            method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
+            with tracer.trace('django.cache',
+                    span_type=TYPE, service=settings.DEFAULT_SERVICE) as span:
+                # update the resource name and tag the cache backend
+                span.resource = _resource_from_cache_prefix(method_name, self)
+                cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)
+                span.set_tag(CACHE_BACKEND, cache_backend)
+
+                if args:
+                    keys = quantize_key_values(args[0])
+                    span.set_tag(CACHE_COMMAND_KEY, keys)
+
+                return method(*args, **kwargs)
+        return wrapped
+
+    def _wrap_method(cls, method_name):
+        """
+        For the given class, wraps the method name with a traced operation
+        so that the original method is executed, while the span is properly
+        created
+        """
+        # check if the backend owns the given bounded method
+        if not hasattr(cls, method_name):
+            return
+
+        # prevent patching each backend's method more than once
+        if hasattr(cls, DATADOG_NAMESPACE.format(method=method_name)):
+            log.debug('{} already traced'.format(method_name))
+        else:
+            method = getattr(cls, method_name)
+            setattr(cls, DATADOG_NAMESPACE.format(method=method_name), method)
+            setattr(cls, method_name, _trace_operation(method, method_name))
+
+    # trace all backends
+    for cache_module in cache_backends:
+        cache = import_from_string(cache_module, cache_module)
+
+        for method in TRACED_METHODS:
+            _wrap_method(cache, method)
