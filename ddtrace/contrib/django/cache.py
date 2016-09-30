@@ -5,8 +5,7 @@ from functools import wraps
 from django.conf import settings as django_settings
 
 from .conf import settings, import_from_string
-from .utils import quantize_key_values
-from ..util import _resource_from_cache_prefix
+from .utils import quantize_key_values, _resource_from_cache_prefix
 
 
 log = logging.getLogger(__name__)
