@@ -9,7 +9,18 @@ from ddtrace.ext import http, errors
 from tests.test_tracer import get_test_tracer
 
 
-class TestSession(object):
+class TestRequests(object):
+
+    @staticmethod
+    def test_resources():
+        # ensure all valid combinations of args / kwargs work
+        tracer, session = get_traced_session()
+        out = session.get('http://httpstat.us/200')
+        eq_(out.status_code, 200)
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.resource, 'GET /200')
 
     @staticmethod
     def test_tracer_disabled():
@@ -114,5 +125,4 @@ def get_traced_session():
     tracer = get_test_tracer()
     session = TracedSession()
     setattr(session, 'datadog_tracer', tracer)
-    # session.set_datadog_tracer(tracer)
     return tracer, session

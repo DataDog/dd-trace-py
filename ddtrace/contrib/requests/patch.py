@@ -57,6 +57,7 @@ def _apply_tags(span, method, url, response):
         parsed = urlparse.urlparse(url)
         span.service = parsed.netloc
         # FIXME[matt] how do we decide how do we normalize arbitrary urls???
+        span.resource = "%s %s" % (method.upper(), parsed.path)
     except Exception:
         pass
 
