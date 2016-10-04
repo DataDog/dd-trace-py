@@ -12,6 +12,32 @@ from tests.test_tracer import get_test_tracer
 class TestSession(object):
 
     @staticmethod
+    def test_args_kwargs():
+        # ensure all valid combinations of args / kwargs work
+        tracer, session = get_traced_session()
+        url = 'http://httpstat.us/200'
+        method = 'GET'
+        inputs = [
+                ([], {'method': method, 'url': url}),
+                ([method], {'url': url}),
+                ([method, url], {}),
+        ]
+        untraced = Session()
+        for args, kwargs in inputs:
+            # ensure an untraced request works with these args
+            out = untraced.request(*args, **kwargs)
+            eq_(out.status_code, 200)
+            out = session.request(*args, **kwargs)
+            eq_(out.status_code, 200)
+            # validation
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            s = spans[0]
+            eq_(s.get_tag(http.METHOD), 'GET')
+            eq_(s.get_tag(http.STATUS_CODE), '200')
+
+
+    @staticmethod
     def test_200():
         tracer, session = get_traced_session()
         out = session.get('http://httpstat.us/200')
@@ -23,6 +49,7 @@ class TestSession(object):
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.get_tag(http.STATUS_CODE), '200')
         eq_(s.error, 0)
+        eq_(s.service, 'httpstat.us')
 
     @staticmethod
     def test_post_500():
@@ -76,5 +103,6 @@ class TestSession(object):
 def get_traced_session():
     tracer = get_test_tracer()
     session = TracedSession()
-    session.set_datadog_tracer(tracer)
+    setattr(session, 'datadog_tracer', tracer)
+    # session.set_datadog_tracer(tracer)
     return tracer, session

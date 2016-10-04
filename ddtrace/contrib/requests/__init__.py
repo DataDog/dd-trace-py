@@ -1,60 +1,33 @@
 
-# stdib
-import logging
 
-# 3p
-import requests
-
-# project
-import ddtrace
-from ddtrace.compat import urlparse
-from ddtrace.ext import http
+"""
+To trace HTTP calls from the request's library with or without monkeypatching.
+To automatically trace all requests, do the following:
 
 
-log = logging.getLogger(__name__)
+    # Patch the requests library.
+    from ddtrace.contrib.requests import patch
+    patch()
+
+    import requests
+    requests.get("http://www.datadog.com")
+
+If you would prefer finer grained control, use a TracedSession object
+as you would a requests.Session:
 
 
-class TracedSession(requests.Session):
+    from ddtrace.contrib.requests import TracedSession
 
-    def request(self, method, url, *args, **kwargs):
-        tracer = self.get_datadog_tracer()
+    session = TracedSession()
+    session.get("http://www.datadog.com")
+"""
 
-        # bail out if not enabled
-        if not tracer.enabled:
-            return super(TracedSession, self).request(method, url, *args, **kwargs)
 
-        # otherwise trace the request
-        with tracer.trace('requests.request') as span:
-            # Do the response
-            response = None
+from ..util import require_modules
 
-            try:
-                response = super(TracedSession, self).request(method, url, *args, **kwargs)
-                return response
-            finally:
+required_modules = ['requests']
 
-                # try to apply tags if we can
-                try:
-                    apply_tags(span, method, url, response)
-                except Exception:
-                    log.warn("error applying tags", exc_info=True)
-
-    def get_datadog_tracer(self):
-        return getattr(self, 'datadog_tracer', ddtrace.tracer)
-
-    def set_datadog_tracer(self, tracer):
-        setattr(self, 'datadog_tracer', tracer)
-
-def apply_tags(span, method, url, response):
-    try:
-        parsed = urlparse.urlparse(url)
-        span.service = parsed.netloc
-        # FIXME[matt] how do we decide how do we normalize arbitrary urls???
-    except Exception:
-        pass
-
-    span.set_tag(http.METHOD, method)
-    span.set_tag(http.URL, url)
-    if response is not None:
-        span.set_tag(http.STATUS_CODE, response.status_code)
-        span.error = 500 <= response.status_code
+with require_modules(required_modules) as missing_modules:
+     if not missing_modules:
+         from .patch import TracedSession, patch
+         __all__ = ['TracedSession', 'patch']
