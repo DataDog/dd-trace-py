@@ -28,6 +28,6 @@ from ..util import require_modules
 required_modules = ['requests']
 
 with require_modules(required_modules) as missing_modules:
-     if not missing_modules:
-         from .patch import TracedSession, patch
-         __all__ = ['TracedSession', 'patch']
+    if not missing_modules:
+        from .patch import TracedSession, patch
+        __all__ = ['TracedSession', 'patch']

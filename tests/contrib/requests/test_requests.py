@@ -12,6 +12,16 @@ from tests.test_tracer import get_test_tracer
 class TestSession(object):
 
     @staticmethod
+    def test_tracer_disabled():
+        # ensure all valid combinations of args / kwargs work
+        tracer, session = get_traced_session()
+        tracer.enabled = False
+        out = session.get('http://httpstat.us/200')
+        eq_(out.status_code, 200)
+        spans = tracer.writer.pop()
+        eq_(len(spans), 0)
+
+    @staticmethod
     def test_args_kwargs():
         # ensure all valid combinations of args / kwargs work
         tracer, session = get_traced_session()

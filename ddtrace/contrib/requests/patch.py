@@ -1,5 +1,8 @@
 
 
+# stdlib
+import logging
+
 # 3p
 import requests
 import wrapt
@@ -8,6 +11,9 @@ import wrapt
 import ddtrace
 from ddtrace.compat import urlparse
 from ddtrace.ext import http
+
+
+log = logging.getLogger(__name__)
 
 
 def patch():
@@ -26,11 +32,11 @@ def _traced_request_func(func, instance, args, kwargs):
 
     # bail on the tracing if not enabled.
     if not tracer.enabled:
-        return wrapped(*args, **kwargs)
+        return func(*args, **kwargs)
 
     # FIXME[matt] be a bit less brittle here.
     method = kwargs.get('method') or args[0]
-    url    = kwargs.get('url') or args[1]
+    url = kwargs.get('url') or args[1]
 
     with tracer.trace("requests.request") as span:
         resp = None
@@ -38,7 +44,11 @@ def _traced_request_func(func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            _apply_tags(span, method, url, resp)
+
+            try:
+                _apply_tags(span, method, url, resp)
+            except Exception:
+                log.warn("error patching tags", exc_info=True)
 
 
 def _apply_tags(span, method, url, response):
