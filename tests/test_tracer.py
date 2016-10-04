@@ -295,3 +295,7 @@ class DummyWriter(object):
         self.services = {}
         return s
 
+def get_test_tracer():
+    tracer = Tracer()
+    tracer.writer = DummyWriter()
+    return tracer
