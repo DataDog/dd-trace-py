@@ -1,6 +1,8 @@
 """
 the autopatch module will attempt to automatically monkeypatch
 all available contrib modules.
+
+It is currently experimental and incomplete.
 """
 
 
