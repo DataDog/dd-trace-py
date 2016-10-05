@@ -19,6 +19,10 @@ else:
     import http.client as httplib
     from io import StringIO
 
+try:
+    import urlparse
+except ImportError:
+    from urllib import parse as urlparse
 
 try:
     import simplejson as json
@@ -45,12 +49,13 @@ else:
 
 
 __all__ = [
-    'PY2',
-    'urlencode',
     'httplib',
-    'stringify',
-    'Queue',
-    'StringIO',
+    'iteritems',
     'json',
-    'iteritems'
+    'PY2',
+    'Queue',
+    'stringify',
+    'StringIO',
+    'urlencode',
+    'urlparse',
 ]
