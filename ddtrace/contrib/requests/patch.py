@@ -1,4 +1,8 @@
+"""
+Tracing for the requests library.
 
+https://github.com/kennethreitz/requests
+"""
 
 # stdlib
 import logging
@@ -37,13 +41,12 @@ def _traced_request_func(func, instance, args, kwargs):
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
 
-    with tracer.trace("requests.request") as span:
+    with tracer.trace("requests.request", span_type=http.TYPE) as span:
         resp = None
         try:
             resp = func(*args, **kwargs)
             return resp
         finally:
-
             try:
                 _apply_tags(span, method, url, resp)
             except Exception:

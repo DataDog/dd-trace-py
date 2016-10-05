@@ -87,6 +87,7 @@ class TestRequests(object):
         eq_(s.get_tag(http.STATUS_CODE), '200')
         eq_(s.error, 0)
         eq_(s.service, 'httpstat.us')
+        eq_(s.span_type, http.TYPE)
 
     @staticmethod
     def test_post_500():
