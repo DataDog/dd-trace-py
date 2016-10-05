@@ -106,7 +106,7 @@ class TestRequests(object):
         tracer, session = get_traced_session()
 
         try:
-            session.get('http://i.hope.this.will.never.ever.exist.purple.monkey.dishwasher')
+            session.get('http://doesnotexist.google.com')
         except Exception:
             pass
         else:

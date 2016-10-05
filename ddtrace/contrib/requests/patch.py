@@ -34,7 +34,6 @@ def _traced_request_func(func, instance, args, kwargs):
     if not tracer.enabled:
         return func(*args, **kwargs)
 
-    # FIXME[matt] be a bit less brittle here.
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
 

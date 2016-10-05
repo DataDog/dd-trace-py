@@ -1,9 +1,5 @@
-
-
 """
-To trace HTTP calls from the request's library with or without monkeypatching.
-To automatically trace all requests, do the following:
-
+To trace all HTTP calls from the requests library, patch the library like so::
 
     # Patch the requests library.
     from ddtrace.contrib.requests import patch
@@ -12,9 +8,8 @@ To automatically trace all requests, do the following:
     import requests
     requests.get("http://www.datadog.com")
 
-If you would prefer finer grained control, use a TracedSession object
-as you would a requests.Session:
-
+If you would prefer finer grained control without monkeypatching the requests'
+code, use a TracedSession object as you would a requests.Session::
 
     from ddtrace.contrib.requests import TracedSession
 

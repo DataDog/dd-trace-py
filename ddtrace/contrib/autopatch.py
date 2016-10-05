@@ -41,6 +41,3 @@ def patch_module(path):
     func()
     log.debug("patched")
     return True
-
-if __name__ == '__main__':
-    autopatch()
