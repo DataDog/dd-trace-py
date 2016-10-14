@@ -1,9 +1,8 @@
-
 # stdlib
 import logging
 
 # 3p
-import psycopg2
+import sqlite3
 import wrapt
 
 # project
@@ -22,7 +21,7 @@ def unpatch():
     """ unpatch undoes any monkeypatching. """
     connect = getattr(_connect, 'datadog_patched_func', None)
     if connect is not None:
-        psycopg2.connect = connect
+        sqlite3.connect = connect
 
 
 def patch():
@@ -31,28 +30,27 @@ def patch():
 
     new connections will be traced by default.
     """
-    setattr(_connect, 'datadog_patched_func', psycopg2.connect)
-    wrapt.wrap_function_wrapper('psycopg2', 'connect', _connect)
+    setattr(_connect, 'datadog_patched_func', sqlite3.connect)
+    wrapt.wrap_function_wrapper('sqlite3', 'connect', _connect)
 
 
 if __name__ == '__main__':
     import sys
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    import psycopg2
-
     print 'PATCHED'
     patch()
-    db = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
+    db = sqlite3.connect(":memory:")
     setattr(db, "datadog_service", "foo")
 
     cur = db.cursor()
-    cur.execute("select 'foobar'")
+    cur.execute("create table foo ( bar text)")
+    cur.execute("select * from sqlite_master")
     print cur.fetchall()
 
     print 'UNPATCHED'
     unpatch()
-    db = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
+    db = sqlite3.connect(":memory:")
     cur = db.cursor()
     cur.execute("select 'foobar'")
     print cur.fetchall()

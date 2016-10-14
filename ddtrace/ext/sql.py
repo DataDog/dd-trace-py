@@ -18,7 +18,7 @@ def normalize_vendor(vendor):
         return "db"  # should this ever happen?
     elif vendor == "sqlite3":
         return "sqlite"
-    elif vendor == "postgresql":
+    elif vendor == "postgresql" or vendor == 'psycopg2':
         return "postgres"
     else:
         return vendor
