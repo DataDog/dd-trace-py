@@ -19,14 +19,29 @@ autopatch_modules = [
     'sqlite3',
     'psycopg',
     'redis',
+    'fake',
 ]
 
 
 def autopatch():
     """ autopatch will attempt to patch all available contrib modules. """
-    for module in autopatch_modules:
+    patch_modules(autopatch_modules, raise_errors=False)
+
+def patch_modules(modules, raise_errors=False):
+    count = 0
+    for module in modules:
         path = 'ddtrace.contrib.%s.patch' % module
-        patch_module(path)
+        patched = False
+        try:
+            patched = patch_module(path)
+        except Exception:
+            if raise_errors:
+                raise
+            else:
+                log.debug("couldn't patch %s" % module, exc_info=True)
+        if patched:
+            count += 1
+    log.debug("patched %s/%s modules", count, len(modules))
 
 def patch_module(path):
     """ patch_module will attempt to autopatch the module with the given
