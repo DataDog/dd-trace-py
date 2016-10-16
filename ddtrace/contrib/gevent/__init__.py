@@ -1,5 +1,7 @@
 """
-To trace a request in a gevent-ed environment, patch `threading.local` to make it coroutine-safe. Then make sure to pass down the span object from the parent to coroutine context
+To trace a request in a gevent-ed environment,
+patch `threading.local` to make it coroutine-safe.
+Then make sure to pass down the span object from the parent to coroutine context
 
     ```
     # Always monkey patch before importing the global tracer
@@ -24,3 +26,12 @@ To trace a request in a gevent-ed environment, patch `threading.local` to make i
             ....
     ```
 """
+
+from ..util import require_modules
+
+required_modules = ['gevent', 'gevent.local']
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from .buffer import GreenletLocalSpanBuffer
+        __all__ = ['GreenletLocalSpanBuffer']

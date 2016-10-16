@@ -1,24 +1,13 @@
+import gevent.local
+from ddtrace.buffer import SpanBuffer
 
-import threading
-
-
-class SpanBuffer(object):
-    """ Buffer is an interface for storing the current active span. """
-
-    def set(self, span):
-        raise NotImplementedError()
-
-    def get(self):
-        raise NotImplementedError()
-
-
-class ThreadLocalSpanBuffer(SpanBuffer):
+class GreenletLocalSpanBuffer(SpanBuffer):
     """ ThreadLocalBuffer stores the current active span in thread-local
         storage.
     """
 
     def __init__(self):
-        self._locals = threading.local()
+        self._locals = gevent.local.local()
 
     def set(self, span):
         self._locals.span = span
@@ -30,4 +19,3 @@ class ThreadLocalSpanBuffer(SpanBuffer):
         span = self.get()
         self.set(None)
         return span
-
