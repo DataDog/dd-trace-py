@@ -18,13 +18,14 @@ autopatch_modules = [
     'requests',
     'sqlite3',
     'psycopg',
+    'redis',
 ]
 
 
 def autopatch():
     """ autopatch will attempt to patch all available contrib modules. """
     for module in autopatch_modules:
-        path = 'ddtrace.contrib.%s' % module
+        path = 'ddtrace.contrib.%s.patch' % module
         patch_module(path)
 
 def patch_module(path):
