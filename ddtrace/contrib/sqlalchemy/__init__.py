@@ -10,6 +10,15 @@ instance you are using::
     trace_engine(engine, tracer, "my-database")
 
     engine.connect().execute("select count(*) from users")
+
+If you are using sqlalchemy in a gevent-ed environment, make sure to monkey patch
+the `thread` module prior to importing the global tracer::
+
+    from gevent import monkey; monkey.patch_thread() # or patch_all() if you prefer
+    from ddtrace import tracer
+
+    # Add instrumentation to your engine as above
+    ...
 """
 
 
