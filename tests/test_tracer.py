@@ -7,8 +7,10 @@ import time
 from nose.tools import assert_raises, eq_
 from unittest.case import SkipTest
 
-from ddtrace.tracer import Tracer
 from ddtrace import encoding
+from ddtrace.tracer import Tracer
+from ddtrace.writer import AgentWriter
+from ddtrace.transport import ThreadedHTTPTransport
 
 
 def test_tracer_vars():
@@ -264,36 +266,43 @@ def test_tracer_disabled_mem_leak():
     assert not p1, p1
 
 
-class DummyWriter(object):
+class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
     def __init__(self):
+        # original call
+        super(DummyWriter, self).__init__()
+        # dummy components
         self.spans = []
         self.services = {}
+        self._reporter.transport = DummyTransport(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
 
     def write(self, spans, services=None):
-        # even though it's going nowhere, still encode / decode the spans
-        # as an extra safety check.
-        if spans:
-            encoding.encode_spans(spans)
-        if services:
-            encoding.encode_services(services)
+        # ensures the writer is called as usual; this includes
+        # the reporter encoding
+        super(DummyWriter, self).write(spans, services=services)
 
+        # simplify for easier retrieval
         self.spans += spans
         if services:
             self.services.update(services)
 
-    # dummy methods
-
     def pop(self):
+        # dummy method
         s = self.spans
         self.spans = []
         return s
 
     def pop_services(self):
+        # dummy method
         s = self.services
         self.services = {}
         return s
+
+class DummyTransport(ThreadedHTTPTransport):
+    """ Fake HTTPTransport for tests. """
+    def send(self, *args, **kwargs):
+        pass
 
 def get_test_tracer():
     tracer = Tracer()
