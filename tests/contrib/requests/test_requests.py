@@ -118,8 +118,8 @@ class TestRequests(object):
         s = spans[0]
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.error, 1)
-        assert "Name or service not known" in s.get_tag(errors.MSG)
-        assert "Name or service not known" in s.get_tag(errors.STACK)
+        assert "Failed to establish a new connection" in s.get_tag(errors.MSG)
+        assert "Failed to establish a new connection" in s.get_tag(errors.STACK)
         assert "Traceback (most recent call last)" in s.get_tag(errors.STACK)
         assert "requests.exception" in s.get_tag(errors.TYPE)
 
