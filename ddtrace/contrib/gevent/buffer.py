@@ -2,7 +2,7 @@ import gevent.local
 from ddtrace.buffer import SpanBuffer
 
 class GreenletLocalSpanBuffer(SpanBuffer):
-    """ ThreadLocalBuffer stores the current active span in thread-local
+    """ GreenletLocalSpanBuffer stores the current active span in greenlet-local
         storage.
     """
 

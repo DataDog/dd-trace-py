@@ -13,7 +13,7 @@ class SpanBuffer(object):
 
 
 class ThreadLocalSpanBuffer(SpanBuffer):
-    """ ThreadLocalBuffer stores the current active span in thread-local
+    """ ThreadLocalSpanBuffer stores the current active span in thread-local
         storage.
     """
 
