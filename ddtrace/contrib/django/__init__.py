@@ -42,12 +42,18 @@ The available settings are:
   tracer is used.
 * ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
   tracer. Usually this configuration must be updated with a meaningful name.
-* ``ENABLED``: (default: ``not django_settings.DEBUG``): set if the tracer
-  is enabled or not. When a tracer is disabled, Django internals are not
-  automatically instrumented and the requests are not traced even if the
-  ``TraceMiddleware`` is properly installed. This setting cannot be changed
-  at runtime and a restart is required. By default the tracer is disabled
-  when in ``DEBUG`` mode, enabled otherwise.
+* ``ENABLED`` (default: ``not django_settings.DEBUG``): defines if the tracer is
+  enabled or not. If set to false, the code is still instrumented but no spans
+  are sent to the trace agent. This setting cannot be changed at runtime
+  and a restart is required. By default the tracer is disabled when in ``DEBUG``
+  mode, enabled otherwise.
+* ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
+  instrumented, while the tracer may be active for your internal usage. This could
+  be useful if you want to use the Django integration, but you want to trace only
+  particular functions or views. If set to False, the request middleware will be
+  disabled even if present.
+* ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
+* ``AGENT_PORT`` (default: ``7777``): define the port of the trace agent.
 """
 from ..util import require_modules
 
