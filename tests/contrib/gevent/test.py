@@ -11,7 +11,7 @@ import threading
 class GeventGlobalScopeTest(unittest.TestCase):
     def setUp(self):
         # simulate standard app bootstrap
-        from gevent import monkey; monkey.patch_thread(_threading_local=True)
+        from gevent import monkey; monkey.patch_thread()
         from ddtrace import tracer
 
     def test_global_patch(self):
@@ -25,21 +25,15 @@ class GeventGlobalScopeTest(unittest.TestCase):
             tracer.span_buffer.set(parent)
             seen_resources.append(tracer.span_buffer.get().resource)
 
-            ## use greenlet-local storage when a function is run in a gevented environment
-            ## particularly when these functions perform blocking operations that may yield context to other greenlets
-
-            ## Greenlet-local span storage ensures that the tracer is able to reconstruct the trace correctly
-            ## when context eventually returns to this greenlet
             with tracer.trace("greenlet.call") as span:
                 span.resource = "sibling"
 
                 gevent.sleep()
 
-                # Ensure we have the correct parent span
+                # Ensure we have the correct parent span even after a context switch
                 eq_(tracer.span_buffer.get().span_id, span.span_id)
                 with tracer.trace("greenlet.other_call") as child:
                     child.resource = "sibling_child"
-
 
         with tracer.trace("web.request") as span:
             span.service = "web"
@@ -48,6 +42,7 @@ class GeventGlobalScopeTest(unittest.TestCase):
             workers = [gevent.spawn(worker_function, span) for w in range(worker_count)]
             gevent.joinall(workers)
 
+        # Ensure all greenlets see the right parent span
         ok_("sibling" not in seen_resources)
         ok_(all(s == "parent" for s in seen_resources))
 
@@ -86,6 +81,7 @@ class GeventLocalScopeTest(unittest.TestCase):
             workers = [gevent.spawn(my_worker_function, w) for w in range(worker_count)]
             gevent.joinall(workers)
 
+        # check that a bad parent span was seen
         ok_("sibling" in seen_resources)
 
     def test_local_patch(self):
@@ -95,19 +91,19 @@ class GeventLocalScopeTest(unittest.TestCase):
         from ddtrace import tracer; tracer.enabled = False
         from ddtrace.contrib.gevent import GreenletLocalSpanBuffer
 
-        def fn(span):
-            span = tracer.span_buffer.get()
+        def fn(parent):
             tracer.span_buffer = GreenletLocalSpanBuffer()
-            if span:
-                tracer.span_buffer.set(span)
+            tracer.span_buffer.set(parent)
 
             with tracer.trace("greenlet.call") as span:
                 span.service = "greenlet"
 
                 gevent.sleep()
 
-                with tracer.trace("greenlet.child_call") as span:
-                    pass
+                # Ensure we have the correct parent span even after a context switch
+                eq_(tracer.span_buffer.get().span_id, span.span_id)
+                with tracer.trace("greenlet.child_call") as child:
+                    eq_(child.parent_id, span.span_id)
 
         with tracer.trace("web.request") as span:
             span.service = "web"

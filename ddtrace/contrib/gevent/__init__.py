@@ -43,6 +43,7 @@ If you are unable to patch `gevent` in the global scope, you can configure
 the global tracer to use greenlet-local storage on an as-needed basis::
 
     from ddtrace import tracer
+    from ddtrace.contrib.gevent import GreenletLocalSpanBuffer
 
     import gevent
 
@@ -52,7 +53,6 @@ the global tracer to use greenlet-local storage on an as-needed basis::
             gevent.spawn(worker_function, span)
 
     def worker_function(parent):
-        from ddtrace.contrib.gevent import GreenletLocalSpanBuffer
         tracer.span_buffer = GreenletLocalSpanBuffer()
         # Set the active span
         tracer.span_buffer.set(parent)
