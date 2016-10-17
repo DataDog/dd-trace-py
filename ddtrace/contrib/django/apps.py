@@ -24,16 +24,24 @@ class TracerConfig(AppConfig):
         Tracing capabilities must be enabled in this function so that
         all Django internals are properly configured.
         """
-        if settings.ENABLED:
-            tracer = settings.TRACER
+        tracer = settings.TRACER
 
-            # define the service details
-            tracer.set_service_info(
-                app='django',
-                app_type=AppTypes.web,
-                service=settings.DEFAULT_SERVICE,
-            )
+        # define the service details
+        tracer.set_service_info(
+            app='django',
+            app_type=AppTypes.web,
+            service=settings.DEFAULT_SERVICE,
+        )
 
+        # configure the tracer instance
+        # TODO[manu]: we may use configure() but because it creates a new
+        # AgentWriter, it breaks all tests. The configure() behavior must
+        # be changed to use it in this integration
+        tracer.enabled = settings.ENABLED
+        tracer.writer._reporter.transport.hostname = settings.AGENT_HOSTNAME
+        tracer.writer._reporter.transport.port = settings.AGENT_PORT
+
+        if settings.AUTO_INSTRUMENT:
             # trace Django internals
             try:
                 patch_db(tracer)
