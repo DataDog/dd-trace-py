@@ -12,8 +12,8 @@ class SpanBuffer(object):
         raise NotImplementedError()
 
 
-class ThreadLocalSpanBuffer(object):
-    """ ThreadLocalBuffer stores the current active span in thread-local
+class ThreadLocalSpanBuffer(SpanBuffer):
+    """ ThreadLocalSpanBuffer stores the current active span in thread-local
         storage.
     """
 

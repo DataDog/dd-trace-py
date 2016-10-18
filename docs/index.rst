@@ -148,6 +148,12 @@ Flask-cache
 
 .. automodule:: ddtrace.contrib.flask_cache
 
+
+Gevent
+~~~~~~
+
+.. automodule:: ddtrace.contrib.gevent
+
 MongoDB
 ~~~~~~~
 
