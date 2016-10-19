@@ -20,7 +20,8 @@ class TraceMiddleware(object):
     """
     def __init__(self):
         # disable the middleware if the tracer is not enabled
-        if not settings.ENABLED:
+        # or if the auto instrumentation is disabled
+        if not settings.AUTO_INSTRUMENT:
             raise MiddlewareNotUsed
 
     def process_request(self, request):
