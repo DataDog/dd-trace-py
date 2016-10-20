@@ -18,9 +18,11 @@ Install with :code:`pip` but point to Datadog's package repo::
 
     $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
 
-If you are using a supported integration, proceed to the :ref:`relevant instructions <integrations>` next.
+Quick Start (Auto Instrumentation)
+-----------
+If you are using a supported integration, proceed to the :ref:`relevant instructions<integrations>` for the integrations you are interested in.
 
-Quick Start
+Quick Start (Manual Instrumentation)
 -----------
 
 Adding tracing to your code is very simple. As an example, let's imagine we are adding
@@ -33,10 +35,8 @@ tracing from scratch to a small web app::
     @route("/home")
     def home(request):
 
-        with tracer.trace('web.request') as span:
+        with tracer.trace('web.request',service=service,resource='home') as span:
             # set some span metadata
-            span.service = service
-            span.resource = "home"
             span.set_tag('web.user', request.username)
 
             # trace a database request
