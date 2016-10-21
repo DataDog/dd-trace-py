@@ -2,16 +2,16 @@ import mock
 import time
 
 from unittest import TestCase
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 from ddtrace.tracer import Tracer
 
 
 class TestWorkers(TestCase):
     """
-    Ensures that a traces are properly sent to a local agent. These are part
-    of integration tests so real calls are fired and you have to execute
-    a real trace-agent in order to let them pass.
+    Ensures that a workers interacts correctly with the main thread. These are part
+    of integration tests so real calls are fired. A test must be considered FAILED
+    if an assert fails or if the ``join()`` hangs for some reasons.
     """
     def setUp(self):
         """
@@ -32,7 +32,7 @@ class TestWorkers(TestCase):
         """
         self.tracer.writer.stop()
 
-    def test_a_trace_is_sent(self):
+    def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
         tracer = self.tracer
         tracer.trace('client.testing').finish()
@@ -42,7 +42,7 @@ class TestWorkers(TestCase):
         self.workers[0].join()
         eq_(self.transport.send.call_count, 1)
 
-    def test_single_send_for_multiple_traces(self):
+    def test_worker_multiple_traces(self):
         # make a single send() if multiple traces are created before the flush interval
         tracer = self.tracer
         tracer.trace('client.testing').finish()
@@ -53,7 +53,7 @@ class TestWorkers(TestCase):
         self.workers[0].join()
         eq_(self.transport.send.call_count, 1)
 
-    def test_single_send_for_single_trace_multiple_spans(self):
+    def test_worker_single_trace_multiple_spans(self):
         # make a single send() if a single trace with multiple spans is created before the flush
         tracer = self.tracer
         parent = tracer.trace('client.testing')
@@ -68,7 +68,7 @@ class TestWorkers(TestCase):
         self.workers[0].join()
         eq_(self.transport.send.call_count, 1)
 
-    def test_service_send(self):
+    def test_worker_single_service(self):
         # service must be sent correctly
         tracer = self.tracer
         tracer.set_service_info('client.service', 'django', 'web')
@@ -78,7 +78,7 @@ class TestWorkers(TestCase):
         self.workers[1].join()
         eq_(self.transport.send.call_count, 1)
 
-    def test_service_called_multiple_times(self):
+    def test_worker_service_called_multiple_times(self):
         # service must be sent correctly
         tracer = self.tracer
         tracer.set_service_info('backend', 'django', 'web')
@@ -91,3 +91,72 @@ class TestWorkers(TestCase):
         # one send is expected
         self.workers[1].join()
         eq_(self.transport.send.call_count, 1)
+
+
+class TestDefaultTransport(TestCase):
+    """
+    Ensures that a traces are properly sent to a local agent. These are part
+    of integration tests so real calls are fired and you have to execute
+    a real trace-agent in order to let them pass.
+    """
+    def setUp(self):
+        """
+        Create a tracer without workers, while spying the ``send()`` method
+        """
+        # create a new tracer and stop all running workers; we will
+        # test the transport using synchronous calls
+        self.tracer = Tracer()
+        self.tracer.writer.stop()
+        # spy the send() method
+        self.transport = self.tracer.writer._transport
+        self.transport.send = mock.Mock(self.transport.send, wraps=self.transport.send)
+        self.workers = self.tracer.writer._workers
+
+    def test_send_single_trace(self):
+        # register some traces and send them to the trace agent
+        tracer = self.tracer
+        tracer.trace('client.testing').finish()
+        spans = self.workers[0]._buffer.pop()
+        response = tracer.writer.send_traces(spans, self.transport)
+        ok_(response)
+        eq_(response.status, 200)
+
+    def test_send_multiple_traces(self):
+        # register some traces and send them to the trace agent
+        tracer = self.tracer
+        tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
+        spans = self.workers[0]._buffer.pop()
+        response = tracer.writer.send_traces(spans, self.transport)
+        ok_(response)
+        eq_(response.status, 200)
+
+    def test_send_single_trace_multiple_spans(self):
+        # register some traces and send them to the trace agent
+        tracer = self.tracer
+        parent = tracer.trace('client.testing')
+        child = tracer.trace('client.testing').finish()
+        parent.finish()
+        spans = self.workers[0]._buffer.pop()
+        response = tracer.writer.send_traces(spans, self.transport)
+        ok_(response)
+        eq_(response.status, 200)
+
+    def test_send_single_service(self):
+        # register some services and send them to the trace agent
+        tracer = self.tracer
+        tracer.set_service_info('client.service', 'django', 'web')
+        services = self.workers[1]._buffer.pop()
+        response = tracer.writer.send_services(services, self.transport)
+        ok_(response)
+        eq_(response.status, 200)
+
+    def test_send_service_called_multiple_times(self):
+        # register some services and send them to the trace agent
+        tracer = self.tracer
+        tracer.set_service_info('backend', 'django', 'web')
+        tracer.set_service_info('database', 'postgres', 'db')
+        services = self.workers[1]._buffer.pop()
+        response = tracer.writer.send_services(services, self.transport)
+        ok_(response)
+        eq_(response.status, 200)
