@@ -1,9 +1,18 @@
 """
-The flask trace middleware will track request timings and templates. It
+The Flask trace middleware will track request timings and templates. It
 requires the `Blinker <https://pythonhosted.org/blinker/>`_ library, which
 Flask uses for signalling.
 
-To install the middleware, do the following::
+To install the middleware, add::
+
+    from ddtrace import tracer
+    from ddtrace.contrib.flask import TraceMiddleware
+
+and create a `TraceMiddleware` object::
+
+    traced_app = TraceMiddleware(app, tracer, service="my-flask-app")
+
+Here is the end result, in a sample app::
 
     from flask import Flask
     import blinker as _
@@ -11,7 +20,7 @@ To install the middleware, do the following::
     from ddtrace import tracer
     from ddtrace.contrib.flask import TraceMiddleware
 
-    app = Flask(...)
+    app = Flask(__name__)
 
     traced_app = TraceMiddleware(app, tracer, service="my-flask-app")
 

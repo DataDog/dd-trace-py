@@ -2,7 +2,16 @@
 The flask cache tracer will track any access to a cache backend.
 You can use this tracer together with the Flask tracer middleware.
 
-To install the tracer, do the following::
+To install the tracer, ``from ddtrace`` needs to be added::
+
+    from ddtrace import tracer
+    from ddtrace.contrib.flask_cache import get_traced_cache
+
+and the tracer needs to be initialized::
+
+    Cache = get_traced_cache(tracer, service='my-flask-cache-app')
+
+Here is the end result, in a sample app::
 
     from flask import Flask
 
