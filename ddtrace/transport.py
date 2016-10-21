@@ -35,5 +35,6 @@ class HTTPTransport(Transport):
         try:
             conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.DEFAULT_TIMEOUT)
             conn.request(method, url, body=payload, headers=headers)
+            return conn.getresponse()
         except Exception:
             log.exception('Unable to flush data to the local agent')

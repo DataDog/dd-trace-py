@@ -49,7 +49,7 @@ class AgentWriter(object):
     def send_traces(self, spans, transport):
         log.debug('Reporting {} spans'.format(len(spans)))
         payload = encode_spans(spans)
-        transport.send("PUT", "/spans", payload)
+        return transport.send("PUT", "/spans", payload)
 
     def send_services(self, services, transport):
         # extract the services dictionary
@@ -62,4 +62,4 @@ class AgentWriter(object):
         # encode and send services
         log.debug('Reporting {} services'.format(len(services)))
         payload = encode_services(services)
-        transport.send("PUT", "/services", payload)
+        return transport.send("PUT", "/services", payload)
