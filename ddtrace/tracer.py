@@ -21,19 +21,13 @@ class Tracer(object):
         >>> from ddtrace import tracer
         >>> tracer.trace("foo").finish()
     """
-
-    DEFAULT_HOSTNAME = 'localhost'
-    DEFAULT_PORT = 7777
-
     def __init__(self):
         """Create a new tracer."""
 
         # Apply the default configuration
-        self.configure(
-            enabled=True,
-            hostname=self.DEFAULT_HOSTNAME,
-            port=self.DEFAULT_PORT,
-            sampler=AllSampler())
+        self.enabled = True
+        self.writer = AgentWriter()
+        self.sampler = AllSampler()
 
         # a list of buffered spans.
         self._spans_lock = threading.Lock()
@@ -49,25 +43,51 @@ class Tracer(object):
         # in production.
         self.debug_logging = False
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None):
-        """Configure an existing Tracer the easy way.
+        # start background workers to send data to a trace agent
+        self.writer.start()
 
-        Allow to configure or reconfigure a Tracer instance.
+    def configure(self, enabled=None, hostname=None, port=None, sampler=None, buffer_size=None, flush_interval=None, service_interval=None):
+        """
+        Configure an existing Tracer the easy way. Allow to configure or reconfigure a ``Tracer`` instance.
 
-        :param bool enabled: If True, finished traces will be
-            submitted to the API. Otherwise they'll be dropped.
+        :param bool enabled: If True, finished traces will be submitted to the API.
+                             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
         """
+        # set the tracer
         if enabled is not None:
             self.enabled = enabled
 
-        if hostname is not None or port is not None:
-            self.writer = AgentWriter(hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT)
-
+        # set the sampler
         if sampler is not None:
             self.sampler = sampler
+
+        params = {}
+        if buffer_size is not None:
+            params.update({'buffer_size': buffer_size})
+
+        if flush_interval is not None:
+            params.update({'flush_interval': flush_interval})
+
+        if service_interval is not None:
+            params.update({'service_interval': service_interval})
+
+        # initialize the writer if an internal has been changed
+        if params:
+            # stop any running workers
+            self.writer.stop()
+            # create and start workers again
+            self.writer = AgentWriter(**params)
+            self.writer.start()
+
+        # these values don't need to recreate a writer again
+        if hostname is not None:
+            self.writer._transport.hostname = hostname
+
+        if port is not None:
+            self.writer._transport.port = port
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """Return a span that will trace an operation called `name`.

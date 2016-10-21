@@ -22,7 +22,6 @@ class AgentWriter(object):
         services = AsyncTransport(service_interval, self.send_services, self._transport, 1)
         self._workers.append(traces)
         self._workers.append(services)
-        self.start()
 
     def start(self):
         """
@@ -58,6 +57,7 @@ class AgentWriter(object):
         # keep the services list for the next call, so that even if we have
         # communication problems (i.e. the trace agent isn't started yet) we
         # can resend the payload every ``service_interval`` seconds
+        service_worker = self._workers[1]
         service_worker.queue(services)
         # encode and send services
         log.debug('Reporting {} services'.format(len(services)))

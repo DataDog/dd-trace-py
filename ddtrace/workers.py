@@ -56,7 +56,7 @@ class AsyncTransport(object):
         """
         Wait for the thread state to be gone.
         """
-        self._timer.join()
+        self._timer.join(timeout=10)
 
     def queue(self, item):
         """
