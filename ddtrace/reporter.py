@@ -13,14 +13,15 @@ class AgentReporter(object):
     """
     Report spans to the Agent API.
     """
-    def __init__(self, hostname, port, buffer_size=1000, flush_interval=1):
+    def __init__(self, hostname, port, buffer_size=1000, flush_interval=1, service_interval=120):
         self._transport = HTTPTransport(hostname, port)
-        self._services = {}
         self._workers = []
 
-        # start threads that communicate with the trace agent
-        worker = AsyncTransport(flush_interval, self.send_traces, self._transport, buffer_size)
-        self._workers.append(worker)
+        # Asynchronous workers that send data to the trace agent
+        traces = AsyncTransport(flush_interval, self.send_traces, self._transport, buffer_size)
+        services = AsyncTransport(service_interval, self.send_traces, self._transport, 1)
+        self._workers.append(traces)
+        self._workers.append(services)
         self.start()
 
     def start(self):
@@ -38,15 +39,13 @@ class AgentReporter(object):
         for worker in self._workers:
             worker.stop()
 
-    def report(self, trace, services):
-        if trace:
-            trace_worker = self._workers[0]
-            trace_worker.queue(trace)
+    def write_trace(self, trace):
+        trace_worker = self._workers[0]
+        trace_worker.queue(trace)
 
-        if services:
-            # TODO[manu]: services push are disabled at the moment
-            # self._services.update(services)
-            pass
+    def write_service(self, services):
+        service_worker = self._workers[1]
+        service_worker.queue(services)
 
     def send_traces(self, spans, transport):
         log.debug('Reporting {} spans'.format(len(spans)))

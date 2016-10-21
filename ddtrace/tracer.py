@@ -163,7 +163,7 @@ class Tracer(object):
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)
-            self.writer.write(spans, self._services)
+            self.writer.write_trace(spans)
 
     def set_service_info(self, service, app, app_type):
         """Set the information about the given service.
@@ -180,6 +180,9 @@ class Tracer(object):
         if self.debug_logging:
             log.debug("set_service_info: service:%s app:%s type:%s",
                 service, app, app_type)
+
+        if self.enabled and self.writer:
+            self.writer.write_service(self._services)
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """A decorator used to trace an entire function.
