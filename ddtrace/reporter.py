@@ -1,42 +1,59 @@
-"""
-Report spans to the Agent API.
-"""
 import logging
-from time import time
 
 # project
-from .transport import ThreadedHTTPTransport
+from .transport import HTTPTransport
 from .encoding import encode_spans, encode_services
+from .workers import AsyncTransport
 
 
 log = logging.getLogger(__name__)
 
 
 class AgentReporter(object):
+    """
+    Report spans to the Agent API.
+    """
+    def __init__(self, hostname, port, buffer_size=1000, flush_interval=1):
+        self._transport = HTTPTransport(hostname, port)
+        self._services = {}
+        self._workers = []
 
-    SERVICES_FLUSH_INTERVAL = 120
+        # start threads that communicate with the trace agent
+        worker = AsyncTransport(flush_interval, self.send_traces, self._transport, buffer_size)
+        self._workers.append(worker)
+        self.start()
 
-    def __init__(self, hostname, port):
-        self.transport = ThreadedHTTPTransport(hostname, port)
-        self.last_services_flush = 0
+    def start(self):
+        """
+        Start background workers that send traces and service metadata to the trace agent
+        """
+        for worker in self._workers:
+            worker.start()
 
-    def report(self, spans, services):
-        if spans:
-            self.send_spans(spans)
+    def stop(self):
+        """
+        Stop background workers. This operation is synchronous and so you should not use
+        it in your application code otherwise it could hang your code execution.
+        """
+        for worker in self._workers:
+            worker.stop()
+
+    def report(self, trace, services):
+        if trace:
+            trace_worker = self._workers[0]
+            trace_worker.queue(trace)
+
         if services:
-            now = time()
-            if now - self.last_services_flush > self.SERVICES_FLUSH_INTERVAL:
-                self.send_services(services)
-                self.last_services_flush = now
+            # TODO[manu]: services push are disabled at the moment
+            # self._services.update(services)
+            pass
 
-    def send_spans(self, spans):
-        log.debug("Reporting %d spans", len(spans))
-        data = encode_spans(spans)
-        headers = {}
-        self.transport.send("PUT", "/spans", data, headers)
+    def send_traces(self, spans, transport):
+        log.debug('Reporting {} spans'.format(len(spans)))
+        payload = encode_spans(spans)
+        transport.send("PUT", "/spans", payload)
 
-    def send_services(self, services):
-        log.debug("Reporting %d services", len(services))
-        data = encode_services(services)
-        headers = {}
-        self.transport.send("PUT", "/services", data, headers)
+    def send_services(self, services, transport):
+        log.debug('Reporting {} services'.format(len(services)))
+        payload = encode_services(services)
+        transport.send("PUT", "/services", payload)
