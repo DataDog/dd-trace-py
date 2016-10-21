@@ -35,7 +35,7 @@ tracing from scratch to a small web app::
     @route("/home")
     def home(request):
 
-        with tracer.trace('web.request',service=service,resource='home') as span:
+        with tracer.trace('web.request', service=service, resource='home') as span:
             # set some span metadata
             span.set_tag('web.user', request.username)
 
