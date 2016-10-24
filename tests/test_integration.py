@@ -1,7 +1,8 @@
+import os
 import mock
 import time
 
-from unittest import TestCase
+from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
 from ddtrace.tracer import Tracer
@@ -93,6 +94,10 @@ class TestWorkers(TestCase):
         eq_(self.transport.send.call_count, 1)
 
 
+@skipUnless(
+    os.environ.get('DATADOG_INTEGRATION_TESTS', False),
+    'You should have a running trace agent and set the DATADOG_INTEGRATION_TESTS env variable'
+)
 class TestDefaultTransport(TestCase):
     """
     Ensures that a traces are properly sent to a local agent. These are part
