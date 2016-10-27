@@ -19,10 +19,10 @@ CASSANDRA_CONFIG = {
 
 POSTGRES_CONFIG = {
     'host' : 'localhost',
-    'port': int(os.getenv("TEST_POSTGRES_PORT", 55432)),
-    'user' : os.getenv("TEST_POSTGRES_USER", "postgres"),
-    'password' : os.getenv("TEST_POSTGRES_PASSWORD", "postgres"),
-    'dbname' : os.getenv("TEST_POSTGRES_DB", "postgres"),
+    'port': int(os.getenv("TEST_POSTGRES_PORT", 5432)),
+    'user' : os.getenv("TEST_POSTGRES_USER", "dog"),
+    'password' : os.getenv("TEST_POSTGRES_PASSWORD", "dog"),
+    'dbname' : os.getenv("TEST_POSTGRES_DB", "dogdata"),
 }
 
 MYSQL_CONFIG = {
