@@ -7,53 +7,76 @@ import psycopg2
 import wrapt
 
 # project
-import ddtrace
-from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib import dbapi
+from ddtrace.ext import sql, net, db
 
 
 log = logging.getLogger(__name__)
 
 
-def _connect(connect_func, _, args, kwargs):
-    db = connect_func(*args, **kwargs)
-    return TracedConnection(db)
+def patch():
+    """ Patch monkey patches psycopg's connection function
+        so that the connection's functions are traced.
+    """
+    setattr(_connect, 'datadog_patched_func', psycopg2.connect)
+    wrapt.wrap_function_wrapper('psycopg2', 'connect', _connect)
 
 def unpatch():
-    """ unpatch undoes any monkeypatching. """
+    """ Unpatch will undo any monkeypatching. """
     connect = getattr(_connect, 'datadog_patched_func', None)
     if connect is not None:
         psycopg2.connect = connect
 
-
-def patch():
+def wrap(conn, service="postgres", tracer=None):
+    """ Wrap will add tracing to the given connection.
+        It is only necessary if you aren't monkeypatching
+        the library.
     """
-    patch monkey patches psycopg's connection class so all
+    wrapped_conn = dbapi.TracedConnection(conn)
 
-    new connections will be traced by default.
-    """
-    setattr(_connect, 'datadog_patched_func', psycopg2.connect)
-    wrapt.wrap_function_wrapper('psycopg2', 'connect', _connect)
+    # fetch tags from the dsn
+    dsn = sql.parse_pg_dsn(conn.dsn)
+    tags = {
+        net.TARGET_HOST: dsn.get("host"),
+        net.TARGET_PORT: dsn.get("port"),
+        db.NAME: dsn.get("dbname"),
+        db.USER: dsn.get("user"),
+        "db.application" : dsn.get("application_name"),
+    }
+
+    dbapi.configure(
+        conn=wrapped_conn,
+        service=service,
+        name="postgres.query",
+        tracer=tracer,
+        tags=tags,
+    )
+
+    return wrapped_conn
+
+
+def _connect(connect_func, _, args, kwargs):
+    db = connect_func(*args, **kwargs)
+    return dbapi.TracedConnection(db)
 
 
 if __name__ == '__main__':
     import sys
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    import psycopg2
-
     print 'PATCHED'
     patch()
-    db = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
-    setattr(db, "datadog_service", "foo")
+    conn = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
+    setattr(conn, "datadog_service", "foo")
 
-    cur = db.cursor()
+    cur = conn.cursor()
     cur.execute("select 'foobar'")
     print cur.fetchall()
 
     print 'UNPATCHED'
     unpatch()
-    db = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
-    cur = db.cursor()
+    conn = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
+    cur = conn.cursor()
     cur.execute("select 'foobar'")
     print cur.fetchall()
 

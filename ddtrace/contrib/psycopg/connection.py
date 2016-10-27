@@ -81,7 +81,7 @@ class TracedConnection(connection):
         super(TracedConnection, self).__init__(*args, **kwargs)
 
         # add metadata (from the connection, string, etc)
-        dsn = sqlx.parse_pg_dsn(self.dsn)
+        dsn = sql.parse_pg_dsn(self.dsn)
         self._datadog_tags = {
             net.TARGET_HOST: dsn.get("host"),
             net.TARGET_PORT: dsn.get("port"),
