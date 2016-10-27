@@ -73,7 +73,7 @@ def configure(conn, name=None, service=None, tracer=None, tags=None):
 
     def _set_if(attr, val):
         if hasattr(conn, attr) and val:
-                setattr(conn, attr, val)
+            setattr(conn, attr, val)
 
     _set_if("datadog_service", service)
     _set_if("datadog_tracer", tracer)
