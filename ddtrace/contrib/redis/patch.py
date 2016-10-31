@@ -63,8 +63,13 @@ def _pipeline(func, instance, args, kwargs):
     # create the pipeline and monkeypatch it
     pipeline = func(*args, **kwargs)
     info.set_on(pipeline)
-    wrapped = wrapt.FunctionWrapper(pipeline.execute, _execute_pipeline)
-    setattr(pipeline, 'execute', wrapped)
+    setattr(
+        pipeline,
+        'execute', wrapt.FunctionWrapper(pipeline.execute, _execute_pipeline))
+    setattr(
+        pipeline,
+        'immediate_execute_command',
+        wrapt.FunctionWrapper(pipeline.immediate_execute_command, _execute_command))
     return pipeline
 
 def _execute_pipeline(func, instance, args, kwargs):
