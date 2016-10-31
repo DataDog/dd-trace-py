@@ -90,13 +90,15 @@ class RedisTest(unittest.TestCase):
         TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
         r = TracedRedisCache(port=REDIS_CONFIG['port'])
         _assert_pipeline_traced(r, tracer, self.SERVICE)
+        _assert_pipeline_immediate(r, tracer, self.SERVICE)
 
     def test_monkeypatch(self):
         from ddtrace.contrib.redis import patch
 
         suite = [
             _assert_conn_traced,
-            _assert_pipeline_traced
+            _assert_pipeline_traced,
+            _assert_pipeline_immediate,
         ]
 
         for f in suite:
@@ -135,10 +137,29 @@ class RedisTest(unittest.TestCase):
         eq_(spans[1].name, 'redis.command')
         eq_(spans[1].resource, 'GET foo')
 
-def _assert_pipeline_traced(conn, tracer, service):
+def _assert_pipeline_immediate(conn, tracer, service):
     r = conn
     writer = tracer.writer
     with r.pipeline() as p:
+        p.set('a', 1)
+        p.immediate_execute_command('SET', 'a', 1)
+        p.execute()
+
+    spans = writer.pop()
+    eq_(len(spans), 2)
+    span = spans[0]
+    eq_(span.service, service)
+    eq_(span.name, 'redis.command')
+    eq_(span.resource, u'SET a 1')
+    eq_(span.span_type, 'redis')
+    eq_(span.error, 0)
+    eq_(span.get_tag('out.redis_db'), '0')
+    eq_(span.get_tag('out.host'), 'localhost')
+
+def _assert_pipeline_traced(conn, tracer, service):
+    r = conn
+    writer = tracer.writer
+    with r.pipeline(transaction=False) as p:
         p.set('blah', 32)
         p.rpush('foo', u'éé')
         p.hgetall('xxx')
