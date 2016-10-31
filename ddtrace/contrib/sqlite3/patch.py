@@ -6,7 +6,6 @@ import sqlite3
 import wrapt
 
 # project
-import ddtrace
 from ddtrace.contrib.dbapi import TracedConnection
 
 

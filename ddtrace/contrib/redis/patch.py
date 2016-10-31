@@ -1,12 +1,9 @@
 
-import logging
-
 # 3p
 import wrapt
 import redis
 
 # project
-import ddtrace
 from ddtrace.info import ServiceInfo
 from ddtrace.ext import redis as redisx
 from .util import format_command_args, _extract_conn_tags
@@ -79,7 +76,8 @@ def _execute_pipeline(func, instance, args, kwargs):
     # FIXME[matt] done in the agent. worth it?
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = '\n'.join(cmds)
-    with info.tracer().trace('redis.command', resource=resource, service=info.service, span_type='redis') as s:
+    with info.tracer().trace('redis.command', resource=resource, service=info.service) as s:
+        s.span_type = 'redis'
         s.set_tag(redisx.RAWCMD, resource)
         s.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
