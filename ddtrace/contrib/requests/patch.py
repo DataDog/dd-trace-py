@@ -68,7 +68,8 @@ def _apply_tags(span, method, url, response):
     span.set_tag(http.URL, url)
     if response is not None:
         span.set_tag(http.STATUS_CODE, response.status_code)
-        span.error = 500 <= response.status_code
+        # `span.error` must be an integer
+        span.error = int(500 <= response.status_code)
 
 
 class TracedSession(requests.Session):
