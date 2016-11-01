@@ -22,7 +22,6 @@ def unpatch():
     if connect is not None:
         sqlite3.connect = connect
 
-
 def patch():
     """
     patch monkey patches psycopg's connection class so all
@@ -31,27 +30,3 @@ def patch():
     """
     setattr(_connect, 'datadog_patched_func', sqlite3.connect)
     wrapt.wrap_function_wrapper('sqlite3', 'connect', _connect)
-
-
-if __name__ == '__main__':
-    import sys
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
-    print 'PATCHED'
-    patch()
-    db = sqlite3.connect(":memory:")
-    setattr(db, "datadog_service", "foo")
-
-    cur = db.cursor()
-    cur.execute("create table foo ( bar text)")
-    cur.execute("select * from sqlite_master")
-    print cur.fetchall()
-
-    print 'UNPATCHED'
-    unpatch()
-    db = sqlite3.connect(":memory:")
-    cur = db.cursor()
-    cur.execute("select 'foobar'")
-    print cur.fetchall()
-
-
