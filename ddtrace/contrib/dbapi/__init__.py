@@ -54,11 +54,11 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         if name is None:
             try:
-                module = _get_module_name(conn)
+                name = _get_module_name(conn)
             except Exception:
                 log.warn("couldnt parse module name", exc_info=True)
-                module = "sql"
-        vendor = sql.normalize_vendor(module)
+                name = "sql"
+        vendor = sql.normalize_vendor(name)
         self.datadog_service = vendor
         self.datadog_name = "%s.query" % vendor
 
