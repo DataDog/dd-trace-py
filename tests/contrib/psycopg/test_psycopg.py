@@ -17,6 +17,14 @@ from ...test_tracer import DummyWriter
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 def assert_conn_is_traced(tracer, db, service):
+
+    # ensure the trace pscyopg client doesn't add non-standard
+    # methods
+    try:
+        db.execute("select 'foobar'")
+    except AttributeError:
+        pass
+
     writer = tracer.writer
     # Ensure we can run a query and it's correctly traced
     q = "select 'foobarblah'"

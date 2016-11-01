@@ -57,7 +57,17 @@ class TracedConnection(wrapt.ObjectProxy):
                 name = _get_module_name(conn)
             except Exception:
                 log.warn("couldnt parse module name", exc_info=True)
+        self.datadog_service = name
         self.datadog_name = "%s.query" % (name or 'sql')
+
+    def execute(self, *args, **kwargs):
+        # this method only exists on some clients, so trigger an attribute
+        # error if it doesn't.
+        getattr(self.__wrapped__, 'execute')
+
+        # otherwise, keep going.
+        cursor = self.cursor()
+        return cursor.execute(*args, **kwargs)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
