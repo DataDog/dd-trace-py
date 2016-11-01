@@ -61,6 +61,7 @@ class AsyncWorker(object):
 
     def __init__(self, shutdown_timeout=DEFAULT_TIMEOUT):
         self._queue = Queue(-1)
+        self._pid = os.getpid()
         self._lock = threading.Lock()
         self._thread = None
         self.options = {
@@ -141,6 +142,7 @@ class AsyncWorker(object):
         self._lock.acquire()
         try:
             if not self._thread:
+                log.debug("starting flush thread")
                 self._thread = threading.Thread(target=self._target)
                 self._thread.setDaemon(True)
                 self._thread.start()
@@ -162,6 +164,11 @@ class AsyncWorker(object):
             self._lock.release()
 
     def queue(self, callback, *args, **kwargs):
+        pid = os.getpid()
+        if self._pid != pid:
+            log.debug("queue was created in a different process than thread. resetting")
+            self._queue = Queue(-1)
+            self._pid = pid
         self._queue.put_nowait((callback, args, kwargs))
 
     def _target(self):
