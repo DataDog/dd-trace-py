@@ -19,7 +19,6 @@ autopatch_modules = [
     'sqlite3',
     'psycopg',
     'redis',
-    'fake',
 ]
 
 
@@ -55,7 +54,6 @@ def patch_module(path):
         log.debug('no patch function in %s. skipping', path)
         return False
 
-    log.debug("calling patch func %s in %s", func, path)
     func()
     log.debug("patched")
     return True
