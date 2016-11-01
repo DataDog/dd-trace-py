@@ -16,7 +16,7 @@ def patch():
 
 def patch_target(target, service_info=None):
     if not service_info:
-        service_info = ServiceInfo(name="redis", app="redis")
+        service_info = ServiceInfo(service="redis", app="redis")
 
     service_info.set_on(target)
 
@@ -30,7 +30,6 @@ def patch_target(target, service_info=None):
         if method is None:
             continue
         setattr(target, method_name, wrapt.FunctionWrapper(method, wrapper))
-
 
 #
 # tracing functions
