@@ -58,26 +58,3 @@ def wrap(conn, service="postgres", tracer=None):
 def _connect(connect_func, _, args, kwargs):
     db = connect_func(*args, **kwargs)
     return dbapi.TracedConnection(db)
-
-
-if __name__ == '__main__':
-    import sys
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
-    print 'PATCHED'
-    patch()
-    conn = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
-    setattr(conn, "datadog_service", "foo")
-
-    cur = conn.cursor()
-    cur.execute("select 'foobar'")
-    print cur.fetchall()
-
-    print 'UNPATCHED'
-    unpatch()
-    conn = psycopg2.connect(host='localhost', dbname='dogdata', user='dog')
-    cur = conn.cursor()
-    cur.execute("select 'foobar'")
-    print cur.fetchall()
-
-
