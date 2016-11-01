@@ -3,6 +3,7 @@ import logging
 
 # 3p
 import sqlite3
+import sqlite3.dbapi2
 import wrapt
 
 # project
@@ -28,5 +29,7 @@ def patch():
 
     new connections will be traced by default.
     """
-    setattr(_connect, 'datadog_patched_func', sqlite3.connect)
-    wrapt.wrap_function_wrapper('sqlite3', 'connect', _connect)
+    wrapped = wrapt.FunctionWrapper(sqlite3.connect, _connect)
+
+    setattr(sqlite3, 'connect', wrapped)
+    setattr(sqlite3.dbapi2, 'connect', wrapped)
