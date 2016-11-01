@@ -54,11 +54,13 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         if name is None:
             try:
-                name = _get_module_name(conn)
+                module = _get_module_name(conn)
             except Exception:
                 log.warn("couldnt parse module name", exc_info=True)
-        self.datadog_service = name
-        self.datadog_name = "%s.query" % (name or 'sql')
+                module = "sql"
+        vendor = sql.normalize_vendor(module)
+        self.datadog_service = vendor
+        self.datadog_name = "%s.query" % vendor
 
     def execute(self, *args, **kwargs):
         # this method only exists on some clients, so trigger an attribute
@@ -91,5 +93,4 @@ def configure(conn, name=None, service=None, tracer=None, tags=None):
     _set_if("datadog_tags", tags)
 
 def _get_module_name(conn):
-    # there must be a better way
-    return str(type(conn)).split("'")[1].split('.')[0]
+    return conn.__class__.__module__.split('.')[0]
