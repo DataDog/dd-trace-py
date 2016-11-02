@@ -1,6 +1,6 @@
 
 # stdlib
-import httplib
+from .compat import httplib
 import logging
 import time
 

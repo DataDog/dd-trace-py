@@ -26,7 +26,7 @@ class AgentWriter(object):
         self._traces = None
         self._services = None
         self._worker = None
-        self._api = api.API(hostname, port)
+        self.api = api.API(hostname, port)
 
     def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.
@@ -51,7 +51,7 @@ class AgentWriter(object):
 
         # ensure we have an active thread working on this queue
         if not self._worker or not self._worker.is_alive():
-            self._worker = AsyncWorker(self._api, self._traces, self._services)
+            self._worker = AsyncWorker(self.api, self._traces, self._services)
 
 
 class AsyncWorker(object):
@@ -62,7 +62,7 @@ class AsyncWorker(object):
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
-        self._api = api
+        self.api = api
         self.start()
 
     def is_alive(self):
@@ -101,14 +101,14 @@ class AsyncWorker(object):
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    self._api.send_traces(traces)
+                    self.api.send_traces(traces)
                 except Exception:
                     log.exception("error sending spans")
 
                 services = self._service_queue.pop()
                 if services:
                     try:
-                        self._api.send_services(services)
+                        self.api.send_services(services)
                     except Exception:
                         log.exception("error sending spans")
 

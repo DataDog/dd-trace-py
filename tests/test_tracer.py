@@ -10,7 +10,6 @@ from unittest.case import SkipTest
 from ddtrace import encoding
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
-from ddtrace.transport import ThreadedHTTPTransport
 
 
 def test_tracer_vars():
