@@ -163,8 +163,7 @@ class Tracer(object):
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)
-            self.writer.write(spans, self._services)
-            self._services = {}
+            self.writer.write(spans)
 
     def set_service_info(self, service, app, app_type):
         """Set the information about the given service.
@@ -173,14 +172,20 @@ class Tracer(object):
         :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
         :param str app_type: the type of the application (e.g. db, web)
         """
-        self._services[service] = {
-            "app" : app,
-            "app_type": app_type,
+
+        services = {
+            service : {
+                "app" : app,
+                "app_type": app_type,
+            }
         }
 
         if self.debug_logging:
             log.debug("set_service_info: service:%s app:%s type:%s",
                 service, app, app_type)
+
+        if self.writer:
+            self.writer.write(spans=None, services=services)
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """A decorator used to trace an entire function.

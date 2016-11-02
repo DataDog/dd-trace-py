@@ -279,12 +279,12 @@ class DummyWriter(AgentWriter):
     def write(self, spans, services=None):
 
         # encode so things work.
-        encoding.encode_spans(spans)
-        encoding.encode_services(services)
+        if spans:
+            encoding.encode_spans(spans)
+            self.spans += spans
 
-        # simplify for easier retrieval
-        self.spans += spans
         if services:
+            encoding.encode_services(services)
             self.services.update(services)
 
     def pop(self):
