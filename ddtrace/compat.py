@@ -37,10 +37,21 @@ def iteritems(obj, **kwargs):
 
 def to_unicode(s):
     """ Return a unicode string for the given bytes or string instance. """
-    if hasattr(s, "decode"):
-        return s.decode("utf-8")
-    else:
-        return stringify(s)
+    # No reason to decode if we already have the unicode compatible object we expect
+    # DEV: `stringify` will be a `str` for python 3 and `unicode` for python 2
+    # DEV: Double decoding a `unicode` can cause a `UnicodeEncodeError`
+    #   e.g. `'\xc3\xbf'.decode('utf-8').decode('utf-8')`
+    if isinstance(s, stringify):
+        return s
+
+    # If the object has a `decode` method, then decode into `utf-8`
+    #   e.g. Python 2 `str`, Python 2/3 `bytearray`, etc
+    if hasattr(s, 'decode'):
+        return s.decode('utf-8')
+
+    # Always try to coerce the object into the `stringify` object we expect
+    #   e.g. `to_unicode(1)`, `to_unicode(dict(key='value'))`
+    return stringify(s)
 
 if PY2:
     numeric_types = (int, long, float)
