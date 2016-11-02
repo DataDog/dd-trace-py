@@ -8,6 +8,7 @@ It is currently experimental and incomplete.
 
 import logging
 import importlib
+import threading
 
 
 log = logging.getLogger()
@@ -21,6 +22,12 @@ autopatch_modules = [
     'redis',
 ]
 
+_lock = threading.Lock()
+_patched_modules = set()
+
+def get_patched_modules():
+    with _lock:
+        return sorted(_patched_modules)
 
 def autopatch():
     """ autopatch will attempt to patch all available contrib modules. """
@@ -46,14 +53,20 @@ def patch_module(path):
     """ patch_module will attempt to autopatch the module with the given
         import path.
     """
-    log.debug("attempting to patch %s", path)
-    imp = importlib.import_module(path)
+    with _lock:
+        if path in _patched_modules:
+            log.debug("already patched: %s", path)
+            return False
 
-    func = getattr(imp, 'patch', None)
-    if func is None:
-        log.debug('no patch function in %s. skipping', path)
-        return False
+        log.debug("attempting to patch %s", path)
+        imp = importlib.import_module(path)
 
-    func()
-    log.debug("patched")
-    return True
+        func = getattr(imp, 'patch', None)
+        if func is None:
+            log.debug('no patch function in %s. skipping', path)
+            return False
+
+        func()
+        log.debug("patched")
+        _patched_modules.add(path)
+        return True
