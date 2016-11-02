@@ -38,8 +38,8 @@ class TracerConfig(AppConfig):
         # AgentWriter, it breaks all tests. The configure() behavior must
         # be changed to use it in this integration
         tracer.enabled = settings.ENABLED
-        tracer.writer._reporter.transport.hostname = settings.AGENT_HOSTNAME
-        tracer.writer._reporter.transport.port = settings.AGENT_PORT
+        tracer.writer.api.hostname = settings.AGENT_HOSTNAME
+        tracer.writer.api.port = settings.AGENT_PORT
 
         if settings.AUTO_INSTRUMENT:
             # trace Django internals

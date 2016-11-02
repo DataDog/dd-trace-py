@@ -14,5 +14,5 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
     users settings
     """
     def test_enabled_flag(self):
-        eq_(self.tracer.writer._reporter.transport.hostname, 'agent.service.consul')
-        eq_(self.tracer.writer._reporter.transport.port, '8777')
+        eq_(self.tracer.writer.api.hostname, 'agent.service.consul')
+        eq_(self.tracer.writer.api.port, '8777')

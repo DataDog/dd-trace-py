@@ -10,7 +10,6 @@ from unittest.case import SkipTest
 from ddtrace import encoding
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
-from ddtrace.transport import ThreadedHTTPTransport
 
 
 def test_tracer_vars():
@@ -275,16 +274,16 @@ class DummyWriter(AgentWriter):
         # dummy components
         self.spans = []
         self.services = {}
-        self._reporter.transport = DummyTransport(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
 
-    def write(self, spans, services=None):
-        # ensures the writer is called as usual; this includes
-        # the reporter encoding
-        super(DummyWriter, self).write(spans, services=services)
+    def write(self, spans=None, services=None):
 
-        # simplify for easier retrieval
-        self.spans += spans
+        # encode so things work.
+        if spans:
+            encoding.encode_spans(spans)
+            self.spans += spans
+
         if services:
+            encoding.encode_services(services)
             self.services.update(services)
 
     def pop(self):
@@ -299,10 +298,6 @@ class DummyWriter(AgentWriter):
         self.services = {}
         return s
 
-class DummyTransport(ThreadedHTTPTransport):
-    """ Fake HTTPTransport for tests. """
-    def send(self, *args, **kwargs):
-        pass
 
 def get_test_tracer():
     tracer = Tracer()
