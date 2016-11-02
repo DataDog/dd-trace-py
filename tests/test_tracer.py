@@ -275,7 +275,7 @@ class DummyWriter(AgentWriter):
         self.spans = []
         self.services = {}
 
-    def write(self, spans, services=None):
+    def write(self, spans=None, services=None):
 
         # encode so things work.
         if spans:
