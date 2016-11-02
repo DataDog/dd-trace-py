@@ -28,7 +28,7 @@ class AgentWriter(object):
         self._worker = None
         self._api = api.API(hostname, port)
 
-    def write(self, spans, services=None):
+    def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.
         self._reset_worker()
 
