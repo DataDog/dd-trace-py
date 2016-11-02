@@ -54,7 +54,6 @@ def wrap(conn, service="postgres", tracer=None):
 
     return wrapped_conn
 
-
 def _connect(connect_func, _, args, kwargs):
     db = connect_func(*args, **kwargs)
-    return dbapi.TracedConnection(db)
+    return wrap(db)
