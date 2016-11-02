@@ -164,6 +164,7 @@ class Tracer(object):
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans, self._services)
+            self._services = {}
 
     def set_service_info(self, service, app, app_type):
         """Set the information about the given service.

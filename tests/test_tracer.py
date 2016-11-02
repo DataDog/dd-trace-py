@@ -275,12 +275,12 @@ class DummyWriter(AgentWriter):
         # dummy components
         self.spans = []
         self.services = {}
-        self._reporter.transport = DummyTransport(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
 
     def write(self, spans, services=None):
-        # ensures the writer is called as usual; this includes
-        # the reporter encoding
-        super(DummyWriter, self).write(spans, services=services)
+
+        # encode so things work.
+        encoding.encode_spans(spans)
+        encoding.encode_services(services)
 
         # simplify for easier retrieval
         self.spans += spans
@@ -299,10 +299,6 @@ class DummyWriter(AgentWriter):
         self.services = {}
         return s
 
-class DummyTransport(ThreadedHTTPTransport):
-    """ Fake HTTPTransport for tests. """
-    def send(self, *args, **kwargs):
-        pass
 
 def get_test_tracer():
     tracer = Tracer()
