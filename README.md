@@ -28,7 +28,7 @@ You can launch the test matrix using the following rake command::
 ### Benchmarks
 
 When two or more approaches must be compared, please write a benchmark in the ``tests/benchmark.py``
-module so that we can keep track of the most efficient algorithm. To run your benchmark, just::
+module so that we can keep track of the most efficient algorithm. To run your benchmark, just:
 
     $ python -m tests.benchmark
 
