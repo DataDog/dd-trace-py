@@ -42,9 +42,6 @@ class Tracer(object):
         # track the active span
         self.span_buffer = ThreadLocalSpanBuffer()
 
-        # a collection of registered services by name.
-        self._services = {}
-
         # A hook for local debugging. shouldn't be needed or used
         # in production.
         self.debug_logging = False

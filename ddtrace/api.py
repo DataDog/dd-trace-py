@@ -26,10 +26,7 @@ class API(object):
         start = time.time()
         data = ddtrace.encoding.encode_spans(spans)
         self._send_span_data(data)
-        log.debug("reported %d spans in %.5fs",
-                len(spans),
-                time.time() - start,
-        )
+        log.debug("reported %d spans in %.5fs", len(spans), time.time() - start)
 
     def send_services(self, services):
         log.debug("Reporting %d services", len(services))
