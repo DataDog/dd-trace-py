@@ -117,7 +117,7 @@ class ThroughputSamplerTest(unittest.TestCase):
         tracer = Tracer()
         tracer.writer = writer
 
-        total_time = 10
+        total_time = 3
         concurrency = 100
         end_time = time.time() + total_time
 

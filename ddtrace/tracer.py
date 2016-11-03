@@ -46,6 +46,10 @@ class Tracer(object):
         # in production.
         self.debug_logging = False
 
+        # a buffer for service info so we dont' perpetually send the same
+        # things.
+        self._services = {}
+
     def configure(self, enabled=None, hostname=None, port=None, sampler=None):
         """Configure an existing Tracer the easy way.
 
@@ -169,20 +173,28 @@ class Tracer(object):
         :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
         :param str app_type: the type of the application (e.g. db, web)
         """
+        try:
+            # don't bother sending the same services over and over.
+            info = (service, app, app_type)
+            if self._services.get(service, None) == info:
+                return
+            self._services[service] = info
 
-        services = {
-            service : {
-                "app" : app,
-                "app_type": app_type,
-            }
-        }
+            if self.debug_logging:
+                log.debug("set_service_info: service:%s app:%s type:%s", service, app, app_type)
 
-        if self.debug_logging:
-            log.debug("set_service_info: service:%s app:%s type:%s",
-                service, app, app_type)
+            # If we had changes, send them to the writer.
+            if self.enabled and self.writer:
 
-        if self.enabled and self.writer:
-            self.writer.write(services=services)
+                # translate to the form the server understands.
+                services = {}
+                for service, app, app_type in self._services.values():
+                    services[service] = {"app" : app, "app_type" : app_type}
+
+                # queue them for writes.
+                self.writer.write(services=services)
+        except Exception:
+            log.exception("error setting service info")
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """A decorator used to trace an entire function.

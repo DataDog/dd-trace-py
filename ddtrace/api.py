@@ -23,14 +23,21 @@ class API(object):
         self.send_spans(spans)
 
     def send_spans(self, spans):
+        if not spans:
+            return
         start = time.time()
         data = ddtrace.encoding.encode_spans(spans)
         self._send_span_data(data)
         log.debug("reported %d spans in %.5fs", len(spans), time.time() - start)
 
     def send_services(self, services):
+        if not services:
+            return
         log.debug("Reporting %d services", len(services))
-        data = ddtrace.encoding.encode_services(services)
+        s = {}
+        for service in services:
+            s.update(service)
+        data = ddtrace.encoding.encode_services(s)
         self._put("/services", data, self.headers)
 
     def _send_span_data(self, data):
