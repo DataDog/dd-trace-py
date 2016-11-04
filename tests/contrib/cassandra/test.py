@@ -16,7 +16,7 @@ from ..config import CASSANDRA_CONFIG
 from ...test_tracer import DummyWriter
 
 
-class CassandraTest(unittest.TestCase):
+class CassandraBase(object): #unittest.TestCase):
     """
     Needs a running Cassandra
     """
@@ -44,14 +44,6 @@ class CassandraTest(unittest.TestCase):
             eq_(r.age, 100)
             eq_(r.description, "A cruel mistress")
 
-    def _traced_cluster(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-        TracedCluster = get_traced_cassandra(tracer)
-        return TracedCluster, writer
-
-
     def test_get_traced_cassandra(self):
         TracedCluster, writer = self._traced_cluster()
         session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
@@ -76,9 +68,6 @@ class CassandraTest(unittest.TestCase):
         eq_(query.get_tag(netx.TARGET_HOST), "127.0.0.1")
 
     def test_trace_with_service(self):
-        """
-        Tests tracing with a custom service
-        """
         writer = DummyWriter()
         tracer = Tracer()
         tracer.writer = writer
@@ -96,8 +85,12 @@ class CassandraTest(unittest.TestCase):
         TracedCluster, writer = self._traced_cluster()
         session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
 
-        with self.assertRaises(Exception):
+        try:
             session.execute("select * from test.i_dont_exist limit 1")
+        except Exception:
+            pass
+        else:
+            assert 0
 
         spans = writer.pop()
         assert spans
@@ -108,3 +101,14 @@ class CassandraTest(unittest.TestCase):
 
     def tearDown(self):
         self.cluster.connect().execute("DROP KEYSPACE IF EXISTS test")
+
+
+class TestOldSchool(CassandraBase):
+
+    def _traced_cluster(self):
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+        TracedCluster = get_traced_cassandra(tracer)
+        return TracedCluster, writer
+
