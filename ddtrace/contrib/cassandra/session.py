@@ -56,11 +56,13 @@ def _execute(func, instance, args, kwargs):
         span.resource = _sanitize_query(query)
         span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
         span.set_tags(_extract_cluster_metas(cluster))
+        result = None
         try:
             result = func(*args, **kwargs)
             return result
         finally:
-            span.set_tags(_extract_result_metas(result))
+            if result:
+                span.set_tags(_extract_result_metas(result))
 
 
 def get_traced_cassandra(tracer, service=SERVICE, meta=None):
@@ -132,16 +134,8 @@ def _extract_cluster_metas(cluster):
     metas = {}
     if deep_getattr(cluster, "metadata.cluster_name"):
         metas[cassx.CLUSTER] = cluster.metadata.cluster_name
-
     if getattr(cluster, "port", None):
         metas[net.TARGET_PORT] = cluster.port
-
-    if getattr(cluster, "contact_points", None):
-        metas[cassx.CONTACT_POINTS] = cluster.contact_points
-        # Use the first contact point as a persistent host
-        if isinstance(cluster.contact_points, list) and len(cluster.contact_points) > 0:
-            metas[net.TARGET_HOST] = cluster.contact_points[0]
-
     if getattr(cluster, "compression", None):
         metas[cassx.COMPRESSION] = cluster.compression
     if getattr(cluster, "cql_version", None):
@@ -153,10 +147,12 @@ def _extract_result_metas(result):
     metas = {}
     if not result:
         return metas
-
-    if deep_getattr(result, "response_future.query"):
-        query = result.response_future.query
-
+    future = getattr(result, "response_future", None)
+    if future:
+        host = getattr(future, "coordinator_host", None)
+        if host:
+            metas[net.TARGET_HOST] = host
+        query = getattr(future, "query", None)
         if getattr(query, "consistency_level", None):
             metas[cassx.CONSISTENCY_LEVEL] = query.consistency_level
         if getattr(query, "keyspace", None):
@@ -165,10 +161,7 @@ def _extract_result_metas(result):
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
     if hasattr(result, "has_more_pages"):
-        if result.has_more_pages:
-            metas[cassx.PAGINATED] = True
-        else:
-            metas[cassx.PAGINATED] = False
+        metas[cassx.PAGINATED] = bool(result.has_more_pages)
 
     # NOTE(aaditya): this number only reflects the first page of results
     # which could be misleading. But a true count would require iterating through
