@@ -48,7 +48,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
 
         def execute(self, *args, **kwargs):
             queries = []
-            with self._datadog_tracer.trace('redis.pipeline') as s:
+            with self._datadog_tracer.trace('redis.command') as s:
                 if s.sampled:
                     s.service = self._datadog_service
                     s.span_type = redisx.TYPE
