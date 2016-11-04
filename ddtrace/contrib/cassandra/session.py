@@ -5,24 +5,65 @@ Trace queries along a session to a cassandra cluster
 # stdlib
 import logging
 
-
-# project
-from ...compat import stringify
-from ...util import deep_getattr
-from ...ext import net as netx, cassandra as cassx
-from ...ext import AppTypes
-
 # 3p
 import cassandra.cluster
+import wrapt
+
+# project
+from ddtrace import Pin
+from ddtrace.compat import stringify
+from ...util import deep_getattr
+from ...ext import net, cassandra as cassx
+from ...ext import AppTypes
 
 
 log = logging.getLogger(__name__)
 
+
 RESOURCE_MAX_LENGTH = 5000
-DEFAULT_SERVICE = "cassandra"
+SERVICE = "cassandra"
 
 
-def get_traced_cassandra(tracer, service=DEFAULT_SERVICE, meta=None):
+def patch():
+    """ patch will add tracing to the cassandra library. """
+    patch_cluster(cassandra.cluster.Cluster)
+
+def patch_cluster(cluster, pin=None):
+    pin = pin or Pin(service="cassandra", app="cassandra")
+    setattr(cluster, 'connect', wrapt.FunctionWrapper(cluster.connect, _connect))
+    pin.onto(cluster)
+    return cluster
+
+def _connect(func, instance, args, kwargs):
+    session = func(*args, **kwargs)
+    if isinstance(session.execute, wrapt.FunctionWrapper):
+        return session
+    setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, _execute))
+    return session
+
+def _execute(func, instance, args, kwargs):
+    cluster = instance.cluster
+    pin = Pin.get_from(cluster)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    service = pin.service
+    tracer = pin.tracer
+
+    query = kwargs.get("kwargs") or args[0]
+
+    with tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE) as span:
+        span.resource = _sanitize_query(query)
+        span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
+        span.set_tags(_extract_cluster_metas(cluster))
+        try:
+            result = func(*args, **kwargs)
+            return result
+        finally:
+            span.set_tags(_extract_result_metas(result))
+
+
+def get_traced_cassandra(tracer, service=SERVICE, meta=None):
     return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
 
 
@@ -81,10 +122,8 @@ def _extract_session_metas(session):
     metas = {}
 
     if getattr(session, "keyspace", None):
-        # NOTE the keyspace can be overridden explicitly in the query itself
-        # e.g. "Select * from trace.hash_to_resource"
-        # currently we don't account for this, which is probably fine
-        # since the keyspace info is contained in the query even if the metadata disagrees
+        # FIXME the keyspace can be overridden explicitly in the query itself
+        # e.g. "select * from trace.hash_to_resource"
         metas[cassx.KEYSPACE] = session.keyspace.lower()
 
     return metas
@@ -95,13 +134,13 @@ def _extract_cluster_metas(cluster):
         metas[cassx.CLUSTER] = cluster.metadata.cluster_name
 
     if getattr(cluster, "port", None):
-        metas[netx.TARGET_PORT] = cluster.port
+        metas[net.TARGET_PORT] = cluster.port
 
     if getattr(cluster, "contact_points", None):
         metas[cassx.CONTACT_POINTS] = cluster.contact_points
         # Use the first contact point as a persistent host
         if isinstance(cluster.contact_points, list) and len(cluster.contact_points) > 0:
-            metas[netx.TARGET_HOST] = cluster.contact_points[0]
+            metas[net.TARGET_HOST] = cluster.contact_points[0]
 
     if getattr(cluster, "compression", None):
         metas[cassx.COMPRESSION] = cluster.compression
