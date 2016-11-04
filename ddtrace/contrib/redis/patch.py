@@ -11,26 +11,27 @@ from .util import format_command_args, _extract_conn_tags
 
 def patch():
     """ patch will patch the redis library to add tracing. """
-    patch_target(redis.Redis)
-    patch_target(redis.StrictRedis)
+    patch_client(redis.Redis)
+    patch_client(redis.StrictRedis)
 
-def patch_target(target, pin=None):
-    if not pin:
-        pin = Pin(service="redis", app="redis")
-
-    pin.onto(target)
+def patch_client(client, pin=None):
+    """ patch_instance will add tracing to the given redis client. It works on
+        instances or classes of redis.Redis and redis.StrictRedis.
+    """
+    pin = pin or Pin(service="redis", app="redis")
+    pin.onto(client)
 
     # monkeypatch all of the methods.
-    targets = [
+    methods = [
         ('execute_command', _execute_command),
         ('pipeline', _pipeline),
     ]
-    for method_name, wrapper in targets:
-        method = getattr(target, method_name, None)
+    for method_name, wrapper in methods:
+        method = getattr(client, method_name, None)
         if method is None:
             continue
-        setattr(target, method_name, wrapt.FunctionWrapper(method, wrapper))
-    return target
+        setattr(client, method_name, wrapt.FunctionWrapper(method, wrapper))
+    return client
 
 #
 # tracing functions

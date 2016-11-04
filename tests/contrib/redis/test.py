@@ -103,7 +103,7 @@ class RedisTest(unittest.TestCase):
         for func in suite:
             tracer = Tracer()
             tracer.writer = DummyWriter()
-            r = patch.patch_target(redis.Redis(port=REDIS_CONFIG['port']))
+            r = patch.patch_client(redis.Redis(port=REDIS_CONFIG['port']))
             Pin(service=self.SERVICE, tracer=tracer).onto(r)
             func(r, service=self.SERVICE, tracer=tracer)
 

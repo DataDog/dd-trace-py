@@ -7,7 +7,7 @@ from redis import StrictRedis
 
 # dogtrace
 from ...ext import AppTypes
-from .patch import patch_target
+from .patch import patch_client
 from ...pin import Pin
 
 
@@ -20,6 +20,7 @@ def get_traced_redis(ddtracer, service=DEFAULT_SERVICE, meta=None):
 
 
 def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=None):
+    """ DEPRECATED. Use patch* functions instead. """
     return _get_traced_redis(ddtracer, baseclass, service, meta)
 
 def _get_traced_redis(ddtracer, baseclass, service, meta):
@@ -27,7 +28,7 @@ def _get_traced_redis(ddtracer, baseclass, service, meta):
     class TracedRedis(baseclass):
         pass
 
-    patch_target(TracedRedis)
+    patch_client(TracedRedis)
 
     Pin(
         service=service,
