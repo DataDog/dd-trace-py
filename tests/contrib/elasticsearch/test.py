@@ -95,3 +95,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
         self.assertTrue(span.get_metric(metadata.TOOK) > 0)
+
+        # Drop the index, checking it won't raise exception on success or failure
+        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
