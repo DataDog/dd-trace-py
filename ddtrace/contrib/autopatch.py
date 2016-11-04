@@ -67,6 +67,6 @@ def patch_module(path):
             return False
 
         func()
-        log.debug("patched")
         _patched_modules.add(path)
+        log.debug("patched")
         return True

@@ -7,6 +7,7 @@ import psycopg2
 import wrapt
 
 # project
+from ddtrace import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
 
@@ -28,11 +29,11 @@ def unpatch():
         psycopg2.connect = connect
 
 def wrap(conn, service="postgres", tracer=None):
-    """ Wrap will add tracing to the given connection.
-        It is only necessary if you aren't monkeypatching
-        the library.
+    """ Wrap will patch the instance so that it's queries
+        are traced. Optionally set the service name of the
+        connection.
     """
-    wrapped_conn = dbapi.TracedConnection(conn)
+    c = dbapi.TracedConnection(conn)
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
@@ -44,15 +45,14 @@ def wrap(conn, service="postgres", tracer=None):
         "db.application" : dsn.get("application_name"),
     }
 
-    dbapi.configure(
-        conn=wrapped_conn,
+    pin = Pin(
         service=service,
-        name="postgres.query",
+        app="postgres",
         tracer=tracer,
-        tags=tags,
-    )
+        tags=tags)
 
-    return wrapped_conn
+    pin.onto(c)
+    return c
 
 def _connect(connect_func, _, args, kwargs):
     db = connect_func(*args, **kwargs)

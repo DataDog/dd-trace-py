@@ -9,9 +9,8 @@ if missing_modules:
 import redis
 from nose.tools import eq_, ok_
 
-from ddtrace.tracer import Tracer
 from ddtrace.contrib.redis import get_traced_redis, get_traced_redis_from
-from ddtrace.info import ServiceInfo
+from ddtrace import Pin, Tracer
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import DummyWriter
@@ -101,13 +100,12 @@ class RedisTest(unittest.TestCase):
             _assert_pipeline_immediate,
         ]
 
-        for f in suite:
+        for func in suite:
             tracer = Tracer()
             tracer.writer = DummyWriter()
-            r = redis.Redis(port=REDIS_CONFIG['port'])
-            service_info = ServiceInfo(service=self.SERVICE, tracer=tracer)
-            patch.patch_target(r, service_info)
-            f(r, service=self.SERVICE, tracer=tracer)
+            r = patch.patch_target(redis.Redis(port=REDIS_CONFIG['port']))
+            Pin(service=self.SERVICE, tracer=tracer).onto(r)
+            func(r, service=self.SERVICE, tracer=tracer)
 
     def test_custom_class(self):
         class MyCustomRedis(redis.Redis):
