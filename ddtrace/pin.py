@@ -17,14 +17,17 @@ class Pin(object):
 
     def __init__(self, service, app=None, tracer=None, tags=None):
         self.service = service
-        self.tracer = tracer or ddtrace.tracer
         self.app = app      # the 'product' name of a software
         self.name = None    # very occasionally needed
         self.tags = tags
 
+        # optionally specify an alternate tracer to use. this will
+        # mostly be used by tests.
+        self.tracer = tracer or ddtrace.tracer
+
     def enabled(self):
         """ Return true if this pin's tracer is enabled. """
-        return self.tracer.enabled
+        return bool(self.tracer) and self.tracer.enabled
 
     def onto(self, obj):
         """ Patch this pin onto the given object. """
