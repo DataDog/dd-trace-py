@@ -19,6 +19,10 @@ task :"test:envs", [:grep] do |t, args|
   end
 end
 
+task :up do
+  sh "docker-compose up -d | cat"
+end
+
 desc "install the library in dev mode"
 task :dev do
   sh "pip uninstall -y ddtrace"
