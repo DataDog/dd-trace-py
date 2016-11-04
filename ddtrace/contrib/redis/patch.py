@@ -48,6 +48,8 @@ def _execute_command(func, instance, args, kwargs):
         query = format_command_args(args)
         s.resource = query
         s.set_tag(redisx.RAWCMD, query)
+        if pin.tags:
+            s.set_tags(pin.tags)
         s.set_tags(_get_tags(instance))
         s.set_metric(redisx.ARGS_LEN, len(args))
         # run the command
