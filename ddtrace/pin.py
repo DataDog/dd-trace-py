@@ -1,5 +1,10 @@
 
+import logging
+
 import ddtrace
+
+
+log = logging.getLogger(__name__)
 
 
 class Pin(object):
@@ -31,4 +36,7 @@ class Pin(object):
 
     def onto(self, obj):
         """ Patch this pin onto the given object. """
-        return setattr(obj, '_datadog_pin', self)
+        try:
+            return setattr(obj, '_datadog_pin', self)
+        except AttributeError:
+            log.warn("can't pin onto object", exc_info=True)
