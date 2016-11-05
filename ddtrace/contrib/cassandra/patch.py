@@ -1,2 +1,2 @@
 
-from .session import patch #noqa
+from .session import patch  # noqa
