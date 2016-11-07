@@ -21,5 +21,4 @@ with require_modules(required_modules) as missing_modules:
         __all__ = [
             'get_traced_cassandra',
             'patch',
-            'patch_cluster',
         ]

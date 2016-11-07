@@ -29,16 +29,15 @@ def patch():
     patch_cluster(cassandra.cluster.Cluster)
 
 def patch_cluster(cluster, pin=None):
-    pin = pin or Pin(service="cassandra", app="cassandra")
+    pin = pin or Pin(service=SERVICE, app=SERVICE)
     setattr(cluster, 'connect', wrapt.FunctionWrapper(cluster.connect, _connect))
     pin.onto(cluster)
     return cluster
 
 def _connect(func, instance, args, kwargs):
     session = func(*args, **kwargs)
-    if isinstance(session.execute, wrapt.FunctionWrapper):
-        return session
-    setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, _execute))
+    if not isinstance(session.execute, wrapt.FunctionWrapper):
+        setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, _execute))
     return session
 
 def _execute(func, instance, args, kwargs):
