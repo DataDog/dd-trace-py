@@ -1,10 +1,98 @@
 import os
+import mock
+import time
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
-from ddtrace.span import Span
 from ddtrace.api import API
+from ddtrace.span import Span
+from ddtrace.tracer import Tracer
+
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestWorkers(TestCase):
+    """
+    Ensures that a workers interacts correctly with the main thread. These are part
+    of integration tests so real calls are triggered.
+    """
+    def setUp(self):
+        """
+        Create a tracer with running workers, while spying the ``_put()`` method to
+        keep trace of triggered API calls.
+        """
+        # create a new tracer
+        self.tracer = Tracer()
+        # spy the send() method
+        self.api = self.tracer.writer.api
+        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
+
+    def tearDown(self):
+        """
+        Stop running worker
+        """
+        self.tracer.writer._worker.stop()
+
+    def _wait_thread_flush(self):
+        """
+        Helper that waits for the thread flush
+        """
+        self.tracer.writer._worker.stop()
+        self.tracer.writer._worker.join()
+
+    def test_worker_single_trace(self):
+        # create a trace block and send it using the transport system
+        tracer = self.tracer
+        tracer.trace('client.testing').finish()
+
+        # one send is expected
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 1)
+
+    def test_worker_multiple_traces(self):
+        # make a single send() if multiple traces are created before the flush interval
+        tracer = self.tracer
+        tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
+
+        # one send is expected
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 1)
+
+    def test_worker_single_trace_multiple_spans(self):
+        # make a single send() if a single trace with multiple spans is created before the flush
+        tracer = self.tracer
+        parent = tracer.trace('client.testing')
+        child = tracer.trace('client.testing').finish()
+        parent.finish()
+
+        # one send is expected
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 1)
+
+    def test_worker_single_service(self):
+        # service must be sent correctly
+        tracer = self.tracer
+        tracer.set_service_info('client.service', 'django', 'web')
+        tracer.trace('client.testing').finish()
+
+        # expect a call for traces and services
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 2)
+
+    def test_worker_service_called_multiple_times(self):
+        # service must be sent correctly
+        tracer = self.tracer
+        tracer.set_service_info('backend', 'django', 'web')
+        tracer.set_service_info('database', 'postgres', 'db')
+        tracer.trace('client.testing').finish()
+
+        # expect a call for traces and services
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 2)
 
 
 @skipUnless(

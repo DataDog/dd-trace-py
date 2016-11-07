@@ -77,6 +77,21 @@ class AsyncWorker(object):
                 self._thread.start()
                 atexit.register(self._on_shutdown)
 
+    def stop(self):
+        """
+        Close the trace queue so that the worker will stop the execution
+        """
+        with self._lock:
+            if self._thread and self.is_alive():
+                self._trace_queue.close()
+
+    def join(self):
+        """
+        Wait for the AsyncWorker execution. This call is not blocking and has
+        a timeout of 2 seconds.
+        """
+        self._thread.join(timeout=2)
+
     def _on_shutdown(self):
         with self._lock:
             if not self._thread:
