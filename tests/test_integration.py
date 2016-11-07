@@ -1,4 +1,5 @@
 import os
+import json
 import mock
 import time
 
@@ -51,6 +52,12 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
+        # check arguments
+        endpoint = self.api._put.call_args[0][0]
+        payload = json.loads(self.api._put.call_args[0][1])
+        eq_(endpoint, '/spans')
+        eq_(len(payload), 1)
+        eq_(payload[0]['name'], 'client.testing')
 
     def test_worker_multiple_traces(self):
         # make a single send() if multiple traces are created before the flush interval
@@ -61,6 +68,13 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
+        # check arguments
+        endpoint = self.api._put.call_args[0][0]
+        payload = json.loads(self.api._put.call_args[0][1])
+        eq_(endpoint, '/spans')
+        eq_(len(payload), 2)
+        eq_(payload[0]['name'], 'client.testing')
+        eq_(payload[1]['name'], 'client.testing')
 
     def test_worker_single_trace_multiple_spans(self):
         # make a single send() if a single trace with multiple spans is created before the flush
@@ -72,6 +86,13 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
+        # check arguments
+        endpoint = self.api._put.call_args[0][0]
+        payload = json.loads(self.api._put.call_args[0][1])
+        eq_(endpoint, '/spans')
+        eq_(len(payload), 2)
+        eq_(payload[0]['name'], 'client.testing')
+        eq_(payload[1]['name'], 'client.testing')
 
     def test_worker_single_service(self):
         # service must be sent correctly
@@ -82,6 +103,12 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
+        # check arguments
+        endpoint = self.api._put.call_args[0][0]
+        payload = json.loads(self.api._put.call_args[0][1])
+        eq_(endpoint, '/services')
+        eq_(len(payload.keys()), 1)
+        eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
 
     def test_worker_service_called_multiple_times(self):
         # service must be sent correctly
@@ -93,6 +120,13 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
+        # check arguments
+        endpoint = self.api._put.call_args[0][0]
+        payload = json.loads(self.api._put.call_args[0][1])
+        eq_(endpoint, '/services')
+        eq_(len(payload.keys()), 2)
+        eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
+        eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
 
 
 @skipUnless(
