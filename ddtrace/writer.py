@@ -120,10 +120,10 @@ class AsyncWorker(object):
 
 
 class Q(object):
-    """ Q is a threadsafe queue that let's you pop everything at once and
-        will randomly overrwrite elements when it's over the max size.
     """
-
+    Q is a threadsafe queue that let's you pop everything at once and
+    will randomly overwrite elements when it's over the max size.
+    """
     def __init__(self, max_size=1000):
         self._things = []
         self._lock = threading.Lock()
@@ -147,7 +147,7 @@ class Q(object):
             if self._closed:
                 return False
 
-            if len(self._things) < self._max_size:
+            if len(self._things) < self._max_size or self._max_size <= 0:
                 self._things.append(thing)
                 return True
             else:
