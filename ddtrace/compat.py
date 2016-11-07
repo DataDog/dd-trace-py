@@ -54,8 +54,10 @@ def to_unicode(s):
     return stringify(s)
 
 if PY2:
+    string_type = basestring
     numeric_types = (int, long, float)
 else:
+    string_type = str
     numeric_types = (int, float)
 
 
