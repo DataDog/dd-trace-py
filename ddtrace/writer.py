@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 MAX_TRACES = 1000
 MAX_SERVICES = 1000
 
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 5
 
 
 class AgentWriter(object):
@@ -89,7 +89,8 @@ class AsyncWorker(object):
             size = self._trace_queue.size()
             if size:
                 key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
-                print("Waiting for traces to be sent. Hit %s to quit." % key)
+                log.debug("Waiting %ss for traces to be sent. Hit %s to quit.",
+                        self._shutdown_timeout, key)
                 timeout = time.time() + self._shutdown_timeout
                 while time.time() < timeout and self._trace_queue.size():
                     # FIXME[matt] replace with a queue join
