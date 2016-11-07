@@ -3,6 +3,7 @@ import time
 
 # 3p
 import psycopg2
+from psycopg2 import extras
 from nose.tools import eq_
 
 # project
@@ -10,8 +11,9 @@ from ddtrace import Tracer
 from ddtrace.contrib.psycopg import connection_factory
 
 # testing
-from ..config import POSTGRES_CONFIG
-from ...test_tracer import DummyWriter
+from tests.contrib.config import POSTGRES_CONFIG
+from tests.test_tracer import get_test_tracer
+from ddtrace.contrib.psycopg import patch_conn
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
@@ -71,21 +73,22 @@ def assert_conn_is_traced(tracer, db, service):
     eq_(span.span_type, "sql")
 
 def test_manual_wrap():
-    from ddtrace.contrib.psycopg.patch import wrap
-    db = psycopg2.connect(**POSTGRES_CONFIG)
-
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
-    wrapped = wrap(db, service="foo", tracer=tracer)
+    conn = psycopg2.connect(**POSTGRES_CONFIG)
+    tracer = get_test_tracer()
+    wrapped = patch_conn(conn, service="foo", tracer=tracer)
     assert_conn_is_traced(tracer, wrapped, "foo")
 
-
+def test_manual_wrap_extension_types():
+    conn = psycopg2.connect(**POSTGRES_CONFIG)
+    tracer = get_test_tracer()
+    wrapped = patch_conn(conn, service="foo", tracer=tracer)
+    # NOTE: this will crash if it doesn't work.
+    #   _ext.register_type(_ext.UUID, conn_or_curs)
+    #   TypeError: argument 2 must be a connection, cursor or None
+    extras.register_uuid(conn_or_curs=wrapped)
 
 def test_connect_factory():
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
+    tracer = get_test_tracer()
 
     services = ["db", "another"]
     for service in services:
@@ -94,7 +97,7 @@ def test_connect_factory():
         assert_conn_is_traced(tracer, db, service)
 
     # ensure we have the service types
-    services = writer.pop_services()
+    services = tracer.writer.pop_services()
     expected = {
         "db" : {"app":"postgres", "app_type":"db"},
         "another" : {"app":"postgres", "app_type":"db"},

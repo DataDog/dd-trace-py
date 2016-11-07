@@ -57,13 +57,6 @@ class TracedConnection(wrapt.ObjectProxy):
         name = _get_vendor(conn)
         self._datadog_pin = Pin(service=name, app=name)
 
-    def execute(self, *args, **kwargs):
-        # this method only exists on some clients, so trigger an attribute
-        # error if it doesn't.
-        getattr(self.__wrapped__, 'execute')
-        # otherwise, keep going.
-        return self.cursor().execute(*args, **kwargs)
-
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
         pin = self._datadog_pin

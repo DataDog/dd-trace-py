@@ -40,3 +40,9 @@ class Pin(object):
             return setattr(obj, '_datadog_pin', self)
         except AttributeError:
             log.warn("can't pin onto object", exc_info=True)
+
+    def __repr__(self):
+        return "Pin(service:%s,app:%s,name:%s)" % (
+            self.service,
+            self.app,
+            self.name)
