@@ -42,7 +42,7 @@ def _connect(func, instance, args, kwargs):
     return session
 
 def _execute(func, instance, args, kwargs):
-    cluster = instance.cluster
+    cluster = getattr(instance, 'cluster', None)
     pin = Pin.get_from(cluster)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
