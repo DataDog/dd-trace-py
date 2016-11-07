@@ -9,7 +9,7 @@ from cassandra.cluster import Cluster
 # project
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.test_tracer import get_test_tracer
-from ddtrace.contrib.cassandra import get_traced_cassandra, patch_cluster
+from ddtrace.contrib.cassandra.session import get_traced_cassandra, patch_cluster
 from ddtrace.ext import net, cassandra as cassx, errors
 from ddtrace import Pin
 
