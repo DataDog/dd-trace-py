@@ -9,7 +9,7 @@ from nose.tools import eq_, ok_
 import webtest
 
 # project
-from ddtrace import tracer
+from ddtrace import tracer, compat
 from ddtrace.contrib.bottle import TracePlugin
 from tests.test_tracer import get_test_tracer
 
@@ -27,7 +27,7 @@ def test_200():
     # make a request
     resp = app.get("/hi/dougie")
     eq_(resp.status_int, 200)
-    eq_(resp.body, 'hi dougie')
+    eq_(compat.to_unicode(resp.body), u'hi dougie')
     # validate it's traced
     spans = tracer.writer.pop()
     eq_(len(spans), 1)
