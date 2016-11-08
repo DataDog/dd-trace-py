@@ -37,14 +37,14 @@ class TracedElasticsearch(wrapt.ObjectProxy):
 
         wrapt.wrap_function_wrapper(es.transport, 'perform_request', _perform_request)
 
-    def __setpin__(self, pin):
+    def __setddpin__(self, pin):
         """Attach the Pin to the wrapped transport instance
 
         Since that's where we create the spans.
         """
         pin.onto(self.__wrapped__.transport)
 
-    def __getpin__(self):
+    def __getddpin__(self):
         """Get the Pin from the wrapped transport instance"""
         return Pin.get_from(self.__wrapped__.transport)
 
