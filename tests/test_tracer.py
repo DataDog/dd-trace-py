@@ -277,9 +277,13 @@ class DummyWriter(AgentWriter):
 
     def write(self, spans=None, services=None):
         if spans:
+            # the traces encoding expect a list of traces so we
+            # put spans in a list like we do in the real execution path
+            encoding.encode_traces([spans])
             self.spans += spans
 
         if services:
+            encoding.encode_services(services)
             self.services.update(services)
 
     def pop(self):
