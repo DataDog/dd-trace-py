@@ -16,6 +16,7 @@ log = logging.getLogger()
 
 # modules which are monkeypatch'able
 autopatch_modules = [
+    'cassandra',
     'requests',
     'sqlite3',
     'psycopg',
@@ -47,7 +48,10 @@ def patch_modules(modules, raise_errors=False):
                 log.debug("couldn't patch %s" % module, exc_info=True)
         if patched:
             count += 1
-    log.debug("patched %s/%s modules", count, len(modules))
+    log.debug("patched %s/%s modules (%s)",
+            count,
+            len(modules),
+            ",".join(get_patched_modules()))
 
 def patch_module(path):
     """ patch_module will attempt to autopatch the module with the given
@@ -59,7 +63,10 @@ def patch_module(path):
             return False
 
         log.debug("attempting to patch %s", path)
-        imp = importlib.import_module(path)
+        try:
+            imp = importlib.import_module(path)
+        except ImportError as e:
+            raise Exception("can't import %s: %s" % (path, e))
 
         func = getattr(imp, 'patch', None)
         if func is None:
@@ -68,5 +75,4 @@ def patch_module(path):
 
         func()
         _patched_modules.add(path)
-        log.debug("patched")
         return True
