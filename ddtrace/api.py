@@ -4,7 +4,6 @@ import time
 
 # project
 import ddtrace.encoding
-
 from .compat import httplib
 
 

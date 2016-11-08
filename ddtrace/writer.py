@@ -85,12 +85,12 @@ class AsyncWorker(object):
             if self._thread and self.is_alive():
                 self._trace_queue.close()
 
-    def join(self):
+    def join(self, timeout=2):
         """
-        Wait for the AsyncWorker execution. This call is not blocking and has
-        a timeout of 2 seconds.
+        Wait for the AsyncWorker execution. This call doesn't block the execution
+        and it has a 2 seconds of timeout by default.
         """
-        self._thread.join(timeout=2)
+        self._thread.join(timeout)
 
     def _on_shutdown(self):
         with self._lock:
