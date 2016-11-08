@@ -1,44 +1,22 @@
+"""
+The bottle integration traces the Bottle web framework. Add the following
+plugin to your app::
 
+    import bottle
+    from ddtrace import tracer
+    from ddtrace.contrib.bottle import TracePlugin
 
-# 3p
-from bottle import response, request
+    app = bottle.Bottle()
+    plugin = TracePlugin(service="my-web-app")
+    app.install(plugin)
+"""
 
-# stdlib
-import ddtrace
-from ddtrace.ext import http
+from ..util import require_modules
 
+required_modules = ['bottle']
 
-class TracePlugin(object):
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from .trace import TracePlugin
 
-    name = 'trace'
-    api = 2
-
-    def __init__(self, service="bottle", tracer=None):
-        self.service = service
-        self.tracer = tracer or ddtrace.tracer
-
-    def apply(self, callback, route):
-
-        def wrapped(*args, **kwargs):
-            if not self.tracer or not self.tracer.enabled:
-                return callback(*args, **kwargs)
-
-            resource = "%s %s" % (request.method, request.route.rule)
-
-            with self.tracer.trace("bottle.request", service=self.service, resource=resource) as s:
-                code = 0
-                try:
-                    return callback(*args, **kwargs)
-                except Exception:
-                    # bottle doesn't always translate unhandled exceptions, so
-                    # we mark it here.
-                    code = 500
-                    raise
-                finally:
-                    s.set_tag(http.STATUS_CODE, code or response.status_code)
-                    s.set_tag(http.URL, request.path)
-                    s.set_tag(http.METHOD, request.method)
-
-        return wrapped
-
-
+        __all__ = ['TracePlugin']
