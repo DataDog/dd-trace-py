@@ -4,14 +4,14 @@ from nose.tools import eq_, ok_
 
 from ddtrace.span import Span
 from ddtrace.compat import string_type, json
-from ddtrace.encoding import encode_spans
+from ddtrace.encoding import encode_traces
 
 
 class TestEncoders(TestCase):
     """
     Ensures that Encoders serialize the payload as expected.
     """
-    def test_encode_spans(self):
+    def test_encode_traces(self):
         # test encoding for JSON format
         traces = []
         traces.append([
@@ -23,7 +23,7 @@ class TestEncoders(TestCase):
             Span(name='client.testing', tracer=None),
         ])
 
-        spans = encode_spans(traces)
+        spans = encode_traces(traces)
         items = json.loads(spans)
 
         # test the encoded output that should be a string

@@ -24,7 +24,7 @@ class API(object):
         if not traces:
             return
         start = time.time()
-        data = ddtrace.encoding.encode_spans(traces)
+        data = ddtrace.encoding.encode_traces(traces)
         response = self._send_span_data(data)
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
