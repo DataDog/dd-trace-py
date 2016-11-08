@@ -5,13 +5,13 @@ from unittest import TestCase
 from nose.tools import eq_, ok_
 
 from ddtrace.span import Span
-from ddtrace.writer import Q as TraceBuffer
+from ddtrace.writer import Q
 from ddtrace.buffer import ThreadLocalSpanBuffer
 
 
-class TestInternalBuffers(TestCase):
+class TestLocalBuffer(TestCase):
     """
-    Tests related to the client internal buffers
+    Tests related to the thread local buffer
     """
     def test_thread_local_buffer(self):
         # the internal buffer must be thread-safe
@@ -32,10 +32,29 @@ class TestInternalBuffers(TestCase):
         for t in threads:
             t.join()
 
+
+class TestQBuffer(TestCase):
+    """
+    Tests related to the Q queue that buffers traces and services
+    before the API call.
+    """
+    def test_q_statements(self):
+        # test returned Q statements
+        q = Q(3)
+        assert q.add(1)
+        assert q.add(2)
+        assert q.add(3)
+        assert q.size() == 3
+        assert not q.add(4)
+        assert q.size() == 3
+
+        assert len(q.pop()) == 3
+        assert q.size() == 0
+
     def test_trace_buffer_limit(self):
         # the trace buffer must have a limit, if the limit is reached a
         # trace must be discarded
-        trace_buff = TraceBuffer(max_size=1)
+        trace_buff = Q(max_size=1)
         span_1 = Span(tracer=None, name='client.testing')
         span_2 = Span(tracer=None, name='client.testing')
         trace_buff.add(span_1)
@@ -45,7 +64,7 @@ class TestInternalBuffers(TestCase):
 
     def test_trace_buffer_closed(self):
         # the trace buffer must not add new elements if the buffer is closed
-        trace_buff = TraceBuffer()
+        trace_buff = Q()
         trace_buff.close()
         span = Span(tracer=None, name='client.testing')
         result = trace_buff.add(span)
@@ -56,7 +75,7 @@ class TestInternalBuffers(TestCase):
 
     def test_trace_buffer_pop(self):
         # the trace buffer must return all internal traces
-        trace_buff = TraceBuffer()
+        trace_buff = Q()
         span_1 = Span(tracer=None, name='client.testing')
         span_2 = Span(tracer=None, name='client.testing')
         trace_buff.add(span_1)
@@ -72,13 +91,13 @@ class TestInternalBuffers(TestCase):
 
     def test_trace_buffer_empty_pop(self):
         # the trace buffer must return None if it's empty
-        trace_buff = TraceBuffer()
+        trace_buff = Q()
         traces = trace_buff.pop()
         eq_(traces, None)
 
     def test_trace_buffer_without_cap(self):
         # the trace buffer must have unlimited size if users choose that
-        trace_buff = TraceBuffer(max_size=0)
+        trace_buff = Q(max_size=0)
         span_1 = Span(tracer=None, name='client.testing')
         span_2 = Span(tracer=None, name='client.testing')
         trace_buff.add(span_1)
