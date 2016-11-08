@@ -147,7 +147,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         es.indices.create(index=self.ES_INDEX, ignore=400)
 
         spans = writer.pop()
-        assert spans
+        assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -165,7 +165,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         es.index(id=12, body={'name': 'twelve'}, **args)
 
         spans = writer.pop()
-        assert spans
+        assert spans, spans
         eq_(len(spans), 3)
         span = spans[0]
         eq_(span.error, 0)
@@ -173,19 +173,32 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
-        # Search data
-        es.search(sort=['name:desc'], size=100,
-                body={"query":{"match_all":{}}}, **args)
+        # Make the data available
+        es.indices.refresh(index=self.ES_INDEX)
 
         spans = writer.pop()
-        assert spans
+        assert spans, spans
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
+        eq_(span.get_tag(metadata.METHOD), "POST")
+        eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
+
+        # Search data
+        result = es.search(sort=['name:desc'], size=100,
+                           body={"query":{"match_all":{}}}, **args)
+
+        assert len(result["hits"]) == 3, result
+
+        spans = writer.pop()
+        assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.resource,
-                "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
+            "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
         eq_(span.get_tag(metadata.URL),
-                "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
+            "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
