@@ -17,8 +17,6 @@ set to the full module path, classname and method, which can be override by a
     class BaseHandler(TracerMixin, RequestHandler):
         tracer_service = 'demo'
 
-        ...
-
 
     class IndexHandler(BaseHandler):
 
@@ -32,8 +30,8 @@ set to the full module path, classname and method, which can be override by a
             raise Exception('boom')
 
 
-In the above example both both the get and post methods will spans created for
-them and the get method will also have a child span wrapping the sleep call.
+In the above example both both the get and post methods will have spans created
+for them and the get method will also have a child span wrapping the sleep call.
 """
 
 from ddtrace import Tracer, tracer
