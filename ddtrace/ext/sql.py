@@ -15,10 +15,10 @@ DB = "sql.db"         # the name of the database
 def normalize_vendor(vendor):
     """ Return a canonical name for a type of database. """
     if not vendor:
-        return "db"  # should this ever happen?
-    elif vendor == "sqlite3":
-        return "sqlite"
-    elif vendor == "postgresql":
+        return 'db'  # should this ever happen?
+    elif 'sqlite' in vendor:
+        return 'sqlite'
+    elif 'postgres' in vendor or vendor == 'psycopg2':
         return "postgres"
     else:
         return vendor
