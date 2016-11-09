@@ -29,12 +29,11 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
 
-    def execute(self, *args, **kwargs):
+    def execute(self, query, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
-            return self.__wrapped__.execute(*args, **kwargs)
+            return self.__wrapped__.execute(query, *args, **kwargs)
 
-        query = _unroll_cursor_execute_args(*args, **kwargs)
         tracer = pin.tracer
         service = pin.service
 
@@ -43,7 +42,7 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tag(sql.QUERY, query)
             s.set_tags(pin.tags)
             try:
-                return self.__wrapped__.execute(*args, **kwargs)
+                return self.__wrapped__.execute(query, *args, **kwargs)
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
