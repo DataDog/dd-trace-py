@@ -22,3 +22,6 @@ def test_cant_pin():
     t.t = 1
 
     Pin(service="a").onto(t)
+
+def test_none():
+    assert None is Pin.get_from(None)

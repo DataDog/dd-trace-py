@@ -10,18 +10,19 @@ def try_until_timeout(exception):
     The default timeout is about 20 seconds.
     """
     def wrap(fn):
+        err = None
         def wrapper(*args, **kwargs):
             for i in range(100):
                 try:
                     fn()
-                except exception:
-                    if i % 20 == 0:
-                        print(traceback.format_exc())
-                    time.sleep(0.25)
+                except exception as e:
+                    err = e
+                    time.sleep(0.2)
                 else:
-                    break;
+                    break
             else:
-                sys.exit(1)
+                if err:
+                    raise err
         return wrapper
     return wrap
 
@@ -47,8 +48,6 @@ def check_cassandra():
         from cassandra.cluster import Cluster, NoHostAvailable
     except ImportError:
         return False
-
-    print('checking cass')
 
     # wait for cassandra connection
     @try_until_timeout(NoHostAvailable)
