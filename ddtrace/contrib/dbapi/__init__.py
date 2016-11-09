@@ -64,8 +64,6 @@ class TracedConnection(wrapt.ObjectProxy):
             return cursor
         return TracedCursor(cursor, pin)
 
-def _unroll_cursor_execute_args(query, *args, **kwargs):
-    return query
 
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given
