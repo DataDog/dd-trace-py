@@ -88,6 +88,7 @@ def test_disabled_execute():
     # these calls were crashing with a previous version of the code.
     conn.cursor().execute(query="select 'blah'")
     conn.cursor().execute("select 'blah'")
+    assert not tracer.writer.pop()
 
 
 def test_manual_wrap_extension_types():
