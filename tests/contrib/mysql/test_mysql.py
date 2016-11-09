@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+
+# stdlib
 import unittest
+from subprocess import check_call
 
-from ddtrace.contrib.mysql import missing_modules
+# 3p
+from mysql.connector import __version__ as connector_version
+from nose.tools import eq_, assert_greater_equal
 
-from nose.tools import eq_, \
-    assert_dict_contains_subset, \
-    assert_greater_equal, \
-    assert_is_not_none, \
-    assert_true
-
+# project
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.mysql import get_traced_mysql_connection
-
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MYSQL_CONFIG
 
-from mysql.connector import __version__ as connector_version
-from subprocess import check_call
 
 META_KEY = "this.is"
 META_VALUE = "A simple test value"
@@ -34,8 +31,6 @@ CREATE_PROC_SUM = "CREATE PROCEDURE\n" \
                      "END;"
 DROP_PROC_SUM = "DROP PROCEDURE IF EXISTS sp_sum"
 
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
 
 SERVICE = 'test-db'
 CLASSNAME_MATRIX = ({"buffered": None,
@@ -69,35 +64,23 @@ CLASSNAME_MATRIX = ({"buffered": None,
 
 conn = None
 
-# note: not creating a subclass of unitest.TestCase because
-# some features, such as test generators, or not supported
-# when doing so. See:
-# http://nose.readthedocs.io/en/latest/writing_tests.html
-
 def tearDown():
     # FIXME: get rid of jumbo try/finally and
     # let this tearDown close all connections
     if conn and conn.is_connected():
         conn.close()
 
-def test_version():
-    """Print client version"""
-    # trick to bypass nose output capture -> spawn a subprocess
-    check_call(["echo", "\nmysql.connector.__version__: %s" % str(connector_version)])
-
 def test_connection():
-    """Tests that a connection can be opened."""
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
 
     MySQL = get_traced_mysql_connection(tracer, service=SERVICE)
     conn = MySQL(**MYSQL_CONFIG)
-    assert_is_not_none(conn)
-    assert_true(conn.is_connected())
+    assert conn
+    assert conn.is_connected()
 
 def test_simple_query():
-    """Tests a simple query and checks the span is correct."""
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -129,7 +112,7 @@ def test_simple_query():
     eq_(span.get_metric('sql.rows'), -1)
 
 def test_simple_fetch():
-    """Tests a simple query with a fetch, enabling fetch tracing."""
+    # Tests a simple query with a fetch, enabling fetch tracing."""
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -177,7 +160,7 @@ def test_simple_fetch():
     eq_(span.get_metric('sql.rows'), 1)
 
 def test_query_with_several_rows():
-    """Tests that multiple rows are returned."""
+    # Tests that multiple rows are returned.
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -194,10 +177,10 @@ def test_query_with_several_rows():
     spans = writer.pop()
     assert_greater_equal(len(spans), 1)
     for span in spans:
-        assert_dict_contains_subset({'sql.query': query}, span.meta)
+        eq_(span.get_tag('sql.query'), query)
 
 def test_query_many():
-    """Tests that the executemany method is correctly wrapped."""
+    # tests that the executemany method is correctly wrapped.
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -224,12 +207,11 @@ def test_query_many():
     spans = writer.pop()
     assert_greater_equal(len(spans), 2)
     span = spans[-1]
-    assert_dict_contains_subset({'sql.query': query}, span.meta)
-
+    eq_(span.get_tag('sql.query'), query)
     cursor.execute(DROP_TABLE_DUMMY)
 
 def test_query_proc():
-    """Tests that callproc works as expected, and generates a correct span."""
+    # Tests that callproc works as expected, and generates a correct span.
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -267,10 +249,7 @@ def test_query_proc():
     cursor.execute(DROP_PROC_SUM)
 
 def test_fetch_variants():
-    """
-    Tests that calling different variants of fetch works,
-    even when calling them on a simple execute query.
-    """
+    # Tests that calling different variants of fetch works,
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -301,7 +280,7 @@ def test_fetch_variants():
     rows = cursor.fetchone()
     fetchone_rowcount_a = cursor.rowcount
     eq_(fetchone_rowcount_a, NB_FETCH_MANY + 1)
-    # carefull: rows contains only one line with the values,
+    # careful: rows contains only one line with the values,
     # not an array of lines, so since we're SELECTing 2 columns
     # (dummy_key, dummy_value) we get len()==2.
     eq_(len(rows), 2)
@@ -325,8 +304,7 @@ def test_fetch_variants():
     spans = writer.pop()
     assert_greater_equal(len(spans), 1)
     span = spans[-1]
-    assert_dict_contains_subset({'sql.query': query}, span.meta)
-
+    eq_(span.get_tag('sql.query'), query)
     cursor.execute(DROP_TABLE_DUMMY)
 
 def check_connection_class(buffered, raw, baseclass_name):
@@ -347,7 +325,7 @@ def check_connection_class(buffered, raw, baseclass_name):
     spans = writer.pop()
     assert_greater_equal(len(spans), 1)
     for span in spans:
-        assert_dict_contains_subset({'sql.query': query}, span.meta)
+        eq_(span.get_tag('sql.query'), query)
 
 def test_connection_class():
     """
@@ -381,19 +359,15 @@ def check_cursor_class(buffered, raw, baseclass_name):
     spans = writer.pop()
     assert_greater_equal(len(spans), 1)
     for span in spans:
-        assert_dict_contains_subset({'sql.query': query}, span.meta)
+        eq_(span.get_tag('sql.query'), query)
 
 def test_cursor_class():
-    """
-    Tests what class the connection cursor() method returns for
-    different combination of raw and buffered parameter. This is
-    important as any bug in our code at this level could result in
-    silent bugs for our customers, we want to make double-sure the
-    right class is instanciated.
-    """
+    # Tests what class the connection cursor() method returns for
+    # different combination of raw and buffered parameter. This is
+    # important as any bug in our code at this level could result in
+    # silent bugs for our customers, we want to make double-sure the
+    # right class is instanciated.
     for cases in CLASSNAME_MATRIX:
         f = check_cursor_class
-        setattr(f, "description", "Class returned by Connection.cursor() when "
-                "raw=%(raw)s buffered=%(buffered)s" % cases)
-        yield f, cases["buffered"], \
-            cases["raw"], cases["baseclass_name"]
+        setattr(f, "description", "test_cursor_class_raw=%(raw)s_buffered=%(buffered)s" % cases)
+        yield f, cases["buffered"], cases["raw"], cases["baseclass_name"]

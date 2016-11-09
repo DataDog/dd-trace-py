@@ -1,9 +1,8 @@
-"""
-tracers exposed publicly
-"""
+
 # stdlib
 import time
 
+# 3p
 from mysql.connector.connection import MySQLConnection
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.cursor import MySQLCursorRaw
@@ -12,7 +11,7 @@ from mysql.connector.cursor import MySQLCursorBufferedRaw
 from mysql.connector.errors import NotSupportedError
 from mysql.connector.errors import ProgrammingError
 
-# dogtrace
+# project
 from ...ext import net
 from ...ext import db
 from ...ext import sql as sqlx
