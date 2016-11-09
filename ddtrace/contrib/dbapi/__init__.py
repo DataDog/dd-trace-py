@@ -32,7 +32,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def execute(self, query, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
-            return self.__wrapped__.execute(*args, **kwargs)
+            return self.__wrapped__.execute(query, *args, **kwargs)
 
         tracer = pin.tracer
         service = pin.service
@@ -63,6 +63,7 @@ class TracedConnection(wrapt.ObjectProxy):
         if not pin:
             return cursor
         return TracedCursor(cursor, pin)
+
 
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given

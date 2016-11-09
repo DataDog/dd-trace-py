@@ -78,6 +78,19 @@ def test_manual_wrap():
     wrapped = patch_conn(conn, service="foo", tracer=tracer)
     assert_conn_is_traced(tracer, wrapped, "foo")
 
+def test_disabled_execute():
+    tracer = get_test_tracer()
+    conn = patch_conn(
+        psycopg2.connect(**POSTGRES_CONFIG),
+        service="foo",
+        tracer=tracer)
+    tracer.enabled = False
+    # these calls were crashing with a previous version of the code.
+    conn.cursor().execute(query="select 'blah'")
+    conn.cursor().execute("select 'blah'")
+    assert not tracer.writer.pop()
+
+
 def test_manual_wrap_extension_types():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
     tracer = get_test_tracer()
