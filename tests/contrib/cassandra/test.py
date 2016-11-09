@@ -8,7 +8,7 @@ from cassandra.cluster import Cluster
 
 # project
 from tests.contrib.config import CASSANDRA_CONFIG
-from tests.test_tracer import get_test_tracer
+from tests.test_tracer import get_dummy_tracer
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, patch_cluster
 from ddtrace.ext import net, cassandra as cassx, errors
 from ddtrace import Pin
@@ -95,7 +95,7 @@ class CassandraBase(object): #unittest.TestCase):
 class TestOldSchool(CassandraBase):
 
     def _traced_session(self, service):
-        tracer = get_test_tracer()
+        tracer = get_dummy_tracer()
         TracedCluster = get_traced_cassandra(tracer, service=service)
         session = TracedCluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         return session, tracer.writer
@@ -104,7 +104,7 @@ class TestOldSchool(CassandraBase):
 class TestCassPatch(CassandraBase):
 
     def _traced_session(self, service):
-        tracer = get_test_tracer()
+        tracer = get_dummy_tracer()
         cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
         pin = Pin(service=service, tracer=tracer)

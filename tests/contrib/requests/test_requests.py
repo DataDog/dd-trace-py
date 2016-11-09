@@ -6,7 +6,7 @@ from requests import Session
 # project
 from ddtrace.contrib.requests import TracedSession
 from ddtrace.ext import http, errors
-from tests.test_tracer import get_test_tracer
+from tests.test_tracer import get_dummy_tracer
 
 
 class TestRequests(object):
@@ -139,7 +139,7 @@ class TestRequests(object):
 
 
 def get_traced_session():
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     session = TracedSession()
     setattr(session, 'datadog_tracer', tracer)
     return tracer, session

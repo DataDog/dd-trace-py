@@ -299,7 +299,7 @@ class DummyWriter(AgentWriter):
         return s
 
 
-def get_test_tracer():
+def get_dummy_tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
     return tracer

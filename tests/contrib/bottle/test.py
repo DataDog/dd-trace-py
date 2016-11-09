@@ -11,7 +11,7 @@ import webtest
 # project
 from ddtrace import tracer, compat
 from ddtrace.contrib.bottle import TracePlugin
-from tests.test_tracer import get_test_tracer
+from tests.test_tracer import get_dummy_tracer
 
 
 SERVICE = "foobar"
@@ -66,6 +66,6 @@ def test_500():
 
 
 def _trace_app(app):
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     app.install(TracePlugin(service=SERVICE, tracer=tracer))
     return tracer, webtest.TestApp(app)
