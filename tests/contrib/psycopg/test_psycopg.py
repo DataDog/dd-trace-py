@@ -78,6 +78,18 @@ def test_manual_wrap():
     wrapped = patch_conn(conn, service="foo", tracer=tracer)
     assert_conn_is_traced(tracer, wrapped, "foo")
 
+def test_disabled_with_param():
+    # this case was causing a bit where we weren't properly unrolling
+    # the query args.
+    tracer = get_test_tracer()
+    conn = patch_conn(
+        psycopg2.connect(**POSTGRES_CONFIG),
+        service="foo",
+        tracer=tracer)
+    tracer.enabled = False
+    conn.cursor().execute(query="select 'blah'")
+
+
 def test_manual_wrap_extension_types():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
     tracer = get_test_tracer()

@@ -29,11 +29,12 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
 
-    def execute(self, query, *args, **kwargs):
+    def execute(self, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
             return self.__wrapped__.execute(*args, **kwargs)
 
+        query = _unroll_cursor_execute_args(*args, **kwargs)
         tracer = pin.tracer
         service = pin.service
 
@@ -42,7 +43,7 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tag(sql.QUERY, query)
             s.set_tags(pin.tags)
             try:
-                return self.__wrapped__.execute(query, *args, **kwargs)
+                return self.__wrapped__.execute(*args, **kwargs)
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
@@ -63,6 +64,9 @@ class TracedConnection(wrapt.ObjectProxy):
         if not pin:
             return cursor
         return TracedCursor(cursor, pin)
+
+def _unroll_cursor_execute_args(query, *args, **kwargs):
+    return query
 
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given
