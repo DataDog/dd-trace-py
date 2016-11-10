@@ -12,10 +12,26 @@ from mysql.connector.errors import NotSupportedError
 from mysql.connector.errors import ProgrammingError
 
 # project
-from ...ext import net
-from ...ext import db
-from ...ext import sql as sqlx
-from ...ext import AppTypes
+from ddtrace import Pin
+from ddtrace.contrib.dbapi import TracedConnection
+from ...ext import net, db, AppTypes, sql as sqlx
+
+
+def patch():
+    pass
+
+
+def unpatch():
+    pass
+
+
+def patch_conn(conn, pin=None):
+    if not pin:
+        pin = Pin(service="mysql", app="mysql")
+    wrapped = TracedConnection(conn)
+    pin.onto(wrapped)
+    return wrapped
+
 
 
 DEFAULT_SERVICE = 'mysql'

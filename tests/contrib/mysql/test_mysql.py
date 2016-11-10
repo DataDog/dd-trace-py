@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
 # stdlib
 import unittest
-from subprocess import check_call
 
 # 3p
+import mysql
 from mysql.connector import __version__ as connector_version
 from nose.tools import eq_, assert_greater_equal
 
 # project
-from ddtrace.tracer import Tracer
+from ddtrace import Tracer, Pin
 from ddtrace.contrib.mysql import get_traced_mysql_connection
-from tests.test_tracer import DummyWriter
+from ddtrace.contrib.mysql.tracers import patch_conn
+from tests.test_tracer import DummyWriter, get_dummy_tracer
 from tests.contrib.config import MYSQL_CONFIG
 
 
@@ -81,14 +81,15 @@ def test_connection():
     assert conn.is_connected()
 
 def test_simple_query():
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
+    tracer = get_dummy_tracer()
+    writer = tracer.writer
+    conn = patch_conn(mysql.connector.connect(**MYSQL_CONFIG))
+    pin = Pin.get_from(conn)
+    assert pin
+    pin.tracer = tracer
+    pin.service = SERVICE
+    pin.onto(conn)
 
-    MySQL = get_traced_mysql_connection(tracer,
-                                        service=SERVICE,
-                                        meta={META_KEY: META_VALUE})
-    conn = MySQL(**MYSQL_CONFIG)
     cursor = conn.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
@@ -98,7 +99,7 @@ def test_simple_query():
 
     span = spans[0]
     eq_(span.service, SERVICE)
-    eq_(span.name, 'mysql.execute')
+    eq_(span.name, 'mysql.query')
     eq_(span.span_type, 'sql')
     eq_(span.error, 0)
     eq_(span.meta, {
