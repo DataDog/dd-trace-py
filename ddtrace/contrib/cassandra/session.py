@@ -29,7 +29,7 @@ def patch():
     patch_cluster(cassandra.cluster.Cluster)
 
 def patch_cluster(cluster, pin=None):
-    pin = pin or Pin(service=SERVICE, app=SERVICE)
+    pin = pin or Pin(service=SERVICE, app=SERVICE, app_type="db")
     setattr(cluster, 'connect', wrapt.FunctionWrapper(cluster.connect, _connect))
     pin.onto(cluster)
     return cluster

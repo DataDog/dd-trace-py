@@ -46,6 +46,7 @@ def patch_conn(conn, service="postgres", tracer=None):
     Pin(
         service=service,
         app="postgres",
+        app_type="db",
         tracer=tracer,
         tags=tags).onto(c)
 

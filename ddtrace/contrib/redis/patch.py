@@ -18,7 +18,7 @@ def patch_client(client, pin=None):
     """ patch_instance will add tracing to the given redis client. It works on
         instances or classes of redis.Redis and redis.StrictRedis.
     """
-    pin = pin or Pin(service="redis", app="redis")
+    pin = pin or Pin(service="redis", app="redis", app_type="db")
     pin.onto(client)
 
     # monkeypatch all of the methods.

@@ -55,7 +55,7 @@ class TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        self._datadog_pin = Pin(service=name, app=name)
+        Pin(service=name, app=name).onto(self)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)

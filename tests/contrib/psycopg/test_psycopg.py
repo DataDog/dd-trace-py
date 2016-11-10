@@ -72,11 +72,18 @@ def assert_conn_is_traced(tracer, db, service):
     eq_(span.meta["out.port"], TEST_PORT)
     eq_(span.span_type, "sql")
 
+
 def test_manual_wrap():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
     tracer = get_test_tracer()
     wrapped = patch_conn(conn, service="foo", tracer=tracer)
     assert_conn_is_traced(tracer, wrapped, "foo")
+    # ensure we have the service types
+    services = tracer.writer.pop_services()
+    expected = {
+        "foo": {"app":"postgres", "app_type":"db"},
+    }
+    eq_(services, expected)
 
 def test_disabled_execute():
     tracer = get_test_tracer()
