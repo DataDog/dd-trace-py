@@ -65,22 +65,10 @@ CLASSNAME_MATRIX = ({"buffered": None,
 conn = None
 
 def tearDown():
-    # FIXME: get rid of jumbo try/finally and
-    # let this tearDown close all connections
     if conn and conn.is_connected():
         conn.close()
 
-def test_connection():
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
-
-    MySQL = get_traced_mysql_connection(tracer, service=SERVICE)
-    conn = MySQL(**MYSQL_CONFIG)
-    assert conn
-    assert conn.is_connected()
-
-def test_simple_query():
+def _get_conn_tracer():
     tracer = get_dummy_tracer()
     writer = tracer.writer
     conn = patch_conn(mysql.connector.connect(**MYSQL_CONFIG))
@@ -89,7 +77,15 @@ def test_simple_query():
     pin.tracer = tracer
     pin.service = SERVICE
     pin.onto(conn)
+    assert conn.is_connected()
+    return conn, tracer
 
+def test_simple_query():
+    conn, tracer = _get_conn_tracer()
+    writer = tracer.writer
+    writer = tracer.writer
+    writer = tracer.writer
+    writer = tracer.writer
     cursor = conn.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
@@ -108,95 +104,42 @@ def test_simple_query():
         'db.name': u'test',
         'db.user': u'test',
         'sql.query': u'SELECT 1',
-        META_KEY: META_VALUE,
     })
-    eq_(span.get_metric('sql.rows'), -1)
-
-def test_simple_fetch():
-    # Tests a simple query with a fetch, enabling fetch tracing."""
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
-
-    MySQL = get_traced_mysql_connection(tracer,
-                                        service=SERVICE,
-                                        meta={META_KEY: META_VALUE},
-                                        trace_fetch=True)
-    conn = MySQL(**MYSQL_CONFIG)
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1")
-    rows = cursor.fetchall()
-    eq_(len(rows), 1)
-    spans = writer.pop()
-    eq_(len(spans), 2)
-
-    span = spans[0]
-    eq_(span.service, SERVICE)
-    eq_(span.name, 'mysql.execute')
-    eq_(span.span_type, 'sql')
-    eq_(span.error, 0)
-    eq_(span.meta, {
-        'out.host': u'127.0.0.1',
-        'out.port': u'53306',
-        'db.name': u'test',
-        'db.user': u'test',
-        'sql.query': u'SELECT 1',
-        META_KEY: META_VALUE,
-    })
-    eq_(span.get_metric('sql.rows'), -1)
-
-    span = spans[1]
-    eq_(span.service, SERVICE)
-    eq_(span.name, 'mysql.fetchall')
-    eq_(span.span_type, 'sql')
-    eq_(span.error, 0)
-    eq_(span.meta, {
-        'out.host': u'127.0.0.1',
-        'out.port': u'53306',
-        'db.name': u'test',
-        'db.user': u'test',
-        'sql.query': u'SELECT 1',
-        META_KEY: META_VALUE,
-    })
-    eq_(span.get_metric('sql.rows'), 1)
+    # eq_(span.get_metric('sql.rows'), -1)
 
 def test_query_with_several_rows():
-    # Tests that multiple rows are returned.
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
-
-    MySQL = get_traced_mysql_connection(tracer, service=SERVICE)
-    conn = MySQL(**MYSQL_CONFIG)
+    conn, tracer = _get_conn_tracer()
+    writer = tracer.writer
     cursor = conn.cursor()
-    query = "SELECT n FROM " \
-            "(SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
+    query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
     cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 3)
-
     spans = writer.pop()
-    assert_greater_equal(len(spans), 1)
-    for span in spans:
-        eq_(span.get_tag('sql.query'), query)
+    eq_(len(spans), 1)
+    span = spans[0]
+    eq_(span.get_tag('sql.query'), query)
+    # eq_(span.get_tag('sql.rows'), 3)
 
 def test_query_many():
     # tests that the executemany method is correctly wrapped.
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
+    conn, tracer = _get_conn_tracer()
+    writer = tracer.writer
 
-    MySQL = get_traced_mysql_connection(tracer, service=SERVICE)
-    conn = MySQL(**MYSQL_CONFIG)
     cursor = conn.cursor()
-    cursor.execute(CREATE_TABLE_DUMMY)
 
-    stmt = "INSERT INTO dummy (dummy_key,dummy_value) VALUES (%s, %s)"
+    tracer.enabled = False
+    cursor.execute("""
+        create table if not exists dummy (
+            dummy_key VARCHAR(32) PRIMARY KEY,
+            dummy_value TEXT NOT NULL)""")
+    tracer.enabled = True
+
+    stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
     data = [("foo","this is foo"),
             ("bar","this is bar")]
     cursor.executemany(stmt, data)
-    query = "SELECT dummy_key, dummy_value FROM dummy " \
-            "ORDER BY dummy_key"
+    query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
     cursor.execute(query)
     rows = cursor.fetchall()
     eq_(len(rows), 2)
@@ -206,10 +149,10 @@ def test_query_many():
     eq_(rows[1][1], "this is foo")
 
     spans = writer.pop()
-    assert_greater_equal(len(spans), 2)
+    eq_(len(spans), 2)
     span = spans[-1]
     eq_(span.get_tag('sql.query'), query)
-    cursor.execute(DROP_TABLE_DUMMY)
+    cursor.execute("drop table if exists dummy")
 
 def test_query_proc():
     # Tests that callproc works as expected, and generates a correct span.

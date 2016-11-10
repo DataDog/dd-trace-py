@@ -25,19 +25,38 @@ class TracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(TracedCursor, self).__init__(cursor)
         self._datadog_pin = pin
-
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
+
+    def executemany(self, *args, **kwargs):
+        pin = self._datadog_pin
+        if not pin or not pin.enabled():
+            return self.__wrapped__.executemany(*args, **kwargs)
+        service = pin.service
+
+        query, count  = "", 0
+        # FIXME[matt] properly handle kwargs here. arg names can be different
+        # with different libs.
+        if len(args) == 2:
+            query, count = args[0], len(args[1])
+
+        with pin.tracer.trace(self._datadog_name, service=service, resource=query) as s:
+            s.span_type = sql.TYPE
+            s.set_tag(sql.QUERY, query)
+            s.set_tags(pin.tags)
+            s.set_tag("sql.executemany", count)
+            try:
+                return self.__wrapped__.executemany(*args, **kwargs)
+            finally:
+                s.set_metric("db.rowcount", self.rowcount)
 
     def execute(self, query, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
             return self.__wrapped__.execute(query, *args, **kwargs)
 
-        tracer = pin.tracer
         service = pin.service
-
-        with tracer.trace(self._datadog_name, service=service, resource=query) as s:
+        with pin.tracer.trace(self._datadog_name, service=service, resource=query) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, query)
             s.set_tags(pin.tags)

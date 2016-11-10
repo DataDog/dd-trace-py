@@ -79,7 +79,7 @@ def test_manual_wrap():
     assert_conn_is_traced(tracer, wrapped, "foo")
 
 def test_disabled_execute():
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     conn = patch_conn(
         psycopg2.connect(**POSTGRES_CONFIG),
         service="foo",

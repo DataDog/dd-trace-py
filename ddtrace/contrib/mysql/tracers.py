@@ -17,6 +17,14 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ...ext import net, db, AppTypes, sql as sqlx
 
 
+CONN_ATTR_BY_TAG = {
+    net.TARGET_HOST : 'server_host',
+    net.TARGET_PORT : 'server_port',
+    db.USER: 'user',
+    db.NAME: 'database',
+}
+
+
 def patch():
     pass
 
@@ -28,6 +36,12 @@ def unpatch():
 def patch_conn(conn, pin=None):
     if not pin:
         pin = Pin(service="mysql", app="mysql")
+
+    # grab the metadata from the conn
+    pin.tags = pin.tags or {}
+    for tag, attr in CONN_ATTR_BY_TAG.items():
+        pin.tags[tag] = getattr(conn, attr, '')
+
     wrapped = TracedConnection(conn)
     pin.onto(wrapped)
     return wrapped
