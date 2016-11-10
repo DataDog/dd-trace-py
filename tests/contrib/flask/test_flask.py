@@ -1,5 +1,4 @@
-
-
+# -*- coding: utf-8 -*-
 # stdlib
 import time
 import logging
@@ -65,6 +64,17 @@ def child():
     with tracer.trace('child') as span:
         span.set_tag('a', 'b')
         return 'child'
+
+
+def unicode_view():
+    return u'üŋïĉóđē'
+
+# DEV: Manually register endpoint so we can control the endpoint name
+app.add_url_rule(
+    u'/üŋïĉóđē',
+    u'üŋïĉóđē',
+    unicode_view,
+)
 
 
 @app.errorhandler(TestError)
@@ -248,3 +258,24 @@ class TestFlask(object):
         msg = s.meta.get(errors.ERROR_MSG)
         assert "by zero" in msg, msg
 
+    def test_unicode(self):
+        start = time.time()
+        rv = app.get(u'/üŋïĉóđē')
+        end = time.time()
+
+        # ensure request worked
+        eq_(rv.status_code, 200)
+        eq_(rv.data, b'\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93')
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, service)
+        eq_(s.resource, u'üŋïĉóđē')
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.URL), u'http://localhost/üŋïĉóđē')
