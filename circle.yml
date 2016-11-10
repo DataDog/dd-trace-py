@@ -3,7 +3,6 @@ machine:
     - docker
   environment:
     CASS_DRIVER_NO_EXTENSIONS: 1
-    TEST_DATADOG_INTEGRATION: 0
     AGENT_BUILD_PATH: "/home/ubuntu/agent"
   post:
     - pyenv global 2.7.11 3.4.4
