@@ -9,6 +9,7 @@ dependency of flask signals).
 import logging
 
 # project
+from ... import compat
 from ...ext import http, errors, AppTypes
 
 # 3p
@@ -115,8 +116,8 @@ class TraceMiddleware(object):
                     span.set_tag(errors.ERROR_TYPE, type(exception))
                     span.set_tag(errors.ERROR_MSG, exception)
 
-                span.resource = str(request.endpoint or "").lower()
-                span.set_tag(http.URL, str(request.base_url or ""))
+                span.resource = compat.to_unicode(request.endpoint or '').lower()
+                span.set_tag(http.URL, compat.to_unicode(request.base_url or ''))
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = error
             span.finish()
