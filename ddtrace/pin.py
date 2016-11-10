@@ -18,6 +18,8 @@ class Pin(object):
     @staticmethod
     def get_from(obj):
         """ Return the pin associated with the given object. """
+        if hasattr(obj, '__getddpin__'):
+            return obj.__getddpin__()
         return getattr(obj, '_datadog_pin', None)
 
     def __init__(self, service, app=None, tracer=None, tags=None):
@@ -37,6 +39,8 @@ class Pin(object):
     def onto(self, obj):
         """ Patch this pin onto the given object. """
         try:
+            if hasattr(obj, '__setddpin__'):
+                return obj.__setddpin__(self)
             return setattr(obj, '_datadog_pin', self)
         except AttributeError:
             log.warn("can't pin onto object", exc_info=True)

@@ -17,6 +17,7 @@ log = logging.getLogger()
 # modules which are monkeypatch'able
 autopatch_modules = [
     'cassandra',
+    'elasticsearch',
     'requests',
     'sqlite3',
     'psycopg',
