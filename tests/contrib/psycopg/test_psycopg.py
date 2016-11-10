@@ -90,7 +90,6 @@ def test_disabled_execute():
     conn.cursor().execute("select 'blah'")
     assert not tracer.writer.pop()
 
-
 def test_manual_wrap_extension_types():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
     tracer = get_dummy_tracer()

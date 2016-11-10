@@ -28,25 +28,21 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
 
-    def executemany(self, *args, **kwargs):
+    def executemany(self, query, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
-            return self.__wrapped__.executemany(*args, **kwargs)
+            return self.__wrapped__.executemany(query, *args, **kwargs)
         service = pin.service
 
-        query, count  = "", 0
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if len(args) == 2:
-            query, count = args[0], len(args[1])
-
         with pin.tracer.trace(self._datadog_name, service=service, resource=query) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, query)
             s.set_tags(pin.tags)
-            s.set_tag("sql.executemany", count)
+            s.set_tag("sql.executemany", "true")
             try:
-                return self.__wrapped__.executemany(*args, **kwargs)
+                return self.__wrapped__.executemany(query, *args, **kwargs)
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
@@ -62,6 +58,20 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             try:
                 return self.__wrapped__.execute(query, *args, **kwargs)
+            finally:
+                s.set_metric("db.rowcount", self.rowcount)
+
+    def callproc(self, proc, args):
+        pin = self._datadog_pin
+        if not pin or not pin.enabled():
+            return self.__wrapped__.callproc(proc, args)
+
+        with pin.tracer.trace(self._datadog_name, service=pin.service, resource=proc) as s:
+            s.span_type = sql.TYPE
+            s.set_tag(sql.QUERY, proc)
+            s.set_tags(pin.tags)
+            try:
+                return self.__wrapped__.callproc(proc, args)
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
