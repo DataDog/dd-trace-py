@@ -23,7 +23,7 @@ class Pin(object):
         return getattr(obj, '_datadog_pin', None)
 
     def __init__(self, service, app=None, app_type=None, tracer=None, tags=None):
-        self.service = service      # the
+        self.service = service      # the internal name of a system
         self.app = app              # the 'product' name of a software (e.g postgres)
         self.tags = tags            # some tags on this instance.
         self.app_type = app_type    # db, web, etc
