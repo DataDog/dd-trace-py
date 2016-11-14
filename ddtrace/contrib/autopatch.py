@@ -21,6 +21,7 @@ autopatch_modules = [
     'requests',
     'sqlite3',
     'psycopg',
+    'pylibmc',
     'redis',
 ]
 

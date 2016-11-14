@@ -5,6 +5,7 @@ import random
 
 # 3p
 from wrapt import ObjectProxy
+import pylibmc
 
 # project
 import ddtrace
@@ -13,20 +14,34 @@ from ddtrace.ext import net
 from .addrs import parse_addresses
 
 
+# Original Client class
+_Client = pylibmc.Client
+
+
 log = logging.getLogger(__name__)
 
 
 class TracedClient(ObjectProxy):
     """ TracedClient is a proxy for a pylibmc.Client that times it's network operations. """
 
-    _service = None
-    _tracer = None
+    def __init__(self, client=None, service=memcached.SERVICE, tracer=None, *args, **kwargs):
+        """ Create a traced client that wraps the given memcached client.
 
-    def __init__(self, client, service=memcached.SERVICE, tracer=None):
-        """ Create a traced client that wraps the given memcached client. """
+        """
+        # The client instance/service/tracer attributes are kept for compatibility
+        # with the old interface: TracedClient(client=pylibmc.Client(["localhost:11211"]))
+        # TODO(Benjamin): Remove these in favor of patching.
+        if not isinstance(client, _Client):
+            # We are in the patched situation, just pass down all arguments to the pylibmc.Client
+            # Note that, in that case, client isn't a real client (just the first argument)
+            client = _Client(client, *args, **kwargs)
+
         super(TracedClient, self).__init__(client)
-        self._service = service
-        self._tracer = tracer or ddtrace.tracer  # default to the global client
+
+        pin = ddtrace.Pin(service)
+        if tracer:
+            pin.tracer = tracer
+        pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
         try:
@@ -36,7 +51,7 @@ class TracedClient(ObjectProxy):
 
         # attempt to set the service info
         try:
-            self._tracer.set_service_info(
+            pin.tracer.set_service_info(
                 service=service,
                 app=memcached.SERVICE,
                 app_type=memcached.TYPE)
@@ -46,7 +61,10 @@ class TracedClient(ObjectProxy):
     def clone(self, *args, **kwargs):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
-        return TracedClient(cloned, tracer=self._tracer, service=self._service)
+        traced_client = TracedClient(cloned)
+        self_pin = ddtrace.Pin.get_from(self)
+        ddtrace.Pin(self_pin.service, tracer=self_pin.tracer).onto(traced_client)
+        return traced_client
 
     def get(self, *args, **kwargs):
         return self._trace_cmd("get", *args, **kwargs)
@@ -94,7 +112,7 @@ class TracedClient(ObjectProxy):
         method = getattr(self.__wrapped__, method_name)
         with self._span(method_name) as span:
 
-            if args:
+            if span and args:
                 span.set_tag(memcached.QUERY, "%s %s" % (method_name, args[0]))
 
             return method(*args, **kwargs)
@@ -105,25 +123,28 @@ class TracedClient(ObjectProxy):
         with self._span(method_name) as span:
 
             pre = kwargs.get('key_prefix')
-            if pre:
+            if span and pre:
                 span.set_tag(memcached.QUERY, "%s %s" % (method_name, pre))
 
             return method(*args, **kwargs)
 
     def _span(self, cmd_name):
         """ Return a span timing the given command. """
-        span = self._tracer.trace(
-            "memcached.cmd",
-            service=self._service,
-            resource=cmd_name,
-            span_type="cache")
+        pin = ddtrace.Pin.get_from(self)
+        if pin and pin.enabled():
+            span = pin.tracer.trace(
+                "memcached.cmd",
+                service=pin.service,
+                resource=cmd_name,
+                # TODO(Benjamin): set a better span type
+                span_type="cache")
 
-        try:
-            self._tag_span(span)
-        except Exception:
-            log.exception("error tagging span")
+            try:
+                self._tag_span(span)
+            except Exception:
+                log.exception("error tagging span")
 
-        return span
+            return span
 
     def _tag_span(self, span):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
@@ -132,5 +153,3 @@ class TracedClient(ObjectProxy):
             _, host, port, _ = random.choice(self._addresses)
             span.set_meta(net.TARGET_HOST, host)
             span.set_meta(net.TARGET_PORT, port)
-
-

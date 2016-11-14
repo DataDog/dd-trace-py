@@ -8,24 +8,33 @@ import pylibmc
 from nose.tools import eq_
 
 # project
-from ddtrace import Tracer
-from ddtrace.ext import errors
+from ddtrace import Tracer, Pin
+from ddtrace.ext import memcached
 from ddtrace.contrib.pylibmc import TracedClient
+from ddtrace.contrib.pylibmc.patch import patch, unpatch
 from tests.test_tracer import DummyWriter
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 
 
-TEST_SERVICE = "foobar"
+class PylibmcCore(object):
+    """Core of the test suite for pylibmc
 
+    Shared tests between the patch and TracedClient interface.
+    Will be merge back to a single class once the TracedClient is deprecated.
+    """
 
-class TestPylibmc(object):
+    TEST_SERVICE = memcached.SERVICE
+
+    def get_client(self):
+        # Implement me
+        pass
 
     def test_upgrade(self):
         raise SkipTest("upgrade memcached")
         # add tests for touch, cas, gets etc
 
     def test_append_prepend(self):
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         # test
         start = time.time()
         client.set("a", "crow")
@@ -45,13 +54,13 @@ class TestPylibmc(object):
         # verify spans
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
         expected_resources = sorted(["append", "prepend", "get", "set"])
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
     def test_incr_decr(self):
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         # test
         start = time.time()
         client.set("a", 1)
@@ -63,7 +72,7 @@ class TestPylibmc(object):
         # verify spans
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get", "set", "incr", "decr"])
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
@@ -71,20 +80,20 @@ class TestPylibmc(object):
 
     def test_clone(self):
         # ensure cloned connections are traced as well.
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         cloned = client.clone()
         start = time.time()
         cloned.get("a")
         end = time.time()
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
         expected_resources = ["get"]
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
     def test_get_set_multi(self):
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a":1, "b":2})
@@ -95,13 +104,13 @@ class TestPylibmc(object):
         # verify
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
     def test_get_set_multi_prefix(self):
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         # test
         start = time.time()
         client.set_multi({"a":1, "b":2}, key_prefix='foo')
@@ -112,7 +121,7 @@ class TestPylibmc(object):
         # verify
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
             eq_(s.get_tag("memcached.query"), "%s foo" % s.resource,)
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
@@ -120,7 +129,7 @@ class TestPylibmc(object):
 
 
     def test_get_set_delete(self):
-        client, tracer = _setup()
+        client, tracer = self.get_client()
         # test
         k = u'cafe'
         v = "val-foo"
@@ -135,30 +144,69 @@ class TestPylibmc(object):
         # verify
         spans = tracer.writer.pop()
         for s in spans:
-            _verify_cache_span(s, start, end)
+            self._verify_cache_span(s, start, end)
             eq_(s.get_tag("memcached.query"), "%s %s" % (s.resource, k))
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
 
-def _verify_cache_span(s, start, end):
-    assert s.start > start
-    assert s.start + s.duration < end
-    eq_(s.service, TEST_SERVICE)
-    eq_(s.span_type, "cache")
-    eq_(s.name, "memcached.cmd")
-    eq_(s.get_tag("out.host"), cfg["host"])
-    eq_(s.get_tag("out.port"), str(cfg["port"]))
+    def _verify_cache_span(self, s, start, end):
+        assert s.start > start
+        assert s.start + s.duration < end
+        eq_(s.service, self.TEST_SERVICE)
+        eq_(s.span_type, "cache")
+        eq_(s.name, "memcached.cmd")
+        eq_(s.get_tag("out.host"), cfg["host"])
+        eq_(s.get_tag("out.port"), str(cfg["port"]))
 
 
-def _setup():
-    url = "%s:%s" % (cfg["host"], cfg["port"])
-    raw_client = pylibmc.Client([url])
-    raw_client.flush_all()
 
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
+class TestPylibmcLegacy(PylibmcCore):
+    """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
-    client = TracedClient(raw_client, tracer=tracer, service=TEST_SERVICE)
-    return client, tracer
+    TEST_SERVICE = 'mc-legacy'
+
+    def get_client(self):
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+        raw_client = pylibmc.Client([url])
+        raw_client.flush_all()
+
+        tracer = Tracer()
+        tracer.writer = DummyWriter()
+
+        client = TracedClient(raw_client, tracer=tracer, service=self.TEST_SERVICE)
+        return client, tracer
+
+
+class TestPylibmcPatchDefault(PylibmcCore):
+    """Test suite for the tracing of pylibmc with the default lib patching"""
+
+    def setUp(self):
+        patch()
+
+    def tearDown(self):
+        unpatch()
+
+    def get_client(self):
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+        client = pylibmc.Client([url])
+        client.flush_all()
+
+        tracer = Tracer()
+        tracer.writer = DummyWriter()
+        Pin.get_from(client).tracer = tracer
+
+        return client, tracer
+
+class TestPylibmcPatch(TestPylibmcPatchDefault):
+    """Test suite for the tracing of pylibmc with a configured lib patching"""
+
+    TEST_SERVICE = 'mc-custom-patch'
+
+    def get_client(self):
+        client, tracer = TestPylibmcPatchDefault.get_client(self)
+
+        Pin.get_from(client).service = self.TEST_SERVICE
+
+        return client, tracer
