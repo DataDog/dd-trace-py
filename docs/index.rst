@@ -1,8 +1,8 @@
 Datadog Trace Client
 ====================
 
-`ddtrace` is Datadog's tracing client for Python. It is used to trace requests as
-they flow across web servers, databases and microservices so that developers
+`ddtrace` is Datadog's Python tracing client. It is used to trace requests as
+they flow across web servers, databases and microservices so developers
 have great visibility into bottlenecks and troublesome requests.
 
 Installation
@@ -12,14 +12,17 @@ Install with :code:`pip` but point to Datadog's package repo::
 
     $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
 
-(Note: we strongly suggest pinning the version number you deploy while we are
-in beta)
+We strongly suggest pinning the version number you deploy while we are
+in beta.
 
 Get Started
 -----------
 
 Patching
 ~~~~~~~~
+
+Datadog Tracing can automatically instrument many widely used Python libraries
+and frameworks.
 
 The easiest way to get started with tracing is to instrument your web server.
 We support many `Web Frameworks`_. Install the middleware for yours.
