@@ -53,6 +53,7 @@ def to_unicode(s):
     #   e.g. `to_unicode(1)`, `to_unicode(dict(key='value'))`
     return stringify(s)
 
+
 if PY2:
     string_type = basestring
     numeric_types = (int, long, float)
