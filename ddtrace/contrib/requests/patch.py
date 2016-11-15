@@ -77,6 +77,7 @@ class TracedSession(requests.Session):
     """
     pass
 
+
 # Always patch our traced session with the traced method (cheesy way of sharing
 # code)
 wrapt.wrap_function_wrapper(TracedSession, 'request', _traced_request_func)

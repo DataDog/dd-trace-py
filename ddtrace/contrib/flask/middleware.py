@@ -194,6 +194,7 @@ def _signals_exist(names):
     """
     return all(getattr(signals, n, False) for n in names)
 
+
 _blinker_not_installed_msg = (
     "please install blinker to use flask signals. "
     "http://flask.pocoo.org/docs/0.11/signals/"
