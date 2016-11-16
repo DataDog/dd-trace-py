@@ -72,6 +72,8 @@ The name of the code that a service is running. Some common open source
 examples are :code:`postgres`, :code:`rails` or :code:`redis`. If it's running
 custom code, name it accordingly like :code:`datadog-metrics-db`.
 
+Currently, an "app" doesn't provide much functionality. For example, in the UI, hovering over the type icon (Web/Database/Custom) will display the “app” for a particular service. In the future the UI may use "app" as hints to group services together better and surface relevant metrics.
+
 **Span**
 
 A span tracks a unit of work in a service, like querying a database or
