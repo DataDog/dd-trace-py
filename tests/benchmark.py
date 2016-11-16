@@ -1,13 +1,10 @@
 import time
 import timeit
 
-from ddtrace import Tracer
+from ddtrace import Tracer, encoding
 
-from .test_tracer import DummyWriter
-
-
-REPEAT = 10
-NUMBER = 10000
+from .util import load_trace_file
+from .test_tracer import get_test_tracer, get_benchmark_tracer
 
 
 def trace_error(tracer):
@@ -17,8 +14,10 @@ def trace_error(tracer):
 
 
 def benchmark_tracer_trace():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
+    REPEAT = 10
+    NUMBER = 10000
+
+    tracer = get_test_tracer()
 
     # testcase
     def trace(tracer):
@@ -39,8 +38,10 @@ def benchmark_tracer_trace():
 
 
 def benchmark_tracer_wrap():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
+    REPEAT = 10
+    NUMBER = 10000
+
+    tracer = get_test_tracer()
 
     # testcase
     class Foo(object):
@@ -73,6 +74,33 @@ def benchmark_tracer_wrap():
     print("- method execution time: {:8.6f}".format(min(result)))
 
 
+def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
+    tracer = get_benchmark_tracer()
+
+    # Create a fake trace and duplicate the reference in 15000 traces.
+    # This should simulate the encoding of 15000 real traces
+    fake_trace = load_trace_file(trace_filename, tracer)
+    traces = [fake_trace for i in range(TRACES)]
+
+    # testcase
+    def encode_json(traces):
+        encoding.encode_json(traces)
+
+    def encode_msgpack(traces):
+        encoding.encode_msgpack(traces)
+
+    # benchmark
+    print("## benchmark_trace_encoding for '{}': {} loops with {} traces with {} spans each ##".format(trace_filename, NUMBER, TRACES, len(fake_trace)))
+    timer = timeit.Timer(lambda: encode_json(traces))
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("- encode_json execution time: {:8.6f}".format(min(result)))
+    timer = timeit.Timer(lambda: encode_msgpack(traces))
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("- encode_msgpack execution time: {:8.6f}".format(min(result)))
+
+
 if __name__ == '__main__':
     benchmark_tracer_wrap()
     benchmark_tracer_trace()
+    benchmark_trace_encoding(10, 200, 150, './tests/simple_trace.json')
+    benchmark_trace_encoding(10, 200, 150, './tests/complex_trace.json')

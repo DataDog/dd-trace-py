@@ -24,10 +24,8 @@ try:
 except ImportError:
     from urllib import parse as urlparse
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
+# TODO[manu]: forcing built-in JSON for benchmark reasons
+import json
 
 def iteritems(obj, **kwargs):
     func = getattr(obj, "iteritems", None)

@@ -279,7 +279,7 @@ class DummyWriter(AgentWriter):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
-            encoding.encode_traces([spans])
+            encoding.encode_json([spans])
             self.spans += spans
 
         if services:
@@ -299,7 +299,23 @@ class DummyWriter(AgentWriter):
         return s
 
 
+class BenchmarkWriter(Tracer):
+    """
+    BenchmarkWriter removes the write() action so that you can benchmark each
+    single components like ``Encoders`` without overeads.
+    """
+    def write(self, spans=None, services=None):
+        # noop here
+        pass
+
+
 def get_test_tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
+    return tracer
+
+
+def get_benchmark_tracer():
+    tracer = Tracer()
+    tracer.writer = BenchmarkWriter()
     return tracer
