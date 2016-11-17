@@ -14,7 +14,7 @@ from django.core.exceptions import MiddlewareNotUsed
 log = logging.getLogger(__name__)
 
 
-class TraceMiddleware(object):
+class TraceMiddleware(CompatibilityMiddlewareMixin):
     """
     Middleware that traces Django requests
     """
@@ -98,3 +98,24 @@ def _set_auth_tags(span, request):
         span.set_tag('django.user.name', uname)
 
     return span
+
+
+class CompatibilityMiddlewareMixin(object):
+    """Middleware mixin allowing a middleware to work with both old and recent style
+
+    Make it work with both MIDDLEWARE_CLASSES (pre-1.10) and MIDDLEWARE (1.10+)
+    """
+    def __init__(self, get_response=None):
+        self.get_response = get_response
+        super(CompatibilityMiddlewareMixin, self).__init__()
+
+    def __call__(self, request):
+        response = None
+        if hasattr(self, 'process_request'):
+            response = self.process_request(request)
+        if not response:
+            response = self.get_response(request)
+        if hasattr(self, 'process_response'):
+            response = self.process_response(request, response)
+        return response
+
