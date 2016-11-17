@@ -75,6 +75,7 @@ def benchmark_tracer_wrap():
 
 
 def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
+    trace_size = {}
     tracer = get_benchmark_tracer()
 
     # Create a fake trace and duplicate the reference in 15000 traces.
@@ -84,19 +85,19 @@ def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
 
     # testcase
     def encode_json(traces):
-        encoding.encode_json(traces)
+        trace_size['encode_json'] = len(encoding.encode_json(traces))
 
     def encode_msgpack(traces):
-        encoding.encode_msgpack(traces)
+        trace_size['encode_msgpack'] = len(encoding.encode_msgpack(traces))
 
     # benchmark
     print("## benchmark_trace_encoding for '{}': {} loops with {} traces with {} spans each ##".format(trace_filename, NUMBER, TRACES, len(fake_trace)))
     timer = timeit.Timer(lambda: encode_json(traces))
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- encode_json execution time: {:8.6f}".format(min(result)))
+    print("- encode_json execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_json']))
     timer = timeit.Timer(lambda: encode_msgpack(traces))
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- encode_msgpack execution time: {:8.6f}".format(min(result)))
+    print("- encode_msgpack execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_msgpack']))
 
 
 if __name__ == '__main__':
