@@ -83,21 +83,22 @@ def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
     fake_trace = load_trace_file(trace_filename, tracer)
     traces = [fake_trace for i in range(TRACES)]
 
-    # testcase
-    def encode_json(traces):
-        trace_size['encode_json'] = len(encoding.encode_json(traces))
+    # encode once per type to collect trace size
+    trace_size['encode_json'] = len(encoding.encode_json(traces))
+    trace_size['encode_msgpack'] = len(encoding.encode_msgpack(traces))
+    trace_size['encode_protobuf'] = len(encoding.encode_protobuf(traces))
 
-    def encode_msgpack(traces):
-        trace_size['encode_msgpack'] = len(encoding.encode_msgpack(traces))
-
-    # benchmark
+    # benchmarks
     print("## benchmark_trace_encoding for '{}': {} loops with {} traces with {} spans each ##".format(trace_filename, NUMBER, TRACES, len(fake_trace)))
-    timer = timeit.Timer(lambda: encode_json(traces))
+    timer = timeit.Timer(lambda: encoding.encode_json(traces))
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
     print("- encode_json execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_json']))
-    timer = timeit.Timer(lambda: encode_msgpack(traces))
+    timer = timeit.Timer(lambda: encoding.encode_msgpack(traces))
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
     print("- encode_msgpack execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_msgpack']))
+    timer = timeit.Timer(lambda: encoding.encode_protobuf(traces))
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("- encode_protobuf execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_protobuf']))
 
 
 if __name__ == '__main__':
