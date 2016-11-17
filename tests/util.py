@@ -48,9 +48,9 @@ def _build_span(raw_span, tracer, name):
     span.metrics = raw_span.get('metrics')
     span.start = raw_span['start']
     span.duration = raw_span['duration']
-    span.trace_id = raw_span['trace_id']
-    span.span_id = raw_span['span_id']
-    span.parent_id = raw_span['parent_id']
+    span.trace_id = int(raw_span['trace_id'])
+    span.span_id = int(raw_span['span_id'])
+    span.parent_id = int(raw_span['parent_id'])
     span.finish()
     return span
 
