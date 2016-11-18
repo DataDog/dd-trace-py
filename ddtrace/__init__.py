@@ -1,9 +1,19 @@
 
+from .monkey import patch, patch_all
+from .pin import Pin
+from .span import Span
 from .tracer import Tracer
-from .span import Span # noqa
-from .pin import Pin   # noqa
 
 __version__ = '0.3.16'
 
-# a global tracer
+# a global tracer instance
 tracer = Tracer()
+
+__all__ = [
+    'patch',
+    'patch_all',
+    'Pin',
+    'Span',
+    'tracer',
+    'Tracer',
+]

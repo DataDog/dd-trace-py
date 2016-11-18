@@ -30,10 +30,21 @@ We support many `Web Frameworks`_. Install the middleware for yours.
 Then let's patch all the widely used Python libraries that you are running::
 
     # Add the following a the main entry point of your application.
-    from ddtrace import monkey
-    monkey.patch_all()
+    from ddtrace import patch_all
+    patch_all()
 
 Start your web server and you should be off to the races.
+
+If you want to restrict the set of instrumented libraries, you can either say
+which ones to instrument, or which ones not to.
+
+    from ddtrace import patch_all, patch
+
+    # Patch all libraries, except mysql and pymongo
+    patch_all(mysql=False, pymongo=False)
+
+    # Only patch redis and elasticsearch, raising an exception if one fails
+    patch(redis=True, elasticsearch=True, raise_errors=True)
 
 Custom Tracing
 ~~~~~~~~~~~~~~
