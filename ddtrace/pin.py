@@ -8,16 +8,30 @@ log = logging.getLogger(__name__)
 
 
 class Pin(object):
-    """ Pin (a.k.a Patch INfo) is a small class which is stores
-        tracer information particular to traced objects.
+    """ Pin (a.k.a Patch INfo) is a small class which is used to
+        set tracing metadata on a particular traced connection.
+        This is useful if you wanted to, say, trace two different
+        database clusters clusters.
 
-        >>> db = sqlite.connect(":memory:")
-        >>> Pin(service="my-sqlite-service").onto(db)
+        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> pin = Pin.get_from(conn)
+        >>> if pin:
+                pin.service = "user-db"
+                pin.onto(conn)
+        >>> conn = sqlite.connect("/tmp/image.db")
+        >>> pin = Pin.get_from(conn)
+        >>> if pin:
+                pin.service = "image-db"
+                pin.onto(conn)
+
     """
 
     @staticmethod
     def get_from(obj):
-        """ Return the pin associated with the given object. """
+        """ Return the pin associated with the given object.
+
+            >>> pin = Pin.get_from(conn)
+        """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
         return getattr(obj, '_datadog_pin', None)
