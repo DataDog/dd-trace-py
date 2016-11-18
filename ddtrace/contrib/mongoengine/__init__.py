@@ -2,19 +2,23 @@
 To trace mongoengine queries, we patch its connect method::
 
     # to patch all mongoengine connections, do the following
-    # before you import mongoengine yourself.
+    # before you import mongoengine connect.
 
-    from ddtrace import tracer
-    from ddtrace.contrib.mongoengine import trace_mongoengine
-    trace_mongoengine(tracer, service="my-mongo-db", patch=True)
+    import mongoengine
+    from ddtrace.monkey import patch_all
+    patch_all()
 
+    # At that point, mongoengine is instrumented with the default settings
+    mongoengine.connect('db', alias='default')
 
-    # to patch a single mongoengine connection, do this:
-    connect = trace_mongoengine(tracer, service="my-mongo-db", patch=False)
-    connect()
+    # To customize all new clients
+    from ddtrace import Pin
+    Pin(service='my-mongo-cluster').onto(mongoengine.connect)
+    mongoengine.connect('db', alias='another')
 
-    # now use mongoengine ....
-    User.objects(name="Mongo")
+    # To customize only one client
+    client = mongoengine.connect('db', alias='master')
+    Pin(service='my-master-mongo-cluster').onto(client)
 """
 
 
@@ -25,6 +29,6 @@ required_modules = ['mongoengine']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import trace_mongoengine
+        from .patch import patch
 
-        __all__ = ['trace_mongoengine']
+        __all__ = ['patch']

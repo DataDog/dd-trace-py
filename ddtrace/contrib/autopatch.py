@@ -18,10 +18,12 @@ log = logging.getLogger()
 autopatch_modules = [
     'cassandra',
     'elasticsearch',
+    'mongoengine',
     'requests',
     'sqlite3',
     'psycopg',
     'pylibmc',
+    'pymongo',
     'redis',
 ]
 
