@@ -101,8 +101,28 @@ def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
     print("- encode_protobuf execution time: {:8.6f} :: size => {}".format(min(result), trace_size['encode_protobuf']))
 
 
+def benchmark_span_representation_build(REPEAT, NUMBER, trace_filename):
+    trace_size = {}
+    tracer = get_benchmark_tracer()
+
+    # Create a fake trace and duplicate the reference in 15000 traces.
+    # This should simulate the encoding of 15000 real traces
+    traces = [load_trace_file(trace_filename, tracer)]
+
+    # benchmarks
+    print("## benchmark_span_representation_build for '{}': {} loops for a trace with {} spans ##".format(trace_filename, NUMBER, len(traces[0])))
+    timer = timeit.Timer(lambda: encoding.flatten_spans(traces))
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("- flatten_spans : to_dict() execution time: {:8.6f}".format(min(result)))
+    timer = timeit.Timer(lambda: encoding.flatten_proto_spans(traces))
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("- flatten_proto_spans : to_proto_span() execution time: {:8.6f}".format(min(result)))
+
+
 if __name__ == '__main__':
     benchmark_tracer_wrap()
     benchmark_tracer_trace()
     benchmark_trace_encoding(10, 200, 150, './tests/simple_trace.json')
     benchmark_trace_encoding(10, 200, 150, './tests/complex_trace.json')
+    benchmark_span_representation_build(10, 1500, './tests/simple_trace.json')
+    benchmark_span_representation_build(10, 1500, './tests/complex_trace.json')
