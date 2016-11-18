@@ -1,0 +1,1323 @@
+{
+    "trace": {
+        "children": [
+            {
+                "children": [
+                    {
+                        "duration": 0.00117,
+                        "end": 1479303612.22833,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "meta": {
+                            "db.application": "dogweb",
+                            "db.name": "dogdataprod-replica",
+                            "db.user": "dog",
+                            "out.host": "/var/pgbouncer",
+                            "out.port": "15433",
+                            "sql.query": "SELECT dduser.password AS dduser_password, dduser.handle AS dduser_handle, dduser.public_id AS dduser_public_id, dduser.id AS dduser_id, dduser.org_id AS dduser_org_id, dduser.email AS dduser_email, dduser.name AS dduser_name, dduser.role AS dduser_role, dduser.team AS dduser_team, dduser.support AS dduser_support, dduser.is_admin AS dduser_is_admin, dduser.github_username AS dduser_github_username, dduser.github_token AS dduser_github_token, dduser.disabled AS dduser_disabled, dduser.verified AS dduser_verified, dduser.bot AS dduser_bot, dduser.created AS dduser_created, dduser.modified AS dduser_modified, dduser.time_zone AS dduser_time_zone, dduser.password_modified AS dduser_password_modified, dduser.ip_address AS dduser_ip_address, org_1.parent_org_id AS org_1_parent_org_id, org_1.billing_parent_org_id AS org_1_billing_parent_org_id, org_1.id AS org_1_id, org_1.name AS org_1_name, org_1.sharing AS org_1_sharing, org_1.description AS org_1_description, org_1.url AS org_1_url, org_1.auth_domain AS org_1_auth_domain, org_1.open_id_provider AS org_1_open_id_provider, org_1.partition_num AS org_1_partition_num, org_1.plan_id AS org_1_plan_id, org_1.when_created AS org_1_when_created, org_1.email_post_key AS org_1_email_post_key, org_1.is_test AS org_1_is_test, org_1.disabled AS org_1_disabled, org_1.time_zone AS org_1_time_zone, org_1.saml_data_id AS org_1_saml_data_id, org_1.is_saml_enabled AS org_1_is_saml_enabled, org_1.public_id AS org_1_public_id, org_1.is_paywalled AS org_1_is_paywalled, org_1.subdomain AS org_1_subdomain, org_1.parent_gets_metrics AS org_1_parent_gets_metrics, org_1.disable_scheduled_at AS org_1_disable_scheduled_at, org_1.disabled_at AS org_1_disabled_at, org_1.secrets_removed_at AS org_1_secrets_removed_at \nFROM dduser LEFT OUTER JOIN org AS org_1 ON org_1.id = dduser.org_id \nWHERE dduser.handle = %(handle_1)s AND dduser.org_id = %(org_id_1)s \n LIMIT %(param_1)s"
+                        },
+                        "metrics": {
+                            "db.rowcount": 1
+                        },
+                        "name": "postgres.query",
+                        "parent_id": "11020216572481725803",
+                        "resource": "SELECT dduser.password AS dduser_password, dduser.handle AS dduser_handle, dduser.public_id AS dduser_public_id, dduser.id AS dduser_id, dduser.org_id AS dduser_org_id, dduser.email AS dduser_email, dduser.name AS dduser_name, dduser.role AS dduser_role, dduser.team AS dduser_team, dduser.support AS dduser_support, dduser.is_admin AS dduser_is_admin, dduser.github_username AS dduser_github_username, dduser.github_token AS dduser_github_token, dduser.disabled AS dduser_disabled, dduser.verified AS dduser_verified, dduser.bot AS dduser_bot, dduser.created AS dduser_created, dduser.modified AS dduser_modified, dduser.time_zone AS dduser_time_zone, dduser.password_modified AS dduser_password_modified, dduser.ip_address AS dduser_ip_address, org_?.parent_org_id AS org_?_parent_org_id, org_?.billing_parent_org_id AS org_?_billing_parent_org_id, org_?.id AS org_?_id, org_?.name AS org_?_name, org_?.sharing AS org_?_sharing, org_?.description AS org_?_description, org_?.url AS org_?_url, org_?.auth_domain AS org_?_auth_domain, org_?.open_id_provider AS org_?_open_id_provider, org_?.partition_num AS org_?_partition_num, org_?.plan_id AS org_?_plan_id, org_?.when_created AS org_?_when_created, org_?.email_post_key AS org_?_email_post_key, org_?.is_test AS org_?_is_test, org_?.disabled AS org_?_disabled, org_?.time_zone AS org_?_time_zone, org_?.saml_data_id AS org_?_saml_data_id, org_?.is_saml_enabled AS org_?_is_saml_enabled, org_?.public_id AS org_?_public_id, org_?.is_paywalled AS org_?_is_paywalled, org_?.subdomain AS org_?_subdomain, org_?.parent_gets_metrics AS org_?_parent_gets_metrics, org_?.disable_scheduled_at AS org_?_disable_scheduled_at, org_?.disabled_at AS org_?_disabled_at, org_?.secrets_removed_at AS org_?_secrets_removed_at FROM dduser LEFT OUTER JOIN org AS org_? ON org_?.id = dduser.org_id WHERE dduser.handle = ? AND dduser.org_id = ? LIMIT ?",
+                        "resource_hash": "38a0f3359e08fee6",
+                        "service": "replica-db",
+                        "span_id": "11052968365234744070",
+                        "start": 1479303612.22716,
+                        "trace_id": "13760750009818821865",
+                        "type": "sql"
+                    }
+                ],
+                "duration": 0.01502,
+                "end": 1479303612.23685,
+                "host_id": 220571062,
+                "hostname": "simple.server",
+                "name": "dogweb.base.before",
+                "parent_id": "2247187525764119946",
+                "resource": "dogweb.base.before",
+                "resource_hash": "411558afb623c7f5",
+                "service": "mcnulty-query",
+                "span_id": "11020216572481725803",
+                "start": 1479303612.22183,
+                "trace_id": "13760750009818821865",
+                "type": ""
+            },
+            {
+                "duration": 0.00276,
+                "end": 1479303612.34087,
+                "host_id": 220571062,
+                "hostname": "simple.server",
+                "name": "pylons.jsonify",
+                "parent_id": "2247187525764119946",
+                "resource": "pylons.jsonify",
+                "resource_hash": "7d6b305a5f2fa904",
+                "service": "mcnulty-query",
+                "span_id": "4320806987742420372",
+                "start": 1479303612.3381,
+                "trace_id": "13760750009818821865",
+                "type": ""
+            },
+            {
+                "children": [
+                    {
+                        "duration": 0.00216,
+                        "end": 1479303612.22101,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "meta": {
+                            "cassandra.cluster": "sessions",
+                            "cassandra.compression": "True",
+                            "cassandra.keyspace": "sessions",
+                            "cassandra.paginated": "False",
+                            "cassandra.row_count": "1",
+                            "out.port": "9042"
+                        },
+                        "name": "cassandra.query",
+                        "parent_id": "18186867755979005591",
+                        "resource": "SELECT data FROM beaker WHERE key=? LIMIT ?",
+                        "resource_hash": "540c632ec79036b6",
+                        "service": "beaker",
+                        "span_id": "14972166982150807133",
+                        "start": 1479303612.21885,
+                        "trace_id": "13760750009818821865",
+                        "type": "cassandra"
+                    }
+                ],
+                "duration": 0.00222,
+                "end": 1479303612.22103,
+                "host_id": 220571062,
+                "hostname": "simple.server",
+                "meta": {
+                    "cassandra.cluster": "sessions",
+                    "cassandra.compression": "True",
+                    "cassandra.keyspace": "sessions",
+                    "cassandra.paginated": "False",
+                    "cassandra.row_count": "1",
+                    "out.port": "9042"
+                },
+                "name": "cassandra.query",
+                "parent_id": "2247187525764119946",
+                "resource": "SELECT data FROM beaker WHERE key=? LIMIT ?",
+                "resource_hash": "540c632ec79036b6",
+                "service": "cassandra",
+                "span_id": "18186867755979005591",
+                "start": 1479303612.21881,
+                "trace_id": "13760750009818821865",
+                "type": "cassandra"
+            },
+            {
+                "children": [
+                    {
+                        "duration": 1e-05,
+                        "end": 1479303612.33745,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.post",
+                        "parent_id": "17573424332488921431",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "7918266795469925067",
+                        "start": 1479303612.33745,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "children": [
+                            {
+                                "duration": 0.00134,
+                                "end": 1479303612.29237,
+                                "host_id": 220571062,
+                                "hostname": "simple.server",
+                                "meta": {
+                                    "db.application": "dogweb",
+                                    "db.name": "dogdataprod-replica",
+                                    "db.user": "dog",
+                                    "out.host": "/var/pgbouncer",
+                                    "out.port": "15433",
+                                    "sql.query": "-- _select_metadata_with_timeout\n            SELECT org_id,metric_key,metric_type,interval,created,updated,unit_id,per_unit_id,description,orientation,integration,short_name FROM metrics_metadata WHERE org_id = %(org_id)s\n        AND metric_key = ANY(array[32])"
+                                },
+                                "metrics": {
+                                    "db.rowcount": 0
+                                },
+                                "name": "postgres.query",
+                                "parent_id": "10284128420682135212",
+                                "resource": "SELECT org_id,metric_key,metric_type,interval,created,updated,unit_id,per_unit_id,description,orientation,integration,short_name FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(array[?])",
+                                "resource_hash": "40e73b279c4a5aad",
+                                "service": "replica-db",
+                                "span_id": "6453167184657616796",
+                                "start": 1479303612.29103,
+                                "trace_id": "13760750009818821865",
+                                "type": "sql"
+                            }
+                        ],
+                        "duration": 0.00248,
+                        "end": 1479303612.29284,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.pre",
+                        "parent_id": "17573424332488921431",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "10284128420682135212",
+                        "start": 1479303612.29036,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "duration": 0.00013,
+                        "end": 1479303612.33742,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.eval",
+                        "parent_id": "17573424332488921431",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "16873310770711805936",
+                        "start": 1479303612.3373,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "children": [
+                            {
+                                "children": [
+                                    {
+                                        "children": [
+                                            {
+                                                "children": [
+                                                    {
+                                                        "children": [
+                                                            {
+                                                                "duration": 2e-05,
+                                                                "end": 1479303612.3107,
+                                                                "host_id": 221763991,
+                                                                "hostname": "simple.server",
+                                                                "metrics": {
+                                                                    "lamar.out.bytes": 368,
+                                                                    "lamar.out.keys": 46
+                                                                },
+                                                                "name": "lamar.out",
+                                                                "parent_id": "6821308495938773405",
+                                                                "resource": "lamar.out",
+                                                                "resource_hash": "cd96bdf0b2c86e2e",
+                                                                "service": "lamar",
+                                                                "span_id": "7417004752917333774",
+                                                                "start": 1479303612.31068,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": ""
+                                                            },
+                                                            {
+                                                                "duration": 0.00016,
+                                                                "end": 1479303612.31064,
+                                                                "host_id": 221763991,
+                                                                "hostname": "simple.server",
+                                                                "name": "lamar.query.mem",
+                                                                "parent_id": "6821308495938773405",
+                                                                "resource": "lamar.query.mem",
+                                                                "resource_hash": "7f360d12f1f89dc9",
+                                                                "service": "lamar",
+                                                                "span_id": "2499571705899019767",
+                                                                "start": 1479303612.31048,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": ""
+                                                            }
+                                                        ],
+                                                        "duration": 0.00028,
+                                                        "end": 1479303612.31071,
+                                                        "host_id": 221763991,
+                                                        "hostname": "simple.server",
+                                                        "metrics": {
+                                                            "_sample_rate": 0.00631
+                                                        },
+                                                        "name": "lamar.server",
+                                                        "parent_id": "9027197325091133003",
+                                                        "resource": "queryb",
+                                                        "resource_hash": "1587e70ed4034e0c",
+                                                        "service": "lamar",
+                                                        "span_id": "6821308495938773405",
+                                                        "start": 1479303612.31043,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "go"
+                                                    }
+                                                ],
+                                                "duration": 0.00201,
+                                                "end": 1479303612.31802,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query_index_lamar",
+                                                "parent_id": "693312195699439877",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "9027197325091133003",
+                                                "start": 1479303612.316,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00148,
+                                                        "end": 1479303612.32404,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "out.host": "192.168.0.10",
+                                                            "out.port": "6379",
+                                                            "redis.raw_command": "SETEX dp:new_context_query:mpack-tuple|1:v2|q:(SQ|o:48364|m:32|f:env:prd|g:)|s:1479298800|e:1479304200 150 ?"
+                                                        },
+                                                        "metrics": {
+                                                            "redis.args_length": 4
+                                                        },
+                                                        "name": "redis.command",
+                                                        "parent_id": "18220750845603785476",
+                                                        "resource": "SETEX",
+                                                        "resource_hash": "fd29e30a9aedc579",
+                                                        "service": "dogpound",
+                                                        "span_id": "8085202758451341715",
+                                                        "start": 1479303612.32256,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "redis"
+                                                    }
+                                                ],
+                                                "duration": 0.00196,
+                                                "end": 1479303612.3241,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.cache_write",
+                                                "parent_id": "693312195699439877",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "18220750845603785476",
+                                                "start": 1479303612.32214,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00128,
+                                                        "end": 1479303612.31586,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "out.host": "192.168.0.10",
+                                                            "out.port": "6379",
+                                                            "redis.raw_command": "GET dp:new_context_query:mpack-tuple|1:v2|q:(SQ|o:48364|m:32|f:env:prd|g:)|s:1479298800|e:1479304200"
+                                                        },
+                                                        "metrics": {
+                                                            "redis.args_length": 2
+                                                        },
+                                                        "name": "redis.command",
+                                                        "parent_id": "17920306119432135236",
+                                                        "resource": "GET",
+                                                        "resource_hash": "a509a3c69ad1028d",
+                                                        "service": "dogpound",
+                                                        "span_id": "9217610588945025941",
+                                                        "start": 1479303612.31457,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "redis"
+                                                    }
+                                                ],
+                                                "duration": 0.00171,
+                                                "end": 1479303612.31589,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query_cache",
+                                                "parent_id": "693312195699439877",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "17920306119432135236",
+                                                "start": 1479303612.31417,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "duration": 1e-05,
+                                                "end": 1479303612.31405,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "aggr_query",
+                                                "parent_id": "693312195699439877",
+                                                "resource": "aggr_query",
+                                                "resource_hash": "ab70a9ee95b090e9",
+                                                "service": "metric-query",
+                                                "span_id": "136840699190278240",
+                                                "start": 1479303612.31405,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00204,
+                                                        "end": 1479303612.32078,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "db.application": "dogweb",
+                                                            "db.name": "ctx-pshard4-standby",
+                                                            "db.user": "dog",
+                                                            "out.host": "/var/pgbouncer",
+                                                            "out.port": "15433",
+                                                            "sql.query": "\n        -- get_contexts_sub_query[[org:48364 query_id:963eb52c5d batch:0]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs15596.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @> %(yes_tags0)s)\n        \n        \n        \n        \n    \n        "
+                                                        },
+                                                        "metrics": {
+                                                            "db.rowcount": 46
+                                                        },
+                                                        "name": "postgres.query",
+                                                        "parent_id": "4644537494644381436",
+                                                        "resource": "WITH sub_contexts as ( SELECT key, host_name, device_name, tags, org_id FROM vs?.dim_context c WHERE key = ANY(?) ) SELECT key, host_name, device_name, tags FROM sub_contexts c WHERE (c.org_id = ? AND c.tags @> ?)",
+                                                        "resource_hash": "add5c253c5df3700",
+                                                        "service": "ctx-pshard-standby",
+                                                        "span_id": "14713516552500682932",
+                                                        "start": 1479303612.31874,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "sql"
+                                                    }
+                                                ],
+                                                "duration": 0.00392,
+                                                "end": 1479303612.3221,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query",
+                                                "parent_id": "693312195699439877",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "4644537494644381436",
+                                                "start": 1479303612.31818,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            }
+                                        ],
+                                        "duration": 0.01035,
+                                        "end": 1479303612.32439,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.ctxs",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "693312195699439877",
+                                        "start": 1479303612.31404,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.00316,
+                                        "end": 1479303612.33599,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.aggr",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "17894010858673784318",
+                                        "start": 1479303612.33283,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.00034,
+                                        "end": 1479303612.33281,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.merge",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "14138139227707150562",
+                                        "start": 1479303612.33246,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 9e-05,
+                                        "end": 1479303612.33646,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "dd.metrics.query_cache.set",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "dd.metrics.query_cache.set",
+                                        "resource_hash": "be98d81ba4474706",
+                                        "service": "metric-query",
+                                        "span_id": "13371626562934111940",
+                                        "start": 1479303612.33637,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.0209,
+                                        "end": 1479303612.31393,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "dd.metrics.query_cache.get",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "dd.metrics.query_cache.get",
+                                        "resource_hash": "dab8519f4f48b0ab",
+                                        "service": "metric-query",
+                                        "span_id": "17467602985975071221",
+                                        "start": 1479303612.29304,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "children": [
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00059,
+                                                        "end": 1479303612.33201,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.parse",
+                                                        "parent_id": "9403937227874756956",
+                                                        "resource": "spidly.client.query.parse",
+                                                        "resource_hash": "2edb5af10cd6da5c",
+                                                        "service": "metric-query",
+                                                        "span_id": "9676458434019984258",
+                                                        "start": 1479303612.33142,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    },
+                                                    {
+                                                        "children": [
+                                                            {
+                                                                "duration": 0.00389,
+                                                                "end": 1479303612.33133,
+                                                                "host_id": 220571062,
+                                                                "hostname": "simple.server",
+                                                                "meta": {
+                                                                    "initial_connection_ejected": "False",
+                                                                    "out.host": "192.168.0.10",
+                                                                    "out.port": "6379",
+                                                                    "out.redis_db": "0",
+                                                                    "redis.args_length": "53",
+                                                                    "redis.raw_command": "querybatchrolluplzmsgpack 48364 32 1479298800 1479303611 300 avg 73010268198404196 73010268198404197 73010285378273383 73010285378273384 73010573141082240 73010573141082244 73010577436049541 73010577436049542 74535230696587462 74535230696587464 74535230696587465 74535230696587469 75474286641152335 75474286641152344 75474299526054256 75474299526054265 75474299526054266 75474299526054270 75474329590825357 75474329590825363 75474329590825367 75474329590825369 75474329590825372 75474329590825375 75474329590825378 75474329590825379 75474329590825388 75474329590825390 75474329590825396 75474370393014717 75474370393014718 75474370393014719 75474370393014720 75474370393014722 75474370393014723 75475079062618573 75475079062618574 94735761117282903 94735761117282904 119407481342132895 119407547914125984 119407547914125985 119409313145684646 119409313145684647 119409313145684648 119787781368840887"
+                                                                },
+                                                                "name": "spidly.command",
+                                                                "parent_id": "9566732738165688504",
+                                                                "resource": "QUERYBATCHROLLUPLZMSGPACK",
+                                                                "resource_hash": "fc59978b3c7073e4",
+                                                                "service": "spidly",
+                                                                "span_id": "7265632960378530070",
+                                                                "start": 1479303612.32744,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": "redis"
+                                                            }
+                                                        ],
+                                                        "duration": 0.00466,
+                                                        "end": 1479303612.33141,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.fetch",
+                                                        "parent_id": "9403937227874756956",
+                                                        "resource": "spidly.client.query.fetch",
+                                                        "resource_hash": "fe13e951532c3526",
+                                                        "service": "metric-query",
+                                                        "span_id": "9566732738165688504",
+                                                        "start": 1479303612.32676,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    },
+                                                    {
+                                                        "duration": 5e-05,
+                                                        "end": 1479303612.33208,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.rollup",
+                                                        "parent_id": "9403937227874756956",
+                                                        "resource": "spidly.client.query.rollup",
+                                                        "resource_hash": "8c5498c54235cd54",
+                                                        "service": "metric-query",
+                                                        "span_id": "6013745455325469036",
+                                                        "start": 1479303612.33203,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    }
+                                                ],
+                                                "duration": 0.00543,
+                                                "end": 1479303612.33209,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "meta": {
+                                                    "query_id": "963eb52c5d"
+                                                },
+                                                "metrics": {
+                                                    "bytes_count": 6152,
+                                                    "point_count": 746,
+                                                    "query_count": 1,
+                                                    "rollup_point_count": 746,
+                                                    "series_count": 46
+                                                },
+                                                "name": "spidly.client.query",
+                                                "parent_id": "8401991107229879802",
+                                                "resource": "spidly.client.query",
+                                                "resource_hash": "46c06b05a3dc8c49",
+                                                "service": "metric-query",
+                                                "span_id": "9403937227874756956",
+                                                "start": 1479303612.32666,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "duration": 0.00195,
+                                                "end": 1479303612.32645,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.catalog",
+                                                "parent_id": "8401991107229879802",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "16608542018362325273",
+                                                "start": 1479303612.3245,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            }
+                                        ],
+                                        "duration": 0.00796,
+                                        "end": 1479303612.33245,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.stores",
+                                        "parent_id": "2702079555009091789",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "8401991107229879802",
+                                        "start": 1479303612.32448,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    }
+                                ],
+                                "duration": 0.04397,
+                                "end": 1479303612.33687,
+                                "host_id": 220571062,
+                                "hostname": "simple.server",
+                                "meta": {
+                                    "query_id": "963eb52c5d"
+                                },
+                                "metrics": {
+                                    "aggr_candidate_in_series": 46,
+                                    "aggr_candidate_out_series": 1,
+                                    "aggr_candidate_ratio": 46,
+                                    "aggr_duration": 3160953.0,
+                                    "cache_hits": 1,
+                                    "cache_sets": 0,
+                                    "cache_write_duration": 1957893.0,
+                                    "catalog_duration": 1948118.0,
+                                    "context_query_batch_count": 1,
+                                    "context_query_cache_duration": 1713991.0,
+                                    "context_query_cache_hit": 0,
+                                    "context_query_duration": 3921985.0,
+                                    "context_query_index_lamar_duration": 2014160.0,
+                                    "context_query_index_lamar_numkeys": 46,
+                                    "context_query_numkeys": 46,
+                                    "ctxs_duration": 10345935.0,
+                                    "interpolation_points": 36,
+                                    "max_contexts": 500000,
+                                    "merge_duration": 343084,
+                                    "num_contexts": 46,
+                                    "queries": 1,
+                                    "query_span_secs": 95043,
+                                    "series": 1,
+                                    "spidly_duration": 5962848.0,
+                                    "stores_duration": 7962942.0
+                                },
+                                "name": "raw_query",
+                                "parent_id": "15881364215171783027",
+                                "resource": "raw_query",
+                                "resource_hash": "4da44d7c78c0e96d",
+                                "service": "metric-query",
+                                "span_id": "2702079555009091789",
+                                "start": 1479303612.2929,
+                                "trace_id": "13760750009818821865",
+                                "type": ""
+                            }
+                        ],
+                        "duration": 0.04441,
+                        "end": 1479303612.33727,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.raw",
+                        "parent_id": "17573424332488921431",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "15881364215171783027",
+                        "start": 1479303612.29286,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    }
+                ],
+                "duration": 0.04755,
+                "end": 1479303612.33751,
+                "host_id": 220571062,
+                "hostname": "simple.server",
+                "meta": {
+                    "end_date": "2016-11-16T13:40:12",
+                    "exc": "None",
+                    "interval": "300",
+                    "org": "48364",
+                    "query": "sum:system.net.bytes_sent{env:prd}",
+                    "query_id": "963eb52c5d",
+                    "span": "95043",
+                    "start_date": "2016-11-15T11:16:09"
+                },
+                "metrics": {
+                    "eval_duration": 130891,
+                    "post_duration": 7867,
+                    "pre_duration": 2475023.0,
+                    "raw_duration": 44409990.0,
+                    "raw_queries": 1,
+                    "series": 1
+                },
+                "name": "string_query",
+                "parent_id": "2247187525764119946",
+                "resource": "query_expression",
+                "resource_hash": "778f4dfb04215a09",
+                "service": "metric-query",
+                "span_id": "17573424332488921431",
+                "start": 1479303612.28995,
+                "trace_id": "13760750009818821865",
+                "type": ""
+            },
+            {
+                "children": [
+                    {
+                        "duration": 1e-05,
+                        "end": 1479303612.28637,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.post",
+                        "parent_id": "17254196569310728955",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "8284065128749840366",
+                        "start": 1479303612.28636,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "children": [
+                            {
+                                "children": [
+                                    {
+                                        "duration": 9e-05,
+                                        "end": 1479303612.28536,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "dd.metrics.query_cache.set",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "dd.metrics.query_cache.set",
+                                        "resource_hash": "be98d81ba4474706",
+                                        "service": "metric-query",
+                                        "span_id": "8392396805460729483",
+                                        "start": 1479303612.28526,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.00332,
+                                        "end": 1479303612.28486,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.aggr",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "11331682732992667663",
+                                        "start": 1479303612.28154,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.00039,
+                                        "end": 1479303612.28152,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.merge",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "6292049023226139830",
+                                        "start": 1479303612.28113,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "duration": 0.01187,
+                                        "end": 1479303612.26004,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "dd.metrics.query_cache.get",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "dd.metrics.query_cache.get",
+                                        "resource_hash": "dab8519f4f48b0ab",
+                                        "service": "metric-query",
+                                        "span_id": "6190800804045040665",
+                                        "start": 1479303612.24817,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "children": [
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00209,
+                                                        "end": 1479303612.26684,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "db.application": "dogweb",
+                                                            "db.name": "ctx-pshard4-standby",
+                                                            "db.user": "dog",
+                                                            "out.host": "/var/pgbouncer",
+                                                            "out.port": "15433",
+                                                            "sql.query": "\n        -- get_contexts_sub_query[[org:48364 query_id:5a1516b99b batch:0]]\n        WITH sub_contexts as (\n            \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags,\n            org_id\n        FROM vs15596.dim_context c\n        WHERE key = ANY(%(key)s)\n        \n        \n        \n        \n    \n        )\n        \n        -- \n        --\n        SELECT key,\n            host_name,\n            device_name,\n            tags\n        FROM sub_contexts c\n        WHERE (c.org_id = %(org_id)s AND c.tags @> %(yes_tags0)s)\n        \n        \n        \n        \n    \n        "
+                                                        },
+                                                        "metrics": {
+                                                            "db.rowcount": 46
+                                                        },
+                                                        "name": "postgres.query",
+                                                        "parent_id": "13841054003247259273",
+                                                        "resource": "WITH sub_contexts as ( SELECT key, host_name, device_name, tags, org_id FROM vs?.dim_context c WHERE key = ANY(?) ) SELECT key, host_name, device_name, tags FROM sub_contexts c WHERE (c.org_id = ? AND c.tags @> ?)",
+                                                        "resource_hash": "add5c253c5df3700",
+                                                        "service": "ctx-pshard-standby",
+                                                        "span_id": "2979693060199382635",
+                                                        "start": 1479303612.26475,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "sql"
+                                                    }
+                                                ],
+                                                "duration": 0.00611,
+                                                "end": 1479303612.26992,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query",
+                                                "parent_id": "14468193062493280750",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "13841054003247259273",
+                                                "start": 1479303612.26382,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "duration": 1e-05,
+                                                "end": 1479303612.26024,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "aggr_query",
+                                                "parent_id": "14468193062493280750",
+                                                "resource": "aggr_query",
+                                                "resource_hash": "ab70a9ee95b090e9",
+                                                "service": "metric-query",
+                                                "span_id": "15087152306097658025",
+                                                "start": 1479303612.26023,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00176,
+                                                        "end": 1479303612.27229,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "out.host": "192.168.0.10",
+                                                            "out.port": "6379",
+                                                            "redis.raw_command": "SETEX dp:new_context_query:mpack-tuple|1:v2|q:(SQ|o:48364|m:31|f:env:prd|g:)|s:1479298800|e:1479304200 150 ?"
+                                                        },
+                                                        "metrics": {
+                                                            "redis.args_length": 4
+                                                        },
+                                                        "name": "redis.command",
+                                                        "parent_id": "8455722231615469899",
+                                                        "resource": "SETEX",
+                                                        "resource_hash": "fd29e30a9aedc579",
+                                                        "service": "dogpound",
+                                                        "span_id": "14512903073772825663",
+                                                        "start": 1479303612.27054,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "redis"
+                                                    }
+                                                ],
+                                                "duration": 0.00236,
+                                                "end": 1479303612.27232,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.cache_write",
+                                                "parent_id": "14468193062493280750",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "8455722231615469899",
+                                                "start": 1479303612.26996,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "children": [
+                                                            {
+                                                                "duration": 0.00018,
+                                                                "end": 1479303612.26138,
+                                                                "host_id": 221763992,
+                                                                "hostname": "simple.server",
+                                                                "name": "lamar.query.mem",
+                                                                "parent_id": "9178122988325526898",
+                                                                "resource": "lamar.query.mem",
+                                                                "resource_hash": "7f360d12f1f89dc9",
+                                                                "service": "lamar",
+                                                                "span_id": "803394011460663432",
+                                                                "start": 1479303612.2612,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": ""
+                                                            },
+                                                            {
+                                                                "duration": 3e-05,
+                                                                "end": 1479303612.26145,
+                                                                "host_id": 221763992,
+                                                                "hostname": "simple.server",
+                                                                "metrics": {
+                                                                    "lamar.out.bytes": 368,
+                                                                    "lamar.out.keys": 46
+                                                                },
+                                                                "name": "lamar.out",
+                                                                "parent_id": "9178122988325526898",
+                                                                "resource": "lamar.out",
+                                                                "resource_hash": "cd96bdf0b2c86e2e",
+                                                                "service": "lamar",
+                                                                "span_id": "8901880801905491916",
+                                                                "start": 1479303612.26143,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": ""
+                                                            }
+                                                        ],
+                                                        "duration": 0.00032,
+                                                        "end": 1479303612.26147,
+                                                        "host_id": 221763992,
+                                                        "hostname": "simple.server",
+                                                        "metrics": {
+                                                            "_sample_rate": 0.00599
+                                                        },
+                                                        "name": "lamar.server",
+                                                        "parent_id": "2490785826899897429",
+                                                        "resource": "queryb",
+                                                        "resource_hash": "1587e70ed4034e0c",
+                                                        "service": "lamar",
+                                                        "span_id": "9178122988325526898",
+                                                        "start": 1479303612.26115,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "go"
+                                                    }
+                                                ],
+                                                "duration": 0.00198,
+                                                "end": 1479303612.26357,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query_index_lamar",
+                                                "parent_id": "14468193062493280750",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "2490785826899897429",
+                                                "start": 1479303612.26158,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 0.00036,
+                                                        "end": 1479303612.26134,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "meta": {
+                                                            "out.host": "192.168.0.10",
+                                                            "out.port": "6379",
+                                                            "redis.raw_command": "GET dp:new_context_query:mpack-tuple|1:v2|q:(SQ|o:48364|m:31|f:env:prd|g:)|s:1479298800|e:1479304200"
+                                                        },
+                                                        "metrics": {
+                                                            "redis.args_length": 2
+                                                        },
+                                                        "name": "redis.command",
+                                                        "parent_id": "11241998512149268415",
+                                                        "resource": "GET",
+                                                        "resource_hash": "a509a3c69ad1028d",
+                                                        "service": "dogpound",
+                                                        "span_id": "506421049437362590",
+                                                        "start": 1479303612.26098,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": "redis"
+                                                    }
+                                                ],
+                                                "duration": 0.00096,
+                                                "end": 1479303612.26138,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.context_query_cache",
+                                                "parent_id": "14468193062493280750",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "11241998512149268415",
+                                                "start": 1479303612.26043,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            }
+                                        ],
+                                        "duration": 0.01242,
+                                        "end": 1479303612.27263,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.ctxs",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "14468193062493280750",
+                                        "start": 1479303612.26021,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    },
+                                    {
+                                        "children": [
+                                            {
+                                                "duration": 0.00202,
+                                                "end": 1479303612.27477,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "name": "raw_query.catalog",
+                                                "parent_id": "17210498613672604372",
+                                                "resource": "raw_query",
+                                                "resource_hash": "4da44d7c78c0e96d",
+                                                "service": "metric-query",
+                                                "span_id": "14120060725953269273",
+                                                "start": 1479303612.27275,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            },
+                                            {
+                                                "children": [
+                                                    {
+                                                        "duration": 8e-05,
+                                                        "end": 1479303612.2807,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.rollup",
+                                                        "parent_id": "3052099017427085028",
+                                                        "resource": "spidly.client.query.rollup",
+                                                        "resource_hash": "8c5498c54235cd54",
+                                                        "service": "metric-query",
+                                                        "span_id": "15464728428146886438",
+                                                        "start": 1479303612.28063,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    },
+                                                    {
+                                                        "duration": 0.00076,
+                                                        "end": 1479303612.28058,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.parse",
+                                                        "parent_id": "3052099017427085028",
+                                                        "resource": "spidly.client.query.parse",
+                                                        "resource_hash": "2edb5af10cd6da5c",
+                                                        "service": "metric-query",
+                                                        "span_id": "10093947732079465027",
+                                                        "start": 1479303612.27983,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    },
+                                                    {
+                                                        "children": [
+                                                            {
+                                                                "duration": 0.0039,
+                                                                "end": 1479303612.27972,
+                                                                "host_id": 220571062,
+                                                                "hostname": "simple.server",
+                                                                "meta": {
+                                                                    "initial_connection_ejected": "False",
+                                                                    "out.host": "192.168.0.10",
+                                                                    "out.port": "6379",
+                                                                    "out.redis_db": "0",
+                                                                    "redis.args_length": "53",
+                                                                    "redis.raw_command": "querybatchrolluplzmsgpack 48364 31 1479298800 1479303611 300 avg 73010268198404196 73010268198404197 73010285378273383 73010285378273384 73010573141082240 73010573141082244 73010577436049541 73010577436049542 74535230696587462 74535230696587464 74535230696587465 74535230696587469 75474286641152335 75474286641152344 75474299526054256 75474299526054265 75474299526054266 75474299526054270 75474329590825357 75474329590825363 75474329590825367 75474329590825369 75474329590825372 75474329590825375 75474329590825378 75474329590825379 75474329590825388 75474329590825390 75474329590825396 75474370393014717 75474370393014718 75474370393014719 75474370393014720 75474370393014722 75474370393014723 75475079062618573 75475079062618574 94735761117282903 94735761117282904 119407481342132895 119407547914125984 119407547914125985 119409313145684646 119409313145684647 119409313145684648 119787781368840887"
+                                                                },
+                                                                "name": "spidly.command",
+                                                                "parent_id": "2015211643690419580",
+                                                                "resource": "QUERYBATCHROLLUPLZMSGPACK",
+                                                                "resource_hash": "fc59978b3c7073e4",
+                                                                "service": "spidly",
+                                                                "span_id": "14742907880531872353",
+                                                                "start": 1479303612.27583,
+                                                                "trace_id": "13760750009818821865",
+                                                                "type": "redis"
+                                                            }
+                                                        ],
+                                                        "duration": 0.00474,
+                                                        "end": 1479303612.27982,
+                                                        "host_id": 220571062,
+                                                        "hostname": "simple.server",
+                                                        "name": "spidly.client.query.fetch",
+                                                        "parent_id": "3052099017427085028",
+                                                        "resource": "spidly.client.query.fetch",
+                                                        "resource_hash": "fe13e951532c3526",
+                                                        "service": "metric-query",
+                                                        "span_id": "2015211643690419580",
+                                                        "start": 1479303612.27507,
+                                                        "trace_id": "13760750009818821865",
+                                                        "type": ""
+                                                    }
+                                                ],
+                                                "duration": 0.00572,
+                                                "end": 1479303612.28071,
+                                                "host_id": 220571062,
+                                                "hostname": "simple.server",
+                                                "meta": {
+                                                    "query_id": "5a1516b99b"
+                                                },
+                                                "metrics": {
+                                                    "bytes_count": 6152,
+                                                    "point_count": 746,
+                                                    "query_count": 1,
+                                                    "rollup_point_count": 746,
+                                                    "series_count": 46
+                                                },
+                                                "name": "spidly.client.query",
+                                                "parent_id": "17210498613672604372",
+                                                "resource": "spidly.client.query",
+                                                "resource_hash": "46c06b05a3dc8c49",
+                                                "service": "metric-query",
+                                                "span_id": "3052099017427085028",
+                                                "start": 1479303612.275,
+                                                "trace_id": "13760750009818821865",
+                                                "type": ""
+                                            }
+                                        ],
+                                        "duration": 0.00838,
+                                        "end": 1479303612.28111,
+                                        "host_id": 220571062,
+                                        "hostname": "simple.server",
+                                        "name": "raw_query.stores",
+                                        "parent_id": "8807102084419024074",
+                                        "resource": "raw_query",
+                                        "resource_hash": "4da44d7c78c0e96d",
+                                        "service": "metric-query",
+                                        "span_id": "17210498613672604372",
+                                        "start": 1479303612.27273,
+                                        "trace_id": "13760750009818821865",
+                                        "type": ""
+                                    }
+                                ],
+                                "duration": 0.03777,
+                                "end": 1479303612.28577,
+                                "host_id": 220571062,
+                                "hostname": "simple.server",
+                                "meta": {
+                                    "query_id": "5a1516b99b"
+                                },
+                                "metrics": {
+                                    "aggr_candidate_in_series": 46,
+                                    "aggr_candidate_out_series": 1,
+                                    "aggr_candidate_ratio": 46,
+                                    "aggr_duration": 3319978.0,
+                                    "cache_hits": 1,
+                                    "cache_sets": 0,
+                                    "cache_write_duration": 2361059.0,
+                                    "catalog_duration": 2018928.0,
+                                    "context_query_batch_count": 1,
+                                    "context_query_cache_duration": 955820,
+                                    "context_query_cache_hit": 0,
+                                    "context_query_duration": 6105899.0,
+                                    "context_query_index_lamar_duration": 1984834.0,
+                                    "context_query_index_lamar_numkeys": 46,
+                                    "context_query_numkeys": 46,
+                                    "ctxs_duration": 12419939.0,
+                                    "interpolation_points": 36,
+                                    "max_contexts": 500000,
+                                    "merge_duration": 389099,
+                                    "num_contexts": 46,
+                                    "queries": 1,
+                                    "query_span_secs": 95043,
+                                    "series": 1,
+                                    "spidly_duration": 6301879.0,
+                                    "stores_duration": 8378028.0
+                                },
+                                "name": "raw_query",
+                                "parent_id": "7078152086462000476",
+                                "resource": "raw_query",
+                                "resource_hash": "4da44d7c78c0e96d",
+                                "service": "metric-query",
+                                "span_id": "8807102084419024074",
+                                "start": 1479303612.248,
+                                "trace_id": "13760750009818821865",
+                                "type": ""
+                            }
+                        ],
+                        "duration": 0.03822,
+                        "end": 1479303612.28616,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.raw",
+                        "parent_id": "17254196569310728955",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "7078152086462000476",
+                        "start": 1479303612.24794,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "children": [
+                            {
+                                "duration": 0.00302,
+                                "end": 1479303612.24735,
+                                "host_id": 220571062,
+                                "hostname": "simple.server",
+                                "meta": {
+                                    "db.application": "dogweb",
+                                    "db.name": "dogdataprod-replica",
+                                    "db.user": "dog",
+                                    "out.host": "/var/pgbouncer",
+                                    "out.port": "15433",
+                                    "sql.query": "-- _select_metadata_with_timeout\n            SELECT org_id,metric_key,metric_type,interval,created,updated,unit_id,per_unit_id,description,orientation,integration,short_name FROM metrics_metadata WHERE org_id = %(org_id)s\n        AND metric_key = ANY(array[31])"
+                                },
+                                "metrics": {
+                                    "db.rowcount": 0
+                                },
+                                "name": "postgres.query",
+                                "parent_id": "16035704691273017832",
+                                "resource": "SELECT org_id,metric_key,metric_type,interval,created,updated,unit_id,per_unit_id,description,orientation,integration,short_name FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(array[?])",
+                                "resource_hash": "40e73b279c4a5aad",
+                                "service": "replica-db",
+                                "span_id": "6189276440311323460",
+                                "start": 1479303612.24433,
+                                "trace_id": "13760750009818821865",
+                                "type": "sql"
+                            }
+                        ],
+                        "duration": 0.00478,
+                        "end": 1479303612.24792,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.pre",
+                        "parent_id": "17254196569310728955",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "16035704691273017832",
+                        "start": 1479303612.24314,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    },
+                    {
+                        "duration": 0.00014,
+                        "end": 1479303612.28634,
+                        "host_id": 220571062,
+                        "hostname": "simple.server",
+                        "name": "string_query.eval",
+                        "parent_id": "17254196569310728955",
+                        "resource": "query_expression",
+                        "resource_hash": "778f4dfb04215a09",
+                        "service": "metric-query",
+                        "span_id": "8803367261884349310",
+                        "start": 1479303612.2862,
+                        "trace_id": "13760750009818821865",
+                        "type": ""
+                    }
+                ],
+                "duration": 0.04419,
+                "end": 1479303612.28643,
+                "host_id": 220571062,
+                "hostname": "simple.server",
+                "meta": {
+                    "end_date": "2016-11-16T13:40:12",
+                    "exc": "None",
+                    "interval": "300",
+                    "org": "48364",
+                    "query": "sum:system.net.bytes_rcvd{env:prd}",
+                    "query_id": "5a1516b99b",
+                    "span": "95043",
+                    "start_date": "2016-11-15T11:16:09"
+                },
+                "metrics": {
+                    "eval_duration": 144958,
+                    "post_duration": 9059,
+                    "pre_duration": 4775047.0,
+                    "raw_duration": 38223028.0,
+                    "raw_queries": 1,
+                    "series": 1
+                },
+                "name": "string_query",
+                "parent_id": "2247187525764119946",
+                "resource": "query_expression",
+                "resource_hash": "778f4dfb04215a09",
+                "service": "metric-query",
+                "span_id": "17254196569310728955",
+                "start": 1479303612.24223,
+                "trace_id": "13760750009818821865",
+                "type": ""
+            }
+        ],
+        "duration": 0.12526,
+        "end": 1479303612.34177,
+        "host_id": 220571062,
+        "hostname": "simple.server",
+        "meta": {
+            "http.method": "POST",
+            "http.status_code": "200",
+            "http.url": "/series/batch_query",
+            "pylons.route.action": "batch_query",
+            "pylons.route.controller": "series",
+            "pylons.user": "dev@datadoghq.com"
+        },
+        "metrics": {
+            "_sample_rate": 0.02787,
+            "_sublayers.duration.by_service.sublayer_service:beaker": 2164125.0,
+            "_sublayers.duration.by_service.sublayer_service:cassandra": 56744,
+            "_sublayers.duration.by_service.sublayer_service:ctx-pshard-standby": 4132747.0,
+            "_sublayers.duration.by_service.sublayer_service:dogpound": 4877089.0,
+            "_sublayers.duration.by_service.sublayer_service:mcnulty-query": 30122043.0,
+            "_sublayers.duration.by_service.sublayer_service:metric-query": 70590261.0,
+            "_sublayers.duration.by_service.sublayer_service:replica-db": 5533932.0,
+            "_sublayers.duration.by_service.sublayer_service:spidly": 7786988.0,
+            "_sublayers.duration.by_type.sublayer_type:cassandra": 2220869.0,
+            "_sublayers.duration.by_type.sublayer_type:http": 100712304.0,
+            "_sublayers.duration.by_type.sublayer_type:redis": 12664077.0,
+            "_sublayers.duration.by_type.sublayer_type:sql": 9666679.0,
+            "_sublayers.span_count": 60
+        },
+        "name": "pylons.request",
+        "parent_id": "0",
+        "resource": "series.batch_query",
+        "resource_hash": "8e64cd0d453755fe",
+        "service": "mcnulty-query",
+        "span_id": "2247187525764119946",
+        "start": 1479303612.21651,
+        "trace_id": "13760750009818821865",
+        "type": "http"
+    }
+}

@@ -5,6 +5,7 @@ import sys
 import time
 import traceback
 
+from .protobuf import traces_pb2
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
 
@@ -201,6 +202,39 @@ class Span(object):
             d['type'] = self.span_type
 
         return d
+
+    def to_proto_span(self):
+        """
+        TODO[manu]: missing explainations
+        """
+        span = traces_pb2.Span()
+        span.trace_id = self.trace_id
+        span.parent_id = self.parent_id
+        span.span_id = self.span_id
+        span.service = self.service
+        span.resource = self.resource
+        span.name = self.name
+        span.error = self.error
+
+        if self.start:
+            span.start = int(self.start * 1e9)  # ns
+
+        if self.duration:
+            span.duration = int(self.duration * 1e9)  # ns
+
+        if self.span_type:
+            span.type = self.span_type
+
+        if self.meta:
+            for k, v in self.meta.items():
+                span.meta[k] = v
+
+        if self.metrics:
+            for k, v in self.metrics.items():
+                span.metrics[k] = v
+
+        return span
+
 
     def set_traceback(self):
         """ If the current stack has a traceback, tag the span with the

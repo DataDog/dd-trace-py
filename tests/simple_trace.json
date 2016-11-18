@@ -1,0 +1,261 @@
+{
+    "trace": {
+        "children": [
+            {
+                "duration": 0.01664,
+                "end": 1479296199.08505,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "db.application": "dogweb",
+                    "db.name": "host-pshard0-replica",
+                    "db.user": "dog",
+                    "out.host": "/var/pgbouncer",
+                    "out.port": "15433",
+                    "sql.query": "-- get_host_ids_by_name\n                    select h.name, h.id\n                      from vs1842.host h\n                     where h.org_id = %(org_id)s\n                       and h.name = any( %(host_names)s )\n                "
+                },
+                "metrics": {
+                    "db.rowcount": 848
+                },
+                "name": "postgres.query",
+                "parent_id": "13728337728962346243",
+                "resource": "select h.name, h.id from vs?.host h where h.org_id = ? and h.name = any( ? )",
+                "resource_hash": "2677ccfc3053904a",
+                "service": "host-pshard-replica",
+                "span_id": "574321758773370651",
+                "start": 1479296199.06841,
+                "trace_id": "13957834327040140660",
+                "type": "sql"
+            },
+            {
+                "duration": 0.00203,
+                "end": 1479296199.06077,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "db.application": "dogweb",
+                    "db.name": "dogdataprod-replica",
+                    "db.user": "dog",
+                    "out.host": "/var/pgbouncer",
+                    "out.port": "15433",
+                    "sql.query": "\n        -- get_downtimes_by_org\n        --\n        SELECT d.id,\n            d.org_id,\n            d.creator_id,\n            d.scope,\n            d.start_dt,\n            d.end_dt,\n            d.message,\n            d.active,\n            d.disabled,\n            d.updater_id,\n            d.canceled_dt,\n            d.recurrence,\n            d.parent_id,\n            d.monitor_id,\n            d.created,\n            d.modified,\n            d.timezone,\n            m.name as monitor_name\n        FROM monitor_downtime d left join monitor m on m.id = d.monitor_id\n        WHERE d.org_id = ANY(%(org_ids)s)\n        AND (d.end_dt > %(now)s OR d.end_dt IS NULL)\n        AND not disabled\n        AND (d.start_dt > %(since)s OR d.active)\n        \n        \n        \n        \n    "
+                },
+                "metrics": {
+                    "db.rowcount": 45
+                },
+                "name": "postgres.query",
+                "parent_id": "13728337728962346243",
+                "resource": "SELECT d.id, d.org_id, d.creator_id, d.scope, d.start_dt, d.end_dt, d.message, d.active, d.disabled, d.updater_id, d.canceled_dt, d.recurrence, d.parent_id, d.monitor_id, d.created, d.modified, d.timezone, m.name as monitor_name FROM monitor_downtime d left join monitor m on m.id = d.monitor_id WHERE d.org_id = ANY(?) AND (d.end_dt > ? OR d.end_dt IS NULL) AND not disabled AND (d.start_dt > ? OR d.active)",
+                "resource_hash": "79374fb0f67ef64b",
+                "service": "replica-db",
+                "span_id": "10462335750075587972",
+                "start": 1479296199.05874,
+                "trace_id": "13957834327040140660",
+                "type": "sql"
+            },
+            {
+                "duration": 0.00201,
+                "end": 1479296199.06547,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "out.host": "192.168.0.10",
+                    "out.port": "6379",
+                    "out.redis_db": "0",
+                    "redis.raw_command": "ZRANGEBYSCORE hostnames|org:1842 1479285399 +inf"
+                },
+                "metrics": {
+                    "redis.args_length": 4
+                },
+                "name": "redis.command",
+                "parent_id": "13728337728962346243",
+                "resource": "ZRANGEBYSCORE",
+                "resource_hash": "cc679c2f73ce2b22",
+                "service": "redis",
+                "span_id": "16368962114073781733",
+                "start": 1479296199.06346,
+                "trace_id": "13957834327040140660",
+                "type": "redis"
+            },
+            {
+                "duration": 0.00208,
+                "end": 1479296199.05771,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "db.application": "dogweb",
+                    "db.name": "dogdataprod",
+                    "db.user": "dog",
+                    "out.host": "/var/pgbouncer",
+                    "out.port": "15433",
+                    "sql.query": "\n        -- Monitor.get_by_ids\n        --\n        SELECT m.id,\n            m.org_id,\n            m.creator_id,\n            m.monitor_type_id,\n            m.name,\n            m.message,\n            m.query,\n            m.options,\n            m.created,\n            m.modified,\n            m.tags,\n            m.deleted,\n            ms.data_state state,\n            json_agg(d.*) as downtimes_json,\n            json_agg(u.*) as creator_json\n        FROM monitor m\n        LEFT JOIN monitor_state ms on ms.monitor_id = m.id\n        \n                LEFT JOIN monitor_downtime d on d.monitor_id = m.id\n                AND (d.end_dt > NOW() OR d.end_dt IS NULL)\n                AND NOT d.disabled\n            \n        LEFT JOIN dduser u on m.creator_id = u.id\n        WHERE m.id = any(%(ids)s)\n        AND m.deleted IS NULL\n        AND m.org_id = %(org_id)s\n        GROUP BY m.id, ms.monitor_id\n        \n        \n        \n    "
+                },
+                "metrics": {
+                    "db.rowcount": 1
+                },
+                "name": "postgres.query",
+                "parent_id": "13728337728962346243",
+                "resource": "SELECT m.id, m.org_id, m.creator_id, m.monitor_type_id, m.name, m.message, m.query, m.options, m.created, m.modified, m.tags, m.deleted, ms.data_state state, json_agg(d.*) as downtimes_json, json_agg(u.*) as creator_json FROM monitor m LEFT JOIN monitor_state ms on ms.monitor_id = m.id LEFT JOIN monitor_downtime d on d.monitor_id = m.id AND (d.end_dt > NOW() OR d.end_dt IS NULL) AND NOT d.disabled LEFT JOIN dduser u on m.creator_id = u.id WHERE m.id = any(?) AND m.deleted IS NULL AND m.org_id = ? GROUP BY m.id, ms.monitor_id",
+                "resource_hash": "93decee956f5547",
+                "service": "master-db",
+                "span_id": "17432776118550837302",
+                "start": 1479296199.05562,
+                "trace_id": "13957834327040140660",
+                "type": "sql"
+            },
+            {
+                "children": [
+                    {
+                        "duration": 0.00299,
+                        "end": 1479296199.03151,
+                        "host_id": 218670608,
+                        "hostname": "simple.server",
+                        "meta": {
+                            "cassandra.cluster": "sessions",
+                            "cassandra.compression": "True",
+                            "cassandra.keyspace": "sessions",
+                            "cassandra.paginated": "False",
+                            "cassandra.row_count": "1",
+                            "out.port": "9042"
+                        },
+                        "name": "cassandra.query",
+                        "parent_id": "15281958908880620057",
+                        "resource": "SELECT data FROM beaker WHERE key=? LIMIT ?",
+                        "resource_hash": "540c632ec79036b6",
+                        "service": "beaker",
+                        "span_id": "10899765092760651898",
+                        "start": 1479296199.02852,
+                        "trace_id": "13957834327040140660",
+                        "type": "cassandra"
+                    }
+                ],
+                "duration": 0.00309,
+                "end": 1479296199.03155,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "cassandra.cluster": "sessions",
+                    "cassandra.compression": "True",
+                    "cassandra.keyspace": "sessions",
+                    "cassandra.paginated": "False",
+                    "cassandra.row_count": "1",
+                    "out.port": "9042"
+                },
+                "name": "cassandra.query",
+                "parent_id": "13728337728962346243",
+                "resource": "SELECT data FROM beaker WHERE key=? LIMIT ?",
+                "resource_hash": "540c632ec79036b6",
+                "service": "cassandra",
+                "span_id": "15281958908880620057",
+                "start": 1479296199.02846,
+                "trace_id": "13957834327040140660",
+                "type": "cassandra"
+            },
+            {
+                "children": [
+                    {
+                        "duration": 0.00219,
+                        "end": 1479296199.04239,
+                        "host_id": 218670608,
+                        "hostname": "simple.server",
+                        "meta": {
+                            "db.application": "dogweb",
+                            "db.name": "dogdataprod",
+                            "db.user": "dog",
+                            "out.host": "/var/pgbouncer",
+                            "out.port": "15433",
+                            "sql.query": "SELECT dduser.password AS dduser_password, dduser.handle AS dduser_handle, dduser.public_id AS dduser_public_id, dduser.id AS dduser_id, dduser.org_id AS dduser_org_id, dduser.email AS dduser_email, dduser.name AS dduser_name, dduser.role AS dduser_role, dduser.team AS dduser_team, dduser.support AS dduser_support, dduser.is_admin AS dduser_is_admin, dduser.github_username AS dduser_github_username, dduser.github_token AS dduser_github_token, dduser.disabled AS dduser_disabled, dduser.verified AS dduser_verified, dduser.bot AS dduser_bot, dduser.created AS dduser_created, dduser.modified AS dduser_modified, dduser.time_zone AS dduser_time_zone, dduser.password_modified AS dduser_password_modified, dduser.ip_address AS dduser_ip_address, org_1.parent_org_id AS org_1_parent_org_id, org_1.billing_parent_org_id AS org_1_billing_parent_org_id, org_1.id AS org_1_id, org_1.name AS org_1_name, org_1.sharing AS org_1_sharing, org_1.description AS org_1_description, org_1.url AS org_1_url, org_1.auth_domain AS org_1_auth_domain, org_1.open_id_provider AS org_1_open_id_provider, org_1.partition_num AS org_1_partition_num, org_1.plan_id AS org_1_plan_id, org_1.when_created AS org_1_when_created, org_1.email_post_key AS org_1_email_post_key, org_1.is_test AS org_1_is_test, org_1.disabled AS org_1_disabled, org_1.time_zone AS org_1_time_zone, org_1.saml_data_id AS org_1_saml_data_id, org_1.is_saml_enabled AS org_1_is_saml_enabled, org_1.public_id AS org_1_public_id, org_1.is_paywalled AS org_1_is_paywalled, org_1.subdomain AS org_1_subdomain, org_1.parent_gets_metrics AS org_1_parent_gets_metrics, org_1.disable_scheduled_at AS org_1_disable_scheduled_at, org_1.disabled_at AS org_1_disabled_at, org_1.secrets_removed_at AS org_1_secrets_removed_at \nFROM dduser LEFT OUTER JOIN org AS org_1 ON org_1.id = dduser.org_id \nWHERE dduser.handle = %(handle_1)s AND dduser.org_id = %(org_id_1)s \n LIMIT %(param_1)s"
+                        },
+                        "metrics": {
+                            "db.rowcount": 1
+                        },
+                        "name": "postgres.query",
+                        "parent_id": "15311047076015613403",
+                        "resource": "SELECT dduser.password AS dduser_password, dduser.handle AS dduser_handle, dduser.public_id AS dduser_public_id, dduser.id AS dduser_id, dduser.org_id AS dduser_org_id, dduser.email AS dduser_email, dduser.name AS dduser_name, dduser.role AS dduser_role, dduser.team AS dduser_team, dduser.support AS dduser_support, dduser.is_admin AS dduser_is_admin, dduser.github_username AS dduser_github_username, dduser.github_token AS dduser_github_token, dduser.disabled AS dduser_disabled, dduser.verified AS dduser_verified, dduser.bot AS dduser_bot, dduser.created AS dduser_created, dduser.modified AS dduser_modified, dduser.time_zone AS dduser_time_zone, dduser.password_modified AS dduser_password_modified, dduser.ip_address AS dduser_ip_address, org_?.parent_org_id AS org_?_parent_org_id, org_?.billing_parent_org_id AS org_?_billing_parent_org_id, org_?.id AS org_?_id, org_?.name AS org_?_name, org_?.sharing AS org_?_sharing, org_?.description AS org_?_description, org_?.url AS org_?_url, org_?.auth_domain AS org_?_auth_domain, org_?.open_id_provider AS org_?_open_id_provider, org_?.partition_num AS org_?_partition_num, org_?.plan_id AS org_?_plan_id, org_?.when_created AS org_?_when_created, org_?.email_post_key AS org_?_email_post_key, org_?.is_test AS org_?_is_test, org_?.disabled AS org_?_disabled, org_?.time_zone AS org_?_time_zone, org_?.saml_data_id AS org_?_saml_data_id, org_?.is_saml_enabled AS org_?_is_saml_enabled, org_?.public_id AS org_?_public_id, org_?.is_paywalled AS org_?_is_paywalled, org_?.subdomain AS org_?_subdomain, org_?.parent_gets_metrics AS org_?_parent_gets_metrics, org_?.disable_scheduled_at AS org_?_disable_scheduled_at, org_?.disabled_at AS org_?_disabled_at, org_?.secrets_removed_at AS org_?_secrets_removed_at FROM dduser LEFT OUTER JOIN org AS org_? ON org_?.id = dduser.org_id WHERE dduser.handle = ? AND dduser.org_id = ? LIMIT ?",
+                        "resource_hash": "38a0f3359e08fee6",
+                        "service": "master-db",
+                        "span_id": "4624848432762894095",
+                        "start": 1479296199.0402,
+                        "trace_id": "13957834327040140660",
+                        "type": "sql"
+                    }
+                ],
+                "duration": 0.02195,
+                "end": 1479296199.05471,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "name": "dogweb.base.before",
+                "parent_id": "13728337728962346243",
+                "resource": "dogweb.base.before",
+                "resource_hash": "411558afb623c7f5",
+                "service": "mcnulty-web",
+                "span_id": "15311047076015613403",
+                "start": 1479296199.03275,
+                "trace_id": "13957834327040140660",
+                "type": ""
+            },
+            {
+                "duration": 0.01539,
+                "end": 1479296199.11303,
+                "host_id": 218670608,
+                "hostname": "simple.server",
+                "meta": {
+                    "db.application": "dogweb",
+                    "db.name": "host-pshard0-replica",
+                    "db.user": "dog",
+                    "out.host": "/var/pgbouncer",
+                    "out.port": "15433",
+                    "sql.query": "-- get_host_tags_by_host_id\n                    SELECT ht.host_id AS host_id, ht.source_type_id, ht.tags\n                      FROM vs1842.host_tags ht\n                      WHERE ht.host_id = ANY( %(host_ids)s )\n                "
+                },
+                "metrics": {
+                    "db.rowcount": 1378
+                },
+                "name": "postgres.query",
+                "parent_id": "13728337728962346243",
+                "resource": "SELECT ht.host_id AS host_id, ht.source_type_id, ht.tags FROM vs?.host_tags ht WHERE ht.host_id = ANY( ? )",
+                "resource_hash": "8aad940dc4c2e133",
+                "service": "host-pshard-replica",
+                "span_id": "5105347887211453",
+                "start": 1479296199.09764,
+                "trace_id": "13957834327040140660",
+                "type": "sql"
+            }
+        ],
+        "duration": 0.15617,
+        "end": 1479296199.17811,
+        "host_id": 218670608,
+        "hostname": "simple.server",
+        "meta": {
+            "http.method": "GET",
+            "http.status_code": "200",
+            "http.url": "/api/v1/monitor/228175",
+            "pylons.route.action": "get",
+            "pylons.route.controller": "kima.web.api.monitor:MonitorController",
+            "pylons.user": "dev@datadoghq.com"
+        },
+        "metrics": {
+            "_sample_rate": 0.0215,
+            "_sublayers.duration.by_service.sublayer_service:beaker": 2990007.0,
+            "_sublayers.duration.by_service.sublayer_service:cassandra": 100136,
+            "_sublayers.duration.by_service.sublayer_service:host-pshard-replica": 32036780.0,
+            "_sublayers.duration.by_service.sublayer_service:master-db": 4267214.0,
+            "_sublayers.duration.by_service.sublayer_service:mcnulty-web": 112729076.0,
+            "_sublayers.duration.by_service.sublayer_service:redis": 2012968.0,
+            "_sublayers.duration.by_service.sublayer_service:replica-db": 2033948.0,
+            "_sublayers.duration.by_type.sublayer_type:cassandra": 3090143.0,
+            "_sublayers.duration.by_type.sublayer_type:http": 112729076.0,
+            "_sublayers.duration.by_type.sublayer_type:redis": 2012968.0,
+            "_sublayers.duration.by_type.sublayer_type:sql": 38337942.0,
+            "_sublayers.span_count": 10
+        },
+        "name": "pylons.request",
+        "parent_id": "0",
+        "resource": "kima.web.api.monitor:MonitorController.get",
+        "resource_hash": "57c6e4e04e4fed68",
+        "service": "mcnulty-web",
+        "span_id": "13728337728962346243",
+        "start": 1479296199.02194,
+        "trace_id": "13957834327040140660",
+        "type": "http"
+    }
+}

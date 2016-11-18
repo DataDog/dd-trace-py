@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package encoding;
+
+message Span {
+  uint64 trace_id = 1;
+  uint64 parent_id = 2;
+  uint64 span_id = 3;
+  string service = 4;
+  string resource = 5;
+  string name = 6;
+  int32 error = 7;
+  int64 start = 8;
+  int64 duration = 9;
+  string type = 10;
+  map<string, string> meta = 11;
+  map<string, double> metrics = 12;
+}
+
+message Traces {
+  repeated Span span = 1;
+}
