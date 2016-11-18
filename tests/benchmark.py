@@ -78,8 +78,7 @@ def benchmark_trace_encoding(REPEAT, NUMBER, TRACES, trace_filename):
     trace_size = {}
     tracer = get_benchmark_tracer()
 
-    # Create a fake trace and duplicate the reference in 15000 traces.
-    # This should simulate the encoding of 15000 real traces
+    # Create a fake trace and duplicate the reference in more traces.
     fake_trace = load_trace_file(trace_filename, tracer)
     traces = [fake_trace for i in range(TRACES)]
 
@@ -105,8 +104,7 @@ def benchmark_span_representation_build(REPEAT, NUMBER, trace_filename):
     trace_size = {}
     tracer = get_benchmark_tracer()
 
-    # Create a fake trace and duplicate the reference in 15000 traces.
-    # This should simulate the encoding of 15000 real traces
+    # Create a fake trace and duplicate the reference in more traces.
     traces = [load_trace_file(trace_filename, tracer)]
 
     # benchmarks

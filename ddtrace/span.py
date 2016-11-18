@@ -205,7 +205,7 @@ class Span(object):
 
     def to_proto_span(self):
         """
-        TODO[manu]: missing explainations
+        TODO
         """
         span = traces_pb2.Span()
         span.trace_id = self.trace_id
