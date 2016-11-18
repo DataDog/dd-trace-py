@@ -12,6 +12,7 @@ installed apps and in your middleware classes in ``settings.py``::
         'ddtrace.contrib.django',
     ]
 
+    # It might be MIDDLEWARE instead of MIDDLEWARE_CLASSES for Django 1.10+
     MIDDLEWARE_CLASSES = (
         # the tracer must be the first middleware
         'ddtrace.contrib.django.TraceMiddleware',
