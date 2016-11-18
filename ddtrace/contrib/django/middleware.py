@@ -10,17 +10,23 @@ from ...contrib import func_name
 from django.apps import apps
 from django.core.exceptions import MiddlewareNotUsed
 
+try:
+    from django.utils.deprecation import MiddlewareMixin
+    MiddlewareClass = MiddlewareMixin
+except ImportError:
+    MiddlewareClass = object
 
 log = logging.getLogger(__name__)
 
 
-class TraceMiddleware(object):
+class TraceMiddleware(MiddlewareClass):
     """
     Middleware that traces Django requests
     """
-    def __init__(self):
+    def __init__(self, get_response=None):
         # disable the middleware if the tracer is not enabled
         # or if the auto instrumentation is disabled
+        self.get_response = get_response
         if not settings.AUTO_INSTRUMENT:
             raise MiddlewareNotUsed
 

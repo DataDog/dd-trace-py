@@ -68,6 +68,22 @@ TEMPLATES = [
     },
 ]
 
+# 1.10+ style
+MIDDLEWARE = [
+    # tracer middleware
+    'ddtrace.contrib.django.TraceMiddleware',
+
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+]
+
+# Pre 1.10 style
 MIDDLEWARE_CLASSES = [
     # tracer middleware
     'ddtrace.contrib.django.TraceMiddleware',
