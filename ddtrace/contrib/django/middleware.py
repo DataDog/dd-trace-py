@@ -10,17 +10,23 @@ from ...contrib import func_name
 from django.apps import apps
 from django.core.exceptions import MiddlewareNotUsed
 
+try:
+    from django.utils.deprecation import MiddlewareMixin
+    MiddlewareClass = MiddlewareMixin
+except ImportError:
+    MiddlewareClass = object
 
 log = logging.getLogger(__name__)
 
 
-class TraceMiddleware(CompatibilityMiddlewareMixin):
+class TraceMiddleware(MiddlewareClass):
     """
     Middleware that traces Django requests
     """
-    def __init__(self):
+    def __init__(self, get_response=None):
         # disable the middleware if the tracer is not enabled
         # or if the auto instrumentation is disabled
+        self.get_response = get_response
         if not settings.AUTO_INSTRUMENT:
             raise MiddlewareNotUsed
 
@@ -98,24 +104,3 @@ def _set_auth_tags(span, request):
         span.set_tag('django.user.name', uname)
 
     return span
-
-
-class CompatibilityMiddlewareMixin(object):
-    """Middleware mixin allowing a middleware to work with both old and recent style
-
-    Make it work with both MIDDLEWARE_CLASSES (pre-1.10) and MIDDLEWARE (1.10+)
-    """
-    def __init__(self, get_response=None):
-        self.get_response = get_response
-        super(CompatibilityMiddlewareMixin, self).__init__()
-
-    def __call__(self, request):
-        response = None
-        if hasattr(self, 'process_request'):
-            response = self.process_request(request)
-        if not response:
-            response = self.get_response(request)
-        if hasattr(self, 'process_response'):
-            response = self.process_response(request, response)
-        return response
-
