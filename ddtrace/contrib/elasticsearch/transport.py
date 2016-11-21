@@ -9,6 +9,7 @@ DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
+# deprecated
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
     datadog_tracer.set_service_info(
