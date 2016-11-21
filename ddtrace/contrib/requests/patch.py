@@ -55,15 +55,6 @@ def _traced_request_func(func, instance, args, kwargs):
 
 def _apply_tags(span, method, url, response):
     """ apply_tags will patch the given span with tags about the given request. """
-    try:
-        parsed = urlparse.urlparse(url)
-        span.service = parsed.netloc
-        # FIXME[matt] how do we decide how do we normalize arbitrary urls???
-        path = parsed.path or "/"
-        span.resource = "%s %s" % (method.upper(), path)
-    except Exception:
-        pass
-
     span.set_tag(http.METHOD, method)
     span.set_tag(http.URL, url)
     if response is not None:
