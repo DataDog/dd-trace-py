@@ -72,6 +72,24 @@ small example that shows adding a custom span to a Flask application::
 Read the full `API`_ for more details.
 
 
+Sampling
+--------
+
+It is possible to sample traces with `ddtrace`.
+While the Trace Agent already samples traces to reduce the bandwidth usage, this client sampling
+reduces performance overhead.
+
+`RateSampler` samples a ratio of the traces. Its usage is simple::
+
+    from ddtrace.sampler import RateSampler
+
+    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
+    # Sample 50% of the traces.
+    sample_rate = 0.5
+    tracer.sampler = RateSampler(sample_rate)
+
+
+
 Glossary
 ~~~~~~~~
 
@@ -201,28 +219,6 @@ SQLite
 ~~~~~~
 
 .. autofunction:: ddtrace.contrib.sqlite3.connection_factory
-
-Sampling
---------
-
-It is possible to sample traces with `ddtrace`.
-While the Trace Agent already samples traces to reduce the bandwidth usage, this client sampling
-reduces performance overhead.
-
-`RateSampler` samples a ratio of the traces. Its usage is simple::
-
-    from ddtrace.sampler import RateSampler
-
-    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Sample 50% of the traces.
-    sample_rate = 0.5
-    tracer.sampler = RateSampler(sample_rate)
-
-
-
-
-
-
 
 Indices and tables
 ==================
