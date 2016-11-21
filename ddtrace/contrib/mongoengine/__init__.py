@@ -1,26 +1,21 @@
-"""
-To trace mongoengine queries, we patch its connect method::
+"""Instrument mongoengine to report MongoDB queries.
+
+Patch your mongoengine connect method to make it work.
 
     # to patch all mongoengine connections, do the following
     # before you import mongoengine connect.
 
+    from ddtrace import patch, Pin
     import mongoengine
-    from ddtrace.monkey import patch_all
-    patch_all()
+    patch(mongoengine=True)
 
     # At that point, mongoengine is instrumented with the default settings
     mongoengine.connect('db', alias='default')
 
-    # To customize all new clients
-    from ddtrace import Pin
-    Pin(service='my-mongo-cluster').onto(mongoengine.connect)
-    mongoengine.connect('db', alias='another')
-
-    # To customize only one client
+    # To customize one client instrumentation
     client = mongoengine.connect('db', alias='master')
     Pin(service='my-master-mongo-cluster').onto(client)
 """
-
 
 from ..util import require_modules
 

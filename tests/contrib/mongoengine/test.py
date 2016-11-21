@@ -11,7 +11,7 @@ from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 # testing
 from ..config import MONGO_CONFIG
-from ...test_tracer import DummyWriter
+from ...test_tracer import get_dummy_tracer
 
 
 class Artist(mongoengine.Document):
@@ -135,8 +135,7 @@ class TestMongoEnginePatchConnectDefault(MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         Pin.get_from(mongoengine.connect).tracer=tracer
         mongoengine.connect(port=MONGO_CONFIG['port'])
 
@@ -170,8 +169,7 @@ class TestMongoEnginePatchClientDefault(MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         client = mongoengine.connect(port=MONGO_CONFIG['port'])
         Pin.get_from(client).tracer = tracer
 
@@ -183,8 +181,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     TEST_SERVICE = 'test-mongo-patch-client'
 
     def get_tracer_and_connect(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         # Set a connect-level service, to check that we properly override it
         Pin(service='not-%s' % self.TEST_SERVICE).onto(mongoengine.connect)
         client = mongoengine.connect(port=MONGO_CONFIG['port'])
@@ -192,6 +189,41 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
 
         return tracer
 
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+
+        # Test patch idempotence
+        patch()
+        patch()
+
+        client = mongoengine.connect(port=MONGO_CONFIG['port'])
+        Pin.get_from(client).tracer = tracer
+
+        Artist.drop_collection()
+        spans = tracer.writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+
+        # Test unpatch
+        mongoengine.connection.disconnect()
+        unpatch()
+
+        mongoengine.connect(port=MONGO_CONFIG['port'])
+
+        Artist.drop_collection()
+        spans = tracer.writer.pop()
+        assert not spans, spans
+
+        # Test patch again
+        patch()
+
+        client = mongoengine.connect(port=MONGO_CONFIG['port'])
+        Pin.get_from(client).tracer = tracer
+
+        Artist.drop_collection()
+        spans = tracer.writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
 
 
 def _assert_timing(span, start, end):
