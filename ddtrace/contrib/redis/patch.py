@@ -9,43 +9,46 @@ from ddtrace.ext import redis as redisx
 from .util import format_command_args, _extract_conn_tags
 
 
+# Original Redis methods
+_Redis_execute_command = redis.Redis.execute_command
+_Redis_pipeline = redis.Redis.pipeline
+_StrictRedis_execute_command = redis.StrictRedis.execute_command
+_StrictRedis_pipeline = redis.StrictRedis.pipeline
+
 def patch():
-    """ patch will patch the redis library to add tracing. """
-    patch_client(redis.Redis)
-    patch_client(redis.StrictRedis)
+    """Patch the instrumented methods
 
-def patch_client(client, pin=None):
-    """ patch_instance will add tracing to the given redis client. It works on
-        instances or classes of redis.Redis and redis.StrictRedis.
+    This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
+    of Redis and StrictRedis. However, it means that any "import redis.Redis" won't be instrumented.
     """
-    pin = pin or Pin(service="redis", app="redis", app_type="db")
-    pin.onto(client)
+    setattr(redis.Redis, 'execute_command',
+            wrapt.FunctionWrapper(_Redis_execute_command, traced_execute_command))
+    setattr(redis.StrictRedis, 'execute_command',
+            wrapt.FunctionWrapper(_StrictRedis_execute_command, traced_execute_command))
+    setattr(redis.Redis, 'pipeline',
+            wrapt.FunctionWrapper(_Redis_pipeline, traced_pipeline))
+    setattr(redis.StrictRedis, 'pipeline',
+            wrapt.FunctionWrapper(_StrictRedis_pipeline, traced_pipeline))
 
-    # monkeypatch all of the methods.
-    methods = [
-        ('execute_command', _execute_command),
-        ('pipeline', _pipeline),
-    ]
-    for method_name, wrapper in methods:
-        method = getattr(client, method_name, None)
-        if method is None:
-            continue
-        setattr(client, method_name, wrapt.FunctionWrapper(method, wrapper))
-    return client
+    Pin(service="redis", app="redis", app_type="db").onto(redis.Redis)
+    Pin(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
+
+def unpatch():
+    redis.Redis.execute_command = _Redis_execute_command
+    redis.Redis.pipeline = _Redis_pipeline
+    redis.StrictRedis.execute_command = _StrictRedis_execute_command
+    redis.StrictRedis.pipeline = _StrictRedis_pipeline
 
 #
 # tracing functions
 #
 
-def _execute_command(func, instance, args, kwargs):
+def traced_execute_command(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    service = pin.service
-    tracer = pin.tracer
-
-    with tracer.trace('redis.command', service=service, span_type='redis') as s:
+    with pin.tracer.trace('redis.command', service=pin.service, span_type='redis') as s:
         query = format_command_args(args)
         s.resource = query
         s.set_tag(redisx.RAWCMD, query)
@@ -56,23 +59,22 @@ def _execute_command(func, instance, args, kwargs):
         # run the command
         return func(*args, **kwargs)
 
-def _pipeline(func, instance, args, kwargs):
+def traced_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
-    # create the pipeline and monkeypatch it
+    # create the pipeline and patch it
     pipeline = func(*args, **kwargs)
     pin.onto(pipeline)
-    setattr(
-        pipeline,
-        'execute', wrapt.FunctionWrapper(pipeline.execute, _execute_pipeline))
-    setattr(
-        pipeline,
-        'immediate_execute_command',
-        wrapt.FunctionWrapper(pipeline.immediate_execute_command, _execute_command))
+    if not isinstance(pipeline.execute, wrapt.FunctionWrapper):
+        setattr(pipeline, 'execute',
+                wrapt.FunctionWrapper(pipeline.execute, traced_execute_pipeline))
+    if not isinstance(pipeline.immediate_execute_command, wrapt.FunctionWrapper):
+        setattr(pipeline, 'immediate_execute_command',
+                wrapt.FunctionWrapper(pipeline.immediate_execute_command, traced_execute_command))
     return pipeline
 
-def _execute_pipeline(func, instance, args, kwargs):
+def traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
