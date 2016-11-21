@@ -36,7 +36,7 @@ Then let's patch all the widely used Python libraries that you are running::
 Start your web server and you should be off to the races.
 
 If you want to restrict the set of instrumented libraries, you can either say
-which ones to instrument, or which ones not to.
+which ones to instrument, or which ones not to::
 
     from ddtrace import patch_all, patch
 
@@ -218,7 +218,7 @@ SQLAlchemy
 SQLite
 ~~~~~~
 
-.. autofunction:: ddtrace.contrib.sqlite3.connection_factory
+.. automodule:: ddtrace.contrib.sqlite3
 
 Indices and tables
 ==================

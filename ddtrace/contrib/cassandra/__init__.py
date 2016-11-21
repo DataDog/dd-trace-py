@@ -1,11 +1,12 @@
 """Instrument Cassandra to report Cassandra queries.
 
-Patch your Cluster instance to make it work.
+``patch_all`` will automatically patch your Cluster instance to make it work.
+::
 
     from ddtrace import Pin, patch
     from cassandra.cluster import Cluster
 
-    # Instrument Cassandra
+    # If not patched yet, you can patch cassandra specifically
     patch(cassandra=True)
 
     # This will report spans with the default instrumentation
@@ -14,7 +15,7 @@ Patch your Cluster instance to make it work.
     # Example of instrumented query
     session.execute("select id from my_table limit 10;")
 
-    # To customize one cluster instance instrumentation
+    # Use a pin to specify metadata related to this cluster
     cluster = Cluster(contact_points=['10.1.1.3', '10.1.1.4', '10.1.1.5'], port=9042)
     Pin(service='cassandra-backend').onto(cluster)
     session = cluster.connect("my_keyspace")

@@ -1,20 +1,20 @@
 """Instrument redis to report Redis queries.
 
-Patch your redis client to make it work.
+``patch_all`` will automatically patch your Redis client to make it work.
+::
 
-    from ddtrace import patch, Pin
+    from ddtrace import Pin, patch
     import redis
 
-    # Patch redis
+    # If not patched yet, you can patch redis specifically
     patch(redis=True)
-
 
     # This will report a span with the default settings
     client = redis.StrictRedis(host="localhost", port=6379)
     client.get("my-key")
 
-    # To customize one client
-    Pin(service='my-redis').onto(client)
+    # Use a pin to specify metadata related to this client
+    Pin(service='redis-queue').onto(client)
 """
 
 from ..util import require_modules

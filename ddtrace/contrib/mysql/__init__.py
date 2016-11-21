@@ -1,18 +1,21 @@
 """Instrumeent mysql to report MySQL queries.
 
-Patch your mysql connection to make it work.
+``patch_all`` will automatically patch your mysql connection to make it work.
+::
 
     from ddtrace import Pin, patch
-    patch(mysql=True)
     from mysql.connector import connect
+
+    # If not patched yet, you can patch mysql specifically
+    patch(mysql=True)
 
     # This will report a span with the default settings
     conn = connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
 
-    # To customize one client instrumentation
-    Pin.get_from(conn).service = 'my-mysql'
+    # Use a pin to specify metadata related to this connection
+    Pin.get_from(conn).service = 'mysql-users'
 
 This package works for mysql.connector version 2.1.x.
 Only the default full-Python integration works. The binary C connector,

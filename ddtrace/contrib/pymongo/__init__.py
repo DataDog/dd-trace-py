@@ -2,14 +2,13 @@
 
 The pymongo integration works by wrapping pymongo's MongoClient to trace
 network calls. Pymongo 3.0 and greater are the currently supported versions.
-The monkey patching will patch the clients, which you can then configure.
-Patch your MongoClient instance to make it work.
+``patch_all`` will automatically patch your MongoClient instance to make it work.
+::
 
-    # to patch all mongoengine connections, do the following
-    # before you import mongoengine connect.
-
-    from ddtrace import patch, Pin
+    from ddtrace import Pin, patch
     import pymongo
+
+    # If not patched yet, you can patch pymongo specifically
     patch(pymongo=True)
 
     # At that point, pymongo is instrumented with the default settings
@@ -18,9 +17,9 @@ Patch your MongoClient instance to make it work.
     db = client["test-db"]
     db.teams.find({"name": "Toronto Maple Leafs"})
 
-    # To customize one client instrumentation
+    # Use a pin to specify metadata related to this client
     client = pymongo.MongoClient()
-    ddtrace.Pin(service='my-mongo', tracer=Tracer()).onto(client)
+    ddtrace.Pin(service='mongo-master').onto(client)
 """
 from ..util import require_modules
 

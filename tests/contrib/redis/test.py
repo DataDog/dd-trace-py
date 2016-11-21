@@ -129,7 +129,6 @@ class TestRedisPatch(RedisCore):
         r = redis.Redis(port=REDIS_CONFIG['port'])
         r.get("key")
 
-
         spans = writer.pop()
         assert not spans, spans
 
