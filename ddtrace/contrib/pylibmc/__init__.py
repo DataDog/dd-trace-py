@@ -1,22 +1,22 @@
-"""
-A patched pylibmc Memcached client will wrap report spans for any Memcached call.
+"""Instrument pylibmc to report Memcached queries.
 
-Basic usage::
+Patch your pylibmc client to make it work.
 
+    # Be sure to import pylibmc and not Client directly,
+    # otherwise you won't have access to the patched version
     import pylibmc
     import ddtrace
-    from ddtrace.monkey import patch_all
+    from ddtrace import patch, Pin
 
     # patch the library
-    patch_all()
+    patch(pylibmc=True)
 
-    # one client with default configuration
+    # One client instrumented with default configuration
     client = pylibmc.Client(["localhost:11211"]
     client.set("key1", "value1")
 
-    # Configure one client
+    # Configure one client instrumentation
     ddtrace.Pin(service='my-cache-cluster')).onto(client)
-
 """
 
 from ..util import require_modules
