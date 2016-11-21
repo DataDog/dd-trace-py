@@ -19,24 +19,7 @@ class TestRequests(object):
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.resource, 'GET /200')
-
-    @staticmethod
-    def test_resource_empty_path():
-        tracer, session = get_traced_session()
-        out = session.get('http://httpstat.us')
-        eq_(out.status_code, 200)
-        spans = tracer.writer.pop()
-        eq_(len(spans), 1)
-        s = spans[0]
-        eq_(s.resource, 'GET /')
-
-        out = session.get('http://httpstat.us/')
-        eq_(out.status_code, 200)
-        spans = tracer.writer.pop()
-        eq_(len(spans), 1)
-        s = spans[0]
-        eq_(s.resource, 'GET /')
+        eq_(s.get_tag("http.url"), "http://httpstat.us/200")
 
     @staticmethod
     def test_tracer_disabled():
@@ -86,7 +69,6 @@ class TestRequests(object):
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.get_tag(http.STATUS_CODE), '200')
         eq_(s.error, 0)
-        eq_(s.service, 'httpstat.us')
         eq_(s.span_type, http.TYPE)
 
     @staticmethod
