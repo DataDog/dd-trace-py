@@ -1,2 +1,3 @@
+from .session import patch, unpatch
 
-from .session import patch  # noqa
+__all__ = ['patch', 'unpatch']
