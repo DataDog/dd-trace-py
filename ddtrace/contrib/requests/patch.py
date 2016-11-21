@@ -13,7 +13,6 @@ import wrapt
 
 # project
 import ddtrace
-from ddtrace.compat import urlparse
 from ddtrace.ext import http
 
 
