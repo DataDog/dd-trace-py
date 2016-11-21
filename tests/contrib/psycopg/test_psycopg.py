@@ -7,13 +7,11 @@ from psycopg2 import extras
 from nose.tools import eq_
 
 # project
-from ddtrace import Tracer
-from ddtrace.contrib.psycopg import connection_factory
+from ddtrace.contrib.psycopg import patch_conn, connection_factory
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
-from ddtrace.contrib.psycopg import patch_conn
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
