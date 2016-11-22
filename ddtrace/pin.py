@@ -53,6 +53,20 @@ class Pin(_pin):
             return obj.__getddpin__()
         return getattr(obj, '_datadog_pin', None)
 
+    @classmethod
+    def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+        if not obj:
+            return
+
+        pin = cls.get_from(obj)
+        if pin:
+            pin.clone(
+                service=service,
+                app=app,
+                app_type=app_type,
+                tags=tags,
+                tracer=tracer).onto(obj)
+
     def enabled(self):
         """ Return true if this pin's tracer is enabled. """
         return bool(self.tracer) and self.tracer.enabled

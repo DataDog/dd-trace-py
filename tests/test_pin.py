@@ -50,3 +50,18 @@ def test_repr():
     p = Pin.new(service="abc")
     assert p.service == "abc"
     assert 'abc' in str(p)
+
+def test_override():
+    class A(object):
+        pass
+
+    Pin.new(service="foo", app="blah").onto(A)
+    a = A()
+    Pin.override(a, app="bar")
+    eq_(Pin.get_from(a).app, "bar")
+    eq_(Pin.get_from(a).service, "foo")
+
+    b = A()
+    eq_(Pin.get_from(b).service, "foo")
+    eq_(Pin.get_from(b).app, "blah")
+

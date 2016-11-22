@@ -74,11 +74,7 @@ class TestRedisPatch(object):
     def get_redis_and_tracer(self):
         tracer = get_dummy_tracer()
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        pin = Pin.get_from(r)
-        assert pin, pin
-        pin.clone(
-            service=self.TEST_SERVICE,
-            tracer=tracer).onto(r)
+        Pin.override(r, service=self.TEST_SERVICE, tracer=tracer)
         return r, tracer
 
     def test_meta_override(self):
