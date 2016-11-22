@@ -12,6 +12,7 @@ import sys
 
 # 3p
 import pympler.tracker
+import psycopg2
 import redis
 
 # project
@@ -27,15 +28,25 @@ class KitchenSink(object):
 
     def __init__(self):
         self._redis = redis.Redis(**config.REDIS_CONFIG)
+        self._pg = psycopg2.connect(**config.POSTGRES_CONFIG)
 
     def ping(self, i):
         self._ping_redis(i)
+        self._ping_pg(i)
 
     def _ping_redis(self, i):
         with self._redis.pipeline() as p:
             p.get("a")
         self._redis.set("a", "b")
         self._redis.get("a")
+
+    def _ping_pg(self, i):
+        cur = self._pg.cursor()
+        try:
+            cur.execute("select 'asdf'")
+            cur.fetchall()
+        finally:
+            cur.close()
 
 
 if __name__ == '__main__':
