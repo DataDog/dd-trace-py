@@ -1,6 +1,7 @@
 # 3rd party
 from nose.tools import eq_
 
+from django.test import modify_settings
 from django.core.urlresolvers import reverse
 
 # project
@@ -46,3 +47,27 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         span = spans[0]
         eq_(span.get_tag('http.status_code'), '403')
         eq_(span.get_tag('http.url'), '/fail-view/')
+
+    @modify_settings(
+        MIDDLEWARE={
+            'remove': 'django.contrib.auth.middleware.AuthenticationMiddleware',
+        },
+        MIDDLEWARE_CLASSES={
+            'remove': 'django.contrib.auth.middleware.AuthenticationMiddleware',
+        },
+    )
+    def test_middleware_without_user(self):
+        # remove the AuthenticationMiddleware so that the ``request``
+        # object doesn't have the ``user`` field
+        url = reverse('users-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_database = spans[0]
+        sp_template = spans[1]
+        sp_request = spans[2]
+        eq_(sp_request.get_tag('http.status_code'), '200')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), None)

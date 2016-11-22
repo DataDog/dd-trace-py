@@ -90,7 +90,7 @@ def _set_auth_tags(span, request):
     """ Patch any available auth tags from the request onto the span. """
     user = getattr(request, 'user', None)
     if not user:
-        return
+        return span
 
     if hasattr(user, 'is_authenticated'):
         span.set_tag('django.user.is_authenticated', user.is_authenticated())
