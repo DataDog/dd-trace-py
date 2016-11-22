@@ -163,6 +163,14 @@ class TestAPITransport(TestCase):
             [Span(name='client.testing', tracer=None)],
         ]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
@@ -174,6 +182,14 @@ class TestAPITransport(TestCase):
             [Span(name='client.testing', tracer=None)],
         ]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
@@ -184,6 +200,14 @@ class TestAPITransport(TestCase):
             [Span(name='client.testing', tracer=None), Span(name='client.testing', tracer=None)],
         ]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
@@ -195,6 +219,14 @@ class TestAPITransport(TestCase):
             [Span(name='client.testing', tracer=None), Span(name='client.testing', tracer=None)],
         ]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
@@ -208,6 +240,14 @@ class TestAPITransport(TestCase):
             },
         }]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_services(services)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_services(services)
         ok_(response)
         eq_(response.status, 200)
@@ -225,6 +265,14 @@ class TestAPITransport(TestCase):
             },
         }]
 
+        # test JSON encoder
+        self.api._encoder = JSONEncoder()
+        response = self.api.send_services(services)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        self.api._encoder = MsgpackEncoder()
         response = self.api.send_services(services)
         ok_(response)
         eq_(response.status, 200)
