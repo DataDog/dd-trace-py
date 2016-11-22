@@ -5,7 +5,7 @@ from unittest import TestCase
 from nose.tools import eq_, ok_
 
 from ddtrace.span import Span
-from ddtrace.compat import string_type
+from ddtrace.compat import msgpack_type, string_type
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 
 
@@ -52,5 +52,5 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        ok_(isinstance(spans, string_type))
+        ok_(isinstance(spans, msgpack_type))
         eq_(len(items), 4)

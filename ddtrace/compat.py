@@ -64,9 +64,11 @@ def to_unicode(s):
 
 if PY2:
     string_type = basestring
+    msgpack_type = basestring
     numeric_types = (int, long, float)
 else:
     string_type = str
+    msgpack_type = bytes
     numeric_types = (int, float)
 
 
