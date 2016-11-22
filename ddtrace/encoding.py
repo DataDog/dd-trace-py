@@ -2,9 +2,16 @@ import json
 import msgpack
 import logging
 
-from .compat import MSGPACK_CPP
-from .util import flatten_spans
 
+# check msgpack CPP implementation; if the import fails, we're using the
+# pure Python implementation that is really slow, so the ``Encoder`` should use
+# a different encoding format
+try:
+    from msgpack._packer import Packer  # noqa
+    from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
+    MSGPACK_CPP = True
+except ImportError:
+    MSGPACK_CPP = False
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +27,7 @@ class Encoder(object):
         need to know what is the right header to suggest the decoding format to the
         agent
         """
-        self.headers = {}
+        self.content_type = ''
 
     def encode_traces(self, traces):
         """
@@ -51,7 +58,7 @@ class Encoder(object):
 
 class JSONEncoder(Encoder):
     def __init__(self):
-        self.headers = { 'Content-Type': 'application/json' }
+        self.content_type = 'application/json'
 
     def _encode(self, obj):
         log.debug('using JSON encoder; application performance may be degraded')
@@ -60,11 +67,18 @@ class JSONEncoder(Encoder):
 
 class MsgpackEncoder(Encoder):
     def __init__(self):
-        self.headers = { 'Content-Type': 'application/msgpack' }
+        self.content_type = 'application/msgpack'
 
     def _encode(self, obj):
         log.debug('using Msgpack encoder')
         return msgpack.packb(obj, use_bin_type=True)
+
+
+def flatten_spans(traces):
+    """
+    Flatten in a list of spans the given list of ``traces``
+    """
+    return [span.to_dict() for trace in traces for span in trace]
 
 
 def get_encoder():

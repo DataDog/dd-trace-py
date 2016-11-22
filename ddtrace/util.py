@@ -81,10 +81,3 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         setattr(patchable, key, dest)
     elif hasattr(patchable, '__class__'):
         setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
-
-
-def flatten_spans(traces):
-    """
-    Flatten in a list of spans the given list of ``traces``
-    """
-    return [span.to_dict() for trace in traces for span in trace]

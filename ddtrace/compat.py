@@ -25,16 +25,6 @@ try:
 except ImportError:
     from urllib import parse as urlparse
 
-# check msgpack CPP implementation; if the import fails, we're using the
-# pure Python implementation that is really slow, so the ``Encoder`` should use
-# a different encoding format
-try:
-    from msgpack._packer import Packer  # noqa
-    from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
-    MSGPACK_CPP = True
-except ImportError:
-    MSGPACK_CPP = False
-
 
 def iteritems(obj, **kwargs):
     func = getattr(obj, "iteritems", None)

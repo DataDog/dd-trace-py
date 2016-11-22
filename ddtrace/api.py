@@ -14,11 +14,15 @@ class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
     """
-    def __init__(self, hostname, port, wait_response=False):
+    def __init__(self, hostname, port, wait_response=False, headers=None, encoder=None):
         self.hostname = hostname
         self.port = port
-        self._encoder = get_encoder()
+        self._encoder = encoder or get_encoder()
         self._wait_response = wait_response
+
+        # overwrite the Content-type with the one chosen in the Encoder
+        self._headers = headers or {}
+        self._headers.update({'Content-Type': self._encoder.content_type})
 
     def send_traces(self, traces):
         if not traces:
@@ -37,14 +41,14 @@ class API(object):
         for service in services:
             s.update(service)
         data = self._encoder.encode_services(s)
-        return self._put("/services", data, self._encoder.headers)
+        return self._put("/services", data)
 
     def _send_span_data(self, data):
-        return self._put("/spans", data, self._encoder.headers)
+        return self._put("/spans", data)
 
-    def _put(self, endpoint, data, headers):
+    def _put(self, endpoint, data):
         conn = httplib.HTTPConnection(self.hostname, self.port)
-        conn.request("PUT", endpoint, data, headers)
+        conn.request("PUT", endpoint, data, self._headers)
 
         # read the server response only if the
         # API object is configured to do so

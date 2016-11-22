@@ -155,7 +155,8 @@ class TestAPITransport(TestCase):
         Create a tracer without workers, while spying the ``send()`` method
         """
         # create a new API object to test the transport using synchronous calls
-        self.api = API('localhost', 7777, wait_response=True)
+        self.api_json = API('localhost', 7777, wait_response=True, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 7777, wait_response=True, encoder=MsgpackEncoder())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -164,14 +165,12 @@ class TestAPITransport(TestCase):
         ]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
@@ -183,14 +182,12 @@ class TestAPITransport(TestCase):
         ]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
@@ -201,14 +198,12 @@ class TestAPITransport(TestCase):
         ]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
@@ -220,14 +215,12 @@ class TestAPITransport(TestCase):
         ]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_traces(traces)
+        response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
 
@@ -241,14 +234,12 @@ class TestAPITransport(TestCase):
         }]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_services(services)
+        response = self.api_json.send_services(services)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_services(services)
+        response = self.api_msgpack.send_services(services)
         ok_(response)
         eq_(response.status, 200)
 
@@ -266,13 +257,11 @@ class TestAPITransport(TestCase):
         }]
 
         # test JSON encoder
-        self.api._encoder = JSONEncoder()
-        response = self.api.send_services(services)
+        response = self.api_json.send_services(services)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        self.api._encoder = MsgpackEncoder()
-        response = self.api.send_services(services)
+        response = self.api_msgpack.send_services(services)
         ok_(response)
         eq_(response.status, 200)
