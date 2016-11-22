@@ -8,11 +8,12 @@ import wrapt
 from ...ext import AppTypes
 from .patch import traced_execute_command, traced_pipeline
 from ...pin import Pin
-
+from ...util import deprecated
 
 DEFAULT_SERVICE = 'redis'
 
 
+@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def get_traced_redis(ddtracer, service=DEFAULT_SERVICE, meta=None):
     """ DEPRECATED """
     return _get_traced_redis(ddtracer, StrictRedis, service, meta)

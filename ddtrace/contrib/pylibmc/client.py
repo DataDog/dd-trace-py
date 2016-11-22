@@ -35,6 +35,9 @@ class TracedClient(ObjectProxy):
             # We are in the patched situation, just pass down all arguments to the pylibmc.Client
             # Note that, in that case, client isn't a real client (just the first argument)
             client = _Client(client, *args, **kwargs)
+        else:
+            log.warning("TracedClient instantiation is deprecated and will be remove "
+                        "in future versions (0.6.0). Use patching instead (see the docs).")
 
         super(TracedClient, self).__init__(client)
 

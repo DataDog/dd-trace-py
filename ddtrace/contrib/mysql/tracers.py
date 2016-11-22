@@ -1,10 +1,7 @@
-import logging
-
 import mysql.connector
 
-logger = logging.getLogger(__name__)
+from ddtrace.util import deprecated
 
-# deprecated
+@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def get_traced_mysql_connection(*args, **kwargs):
-    logger.warn("get_traced_mysql_connection is deprecated")
     return mysql.connector.MySQLConnection
