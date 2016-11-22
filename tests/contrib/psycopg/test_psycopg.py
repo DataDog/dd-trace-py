@@ -105,8 +105,7 @@ class PsycopgCore(object):
         services = ["db", "another"]
         for service in services:
             conn, _ = self._get_conn_and_tracer()
-            Pin.get_from(conn).service = service
-            Pin.get_from(conn).tracer = tracer
+            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
             self.assert_conn_is_traced(tracer, conn, service)
 
         # ensure we have the service types
@@ -129,7 +128,7 @@ class TestPsycopgPatch(PsycopgCore):
     def _get_conn_and_tracer(self):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         tracer = get_dummy_tracer()
-        Pin.get_from(conn).tracer = tracer
+        Pin.get_from(conn).clone(tracer=tracer).onto(conn)
 
         return conn, tracer
 
@@ -141,8 +140,10 @@ class TestPsycopgPatch(PsycopgCore):
         patch()
         patch()
 
+        service = "fo"
+
         conn = psycopg2.connect(**POSTGRES_CONFIG)
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
         conn.cursor().execute("select 'blah'")
 
         spans = writer.pop()
@@ -162,7 +163,7 @@ class TestPsycopgPatch(PsycopgCore):
         patch()
 
         conn = psycopg2.connect(**POSTGRES_CONFIG)
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
         conn.cursor().execute("select 'blah'")
 
         spans = writer.pop()
