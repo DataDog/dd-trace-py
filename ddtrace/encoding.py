@@ -58,19 +58,20 @@ class Encoder(object):
 
 class JSONEncoder(Encoder):
     def __init__(self):
+        # TODO[manu]: add instructions about how users can switch to Msgpack
+        log.debug('using JSON encoder; application performance may be degraded')
         self.content_type = 'application/json'
 
     def _encode(self, obj):
-        log.debug('using JSON encoder; application performance may be degraded')
         return json.dumps(obj)
 
 
 class MsgpackEncoder(Encoder):
     def __init__(self):
+        log.debug('using Msgpack encoder')
         self.content_type = 'application/msgpack'
 
     def _encode(self, obj):
-        log.debug('using Msgpack encoder')
         return msgpack.packb(obj, use_bin_type=True)
 
 
