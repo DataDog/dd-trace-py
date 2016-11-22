@@ -1,31 +1,42 @@
 # -*- coding: utf-8 -*-
-from nose.tools import eq_, ok_
-import redis
 
-from ddtrace import Pin
+import copy
+
+import redis
+from nose.tools import eq_, ok_
+
+from ddtrace import Pin, compat
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
-
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 
 
-class RedisCore(object):
-    TEST_SERVICE = 'test-cache'
-    TEST_PORT = str(REDIS_CONFIG['port'])
+def test_redis_legacy():
+    # ensure the old interface isn't broken, but doesn't trace
+    tracer = get_dummy_tracer()
+    TracedRedisCache = get_traced_redis(tracer, "foo")
+    r = TracedRedisCache(port=REDIS_CONFIG['port'])
+    r.set("a", "b")
+    got = r.get("a")
+    eq_(compat.to_unicode(got), "b")
+    assert not tracer.writer.pop()
+
+
+class TestRedisPatch(object):
+
+    TEST_SERVICE = 'redis-patch'
+    TEST_PORT = REDIS_CONFIG['port']
 
     def setUp(self):
-        """ purge redis """
-        r = redis.Redis(port=REDIS_CONFIG['port'])
+        r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
+        patch()
 
     def tearDown(self):
-        r = redis.Redis(port=REDIS_CONFIG['port'])
+        unpatch()
+        r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
-
-    def get_redis_and_tracer(self):
-        # implement me
-        pass
 
     def test_long_command(self):
         r, tracer = self.get_redis_and_tracer()
@@ -42,7 +53,7 @@ class RedisCore(object):
         eq_(span.error, 0)
         meta = {
             'out.host': u'localhost',
-            'out.port': self.TEST_PORT,
+            'out.port': str(self.TEST_PORT),
             'out.redis_db': u'0',
         }
         for k, v in meta.items():
@@ -51,48 +62,25 @@ class RedisCore(object):
         assert span.get_tag('redis.raw_command').startswith(u'mget 0 1 2 3')
         assert span.get_tag('redis.raw_command').endswith(u'...')
 
-    def test_basic_class(self):
+    def test_basics(self):
         r, tracer = self.get_redis_and_tracer()
         _assert_conn_traced(r, tracer, self.TEST_SERVICE)
 
-    def test_basic_class_pipeline(self):
+    def test_pipeline(self):
         r, tracer = self.get_redis_and_tracer()
         _assert_pipeline_traced(r, tracer, self.TEST_SERVICE)
         _assert_pipeline_immediate(r, tracer, self.TEST_SERVICE)
-
-
-class TestRedisLegacy(RedisCore):
-
-    TEST_SERVICE = 'test-redis-legacy'
-
-    def get_redis_and_tracer(self):
-        tracer = get_dummy_tracer()
-
-        TracedRedisCache = get_traced_redis(tracer, service=self.TEST_SERVICE)
-        r = TracedRedisCache(port=REDIS_CONFIG['port'])
-
-        return r, tracer
-
-
-class TestRedisPatch(RedisCore):
-
-    TEST_SERVICE = 'redis'
-
-    def setUp(self):
-        RedisCore.setUp(self)
-        patch()
-
-    def tearDown(self):
-        unpatch()
-        RedisCore.tearDown(self)
 
     def get_redis_and_tracer(self):
         tracer = get_dummy_tracer()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        pin = Pin.get_from(r)
+        import copy
+        pin = copy.copy(Pin.get_from(r))
         assert pin, pin
+        pin.service = self.TEST_SERVICE
         pin.tracer = tracer
+        pin.onto(r)
 
         return r, tracer
 
