@@ -7,7 +7,7 @@ import time
 from nose.tools import assert_raises, eq_
 from unittest.case import SkipTest
 
-from ddtrace import encoding
+from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 
@@ -274,16 +274,21 @@ class DummyWriter(AgentWriter):
         # dummy components
         self.spans = []
         self.services = {}
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = MsgpackEncoder()
 
     def write(self, spans=None, services=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
-            encoding.encode_traces([spans])
+            # with both encoders
+            self.json_encoder.encode_traces([spans])
+            self.msgpack_encoder.encode_traces([spans])
             self.spans += spans
 
         if services:
-            encoding.encode_services(services)
+            self.json_encoder.encode_services(services)
+            self.msgpack_encoder.encode_services(services)
             self.services.update(services)
 
     def pop(self):

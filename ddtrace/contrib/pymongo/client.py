@@ -1,7 +1,7 @@
-
 # stdlib
 import contextlib
 import logging
+import json
 
 # 3p
 import pymongo
@@ -9,7 +9,7 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ...compat import iteritems, json
+from ...compat import iteritems
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
