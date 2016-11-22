@@ -1,18 +1,22 @@
-"""
-To trace Postgres calls with the psycopg library::
+"""Instrument psycopg2 to report Postgres queries.
 
+``patch_all`` will automatically patch your psycopg2 connection to make it work.
+::
 
-    from ddtrace import tracer
-    from ddtrace.contrib.psycopg import connection_factory
+    from ddtrace import Pin, patch
+    import psycopg2
 
+    # If not patched yet, you can patch psycopg2 specifically
+    patch(psycopg=True)
 
-    factory = connection_factory(tracer, service="my-postgres-db")
+    # This will report a span with the default settings
     db = psycopg2.connect(connection_factory=factory)
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
+
+    # Use a pin to specify metadata related to this connection
+    Pin.get_from(db).service = 'postgres-users'
 """
-
-
 from ..util import require_modules
 
 required_modules = ['psycopg2']

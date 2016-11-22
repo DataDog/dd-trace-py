@@ -1,23 +1,17 @@
 # -*- coding: utf-8 -*-
-import unittest
-
-from ddtrace.contrib.redis import missing_modules
-
-if missing_modules:
-    raise unittest.SkipTest("Missing dependencies %s" % missing_modules)
-
-import redis
 from nose.tools import eq_, ok_
+import redis
 
-from ddtrace.contrib.redis import get_traced_redis, get_traced_redis_from
-from ddtrace import Pin, Tracer
+from ddtrace import Pin
+from ddtrace.contrib.redis import get_traced_redis
+from ddtrace.contrib.redis.patch import patch, unpatch
 
 from ..config import REDIS_CONFIG
-from ...test_tracer import DummyWriter
+from ...test_tracer import get_dummy_tracer
 
 
-class RedisTest(unittest.TestCase):
-    SERVICE = 'test-cache'
+class RedisCore(object):
+    TEST_SERVICE = 'test-cache'
     TEST_PORT = str(REDIS_CONFIG['port'])
 
     def setUp(self):
@@ -29,21 +23,20 @@ class RedisTest(unittest.TestCase):
         r = redis.Redis(port=REDIS_CONFIG['port'])
         r.flushall()
 
-    def test_long_command(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+    def get_redis_and_tracer(self):
+        # implement me
+        pass
 
-        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache(port=REDIS_CONFIG['port'])
+    def test_long_command(self):
+        r, tracer = self.get_redis_and_tracer()
 
         long_cmd = "mget %s" % " ".join(map(str, range(1000)))
         us = r.execute_command(long_cmd)
 
-        spans = writer.pop()
+        spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.service, self.SERVICE)
+        eq_(span.service, self.TEST_SERVICE)
         eq_(span.name, 'redis.command')
         eq_(span.span_type, 'redis')
         eq_(span.error, 0)
@@ -59,81 +52,97 @@ class RedisTest(unittest.TestCase):
         assert span.get_tag('redis.raw_command').endswith(u'...')
 
     def test_basic_class(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache(port=REDIS_CONFIG['port'])
-        _assert_conn_traced(r, tracer, self.SERVICE)
-
-    def test_meta_override(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-
-        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE, meta={'cheese': 'camembert'})
-        r = TracedRedisCache(port=REDIS_CONFIG['port'])
-
-        r.get('cheese')
-        spans = writer.pop()
-        eq_(len(spans), 1)
-        span = spans[0]
-        eq_(span.service, self.SERVICE)
-        ok_('cheese' in span.meta and span.meta['cheese'] == 'camembert')
+        r, tracer = self.get_redis_and_tracer()
+        _assert_conn_traced(r, tracer, self.TEST_SERVICE)
 
     def test_basic_class_pipeline(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-
-        TracedRedisCache = get_traced_redis(tracer, service=self.SERVICE)
-        r = TracedRedisCache(port=REDIS_CONFIG['port'])
-        _assert_pipeline_traced(r, tracer, self.SERVICE)
-        _assert_pipeline_immediate(r, tracer, self.SERVICE)
-
-    def test_monkeypatch(self):
-        from ddtrace.contrib.redis import patch
-
-        suite = [
-            _assert_conn_traced,
-            _assert_pipeline_traced,
-            _assert_pipeline_immediate,
-        ]
-
-        for func in suite:
-            tracer = Tracer()
-            tracer.writer = DummyWriter()
-            r = patch.patch_client(redis.Redis(port=REDIS_CONFIG['port']))
-            Pin(service=self.SERVICE, tracer=tracer).onto(r)
-            func(r, service=self.SERVICE, tracer=tracer)
-
-    def test_custom_class(self):
-        class MyCustomRedis(redis.Redis):
-            def execute_command(self, *args, **kwargs):
-                response = super(MyCustomRedis, self).execute_command(*args, **kwargs)
-                # py3 compat
-                if isinstance(response, bytes):
-                    response = response.decode('utf-8')
-                return 'YO%sYO' % response
+        r, tracer = self.get_redis_and_tracer()
+        _assert_pipeline_traced(r, tracer, self.TEST_SERVICE)
+        _assert_pipeline_immediate(r, tracer, self.TEST_SERVICE)
 
 
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+class TestRedisLegacy(RedisCore):
 
-        TracedRedisCache = get_traced_redis_from(tracer, MyCustomRedis, service=self.SERVICE)
+    TEST_SERVICE = 'test-redis-legacy'
+
+    def get_redis_and_tracer(self):
+        tracer = get_dummy_tracer()
+
+        TracedRedisCache = get_traced_redis(tracer, service=self.TEST_SERVICE)
         r = TracedRedisCache(port=REDIS_CONFIG['port'])
 
-        r.set('foo', 42)
-        resp = r.get('foo')
-        eq_(resp, 'YO42YO')
+        return r, tracer
+
+
+class TestRedisPatch(RedisCore):
+
+    TEST_SERVICE = 'redis'
+
+    def setUp(self):
+        RedisCore.setUp(self)
+        patch()
+
+    def tearDown(self):
+        unpatch()
+        RedisCore.tearDown(self)
+
+    def get_redis_and_tracer(self):
+        tracer = get_dummy_tracer()
+
+        r = redis.Redis(port=REDIS_CONFIG['port'])
+        pin = Pin.get_from(r)
+        assert pin, pin
+        pin.tracer = tracer
+
+        return r, tracer
+
+    def test_meta_override(self):
+        r, tracer = self.get_redis_and_tracer()
+
+        Pin.get_from(r).tags = {'cheese': 'camembert'}
+        r.get('cheese')
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        ok_('cheese' in span.meta and span.meta['cheese'] == 'camembert')
+
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+
+        # Test patch idempotence
+        patch()
+        patch()
+
+        r = redis.Redis(port=REDIS_CONFIG['port'])
+        Pin.get_from(r).tracer = tracer
+        r.get("key")
 
         spans = writer.pop()
-        eq_(len(spans), 2)
-        eq_(spans[0].name, 'redis.command')
-        eq_(spans[0].resource, 'SET foo 42')
-        eq_(spans[1].name, 'redis.command')
-        eq_(spans[1].resource, 'GET foo')
+        assert spans, spans
+        eq_(len(spans), 1)
+
+        # Test unpatch
+        unpatch()
+
+        r = redis.Redis(port=REDIS_CONFIG['port'])
+        r.get("key")
+
+        spans = writer.pop()
+        assert not spans, spans
+
+        # Test patch again
+        patch()
+
+        r = redis.Redis(port=REDIS_CONFIG['port'])
+        Pin.get_from(r).tracer = tracer
+        r.get("key")
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+
 
 def _assert_pipeline_immediate(conn, tracer, service):
     r = conn
@@ -155,9 +164,9 @@ def _assert_pipeline_immediate(conn, tracer, service):
     eq_(span.get_tag('out.host'), 'localhost')
 
 def _assert_pipeline_traced(conn, tracer, service):
-    r = conn
     writer = tracer.writer
-    with r.pipeline(transaction=False) as p:
+
+    with conn.pipeline(transaction=False) as p:
         p.set('blah', 32)
         p.rpush('foo', u'éé')
         p.hgetall('xxx')
@@ -174,12 +183,10 @@ def _assert_pipeline_traced(conn, tracer, service):
     eq_(span.get_tag('out.redis_db'), '0')
     eq_(span.get_tag('out.host'), 'localhost')
     eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-    #ok_(span.get_metric('redis.pipeline_age') > 0)
     eq_(span.get_metric('redis.pipeline_length'), 3)
 
 def _assert_conn_traced(conn, tracer, service):
-    r = conn
-    us = r.get('cheese')
+    us = conn.get('cheese')
     eq_(us, None)
     spans = tracer.writer.pop()
     eq_(len(spans), 1)
@@ -193,10 +200,3 @@ def _assert_conn_traced(conn, tracer, service):
     eq_(span.get_tag('redis.raw_command'), u'GET cheese')
     eq_(span.get_metric('redis.args_length'), 2)
     eq_(span.resource, 'GET cheese')
-
-    # services = writer.pop_services()
-    # expected = {
-    #     self.SERVICE: {"app": "redis", "app_type": "db"}
-    # }
-    # eq_(services, expected)
-

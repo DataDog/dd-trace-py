@@ -1,10 +1,6 @@
 """
 Trace queries along a session to a cassandra cluster
 """
-
-# stdlib
-import logging
-
 # 3p
 import cassandra.cluster
 import wrapt
@@ -17,30 +13,28 @@ from ...ext import net, cassandra as cassx
 from ...ext import AppTypes
 
 
-log = logging.getLogger(__name__)
-
-
 RESOURCE_MAX_LENGTH = 5000
 SERVICE = "cassandra"
 
+# Original connect connect function
+_connect = cassandra.cluster.Cluster.connect
 
 def patch():
     """ patch will add tracing to the cassandra library. """
-    patch_cluster(cassandra.cluster.Cluster)
+    setattr(cassandra.cluster.Cluster, 'connect',
+            wrapt.FunctionWrapper(_connect, traced_connect))
+    Pin(service=SERVICE, app=SERVICE, app_type="db").onto(cassandra.cluster.Cluster)
 
-def patch_cluster(cluster, pin=None):
-    pin = pin or Pin(service=SERVICE, app=SERVICE, app_type="db")
-    setattr(cluster, 'connect', wrapt.FunctionWrapper(cluster.connect, _connect))
-    pin.onto(cluster)
-    return cluster
+def unpatch():
+    cassandra.cluster.Cluster.connect = _connect
 
-def _connect(func, instance, args, kwargs):
+def traced_connect(func, instance, args, kwargs):
     session = func(*args, **kwargs)
     if not isinstance(session.execute, wrapt.FunctionWrapper):
-        setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, _execute))
+        setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, traced_execute))
     return session
 
-def _execute(func, instance, args, kwargs):
+def traced_execute(func, instance, args, kwargs):
     cluster = getattr(instance, 'cluster', None)
     pin = Pin.get_from(cluster)
     if not pin or not pin.enabled():
@@ -64,6 +58,7 @@ def _execute(func, instance, args, kwargs):
                 span.set_tags(_extract_result_metas(result))
 
 
+# deprecated
 def get_traced_cassandra(tracer, service=SERVICE, meta=None):
     return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
 

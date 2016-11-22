@@ -89,7 +89,7 @@ def _patch_module(module):
     Returns if the module got patched.
     Can also raise errors if it fails.
     """
-    path = 'ddtrace.contrib.%s.patch' % module
+    path = 'ddtrace.contrib.%s' % module
     with _LOCK:
         if module in _PATCHED_MODULES:
             logging.debug("already patched: %s", path)

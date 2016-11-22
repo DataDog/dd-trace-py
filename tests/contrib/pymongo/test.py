@@ -6,14 +6,14 @@ from nose.tools import eq_
 import pymongo
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.ext import mongo as mongox
 from ddtrace.contrib.pymongo.client import trace_mongo_client, normalize_filter
 from ddtrace.contrib.pymongo.patch import patch, unpatch
 
 # testing
 from ..config import MONGO_CONFIG
-from ...test_tracer import DummyWriter
+from ...test_tracer import get_dummy_tracer
 
 
 def test_normalize_filter():
@@ -226,8 +226,7 @@ class TestPymongoTraceClient(PymongoCore):
     TEST_SERVICE = 'test-mongo-trace-client'
 
     def get_tracer_and_client(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         original_client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
         return tracer, client
@@ -245,8 +244,7 @@ class TestPymongoPatchDefault(PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin.get_from(client).tracer = tracer
         return tracer, client
@@ -263,8 +261,44 @@ class TestPymongoPatchConfigured(PymongoCore):
         unpatch()
 
     def get_tracer_and_client(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         return tracer, client
+
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+
+        # Test patch idempotence
+        patch()
+        patch()
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
+        Pin.get_from(client).tracer = tracer
+        client["testdb"].drop_collection("whatever")
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+
+        # Test unpatch
+        unpatch()
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
+        client["testdb"].drop_collection("whatever")
+
+        spans = writer.pop()
+        assert not spans, spans
+
+        # Test patch again
+        patch()
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
+        Pin.get_from(client).tracer = tracer
+        client["testdb"].drop_collection("whatever")
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+

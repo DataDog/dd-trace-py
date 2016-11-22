@@ -1,27 +1,26 @@
-"""
+"""Instrument pymongo to report MongoDB queries.
+
 The pymongo integration works by wrapping pymongo's MongoClient to trace
 network calls. Pymongo 3.0 and greater are the currently supported versions.
-The monkey patching will patch the clients, which you can then configure.
-Basic usage::
+``patch_all`` will automatically patch your MongoClient instance to make it work.
+::
 
+    from ddtrace import Pin, patch
     import pymongo
-    import ddtrace
-    from ddtrace.monkey import patch_all
 
-    # First, patch libraries
-    patch_all()
+    # If not patched yet, you can patch pymongo specifically
+    patch(pymongo=True)
 
-    # MongoClient with default configuration
+    # At that point, pymongo is instrumented with the default settings
     client = pymongo.MongoClient()
-
-    # Configure one client
-    ddtrace.Pin(service='my-mongo', tracer=Tracer()).onto(client)
-
-    # From there, queries are traced
+    # Example of instrumented query
     db = client["test-db"]
-    db.teams.find({"name": "Toronto Maple Leafs"})  # This we generate a span
-"""
+    db.teams.find({"name": "Toronto Maple Leafs"})
 
+    # Use a pin to specify metadata related to this client
+    client = pymongo.MongoClient()
+    ddtrace.Pin(service='mongo-master').onto(client)
+"""
 from ..util import require_modules
 
 required_modules = ['pymongo']

@@ -1,13 +1,12 @@
 """
 tracers exposed publicly
 """
-# stdlib
-
 from redis import StrictRedis
+import wrapt
 
 # dogtrace
 from ...ext import AppTypes
-from .patch import patch_client
+from .patch import traced_execute_command, traced_pipeline
 from ...pin import Pin
 
 
@@ -24,11 +23,14 @@ def get_traced_redis_from(ddtracer, baseclass, service=DEFAULT_SERVICE, meta=Non
     return _get_traced_redis(ddtracer, baseclass, service, meta)
 
 def _get_traced_redis(ddtracer, baseclass, service, meta):
-
+    # Inherited class, containing the patched methods
     class TracedRedis(baseclass):
         pass
 
-    patch_client(TracedRedis)
+    setattr(TracedRedis, 'execute_command',
+            wrapt.FunctionWrapper(TracedRedis.execute_command, traced_execute_command))
+    setattr(TracedRedis, 'pipeline',
+            wrapt.FunctionWrapper(TracedRedis.pipeline, traced_pipeline))
 
     Pin(
         service=service,

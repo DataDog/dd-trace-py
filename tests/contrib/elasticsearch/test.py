@@ -11,7 +11,7 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
 from ..config import ELASTICSEARCH_CONFIG
-from ...test_tracer import DummyWriter
+from ...test_tracer import get_dummy_tracer
 
 
 class ElasticsearchTest(unittest.TestCase):
@@ -40,9 +40,8 @@ class ElasticsearchTest(unittest.TestCase):
 
         All in this for now. Will split it later.
         """
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
         transport_class = get_traced_transport(
                 datadog_tracer=tracer,
                 datadog_service=self.TEST_SERVICE)
@@ -137,9 +136,8 @@ class ElasticsearchPatchTest(unittest.TestCase):
         """
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
 
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
         pin = Pin(service=self.TEST_SERVICE, tracer=tracer)
         pin.onto(es)
 
@@ -207,3 +205,45 @@ class ElasticsearchPatchTest(unittest.TestCase):
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+
+        # Test patch idempotence
+        patch()
+        patch()
+
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es)
+
+        # Test index creation
+        es.indices.create(index=self.ES_INDEX, ignore=400)
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+
+        # Test unpatch
+        unpatch()
+
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+
+        # Test index creation
+        es.indices.create(index=self.ES_INDEX, ignore=400)
+
+        spans = writer.pop()
+        assert not spans, spans
+
+        # Test patch again
+        patch()
+
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es)
+
+        # Test index creation
+        es.indices.create(index=self.ES_INDEX, ignore=400)
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)

@@ -1,16 +1,26 @@
-"""
-To trace cassandra calls, create a traced cassandra client::
+"""Instrument Cassandra to report Cassandra queries.
 
-    from ddtrace import tracer
-    from ddtrace.contrib.cassandra import get_traced_cassandra
+``patch_all`` will automatically patch your Cluster instance to make it work.
+::
 
-    Cluster = get_traced_cassandra(tracer, service="my_cass_service")
+    from ddtrace import Pin, patch
+    from cassandra.cluster import Cluster
 
+    # If not patched yet, you can patch cassandra specifically
+    patch(cassandra=True)
+
+    # This will report spans with the default instrumentation
     cluster = Cluster(contact_points=["127.0.0.1"], port=9042)
+    session = cluster.connect("my_keyspace")
+    # Example of instrumented query
+    session.execute("select id from my_table limit 10;")
+
+    # Use a pin to specify metadata related to this cluster
+    cluster = Cluster(contact_points=['10.1.1.3', '10.1.1.4', '10.1.1.5'], port=9042)
+    Pin(service='cassandra-backend').onto(cluster)
     session = cluster.connect("my_keyspace")
     session.execute("select id from my_table limit 10;")
 """
-
 from ..util import require_modules
 
 required_modules = ['cassandra.cluster']

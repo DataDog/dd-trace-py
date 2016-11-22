@@ -4,7 +4,6 @@ Tracing utilities for the psycopg potgres client library.
 
 # stdlib
 import functools
-import logging
 
 from ...ext import db
 from ...ext import net
@@ -15,9 +14,7 @@ from ...ext import AppTypes
 from psycopg2.extensions import connection, cursor
 
 
-log = logging.getLogger(__name__)
-
-
+# deprecated
 def connection_factory(tracer, service="postgres"):
     """ Return a connection factory class that will can be used to trace
         postgres queries.
