@@ -59,13 +59,15 @@ class Pin(_pin):
             return
 
         pin = cls.get_from(obj)
-        if pin:
-            pin.clone(
-                service=service,
-                app=app,
-                app_type=app_type,
-                tags=tags,
-                tracer=tracer).onto(obj)
+        if not pin:
+            pin = Pin.new(service)
+
+        pin.clone(
+            service=service,
+            app=app,
+            app_type=app_type,
+            tags=tags,
+            tracer=tracer).onto(obj)
 
     def enabled(self):
         """ Return true if this pin's tracer is enabled. """

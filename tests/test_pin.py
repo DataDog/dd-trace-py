@@ -65,3 +65,12 @@ def test_override():
     eq_(Pin.get_from(b).service, "foo")
     eq_(Pin.get_from(b).app, "blah")
 
+
+def test_overide_missing():
+    class A():
+        pass
+
+    a = A()
+    assert not Pin.get_from(a)
+    Pin.override(a, service="foo")
+    assert Pin.get_from(a).service == "foo"
