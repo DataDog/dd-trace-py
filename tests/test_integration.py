@@ -30,7 +30,7 @@ class TestWorkers(TestCase):
         if isinstance(self.api._encoder, JSONEncoder):
             return json.loads(payload)
         elif isinstance(self.api._encoder, MsgpackEncoder):
-            return msgpack.unpackb(payload)
+            return msgpack.unpackb(payload, encoding='utf-8')
 
     def setUp(self):
         """
