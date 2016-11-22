@@ -2,7 +2,7 @@
 from nose.tools import eq_, ok_
 import redis
 
-from ddtrace import Pin
+from ddtrace import Pin, compat
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
 
@@ -16,22 +16,24 @@ def test_redis_legacy():
     TracedRedisCache = get_traced_redis(tracer, "foo")
     r = TracedRedisCache(port=REDIS_CONFIG['port'])
     r.set("a", "b")
-    assert r.get("a") == "b"
+    got = r.get("a")
+    eq_(compat.to_unicode(got), "b")
     assert not tracer.writer.pop()
 
 
-class TestRedisPatch(RedisCore):
+class TestRedisPatch(object):
 
     TEST_SERVICE = 'redis-patch'
+    TEST_PORT = REDIS_CONFIG['port']
 
     def setUp(self):
-        r = redis.Redis(port=REDIS_CONFIG['port'])
+        r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
         patch()
 
     def tearDown(self):
         unpatch()
-        r = redis.Redis(port=REDIS_CONFIG['port'])
+        r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
 
     def test_long_command(self):
@@ -49,7 +51,7 @@ class TestRedisPatch(RedisCore):
         eq_(span.error, 0)
         meta = {
             'out.host': u'localhost',
-            'out.port': self.TEST_PORT,
+            'out.port': str(self.TEST_PORT),
             'out.redis_db': u'0',
         }
         for k, v in meta.items():
