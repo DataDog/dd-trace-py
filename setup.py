@@ -57,7 +57,8 @@ setup(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        "wrapt"
+        "wrapt",
+        "msgpack-python",
     ],
     # plugin tox
     tests_require=['tox', 'flake8'],
