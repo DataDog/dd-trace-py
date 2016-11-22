@@ -2,6 +2,7 @@ import json
 import msgpack
 import logging
 
+from .compat import MSGPACK_CPP
 from .util import flatten_spans
 
 
@@ -64,3 +65,15 @@ class MsgpackEncoder(Encoder):
     def _encode(self, obj):
         log.debug('using Msgpack encoder')
         return msgpack.packb(obj, use_bin_type=True)
+
+
+def get_encoder():
+    """
+    Switching logic that choose the best encoder for the API transport.
+    The default behavior is to use Msgpack if we have a CPP implementation
+    installed, falling back to the Python built-in JSON encoder.
+    """
+    if MSGPACK_CPP:
+        return MsgpackEncoder()
+    else:
+        return JSONEncoder()

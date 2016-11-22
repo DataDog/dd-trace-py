@@ -1,5 +1,6 @@
 import sys
 
+
 PY2 = sys.version_info[0] == 2
 
 stringify = str
@@ -24,16 +25,23 @@ try:
 except ImportError:
     from urllib import parse as urlparse
 
+# check msgpack CPP implementation; if the import fails, we're using the
+# pure Python implementation that is really slow, so the ``Encoder`` should use
+# a different encoding format
 try:
-    import simplejson as json
+    from msgpack._packer import Packer  # noqa
+    from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
+    MSGPACK_CPP = True
 except ImportError:
-    import json
+    MSGPACK_CPP = False
+
 
 def iteritems(obj, **kwargs):
     func = getattr(obj, "iteritems", None)
     if not func:
         func = obj.items
     return func(**kwargs)
+
 
 def to_unicode(s):
     """ Return a unicode string for the given bytes or string instance. """
@@ -65,7 +73,6 @@ else:
 __all__ = [
     'httplib',
     'iteritems',
-    'json',
     'PY2',
     'Queue',
     'stringify',
