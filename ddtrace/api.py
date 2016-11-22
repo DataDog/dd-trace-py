@@ -41,10 +41,10 @@ class API(object):
         for service in services:
             s.update(service)
         data = self._encoder.encode_services(s)
-        return self._put("/services", data)
+        return self._put("/v0.2/services", data)
 
     def _send_span_data(self, data):
-        return self._put("/spans", data)
+        return self._put("/v0.2/traces", data)
 
     def _put(self, endpoint, data):
         conn = httplib.HTTPConnection(self.hostname, self.port)

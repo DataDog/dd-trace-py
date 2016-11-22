@@ -32,7 +32,9 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         ok_(isinstance(spans, string_type))
-        eq_(len(items), 4)
+        eq_(len(items), 2)
+        eq_(len(items[0]), 2)
+        eq_(len(items[1]), 2)
 
     def test_encode_traces_msgpack(self):
         # test encoding for JSON format
@@ -53,4 +55,6 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         ok_(isinstance(spans, msgpack_type))
-        eq_(len(items), 4)
+        eq_(len(items), 2)
+        eq_(len(items[0]), 2)
+        eq_(len(items[1]), 2)

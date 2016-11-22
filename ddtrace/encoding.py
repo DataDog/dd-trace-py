@@ -32,13 +32,14 @@ class Encoder(object):
     def encode_traces(self, traces):
         """
         Encodes a list of traces, expecting a list of items where each items
-        is a list of spans. Before dump the string in a serialized format, the list
-        is flatten.
+        is a list of spans. Before dump the string in a serialized format all
+        traces are normalized, calling the ``to_dict()`` method. The traces
+        nesting is not changed.
 
         :param traces: A list of traces that should be serialized
         """
-        spans = flatten_spans(traces)
-        return self._encode(spans)
+        normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
+        return self._encode(normalized_traces)
 
     def encode_services(self, services):
         """
@@ -73,13 +74,6 @@ class MsgpackEncoder(Encoder):
 
     def _encode(self, obj):
         return msgpack.packb(obj, use_bin_type=True)
-
-
-def flatten_spans(traces):
-    """
-    Flatten in a list of spans the given list of ``traces``
-    """
-    return [span.to_dict() for trace in traces for span in trace]
 
 
 def get_encoder():
