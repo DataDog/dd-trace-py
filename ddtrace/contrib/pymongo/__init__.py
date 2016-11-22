@@ -19,7 +19,9 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
 
     # Use a pin to specify metadata related to this client
     client = pymongo.MongoClient()
-    ddtrace.Pin(service='mongo-master').onto(client)
+    pin = Pin.get_from(client)
+    if pin:
+        pin.clone(service="mongo-master").onto(client)
 """
 from ..util import require_modules
 

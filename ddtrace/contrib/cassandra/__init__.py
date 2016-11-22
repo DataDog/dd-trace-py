@@ -17,7 +17,7 @@
 
     # Use a pin to specify metadata related to this cluster
     cluster = Cluster(contact_points=['10.1.1.3', '10.1.1.4', '10.1.1.5'], port=9042)
-    Pin(service='cassandra-backend').onto(cluster)
+    Pin.new(service='cassandra-backend').onto(cluster)
     session = cluster.connect("my_keyspace")
     session.execute("select id from my_table limit 10;")
 """

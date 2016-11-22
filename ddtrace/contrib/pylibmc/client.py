@@ -38,9 +38,7 @@ class TracedClient(ObjectProxy):
 
         super(TracedClient, self).__init__(client)
 
-        pin = ddtrace.Pin(service)
-        if tracer:
-            pin.tracer = tracer
+        pin = ddtrace.Pin.new(service=service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -62,8 +60,9 @@ class TracedClient(ObjectProxy):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         traced_client = TracedClient(cloned)
-        self_pin = ddtrace.Pin.get_from(self)
-        ddtrace.Pin(self_pin.service, tracer=self_pin.tracer).onto(traced_client)
+        pin = ddtrace.Pin.get_from(self)
+        if pin:
+            pin.clone().onto(traced_client)
         return traced_client
 
     def get(self, *args, **kwargs):
