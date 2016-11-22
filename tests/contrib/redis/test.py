@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-from nose.tools import eq_, ok_
+
+import copy
+
 import redis
+from nose.tools import eq_, ok_
 
 from ddtrace import Pin, compat
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
-
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -73,10 +75,12 @@ class TestRedisPatch(object):
         tracer = get_dummy_tracer()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        pin = Pin.get_from(r)
+        import copy
+        pin = copy.copy(Pin.get_from(r))
         assert pin, pin
         pin.service = self.TEST_SERVICE
         pin.tracer = tracer
+        pin.onto(r)
 
         return r, tracer
 

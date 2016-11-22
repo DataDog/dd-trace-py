@@ -21,6 +21,8 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     _w('redis', 'StrictRedis.execute_command', traced_execute_command)
+    _w('redis', 'StrictRedis.pipeline', traced_pipeline)
+    _w('redis', 'Redis.pipeline', traced_pipeline)
     _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
     _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
     Pin(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
@@ -29,6 +31,8 @@ def unpatch():
     if getattr(redis, '_datadog_patch', False):
         setattr(redis, '_datadog_patch', False)
         _unwrap(redis.StrictRedis, 'execute_command')
+        _unwrap(redis.StrictRedis, 'pipeline')
+        _unwrap(redis.Redis, 'pipeline')
         _unwrap(redis.client.BasePipeline, 'execute')
         _unwrap(redis.client.BasePipeline, 'immediate_execute_command')
 
@@ -58,6 +62,13 @@ def traced_execute_command(func, instance, args, kwargs):
         s.set_metric(redisx.ARGS_LEN, len(args))
         # run the command
         return func(*args, **kwargs)
+
+def traced_pipeline(func, instance, args, kwargs):
+    pipeline = func(*args, **kwargs)
+    pin = Pin.get_from(instance)
+    if pin:
+        pin.onto(pipeline)
+    return pipeline
 
 def traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
