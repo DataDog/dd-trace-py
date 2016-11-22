@@ -2,6 +2,7 @@ import os
 import json
 import mock
 import time
+import msgpack
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
@@ -9,6 +10,7 @@ from nose.tools import eq_, ok_
 from ddtrace.api import API
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
+from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 
 
 @skipUnless(
@@ -20,6 +22,15 @@ class TestWorkers(TestCase):
     Ensures that a workers interacts correctly with the main thread. These are part
     of integration tests so real calls are triggered.
     """
+    def _decode(self, payload):
+        """
+        Helper function that decodes data based on the given Encoder.
+        """
+        if isinstance(self.api._encoder, JSONEncoder):
+            return json.loads(payload)
+        elif isinstance(self.api._encoder, MsgpackEncoder):
+            return msgpack.unpackb(payload)
+
     def setUp(self):
         """
         Create a tracer with running workers, while spying the ``_put()`` method to
@@ -54,7 +65,7 @@ class TestWorkers(TestCase):
         eq_(self.api._put.call_count, 1)
         # check arguments
         endpoint = self.api._put.call_args[0][0]
-        payload = json.loads(self.api._put.call_args[0][1])
+        payload = self._decode(self.api._put.call_args[0][1])
         eq_(endpoint, '/spans')
         eq_(len(payload), 1)
         eq_(payload[0]['name'], 'client.testing')
@@ -70,7 +81,7 @@ class TestWorkers(TestCase):
         eq_(self.api._put.call_count, 1)
         # check arguments
         endpoint = self.api._put.call_args[0][0]
-        payload = json.loads(self.api._put.call_args[0][1])
+        payload = self._decode(self.api._put.call_args[0][1])
         eq_(endpoint, '/spans')
         eq_(len(payload), 2)
         eq_(payload[0]['name'], 'client.testing')
@@ -88,7 +99,7 @@ class TestWorkers(TestCase):
         eq_(self.api._put.call_count, 1)
         # check arguments
         endpoint = self.api._put.call_args[0][0]
-        payload = json.loads(self.api._put.call_args[0][1])
+        payload = self._decode(self.api._put.call_args[0][1])
         eq_(endpoint, '/spans')
         eq_(len(payload), 2)
         eq_(payload[0]['name'], 'client.testing')
@@ -105,7 +116,7 @@ class TestWorkers(TestCase):
         eq_(self.api._put.call_count, 2)
         # check arguments
         endpoint = self.api._put.call_args[0][0]
-        payload = json.loads(self.api._put.call_args[0][1])
+        payload = self._decode(self.api._put.call_args[0][1])
         eq_(endpoint, '/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
@@ -122,7 +133,7 @@ class TestWorkers(TestCase):
         eq_(self.api._put.call_count, 2)
         # check arguments
         endpoint = self.api._put.call_args[0][0]
-        payload = json.loads(self.api._put.call_args[0][1])
+        payload = self._decode(self.api._put.call_args[0][1])
         eq_(endpoint, '/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
