@@ -14,7 +14,7 @@
     client.get("my-key")
 
     # Use a pin to specify metadata related to this client
-    Pin(service='redis-queue').onto(client)
+    Pin.override(client, service='redis-queue')
 """
 
 from ..util import require_modules

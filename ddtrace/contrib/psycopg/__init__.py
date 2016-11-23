@@ -15,7 +15,7 @@
     cursor.execute("select * from users where id = 1")
 
     # Use a pin to specify metadata related to this connection
-    Pin.get_from(db).service = 'postgres-users'
+    Pin.override(db, service='postgres-users')
 """
 from ..util import require_modules
 

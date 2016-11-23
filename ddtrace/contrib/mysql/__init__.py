@@ -15,7 +15,7 @@
     cursor.execute("SELECT 6*7 AS the_answer;")
 
     # Use a pin to specify metadata related to this connection
-    Pin.get_from(conn).service = 'mysql-users'
+    Pin.override(conn, service='mysql-users')
 
 This package works for mysql.connector version 2.1.x.
 Only the default full-Python integration works. The binary C connector,

@@ -15,7 +15,7 @@
     cursor.execute("select * from users where id = 1")
 
     # Use a pin to specify metadata related to this connection
-    Pin.get_from(db).service = 'sqlite-users'
+    Pin.override(db, service='sqlite-users')
 """
 from .connection import connection_factory
 from .patch import patch

@@ -14,9 +14,7 @@
 
     # Use a pin to specify metadata related to this client
     client = mongoengine.connect('db', alias='master')
-    pin = Pin.get_from(client)
-    if pin:
-        pin.clone(service="mongo-master").onto(client)
+    Pin.override(client, service="mongo-master")
 """
 
 from ..util import require_modules

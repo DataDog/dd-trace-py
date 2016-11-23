@@ -16,7 +16,7 @@
 
     # Use a pin to specify metadata related to this client
     es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-    Pin(service='elasticsearch-videos').onto(es)
+    Pin.override(es, service='elasticsearch-videos')
     es.indices.create(index='videos', ignore=400)
 """
 from ..util import require_modules
