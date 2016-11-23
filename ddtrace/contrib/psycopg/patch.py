@@ -38,7 +38,7 @@ def patch_conn(conn):
         "db.application" : dsn.get("application_name"),
     }
 
-    Pin.new(
+    Pin(
         service="postgres",
         app="postgres",
         app_type="db",

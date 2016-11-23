@@ -33,7 +33,7 @@ class TracedElasticsearch(wrapt.ObjectProxy):
         es = _Elasticsearch(*args, **kwargs)
         super(TracedElasticsearch, self).__init__(es)
 
-        pin = Pin.new(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db")
+        pin = Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db")
         pin.onto(self)
 
         wrapt.wrap_function_wrapper(es.transport, 'perform_request', _perform_request)

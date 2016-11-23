@@ -41,7 +41,7 @@ class TracedClient(ObjectProxy):
 
         super(TracedClient, self).__init__(client)
 
-        pin = ddtrace.Pin.new(service=service, tracer=tracer)
+        pin = ddtrace.Pin(service=service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to

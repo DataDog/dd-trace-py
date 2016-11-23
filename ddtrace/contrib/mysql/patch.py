@@ -34,7 +34,7 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
 
     tags = {t: getattr(conn, a, '') for t, a in CONN_ATTR_BY_TAG.items()}
-    pin = Pin.new(service="mysql", app="mysql", app_type="db", tags=tags)
+    pin = Pin(service="mysql", app="mysql", app_type="db", tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn)

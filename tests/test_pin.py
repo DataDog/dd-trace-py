@@ -8,7 +8,7 @@ def test_pin():
         pass
 
     a = A()
-    pin = Pin.new(service="abc")
+    pin = Pin(service="abc")
     pin.onto(a)
 
     got = Pin.get_from(a)
@@ -23,17 +23,17 @@ def test_cant_pin():
     t = Thing()
     t.t = 1
 
-    Pin.new(service="a").onto(t)
+    Pin(service="a").onto(t)
 
 def test_cant_modify():
-    p = Pin.new(service="abc")
+    p = Pin(service="abc")
     try:
         p.service = "other"
     except AttributeError:
         pass
 
 def test_copy():
-    p1 = Pin.new(service="a", app="app_type", tags={"a":"b"})
+    p1 = Pin(service="a", app="app_type", tags={"a":"b"})
     p2 = p1.clone(service="b")
     assert p1.service == "a"
     assert p2.service == "b"
@@ -47,7 +47,7 @@ def test_none():
     assert None is Pin.get_from(None)
 
 def test_repr():
-    p = Pin.new(service="abc")
+    p = Pin(service="abc")
     assert p.service == "abc"
     assert 'abc' in str(p)
 
@@ -55,7 +55,7 @@ def test_override():
     class A(object):
         pass
 
-    Pin.new(service="foo", app="blah").onto(A)
+    Pin(service="foo", app="blah").onto(A)
     a = A()
     Pin.override(a, app="bar")
     eq_(Pin.get_from(a).app, "bar")
