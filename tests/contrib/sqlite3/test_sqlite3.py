@@ -44,9 +44,9 @@ class TestSQLite(object):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
-            pin.service = service
-            pin.tracer = tracer
-            pin.onto(db)
+            pin.clone(
+                service=service,
+                tracer=tracer).onto(db)
 
             # Ensure we can run a query and it's correctly traced
             q = "select * from sqlite_master"
@@ -99,7 +99,9 @@ class TestSQLite(object):
         patch()
 
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db).tracer = tracer
+        pin = Pin.get_from(db)
+        assert pin 
+        pin.clone(tracer=tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         spans = writer.pop()
@@ -119,7 +121,9 @@ class TestSQLite(object):
         patch()
 
         db = sqlite3.connect(":memory:")
-        Pin.get_from(db).tracer = tracer
+        pin = Pin.get_from(db)
+        assert pin 
+        pin.clone(tracer=tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
         spans = writer.pop()

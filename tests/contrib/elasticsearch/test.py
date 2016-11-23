@@ -138,7 +138,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
         tracer = get_dummy_tracer()
         writer = tracer.writer
-        pin = Pin(service=self.TEST_SERVICE, tracer=tracer)
+        pin = Pin.new(service=self.TEST_SERVICE, tracer=tracer)
         pin.onto(es)
 
         # Test index creation
@@ -215,7 +215,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es)
+        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(es)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -239,7 +239,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es)
+        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(es)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)

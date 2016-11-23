@@ -25,7 +25,7 @@ def patch():
     _w('redis', 'Redis.pipeline', traced_pipeline)
     _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
     _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
-    Pin(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
+    Pin.new(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
 
 def unpatch():
     if getattr(redis, '_datadog_patch', False):

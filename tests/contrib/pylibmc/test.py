@@ -193,7 +193,7 @@ class TestPylibmcPatchDefault(PylibmcCore):
         client.flush_all()
 
         tracer = get_dummy_tracer()
-        Pin.get_from(client).tracer = tracer
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return client, tracer
 
@@ -205,7 +205,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
     def get_client(self):
         client, tracer = TestPylibmcPatchDefault.get_client(self)
 
-        Pin.get_from(client).service = self.TEST_SERVICE
+        Pin.get_from(client).clone(service=self.TEST_SERVICE).onto(client)
 
         return client, tracer
 
@@ -219,7 +219,10 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin.get_from(client).clone(
+            service=self.TEST_SERVICE,
+            tracer=tracer).onto(client)
+
         client.set("a", 1)
 
         spans = writer.pop()
@@ -239,7 +242,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         client.set("a", 1)
 
         spans = writer.pop()

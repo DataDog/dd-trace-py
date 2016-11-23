@@ -32,14 +32,11 @@ def _connect(func, instance, args, kwargs):
     return patch_conn(conn)
 
 def patch_conn(conn):
-    # default pin
-    pin = Pin(service="mysql", app="mysql")
+
+    tags = {t: getattr(conn, a, '') for t, a in CONN_ATTR_BY_TAG.items()}
+    pin = Pin.new(service="mysql", app="mysql", app_type="db", tags=tags)
 
     # grab the metadata from the conn
-    pin.tags = {}
-    for tag, attr in CONN_ATTR_BY_TAG.items():
-        pin.tags[tag] = getattr(conn, attr, '')
-
     wrapped = TracedConnection(conn)
     pin.onto(wrapped)
     return wrapped

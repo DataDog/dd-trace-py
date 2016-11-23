@@ -1,4 +1,5 @@
 
+from collections import namedtuple
 import logging
 
 import ddtrace
@@ -7,7 +8,15 @@ import ddtrace
 log = logging.getLogger(__name__)
 
 
-class Pin(object):
+_pin = namedtuple('_pin', [
+    'service',
+    'app',
+    'app_type',
+    'tags',
+    'tracer'])
+
+
+class Pin(_pin):
     """ Pin (a.k.a Patch INfo) is a small class which is used to
         set tracing metadata on a particular traced connection.
         This is useful if you wanted to, say, trace two different
@@ -16,15 +25,23 @@ class Pin(object):
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> pin = Pin.get_from(conn)
         >>> if pin:
-                pin.service = "user-db"
-                pin.onto(conn)
+                pin.copy(service="user-db").onto(conn)
         >>> conn = sqlite.connect("/tmp/image.db")
         >>> pin = Pin.get_from(conn)
         >>> if pin:
-                pin.service = "image-db"
-                pin.onto(conn)
-
+                pin.copy(service="image-db").onto(conn)
     """
+
+    @staticmethod
+    def new(service, app=None, app_type=None, tags=None, tracer=None):
+        """ Return a new pin. Convience funtion with sane defaults. """
+        tracer = tracer or ddtrace.tracer
+        return Pin(
+            service=service,
+            app=app,
+            app_type=app_type,
+            tags=tags,
+            tracer=tracer)
 
     @staticmethod
     def get_from(obj):
@@ -36,17 +53,21 @@ class Pin(object):
             return obj.__getddpin__()
         return getattr(obj, '_datadog_pin', None)
 
-    def __init__(self, service, app=None, app_type=None, tracer=None, tags=None):
-        self.service = service      # the internal name of a system
-        self.app = app              # the 'product' name of a software (e.g postgres)
-        self.tags = tags            # some tags on this instance.
-        self.app_type = app_type    # db, web, etc
+    @classmethod
+    def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+        if not obj:
+            return
 
-        # the name of the operation we're measuring (rarely used)
-        self.name = None
-        # optionally specify an alternate tracer to use. this will
-        # mostly be used by tests.
-        self.tracer = tracer or ddtrace.tracer
+        pin = cls.get_from(obj)
+        if not pin:
+            pin = Pin.new(service)
+
+        pin.clone(
+            service=service,
+            app=app,
+            app_type=app_type,
+            tags=tags,
+            tracer=tracer).onto(obj)
 
     def enabled(self):
         """ Return true if this pin's tracer is enabled. """
@@ -71,18 +92,23 @@ class Pin(object):
                 return obj.__setddpin__(self)
             return setattr(obj, '_datadog_pin', self)
         except AttributeError:
-            log.warn("can't pin onto object", exc_info=True)
+            log.warn("can't pin onto object. skipping", exc_info=True)
+
+    def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
+        """ Return a clone of the pin with the given attributes replaced. """
+        if not tags and self.tags:
+            # do a shallow copy of the tags if needed.
+            tags = {k:v for k, v in self.tags.items()}
+
+        return Pin(
+            service=service or self.service,
+            app=app or self.app,
+            app_type=app_type or self.app_type,
+            tags=tags,
+            tracer=tracer or self.tracer) # no copy of the tracer
 
     def _send(self):
         self.tracer.set_service_info(
             service=self.service,
             app=self.app,
             app_type=self.app_type)
-
-    def __repr__(self):
-        return "Pin(service:%s,app:%s,app_type:%s,name:%s)" % (
-            self.service,
-            self.app,
-            self.app_type,
-            self.name)
-

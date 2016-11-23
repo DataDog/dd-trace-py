@@ -73,21 +73,16 @@ class TestRedisPatch(object):
 
     def get_redis_and_tracer(self):
         tracer = get_dummy_tracer()
-
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        import copy
-        pin = copy.copy(Pin.get_from(r))
-        assert pin, pin
-        pin.service = self.TEST_SERVICE
-        pin.tracer = tracer
-        pin.onto(r)
-
+        Pin.override(r, service=self.TEST_SERVICE, tracer=tracer)
         return r, tracer
 
     def test_meta_override(self):
         r, tracer = self.get_redis_and_tracer()
+        pin = Pin.get_from(r)
+        if pin:
+            pin.clone(tags={'cheese': 'camembert'}).onto(r)
 
-        Pin.get_from(r).tags = {'cheese': 'camembert'}
         r.get('cheese')
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
@@ -104,7 +99,7 @@ class TestRedisPatch(object):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        Pin.get_from(r).tracer = tracer
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = writer.pop()
@@ -124,7 +119,7 @@ class TestRedisPatch(object):
         patch()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        Pin.get_from(r).tracer = tracer
+        Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
         spans = writer.pop()

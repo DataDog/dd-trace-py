@@ -246,7 +246,7 @@ class TestPymongoPatchDefault(PymongoCore):
     def get_tracer_and_client(self):
         tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).tracer = tracer
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
         return tracer, client
 
 class TestPymongoPatchConfigured(PymongoCore):
@@ -263,7 +263,7 @@ class TestPymongoPatchConfigured(PymongoCore):
     def get_tracer_and_client(self):
         tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         return tracer, client
 
     def test_patch_unpatch(self):
@@ -275,7 +275,7 @@ class TestPymongoPatchConfigured(PymongoCore):
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).tracer = tracer
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
 
         spans = writer.pop()
@@ -295,7 +295,7 @@ class TestPymongoPatchConfigured(PymongoCore):
         patch()
 
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.get_from(client).tracer = tracer
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
 
         spans = writer.pop()

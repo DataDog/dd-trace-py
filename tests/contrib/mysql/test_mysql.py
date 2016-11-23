@@ -156,9 +156,8 @@ class TestMysqlPatch(MySQLCore):
             assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.service = self.TEST_SERVICE
-            pin.tracer = tracer
-            pin.onto(self.conn)
+            pin.clone(
+                service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
 
             return self.conn, tracer
 
@@ -176,9 +175,8 @@ class TestMysqlPatch(MySQLCore):
             conn = mysql.connector.connect(**MYSQL_CONFIG)
             pin = Pin.get_from(conn)
             assert pin
-            pin.tracer = tracer
-            pin.service = self.TEST_SERVICE
-            pin.onto(conn)
+            pin.clone(
+                service=self.TEST_SERVICE, tracer=tracer).onto(conn)
             assert conn.is_connected()
 
             cursor = conn.cursor()
