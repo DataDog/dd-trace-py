@@ -1,17 +1,20 @@
+import os
 import json
 import logging
 
 
 # check msgpack CPP implementation; if the import fails, we're using the
 # pure Python implementation that is really slow, so the ``Encoder`` should use
-# a different encoding format
+# a different encoding format. To enable msgpack encoding, you should set
+# the ``DD_MSGPACK_ENCODING=1`` environment variable otherwise, the ``JSONEncoder``
+# will be used as a default.
 try:
     import msgpack
     from msgpack._packer import Packer  # noqa
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
-    MSGPACK_CPP = True
+    MSGPACK_ENCODING = os.getenv('DD_MSGPACK_ENCODING') == '1'  # shortcut to accept only '1'
 except ImportError:
-    MSGPACK_CPP = False
+    MSGPACK_ENCODING = False
 
 log = logging.getLogger(__name__)
 
@@ -82,7 +85,7 @@ def get_encoder():
     The default behavior is to use Msgpack if we have a CPP implementation
     installed, falling back to the Python built-in JSON encoder.
     """
-    if MSGPACK_CPP:
+    if MSGPACK_ENCODING:
         return MsgpackEncoder()
     else:
         return JSONEncoder()
