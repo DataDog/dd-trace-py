@@ -2,8 +2,23 @@
 Generic utilities for tracers
 """
 
+from functools import wraps
 import inspect
+import logging
 
+def deprecated(message='', version=None):
+    """Function decorator to report a deprecated function"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            logger = logging.getLogger(func.__module__)
+            logger.warning("%s is deprecated and will be remove in future versions%s. %s",
+                           func.__name__,
+                           ' (%s)' % version if version else '',
+                           message)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 def deep_getattr(obj, attr_string, default=None):
     """

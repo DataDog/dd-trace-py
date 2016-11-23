@@ -8,7 +8,7 @@ import wrapt
 # project
 from ddtrace import Pin
 from ddtrace.compat import stringify
-from ...util import deep_getattr
+from ...util import deep_getattr, deprecated
 from ...ext import net, cassandra as cassx
 from ...ext import AppTypes
 
@@ -58,7 +58,7 @@ def traced_execute(func, instance, args, kwargs):
                 span.set_tags(_extract_result_metas(result))
 
 
-# deprecated
+@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def get_traced_cassandra(tracer, service=SERVICE, meta=None):
     return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
 
