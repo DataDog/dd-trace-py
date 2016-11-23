@@ -15,10 +15,6 @@ class Pin(object):
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
         >>> conn = sqlite.connect("/tmp/image.db")
-        >>> # Also possible by cloning
-        >>> pin = Pin.get_from(conn)
-        >>> if pin:
-                pin.clone(service="image-db").onto(conn)
     """
 
     __slots__ = ['app', 'app_type', 'service', 'tags', 'tracer', '_initialized']
@@ -53,6 +49,15 @@ class Pin(object):
 
     @classmethod
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+        """Override an object with the given attributes.
+
+        That's the recommended way to customize an already instrumented client, without
+        losing existing attributes.
+
+        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> # Override a pin for a specific connection
+        >>> pin = Pin.override(conn, service="user-db")
+        """
         if not obj:
             return
 
