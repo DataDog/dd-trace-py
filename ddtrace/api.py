@@ -3,7 +3,7 @@ import logging
 import time
 
 # project
-import ddtrace.encoding
+from .encoding import get_encoder
 from .compat import httplib
 
 
@@ -14,17 +14,21 @@ class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
     """
-    def __init__(self, hostname, port, wait_response=False):
+    def __init__(self, hostname, port, wait_response=False, headers=None, encoder=None):
         self.hostname = hostname
         self.port = port
-        self.headers = { 'Content-Type': 'application/json' }
+        self._encoder = encoder or get_encoder()
         self._wait_response = wait_response
+
+        # overwrite the Content-type with the one chosen in the Encoder
+        self._headers = headers or {}
+        self._headers.update({'Content-Type': self._encoder.content_type})
 
     def send_traces(self, traces):
         if not traces:
             return
         start = time.time()
-        data = ddtrace.encoding.encode_traces(traces)
+        data = self._encoder.encode_traces(traces)
         response = self._send_span_data(data)
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
@@ -36,15 +40,15 @@ class API(object):
         s = {}
         for service in services:
             s.update(service)
-        data = ddtrace.encoding.encode_services(s)
-        return self._put("/services", data, self.headers)
+        data = self._encoder.encode_services(s)
+        return self._put("/v0.2/services", data)
 
     def _send_span_data(self, data):
-        return self._put("/spans", data, self.headers)
+        return self._put("/v0.2/traces", data)
 
-    def _put(self, endpoint, data, headers):
+    def _put(self, endpoint, data):
         conn = httplib.HTTPConnection(self.hostname, self.port)
-        conn.request("PUT", endpoint, data, self.headers)
+        conn.request("PUT", endpoint, data, self._headers)
 
         # read the server response only if the
         # API object is configured to do so

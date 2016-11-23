@@ -1,5 +1,6 @@
 import sys
 
+
 PY2 = sys.version_info[0] == 2
 
 stringify = str
@@ -24,16 +25,13 @@ try:
 except ImportError:
     from urllib import parse as urlparse
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
 
 def iteritems(obj, **kwargs):
     func = getattr(obj, "iteritems", None)
     if not func:
         func = obj.items
     return func(**kwargs)
+
 
 def to_unicode(s):
     """ Return a unicode string for the given bytes or string instance. """
@@ -56,16 +54,17 @@ def to_unicode(s):
 
 if PY2:
     string_type = basestring
+    msgpack_type = basestring
     numeric_types = (int, long, float)
 else:
     string_type = str
+    msgpack_type = bytes
     numeric_types = (int, float)
 
 
 __all__ = [
     'httplib',
     'iteritems',
-    'json',
     'PY2',
     'Queue',
     'stringify',

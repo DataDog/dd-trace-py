@@ -1,8 +1,10 @@
+import json
+
 from elasticsearch import Transport
 
 from .quantize import quantize
 from . import metadata
-from ...compat import json, urlencode
+from ...compat import urlencode
 from ...ext import AppTypes
 from ...util import deprecated
 

@@ -1,10 +1,11 @@
 import elasticsearch
 import wrapt
+import json
 
 from . import metadata
 from .quantize import quantize
 
-from ...compat import json, urlencode
+from ...compat import urlencode
 from ...pin import Pin
 
 
