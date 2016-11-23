@@ -1,5 +1,4 @@
 import json
-import msgpack
 import logging
 
 
@@ -7,6 +6,7 @@ import logging
 # pure Python implementation that is really slow, so the ``Encoder`` should use
 # a different encoding format
 try:
+    import msgpack
     from msgpack._packer import Packer  # noqa
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
     MSGPACK_CPP = True
