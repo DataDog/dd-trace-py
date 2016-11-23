@@ -146,7 +146,7 @@ class TestCassPatchAll(TestCassPatchDefault):
     def _traced_session(self):
         tracer = get_dummy_tracer()
         # pin the global Cluster to test if they will conflict
-        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
         cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
         return cluster.connect(self.TEST_KEYSPACE), tracer.writer
@@ -168,10 +168,10 @@ class TestCassPatchOne(TestCassPatchDefault):
     def _traced_session(self):
         tracer = get_dummy_tracer()
         # pin the global Cluster to test if they will conflict
-        Pin.new(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
+        Pin(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
         cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
-        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(cluster)
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(cluster)
         return cluster.connect(self.TEST_KEYSPACE), tracer.writer
 
     def test_patch_unpatch(self):

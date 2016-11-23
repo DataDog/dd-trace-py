@@ -16,9 +16,7 @@
     client.set("key1", "value1")
 
     # Use a pin to specify metadata related to this client
-    pin = Pin.get_from(client)
-    if pin:
-        pin.clone(service="memcached-sessions").onto(client)
+    Pin.override(client, service="memcached-sessions")
 """
 
 from ..util import require_modules

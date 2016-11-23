@@ -263,7 +263,7 @@ class TestPymongoPatchConfigured(PymongoCore):
     def get_tracer_and_client(self):
         tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
-        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         return tracer, client
 
     def test_patch_unpatch(self):

@@ -30,7 +30,7 @@ def trace_mongo_client(client, tracer, service=mongox.TYPE):
         app_type=AppTypes.db,
     )
     traced_client = TracedMongoClient(client)
-    ddtrace.Pin.new(service=service, tracer=tracer).onto(traced_client)
+    ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
     return traced_client
 
 
@@ -46,7 +46,7 @@ class TracedMongoClient(ObjectProxy):
 
         super(TracedMongoClient, self).__init__(client)
         # Default Pin
-        ddtrace.Pin.new(service=mongox.TYPE).onto(self)
+        ddtrace.Pin(service=mongox.TYPE).onto(self)
         # NOTE[matt] the TracedMongoClient attempts to trace all of the network
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which

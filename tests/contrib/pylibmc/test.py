@@ -242,7 +242,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin.new(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
         client.set("a", 1)
 
         spans = writer.pop()

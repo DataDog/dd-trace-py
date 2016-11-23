@@ -1,47 +1,41 @@
-
-from collections import namedtuple
 import logging
 
 import ddtrace
 
-
 log = logging.getLogger(__name__)
 
 
-_pin = namedtuple('_pin', [
-    'service',
-    'app',
-    'app_type',
-    'tags',
-    'tracer'])
-
-
-class Pin(_pin):
+class Pin(object):
     """ Pin (a.k.a Patch INfo) is a small class which is used to
         set tracing metadata on a particular traced connection.
         This is useful if you wanted to, say, trace two different
         database clusters clusters.
 
         >>> conn = sqlite.connect("/tmp/user.db")
-        >>> pin = Pin.get_from(conn)
-        >>> if pin:
-                pin.copy(service="user-db").onto(conn)
+        >>> # Override a pin for a specific connection
+        >>> pin = Pin.override(conn, service="user-db")
         >>> conn = sqlite.connect("/tmp/image.db")
-        >>> pin = Pin.get_from(conn)
-        >>> if pin:
-                pin.copy(service="image-db").onto(conn)
     """
 
-    @staticmethod
-    def new(service, app=None, app_type=None, tags=None, tracer=None):
-        """ Return a new pin. Convience funtion with sane defaults. """
+    __slots__ = ['app', 'app_type', 'service', 'tags', 'tracer', '_initialized']
+
+    def __init__(self, service, app=None, app_type=None, tags=None, tracer=None):
         tracer = tracer or ddtrace.tracer
-        return Pin(
-            service=service,
-            app=app,
-            app_type=app_type,
-            tags=tags,
-            tracer=tracer)
+        self.service = service
+        self.app = app
+        self.app_type = app_type
+        self.tags = tags
+        self.tracer = tracer
+        self._initialized = True
+
+    def __setattr__(self, name, value):
+        if hasattr(self, '_initialized'):
+            raise AttributeError("can't mutate a pin, use override() or clone() instead")
+        super(Pin, self).__setattr__(name, value)
+
+    def __repr__(self):
+        return "Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)" % (
+            self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
     def get_from(obj):
@@ -55,12 +49,21 @@ class Pin(_pin):
 
     @classmethod
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+        """Override an object with the given attributes.
+
+        That's the recommended way to customize an already instrumented client, without
+        losing existing attributes.
+
+        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> # Override a pin for a specific connection
+        >>> pin = Pin.override(conn, service="user-db")
+        """
         if not obj:
             return
 
         pin = cls.get_from(obj)
         if not pin:
-            pin = Pin.new(service)
+            pin = Pin(service)
 
         pin.clone(
             service=service,
