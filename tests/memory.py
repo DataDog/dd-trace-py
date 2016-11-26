@@ -11,16 +11,22 @@ import time
 import sys
 
 # 3p
+import pylibmc
 import pympler.tracker
 import psycopg2
 import redis
+
 
 # project
 import ddtrace
 from tests.contrib import config
 
 
-ddtrace.patch(redis=True)
+# verbosity
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+ddtrace.tracer.debug_logging = False
+
+ddtrace.patch_all()
 ddtrace.tracer.writer = None
 
 
@@ -30,9 +36,15 @@ class KitchenSink(object):
         self._redis = redis.Redis(**config.REDIS_CONFIG)
         self._pg = psycopg2.connect(**config.POSTGRES_CONFIG)
 
+        url = "%s:%s" % (
+            config.MEMCACHED_CONFIG["host"],
+            config.MEMCACHED_CONFIG["port"])
+        self._pylibmc = pylibmc.Client([url])
+
     def ping(self, i):
         self._ping_redis(i)
         self._ping_pg(i)
+        self._ping_pylibmc(i)
 
     def _ping_redis(self, i):
         with self._redis.pipeline() as p:
@@ -48,6 +60,10 @@ class KitchenSink(object):
         finally:
             cur.close()
 
+    def _ping_pylibmc(self, i):
+        self._pylibmc.set("a", 1)
+        self._pylibmc.incr("a", 2)
+        self._pylibmc.decr("a", 1)
 
 if __name__ == '__main__':
     k = KitchenSink()
