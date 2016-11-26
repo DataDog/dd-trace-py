@@ -6,7 +6,7 @@ import redis
 from nose.tools import eq_, ok_
 
 from ddtrace import Pin, compat
-from ddtrace.contrib.redis import get_traced_redis
+from ddtrace.contrib.redis import get_traced_redis, get_traced_redis_from
 from ddtrace.contrib.redis.patch import patch, unpatch
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
