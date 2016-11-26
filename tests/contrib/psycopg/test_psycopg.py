@@ -169,3 +169,10 @@ class TestPsycopgPatch(PsycopgCore):
         spans = writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
+
+def test_backwards_compatibilty_v3():
+    tracer = get_dummy_tracer()
+    factory = connection_factory(tracer, service="my-postgres-db")
+    conn = psycopg2.connect(connection_factory=factory, **POSTGRES_CONFIG)
+    conn.cursor().execute("select 'blah'")
+

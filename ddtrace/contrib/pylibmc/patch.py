@@ -10,5 +10,5 @@ def patch():
     setattr(pylibmc, 'Client', TracedClient)
 
 def unpatch():
-    setattr(pylibmc, 'Elasticsearch', _Client)
+    setattr(pylibmc, 'Client', _Client)
 
