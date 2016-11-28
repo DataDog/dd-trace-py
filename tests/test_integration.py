@@ -161,8 +161,8 @@ class TestAPITransport(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 7777, wait_response=True, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 7777, wait_response=True, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 7777, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 7777, encoder=MsgpackEncoder())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
