@@ -67,7 +67,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -84,7 +84,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
         eq_(len(payload[1]), 1)
@@ -104,7 +104,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -122,7 +122,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/services')
+        eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
 
@@ -139,7 +139,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/services')
+        eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
         eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
