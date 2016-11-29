@@ -19,6 +19,7 @@ class API(object):
         self.port = port
         self._traces = '/v0.3/traces'
         self._services = '/v0.3/services'
+        self._compatibility_mode = False
         self._encoder = encoder or get_encoder()
 
         # overwrite the Content-type with the one chosen in the Encoder
@@ -27,10 +28,12 @@ class API(object):
 
     def _downgrade(self):
         """
-        Downgrades the used encoder and API level. This method must
-        fallback to a safe encoder and API, so that it will success
-        despite users' configuration
+        Downgrades the used encoder and API level. This method must fallback to a safe
+        encoder and API, so that it will success despite users' configurations. This action
+        ensures that the compatibility mode is activated so that the downgrade will be
+        executed only once.
         """
+        self._compatibility_mode = True
         self._traces = '/v0.2/traces'
         self._services = '/v0.2/services'
         self._encoder = JSONEncoder()
@@ -43,10 +46,9 @@ class API(object):
         data = self._encoder.encode_traces(traces)
         response = self._put(self._traces, data)
 
-        # the API endpoint is not available so we should
-        # downgrade the connection and re-try the call
-        if response.status == 404:
-            log.debug('calling the endpoint "%s" but received 404; downgrading the API', self._traces)
+        # the API endpoint is not available so we should downgrade the connection and re-try the call
+        if response.status in [404, 415] and self._compatibility_mode is False:
+            log.debug('calling the endpoint "%s" but received %s; downgrading the API', self._traces, response.status)
             self._downgrade()
             return self.send_traces(traces)
 
@@ -62,9 +64,8 @@ class API(object):
         data = self._encoder.encode_services(s)
         response = self._put(self._services, data)
 
-        # the API endpoint is not available so we should
-        # downgrade the connection and re-try the call
-        if response.status == 404:
+        # the API endpoint is not available so we should downgrade the connection and re-try the call
+        if response.status in [404, 415] and self._compatibility_mode is False:
             log.debug('calling the endpoint "%s" but received 404; downgrading the API', self._services)
             self._downgrade()
             return self.send_services(services)
