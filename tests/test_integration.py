@@ -10,7 +10,7 @@ from nose.tools import eq_, ok_
 from ddtrace.api import API
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
-from ddtrace.encoding import JSONEncoder, MsgpackEncoder
+from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -67,7 +67,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -84,7 +84,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
         eq_(len(payload[1]), 1)
@@ -104,7 +104,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/traces')
+        eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -122,7 +122,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/services')
+        eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
 
@@ -139,7 +139,7 @@ class TestWorkers(TestCase):
         # check arguments
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
-        eq_(endpoint, '/v0.2/services')
+        eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
         eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
@@ -161,8 +161,8 @@ class TestAPITransport(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 7777, wait_response=True, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 7777, wait_response=True, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 7777, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 7777, encoder=MsgpackEncoder())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -278,3 +278,44 @@ class TestAPITransport(TestCase):
         response = self.api_msgpack.send_services(services)
         ok_(response)
         eq_(response.status, 200)
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestAPIDowngrade(TestCase):
+    """
+    Ensures that if the tracing client found an earlier trace agent,
+    it will downgrade the current connection to a stable API version
+    """
+    def test_get_encoder_default(self):
+        # get_encoder should return MsgpackEncoder instance if
+        # msgpack and the CPP implementaiton are available
+        encoder = get_encoder()
+        ok_(isinstance(encoder, MsgpackEncoder))
+
+    @mock.patch('ddtrace.encoding.MSGPACK_ENCODING', False)
+    def test_get_encoder_fallback(self):
+        # get_encoder should return JSONEncoder instance if
+        # msgpack or the CPP implementaiton, are not available
+        encoder = get_encoder()
+        ok_(isinstance(encoder, JSONEncoder))
+
+    def test_downgrade_api(self):
+        # make a call to a not existing endpoint, downgrades
+        # the current API to a stable one
+        tracer = get_dummy_tracer()
+        tracer.trace('client.testing').finish()
+        trace = tracer.writer.pop()
+
+        # the encoder is right but we're targeting an API
+        # endpoint that is not available
+        api = API('localhost', 7777)
+        api._traces = '/v0.0/traces'
+        ok_(isinstance(api._encoder, MsgpackEncoder))
+
+        # after the call, we downgrade to a working endpoint
+        response = api.send_traces([trace])
+        ok_(response)
+        eq_(response.status, 200)
+        ok_(isinstance(api._encoder, JSONEncoder))
