@@ -172,6 +172,11 @@ Cassandra
 
 .. automodule:: ddtrace.contrib.cassandra
 
+Elasticsearch
+~~~~~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.elasticsearch
+
 Flask Cache
 ~~~~~~~~~~~
 
