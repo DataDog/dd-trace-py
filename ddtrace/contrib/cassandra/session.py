@@ -10,7 +10,6 @@ from ddtrace import Pin
 from ddtrace.compat import stringify
 from ...util import deep_getattr, deprecated
 from ...ext import net, cassandra as cassx
-from ...ext import AppTypes
 
 
 RESOURCE_MAX_LENGTH = 5000
@@ -117,7 +116,7 @@ def _sanitize_query(span, query):
     resource = None
     if t in ('SimpleStatement', 'PreparedStatement'):
         # reset query if a string is available
-        resource  = getattr(query, "query_string", query)
+        resource = getattr(query, "query_string", query)
     elif t == 'BatchStatement':
         resource = 'BatchStatement'
         q = "; ".join(q[1] for q in query._statements_and_parameters[:2])
