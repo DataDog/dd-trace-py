@@ -45,7 +45,7 @@ def traced_execute(func, instance, args, kwargs):
     query = kwargs.get("kwargs") or args[0]
 
     with tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE) as span:
-        span = _sanitize_query(span, query)
+        _sanitize_query(span, query)
         span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
         span.set_tags(_extract_cluster_metas(cluster))
         result = None
@@ -80,17 +80,23 @@ def _extract_result_metas(result):
     metas = {}
     if not result:
         return metas
+
     future = getattr(result, "response_future", None)
+
     if future:
+        # get the host
         host = getattr(future, "coordinator_host", None)
         if host:
             metas[net.TARGET_HOST] = host
+        elif hasattr(future, '_current_host'):
+            address = deep_getattr(future, '_current_host.address')
+            if address:
+                metas[net.TARGET_HOST] = address
+
         query = getattr(future, "query", None)
         if getattr(query, "consistency_level", None):
             metas[cassx.CONSISTENCY_LEVEL] = query.consistency_level
         if getattr(query, "keyspace", None):
-            # Overrides session.keyspace if the query has been prepared against a particular
-            # keyspace.
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
     if hasattr(result, "has_more_pages"):
@@ -106,10 +112,6 @@ def _extract_result_metas(result):
     return metas
 
 def _sanitize_query(span, query):
-    """ Sanitize the query to something ready for the agent receiver
-    - Cast to unicode
-    - truncate if needed
-    """
     # TODO (aaditya): fix this hacky type check. we need it to avoid circular imports
     t = type(query).__name__
 
@@ -126,11 +128,12 @@ def _sanitize_query(span, query):
         ps = getattr(query, 'prepared_statement', None)
         if ps:
             resource = getattr(ps, 'query_string', None)
+    elif t == 'str':
+        resource = query
     else:
         resource = 'unknown-query-type' # FIXME[matt] what else do to here?
 
     span.resource = stringify(resource)[:RESOURCE_MAX_LENGTH]
-    return span
 
 
 #
