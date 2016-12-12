@@ -214,7 +214,7 @@ def normalize_filter(f=None):
         return out
     else:
         # FIXME[matt] unexpected type. not sure this should ever happen, but at
-        # least it won't crash. See #125
+        # least it won't crash.
         return {}
 
 def _set_address_tags(span, address):
