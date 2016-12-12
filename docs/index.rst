@@ -88,6 +88,39 @@ reduces performance overhead.
     sample_rate = 0.5
     tracer.sampler = RateSampler(sample_rate)
 
+Cross-Host Tracing
+--------
+
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`::
+
+    def trace_request_on_secondary_host(parent_trace_id, parent_span_id):
+    with tracer.trace("child_span") as span:
+            span.parent_id = parent_span_id
+            span.trace_id = parent_trace_id
+
+
+Users can pass along the parent_trace_id and parent_span_id via whatever method best matches the RPC framework. For example, with HTTP headers::
+
+    # Python (Flask) example with Requests
+    def parent_rpc_call():
+    with tracer.trace("parent_span") as span:
+    import requests
+    headers = {'x-ddtrace-parent_trace_id':span.trace_id,
+               'x-ddtrace-parent_span_id':span.span_id}
+    url = <some RPC endpoint>
+    r = requests.get(url, headers=headers) 
+
+
+    from flask import request
+    parent_trace_id = request.headers.get(‘x-ddtrace-parent_trace_id‘)
+    parent_span_id = request.headers.get(‘x-ddtrace-parent_span_id‘)
+    child_rpc_call(parent_trace_id, parent_span_id)
+
+
+    def child_rpc_call(parent_trace_id, parent_span_id):
+    with tracer.trace("child_span") as span:
+            span.parent_id = parent_span_id
+            span.trace_id = parent_trace_id
 
 
 Glossary
