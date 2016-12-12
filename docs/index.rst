@@ -88,7 +88,7 @@ reduces performance overhead.
     sample_rate = 0.5
     tracer.sampler = RateSampler(sample_rate)
 
-Cross-Host Tracing
+Distributed Tracing
 ~~~~~~~~~~~~~~~~~~
 
 To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`::
