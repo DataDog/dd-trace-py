@@ -23,9 +23,9 @@ namespace :docker do
   task :up do
     sh "docker-compose up -d | cat"
   end
-  
+
   task :down do
-    sh "docker-compose kill"
+    sh "docker-compose down"
   end
 end
 
