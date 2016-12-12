@@ -197,17 +197,25 @@ def normalize_filter(f=None):
         # normalize lists of filters
         # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]}
         return [normalize_filter(s) for s in f]
-    else:
+    elif isinstance(f, dict):
         # normalize dicts of filters
-        # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
+        #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         out = {}
         for k, v in iteritems(f):
-            if isinstance(v, list) or isinstance(v, dict):
+            if k == "$in" or k == "$nin":
+                # special case $in queries so we don't loop over lists.
+                out[k] = "?"
+            elif isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
                 out[k] = normalize_filter(v)
             else:
+                # NOTE: this shouldn't happen, but let's have a safeguard.
                 out[k] = '?'
         return out
+    else:
+        # FIXME[matt] unexpected type. not sure this should ever happen, but at
+        # least it won't crash.
+        return {}
 
 def _set_address_tags(span, address):
     # the address is only set after the cursor is done.
