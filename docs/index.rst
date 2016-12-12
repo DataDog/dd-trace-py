@@ -123,7 +123,7 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
 
 
 Glossary
-~~~~~~~~
+--------
 
 **Service**
 
