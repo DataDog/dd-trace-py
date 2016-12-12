@@ -198,14 +198,18 @@ def normalize_filter(f=None):
         # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]}
         return [normalize_filter(s) for s in f]
     elif isinstance(f, dict):
-        out = {}
         # normalize dicts of filters
-        # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
+        #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
+        out = {}
         for k, v in iteritems(f):
-            if isinstance(v, list) or isinstance(v, dict):
+            if k == "$in" or k == "$nin":
+                # special case $in queries so we don't loop over lists.
+                out[k] = "?"
+            elif isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
                 out[k] = normalize_filter(v)
             else:
+                # NOTE: this shouldn't happen, but let's have a safeguard.
                 out[k] = '?'
         return out
     else:
