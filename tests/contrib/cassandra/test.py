@@ -1,10 +1,13 @@
 
 # stdlib
+import logging
 import unittest
 
 # 3p
 from nose.tools import eq_
+from nose.plugins.attrib import attr
 from cassandra.cluster import Cluster
+from cassandra.query import BatchStatement, SimpleStatement
 
 # project
 from tests.contrib.config import CASSANDRA_CONFIG
@@ -13,6 +16,9 @@ from ddtrace.contrib.cassandra.patch import patch, unpatch
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
 from ddtrace.ext import net, cassandra as cassx, errors
 from ddtrace import Pin
+
+
+logging.getLogger('cassandra').setLevel(logging.INFO)
 
 
 class CassandraBase(object):
@@ -37,12 +43,17 @@ class CassandraBase(object):
 
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
         session = self.cluster.connect()
-        session.execute("""CREATE KEYSPACE if not exists test WITH REPLICATION = {
-            'class' : 'SimpleStrategy',
-            'replication_factor': 1
-        }""")
-        session.execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
-        session.execute("""INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')""")
+        sqls = [
+            """CREATE KEYSPACE if not exists test WITH REPLICATION = {
+                'class' : 'SimpleStrategy',
+                'replication_factor': 1
+            }""",
+            "DROP TABLE IF EXISTS test.person",
+            "CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)",
+            "INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')",
+        ]
+        for sql in sqls:
+            session.execute(sql)
 
     def _assert_result_correct(self, result):
         eq_(len(result.current_rows), 1)
@@ -97,17 +108,38 @@ class CassandraBase(object):
         for k in (errors.ERROR_MSG, errors.ERROR_TYPE, errors.ERROR_STACK):
             assert query.get_tag(k)
 
+    @attr('bound')
+    def test_bound_statement(self):
+        session, writer = self._traced_session()
 
-class TestOldSchool(CassandraBase):
-    """Test Cassandra instrumentation with the legacy interface"""
+        query = "INSERT INTO test.person (name, age, description) VALUES (?, ?, ?)"
+        prepared = session.prepare(query)
+        session.execute(prepared, ("matt", 34, "can"))
 
-    TEST_SERVICE = 'test-cassandra-legacy'
+        prepared = session.prepare(query)
+        bound_stmt = prepared.bind(("leo", 16, "fr"))
+        session.execute(bound_stmt)
 
-    def _traced_session(self):
-        tracer = get_dummy_tracer()
-        tracer_cluster = get_traced_cassandra(tracer, service=self.TEST_SERVICE)
-        session = tracer_cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
-        return session, tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        for s in spans:
+            eq_(s.resource, query)
+
+
+    def test_batch_statement(self):
+        session, writer = self._traced_session()
+
+        batch = BatchStatement()
+        batch.add(SimpleStatement("INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)"), ("Joe", 1, "a"))
+        batch.add(SimpleStatement("INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)"), ("Jane", 2, "b"))
+        session.execute(batch)
+
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.resource, 'BatchStatement')
+        eq_(s.get_metric('cassandra.batch_size'), 2)
+        assert 'test.person' in s.get_tag('cassandra.query')
 
 
 class TestCassPatchDefault(CassandraBase):

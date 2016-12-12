@@ -10,7 +10,6 @@ from ddtrace import Pin
 from ddtrace.compat import stringify
 from ...util import deep_getattr, deprecated
 from ...ext import net, cassandra as cassx
-from ...ext import AppTypes
 
 
 RESOURCE_MAX_LENGTH = 5000
@@ -46,7 +45,7 @@ def traced_execute(func, instance, args, kwargs):
     query = kwargs.get("kwargs") or args[0]
 
     with tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE) as span:
-        span.resource = _sanitize_query(query)
+        _sanitize_query(span, query)
         span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
         span.set_tags(_extract_cluster_metas(cluster))
         result = None
@@ -57,62 +56,6 @@ def traced_execute(func, instance, args, kwargs):
             if result:
                 span.set_tags(_extract_result_metas(result))
 
-
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
-def get_traced_cassandra(tracer, service=SERVICE, meta=None):
-    return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
-
-
-def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
-    """ Trace synchronous cassandra commands by patching the Session class """
-
-    tracer.set_service_info(
-        service=service,
-        app="cassandra",
-        app_type=AppTypes.db,
-    )
-
-    class TracedSession(cassandra.Session):
-        _dd_tracer = tracer
-        _dd_service = service
-        _dd_tags = meta
-
-        def __init__(self, *args, **kwargs):
-            super(TracedSession, self).__init__(*args, **kwargs)
-
-        def execute(self, query, *args, **options):
-            if not self._dd_tracer:
-                return super(TracedSession, self).execute(query, *args, **options)
-
-            with self._dd_tracer.trace("cassandra.query", service=self._dd_service) as span:
-                query_string = _sanitize_query(query)
-                span.resource = query_string
-                span.span_type = cassx.TYPE
-
-                span.set_tags(_extract_session_metas(self))
-                cluster = getattr(self, "cluster", None)
-                span.set_tags(_extract_cluster_metas(cluster))
-
-                result = None
-                try:
-                    result = super(TracedSession, self).execute(query, *args, **options)
-                    return result
-                finally:
-                    span.set_tags(_extract_result_metas(result))
-
-    class TracedCluster(cassandra.Cluster):
-
-        def connect(self, *args, **kwargs):
-            orig = cassandra.Session
-            cassandra.Session = TracedSession
-            traced_session = super(TracedCluster, self).connect(*args, **kwargs)
-
-            # unpatch the Session class so we don't wrap already traced sessions
-            cassandra.Session = orig
-
-            return traced_session
-
-    return TracedCluster
 
 def _extract_session_metas(session):
     metas = {}
@@ -130,10 +73,6 @@ def _extract_cluster_metas(cluster):
         metas[cassx.CLUSTER] = cluster.metadata.cluster_name
     if getattr(cluster, "port", None):
         metas[net.TARGET_PORT] = cluster.port
-    if getattr(cluster, "compression", None):
-        metas[cassx.COMPRESSION] = cluster.compression
-    if getattr(cluster, "cql_version", None):
-        metas[cassx.CQL_VERSION] = cluster.cql_version
 
     return metas
 
@@ -141,17 +80,23 @@ def _extract_result_metas(result):
     metas = {}
     if not result:
         return metas
+
     future = getattr(result, "response_future", None)
+
     if future:
+        # get the host
         host = getattr(future, "coordinator_host", None)
         if host:
             metas[net.TARGET_HOST] = host
+        elif hasattr(future, '_current_host'):
+            address = deep_getattr(future, '_current_host.address')
+            if address:
+                metas[net.TARGET_HOST] = address
+
         query = getattr(future, "query", None)
         if getattr(query, "consistency_level", None):
             metas[cassx.CONSISTENCY_LEVEL] = query.consistency_level
         if getattr(query, "keyspace", None):
-            # Overrides session.keyspace if the query has been prepared against a particular
-            # keyspace
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
     if hasattr(result, "has_more_pages"):
@@ -166,14 +111,43 @@ def _extract_result_metas(result):
 
     return metas
 
-def _sanitize_query(query):
-    """ Sanitize the query to something ready for the agent receiver
-    - Cast to unicode
-    - truncate if needed
-    """
+def _sanitize_query(span, query):
     # TODO (aaditya): fix this hacky type check. we need it to avoid circular imports
-    if type(query).__name__ in ('SimpleStatement', 'PreparedStatement'):
-        # reset query if a string is available
-        query = getattr(query, "query_string", query)
+    t = type(query).__name__
 
-    return stringify(query)[:RESOURCE_MAX_LENGTH]
+    resource = None
+    if t in ('SimpleStatement', 'PreparedStatement'):
+        # reset query if a string is available
+        resource = getattr(query, "query_string", query)
+    elif t == 'BatchStatement':
+        resource = 'BatchStatement'
+        q = "; ".join(q[1] for q in query._statements_and_parameters[:2])
+        span.set_tag("cassandra.query", q)
+        span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
+    elif t == 'BoundStatement':
+        ps = getattr(query, 'prepared_statement', None)
+        if ps:
+            resource = getattr(ps, 'query_string', None)
+    elif t == 'str':
+        resource = query
+    else:
+        resource = 'unknown-query-type' # FIXME[matt] what else do to here?
+
+    span.resource = stringify(resource)[:RESOURCE_MAX_LENGTH]
+
+
+#
+# DEPRECATED
+#
+
+@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+def get_traced_cassandra(tracer, service=SERVICE, meta=None):
+    return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
+
+
+def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
+    """ Trace synchronous cassandra commands by patching the Session class """
+    return cassandra.Cluster
+
+
+

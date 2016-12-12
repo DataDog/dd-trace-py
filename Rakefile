@@ -19,9 +19,16 @@ task :"test:envs", [:grep] do |t, args|
   end
 end
 
-task :up do
-  sh "docker-compose up -d | cat"
+namespace :docker do
+  task :up do
+    sh "docker-compose up -d | cat"
+  end
+
+  task :down do
+    sh "docker-compose down"
+  end
 end
+
 
 desc "install the library in dev mode"
 task :dev do
