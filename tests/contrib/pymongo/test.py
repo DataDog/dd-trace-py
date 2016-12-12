@@ -29,6 +29,14 @@ def test_normalize_filter():
             {"age": {"$gt" : "?"}},
         ),
         (
+            {"age": {"$gt" : 20L}},
+            {"age": {"$gt" : "?"}},
+        ),
+        (
+            20L,
+            {},
+        ),
+        (
             {
                 "status": "A",
                 "$or": [ { "age": { "$lt": 30 } }, { "type": 1 } ]

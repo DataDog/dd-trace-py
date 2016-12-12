@@ -197,10 +197,10 @@ def normalize_filter(f=None):
         # normalize lists of filters
         # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]}
         return [normalize_filter(s) for s in f]
-    else:
+    elif isinstance(f, dict):
+        out = {}
         # normalize dicts of filters
         # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
-        out = {}
         for k, v in iteritems(f):
             if isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
@@ -208,6 +208,10 @@ def normalize_filter(f=None):
             else:
                 out[k] = '?'
         return out
+    else:
+        # FIXME[matt] unexpected type. not sure this should ever happen, but at
+        # least it won't crash. See #125
+        return {}
 
 def _set_address_tags(span, address):
     # the address is only set after the cursor is done.
