@@ -29,11 +29,11 @@ def test_normalize_filter():
             {"age": {"$gt" : "?"}},
         ),
         (
-            {"age": {"$gt" : 20L}},
+            {"age": {"$gt" : 20}},
             {"age": {"$gt" : "?"}},
         ),
         (
-            20L,
+            20,
             {},
         ),
         (
