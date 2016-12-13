@@ -62,7 +62,7 @@ class CassandraBase(object):
             eq_(r.age, 100)
             eq_(r.description, "A cruel mistress")
 
-    def test_get_traced_cassandra(self):
+    def test_query(self):
         session, writer = self._traced_session()
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
@@ -239,3 +239,11 @@ class TestCassPatchOne(TestCassPatchDefault):
 
         spans = tracer.writer.pop()
         assert spans, spans
+
+
+def test_backwards_compat_get_traced_cassandra():
+    cluster = get_traced_cassandra()
+    session = cluster(port=CASSANDRA_CONFIG['port']).connect()
+    session.execute("drop table if exists test.person")
+
+

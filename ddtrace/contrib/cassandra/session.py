@@ -30,6 +30,7 @@ def unpatch():
 def traced_connect(func, instance, args, kwargs):
     session = func(*args, **kwargs)
     if not isinstance(session.execute, wrapt.FunctionWrapper):
+        # FIXME[matt] this should probably be private.
         setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, traced_execute))
     return session
 
@@ -141,13 +142,9 @@ def _sanitize_query(span, query):
 #
 
 @deprecated(message='Use patching instead (see the docs).', version='0.6.0')
-def get_traced_cassandra(tracer, service=SERVICE, meta=None):
-    return _get_traced_cluster(cassandra.cluster, tracer, service, meta)
+def get_traced_cassandra(*args, **kwargs):
+    return _get_traced_cluster(*args, **kwargs)
 
 
-def _get_traced_cluster(cassandra, tracer, service="cassandra", meta=None):
-    """ Trace synchronous cassandra commands by patching the Session class """
-    return cassandra.Cluster
-
-
-
+def _get_traced_cluster(*args, **kwargs):
+    return cassandra.cluster.Cluster
