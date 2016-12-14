@@ -176,6 +176,11 @@ API
 Web Frameworks
 --------------
 
+Bottle
+~~~~~~
+
+.. automodule:: ddtrace.contrib.bottle
+
 Django
 ~~~~~~
 
