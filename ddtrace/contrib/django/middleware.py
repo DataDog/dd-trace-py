@@ -7,7 +7,6 @@ from ...ext import http
 from ...contrib import func_name
 
 # 3p
-from django.apps import apps
 from django.core.exceptions import MiddlewareNotUsed
 
 try:
@@ -57,10 +56,7 @@ class TraceMiddleware(MiddlewareClass):
             span = _get_req_span(request)
             if span:
                 span.set_tag(http.STATUS_CODE, response.status_code)
-
-                if apps.is_installed("django.contrib.auth"):
-                    span = _set_auth_tags(span, request)
-
+                span = _set_auth_tags(span, request)
                 span.finish()
 
         except Exception:
