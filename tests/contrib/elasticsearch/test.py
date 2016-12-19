@@ -1,3 +1,4 @@
+import datetime
 import unittest
 
 # 3p
@@ -49,7 +50,8 @@ class ElasticsearchTest(unittest.TestCase):
         es = elasticsearch.Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
 
         # Test index creation
-        es.indices.create(index=self.ES_INDEX, ignore=400)
+        mapping = {"mapping": {"properties": {"created": {"type":"date", "format": "yyyy-MM-dd"}}}}
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
         spans = writer.pop()
         assert spans
@@ -65,9 +67,9 @@ class ElasticsearchTest(unittest.TestCase):
 
         # Put data
         args = {'index':self.ES_INDEX, 'doc_type':self.ES_TYPE}
-        es.index(id=10, body={'name': 'ten'}, **args)
-        es.index(id=11, body={'name': 'eleven'}, **args)
-        es.index(id=12, body={'name': 'twelve'}, **args)
+        es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
+        es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
+        es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
 
         spans = writer.pop()
         assert spans
@@ -78,9 +80,22 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
+        # Make the data available
+        es.indices.refresh(index=self.ES_INDEX)
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
+        eq_(span.get_tag(metadata.METHOD), "POST")
+        eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
+
         # Search data
-        es.search(sort=['name:desc'], size=100,
+        result = es.search(sort=['name:desc'], size=100,
                 body={"query":{"match_all":{}}}, **args)
+
+        assert len(result["hits"]["hits"]) == 3, result
 
         spans = writer.pop()
         assert spans
@@ -95,6 +110,12 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
         self.assertTrue(span.get_metric(metadata.TOOK) > 0)
+
+        # Search by type not supported by default json encoder
+        query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
+        result = es.search(size=100, body={"query": query}, **args)
+
+        assert len(result["hits"]["hits"]) == 2, result
 
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
@@ -142,7 +163,8 @@ class ElasticsearchPatchTest(unittest.TestCase):
         pin.onto(es)
 
         # Test index creation
-        es.indices.create(index=self.ES_INDEX, ignore=400)
+        mapping = {"mapping": {"properties": {"created": {"type":"date", "format": "yyyy-MM-dd"}}}}
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
         spans = writer.pop()
         assert spans, spans
@@ -158,9 +180,9 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
         # Put data
         args = {'index':self.ES_INDEX, 'doc_type':self.ES_TYPE}
-        es.index(id=10, body={'name': 'ten'}, **args)
-        es.index(id=11, body={'name': 'eleven'}, **args)
-        es.index(id=12, body={'name': 'twelve'}, **args)
+        es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
+        es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
+        es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
 
         spans = writer.pop()
         assert spans, spans
@@ -186,7 +208,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         result = es.search(sort=['name:desc'], size=100,
                            body={"query":{"match_all":{}}}, **args)
 
-        assert len(result["hits"]) == 3, result
+        assert len(result["hits"]["hits"]) == 3, result
 
         spans = writer.pop()
         assert spans, spans
@@ -201,6 +223,12 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
 
         self.assertTrue(span.get_metric(metadata.TOOK) > 0)
+
+        # Search by type not supported by default json encoder
+        query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
+        result = es.search(size=100, body={"query": query}, **args)
+
+        assert len(result["hits"]["hits"]) == 2, result
 
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])

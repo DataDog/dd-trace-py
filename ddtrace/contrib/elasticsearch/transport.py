@@ -1,5 +1,3 @@
-import json
-
 from elasticsearch import Transport
 
 from .quantize import quantize
@@ -42,7 +40,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.URL, url)
                 s.set_tag(metadata.PARAMS, urlencode(params))
                 if method == "GET":
-                    s.set_tag(metadata.BODY, json.dumps(body))
+                    s.set_tag(metadata.BODY, self.serializer.dumps(body))
 
                 s = quantize(s)
 

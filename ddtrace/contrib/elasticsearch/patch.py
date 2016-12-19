@@ -1,6 +1,5 @@
 import elasticsearch
 import wrapt
-import json
 
 from . import metadata
 from .quantize import quantize
@@ -70,7 +69,7 @@ def _perform_request(func, instance, args, kwargs):
         span.set_tag(metadata.URL, url)
         span.set_tag(metadata.PARAMS, urlencode(params))
         if method == "GET":
-            span.set_tag(metadata.BODY, json.dumps(body))
+            span.set_tag(metadata.BODY, instance.serializer.dumps(body))
 
         span = quantize(span)
 
