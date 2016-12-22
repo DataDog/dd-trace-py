@@ -49,7 +49,7 @@ def _traced_request_func(func, instance, args, kwargs):
             try:
                 _apply_tags(span, method, url, resp)
             except Exception:
-                log.warn("error patching tags", exc_info=True)
+                log.debug("error patching tags", exc_info=True)
 
 
 def _apply_tags(span, method, url, response):

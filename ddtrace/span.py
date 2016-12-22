@@ -125,7 +125,7 @@ class Span(object):
         try:
             self.meta[key] = stringify(value)
         except Exception:
-            log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+            log.debug("error setting tag %s, ignoring it", key, exc_info=True)
 
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist.
@@ -156,12 +156,12 @@ class Span(object):
             try:
                 value = float(value)
             except (ValueError, TypeError):
-                log.warn("ignoring not number metric %s:%s", key, value)
+                log.debug("ignoring not number metric %s:%s", key, value)
                 return
 
         # don't allow nan or inf
         if math.isnan(value) or math.isinf(value):
-            log.warn("ignoring not real metric %s:%s", key, value)
+            log.debug("ignoring not real metric %s:%s", key, value)
             return
 
         self.metrics[key] = value

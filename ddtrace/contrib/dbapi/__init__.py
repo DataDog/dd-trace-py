@@ -101,7 +101,7 @@ def _get_vendor(conn):
     try:
         name = _get_module_name(conn)
     except Exception:
-        log.warn("couldnt parse module name", exc_info=True)
+        log.debug("couldnt parse module name", exc_info=True)
         name = "sql"
     return sql.normalize_vendor(name)
 

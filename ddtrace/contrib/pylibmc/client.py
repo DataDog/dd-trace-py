@@ -48,7 +48,7 @@ class TracedClient(ObjectProxy):
         try:
             self._addresses = parse_addresses(client.addresses)
         except Exception:
-            log.exception("error setting addresses")
+            log.debug("error setting addresses", exc_info=True)
 
         # attempt to set the service info
         try:
@@ -57,7 +57,7 @@ class TracedClient(ObjectProxy):
                 app=memcached.SERVICE,
                 app_type=memcached.TYPE)
         except Exception:
-            log.exception("error setting service info")
+            log.debug("error setting service info", exc_info=True)
 
     def clone(self, *args, **kwargs):
         # rewrap new connections.
@@ -144,8 +144,7 @@ class TracedClient(ObjectProxy):
             try:
                 self._tag_span(span)
             except Exception:
-                log.exception("error tagging span")
-
+                log.debug("error tagging span", exc_info=True)
             return span
 
     def _tag_span(self, span):
