@@ -64,7 +64,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
                 try:
                     s.set_tags(_extract_conn_tags(self.cache._client))
                 except Exception:
-                    log.exception("error parsing connection tags")
+                    log.debug("error parsing connection tags", exc_info=True)
 
             return s
 

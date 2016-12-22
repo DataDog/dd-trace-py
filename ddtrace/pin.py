@@ -87,7 +87,7 @@ class Pin(object):
             try:
                 self._send()
             except Exception:
-                log.warn("can't send pin info", exc_info=True)
+                log.debug("can't send pin info", exc_info=True)
 
         # Actually patch it on the object.
         try:
@@ -95,7 +95,7 @@ class Pin(object):
                 return obj.__setddpin__(self)
             return setattr(obj, '_datadog_pin', self)
         except AttributeError:
-            log.warn("can't pin onto object. skipping", exc_info=True)
+            log.debug("can't pin onto object. skipping", exc_info=True)
 
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """ Return a clone of the pin with the given attributes replaced. """

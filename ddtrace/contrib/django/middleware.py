@@ -44,7 +44,7 @@ class TraceMiddleware(MiddlewareClass):
             span.set_tag(http.URL, request.path)
             _set_req_span(request, span)
         except Exception:
-            log.exception('error tracing request')
+            log.debug('error tracing request', exc_info=True)
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
@@ -58,9 +58,8 @@ class TraceMiddleware(MiddlewareClass):
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
-
         except Exception:
-            log.exception("error tracing request")
+            log.debug("error tracing request", exc_info=True)
         finally:
             return response
 
@@ -71,7 +70,7 @@ class TraceMiddleware(MiddlewareClass):
                 span.set_tag(http.STATUS_CODE, '500')
                 span.set_traceback() # will set the exception info
         except Exception:
-            log.exception("error processing exception")
+            log.debug("error processing exception", exc_info=True)
 
 
 def _get_req_span(request):

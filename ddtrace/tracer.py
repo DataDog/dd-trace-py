@@ -194,7 +194,7 @@ class Tracer(object):
                 # queue them for writes.
                 self.writer.write(services=services)
         except Exception:
-            log.exception("error setting service info")
+            log.debug("error setting service info", exc_info=True)
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """A decorator used to trace an entire function.
