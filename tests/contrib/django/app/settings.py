@@ -112,6 +112,4 @@ DATADOG_TRACE = {
     # tracer with a DummyWriter
     'TRACER': 'tests.contrib.django.utils.tracer',
     'ENABLED': True,
-    'AGENT_HOSTNAME': 'agent.service.consul',
-    'AGENT_PORT': '8777',
 }
