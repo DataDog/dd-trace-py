@@ -19,7 +19,7 @@ class Tracer(object):
         you can use the global traced instance:
 
         >>> from ddtrace import tracer
-        >>> tracer.trace("foo").finish()
+        >>> trace = tracer.trace("app.request", "web-server").finish()
     """
 
     DEFAULT_HOSTNAME = 'localhost'
@@ -78,7 +78,7 @@ class Tracer(object):
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
-                            it will inherit the service from it's parent.
+                            it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
