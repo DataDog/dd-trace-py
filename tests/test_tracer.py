@@ -264,6 +264,24 @@ def test_tracer_disabled_mem_leak():
     s2.finish()
     assert not p1, p1
 
+def test_tracer_global_tags():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    s1 = tracer.trace('brie')
+    s1.finish()
+    assert not s1.meta
+
+    tracer.set_tags({'env': 'prod'})
+    s2 = tracer.trace('camembert')
+    s2.finish()
+    assert s2.meta == {'env': 'prod'}
+
+    tracer.set_tags({'env': 'staging', 'other': 'tag'})
+    s3 = tracer.trace('gruyere')
+    s3.finish()
+    assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
