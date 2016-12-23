@@ -50,6 +50,9 @@ class Tracer(object):
         # things.
         self._services = {}
 
+        # globally set tags
+        self.tags = {}
+
     def configure(self, enabled=None, hostname=None, port=None, sampler=None):
         """Configure an existing Tracer the easy way.
 
@@ -126,6 +129,9 @@ class Tracer(object):
                 span_type=span_type,
             )
             self.sampler.sample(span)
+
+        if self.tags:
+            span.set_tags(self.tags)
 
         # Note the current trace.
         self.span_buffer.set(span)
@@ -234,3 +240,11 @@ class Tracer(object):
             return func_wrapper
 
         return wrap_decorator
+
+    def set_tags(self, tags):
+        """ Set some tags at the tracer level.
+        This will append those tags to each span created by the tracer.
+
+        :param str tags: dict of tags to set at tracer level
+        """
+        self.tags.update(tags)
