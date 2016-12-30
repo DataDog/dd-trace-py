@@ -103,11 +103,11 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
 
     def parent_rpc_call():
         with tracer.trace("parent_span") as span:
-        import requests
-        headers = {'x-ddtrace-parent_trace_id':span.trace_id,
-                   'x-ddtrace-parent_span_id':span.span_id}
-        url = <some RPC endpoint>
-        r = requests.get(url, headers=headers)
+            import requests
+            headers = {'x-ddtrace-parent_trace_id':span.trace_id,
+                       'x-ddtrace-parent_span_id':span.span_id}
+            url = <some RPC endpoint>
+            r = requests.get(url, headers=headers)
 
 
     from flask import request
