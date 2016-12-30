@@ -106,7 +106,7 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
             import requests
             headers = {'x-ddtrace-parent_trace_id':span.trace_id,
                        'x-ddtrace-parent_span_id':span.span_id}
-            url = <some RPC endpoint>
+            url = "<some RPC endpoint>"
             r = requests.get(url, headers=headers)
 
 
