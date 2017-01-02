@@ -151,6 +151,10 @@ class Tracer(object):
         with self._spans_lock:
             self._spans.append(span)
             parent = span._parent
+            # Bubble up until we find a non-finished parent. This is necessary for
+            # the case when the parent finished after its parent.
+            while parent is not None and parent._finished:
+                parent = parent._parent
             self.span_buffer.set(parent)
             if not parent:
                 spans = self._spans

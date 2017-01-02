@@ -283,6 +283,21 @@ def test_tracer_global_tags():
     s3.finish()
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
+def test_tracer_child_finished_after_parent():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    t1 = tracer.trace("t1")
+    t1_child = tracer.trace("t1_child")
+    eq_(t1_child._parent, t1)
+
+    t1.finish()
+    t1_child.finish()
+
+    t2 = tracer.trace("t2")
+    eq_(t2._parent, None)
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
