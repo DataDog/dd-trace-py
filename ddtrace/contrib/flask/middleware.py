@@ -116,7 +116,10 @@ class TraceMiddleware(object):
                     span.set_tag(errors.ERROR_TYPE, type(exception))
                     span.set_tag(errors.ERROR_MSG, exception)
 
-                span.resource = compat.to_unicode(request.endpoint or '').lower()
+                # the endpoint that matched the request is None if an exception
+                # happened so we fallback to a common resource
+                resource = code if not request.endpoint else request.endpoint
+                span.resource = compat.to_unicode(resource).lower()
                 span.set_tag(http.URL, compat.to_unicode(request.base_url or ''))
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = error

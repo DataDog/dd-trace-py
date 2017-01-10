@@ -279,3 +279,24 @@ class TestFlask(object):
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
         eq_(s.meta.get(http.URL), u'http://localhost/üŋïĉóđē')
+
+    def test_404(self):
+        start = time.time()
+        rv = app.get(u'/404/üŋïĉóđē')
+        end = time.time()
+
+        # ensure that we hit a 404
+        eq_(rv.status_code, 404)
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, service)
+        eq_(s.resource, u'404')
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), '404')
+        eq_(s.meta.get(http.URL), u'http://localhost/404/üŋïĉóđē')
