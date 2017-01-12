@@ -1,8 +1,7 @@
 import functools
 import logging
-import threading
 
-from .buffer import ThreadLocalSpanBuffer
+from .context import Context
 from .sampler import AllSampler
 from .span import Span
 from .writer import AgentWriter
@@ -35,12 +34,8 @@ class Tracer(object):
             port=self.DEFAULT_PORT,
             sampler=AllSampler())
 
-        # a list of buffered spans.
-        self._spans_lock = threading.Lock()
-        self._spans = []
-
-        # track the active span
-        self.span_buffer = ThreadLocalSpanBuffer()
+        # The default context
+        self.default_context = Context()
 
         # A hook for local debugging. shouldn't be needed or used
         # in production.
@@ -73,7 +68,8 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-    def trace(self, name, service=None, resource=None, span_type=None):
+    def trace(self, name, service=None, resource=None, span_type=None,
+              context=None):
         """Return a span that will trace an operation called `name`.
 
         :param str name: the name of the operation being traced
@@ -104,60 +100,44 @@ class Tracer(object):
         >>> parent2 = tracer.trace("parent2")   # has no parent span
         >>> parent2.finish()
         """
-        span = None
-        parent = self.span_buffer.get()
 
-        if parent:
-            # if we have a current span link the parent + child nodes.
-            span = Span(
-                self,
-                name,
-                service=(service or parent.service),
-                resource=resource,
-                span_type=span_type,
-                trace_id=parent.trace_id,
-                parent_id=parent.span_id,
-            )
-            span._parent = parent
-            span.sampled = parent.sampled
-        else:
-            span = Span(
-                self,
-                name,
-                service=service,
-                resource=resource,
-                span_type=span_type,
-            )
-            self.sampler.sample(span)
-
+        # Create a new span
+        span = Span(self, name, service=service, resource=resource,
+                    span_type=span_type, context=context)
         if self.tags:
             span.set_tags(self.tags)
 
-        # Note the current trace.
-        self.span_buffer.set(span)
+        # Add it to the right context
+        if context is None:
+            context = self.default_context
+        context.add_span(span)
+
+        # Apply sampling to the span if it does not have a parent
+        if span._parent is None:
+            self.sampler.sample(span)
 
         return span
 
     def current_span(self):
         """Return the current active span or None."""
-        return self.span_buffer.get()
+        return self.default_context.current_span
 
     def clear_current_span(self):
-        self.span_buffer.pop()
+        self.default_context.current_span = None
 
     def record(self, span):
         """Record the given finished span."""
-        spans = []
-        with self._spans_lock:
-            self._spans.append(span)
-            parent = span._parent
-            self.span_buffer.set(parent)
-            if not parent:
-                spans = self._spans
-                self._spans = []
+        assert(span._finished)
 
-        if spans and span.sampled:
-            self.write(spans)
+        context = span._context
+        if context is None:
+            context = self.default_context
+
+        root_finished = context.finish_span(span)
+        if root_finished:
+            if span.sampled:
+                self.write(context.finished_spans)
+            context.clear()
 
     def write(self, spans):
         if not spans:
@@ -202,7 +182,8 @@ class Tracer(object):
         except Exception:
             log.debug("error setting service info", exc_info=True)
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None):
+    def wrap(self, name=None, service=None, resource=None, span_type=None,
+             context=None):
         """A decorator used to trace an entire function.
 
         :param str name: the name of the operation being traced. If not set,
@@ -211,6 +192,7 @@ class Tracer(object):
                             it will inherit the service from it's parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
+        :param Context context: the context to use.
 
         >>> @tracer.wrap('my.wrapped.function', service='my.service')
             def run():
@@ -235,7 +217,8 @@ class Tracer(object):
 
             @functools.wraps(f)
             def func_wrapper(*args, **kwargs):
-                with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                with self.trace(span_name, service=service, resource=resource,
+                                span_type=span_type, context=context):
                     return f(*args, **kwargs)
             return func_wrapper
 
