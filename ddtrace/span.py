@@ -34,6 +34,7 @@ class Span(object):
         '_tracer',
         '_finished',
         '_parent',
+        '_context',
     ]
 
     def __init__(
@@ -48,6 +49,7 @@ class Span(object):
         span_id=None,
         parent_id=None,
         start=None,
+        context=None,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -65,6 +67,7 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
+        :param Context context: the context of the span.
         """
         # required span info
         self.name = name
@@ -94,6 +97,12 @@ class Span(object):
 
         # state
         self._finished = False
+
+        # context
+        self._context = context
+
+    def __str__(self):
+        return "<Span {0!r}>".format(self.name)
 
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
