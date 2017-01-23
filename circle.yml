@@ -36,5 +36,4 @@ deployment:
     # Nullify VERSION_SUFFIX to deploy the package with its public version
     commands:
       - pip install mkwheelhouse sphinx
-      - S3_DIR=trace VERSION_SUFFIX= rake release:wheel
       - S3_DIR=trace rake release:docs

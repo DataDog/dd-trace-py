@@ -79,6 +79,33 @@ task :'release:docs' => :docs do
   sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
 end
 
+namespace :pypi do
+  RELEASE_DIR = '/tmp/dd-trace-py-release'
+
+  task :clean do
+    FileUtils.rm_rf(RELEASE_DIR)
+  end
+
+  task :build => :clean do
+    puts "building release in #{RELEASE_DIR}"
+    sh "python setup.py -q sdist -d #{RELEASE_DIR}"
+  end
+
+  task :release => :build do
+    builds = Dir.entries(RELEASE_DIR).reject {|f| f == '.' || f == '..'}
+    if builds.length == 0
+        fail "no build found in #{RELEASE_DIR}"
+    elsif builds.length > 1
+        fail "multiple builds found in #{RELEASE_DIR}"
+    end
+
+    build = "#{RELEASE_DIR}/#{builds[0]}"
+
+    puts "uploading #{build}"
+    sh "twine upload #{build}"
+  end
+end
+
 namespace :version do
 
   def get_version()
