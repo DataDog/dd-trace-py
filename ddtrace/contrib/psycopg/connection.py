@@ -56,7 +56,6 @@ class TracedCursor(cursor):
             s.resource = query
             s.service = self._datadog_service
             s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, query)
             s.set_tags(self._datadog_tags)
             try:
                 return super(TracedCursor, self).execute(query, vars)
