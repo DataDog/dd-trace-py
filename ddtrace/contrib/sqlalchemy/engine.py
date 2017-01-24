@@ -64,9 +64,6 @@ class EngineTracer(object):
             span_type=sqlx.TYPE,
             resource=statement)
 
-        # keep the unnormalized query
-        span.set_tag(sqlx.QUERY, statement)
-
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
