@@ -3,9 +3,10 @@ To trace the falcon web framework, install the trace middleware::
 
     import falcon
     from ddtrace import tracer
+    from ddtrace.contrib.falcon import TraceMiddleware
 
-    trace_middleware = TraceMiddleware(tracer, 'my-falcon-app')
-    falcon.API(middleware=[trace_middleware])
+    mw = TraceMiddleware(tracer, 'my-falcon-app')
+    falcon.API(middleware=[mw])
 """
 
 
