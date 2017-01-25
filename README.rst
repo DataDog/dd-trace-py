@@ -3,6 +3,8 @@ dd-trace-py
 
 |CircleCI|
 
+For API docs see http://pypi.datadoghq.com/trace/docs/
+
 Versions
 --------
 
