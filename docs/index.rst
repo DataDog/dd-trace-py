@@ -55,7 +55,7 @@ small example that shows adding a custom span to a Flask application::
     from ddtrace import tracer
 
     # add the `wrap` decorator to trace an entire function.
-    @tracer.wrap()
+    @tracer.wrap(service='my-app')
     def save_thumbnails(img, sizes):
 
         thumbnails = [resize_image(img, size) for size in sizes]
