@@ -126,7 +126,7 @@ class AsyncWorker(object):
                 try:
                     self.api.send_services(services)
                 except Exception:
-                    log.exception("error sending spans")
+                    log.exception("error sending services")
 
             elif self._trace_queue.closed():
                 # no traces and the queue is closed. our work is done.
