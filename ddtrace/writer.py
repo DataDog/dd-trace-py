@@ -118,15 +118,15 @@ class AsyncWorker(object):
                 # If we have data, let's try to send it.
                 try:
                     self.api.send_traces(traces)
-                except Exception:
-                    log.exception("error sending spans")
+                except Exception as err:
+                    log.error("cannot send spans: {0}".format(err))
 
-                services = self._service_queue.pop()
-                if services:
-                    try:
-                        self.api.send_services(services)
-                    except Exception:
-                        log.exception("error sending spans")
+            services = self._service_queue.pop()
+            if services:
+                try:
+                    self.api.send_services(services)
+                except Exception as err:
+                    log.error("cannot send services: {0}".format(err))
 
             elif self._trace_queue.closed():
                 # no traces and the queue is closed. our work is done.
