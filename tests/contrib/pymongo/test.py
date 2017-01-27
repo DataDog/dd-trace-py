@@ -74,6 +74,7 @@ class PymongoCore(object):
         # implement me
         pass
 
+
     def test_update(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
@@ -265,6 +266,20 @@ class TestPymongoPatchDefault(PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG['port'])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         return tracer, client
+
+    def test_service(self):
+        tracer, client = self.get_tracer_and_client()
+        writer = tracer.writer
+        db = client["testdb"]
+        db.drop_collection("songs")
+
+        services = writer.pop_services()
+        eq_(len(services), 1)
+        assert self.TEST_SERVICE in services
+        s = services[self.TEST_SERVICE]
+        assert s['app_type'] == 'db'
+        assert s['app'] == 'mongodb'
+
 
 class TestPymongoPatchConfigured(PymongoCore):
     """Test suite for pymongo with a configured patched library"""
