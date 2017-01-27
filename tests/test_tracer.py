@@ -284,44 +284,6 @@ def test_tracer_global_tags():
     s3.finish()
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
-def test_tracer_async():
-    writer = DummyWriter()
-    tracer = Tracer()
-    tracer.writer = writer
-
-    ctx1 = Context()
-    ctx2 = Context()
-
-    span_0a = tracer.trace("0a")
-    eq_(span_0a._parent, None)
-    span_0b = tracer.trace("0a")
-    eq_(span_0b._parent, span_0a)
-
-    span_1a = tracer.trace("1a", context=ctx1)
-    eq_(span_1a._parent, None)
-    span_1b = tracer.trace("1b", context=ctx1)
-    eq_(span_1b._parent, span_1a)
-
-    span_2a = tracer.trace("2a", context=ctx2)
-    eq_(span_2a._parent, None)
-    span_2b = tracer.trace("2b", context=ctx2)
-    eq_(span_2b._parent, span_2a)
-
-    span_1b.finish()
-    span_1a.finish()
-
-    span_0b.finish()
-    span_0a.finish()
-
-    span_2b.finish()
-    span_2a.finish()
-
-    traces = writer.pop_traces()
-    eq_(len(traces), 3)
-    eq_(traces[0], [span_1b, span_1a])
-    eq_(traces[1], [span_0b, span_0a])
-    eq_(traces[2], [span_2b, span_2a])
-
 
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
