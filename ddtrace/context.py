@@ -1,3 +1,8 @@
+"""
+FIXME: This class should be deeply changed because it doesn't handle
+async code; keeping it as a reference of @nico work. Will be removed
+later.
+"""
 
 import logging
 import threading
