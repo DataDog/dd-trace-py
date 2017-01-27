@@ -9,6 +9,10 @@ class Context(object):
     """
     Context is used to keep track of a hierarchy of spans for the current
     execution flow.
+
+    TODO: asyncio is not thread-safe by default. The fact that this class is
+    thread-safe is an implementation detail. Avoid mutex usage when the Context
+    is used in async code.
     """
     def __init__(self):
         """
