@@ -101,9 +101,6 @@ class Span(object):
         # context
         self._context = context
 
-    def __str__(self):
-        return "<Span {0!r}>".format(self.name)
-
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
             If the span has already been finished don't do anything
