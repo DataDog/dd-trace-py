@@ -38,6 +38,13 @@ def test_200():
     eq_(s.get_tag('http.status_code'), '200')
     eq_(s.get_tag('http.method'), 'GET')
 
+    services = tracer.writer.pop_services()
+    eq_(len(services), 1)
+    assert SERVICE in services
+    s = services[SERVICE]
+    assert s['app_type'] == 'web'
+    assert s['app'] == 'bottle'
+
 def test_500():
     # setup our test app
     app = bottle.Bottle()
