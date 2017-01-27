@@ -139,8 +139,8 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
 
-        span_get = spans[0]
-        span_incr = spans[1]
+        span_incr = spans[0]
+        span_get = spans[1]
 
         # LocMemCache doesn't provide an atomic operation
         eq_(span_get.service, 'django')
@@ -178,9 +178,9 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_get = spans[0]
+        span_decr = spans[0]
         span_incr = spans[1]
-        span_decr = spans[2]
+        span_get = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
         eq_(span_get.service, 'django')
@@ -222,9 +222,9 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_get_first = spans[0]
-        span_get_second = spans[1]
-        span_get_many = spans[2]
+        span_get_many = spans[0]
+        span_get_first = spans[1]
+        span_get_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
         eq_(span_get_first.service, 'django')
@@ -264,9 +264,9 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_set_first = spans[0]
-        span_set_second = spans[1]
-        span_set_many = spans[2]
+        span_set_many = spans[0]
+        span_set_first = spans[1]
+        span_set_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
         eq_(span_set_first.service, 'django')
@@ -303,9 +303,9 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_delete_first = spans[0]
-        span_delete_second = spans[1]
-        span_delete_many = spans[2]
+        span_delete_many = spans[0]
+        span_delete_first = spans[1]
+        span_delete_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
         eq_(span_delete_first.service, 'django')

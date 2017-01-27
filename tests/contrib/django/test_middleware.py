@@ -25,9 +25,9 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # check for spans
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
-        sp_database = spans[0]
+        sp_request = spans[0]
         sp_template = spans[1]
-        sp_request = spans[2]
+        sp_database = spans[2]
         eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
         eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
         eq_(sp_request.get_tag('http.status_code'), '200')
@@ -66,8 +66,8 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # check for spans
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
-        sp_database = spans[0]
+        sp_request = spans[0]
         sp_template = spans[1]
-        sp_request = spans[2]
+        sp_database = spans[2]
         eq_(sp_request.get_tag('http.status_code'), '200')
         eq_(sp_request.get_tag('django.user.is_authenticated'), None)
