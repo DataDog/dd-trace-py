@@ -28,6 +28,14 @@ class Context(object):
         with self._lock:
             return self._current_span
 
+    def set_current_span(self, span):
+        """
+        TODO: check if setters are needed to be generic in async code
+        Set the last active span. This call makes sense only on synchronous code.
+        """
+        with self._lock:
+            self._current_span = span
+
     def add_span(self, span):
         """
         Add a span to the context trace list, keeping it as the last active span.

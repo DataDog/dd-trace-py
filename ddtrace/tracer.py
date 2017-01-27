@@ -10,47 +10,48 @@ from .writer import AgentWriter
 log = logging.getLogger(__name__)
 
 
-class Tracer(object):
-    """ Tracer is used to create, sample and submit spans that measure the
-        execution time of sections of code.
-
-        If you're running an application that will serve a single trace per thread,
-        you can use the global traced instance:
-
-        >>> from ddtrace import tracer
-        >>> trace = tracer.trace("app.request", "web-server").finish()
+class BaseTracer(object):
     """
-
+    BaseTracer is the base class that defines common methods to keep track of traced
+    methods and unit of executions (spans). It is not intended to be used alone because
+    the following methods must be implemented:
+        * get_call_context()
+    """
     DEFAULT_HOSTNAME = 'localhost'
     DEFAULT_PORT = 7777
 
     def __init__(self):
-        """Create a new tracer."""
-
+        """
+        Create a new tracer
+        """
         # Apply the default configuration
         self.configure(
             enabled=True,
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
-            sampler=AllSampler())
+            sampler=AllSampler(),
+        )
 
-        # The default context
-        self.default_context = Context()
-
-        # A hook for local debugging. shouldn't be needed or used
-        # in production.
+        # A hook for local debugging. shouldn't be needed or used in production
         self.debug_logging = False
 
-        # a buffer for service info so we dont' perpetually send the same
-        # things.
+        # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
 
         # globally set tags
         self.tags = {}
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None):
-        """Configure an existing Tracer the easy way.
+    def get_call_context(self):
+        """
+        Return the context for the current execution flow. This method must be implemented
+        in the concrete Tracer object because the implementation may vary depending on
+        how the code is executed (i.e. synchronous or asynchronous executions).
+        """
+        raise NotImplementedError
 
+    def configure(self, enabled=None, hostname=None, port=None, sampler=None):
+        """
+        Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
 
         :param bool enabled: If True, finished traces will be
@@ -68,15 +69,19 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-    def trace(self, name, service=None, resource=None, span_type=None,
-              context=None):
-        """Return a span that will trace an operation called `name`.
+    def trace(self, name, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+        """
+        Return a span that will trace an operation called `name`. The context that generated
+        the Span may be provided, as well as the current parent Span.
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
                             it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
+
+        :param Context ctx: TODO
+        :param Span parent: TODO
 
         You must call `finish` on all spans, either directly or with a context
         manager.
@@ -100,46 +105,85 @@ class Tracer(object):
         >>> parent2 = tracer.trace("parent2")   # has no parent span
         >>> parent2.finish()
         """
+        # use the given Context object, or retrieve it using the Tracer logic
+        context = ctx or self.get_call_context()
+        parent = span_parent or context.get_current_span()
 
-        # Create a new span
-        span = Span(self, name, service=service, resource=resource,
-                    span_type=span_type, context=context)
+        if parent:
+            # this is a child span
+            span = Span(
+                self,
+                name,
+                service=(service or parent.service),
+                resource=resource,
+                span_type=span_type,
+                trace_id=parent.trace_id,
+                parent_id=parent.span_id,
+                ctx=context,
+            )
+            # TODO make this part of the constructor
+            span._parent = parent
+            span.sampled = parent.sampled
+        else:
+            # this is a root span
+            span = Span(
+                self,
+                name,
+                service=service,
+                resource=resource,
+                span_type=span_type,
+                ctx=context,
+            )
+            self.sampler.sample(span)
+
+        # add common tags
         if self.tags:
             span.set_tags(self.tags)
 
-        # Add it to the right context
-        if context is None:
-            context = self.default_context
+        # add it to context
         context.add_span(span)
-
-        # Apply sampling to the span if it does not have a parent
-        if span._parent is None:
-            self.sampler.sample(span)
-
         return span
 
     def current_span(self):
-        """Return the current active span or None."""
-        return self.default_context.current_span
+        """
+        TODO: meh proxy
+        Return the current active span or None.
+        """
+        return self.get_call_context().get_current_span()
 
     def clear_current_span(self):
-        self.default_context.current_span = None
+        """
+        TODO: check if it's really required by our integrations
+        """
+        self.get_call_context().set_current_span(None)
 
     def record(self, span):
-        """Record the given finished span."""
-        assert(span._finished)
-
+        """
+        Record the given finished span.
+        """
+        # mark the span as finished for the current context
         context = span._context
-        if context is None:
-            context = self.default_context
+        context.finish_span(span)
 
-        root_finished = context.finish_span(span)
-        if root_finished:
+        # TODO: keeping the section in this way only for async API developing
+        if context.is_finished():
+            # extract and enqueue the trace if it's sampled
             if span.sampled:
-                self.write(context.finished_spans)
-            context.clear()
+                trace = context.get_current_trace()
+                self.write(trace)
+            # reset the current context
+            # TODO: may not be needed for AsyncTracer (or it may be used
+            # to remove the reference so that it will be garbage collected)
+            context.reset()
 
     def write(self, spans):
+        """
+        # TODO: this method should be different for Async tasks because:
+            * it MUST run in a separate executor in asyncio
+            * it MUST run in a separate thread for async frameworks without asyncio loop
+        Send the trace to the writer to enqueue the spans list in the agent
+        sending queue.
+        """
         if not spans:
             return  # nothing to do
 
@@ -182,9 +226,11 @@ class Tracer(object):
         except Exception:
             log.debug("error setting service info", exc_info=True)
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None,
-             context=None):
-        """A decorator used to trace an entire function.
+    def wrap(self, name=None, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+        """
+        A decorator used to trace an entire function.
+
+        # TODO: change docstring
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
@@ -209,16 +255,14 @@ class Tracer(object):
                 span = tracer.current_span()
                 span.set_tag('a', 'b')
         """
-
         def wrap_decorator(f):
-
             # FIXME[matt] include the class name for methods.
             span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
 
             @functools.wraps(f)
             def func_wrapper(*args, **kwargs):
                 with self.trace(span_name, service=service, resource=resource,
-                                span_type=span_type, context=context):
+                                span_type=span_type, ctx=ctx, span_parent=span_parent):
                     return f(*args, **kwargs)
             return func_wrapper
 
@@ -231,3 +275,31 @@ class Tracer(object):
         :param str tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)
+
+
+class Tracer(BaseTracer):
+    """
+    Tracer is used to create, sample and submit spans that measure the
+    execution time of sections of code.
+
+    If you're running an application that will serve a single trace per thread,
+    you can use the global traced instance:
+
+    >>> from ddtrace import tracer
+    >>> trace = tracer.trace("app.request", "web-server").finish()
+    """
+    def __init__(self):
+        """
+        Initializes a Tracer with a global Context. This Tracer must be used
+        only in synchronous code, single or multi threaded.
+        """
+        super(Tracer, self).__init__()
+        # this Context is global to the whole application
+        self._context = Context()
+
+    def get_call_context(self):
+        """
+        Returns the global Context for this synchronous execution. The given
+        Context is thread-safe.
+        """
+        return self._context

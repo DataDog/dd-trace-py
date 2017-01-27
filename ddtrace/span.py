@@ -49,7 +49,7 @@ class Span(object):
         span_id=None,
         parent_id=None,
         start=None,
-        context=None,
+        ctx=None,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -67,7 +67,7 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
-        :param Context context: the context of the span.
+        :param Context ctx: the context of the span.
         """
         # required span info
         self.name = name
@@ -99,10 +99,7 @@ class Span(object):
         self._finished = False
 
         # context
-        self._context = context
-
-    def __str__(self):
-        return "<Span {0!r}>".format(self.name)
+        self._context = ctx
 
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
@@ -264,6 +261,7 @@ class Span(object):
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
 
+    # TODO: these context managers will not work for async code; add __a*__
     def __enter__(self):
         return self
 
