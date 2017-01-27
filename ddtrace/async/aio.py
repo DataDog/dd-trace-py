@@ -44,3 +44,11 @@ def get_call_context(loop=None):
         ctx = Context()
         _local.contexts[task] = ctx
         return ctx
+
+
+def set_call_context(task, ctx):
+    """
+    Updates the Context for the given Task. Useful when you need to
+    pass the context among different tasks.
+    """
+    _local.contexts[task] = ctx
