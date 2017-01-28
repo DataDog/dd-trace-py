@@ -35,6 +35,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'missing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -63,6 +64,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'a_new_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -91,6 +93,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'a_new_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -119,6 +122,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'an_existing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -157,6 +161,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'value',
+            'env': 'test',
         }
 
         eq_(span_get.meta, expected_meta)
@@ -202,6 +207,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'value',
+            'env': 'test',
         }
 
         eq_(span_get.meta, expected_meta)
@@ -246,6 +252,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': str(['missing_key', 'another_key']),
+            'env': 'test',
         }
 
         eq_(span_get_many.meta, expected_meta)

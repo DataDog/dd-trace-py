@@ -49,11 +49,13 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         expected_meta_view = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8427e.en-us',
+            'env': 'test',
         }
 
         expected_meta_header = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us',
+            'env': 'test',
         }
 
         eq_(span_view.meta, expected_meta_view)
@@ -88,6 +90,7 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
             'django.cache.key': 'template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e',
+            'env': 'test',
         }
 
         eq_(span_template_cache.meta, expected_meta)

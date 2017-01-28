@@ -20,16 +20,7 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         ok_(self.tracer.enabled)
         eq_(self.tracer.writer.api.hostname, 'localhost')
         eq_(self.tracer.writer.api.port, 7777)
-
-    @override_settings(DATADOG_TRACE={
-        'TRACER': 'tests.contrib.django.utils.tracer',
-        'ENABLED': True,
-        'TAGS': {
-            'env': 'production',
-        }
-    })
-    def test_tracer_global_tags_from_settings(self):
-        eq_(self.tracer.tags, {'env': 'production'})
+        eq_(self.tracer.tags, {'env': 'test'})
 
     def test_tracer_call(self):
         # test that current Django configuration is correct
