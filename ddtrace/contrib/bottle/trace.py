@@ -4,7 +4,7 @@ from bottle import response, request
 
 # stdlib
 import ddtrace
-from ddtrace.ext import http
+from ddtrace.ext import http, AppTypes
 
 
 class TracePlugin(object):
@@ -15,6 +15,10 @@ class TracePlugin(object):
     def __init__(self, service="bottle", tracer=None):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
+        tracer.set_service_info(
+            service=service,
+            app="bottle",
+            app_type=AppTypes.web)
 
     def apply(self, callback, route):
 
