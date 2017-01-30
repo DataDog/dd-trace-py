@@ -21,3 +21,19 @@ def ensure_future(coro_or_future, *, loop=None):
     task = asyncio.ensure_future(coro_or_future, loop=loop)
     aio.set_call_context(task, current_ctx)
     return task
+
+
+def run_in_executor():
+    """
+    This wrapper must be implemented.
+    The idea is that when you run synchronous code in a separated
+    executor, a copy of the context will be available in the new Thread.
+    After the thread has been executed, the Context can be merged back
+    if it has been used.
+
+    TODO: we're not providing this API at the moment and run_in_executor
+    will not work with the current asyncio tracing API. The implementation
+    is in the roadmap after frameworks instrumentation.
+    Probably this requires that Tracer is merged with AsyncTracer.
+    """
+    pass
