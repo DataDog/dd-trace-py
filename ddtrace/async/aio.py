@@ -112,5 +112,17 @@ class TraceMiddleware(object):
             # close the span
             # TODO: it may raise an exception if it's missing
             request_span = request['__datadog_request_span']
+
+            # use the route resource or the status code if the handler is not available;
+            # this block must handle PlainResource and DynamicResource
+            if request.match_info.route.resource:
+                res_info = request.match_info.route.resource.get_info()
+                resource = res_info.get('formatter', res_info.get('path'))
+            else:
+                resource = response.status
+
+            request_span.resource = resource
+            request_span.set_tag('http.method', request.method)
+            request_span.set_tag('http.status_code', response.status)
             request_span.finish()
         return on_prepare
