@@ -9,6 +9,9 @@ will be provided for deprecated async ports.
 import asyncio
 import threading
 
+from ddtrace.async import tracer
+
+from ..ext import AppTypes
 from ..context import Context
 
 
@@ -49,3 +52,65 @@ def set_call_context(task, ctx):
     pass the context among different tasks.
     """
     task.__datadog_context = ctx
+
+
+class TraceMiddleware(object):
+    """
+    aiohttp Middleware class that will append a middleware coroutine to trace
+    incoming traffic.
+
+    TODO: this class must be moved in a contrib.aiohttp.middleware module
+    """
+    def __init__(self, app, tracer, service='aiohttp'):
+        self.app = app
+        self._tracer = tracer
+        self._service = service
+
+        # configure the current service
+        self._tracer.set_service_info(
+            service=service,
+            app='aiohttp',
+            app_type=AppTypes.web,
+        )
+
+        # add the async tracer middleware
+        self.app.middlewares.append(self.middleware_factory())
+        self.app.on_response_prepare.append(self.signal_factory())
+
+    def middleware_factory(self):
+        """
+        The middleware factory returns an aiohttp middleware that traces the handler execution.
+        Because handlers are run in different tasks for each request, we attach the Context
+        instance both to the Task and to the Request objects. In this way:
+            * the Task may be used by the internal tracing
+            * the Request remains the main Context carrier if it should be passed as argument
+              to the tracer.trace() method
+        """
+        # make the tracer available in the nested functions
+        tracer = self._tracer
+
+        async def middleware(app, handler, tracer=tracer):
+            async def attach_context(request):
+                # attach the context to the request
+                ctx = get_call_context(loop=request.app.loop)
+                request['__datadog_context'] = ctx
+                # trace the handler
+                request_span = tracer.trace('handler_request', ctx=ctx, service='aiohttp-web')
+                request['__datadog_request_span'] = request_span
+                return await handler(request)
+            return attach_context
+        return middleware
+
+    def signal_factory(self):
+        """
+        The signal factory returns the on_prepare signal that is sent while the Response is
+        being prepared. The signal is used to close the request span that is created during
+        the trace middleware execution.
+        """
+        async def on_prepare(request, response):
+            ctx = request['__datadog_context']
+            # close the span
+            # TODO: it may raise an exception if it's missing
+            request_span = request['__datadog_request_span']
+            request_span.finish()
+        return on_prepare
