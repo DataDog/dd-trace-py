@@ -12,37 +12,34 @@ import threading
 from ..context import Context
 
 
-# local storage used in the single-threaded async loop
-# TODO: we may have multiple threads with multiple independent loops
-_local = threading.local()
-
-# TODO: this causes a memory leak if contexts are not removed
-# when they're finished (and flushed); we may want to use
-# weak references (like a weak key dictionary), OR remove
-# the context in the reset() method if AsyncContext is developed.
-_local.contexts = {}
-
-
 def get_call_context(loop=None):
     """
-    Returns the scoped context for this execution flow.
+    Returns the scoped context for this execution flow. The Context
+    is attached in the active Task; we can use it as Context carrier.
+
+    NOTE: because the Context is attached to a Task, the Garbage Collector
+    frees both the Task and the Context without causing a memory leak.
     """
     # TODO: this may raise exceptions; provide defaults or
     # gracefully log errors
     loop = loop or asyncio.get_event_loop()
 
     # the current unit of work (if tasks are used)
-    # TODO: it may return None
     task = asyncio.Task.current_task(loop=loop)
+    if task is None:
+        # FIXME: it will not work here
+        # if the Task is None, the application will crash with unhandled exception
+        # if we return a Context(), we will attach this Context
+        return
 
     try:
-        # return the active Context for this task
-        return _local.contexts[task]
-    except (AttributeError, LookupError):
+        # return the active Context for this task (if any)
+        return task.__datadog_context
+    except (KeyError, AttributeError):
         # create a new Context if it's not available
         # TODO: we may not want to create Context everytime
         ctx = Context()
-        _local.contexts[task] = ctx
+        task.__datadog_context = ctx
         return ctx
 
 
@@ -51,4 +48,4 @@ def set_call_context(task, ctx):
     Updates the Context for the given Task. Useful when you need to
     pass the context among different tasks.
     """
-    _local.contexts[task] = ctx
+    task.__datadog_context = ctx
