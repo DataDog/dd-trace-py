@@ -8,9 +8,9 @@ have great visibility into bottlenecks and troublesome requests.
 Installation
 ------------
 
-Install with :code:`pip` but point to Datadog's package repo::
+Install with :code:`pip`::
 
-    $ pip install ddtrace --find-links=https://s3.amazonaws.com/pypi.datadoghq.com/trace/index.html
+    $ pip install ddtrace
 
 We strongly suggest pinning the version number you deploy while we are
 in beta.
