@@ -108,21 +108,26 @@ class TraceMiddleware(object):
         the trace middleware execution.
         """
         async def on_prepare(request, response):
-            ctx = request['__datadog_context']
-            # close the span
             # TODO: it may raise an exception if it's missing
             request_span = request['__datadog_request_span']
 
-            # use the route resource or the status code if the handler is not available;
-            # this block must handle PlainResource and DynamicResource
+            # default resource name
+            resource = response.status
+
             if request.match_info.route.resource:
+                # collect the resource name based on http resource type
                 res_info = request.match_info.route.resource.get_info()
-                resource = res_info.get('formatter', res_info.get('path'))
-            else:
-                resource = response.status
+
+                if res_info.get('path'):
+                    resource = res_info.get('path')
+                elif res_info.get('formatter'):
+                    resource = res_info.get('formatter')
+                elif res_info.get('prefix'):
+                    resource = res_info.get('prefix')
 
             request_span.resource = resource
             request_span.set_tag('http.method', request.method)
             request_span.set_tag('http.status_code', response.status)
+            request_span.set_tag('http.url', request.path)
             request_span.finish()
         return on_prepare
