@@ -7,9 +7,6 @@ This module import will fail in Python 2 because no support
 will be provided for deprecated async ports.
 """
 import asyncio
-import threading
-
-from ddtrace.async import tracer
 
 from ..ext import AppTypes
 from ..compat import stringify
