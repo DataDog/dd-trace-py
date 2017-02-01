@@ -12,6 +12,7 @@ import threading
 from ddtrace.async import tracer
 
 from ..ext import AppTypes
+from ..compat import stringify
 from ..context import Context
 
 
@@ -112,7 +113,7 @@ class TraceMiddleware(object):
             request_span = request['__datadog_request_span']
 
             # default resource name
-            resource = response.status
+            resource = stringify(response.status)
 
             if request.match_info.route.resource:
                 # collect the resource name based on http resource type
