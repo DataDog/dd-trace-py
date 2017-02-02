@@ -10,12 +10,16 @@ from .writer import AgentWriter
 log = logging.getLogger(__name__)
 
 
-class BaseTracer(object):
+class Tracer(object):
     """
-    BaseTracer is the base class that defines common methods to keep track of traced
-    methods and unit of executions (spans). It is not intended to be used alone because
-    the following methods must be implemented:
-        * get_call_context()
+    Tracer is used to create, sample and submit spans that measure the
+    execution time of sections of code.
+
+    If you're running an application that will serve a single trace per thread,
+    you can use the global traced instance:
+
+    >>> from ddtrace import tracer
+    >>> trace = tracer.trace("app.request", "web-server").finish()
     """
     DEFAULT_HOSTNAME = 'localhost'
     DEFAULT_PORT = 7777
@@ -35,19 +39,21 @@ class BaseTracer(object):
         # A hook for local debugging. shouldn't be needed or used in production
         self.debug_logging = False
 
-        # a buffer for service info so we dont' perpetually send the same things
-        self._services = {}
-
         # globally set tags
         self.tags = {}
 
+        # a buffer for service info so we dont' perpetually send the same things
+        self._services = {}
+        self._context = Context()
+
     def get_call_context(self):
         """
-        Return the context for the current execution flow. This method must be implemented
-        in the concrete Tracer object because the implementation may vary depending on
-        how the code is executed (i.e. synchronous or asynchronous executions).
+        Returns the global context for this tracer. Returned ``Context`` must be thread-safe.
+        This ``Tracer`` method can be overridden using Mixin so that the whole tracer
+        is aware of the current mode (i.e. the Context retrieval is different if the execution
+        is asynchronous).
         """
-        raise NotImplementedError
+        return self._context
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None):
         """
@@ -275,31 +281,3 @@ class BaseTracer(object):
         :param str tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)
-
-
-class Tracer(BaseTracer):
-    """
-    Tracer is used to create, sample and submit spans that measure the
-    execution time of sections of code.
-
-    If you're running an application that will serve a single trace per thread,
-    you can use the global traced instance:
-
-    >>> from ddtrace import tracer
-    >>> trace = tracer.trace("app.request", "web-server").finish()
-    """
-    def __init__(self):
-        """
-        Initializes a Tracer with a global Context. This Tracer must be used
-        only in synchronous code, single or multi threaded.
-        """
-        super(Tracer, self).__init__()
-        # this Context is global to the whole application
-        self._context = Context()
-
-    def get_call_context(self):
-        """
-        Returns the global Context for this synchronous execution. The given
-        Context is thread-safe.
-        """
-        return self._context
