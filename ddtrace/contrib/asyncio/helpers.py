@@ -1,11 +1,12 @@
 """
 This module includes a list of convenience methods that
 can be used to simplify some operations while handling
-Context and Spans in instrumented code.
+Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
 
-from . import aio
+# TODO: we may don't want to do this
+from ddtrace.contrib.asyncio import tracer
 
 
 def ensure_future(coro_or_future, *, loop=None):
@@ -17,9 +18,9 @@ def ensure_future(coro_or_future, *, loop=None):
     """
     # TODO: a lot of things may fail in complex application; sanity checks
     # and stability issues will be solved later
-    current_ctx = aio.get_call_context()
+    current_ctx = tracer.get_call_context()
     task = asyncio.ensure_future(coro_or_future, loop=loop)
-    aio.set_call_context(task, current_ctx)
+    tracer.set_call_context(task, current_ctx)
     return task
 
 

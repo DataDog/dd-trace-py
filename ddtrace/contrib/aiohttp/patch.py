@@ -5,7 +5,7 @@ from .template import _trace_template_rendering
 from ...pin import Pin
 
 # TODO: the tracer should be found in a different way
-from ...async import tracer
+from ddtrace.contrib.asyncio import tracer
 
 
 def patch():
