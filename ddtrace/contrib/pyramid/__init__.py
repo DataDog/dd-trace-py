@@ -1,13 +1,10 @@
 
-# stdlib
-import time
-
 # 3p
 from pyramid.settings import asbool
 
 # project
 import ddtrace
-from ...ext import http, errors, AppTypes
+from ...ext import http, AppTypes
 
 
 def trace_tween_factory(handler, registry):
@@ -22,7 +19,6 @@ def trace_tween_factory(handler, registry):
         service=service,
         app="pyramid",
         app_type=AppTypes.web)
-
 
     if enabled:
         # make a request tracing function
@@ -49,5 +45,3 @@ def trace_tween_factory(handler, registry):
 
     # if timing support is not enabled, return the original handler
     return handler
-
-
