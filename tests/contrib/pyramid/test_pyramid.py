@@ -1,10 +1,12 @@
 
 # stdlib
 import logging
+import json
 import sys
 from wsgiref.simple_server import make_server
 
 # 3p
+from pyramid.response import Response
 from pyramid.config import Configurator
 from pyramid.view import view_config
 from pyramid.httpexceptions import HTTPInternalServerError
@@ -13,6 +15,7 @@ from nose.tools import eq_
 
 # project
 import ddtrace
+from ddtrace.contrib.pyramid import trace_pyramid
 
 def test_200():
     app, tracer = _get_test_app(service='foobar')
@@ -87,12 +90,35 @@ def test_500():
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/error')
 
+def test_json():
+    app, tracer = _get_test_app(service='foobar')
+    res = app.get('/json', status=200)
+    parsed = json.loads(res.body)
+    eq_(parsed, {'a':1})
+
+    writer = tracer.writer
+    spans = writer.pop()
+    eq_(len(spans), 2)
+    spans_by_name = {s.name:s for s in spans}
+    s = spans_by_name['pyramid.request']
+    eq_(s.service, 'foobar')
+    eq_(s.resource, 'json')
+    eq_(s.error, 0)
+    eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.status_code'), '200')
+    eq_(s.meta.get('http.url'), '/json')
+
+    s = spans_by_name['pyramid.render']
+    eq_(s.service, 'foobar')
+    eq_(s.error, 0)
+    eq_(s.span_type, 'template')
+
 
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
 
     def index(request):
-        return 'idx'
+        return Response('idx')
 
     def error(request):
         raise HTTPInternalServerError("oh no")
@@ -100,19 +126,24 @@ def _get_app(service=None, tracer=None):
     def exception(request):
         1/0
 
+    def json(request):
+        return {'a':1}
+
     settings = {
         'datadog_trace_service': service,
         'datadog_tracer': tracer or ddtrace.tracer
     }
 
     config = Configurator(settings=settings)
-    config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
+    trace_pyramid(config)
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')
-    config.add_view(index, route_name='index', renderer='string')
-    config.add_view(error, route_name='error', renderer='string')
-    config.add_view(exception, route_name='exception', renderer='string')
+    config.add_route('json', '/json')
+    config.add_view(index, route_name='index')
+    config.add_view(error, route_name='error')
+    config.add_view(exception, route_name='exception')
+    config.add_view(json, route_name='json', renderer='json')
     return config.make_wsgi_app()
 
 

@@ -255,6 +255,9 @@ class Span(object):
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
 
+    def tracer(self):
+        return self._tracer
+
     def __enter__(self):
         return self
 

@@ -1,11 +1,34 @@
 
 # 3p
+
 from pyramid.settings import asbool
+import wrapt
 
 # project
 import ddtrace
 from ...ext import http, AppTypes
 
+
+def trace_pyramid(config):
+    config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
+    # ensure we only patch the renderer once.
+    import pyramid.renderers
+    if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
+        wrapt.wrap_function_wrapper('pyramid.renderers', 'RendererHelper.render', trace_render)
+
+def trace_render(func, instance, args, kwargs):
+    # get the tracer from the request or fall back to the global version
+    def _tracer(value, system_values, request=None):
+        if request:
+            span = getattr(request, '_datadog_span', None)
+            if span:
+                return span.tracer()
+        return ddtrace.tracer
+
+    t = _tracer(*args, **kwargs)
+    with t.trace('pyramid.render') as span:
+        span.span_type = http.TEMPLATE
+        return func(*args, **kwargs)
 
 def trace_tween_factory(handler, registry):
     # configuration
@@ -24,6 +47,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
+                setattr(request, '_datadog_span', span)  # used to find the tracer in templates
                 response = None
                 try:
                     response = handler(request)
