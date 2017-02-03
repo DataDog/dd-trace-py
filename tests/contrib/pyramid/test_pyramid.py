@@ -15,7 +15,9 @@ from nose.tools import eq_
 
 # project
 import ddtrace
+from ddtrace import compat
 from ddtrace.contrib.pyramid import trace_pyramid
+
 
 def test_200():
     app, tracer = _get_test_app(service='foobar')
@@ -93,7 +95,7 @@ def test_500():
 def test_json():
     app, tracer = _get_test_app(service='foobar')
     res = app.get('/json', status=200)
-    parsed = json.loads(res.body)
+    parsed = json.loads(compat.to_unicode(res.body))
     eq_(parsed, {'a':1})
 
     writer = tracer.writer
