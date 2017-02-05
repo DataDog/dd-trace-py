@@ -49,14 +49,6 @@ class AsyncioTracer(AsyncContextMixin, Tracer):
     ``AsyncioTracer`` is used to create, sample and submit spans that measure the
     execution time of sections of ``asyncio`` code.
 
-    If you're running an application that will serve a single trace per ``Task`` during
-    a coroutine execution, you can use the global tracer instance:
-
-    >>> from ddtrace.contrib.asyncio import tracer
-    >>> trace = tracer.trace("app.request", "web-server").finish()
-
-    TODO: this docstring must be changed because with asynchronous code users may need
-    to pass the context manually, except when using ensure_future() to create new
-    execution Task. We must collect more details about common and corner cases usage.
+    TODO: this Tracer must not be used directly and this docstring will be removed.
     """
     pass

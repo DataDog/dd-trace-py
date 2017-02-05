@@ -6,8 +6,6 @@ class TraceMiddleware(object):
     """
     aiohttp Middleware class that will append a middleware coroutine to trace
     incoming traffic.
-
-    TODO: this class must be moved in a contrib.aiohttp.middleware module
     """
     def __init__(self, app, tracer, service='aiohttp'):
         self.app = app
