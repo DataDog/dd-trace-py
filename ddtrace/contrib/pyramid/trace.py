@@ -1,5 +1,6 @@
 
 # 3p
+import pyramid.renderers
 from pyramid.settings import asbool
 import wrapt
 
@@ -11,7 +12,6 @@ from ...ext import http, AppTypes
 def trace_pyramid(config):
     config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
     # ensure we only patch the renderer once.
-    import pyramid.renderers
     if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
         wrapt.wrap_function_wrapper('pyramid.renderers', 'RendererHelper.render', trace_render)
 

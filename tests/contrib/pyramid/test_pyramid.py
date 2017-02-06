@@ -115,7 +115,6 @@ def test_json():
     eq_(s.error, 0)
     eq_(s.span_type, 'template')
 
-
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
 
