@@ -2,6 +2,7 @@ machine:
   services:
     - docker
   environment:
+    TEST_DATADOG_INTEGRATION: 1
     CASS_DRIVER_NO_EXTENSIONS: 1
     AGENT_BUILD_PATH: "/home/ubuntu/agent"
   post:
