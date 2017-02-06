@@ -1,32 +1,36 @@
-import logging
 import threading
-
-
-log = logging.getLogger(__name__)
 
 
 class Context(object):
     """
     Context is used to keep track of a hierarchy of spans for the current
-    execution flow.
+    execution flow. During each logical execution, the same ``Context`` is
+    used to represent a single logical trace, even if the trace is built
+    asynchronously.
 
-    TODO: asyncio is not thread-safe by default. The fact that this class is
-    thread-safe is an implementation detail. Avoid mutex usage when the Context
-    is used in async code.
+    A single code execution may use multiple ``Context`` if part of the execution
+    must not be related to the current tracing. As example, a delayed job may
+    compose a standalone trace instead of being related to the same trace that
+    generates the job itself. On the other hand, if it's part of the same
+    ``Context``, it will be related to the original trace.
+
+    This data structure is thread-safe.
     """
     def __init__(self):
         """
-        Initialize a new Context.
+        Initialize a new thread-safe ``Context``.
         """
         self._trace = []
         self._finished_spans = 0
-        # TODO: may be replaced by the tail of the list? may be not "internal"?
         self._current_span = None
         self._lock = threading.Lock()
 
     def get_current_span(self):
         """
-        Return the last active span. This call makes sense only on synchronous code.
+        Return the last active span that corresponds to the last inserted
+        item in the trace list. This cannot be considered as the current active
+        span in asynchronous environments, because some spans can be closed
+        earlier while child spans still need to finish their traced execution.
         """
         with self._lock:
             return self._current_span
@@ -50,25 +54,22 @@ class Context(object):
 
     def get_current_trace(self):
         """
-        TODO: _trace is mutable so this is dangerous. Keep track of closed spans in an int.
-        Returns the current context trace list.
+        Returns the trace list generated in the current context.
         """
         with self._lock:
             return self._trace
 
     def is_finished(self):
         """
-        TODO this method may become an helper; check in the case of AsyncContext if the
-        separation design is correct.
-        Returns if the trace for the current Context is finished.
+        Returns if the trace for the current Context is finished or not. A Context
+        is considered finished if all spans in this context are finished.
         """
         with self._lock:
             return len(self._trace) == self._finished_spans
 
     def reset(self):
         """
-        TODO: check for AsyncContext
-        Reset the current Context if it should be re-usable.
+        Reset the current Context so that it is re-usable.
         """
         with self._lock:
             self._trace = []
