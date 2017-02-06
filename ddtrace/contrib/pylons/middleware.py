@@ -4,6 +4,7 @@ from ...ext import http
 from ...ext import AppTypes
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class PylonsTraceMiddleware(object):

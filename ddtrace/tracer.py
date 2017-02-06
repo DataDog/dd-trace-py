@@ -9,6 +9,7 @@ from .writer import AgentWriter
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class Tracer(object):

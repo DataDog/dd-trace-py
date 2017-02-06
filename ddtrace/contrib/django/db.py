@@ -9,6 +9,7 @@ from ...ext import AppTypes
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 def patch_db(tracer):

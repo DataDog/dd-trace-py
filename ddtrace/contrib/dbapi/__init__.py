@@ -14,6 +14,7 @@ from ddtrace.ext import sql
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class TracedCursor(wrapt.ObjectProxy):

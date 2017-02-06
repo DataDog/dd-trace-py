@@ -20,6 +20,7 @@ from .parse import parse_spec, parse_query, parse_msg
 _MongoClient = pymongo.MongoClient
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 @deprecated(message='Use patching instead (see the docs).', version='0.6.0')

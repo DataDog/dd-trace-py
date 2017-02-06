@@ -14,6 +14,7 @@ except ImportError:
     MSGPACK_ENCODING = False
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class Encoder(object):
