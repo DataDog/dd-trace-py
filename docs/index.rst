@@ -186,11 +186,6 @@ Django
 
 .. automodule:: ddtrace.contrib.django
 
-Pylons
-~~~~~~
-
-.. automodule:: ddtrace.contrib.pylons
-
 Falcon
 ~~~~~~
 
@@ -200,6 +195,17 @@ Flask
 ~~~~~
 
 .. automodule:: ddtrace.contrib.flask
+
+Pylons
+~~~~~~
+
+.. automodule:: ddtrace.contrib.pylons
+
+Pyramid
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.pyramid
+
 
 Other Libraries
 ---------------
