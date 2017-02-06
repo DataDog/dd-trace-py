@@ -148,6 +148,7 @@ class Tracer(object):
     def record(self, span):
         """Record the given finished span."""
         spans = []
+        span.service = span.service or Span.DEFAULT_SERVICE
         with self._spans_lock:
             self._spans.append(span)
             parent = span._parent

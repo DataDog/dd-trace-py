@@ -14,6 +14,8 @@ log = logging.getLogger(__name__)
 
 class Span(object):
 
+    DEFAULT_SERVICE = 'python'
+
     __slots__ = [
         # Public span attributes
         'service',
