@@ -283,6 +283,32 @@ def test_tracer_global_tags():
     s3.finish()
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
+def test_span_default_service():
+    # add some dummy tracing code.
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+    sleep = 0.05
+
+    def _do():
+        with tracer.trace("do.something"):
+            time.sleep(sleep)
+
+    # let's run it and make sure all is well.
+    assert not writer.spans
+    _do()
+    spans = writer.pop()
+    assert spans, "%s" % spans
+    eq_(len(spans), 1)
+    spans_by_name = {s.name:s for s in spans}
+    eq_(len(spans_by_name), 1)
+
+    do = spans_by_name["do.something"]
+    assert do.span_id
+    assert do.parent_id is None
+    assert do.trace_id
+    eq_("python", do.service)
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
