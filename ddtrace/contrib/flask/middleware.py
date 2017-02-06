@@ -88,10 +88,6 @@ class TraceMiddleware(object):
 
     def _start_span(self):
         try:
-            # if we have a parent span here, it means something was gone wrong.
-            # might as well clear it out.
-            self._tracer.clear_current_span()
-
             g.flask_datadog_span = self._tracer.trace(
                 "flask.request",
                 service=self._service,

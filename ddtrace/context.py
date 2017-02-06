@@ -13,11 +13,6 @@ class Context(object):
     TODO: asyncio is not thread-safe by default. The fact that this class is
     thread-safe is an implementation detail. Avoid mutex usage when the Context
     is used in async code.
-
-    TODO: In synchronous environment each thread has its own copy of the global
-    Context through the ThreadLocalContext class (compliant with the original
-    implementation). This works for synchronous code, but in some environments
-    it may not work (i.e. gevent?).
     """
     def __init__(self):
         """
@@ -31,19 +26,10 @@ class Context(object):
 
     def get_current_span(self):
         """
-        TODO: check if getters are needed to be generic in async code
         Return the last active span. This call makes sense only on synchronous code.
         """
         with self._lock:
             return self._current_span
-
-    def set_current_span(self, span):
-        """
-        TODO: check if setters are needed to be generic in async code
-        Set the last active span. This call makes sense only on synchronous code.
-        """
-        with self._lock:
-            self._current_span = span
 
     def add_span(self, span):
         """
