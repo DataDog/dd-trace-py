@@ -158,12 +158,6 @@ class Tracer(object):
         """
         return self.get_call_context().get_current_span()
 
-    def clear_current_span(self):
-        """
-        TODO: check if it's really required by our integrations
-        """
-        self.get_call_context().set_current_span(None)
-
     def record(self, span):
         """
         Record the given finished span.
@@ -230,8 +224,6 @@ class Tracer(object):
     def wrap(self, name=None, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
         """
         A decorator used to trace an entire function.
-
-        # TODO: change docstring
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.

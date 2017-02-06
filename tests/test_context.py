@@ -27,15 +27,6 @@ class TestTracingContext(TestCase):
         ctx.add_span(span)
         eq_(span, ctx.get_current_span())
 
-    def test_set_current_span(self):
-        # it should set to none the current active span
-        # despide the trace length
-        ctx = Context()
-        span = Span(tracer=None, name='fake_span')
-        ctx.add_span(span)
-        ctx.set_current_span(None)
-        ok_(ctx.get_current_span() is None)
-
     def test_finish_span(self):
         # it should keep track of closed spans, moving
         # the current active to it's parent
