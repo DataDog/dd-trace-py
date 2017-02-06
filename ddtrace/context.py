@@ -13,6 +13,11 @@ class Context(object):
     TODO: asyncio is not thread-safe by default. The fact that this class is
     thread-safe is an implementation detail. Avoid mutex usage when the Context
     is used in async code.
+
+    TODO: In synchronous environment each thread has its own copy of the global
+    Context through the ThreadLocalContext class (compliant with the original
+    implementation). This works for synchronous code, but in some environments
+    it may not work (i.e. gevent?).
     """
     def __init__(self):
         """
@@ -83,3 +88,25 @@ class Context(object):
             self._trace = []
             self._finished_spans = 0
             self._current_span = None
+
+
+class ThreadLocalContext(object):
+    """
+    ThreadLocalContext can be used as a tracer global reference to create
+    a different ``Context`` for each thread. In synchronous tracer, this
+    is required to prevent multiple threads sharing the same ``Context``
+    in different executions.
+    """
+    def __init__(self):
+        self._locals = threading.local()
+
+    def get(self):
+        ctx = getattr(self._locals, 'context', None)
+        if not ctx:
+            # create a new Context if it's not available; this action
+            # is done once because the Context has the reset() method
+            # to reuse the same instance
+            ctx = Context()
+            self._locals.context = ctx
+
+        return ctx
