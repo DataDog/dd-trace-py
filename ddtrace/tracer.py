@@ -1,7 +1,7 @@
 import functools
 import logging
 
-from .context import Context
+from .context import ThreadLocalContext
 from .sampler import AllSampler
 from .span import Span
 from .writer import AgentWriter
@@ -44,16 +44,18 @@ class Tracer(object):
 
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
-        self._context = Context()
+        self._context = ThreadLocalContext()
 
     def get_call_context(self):
         """
-        Returns the global context for this tracer. Returned ``Context`` must be thread-safe.
-        This ``Tracer`` method can be overridden using Mixin so that the whole tracer
-        is aware of the current mode (i.e. the Context retrieval is different if the execution
-        is asynchronous).
+        Returns the global context for this tracer. Returned ``Context`` must be thread-safe
+        or thread-local.
+
+        Mixin can be used to override this ``Tracer`` method so that the whole tracer is aware
+        of the current execution mode (i.e. the ``Context`` retrieval is different in
+        asynchronous environments).
         """
-        return self._context
+        return self._context.get()
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None):
         """
@@ -87,7 +89,7 @@ class Tracer(object):
         :param str span_type: an optional operation type.
 
         :param Context ctx: TODO
-        :param Span parent: TODO
+        :param Span span_parent: TODO
 
         You must call `finish` on all spans, either directly or with a context
         manager.
@@ -112,6 +114,7 @@ class Tracer(object):
         >>> parent2.finish()
         """
         # use the given Context object, or retrieve it using the Tracer logic
+        # TODO: provide plain methods that don't do any automatic action
         context = ctx or self.get_call_context()
         parent = span_parent or context.get_current_span()
 
