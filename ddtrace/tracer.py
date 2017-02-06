@@ -130,7 +130,6 @@ class Tracer(object):
                 parent_id=parent.span_id,
                 ctx=context,
             )
-            # TODO make this part of the constructor
             span._parent = parent
             span.sampled = parent.sampled
         else:
@@ -155,8 +154,7 @@ class Tracer(object):
 
     def current_span(self):
         """
-        TODO: meh proxy
-        Return the current active span or None.
+        Return the current active span in this call Context or None.
         """
         return self.get_call_context().get_current_span()
 
@@ -174,22 +172,16 @@ class Tracer(object):
         context = span._context
         context.finish_span(span)
 
-        # TODO: keeping the section in this way only for async API developing
         if context.is_finished():
             # extract and enqueue the trace if it's sampled
             if span.sampled:
                 trace = context.get_current_trace()
                 self.write(trace)
             # reset the current context
-            # TODO: may not be needed for AsyncTracer (or it may be used
-            # to remove the reference so that it will be garbage collected)
             context.reset()
 
     def write(self, spans):
         """
-        # TODO: this method should be different for Async tasks because:
-            * it MUST run in a separate executor in asyncio
-            * it MUST run in a separate thread for async frameworks without asyncio loop
         Send the trace to the writer to enqueue the spans list in the agent
         sending queue.
         """

@@ -285,6 +285,33 @@ def test_tracer_global_tags():
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
 
+def test_global_context():
+    # the tracer uses a global thread-local Context
+    tracer = get_dummy_tracer()
+    span = tracer.trace('fake_span')
+    ctx = tracer.get_call_context()
+    eq_(1, len(ctx._trace))
+    eq_(span, ctx._trace[0])
+
+
+def test_tracer_current_span():
+    # the current span is in the local Context()
+    tracer = get_dummy_tracer()
+    span = tracer.trace('fake_span')
+    eq_(span, tracer.current_span())
+
+
+def test_trace_with_context():
+    # tracer.trace() could accept a different Context
+    tracer = get_dummy_tracer()
+    ctx = Context()
+    span = tracer.trace('fake_span', ctx=ctx)
+    # the default is empty while the other should have
+    eq_(0, len(tracer.get_call_context()._trace))
+    eq_(1, len(ctx._trace))
+    eq_(span, ctx._trace[0])
+
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
