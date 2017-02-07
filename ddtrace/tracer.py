@@ -148,7 +148,7 @@ class Tracer(object):
         if self.tags:
             span.set_tags(self.tags)
 
-        # add it to context
+        # add it to the current context
         context.add_span(span)
         return span
 
@@ -158,21 +158,14 @@ class Tracer(object):
         """
         return self.get_call_context().get_current_span()
 
-    def record(self, span):
+    def record(self, context):
         """
-        Record the given finished span.
+        Record the given ``Context`` if it's finished.
         """
-        # mark the span as finished for the current context
-        context = span._context
-        context.finish_span(span)
-
-        if context.is_finished():
-            # extract and enqueue the trace if it's sampled
-            if span.sampled:
-                trace = context.get_current_trace()
-                self.write(trace)
-            # reset the current context
-            context.reset()
+        # extract and enqueue the trace if it's sampled
+        trace, sampled = context.get()
+        if trace and sampled:
+            self.write(trace)
 
     def write(self, spans):
         """

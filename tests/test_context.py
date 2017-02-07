@@ -20,6 +20,13 @@ class TestTracingContext(TestCase):
         eq_(1, len(ctx._trace))
         eq_('fake_span', ctx._trace[0].name)
 
+    def test_context_sampled(self):
+        # a context is sampled if the spans are sampled
+        ctx = Context()
+        span = Span(tracer=None, name='fake_span')
+        ctx.add_span(span)
+        ok_(ctx._sampled is True)
+
     def test_current_span(self):
         # it should return the current active span
         ctx = Context()
@@ -27,43 +34,54 @@ class TestTracingContext(TestCase):
         ctx.add_span(span)
         eq_(span, ctx.get_current_span())
 
-    def test_finish_span(self):
+    def test_close_span(self):
         # it should keep track of closed spans, moving
         # the current active to it's parent
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        ctx.finish_span(span)
+        ctx.close_span(span)
         eq_(1, ctx._finished_spans)
         ok_(ctx.get_current_span() is None)
 
-    def test_current_trace(self):
+    def test_get_trace(self):
         # it should return the internal trace structure
+        # if the context is finished
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        trace = ctx.get_current_trace()
+        ctx.close_span(span)
+        trace, sampled = ctx.get()
         eq_(1, len(trace))
         eq_(span, trace[0])
+        ok_(sampled is True)
+        # the context should be empty
+        eq_(0, len(ctx._trace))
+        eq_(0, ctx._finished_spans)
+        ok_(ctx._current_span is None)
+        ok_(ctx._sampled is False)
+
+    def test_get_trace_empty(self):
+        # it should return None if the Context is not finished
+        ctx = Context()
+        span = Span(tracer=None, name='fake_span')
+        ctx.add_span(span)
+        trace, sampled = ctx.get()
+        ok_(trace is None)
+        ok_(sampled is None)
 
     def test_finished(self):
         # a Context is finished if all spans inside are finished
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        ctx.finish_span(span)
-        ok_(ctx.is_finished)
+        ctx.close_span(span)
+        ok_(ctx.is_finished())
 
-    def test_reset(self):
-        # the Context should be reusable if reset is called
+    def test_finished_empty(self):
+        # a Context is not finished if it's empty
         ctx = Context()
-        span = Span(tracer=None, name='fake_span')
-        ctx.add_span(span)
-        ctx.finish_span(span)
-        ctx.reset()
-        eq_(0, len(ctx._trace))
-        eq_(0, ctx._finished_spans)
-        ok_(ctx._current_span is None)
+        ok_(ctx.is_finished() is False)
 
     def test_thread_safe(self):
         # the Context must be thread-safe
