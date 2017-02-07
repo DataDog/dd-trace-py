@@ -3,6 +3,7 @@ import time
 from nose.tools import eq_
 from unittest.case import SkipTest
 
+from ddtrace.context import Context
 from ddtrace.span import Span
 from ddtrace.ext import errors
 
@@ -88,27 +89,32 @@ def test_tags_not_string():
     s.set_tag("a", Foo())
 
 def test_finish():
-    # ensure finish will record a span.
+    # ensure finish will record a span
     dt = DummyTracer()
-    assert dt.last_span is None
-    s = Span(dt, "foo")
+    ctx = Context()
+    s = Span(dt, "foo", ctx=ctx)
+    ctx.add_span(s)
     assert s.duration is None
+
     sleep = 0.05
     with s as s1:
         assert s is s1
         time.sleep(sleep)
     assert s.duration >= sleep, "%s < %s" % (s.duration, sleep)
-    eq_(s, dt.last_span)
+    eq_(1, dt.spans_recorded)
 
-    # ensure finish works with no tracer
-    s2 = Span(tracer=None, name="foo")
-    s2.finish()
+
+def test_finish_no_tracer():
+    # ensure finish works with no tracer without raising exceptions
+    s = Span(tracer=None, name="foo")
+    s.finish()
 
 def test_finish_called_multiple_times():
     # we should only record a span the first time finish is called on it
     dt = DummyTracer()
-    assert dt.spans_recorded == 0
-    s = Span(dt, 'bar')
+    ctx = Context()
+    s = Span(dt, 'bar', ctx=ctx)
+    ctx.add_span(s)
     s.finish()
     s.finish()
     assert dt.spans_recorded == 1
@@ -117,12 +123,10 @@ def test_finish_called_multiple_times():
 def test_finish_set_span_duration():
     # If set the duration on a span, the span should be recorded with this
     # duration
-    dt = DummyTracer()
-    assert dt.last_span is None
-    s = Span(dt, 'foo')
+    s = Span(tracer=None, name='foo')
     s.duration = 1337.0
     s.finish()
-    assert dt.last_span.duration == 1337.0
+    assert s.duration == 1337.0
 
 def test_traceback_with_error():
     s = Span(None, "foo")

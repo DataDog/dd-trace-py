@@ -117,9 +117,11 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration = ft - (self.start or ft)
 
-        if self._tracer:
+        # if a tracer is available to process the current context
+        if self._tracer and self._context:
             try:
-                self._tracer.record(self)
+                self._context.close_span(self)
+                self._tracer.record(self._context)
             except Exception:
                 log.exception("error recording finished trace")
 
