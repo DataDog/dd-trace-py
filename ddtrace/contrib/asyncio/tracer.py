@@ -15,33 +15,37 @@ class AsyncContextMixin(object):
         the current task as a carrier so if a single task is used for the entire application,
         the context must be handled separately.
         """
-        # TODO: this may raise exceptions; provide defaults or
-        # gracefully "log" errors
-        loop = loop or asyncio.get_event_loop()
+        try:
+            loop = loop or asyncio.get_event_loop()
+        except RuntimeError:
+            # handles RuntimeError: There is no current event loop in thread 'MainThread'
+            # it happens when it's not possible to get the current event loop
+            return Context()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
         if task is None:
-            # FIXME: this will not work properly in all cases
-            # if the Task is None, the application will crash with unhandled exception
-            # if we return a Context(), we will attach the trace to a (probably) wrong Context
-            return
-        try:
+            # providing a detached Context from the current Task, may lead to
+            # wrong traces. This defensive behavior grants that a trace can
+            # still be built without raising exceptions
+            return Context()
+
+        ctx = getattr(task, '__datadog_context', None)
+        if ctx is not None:
             # return the active Context for this task (if any)
-            return task.__datadog_context
-        except (KeyError, AttributeError):
-            # create a new Context using the Task as a Context carrier
-            # TODO: we may not want to create Context everytime
-            ctx = Context()
-            task.__datadog_context = ctx
             return ctx
+
+        # create a new Context using the Task as a Context carrier
+        ctx = Context()
+        setattr(task, '__datadog_context', ctx)
+        return ctx
 
     def set_call_context(self, task, ctx):
         """
         Updates the Context for the given Task. Useful when you need to
         pass the context among different tasks.
         """
-        task.__datadog_context = ctx
+        setattr(task, '__datadog_context', ctx)
 
 
 class AsyncioTracer(AsyncContextMixin, Tracer):
