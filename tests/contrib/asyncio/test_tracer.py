@@ -3,7 +3,7 @@ import asyncio
 from nose.tools import eq_, ok_
 
 from ddtrace.context import Context
-from .utils import AsyncioTestCase, get_dummy_async_tracer, mark_asyncio
+from .utils import AsyncioTestCase, mark_asyncio
 
 
 class TestAsyncioTracer(AsyncioTestCase):
