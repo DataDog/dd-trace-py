@@ -114,6 +114,15 @@ class TestThreadContext(TestCase):
         l_ctx = ThreadLocalContext()
         eq_(l_ctx.get(), l_ctx.get())
 
+    def test_set_context(self):
+        # the Context can be set in the current Thread
+        ctx = Context()
+        local = ThreadLocalContext()
+        ok_(local.get() is not ctx)
+
+        local.set(ctx)
+        ok_(local.get() is ctx)
+
     def test_multiple_threads_multiple_context(self):
         # each thread should have it's own Context
         l_ctx = ThreadLocalContext()

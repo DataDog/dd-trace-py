@@ -109,6 +109,9 @@ class ThreadLocalContext(object):
     def __init__(self):
         self._locals = threading.local()
 
+    def set(self, ctx):
+        setattr(self._locals, 'context', ctx)
+
     def get(self):
         ctx = getattr(self._locals, 'context', None)
         if not ctx:
