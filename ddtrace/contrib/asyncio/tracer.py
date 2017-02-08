@@ -19,8 +19,10 @@ class AsyncContextMixin(object):
             loop = loop or asyncio.get_event_loop()
         except RuntimeError:
             # handles RuntimeError: There is no current event loop in thread 'MainThread'
-            # it happens when it's not possible to get the current event loop
-            return Context()
+            # it happens when it's not possible to get the current event loop.
+            # It's possible that a different Executor is handling a different Thread that
+            # works with blocking code. In that case, we fallback to a thread-local Context.
+            return self._context.get()
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
