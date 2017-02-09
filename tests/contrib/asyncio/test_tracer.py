@@ -85,3 +85,74 @@ class TestAsyncioTracer(AsyncioTestCase):
         # but a new Context is still created making the operation safe
         ctx = self.tracer.get_call_context()
         ok_(ctx is not None)
+
+    @mark_asyncio
+    def test_exception(self):
+        async def f1():
+            with self.tracer.trace('f1'):
+                raise Exception('f1 error')
+
+        with self.assertRaises(Exception):
+            yield from f1()
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(1, len(spans))
+        span = spans[0]
+        eq_(1, span.error)
+        eq_('f1 error', span.get_tag('error.msg'))
+        ok_('Exception: f1 error' in span.get_tag('error.stack'))
+
+    @mark_asyncio
+    def test_nested_exceptions(self):
+        async def f1():
+            with self.tracer.trace('f1'):
+                raise Exception('f1 error')
+        async def f2():
+            with self.tracer.trace('f2'):
+                await f1()
+
+        with self.assertRaises(Exception):
+            yield from f2()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(2, len(spans))
+        span = spans[0]
+        eq_('f2', span.name)
+        eq_(1, span.error) # f2 did not catch the exception
+        eq_('f1 error', span.get_tag('error.msg'))
+        ok_('Exception: f1 error' in span.get_tag('error.stack'))
+        span = spans[1]
+        eq_('f1', span.name)
+        eq_(1, span.error)
+        eq_('f1 error', span.get_tag('error.msg'))
+        ok_('Exception: f1 error' in span.get_tag('error.stack'))
+
+    @mark_asyncio
+    def test_handled_nested_exceptions(self):
+        async def f1():
+            with self.tracer.trace('f1'):
+                raise Exception('f1 error')
+        async def f2():
+            with self.tracer.trace('f2'):
+                try:
+                    await f1()
+                except Exception:
+                    pass
+
+        yield from f2()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(2, len(spans))
+        span = spans[0]
+        eq_('f2', span.name)
+        eq_(0, span.error) # f2 caught the exception
+        span = spans[1]
+        eq_('f1', span.name)
+        eq_(1, span.error)
+        eq_('f1 error', span.get_tag('error.msg'))
+        ok_('Exception: f1 error' in span.get_tag('error.stack'))
