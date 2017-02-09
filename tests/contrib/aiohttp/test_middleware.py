@@ -1,0 +1,153 @@
+import asyncio
+
+from nose.tools import eq_, ok_
+from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+
+from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
+
+from .app.web import setup_app
+from ..asyncio.utils import get_dummy_async_tracer
+
+
+class TestTraceMiddleware(AioHTTPTestCase):
+    """
+    Ensures that the trace Middleware creates root spans at
+    the beginning of a request.
+    """
+
+    async def get_app(self, loop):
+        """
+        Override the get_app method to return the test application
+        """
+        # create the app with the testing loop
+        app = setup_app(loop)
+        asyncio.set_event_loop(loop)
+        # trace the app
+        self.tracer = get_dummy_async_tracer()
+        TraceMiddleware(app, self.tracer)
+        return app
+
+    @unittest_run_loop
+    async def test_tracing_service(self):
+        # it should configure the aiohttp service
+        eq_(1, len(self.tracer._services))
+        service = self.tracer._services.get('aiohttp-web')
+        eq_('aiohttp-web', service[0])
+        eq_('aiohttp', service[1])
+        eq_('web', service[2])
+
+    @unittest_run_loop
+    async def test_handler(self):
+        # it should create a root span when there is a handler hit
+        # with the proper tags
+        request = await self.client.request('GET', '/')
+        eq_(200, request.status)
+        text = await request.text()
+        eq_("What's tracing?", text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right fields
+        eq_('handler_request', span.name)
+        eq_('aiohttp-web', span.service)
+        eq_('http', span.span_type)
+        eq_('/', span.resource)
+        eq_('/', span.get_tag('http.url'))
+        eq_('GET', span.get_tag('http.method'))
+        eq_('200', span.get_tag('http.status_code'))
+        eq_(0, span.error)
+
+    @unittest_run_loop
+    async def test_param_handler(self):
+        # it should manage properly handlers with params
+        request = await self.client.request('GET', '/echo/team')
+        eq_(200, request.status)
+        text = await request.text()
+        eq_('Hello team', text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right fields
+        eq_('/echo/{name}', span.resource)
+        eq_('/echo/team', span.get_tag('http.url'))
+        eq_('200', span.get_tag('http.status_code'))
+
+    @unittest_run_loop
+    async def test_404_handler(self):
+        # it should not pollute the resource space
+        request = await self.client.request('GET', '/404/not_found')
+        eq_(404, request.status)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right fields
+        eq_('404', span.resource)
+        eq_('/404/not_found', span.get_tag('http.url'))
+        eq_('GET', span.get_tag('http.method'))
+        eq_('404', span.get_tag('http.status_code'))
+
+    @unittest_run_loop
+    async def test_coroutine_chaining(self):
+        # it should create a trace with multiple spans
+        request = await self.client.request('GET', '/chaining/')
+        eq_(200, request.status)
+        text = await request.text()
+        eq_('OK', text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(3, len(traces[0]))
+        root = traces[0][0]
+        handler = traces[0][1]
+        coroutine = traces[0][2]
+        # root span created in the middleware
+        eq_('handler_request', root.name)
+        eq_('/chaining/', root.resource)
+        eq_('/chaining/', root.get_tag('http.url'))
+        eq_('GET', root.get_tag('http.method'))
+        eq_('200', root.get_tag('http.status_code'))
+        # span created in the coroutine_chaining handler
+        eq_('aiohttp.coro_1', handler.name)
+        eq_(root.span_id, handler.parent_id)
+        eq_(root.trace_id, handler.trace_id)
+        # span created in the coro_2 handler
+        eq_('aiohttp.coro_2', coroutine.name)
+        eq_(handler.span_id, coroutine.parent_id)
+        eq_(root.trace_id, coroutine.trace_id)
+
+    @unittest_run_loop
+    async def test_static_handler(self):
+        # it should create a trace with multiple spans
+        request = await self.client.request('GET', '/statics/empty.txt')
+        eq_(200, request.status)
+        text = await request.text()
+        eq_('Static file\n', text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # root span created in the middleware
+        eq_('handler_request', span.name)
+        eq_('/statics', span.resource)
+        eq_('/statics/empty.txt', span.get_tag('http.url'))
+        eq_('GET', span.get_tag('http.method'))
+        eq_('200', span.get_tag('http.status_code'))
+
+    @unittest_run_loop
+    async def test_middleware_applied_twice(self):
+        # it should be idempotent
+        app = setup_app(self.app.loop)
+        self.tracer = get_dummy_async_tracer()
+        TraceMiddleware(app, self.tracer)
+        # the middleware is present
+        eq_(1, len(app.middlewares))
+        # applying the middleware twice doesn't add it again
+        TraceMiddleware(app, self.tracer)
+        eq_(1, len(app.middlewares))
