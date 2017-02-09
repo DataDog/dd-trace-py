@@ -14,11 +14,8 @@ dependencies:
     # only docker-engine==1.9
     - pip install docker-compose==1.7.1
     - sudo apt-get install libmemcached-dev # required for pylibmc
-    # prepare and run the trace agent
-    # TODO[manu]: remove this part when everything will be open source
-    - git clone git@github.com:DataDog/datadog-trace-agent.git $AGENT_BUILD_PATH
-    - cd $AGENT_BUILD_PATH && docker build -t datadog/trace-agent .
-    - docker run -d -e DD_API_KEY=invalid_key_but_this_is_fine -e DD_BIND_HOST=0.0.0.0 -p 127.0.0.1:7777:7777 datadog/trace-agent
+    # run the agent
+    - docker run -d -e DD_API_KEY=invalid_key_but_this_is_fine -e DD_BIND_HOST=0.0.0.0 -e DD_APM_ENABLED=true -p 127.0.0.1:8126:8126 -p 127.0.0.1:7777:7777 datadog/docker-dd-agent
 
 test:
   override:
