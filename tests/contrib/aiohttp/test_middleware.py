@@ -151,3 +151,35 @@ class TestTraceMiddleware(AioHTTPTestCase):
         # applying the middleware twice doesn't add it again
         TraceMiddleware(app, self.tracer)
         eq_(1, len(app.middlewares))
+
+    @unittest_run_loop
+    async def test_exception(self):
+        request = await self.client.request('GET', '/exception')
+        eq_(500, request.status)
+        await request.text()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(1, len(spans))
+        span = spans[0]
+        eq_(1, span.error)
+        eq_('/exception', span.resource)
+        eq_('error', span.get_tag('error.msg'))
+        ok_('Exception: error' in span.get_tag('error.stack'))
+
+    @unittest_run_loop
+    async def test_async_exception(self):
+        request = await self.client.request('GET', '/async_exception')
+        eq_(500, request.status)
+        await request.text()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(1, len(spans))
+        span = spans[0]
+        eq_(1, span.error)
+        eq_('/async_exception', span.resource)
+        eq_('error', span.get_tag('error.msg'))
+        ok_('Exception: error' in span.get_tag('error.stack'))

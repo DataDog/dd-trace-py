@@ -51,7 +51,11 @@ class TraceMiddleware(object):
                     span_type=http.TYPE,
                 )
                 request['__datadog_request_span'] = request_span
-                return await handler(request)
+                try:
+                    return await handler(request)
+                except Exception:
+                    request_span.set_traceback()
+                    raise
             return attach_context
         return middleware
 
