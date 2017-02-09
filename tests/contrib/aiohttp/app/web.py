@@ -23,6 +23,11 @@ async def coroutine_chaining(request):
     span.finish()
     return web.Response(text=text)
 
+def route_exception(request):
+    raise Exception('error')
+
+async def route_async_exception(request):
+    raise Exception('error')
 
 async def coro_2(request):
     tracer = get_tracer(request)
@@ -42,6 +47,8 @@ def setup_app(loop):
     app.router.add_get('/', home)
     app.router.add_get('/echo/{name}', name)
     app.router.add_get('/chaining/', coroutine_chaining)
+    app.router.add_get('/exception', route_exception)
+    app.router.add_get('/async_exception', route_async_exception)
     app.router.add_static('/statics', STATIC_DIR)
     return app
 
