@@ -1,4 +1,4 @@
-from ...ext import AppTypes
+from ...ext import AppTypes, http
 from ...compat import stringify
 
 
@@ -7,7 +7,13 @@ class TraceMiddleware(object):
     aiohttp Middleware class that will append a middleware coroutine to trace
     incoming traffic.
     """
-    def __init__(self, app, tracer, service='aiohttp'):
+    def __init__(self, app, tracer, service='aiohttp-web'):
+        # safe-guard: don't add the middleware twice
+        if getattr(app, '__datadog_middleware', False):
+            return
+        setattr(app, '__datadog_middleware', True)
+
+        # keep the references
         self.app = app
         self._tracer = tracer
         self._service = service
@@ -32,16 +38,18 @@ class TraceMiddleware(object):
             * the Request remains the main Context carrier if it should be passed as argument
               to the tracer.trace() method
         """
-        # make the tracer available in the nested functions
-        tracer = self._tracer
-
-        async def middleware(app, handler, tracer=tracer):
+        async def middleware(app, handler):
             async def attach_context(request):
                 # attach the context to the request
-                ctx = tracer.get_call_context(loop=request.app.loop)
+                ctx = self._tracer.get_call_context(loop=request.app.loop)
                 request['__datadog_context'] = ctx
                 # trace the handler
-                request_span = tracer.trace('handler_request', ctx=ctx, service='aiohttp-web')
+                request_span = self._tracer.trace(
+                    'handler_request',
+                    ctx=ctx,
+                    service=self._service,
+                    span_type=http.TYPE,
+                )
                 request['__datadog_request_span'] = request_span
                 return await handler(request)
             return attach_context
