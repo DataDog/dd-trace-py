@@ -62,6 +62,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.span_type, "elasticsearch")
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
+        eq_(span.get_tag(metadata.STATUS), u'200')
         eq_(span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
