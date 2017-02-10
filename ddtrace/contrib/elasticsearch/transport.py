@@ -11,18 +11,17 @@ DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
-'''
+
 class TracedConnection(Urllib3HttpConnection):
      def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
         status, headers, data = super(TracedConnection, self).perform_request(method, url, params, body, ignore=ignore, timeout=timeout)
-        import pdb; pdb.set_trace()
-        import ast
-        data = ast.literal_eval(data)
-        data["status"] = status
+        #import pdb; pdb.set_trace()
         import json
+        data = json.loads(data)
+        data[u"status"] = status
         data = json.dumps(data, encoding='utf-8')
         return status, headers, data
-'''
+
 
 @deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
@@ -42,7 +41,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def __init__(self, hosts, **kwargs):
-            super(TracedTransport, self).__init__(hosts, **kwargs) #connection_class=TracedConnection
+            super(TracedTransport, self).__init__(hosts, connection_class=TracedConnection, **kwargs)
 
         def perform_request(self, method, url, params=None, body=None):
 
@@ -62,6 +61,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s = quantize(s)
                 result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
 
+                status = None
                 if isinstance(result, tuple) and len(result) == 2:
                     # elasticsearch<2.4; it returns both the status and the body
                     status, data = result
@@ -69,9 +69,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                     # elasticsearch>=2.4; internal change for ``Transport.perform_request``
                     # that just returns the body
                     data = result
-
-                if not status:
-                    status = 0
+                    status = result['status']
 
                 if status:
                     s.set_tag(metadata.STATUS, status)
