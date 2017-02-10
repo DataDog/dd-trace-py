@@ -1,32 +1,17 @@
-import asyncio
-
 from nose.tools import eq_, ok_
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
+from .utils import TraceTestCase
 from .app.web import setup_app
-from ..asyncio.utils import get_dummy_async_tracer
 
 
-class TestTraceMiddleware(AioHTTPTestCase):
+class TestTraceMiddleware(TraceTestCase):
     """
     Ensures that the trace Middleware creates root spans at
     the beginning of a request.
     """
-
-    async def get_app(self, loop):
-        """
-        Override the get_app method to return the test application
-        """
-        # create the app with the testing loop
-        app = setup_app(loop)
-        asyncio.set_event_loop(loop)
-        # trace the app
-        self.tracer = get_dummy_async_tracer()
-        TraceMiddleware(app, self.tracer)
-        return app
-
     @unittest_run_loop
     async def test_tracing_service(self):
         # it should configure the aiohttp service
@@ -144,7 +129,6 @@ class TestTraceMiddleware(AioHTTPTestCase):
     async def test_middleware_applied_twice(self):
         # it should be idempotent
         app = setup_app(self.app.loop)
-        self.tracer = get_dummy_async_tracer()
         TraceMiddleware(app, self.tracer)
         # the middleware is present
         eq_(1, len(app.middlewares))
