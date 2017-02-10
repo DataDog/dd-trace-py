@@ -41,6 +41,7 @@ class API(object):
 
     def handle_response(self, response):
         status_code = response.status
+
         # success
         if 200 <= status_code <= 299:
             log.debug('Payload correctly sent to the trace agent.')
