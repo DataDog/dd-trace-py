@@ -6,6 +6,8 @@ import aiohttp_jinja2
 
 from ddtrace import Pin
 
+from ...ext import http, errors, AppTypes
+
 
 def _trace_template_rendering(func, module, args, kwargs):
     """
@@ -16,13 +18,17 @@ def _trace_template_rendering(func, module, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    # extract span metas
+    # original signature:
+    # render_template(template_name, request, context, *, app_key=APP_KEY, encoding='utf-8')
+    template_name = args[0]
     request = args[1]
     env = aiohttp_jinja2.get_env(request.app)
-    template_prefix = env.loader.package_path
-    template_name = args[0]
+
+    # the prefix is available only on PackageLoader
+    template_prefix = getattr(env.loader, 'package_path', '')
     template_meta = '{}/{}'.format(template_prefix, template_name)
 
-    with pin.tracer.trace('aiohttp.render_template') as span:
-        span.set_meta('aiohttp.template_name', template_meta)
+    with pin.tracer.trace('aiohttp.template') as span:
+        span.span_type = http.TEMPLATE
+        span.set_meta('aiohttp.template', template_meta)
         return func(*args, **kwargs)
