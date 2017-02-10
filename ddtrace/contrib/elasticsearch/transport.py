@@ -1,5 +1,5 @@
 from elasticsearch import Transport
-from elasticsearch import Urllib3HttpConnection, ConnectionPool, JSONSerializer
+from elasticsearch import Urllib3HttpConnection
 
 from .quantize import quantize
 from . import metadata
@@ -11,14 +11,13 @@ DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
-
 class TracedConnection(Urllib3HttpConnection):
     """Change to elasticsearch http connector so that it
         adds the http status code to data
     """
 
     def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
-        status, headers, data = super(TracedConnection, self).perform_request(method, url, params,\
+        status, headers, data = super(TracedConnection, self).perform_request(method, url, params,
             body, ignore=ignore, timeout=timeout)
         import json
         data = json.loads(data)
