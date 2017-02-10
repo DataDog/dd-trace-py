@@ -1,10 +1,13 @@
 import os
+import jinja2
+import aiohttp_jinja2
 
 from aiohttp import web
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'statics')
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 
 async def home(request):
@@ -23,17 +26,34 @@ async def coroutine_chaining(request):
     span.finish()
     return web.Response(text=text)
 
+
 def route_exception(request):
     raise Exception('error')
 
+
 async def route_async_exception(request):
     raise Exception('error')
+
 
 async def coro_2(request):
     tracer = get_tracer(request)
     with tracer.trace('aiohttp.coro_2') as span:
         span.set_tag('aiohttp.worker', 'pending')
     return 'OK'
+
+
+async def template_handler(request):
+    return aiohttp_jinja2.render_template('template.jinja2', request, {'text': 'OK'})
+
+
+@aiohttp_jinja2.template('template.jinja2')
+async def template_decorator(request):
+    return {'text': 'OK'}
+
+
+@aiohttp_jinja2.template('error.jinja2')
+async def template_error(request):
+    return {}
 
 
 def setup_app(loop):
@@ -50,7 +70,28 @@ def setup_app(loop):
     app.router.add_get('/exception', route_exception)
     app.router.add_get('/async_exception', route_async_exception)
     app.router.add_static('/statics', STATIC_DIR)
+    # configure templates
+    set_memory_loader(app)
+    app.router.add_get('/template/', template_handler)
+    app.router.add_get('/template_decorator/', template_decorator)
+    app.router.add_get('/template_error/', template_error)
+
     return app
+
+
+def set_memory_loader(app):
+    aiohttp_jinja2.setup(app, loader=jinja2.DictLoader({
+        'template.jinja2': '{{text}}',
+        'error.jinja2': '{{1/0}}',
+    }))
+
+
+def set_filesystem_loader(app):
+    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(TEMPLATE_DIR))
+
+
+def set_package_loader(app):
+    aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('tests.contrib.aiohttp.app', 'templates'))
 
 
 def get_tracer(request):
