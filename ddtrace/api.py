@@ -39,18 +39,32 @@ class API(object):
         self._encoder = JSONEncoder()
         self._headers.update({'Content-Type': self._encoder.content_type})
 
+    def handle_response(self, response):
+        status_code = response.status
+        # success
+        if 200 <= status_code <= 299:
+            log.debug('Payload correctly sent to the trace agent.')
+        # client error code
+        elif 400 <= status_code <= 499:
+            log.error("Client error: #{}".format(response.msg))
+        # server error code
+        elif 500 <= status_code <= 599:
+            log.error("Server error: #{}".format(response.msg))
+
     def send_traces(self, traces):
         if not traces:
             return
         start = time.time()
         data = self._encoder.encode_traces(traces)
         response = self._put(self._traces, data)
-
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._compatibility_mode is False:
             log.debug('calling the endpoint "%s" but received %s; downgrading the API', self._traces, response.status)
             self._downgrade()
             return self.send_traces(traces)
+        # log other responses
+        else:
+            self.handle_response()
 
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
