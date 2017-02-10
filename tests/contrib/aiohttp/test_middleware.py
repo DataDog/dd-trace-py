@@ -12,6 +12,9 @@ class TestTraceMiddleware(TraceTestCase):
     Ensures that the trace Middleware creates root spans at
     the beginning of a request.
     """
+    def enable_tracing(self):
+        TraceMiddleware(self.app, self.tracer)
+
     @unittest_run_loop
     async def test_tracing_service(self):
         # it should configure the aiohttp service
