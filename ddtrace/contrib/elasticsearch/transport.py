@@ -13,13 +13,16 @@ SPAN_TYPE = 'elasticsearch'
 
 
 class TracedConnection(Urllib3HttpConnection):
-     def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
+    """Change to elasticsearch http connector so that it
+        adds the http status code to data
+    """
+
+    def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
         status, headers, data = super(TracedConnection, self).perform_request(method, url, params, body, ignore=ignore, timeout=timeout)
-        #import pdb; pdb.set_trace()
         import json
         data = json.loads(data)
         data[u"status"] = status
-        data = json.dumps(data, encoding='utf-8')
+        data = json.dumps(data)
         return status, headers, data
 
 
