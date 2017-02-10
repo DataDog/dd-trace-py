@@ -45,7 +45,7 @@ class TraceMiddleware(object):
                 request['__datadog_context'] = ctx
                 # trace the handler
                 request_span = self._tracer.trace(
-                    'handler_request',
+                    'aiohttp.request',
                     ctx=ctx,
                     service=self._service,
                     span_type=http.TYPE,
@@ -66,8 +66,10 @@ class TraceMiddleware(object):
         the trace middleware execution.
         """
         async def on_prepare(request, response):
-            # TODO: it may raise an exception if it's missing
-            request_span = request['__datadog_request_span']
+            # safe-guard: discard if we don't have a request span
+            request_span = request.get('__datadog_request_span', None)
+            if not request_span:
+                return
 
             # default resource name
             resource = stringify(response.status)

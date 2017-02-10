@@ -38,7 +38,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # with the right fields
-        eq_('handler_request', span.name)
+        eq_('aiohttp.request', span.name)
         eq_('aiohttp-web', span.service)
         eq_('http', span.span_type)
         eq_('/', span.resource)
@@ -95,7 +95,7 @@ class TestTraceMiddleware(TraceTestCase):
         handler = traces[0][1]
         coroutine = traces[0][2]
         # root span created in the middleware
-        eq_('handler_request', root.name)
+        eq_('aiohttp.request', root.name)
         eq_('/chaining/', root.resource)
         eq_('/chaining/', root.get_tag('http.url'))
         eq_('GET', root.get_tag('http.method'))
@@ -122,7 +122,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # root span created in the middleware
-        eq_('handler_request', span.name)
+        eq_('aiohttp.request', span.name)
         eq_('/statics', span.resource)
         eq_('/statics/empty.txt', span.get_tag('http.url'))
         eq_('GET', span.get_tag('http.method'))
