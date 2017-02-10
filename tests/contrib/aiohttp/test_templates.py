@@ -1,36 +1,21 @@
-import asyncio
-import jinja2
-import aiohttp_jinja2
-
 from nose.tools import eq_, ok_
-from aiohttp.test_utils import unittest_run_loop, AioHTTPTestCase
+from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 
-from .app.web import setup_app, set_filesystem_loader, set_package_loader
-from ..asyncio.utils import get_dummy_async_tracer
+from .utils import TraceTestCase
+from .app.web import set_filesystem_loader, set_package_loader
 
 
-class TestTraceTemplate(AioHTTPTestCase):
+class TestTraceTemplate(TraceTestCase):
     """
     Ensures that the aiohttp_jinja2 library is properly traced.
     """
-    def tearDown(self):
-        # unpatch the aiohttp_jinja2 module
-        super(TestTraceTemplate, self).tearDown()
-        unpatch()
-
-    async def get_app(self, loop):
-        """
-        Create an application that is not traced
-        """
-        # create the app with the testing loop
-        app = setup_app(loop)
-        asyncio.set_event_loop(loop)
-        # trace the app
-        self.tracer = get_dummy_async_tracer()
+    def enable_tracing(self):
         patch(tracer=self.tracer)
-        return app
+
+    def disable_tracing(self):
+        unpatch()
 
     @unittest_run_loop
     async def test_template_rendering(self):
