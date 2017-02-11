@@ -31,7 +31,7 @@ _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 
-def patch_all(tracer=None, **patch_modules):
+def patch_all(**patch_modules):
     """Patch all possible modules.
 
     The list of modules to instrument comes from `PATCH_MODULES`, which
@@ -45,9 +45,9 @@ def patch_all(tracer=None, **patch_modules):
     modules = PATCH_MODULES.copy()
     modules.update(patch_modules)
 
-    patch(tracer=tracer, raise_errors=False, **modules)
+    patch(raise_errors=False, **modules)
 
-def patch(tracer=None, raise_errors=True, **patch_modules):
+def patch(raise_errors=True, **patch_modules):
     """Patch a set of given modules
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -57,7 +57,7 @@ def patch(tracer=None, raise_errors=True, **patch_modules):
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     count = 0
     for module in modules:
-        patched = patch_module(module, tracer=tracer, raise_errors=raise_errors)
+        patched = patch_module(module, raise_errors=raise_errors)
         if patched:
             count += 1
 
@@ -67,13 +67,13 @@ def patch(tracer=None, raise_errors=True, **patch_modules):
         ",".join(get_patched_modules()))
 
 
-def patch_module(module, tracer=None, raise_errors=True):
+def patch_module(module, raise_errors=True):
     """Patch a single module
 
     Returns if the module got properly patched.
     """
     try:
-        return _patch_module(module, tracer=tracer)
+        return _patch_module(module)
     except Exception as exc:
         if raise_errors:
             raise
@@ -85,7 +85,7 @@ def get_patched_modules():
     with _LOCK:
         return sorted(_PATCHED_MODULES)
 
-def _patch_module(module, tracer=None):
+def _patch_module(module):
     """_patch_module will attempt to monkey patch the module.
 
     Returns if the module got patched.
@@ -98,7 +98,7 @@ def _patch_module(module, tracer=None):
             return False
 
         imported_module = importlib.import_module(path)
-        imported_module.patch(tracer=tracer)
+        imported_module.patch()
 
         _PATCHED_MODULES.add(module)
         return True
