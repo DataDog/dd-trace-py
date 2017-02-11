@@ -30,14 +30,6 @@ class TestAsyncioTracer(AsyncioTestCase):
         eq_(self.tracer.get_call_context(), self.tracer.get_call_context())
 
     @mark_asyncio
-    def test_set_call_context(self):
-        # a different Context is set for the current logical execution
-        task = asyncio.Task.current_task()
-        ctx = Context()
-        self.tracer.set_call_context(task, ctx)
-        eq_(ctx, self.tracer.get_call_context())
-
-    @mark_asyncio
     def test_trace_coroutine(self):
         # it should use the task context when invoked in a coroutine
         with self.tracer.trace('coroutine') as span:

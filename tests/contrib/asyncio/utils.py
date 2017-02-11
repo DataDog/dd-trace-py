@@ -1,18 +1,9 @@
 import asyncio
 
 from unittest import TestCase
+from tests.test_tracer import get_dummy_tracer
 
-from ddtrace.contrib.asyncio.tracer import AsyncioTracer
-from tests.test_tracer import DummyWriter
-
-
-def get_dummy_async_tracer():
-    """
-    Returns the AsyncTracer instance with a DummyWriter
-    """
-    tracer = AsyncioTracer()
-    tracer.writer = DummyWriter()
-    return tracer
+from ddtrace.contrib.asyncio import context_provider
 
 
 class AsyncioTestCase(TestCase):
@@ -26,8 +17,9 @@ class AsyncioTestCase(TestCase):
         self._main_loop = asyncio.get_event_loop()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        # provide the AsyncioTracer
-        self.tracer = get_dummy_async_tracer()
+        # Tracer with AsyncContextProvider
+        self.tracer = get_dummy_tracer()
+        self.tracer.configure(context_provider=context_provider)
 
     def tearDown(self):
         # restore the main loop

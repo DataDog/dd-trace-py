@@ -1,10 +1,11 @@
 import asyncio
 
 from aiohttp.test_utils import AioHTTPTestCase
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
 from .app.web import setup_app
-from ..asyncio.utils import get_dummy_async_tracer
+from ...test_tracer import get_dummy_tracer
 
 
 class TraceTestCase(AioHTTPTestCase):
@@ -31,6 +32,7 @@ class TraceTestCase(AioHTTPTestCase):
         self.app = setup_app(loop)
         asyncio.set_event_loop(loop)
         # trace the app
-        self.tracer = get_dummy_async_tracer()
+        self.tracer = get_dummy_tracer()
+        self.tracer.configure(context_provider=context_provider)
         self.enable_tracing()
         return self.app
