@@ -1,10 +1,10 @@
 import functools
 import logging
 
-from .context import ThreadLocalContext
+from .provider import DefaultContextProvider
 from .sampler import AllSampler
-from .span import Span
 from .writer import AgentWriter
+from .span import Span
 
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class Tracer(object):
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
+            context_provider=DefaultContextProvider(),
         )
 
         # A hook for local debugging. shouldn't be needed or used in production
@@ -44,9 +45,8 @@ class Tracer(object):
 
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
-        self._context = ThreadLocalContext()
 
-    def get_call_context(self):
+    def get_call_context(self, *args, **kwargs):
         """
         Returns the global context for this tracer. Returned ``Context`` must be thread-safe
         or thread-local.
@@ -55,9 +55,9 @@ class Tracer(object):
         of the current execution mode (i.e. the ``Context`` retrieval is different in
         asynchronous environments).
         """
-        return self._context.get()
+        return self._context_provider(*args, **kwargs)
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None):
+    def configure(self, enabled=None, hostname=None, port=None, sampler=None, context_provider=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -76,6 +76,9 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
+
+        if context_provider is not None:
+            self._context_provider = context_provider
 
     def trace(self, name, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
         """
