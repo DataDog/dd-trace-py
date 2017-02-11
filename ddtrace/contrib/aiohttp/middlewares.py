@@ -1,3 +1,4 @@
+from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
 
@@ -17,6 +18,9 @@ class TraceMiddleware(object):
         self.app = app
         self._tracer = tracer
         self._service = service
+
+        # the tracer must work with asynchronous Context propagation
+        self._tracer.configure(context_provider=context_provider)
 
         # configure the current service
         self._tracer.set_service_info(

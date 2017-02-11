@@ -33,6 +33,5 @@ class TraceTestCase(AioHTTPTestCase):
         asyncio.set_event_loop(loop)
         # trace the app
         self.tracer = get_dummy_tracer()
-        self.tracer.configure(context_provider=context_provider)
         self.enable_tracing()
         return self.app
