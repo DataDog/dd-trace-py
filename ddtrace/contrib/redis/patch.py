@@ -9,7 +9,7 @@ from ddtrace.ext import redis as redisx
 from .util import format_command_args, _extract_conn_tags
 
 
-def patch(tracer=None):
+def patch():
     """Patch the instrumented methods
 
     This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
@@ -25,7 +25,7 @@ def patch(tracer=None):
     _w('redis', 'Redis.pipeline', traced_pipeline)
     _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
     _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
-    Pin(service="redis", app="redis", app_type="db", tracer=tracer).onto(redis.StrictRedis)
+    Pin(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
 
 def unpatch():
     if getattr(redis, '_datadog_patch', False):

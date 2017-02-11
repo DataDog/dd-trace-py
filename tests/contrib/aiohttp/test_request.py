@@ -1,6 +1,9 @@
+import aiohttp_jinja2
+
 from nose.tools import eq_
 from aiohttp.test_utils import unittest_run_loop
 
+from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
@@ -16,7 +19,8 @@ class TestRequestTracing(TraceTestCase):
         #   * middleware
         #   * templates
         TraceMiddleware(self.app, self.tracer)
-        patch(tracer=self.tracer)
+        patch()
+        Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
     def disable_tracing(self):
         unpatch()

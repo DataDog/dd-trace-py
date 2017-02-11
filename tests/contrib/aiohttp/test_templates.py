@@ -1,6 +1,9 @@
+import aiohttp_jinja2
+
 from nose.tools import eq_, ok_
 from aiohttp.test_utils import unittest_run_loop
 
+from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 
 from .utils import TraceTestCase
@@ -12,7 +15,8 @@ class TestTraceTemplate(TraceTestCase):
     Ensures that the aiohttp_jinja2 library is properly traced.
     """
     def enable_tracing(self):
-        patch(tracer=self.tracer)
+        patch()
+        Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
     def disable_tracing(self):
         unpatch()
