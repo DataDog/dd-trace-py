@@ -10,7 +10,7 @@ class BaseContextProvider(object):
         * the ``__call__`` method, so that the class is callable
     """
 
-    def __call__(self):
+    def __call__(self, *args, **kwargs):
         """
         Makes the class callable so that the ``Tracer`` can invoke the
         ``ContextProvider`` to retrieve the current context.
@@ -28,7 +28,7 @@ class DefaultContextProvider(BaseContextProvider):
     def __init__(self):
         self._local = ThreadLocalContext()
 
-    def __call__(self):
+    def __call__(self, *args, **kwargs):
         """
         Returns the global context for this tracer. Returned ``Context`` must be thread-safe
         or thread-local.

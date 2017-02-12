@@ -2,7 +2,6 @@ import asyncio
 
 from nose.tools import eq_, ok_
 
-from ddtrace.context import Context
 from .utils import AsyncioTestCase, mark_asyncio
 
 
@@ -26,7 +25,6 @@ class TestAsyncioTracer(AsyncioTestCase):
     @mark_asyncio
     def test_get_call_context_twice(self):
         # it should return the same Context if called twice
-        task = asyncio.Task.current_task()
         eq_(self.tracer.get_call_context(), self.tracer.get_call_context())
 
     @mark_asyncio
@@ -148,3 +146,21 @@ class TestAsyncioTracer(AsyncioTestCase):
         eq_(1, span.error)
         eq_('f1 error', span.get_tag('error.msg'))
         ok_('Exception: f1 error' in span.get_tag('error.stack'))
+
+    @mark_asyncio
+    def test_trace_multiple_calls(self):
+        # create multiple futures so that we expect multiple
+        # traces instead of a single one (helper not used)
+        async def coro():
+            # another traced coroutine
+            with self.tracer.trace('coroutine'):
+                await asyncio.sleep(0.01)
+
+        futures = [asyncio.ensure_future(coro()) for x in range(10)]
+        for future in futures:
+            yield from future
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(10, len(traces))
+        eq_(1, len(traces[0]))
+        eq_('coroutine', traces[0][0].name)
