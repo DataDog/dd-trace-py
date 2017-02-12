@@ -7,23 +7,25 @@ from nose.tools import eq_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
+from ddtrace.provider import DefaultContextProvider
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
 from .utils import TraceTestCase
 
 
-class TestRequestTracing(TraceTestCase):
+class TestAiohttpSafety(TraceTestCase):
     """
-    Ensures that the trace includes all traced components.
+    Ensure that if the ``AsyncioTracer`` is not properly configured,
+    bad traces are produced but the ``Context`` object will not
+    leak memory.
     """
     def enable_tracing(self):
-        # enabled tracing:
-        #   * middleware
-        #   * templates
+        # aiohttp TestCase with the wrong context provider
         TraceMiddleware(self.app, self.tracer)
         patch()
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
+        self.tracer.configure(context_provider=DefaultContextProvider())
 
     def disable_tracing(self):
         unpatch()
@@ -52,13 +54,15 @@ class TestRequestTracing(TraceTestCase):
 
     @unittest_run_loop
     async def test_multiple_full_request(self):
-        # it should handle multiple requests using the same loop
+        # it should produce a wrong trace, but the Context must
+        # be finished
         def make_requests():
             url = self.client.make_url('/delayed/')
             response = request.urlopen(str(url)).read().decode('utf-8')
             eq_('Done', response)
 
         # blocking call executed in different threads
+        ctx = self.tracer.get_call_context()
         threads = [threading.Thread(target=make_requests) for _ in range(10)]
         for t in threads:
             t.daemon = True
@@ -70,7 +74,8 @@ class TestRequestTracing(TraceTestCase):
         for t in threads:
             t.join(timeout=0.5)
 
-        # the trace is created
+        # the trace is wrong but the Context is finished
         traces = self.tracer.writer.pop_traces()
-        eq_(10, len(traces))
-        eq_(1, len(traces[0]))
+        eq_(1, len(traces))
+        eq_(10, len(traces[0]))
+        eq_(0, len(ctx._trace))
