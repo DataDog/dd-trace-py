@@ -1,7 +1,3 @@
-"""
-Instrumenting aiohttp_jinja2 external module
-TODO: better docstring
-"""
 import aiohttp_jinja2
 
 from ddtrace import Pin
@@ -9,7 +5,7 @@ from ddtrace import Pin
 from ...ext import http, errors, AppTypes
 
 
-def _trace_template_rendering(func, module, args, kwargs):
+def _trace_render_template(func, module, args, kwargs):
     """
     Trace the template rendering
     """
