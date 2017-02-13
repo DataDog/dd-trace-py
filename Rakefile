@@ -2,7 +2,7 @@ desc "Starts all backing services and run all tests"
 task :test do
   sh "docker-compose up -d | cat"
   begin
-    sh "detox"
+    sh "tox"
   ensure
     sh "docker-compose kill"
   end
