@@ -1,5 +1,6 @@
 import os
 import jinja2
+import asyncio
 import aiohttp_jinja2
 
 from aiohttp import web
@@ -56,6 +57,11 @@ async def template_error(request):
     return {}
 
 
+async def delayed_handler(request):
+    await asyncio.sleep(0.01)
+    return web.Response(text='Done')
+
+
 def setup_app(loop):
     """
     Use this method to create the app. It must receive
@@ -65,6 +71,7 @@ def setup_app(loop):
     # configure the app
     app = web.Application(loop=loop)
     app.router.add_get('/', home)
+    app.router.add_get('/delayed/', delayed_handler)
     app.router.add_get('/echo/{name}', name)
     app.router.add_get('/chaining/', coroutine_chaining)
     app.router.add_get('/exception', route_exception)
