@@ -1,7 +1,6 @@
-import json
-
 from elasticsearch import Transport
 from elasticsearch import Urllib3HttpConnection
+from elasticsearch.exceptions import TransportError
 
 from .quantize import quantize
 from . import metadata
@@ -12,20 +11,6 @@ from ...util import deprecated
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
-
-
-class TracedConnection(Urllib3HttpConnection):
-    """Change to elasticsearch http connector so that it
-        adds the http status code to data
-    """
-
-    def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
-        status, headers, data = super(TracedConnection, self).perform_request(method, url, params,
-            body, ignore=ignore, timeout=timeout)
-        data = json.loads(data)
-        data[u"status"] = status
-        data = json.dumps(data)
-        return status, headers, data
 
 
 @deprecated(message='Use patching instead (see the docs).', version='0.6.0')
@@ -45,9 +30,6 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_tracer = datadog_tracer
         _datadog_service = datadog_service
 
-        def __init__(self, hosts, **kwargs):
-            super(TracedTransport, self).__init__(hosts, connection_class=TracedConnection, **kwargs)
-
         def perform_request(self, method, url, params=None, body=None):
 
             with self._datadog_tracer.trace("elasticsearch.query") as s:
@@ -64,7 +46,12 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 if method == "GET":
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
                 s = quantize(s)
-                result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
+
+                try:
+                    result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
+                except TransportError as e:
+                    s.set_tag(http.STATUS_CODE, e.status_code)
+                    raise
 
                 status = None
                 if isinstance(result, tuple) and len(result) == 2:
@@ -74,10 +61,9 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                     # elasticsearch>=2.4; internal change for ``Transport.perform_request``
                     # that just returns the body
                     data = result
-                    status = result['status']
 
                 if status:
-                    s.set_tag(http.STATUS_CODE, status)
+                   s.set_tag(http.STATUS_CODE, status)
 
                 took = data.get("took")
                 if took:

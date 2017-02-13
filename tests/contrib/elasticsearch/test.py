@@ -3,6 +3,7 @@ import unittest
 
 # 3p
 import elasticsearch
+from elasticsearch.exceptions import TransportError
 from nose.tools import eq_
 
 # project
@@ -63,7 +64,6 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.span_type, "elasticsearch")
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
@@ -79,7 +79,6 @@ class ElasticsearchTest(unittest.TestCase):
         span = spans[0]
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(http.STATUS_CODE), u'201')
         eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
@@ -91,7 +90,6 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
-        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.METHOD), "POST")
         eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
 
@@ -108,7 +106,6 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource,
                 "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
-        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.URL),
                 "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
@@ -122,9 +119,35 @@ class ElasticsearchTest(unittest.TestCase):
 
         assert len(result["hits"]["hits"]) == 2, result
 
+        # Raise error 404 with a non existent index
+        writer.pop()
+        try:
+            es.get(index=1000000, id=100)
+            eq_("error_not_raised","TransportError")
+        except TransportError as e:
+            eq_(len(spans), 1)
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(span.get_tag(http.STATUS_CODE), u'404')
+
+        # Raise error 400, the index 10 is created twice
+        try:
+            es.indices.create(index=10)
+            es.indices.create(index=10)
+            eq_("error_not_raised","TransportError")
+        except TransportError as e:
+            spans = writer.pop()
+            assert spans
+            span = spans[-1]
+            eq_(span.get_tag(http.STATUS_CODE), u'400')
+
         # Drop the index, checking it won't raise exception on success or failure
+
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+
+
 
 
 class ElasticsearchPatchTest(unittest.TestCase):
