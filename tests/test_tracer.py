@@ -327,7 +327,7 @@ def test_start_child_span():
     # it should create a child Span for the given parent
     tracer = get_dummy_tracer()
     parent = tracer.start_span('web.request')
-    child = tracer.start_child_span('web.worker', parent)
+    child = tracer.start_span('web.worker', child_of=parent)
     eq_('web.worker', child.name)
     eq_(tracer, child._tracer)
     eq_(parent, child._parent)
@@ -341,30 +341,17 @@ def test_start_child_span_attributes():
     # it should create a child Span with parent's attributes
     tracer = get_dummy_tracer()
     parent = tracer.start_span('web.request', service='web', resource='/', span_type='http')
-    child = tracer.start_child_span('web.worker', parent)
+    child = tracer.start_span('web.worker', child_of=parent)
     eq_('web.worker', child.name)
     eq_('web', child.service)
-
-
-def test_start_root_from_context():
-    # it should create a root span with an empty Context
-    tracer = get_dummy_tracer()
-    context = Context()
-    span = tracer.start_child_from_context('web.request', context)
-    eq_('web.request', span.name)
-    eq_(tracer, span._tracer)
-    ok_(span._parent is None)
-    ok_(span.parent_id is None)
-    eq_(context, span._context)
-    eq_(span, span.context._current_span)
 
 
 def test_start_child_from_context():
     # it should create a child span with a populated Context
     tracer = get_dummy_tracer()
-    context = Context()
-    root = tracer.start_child_from_context('web.request', context)
-    child = tracer.start_child_from_context('web.worker', context)
+    root = tracer.start_span('web.request')
+    context = root.context
+    child = tracer.start_span('web.worker', child_of=context)
     eq_('web.worker', child.name)
     eq_(tracer, child._tracer)
     eq_(root, child._parent)
