@@ -40,6 +40,9 @@ class API(object):
         self._headers.update({'Content-Type': self._encoder.content_type})
 
     def handle_response(self, response):
+        """
+        Logs the different http status code of the http requests towards the agent
+        """
         status_code = response.status
 
         # success
