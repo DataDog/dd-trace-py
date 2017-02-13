@@ -9,7 +9,7 @@ from ddtrace.ext import errors
 
 
 def test_ids():
-    s = Span(tracer=None, name="test_ids")
+    s = Span(tracer=None, name="span.test")
     assert s.trace_id
     assert s.span_id
     assert not s.parent_id
@@ -21,7 +21,7 @@ def test_ids():
 
 
 def test_tags():
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
     s.set_tag("a", "a")
     s.set_tag("b", 1)
     s.set_tag("c", "1")
@@ -34,7 +34,7 @@ def test_tags():
     eq_(d["meta"], expected)
 
 def test_set_valid_metrics():
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
     s.set_metric("a", 0)
     s.set_metric("b", -12)
     s.set_metric("c", 12.134)
@@ -51,7 +51,7 @@ def test_set_valid_metrics():
     eq_(d["metrics"], expected)
 
 def test_set_invalid_metric():
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
 
     invalid_metrics = [
         None,
@@ -74,7 +74,7 @@ def test_set_numpy_metric():
         import numpy as np
     except ImportError:
         raise SkipTest("numpy not installed")
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
     s.set_metric("a", np.int64(1))
     eq_(s.get_metric("a"), 1)
     eq_(type(s.get_metric("a")), float)
@@ -85,14 +85,14 @@ def test_tags_not_string():
         def __repr__(self):
             1/0
 
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
     s.set_tag("a", Foo())
 
 def test_finish():
     # ensure finish will record a span
     dt = DummyTracer()
     ctx = Context()
-    s = Span(dt, "foo", ctx=ctx)
+    s = Span(dt, "test.span", context=ctx)
     ctx.add_span(s)
     assert s.duration is None
 
@@ -106,14 +106,14 @@ def test_finish():
 
 def test_finish_no_tracer():
     # ensure finish works with no tracer without raising exceptions
-    s = Span(tracer=None, name="foo")
+    s = Span(tracer=None, name="test.span")
     s.finish()
 
 def test_finish_called_multiple_times():
     # we should only record a span the first time finish is called on it
     dt = DummyTracer()
     ctx = Context()
-    s = Span(dt, 'bar', ctx=ctx)
+    s = Span(dt, 'bar', context=ctx)
     ctx.add_span(s)
     s.finish()
     s.finish()
@@ -123,13 +123,13 @@ def test_finish_called_multiple_times():
 def test_finish_set_span_duration():
     # If set the duration on a span, the span should be recorded with this
     # duration
-    s = Span(tracer=None, name='foo')
+    s = Span(tracer=None, name='test.span')
     s.duration = 1337.0
     s.finish()
     assert s.duration == 1337.0
 
 def test_traceback_with_error():
-    s = Span(None, "foo")
+    s = Span(None, "test.span")
     try:
         1/0
     except ZeroDivisionError:
@@ -143,7 +143,7 @@ def test_traceback_with_error():
     assert s.get_tag(errors.ERROR_STACK)
 
 def test_traceback_without_error():
-    s = Span(None, "foo")
+    s = Span(None, "test.span")
     s.set_traceback()
     assert not s.error
     assert not s.get_tag(errors.ERROR_MSG)
@@ -173,7 +173,7 @@ def test_ctx_mgr():
         assert 0, "should have failed"
 
 def test_span_to_dict():
-    s = Span(tracer=None, name="foo.bar", service="s",  resource="r")
+    s = Span(tracer=None, name="test.span", service="s",  resource="r")
     s.span_type = "foo"
     s.set_tag("a", "1")
     s.set_meta("b", "2")
@@ -189,7 +189,6 @@ def test_span_to_dict():
 
 
 class DummyTracer(object):
-
     def __init__(self):
         self.last_span = None
         self.spans_recorded = 0

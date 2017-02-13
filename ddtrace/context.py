@@ -44,6 +44,7 @@ class Context(object):
             self._current_span = span
             self._sampled = span.sampled
             self._trace.append(span)
+            span._context = self
 
     def close_span(self, span):
         """
