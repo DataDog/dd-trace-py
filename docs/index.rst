@@ -12,8 +12,7 @@ Install with :code:`pip`::
 
     $ pip install ddtrace
 
-We strongly suggest pinning the version number you deploy while we are
-in beta.
+We strongly suggest pinning the version of the library you deploy.
 
 Get Started
 -----------
