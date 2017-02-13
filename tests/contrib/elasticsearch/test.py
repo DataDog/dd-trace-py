@@ -79,6 +79,7 @@ class ElasticsearchTest(unittest.TestCase):
         span = spans[0]
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
+        eq_(span.get_tag(http.STATUS_CODE), u'201')
         eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
@@ -90,6 +91,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
+        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.METHOD), "POST")
         eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
 
@@ -106,6 +108,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.resource,
                 "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.METHOD), "GET")
+        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.URL),
                 "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
