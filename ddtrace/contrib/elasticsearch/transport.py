@@ -62,7 +62,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                     data = result
 
                 if status:
-                   s.set_tag(http.STATUS_CODE, status)
+                    s.set_tag(http.STATUS_CODE, status)
 
                 took = data.get("took")
                 if took:
