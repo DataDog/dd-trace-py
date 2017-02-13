@@ -39,17 +39,14 @@ class API(object):
         self._encoder = JSONEncoder()
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-    def handle_response(self, response):
+    def handle_agent_response(self, response):
         """
         Logs the different http status code of the http requests towards the agent
         """
         status_code = response.status
 
-        # success
-        if 200 <= status_code <= 299:
-            log.debug('Payload correctly sent to the trace agent.')
         # client error code
-        elif 400 <= status_code <= 499:
+        if 400 <= status_code <= 499:
             log.error("Client error: #{}".format(response.msg))
         # server error code
         elif 500 <= status_code <= 599:
@@ -68,7 +65,7 @@ class API(object):
             return self.send_traces(traces)
         # log other responses
         else:
-            self.handle_response()
+            self.handle_agent_response(response)
 
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
