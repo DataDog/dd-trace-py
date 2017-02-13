@@ -3,10 +3,12 @@ import unittest
 
 # 3p
 import elasticsearch
+from elasticsearch.exceptions import TransportError
 from nose.tools import eq_
 
 # project
 from ddtrace import Tracer, Pin
+from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
@@ -116,6 +118,28 @@ class ElasticsearchTest(unittest.TestCase):
         result = es.search(size=100, body={"query": query}, **args)
 
         assert len(result["hits"]["hits"]) == 2, result
+
+        # Raise error 404 with a non existent index
+        writer.pop()
+        try:
+            es.get(index="non_existent_index", id=100)
+            eq_("error_not_raised", "TransportError")
+        except TransportError as e:
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(span.get_tag(http.STATUS_CODE), u'404')
+
+        # Raise error 400, the index 10 is created twice
+        try:
+            es.indices.create(index=10)
+            es.indices.create(index=10)
+            eq_("error_not_raised", "TransportError")
+        except TransportError as e:
+            spans = writer.pop()
+            assert spans
+            span = spans[-1]
+            eq_(span.get_tag(http.STATUS_CODE), u'400')
 
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])

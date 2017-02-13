@@ -1,9 +1,10 @@
 from elasticsearch import Transport
+from elasticsearch.exceptions import TransportError
 
 from .quantize import quantize
 from . import metadata
 from ...compat import urlencode
-from ...ext import AppTypes
+from ...ext import AppTypes, http
 from ...util import deprecated
 
 DEFAULT_SERVICE = 'elasticsearch'
@@ -41,24 +42,29 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.PARAMS, urlencode(params))
                 if method == "GET":
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
-
                 s = quantize(s)
 
-                result = super(TracedTransport, self).perform_request(
-                        method, url, params=params, body=body)
+                try:
+                    result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
+                except TransportError as e:
+                    s.set_tag(http.STATUS_CODE, e.status_code)
+                    raise
 
+                status = None
                 if isinstance(result, tuple) and len(result) == 2:
                     # elasticsearch<2.4; it returns both the status and the body
-                    _, data = result
+                    status, data = result
                 else:
                     # elasticsearch>=2.4; internal change for ``Transport.perform_request``
                     # that just returns the body
                     data = result
+
+                if status:
+                    s.set_tag(http.STATUS_CODE, status)
 
                 took = data.get("took")
                 if took:
                     s.set_metric(metadata.TOOK, int(took))
 
                 return result
-
     return TracedTransport
