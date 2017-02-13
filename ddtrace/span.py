@@ -32,9 +32,9 @@ class Span(object):
         'sampled',
         # Internal attributes
         '_tracer',
+        '_context',
         '_finished',
         '_parent',
-        '_context',
     ]
 
     def __init__(
@@ -54,8 +54,8 @@ class Span(object):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
-        :param Tracer tracer: the tracer that will submit this span when
-                              finished.
+        :param Tracer tracer: the tracer that will submit this span when finished.
+        :param object context: the context of the span.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -67,7 +67,6 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
-        :param Context context: the context of the span.
         """
         # required span info
         self.name = name
@@ -93,13 +92,11 @@ class Span(object):
         self.sampled = True
 
         self._tracer = tracer
+        self._context = context
         self._parent = None
 
         # state
         self._finished = False
-
-        # context
-        self._context = context
 
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
@@ -269,6 +266,15 @@ class Span(object):
 
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
+
+    @property
+    def context(self):
+        """
+        Provides access to the ``Context`` associated with this ``Span``.
+        The ``Context`` contains state that propagates from span to span in a
+        larger trace.
+        """
+        return self._context
 
     def tracer(self):
         return self._tracer
