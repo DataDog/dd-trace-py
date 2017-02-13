@@ -1,5 +1,4 @@
 from elasticsearch import Transport
-from elasticsearch import Urllib3HttpConnection
 from elasticsearch.exceptions import TransportError
 
 from .quantize import quantize
