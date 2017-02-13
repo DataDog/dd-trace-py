@@ -195,19 +195,17 @@ class Tracer(object):
 
         return span
 
-    def trace(self, name, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+    def trace(self, name, service=None, resource=None, span_type=None):
         """
-        Return a span that will trace an operation called `name`. The context that generated
-        the Span may be provided, as well as the current parent Span.
+        Return a span that will trace an operation called `name`. The context that created
+        the Span as well as the parent span, are automatically handled by the tracing
+        function.
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
                             it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
-
-        :param Context ctx: TODO
-        :param Span span_parent: TODO
 
         You must call `finish` on all spans, either directly or with a context
         manager.
@@ -231,10 +229,9 @@ class Tracer(object):
         >>> parent2 = tracer.trace("parent2")   # has no parent span
         >>> parent2.finish()
         """
-        # use the given Context object, or retrieve it using the Tracer logic
-        # TODO: provide plain methods that don't do any automatic action
-        context = ctx or self.get_call_context()
-        parent = span_parent or context.get_current_span()
+        # retrieve the Context using the context provider
+        context = self.get_call_context()
+        parent = context.get_current_span()
 
         if parent:
             # this is a child span
@@ -246,7 +243,6 @@ class Tracer(object):
                 span_type=span_type,
                 trace_id=parent.trace_id,
                 parent_id=parent.span_id,
-                context=context,
             )
             span._parent = parent
             span.sampled = parent.sampled
@@ -258,7 +254,6 @@ class Tracer(object):
                 service=service,
                 resource=resource,
                 span_type=span_type,
-                context=context,
             )
             self.sampler.sample(span)
 
@@ -332,7 +327,7 @@ class Tracer(object):
         except Exception:
             log.debug("error setting service info", exc_info=True)
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+    def wrap(self, name=None, service=None, resource=None, span_type=None):
         """
         A decorator used to trace an entire function.
 
@@ -366,7 +361,7 @@ class Tracer(object):
             @functools.wraps(f)
             def func_wrapper(*args, **kwargs):
                 with self.trace(span_name, service=service, resource=resource,
-                                span_type=span_type, ctx=ctx, span_parent=span_parent):
+                                span_type=span_type):
                     return f(*args, **kwargs)
             return func_wrapper
 

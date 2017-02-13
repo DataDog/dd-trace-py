@@ -301,17 +301,6 @@ def test_tracer_current_span():
     eq_(span, tracer.current_span())
 
 
-def test_trace_with_context():
-    # tracer.trace() could accept a different Context
-    tracer = get_dummy_tracer()
-    ctx = Context()
-    span = tracer.trace('fake_span', ctx=ctx)
-    # the default is empty while the other should have
-    eq_(0, len(tracer.get_call_context()._trace))
-    eq_(1, len(ctx._trace))
-    eq_(span, ctx._trace[0])
-
-
 def test_start_span():
     # it should create a root Span
     tracer = get_dummy_tracer()
