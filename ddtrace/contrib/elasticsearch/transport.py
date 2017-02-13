@@ -1,11 +1,14 @@
+import json
+
 from elasticsearch import Transport
 from elasticsearch import Urllib3HttpConnection
 
 from .quantize import quantize
 from . import metadata
 from ...compat import urlencode
-from ...ext import AppTypes
+from ...ext import AppTypes, http
 from ...util import deprecated
+
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
@@ -19,7 +22,6 @@ class TracedConnection(Urllib3HttpConnection):
     def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
         status, headers, data = super(TracedConnection, self).perform_request(method, url, params,
             body, ignore=ignore, timeout=timeout)
-        import json
         data = json.loads(data)
         data[u"status"] = status
         data = json.dumps(data)
@@ -75,7 +77,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                     status = result['status']
 
                 if status:
-                    s.set_tag(metadata.STATUS, status)
+                    s.set_tag(http.STATUS_CODE, status)
 
                 took = data.get("took")
                 if took:

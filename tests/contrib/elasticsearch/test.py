@@ -7,6 +7,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Tracer, Pin
+from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
@@ -62,7 +63,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.span_type, "elasticsearch")
         eq_(span.error, 0)
         eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(metadata.STATUS), u'200')
+        eq_(span.get_tag(http.STATUS_CODE), u'200')
         eq_(span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
