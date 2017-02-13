@@ -17,14 +17,17 @@ We strongly suggest pinning the version of the library you deploy.
 Get Started
 -----------
 
-Patching
-~~~~~~~~
-
 Datadog Tracing can automatically instrument many widely used Python libraries
 and frameworks.
 
+Web
+~~~
+
 The easiest way to get started with tracing is to instrument your web server.
 We support many `Web Frameworks`_. Install the middleware for yours.
+
+Databases
+~~~~~~~~~
 
 Then let's patch all the widely used Python libraries that you are running::
 
@@ -34,8 +37,8 @@ Then let's patch all the widely used Python libraries that you are running::
 
 Start your web server and you should be off to the races.
 
-Custom Tracing
-~~~~~~~~~~~~~~
+Custom
+~~~~~~
 
 You can easily extend the spans we collect by adding your own traces. Here's a
 small example that shows adding a custom span to a Flask application::
