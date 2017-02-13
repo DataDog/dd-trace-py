@@ -30,15 +30,12 @@ _PATCHED_MODULES = set()
 
 
 def patch_all(**patch_modules):
-    """ Patch all possible modules.
+    """ Automatically patches all available modules.
 
-    The list of modules to instrument comes from `PATCH_MODULES`, which
-    is then overridden by `patch_modules`.
-    Calling it multiple times can add more patches, but won't remove
-    existing patches.
+    :param dict **patch_modules: Override whether particular modules
+            are patched or not.
 
-    :param dict patch_modules: override which modules to load or not.
-        Example: {'redis': False, 'cassandra': False}
+    >>> patch_all({'redis': False, 'cassandra': False})
     """
     modules = PATCH_MODULES.copy()
     modules.update(patch_modules)
