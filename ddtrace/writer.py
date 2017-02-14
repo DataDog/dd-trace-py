@@ -17,6 +17,7 @@ MAX_TRACES = 1000
 MAX_SERVICES = 1000
 
 DEFAULT_TIMEOUT = 5
+LOG_ERR_INTERVAL = 60
 
 
 class AgentWriter(object):
@@ -139,29 +140,25 @@ class AsyncWorker(object):
             time.sleep(1) # replace with a blocking pop.
 
             # Logging the http errors
+            log_level = log.debug
             if result_traces and result_traces.status >= 400:
                 now = time.time()
-                if now > last_error_ts + 10:
-                    log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
-                        result_traces.status, result_traces.reason, result_traces.msg))
+                if now > last_error_ts + LOG_ERR_INTERVAL:
+                    log_level = log.error
                     last_error_ts = now
-                    raise IndexError
-                else:
-                    log.debug("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                log_level("traces to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_traces.status, result_traces.reason, result_traces.msg))
-                    raise IndexError
+                self.api.hi()
+
 
             if result_services and result_services.status >= 400:
                 now = time.time()
-                if now > last_error_ts + 10:
-                    log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
-                        result_services.status, result_services.reason, result_services.msg))
+                if now > last_error_ts + LOG_ERR_INTERVAL:
+                    log_level = log.error
                     last_error_ts = now
-                    raise IndexError
-                else:
-                    log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
-                    raise IndexError
+                self.api.hi()
 
 
 class Q(object):
