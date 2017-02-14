@@ -112,26 +112,47 @@ class AsyncWorker(object):
                     time.sleep(0.05)
 
     def _target(self):
+        last_error_ts = 0
+        result_traces = None
+        result_services = None
         while True:
             traces = self._trace_queue.pop()
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    self.api.send_traces(traces)
+                    result_traces = self.api.send_traces(traces)
                 except Exception as err:
                     log.error("cannot send spans: {0}".format(err))
 
             services = self._service_queue.pop()
             if services:
                 try:
-                    self.api.send_services(services)
+                    result_services = self.api.send_services(services)
                 except Exception as err:
                     log.error("cannot send services: {0}".format(err))
 
             elif self._trace_queue.closed():
-                self.api.log_http_errors()
                 # no traces and the queue is closed. our work is done.
                 return
+        if result_traces and result_traces.status >= 400:
+            current_time = time.time()
+            if current_time > last_error_ts:
+                log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                    result_traces.status, result_traces.reason, result_traces.msg))
+                last_error_ts = current_time
+            else:
+                log.debug("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                    result_traces.status, result_traces.reason, result_traces.msg))
+
+        if result_services and result_services.status >= 400:
+            current_time = time.time()
+            if current_time > last_error_ts:
+                log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                    result_traces.status, result_traces.reason, result_traces.msg))
+                last_error_ts = current_time
+            else:
+                log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                    result_traces.status, result_traces.reason, result_traces.msg))
 
             time.sleep(1) # replace with a blocking pop.
 

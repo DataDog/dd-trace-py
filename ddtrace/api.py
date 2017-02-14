@@ -1,7 +1,6 @@
 # stdlib
 import logging
 import time
-from collections import Counter
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -27,9 +26,6 @@ class API(object):
         self._headers = headers or {}
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-        self._http_error_counter_services = Counter()
-        self._http_error_counter_traces = Counter()
-
     def _downgrade(self):
         """
         Downgrades the used encoder and API level. This method must fallback to a safe
@@ -43,37 +39,18 @@ class API(object):
         self._encoder = JSONEncoder()
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-    def log_http_errors(self):
-        """
-        Logs the http error codes. Periodically called by the timer
-        """
-        if self._http_error_counter_services:
-            log.error("Services: http error count: {}".format(self._http_error_counter_services))
-            self._http_error_counter_services = Counter()
-
-        if self._http_error_counter_traces:
-            log.error("Traces: http error count: {}".format(self._http_error_counter_traces))
-            self._http_error_counter_traces = Counter()
-
     def send_traces(self, traces):
         if not traces:
             return
         start = time.time()
         data = self._encoder.encode_traces(traces)
         response = self._put(self._traces, data)
+
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._compatibility_mode is False:
             log.debug('calling the endpoint "%s" but received %s; downgrading the API', self._traces, response.status)
             self._downgrade()
             return self.send_traces(traces)
-        # log other responses
-        if response.status >= 400:
-            self._http_error_counter_traces[response.status] += 1
-
-        # Logging http errors regularly, event is triggered by the timer
-        if self._log_event.isSet():
-            self.log_http_errors()
-            self._log_event.clear()
 
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
@@ -93,10 +70,6 @@ class API(object):
             self._downgrade()
             return self.send_services(services)
 
-        # log other responses
-        if response.status >= 400:
-            self._http_error_counter_services[response.status] += 1
-
         log.debug("reported %d services", len(services))
         return response
 
@@ -104,4 +77,3 @@ class API(object):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request("PUT", endpoint, data, self._headers)
         return conn.getresponse()
-
