@@ -1,10 +1,12 @@
 # stdlib
 import logging
 import time
+from collections import Counter
 
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib
+from .timer import Timer
 
 
 log = logging.getLogger(__name__)
@@ -26,6 +28,11 @@ class API(object):
         self._headers = headers or {}
         self._headers.update({'Content-Type': self._encoder.content_type})
 
+        # logs the http errors every 1 second
+        self._http_error_counter = Counter()
+        self._timer = Timer(1, self.log_http_errors)
+        self._timer.start()
+
     def _downgrade(self):
         """
         Downgrades the used encoder and API level. This method must fallback to a safe
@@ -39,18 +46,13 @@ class API(object):
         self._encoder = JSONEncoder()
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-    def handle_agent_response(self, response):
+    def log_http_errors(self):
         """
-        Logs the different http status code of the http requests towards the agent
+        Logs the http error codes. Periodically called by the timer
         """
-        status_code = response.status
-
-        # client error code
-        if 400 <= status_code <= 499:
-            log.error("Client error: #{}".format(response.msg))
-        # server error code
-        elif 500 <= status_code <= 599:
-            log.error("Server error: #{}".format(response.msg))
+        if self._http_error_counter:
+            log.error("http server and error count: {}".format(self._http_error_counter))
+            self._http_error_counter.clear
 
     def send_traces(self, traces):
         if not traces:
@@ -65,7 +67,7 @@ class API(object):
             return self.send_traces(traces)
         # log other responses
         else:
-            self.handle_agent_response(response)
+            self._http_error_counter[response.status] += 1
 
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
@@ -92,3 +94,6 @@ class API(object):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request("PUT", endpoint, data, self._headers)
         return conn.getresponse()
+
+    def join_timer(self, timeout=None):
+        self._timer.join(timeout)
