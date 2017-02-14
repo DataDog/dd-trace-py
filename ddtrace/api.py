@@ -1,13 +1,11 @@
 # stdlib
 import logging
 import time
-import threading
 from collections import Counter
 
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib
-from .timer import Timer
 
 
 log = logging.getLogger(__name__)
@@ -30,7 +28,7 @@ class API(object):
         self._headers.update({'Content-Type': self._encoder.content_type})
 
         self._http_error_counter_services = Counter()
-        self._http_error_counter_traces = Counter()_
+        self._http_error_counter_traces = Counter()
 
     def _downgrade(self):
         """
