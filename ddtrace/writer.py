@@ -140,24 +140,28 @@ class AsyncWorker(object):
 
             # Logging the http errors
             if result_traces and result_traces.status >= 400:
-                current_time = time.time()
-                if current_time > last_error_ts + 10:
+                now = time.time()
+                if now > last_error_ts + 10:
                     log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_traces.status, result_traces.reason, result_traces.msg))
-                    last_error_ts = current_time
+                    last_error_ts = now
+                    raise IndexError
                 else:
                     log.debug("traces to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_traces.status, result_traces.reason, result_traces.msg))
+                    raise IndexError
 
             if result_services and result_services.status >= 400:
-                current_time = time.time()
-                if current_time > last_error_ts + 10:
+                now = time.time()
+                if now > last_error_ts + 10:
                     log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
-                    last_error_ts = current_time
+                    last_error_ts = now
+                    raise IndexError
                 else:
                     log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
+                    raise IndexError
 
 
 class Q(object):
