@@ -44,16 +44,15 @@ class TraceMiddleware(object):
         """
         async def middleware(app, handler):
             async def attach_context(request):
-                # attach the context to the request
-                ctx = self._tracer.get_call_context(loop=request.app.loop)
-                request['__datadog_context'] = ctx
                 # trace the handler
                 request_span = self._tracer.trace(
                     'aiohttp.request',
-                    ctx=ctx,
                     service=self._service,
                     span_type=http.TYPE,
                 )
+
+                # attach the context and the root span to the request
+                request['__datadog_context'] = request_span.context
                 request['__datadog_request_span'] = request_span
                 try:
                     return await handler(request)

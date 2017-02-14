@@ -2,6 +2,7 @@ import functools
 import logging
 
 from .provider import DefaultContextProvider
+from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
@@ -80,19 +81,73 @@ class Tracer(object):
         if context_provider is not None:
             self._context_provider = context_provider
 
-    def trace(self, name, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
-        Return a span that will trace an operation called `name`. The context that generated
-        the Span may be provided, as well as the current parent Span.
+        Starts and returns a new ``Span`` representing a unit of work.
+
+        :param str name: the name of the operation being traced.
+        :param object child_of: a Span or a Context instance representing the parent
+                                for this span.
+        :param str service: the name of the service being traced.
+        :param str resource: an optional name of the resource being tracked.
+        :param str span_type: an optional operation type.
+
+        To start a new root span::
+
+            >>> span = tracer.start_span("web.request")
+        """
+        # retrieve if the span is a child_of a Span or a Context
+        if child_of is not None:
+            child_of_context = isinstance(child_of, Context)
+            context = child_of if child_of_context else child_of.context
+            parent = child_of.get_current_span() if child_of_context else child_of
+        else:
+            context = Context()
+            parent = None
+
+        if parent:
+            # this is a child span
+            span = Span(
+                self,
+                name,
+                service=(service or parent.service),
+                resource=resource,
+                span_type=span_type,
+                trace_id=parent.trace_id,
+                parent_id=parent.span_id,
+            )
+            span._parent = parent
+            span.sampled = parent.sampled
+        else:
+            # this is a root span
+            span = Span(
+                self,
+                name,
+                service=service,
+                resource=resource,
+                span_type=span_type,
+            )
+            self.sampler.sample(span)
+
+        # add common tags
+        if self.tags:
+            span.set_tags(self.tags)
+
+        # add it to the current context
+        context.add_span(span)
+        return span
+
+    def trace(self, name, service=None, resource=None, span_type=None):
+        """
+        Return a span that will trace an operation called `name`. The context that created
+        the Span as well as the parent span, are automatically handled by the tracing
+        function.
 
         :param str name: the name of the operation being traced
         :param str service: the name of the service being traced. If not set,
                             it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
-
-        :param Context ctx: TODO
-        :param Span span_parent: TODO
 
         You must call `finish` on all spans, either directly or with a context
         manager.
@@ -116,44 +171,16 @@ class Tracer(object):
         >>> parent2 = tracer.trace("parent2")   # has no parent span
         >>> parent2.finish()
         """
-        # use the given Context object, or retrieve it using the Tracer logic
-        # TODO: provide plain methods that don't do any automatic action
-        context = ctx or self.get_call_context()
-        parent = span_parent or context.get_current_span()
-
-        if parent:
-            # this is a child span
-            span = Span(
-                self,
-                name,
-                service=(service or parent.service),
-                resource=resource,
-                span_type=span_type,
-                trace_id=parent.trace_id,
-                parent_id=parent.span_id,
-                ctx=context,
-            )
-            span._parent = parent
-            span.sampled = parent.sampled
-        else:
-            # this is a root span
-            span = Span(
-                self,
-                name,
-                service=service,
-                resource=resource,
-                span_type=span_type,
-                ctx=context,
-            )
-            self.sampler.sample(span)
-
-        # add common tags
-        if self.tags:
-            span.set_tags(self.tags)
-
-        # add it to the current context
-        context.add_span(span)
-        return span
+        # retrieve the Context using the context provider and create
+        # a new Span that could be a root or a nested span
+        context = self.get_call_context()
+        return self.start_span(
+            name,
+            child_of=context,
+            service=service,
+            resource=resource,
+            span_type=span_type
+        )
 
     def current_span(self):
         """
@@ -217,7 +244,7 @@ class Tracer(object):
         except Exception:
             log.debug("error setting service info", exc_info=True)
 
-    def wrap(self, name=None, service=None, resource=None, span_type=None, ctx=None, span_parent=None):
+    def wrap(self, name=None, service=None, resource=None, span_type=None):
         """
         A decorator used to trace an entire function.
 
@@ -251,7 +278,7 @@ class Tracer(object):
             @functools.wraps(f)
             def func_wrapper(*args, **kwargs):
                 with self.trace(span_name, service=service, resource=resource,
-                                span_type=span_type, ctx=ctx, span_parent=span_parent):
+                                span_type=span_type):
                     return f(*args, **kwargs)
             return func_wrapper
 

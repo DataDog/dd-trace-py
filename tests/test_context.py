@@ -19,6 +19,7 @@ class TestTracingContext(TestCase):
         ctx.add_span(span)
         eq_(1, len(ctx._trace))
         eq_('fake_span', ctx._trace[0].name)
+        eq_(ctx, span.context)
 
     def test_context_sampled(self):
         # a context is sampled if the spans are sampled
