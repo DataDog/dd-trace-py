@@ -115,25 +115,27 @@ class AsyncWorker(object):
         last_error_ts = 0
         result_traces = None
         result_services = None
+
         while True:
             traces = self._trace_queue.pop()
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    result_traces = self.api.send_traces(traces)
+                    self.api.send_traces(traces)
                 except Exception as err:
                     log.error("cannot send spans: {0}".format(err))
 
             services = self._service_queue.pop()
             if services:
                 try:
-                    result_services = self.api.send_services(services)
+                    self.api.send_services(services)
                 except Exception as err:
                     log.error("cannot send services: {0}".format(err))
 
             elif self._trace_queue.closed():
                 # no traces and the queue is closed. our work is done.
                 return
+
             time.sleep(1) # replace with a blocking pop.
 
             # Logging the http errors
