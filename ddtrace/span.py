@@ -175,6 +175,12 @@ class Span(object):
         return self.metrics.get(key)
 
     def to_dict(self):
+        # a common mistake is to set the error field to a boolean instead of an
+        # int. let's special case that here, because it's sure to happen in
+        # customer code.
+        if self.error and type(self.error) == bool:
+            self.error = 1
+
         d = {
             'trace_id' : self.trace_id,
             'parent_id' : self.parent_id,
@@ -184,6 +190,7 @@ class Span(object):
             'name' : self.name,
             'error': self.error,
         }
+
 
         if self.start:
             d['start'] = int(self.start * 1e9)  # ns

@@ -182,6 +182,19 @@ def test_span_to_dict():
     eq_(d["parent_id"], s.parent_id)
     eq_(d["meta"], {"a": "1", "b": "2"})
     eq_(d["type"], "foo")
+    eq_(d["error"], 0)
+    eq_(type(d["error"]), int)
+
+def test_span_boolean_err():
+    s = Span(tracer=None, name="foo.bar", service="s",  resource="r")
+    s.error = True
+    s.finish()
+
+    d = s.to_dict()
+    assert d
+    eq_(d["error"], 1)
+    eq_(type(d["error"]), int)
+
 
 
 class DummyTracer(object):
