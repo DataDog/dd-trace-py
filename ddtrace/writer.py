@@ -134,27 +134,28 @@ class AsyncWorker(object):
             elif self._trace_queue.closed():
                 # no traces and the queue is closed. our work is done.
                 return
-        if result_traces and result_traces.status >= 400:
-            current_time = time.time()
-            if current_time > last_error_ts + 60:
-                log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
-                    result_traces.status, result_traces.reason, result_traces.msg))
-                last_error_ts = current_time
-            else:
-                log.debug("traces to Agent: HTTP error status {}, reason {}, message {}".format(
-                    result_traces.status, result_traces.reason, result_traces.msg))
-
-        if result_services and result_services.status >= 400:
-            current_time = time.time()
-            if current_time > last_error_ts + 60:
-                log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
-                    result_traces.status, result_traces.reason, result_traces.msg))
-                last_error_ts = current_time
-            else:
-                log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
-                    result_traces.status, result_traces.reason, result_traces.msg))
-
             time.sleep(1) # replace with a blocking pop.
+
+            # Logging the http errors
+            if result_traces and result_traces.status >= 400:
+                current_time = time.time()
+                if current_time > last_error_ts + 10:
+                    log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                        result_traces.status, result_traces.reason, result_traces.msg))
+                    last_error_ts = current_time
+                else:
+                    log.debug("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                        result_traces.status, result_traces.reason, result_traces.msg))
+
+            if result_services and result_services.status >= 400:
+                current_time = time.time()
+                if current_time > last_error_ts + 10:
+                    log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                        result_traces.status, result_traces.reason, result_traces.msg))
+                    last_error_ts = current_time
+                else:
+                    log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                        result_traces.status, result_traces.reason, result_traces.msg))
 
 
 class Q(object):
