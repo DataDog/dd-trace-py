@@ -19,13 +19,13 @@ class Timer(threading.Thread):
         super(Timer, self).__init__()
         self._timeLoop = time_loop
         self._event = event
-        self._stop = threading.Event()
+        self._stop_thread = threading.Event()
 
     def run(self):
 
         """Thread sleeps for _timeLoop and then calls the function call"""
 
-        while not self._stop.isSet():
+        while not self._stop_thread.isSet():
             time.sleep(self._timeLoop)
             self._event.set()
 
@@ -33,5 +33,5 @@ class Timer(threading.Thread):
 
         """Terminates thread"""
 
-        self._stop.set()
+        self._stop_thread.set()
         super(Timer, self).join(timeout)
