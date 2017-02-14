@@ -136,7 +136,7 @@ class AsyncWorker(object):
                 return
         if result_traces and result_traces.status >= 400:
             current_time = time.time()
-            if current_time > last_error_ts:
+            if current_time > last_error_ts + 60:
                 log.error("traces to Agent: HTTP error status {}, reason {}, message {}".format(
                     result_traces.status, result_traces.reason, result_traces.msg))
                 last_error_ts = current_time
@@ -146,7 +146,7 @@ class AsyncWorker(object):
 
         if result_services and result_services.status >= 400:
             current_time = time.time()
-            if current_time > last_error_ts:
+            if current_time > last_error_ts + 60:
                 log.error("services to Agent: HTTP error status {}, reason {}, message {}".format(
                     result_traces.status, result_traces.reason, result_traces.msg))
                 last_error_ts = current_time
