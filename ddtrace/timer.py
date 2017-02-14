@@ -9,16 +9,16 @@ class Timer(threading.Thread):
 
     Attributes:
         _timeLoop: input int or float
-        _callable: input function
+        _event: input event
         _stop: threading.Event allowing thread to join"""
 
-    def __init__(self, time_loop, function):
+    def __init__(self, time_loop, event):
 
         """Initialise Timer"""
 
         super(Timer, self).__init__()
         self._timeLoop = time_loop
-        self._callable = function
+        self._event = event
         self._stop = threading.Event()
 
     def run(self):
@@ -27,7 +27,7 @@ class Timer(threading.Thread):
 
         while not self._stop.isSet():
             time.sleep(self._timeLoop)
-            self._callable()
+            self._event.set()
 
     def join(self, timeout=None):
 

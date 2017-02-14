@@ -1,6 +1,7 @@
 # stdlib
 import logging
 import time
+import threading
 from collections import Counter
 
 # project
@@ -30,7 +31,8 @@ class API(object):
 
         # logs the http errors every 1 second
         self._http_error_counter = Counter()
-        self._timer = Timer(1, self.log_http_errors)
+        self._log_event = threading.Event()
+        self._timer = Timer(2, self._log_event)
         self._timer.start()
 
     def _downgrade(self):
@@ -52,7 +54,7 @@ class API(object):
         """
         if self._http_error_counter:
             log.error("http server and error count: {}".format(self._http_error_counter))
-            self._http_error_counter.clear
+            self._http_error_counter = Counter()
 
     def send_traces(self, traces):
         if not traces:
@@ -66,8 +68,13 @@ class API(object):
             self._downgrade()
             return self.send_traces(traces)
         # log other responses
-        else:
+        if response.status >= 400:
             self._http_error_counter[response.status] += 1
+
+        # Logging http errors regularly, event is triggered by the timer
+        if self._log_event.isSet():
+            self.log_http_errors()
+            self._log_event.clear()
 
         log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
         return response
