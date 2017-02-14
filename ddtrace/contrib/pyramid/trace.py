@@ -62,7 +62,8 @@ def trace_tween_factory(handler, registry):
                     # set response tags
                     if response:
                         span.set_tag(http.STATUS_CODE, response.status_code)
-                        span.error = 500 <= response.status_code < 600
+                        if 500 <= response.status_code < 600:
+                            span.error = 1
                 return response
         return trace_tween
 
