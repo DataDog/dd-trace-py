@@ -1,11 +1,13 @@
 import elasticsearch
 import wrapt
+from elasticsearch.exceptions import TransportError
 
 from . import metadata
 from .quantize import quantize
 
 from ...compat import urlencode
 from ...pin import Pin
+from ...ext import http
 
 
 DEFAULT_SERVICE = 'elasticsearch'
@@ -70,16 +72,21 @@ def _perform_request(func, instance, args, kwargs):
         span.set_tag(metadata.PARAMS, urlencode(params))
         if method == "GET":
             span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+        status = None
 
         span = quantize(span)
 
-        result = func(*args, **kwargs)
+        try:
+            result = func(*args, **kwargs)
+        except TransportError as e:
+            span.set_tag(http.STATUS_CODE, getattr(e, 'status_code', 500))
+            raise
 
         try:
             # Optional metadata extraction with soft fail.
             if isinstance(result, tuple) and len(result) == 2:
                 # elasticsearch<2.4; it returns both the status and the body
-                _, data = result
+                status, data = result
             else:
                 # elasticsearch>=2.4; internal change for ``Transport.perform_request``
                 # that just returns the body
@@ -90,5 +97,8 @@ def _perform_request(func, instance, args, kwargs):
                 span.set_metric(metadata.TOOK, int(took))
         except Exception:
             pass
+
+        if status:
+            span.set_tag(http.STATUS_CODE, status)
 
         return result
