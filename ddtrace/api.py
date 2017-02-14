@@ -29,11 +29,8 @@ class API(object):
         self._headers = headers or {}
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-        # logs the http errors every 1 second
-        self._http_error_counter = Counter()
-        self._log_event = threading.Event()
-        self._timer = Timer(2, self._log_event)
-        self._timer.start()
+        self._http_error_counter_services = Counter()
+        self._http_error_counter_traces = Counter()_
 
     def _downgrade(self):
         """
@@ -52,9 +49,13 @@ class API(object):
         """
         Logs the http error codes. Periodically called by the timer
         """
-        if self._http_error_counter:
-            log.error("http server and error count: {}".format(self._http_error_counter))
-            self._http_error_counter = Counter()
+        if self._http_error_counter_services:
+            log.error("Services: http error count: {}".format(self._http_error_counter_services))
+            self._http_error_counter_services = Counter()
+
+        if self._http_error_counter_traces:
+            log.error("Traces: http error count: {}".format(self._http_error_counter_traces))
+            self._http_error_counter_traces = Counter()
 
     def send_traces(self, traces):
         if not traces:
@@ -69,7 +70,7 @@ class API(object):
             return self.send_traces(traces)
         # log other responses
         if response.status >= 400:
-            self._http_error_counter[response.status] += 1
+            self._http_error_counter_traces[response.status] += 1
 
         # Logging http errors regularly, event is triggered by the timer
         if self._log_event.isSet():
@@ -94,6 +95,10 @@ class API(object):
             self._downgrade()
             return self.send_services(services)
 
+        # log other responses
+        if response.status >= 400:
+            self._http_error_counter_services[response.status] += 1
+
         log.debug("reported %d services", len(services))
         return response
 
@@ -102,5 +107,3 @@ class API(object):
         conn.request("PUT", endpoint, data, self._headers)
         return conn.getresponse()
 
-    def join_timer(self, timeout=None):
-        self._timer.join(timeout)

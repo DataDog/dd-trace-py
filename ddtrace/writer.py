@@ -90,7 +90,6 @@ class AsyncWorker(object):
         Wait for the AsyncWorker execution. This call doesn't block the execution
         and it has a 2 seconds of timeout by default.
         """
-        self.api.join_timer()
         self._thread.join(timeout)
 
     def _on_shutdown(self):
@@ -130,6 +129,7 @@ class AsyncWorker(object):
                     log.error("cannot send services: {0}".format(err))
 
             elif self._trace_queue.closed():
+                self.api.log_http_errors()
                 # no traces and the queue is closed. our work is done.
                 return
 
