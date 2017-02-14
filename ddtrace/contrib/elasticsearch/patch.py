@@ -79,7 +79,7 @@ def _perform_request(func, instance, args, kwargs):
         try:
             result = func(*args, **kwargs)
         except TransportError as e:
-            span.set_tag(http.STATUS_CODE, e.status_code)
+            span.set_tag(http.STATUS_CODE, getattr(e, 'status_code', 500))
             raise
 
         try:
