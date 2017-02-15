@@ -122,22 +122,20 @@ class AsyncWorker(object):
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    self.api.send_traces(traces)
+                    result_traces = self.api.send_traces(traces)
                 except Exception as err:
                     log.error("cannot send spans: {0}".format(err))
 
             services = self._service_queue.pop()
             if services:
                 try:
-                    self.api.send_services(services)
+                    result_services = self.api.send_services(services)
                 except Exception as err:
                     log.error("cannot send services: {0}".format(err))
 
             elif self._trace_queue.closed():
-                # no traces and the queue is closed. our work is done.
+                # no traces and the queue is closed. our work is done
                 return
-
-            time.sleep(1) # replace with a blocking pop.
 
             # Logging the http errors
             log_level = log.debug
@@ -148,8 +146,7 @@ class AsyncWorker(object):
                     last_error_ts = now
                 log_level("traces to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_traces.status, result_traces.reason, result_traces.msg))
-                self.api.hi()
-
+                result_traces = None
 
             if result_services and result_services.status >= 400:
                 now = time.time()
@@ -158,7 +155,9 @@ class AsyncWorker(object):
                     last_error_ts = now
                 log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
-                self.api.hi()
+                result_services = None
+
+            time.sleep(1) # replace with a blocking pop.
 
 
 class Q(object):
