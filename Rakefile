@@ -9,27 +9,13 @@ task :test do
   sh "python -m tests.benchmark"
 end
 
-desc "Starts batch 1 of tests"
-task :test_batch1 do
-  sh "docker-compose up -d | cat"
-  begin
+desc 'CI dependent task; tasks in parallel'
+task:ci_test do
+  case ENV['CIRCLE_NODE_INDEX'].to_i
+  when 0
     sh "tox -e flake8, wait, py27-tracer"
-
-  ensure
-    sh "docker-compose kill"
-  end
-  sh "python -m tests.benchmark"
-end
-
-desc "Starts batch 2 of tests"
-task :test_batch2 do
-  sh "docker-compose up -d | cat"
-  begin
-    sh "tox -e py34-tracer, py27-integration, py34-integration"
-  ensure
-    sh "docker-compose kill"
-  end
-  sh "python -m tests.benchmark"
+  when 1
+    sh "tox -e py27-integration, py34-integration"
 end
 
 desc "Run tests with envs matching the given pattern."
