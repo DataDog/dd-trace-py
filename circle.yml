@@ -19,7 +19,7 @@ dependencies:
 
 test:
   override:
-    - rake test
+    - rake test:envs["py27"]
 
 deployment:
   dev:
