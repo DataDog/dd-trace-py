@@ -195,6 +195,13 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
+def test_span_resource_type():
+    s = Span(tracer=None, name="foo.bar", service="s",  resource=404)
+    s.finish()
+
+    d = s.to_dict()
+    assert d
+    eq_(d['resource'], '404')
 
 
 class DummyTracer(object):
