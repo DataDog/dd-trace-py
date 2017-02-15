@@ -1,18 +1,39 @@
 desc "Starts all backing services and run all tests"
-task :testpy2 do
+task :test do
   sh "docker-compose up -d | cat"
   begin
-    sh "test_workers/py2/tox"
+    sh "tox"
   ensure
     sh "docker-compose kill"
   end
   sh "python -m tests.benchmark"
 end
 
-task :testpy3 do
+desc "Starts batch 1 of tests"
+task :test_batch1 do
   sh "docker-compose up -d | cat"
   begin
-    sh "test_workers/py3/tox"
+    sh "tox -e flake8, wait, py27-tracer, py34-tracer, py27-integration, py34-integration"
+    sh "tox -e py27-contrib, py34-contrib, py27-bottle12-webtest, py34-bottle12-webtest, py27-cassandra35"
+    sh "tox -e py27-cassandra36, py27-cassandra37, py34-cassandra35, py34-cassandra36, py34-cassandra37
+        py27-elasticsearch23, py34-elasticsearch23, py27-falcon10, py34-falcon10"
+  ensure
+    sh "docker-compose kill"
+  end
+  sh "python -m tests.benchmark"
+end
+sts
+desc "Starts batch 2 of tests"
+task :test_batch2 do
+  sh "docker-compose up -d | cat"
+  begin
+    sh "tox -e py27-django18-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py27-django19-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py27-django110-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py34-django18-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py34-django19-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py34-django110-djangopylibmc06-djangoredis45-pylibmc-redis-memcached,
+        py27-flask010-blinker, py27-flask011-blinker, py34-flask010-blinker, py34-flask011-blinker"
   ensure
     sh "docker-compose kill"
   end

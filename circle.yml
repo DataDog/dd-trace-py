@@ -19,9 +19,9 @@ dependencies:
 
 test:
   override:
-    - rake testpy2:
+    - rake test_batch1:
         parallel: true
-    - rake testpy3:
+    - rake test_batch2:
         parallel: true
 
 deployment:
