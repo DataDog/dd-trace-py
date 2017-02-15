@@ -22,7 +22,7 @@ task :test_batch1 do
   end
   sh "python -m tests.benchmark"
 end
-sts
+
 desc "Starts batch 2 of tests"
 task :test_batch2 do
   sh "docker-compose up -d | cat"
