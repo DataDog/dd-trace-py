@@ -1,8 +1,18 @@
 desc "Starts all backing services and run all tests"
-task :test do
+task :testpy2 do
   sh "docker-compose up -d | cat"
   begin
-    sh "detox"
+    sh "test_workers/py2/tox"
+  ensure
+    sh "docker-compose kill"
+  end
+  sh "python -m tests.benchmark"
+end
+
+task :testpy3 do
+  sh "docker-compose up -d | cat"
+  begin
+    sh "test_workers/py3/tox"
   ensure
     sh "docker-compose kill"
   end
