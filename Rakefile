@@ -14,12 +14,17 @@ task:ci_test do
   case ENV['CIRCLE_NODE_INDEX'].to_i
   when 0
     sh "tox -e flake8, wait, py27-gevent10, py27-gevent11, py34-gevent10,
-        py34-gevent11"
+        py34-gevent11, py27-pymongo30-mongoengine, py27-pymongo31-mongoengine,
+        py27-pymongo32-mongoengine, py27-pymongo33-mongoengine, py34-pymongo30-mongoengine,
+        py34-pymongo31-mongoengine, py34-pymongo32-mongoengine, py34-pymongo33-mongoengine"
   when 1
-    sh "tox -e py27-tracer,py27-sqlalchemy10-psycopg2, py27-sqlalchemy11-psycopg2,
-    py34-sqlalchemy10-psycopg2, py34-sqlalchemy11-psycopg2"
+    sh "tox -e wait, py27-tracer,py27-sqlalchemy10-psycopg2, py27-sqlalchemy11-psycopg2,
+    py34-sqlalchemy10-psycopg2, py34-sqlalchemy11-psycopg2, py27-pyramid17-webtest,
+    py27-pyramid18-webtest, py34-pyramid17-webtest, py34-pyramid18-webtest"
   when 2
-    sh "tox -e py27-sqlite3, py34-sqlite3, py27-redis, py34-redis"
+    sh "tox -e wait, py27-sqlite3, py34-sqlite3, py27-redis, py34-redis, py27-requests208,
+    py27-requests209, py27-requests210, py27-requests211, py34-requests208,
+    py34-requests209, py34-requests210, py34-requests211"
   else
     puts 'Too many workers than parallel tasks'
   end
