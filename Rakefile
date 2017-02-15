@@ -16,6 +16,9 @@ task:ci_test do
     sh "tox -e flake8, wait, py27-tracer"
   when 1
     sh "tox -e py27-integration, py34-integration"
+  else
+    puts 'Too many workers than parallel tasks'
+  end
 end
 
 desc "Run tests with envs matching the given pattern."
