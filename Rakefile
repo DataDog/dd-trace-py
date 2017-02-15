@@ -13,9 +13,9 @@ desc 'CI dependent task; tasks in parallel'
 task:ci_test do
   case ENV['CIRCLE_NODE_INDEX'].to_i
   when 0
-    sh "tox -e flake8, wait, py27-tracer"
+    sh "tox -e flake8, wait"
   when 1
-    sh "tox -e py27-integration, py34-integration"
+    sh "tox -e py27-tracer"
   else
     puts 'Too many workers than parallel tasks'
   end
