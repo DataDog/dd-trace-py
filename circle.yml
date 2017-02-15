@@ -19,7 +19,6 @@ dependencies:
 
 test:
   override:
-    case ENV['CIRCLE_NODE_INDEX']
     - rake ci_test:
         parallel: true
 
