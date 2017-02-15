@@ -19,7 +19,7 @@ dependencies:
 
 test:
   override:
-    - rake test:envs["py27--bottle*-webtest"]
+    - rake test
 
 deployment:
   dev:
