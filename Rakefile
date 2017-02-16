@@ -25,7 +25,6 @@ task:ci_test do
     else
       puts 'Too many workers than parallel tasks'
     end
-    end
   ensure
     sh "docker-compose kill"
   end
