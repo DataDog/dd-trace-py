@@ -15,18 +15,17 @@ task:ci_test do
   begin
     case ENV['CIRCLE_NODE_INDEX'].to_i
     when 0
-      sh "tox -e flake8, wait, py27-gevent10, py27-gevent11, py34-gevent10,
-        py34-gevent11, py27-pymongo30-mongoengine, py27-pymongo31-mongoengine,
-        py27-pymongo33-mongoengine, py34-pymongo30-mongoengine,
-        py34-pymongo32-mongoengine, py34-pymongo33-mongoengine"
+      sh "tox -e flake8, py34-wait, py34-tracer, py27-tracer, py27-integration,
+      py34-integration, py27-contrib, py34-contrib, py27-bottle12, py34-bottle12,
+      py27-elasticsearch23, py34-elasticsearch23, py27-django18, py27-django19,
+      py27-django19, py27-django110, py34-django18, py34-django19, py34-django110"
     when 1
-      sh "tox -e wait, py27-tracer,py27-sqlalchemy10-psycopg2, py27-sqlalchemy11-psycopg2,
-    py34-sqlalchemy10-psycopg2, py34-sqlalchemy11-psycopg2, py27-pyramid17-webtest,
-    py27-pyramid18-webtest, py34-pyramid17-webtest, py34-pyramid18-webtest"
+      sh "tox -e wait, py27-cassandra35, py27-cassandra36, py27-cassandra37,
+      py34-cassandra35, py34-cassandra36, py34-cassandra37, py27-flaskcache012,
+      py27-flask010, py27-flask011, py34-flask010, py34-flask011, py27-falcon-10,
+      py34-falcon-10, py27-psycog2, psy34-psycog2"
     when 2
-      sh "tox -e wait, py27-sqlite3, py34-sqlite3, py27-redis, py34-redis, py27-requests208,
-    py27-requests209, py27-requests210, py27-requests211, py34-requests208,
-    py34-requests209, py34-requests210, py34-requests211"
+      sh "tox -e wait, psy27-gevent10, psy27-gevent11, psy34-gevent10, psy34-gevent11"
     else
       puts 'Too many workers than parallel tasks'
     end
