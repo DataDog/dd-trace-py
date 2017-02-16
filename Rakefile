@@ -9,37 +9,26 @@ task :test do
   sh "python -m tests.benchmark"
 end
 
-
-desc 'testing'
-task:te do
-  a = `tox -l | wc -l`
-  puts a
-  puts a
-end
-
-
-
-
 desc 'CI dependent task; tasks in parallel'
-task:ci_test do
+task:scalable_test do
   sh "docker-compose up -d | cat"
   n_total_envs = `tox -l | wc -l`
-  n_envs_chunk = n_total_envs.to_i / 3
+  n_envs_chunk = n_total_envs.to_i / ENV['CIRCLE_NODE_TOTAL'].to_i
+  env_limiter_one = 1
+  env_limiter_two = n_envs_chunk
 begin
-  case ENV['CIRCLE_NODE_INDEX'].to_i
-  when 0
-    sh "tox -l | tr '\n' ',' | cut -d, -f-#{n_envs_chunk} | xargs tox -e"
-  when 1
-    sh "tox -e wait"
-    env_limiter_one = n_envs_chunk + 1
-    env_limiter_two = 2 * n_envs_chunk
-    sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
-  when 2
-    sh "tox -e wait"
-    env_limiter_two = 2 * n_envs_chunk + 1
-    sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_two}- | xargs tox -e"
-  else
-    puts 'Too many workers than parallel tasks'
+  for node_index in 0..ENV['CIRCLE_NODE_TOTAL'].to_i
+    case ENV['CIRCLE_NODE_INDEX'].to_i
+      when node_index
+        if node_index > 1 then
+          sh "tox -e wait"
+        end
+        sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+        env_limiter_one = env_limiter_two + 1
+        env_limiter_two = env_limiter_two + n_envs_chunk
+    else
+      puts 'Too many workers than parallel tasks'
+    end
   end
 ensure
   sh "docker-compose kill"
