@@ -6,7 +6,7 @@ import logging; logging.basicConfig(); log = logging.getLogger(__name__)
 if __name__ == "__main__":
     # define django defaults
     app_to_test = "tests/contrib/django"
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings_untraced")
 
     log.info("Using DJANGO_SETTINGS_MODULE %s", os.environ.get("DJANGO_SETTINGS_MODULE"))
 
