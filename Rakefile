@@ -15,15 +15,15 @@ task:ci_test do
   begin
     case ENV['CIRCLE_NODE_INDEX'].to_i
     when 0
-      sh "tox -e flake8, py34-wait, py34-tracer, py27-tracer, py27-integration,
-      py34-integration, py27-contrib, py34-contrib, py27-bottle12, py34-bottle12,
-      py27-elasticsearch23, py34-elasticsearch23, py27-django18, py27-django19,
-      py27-django19, py27-django110, py34-django18, py34-django19, py34-django110"
+      sh "tox -e flake8, py34-wait, py34-tracer, py27-tracer, py27-integration"
+      sh "tox -e py34-integration, py27-contrib, py34-contrib, py27-bottle12, py34-bottle12"
+      sh "tox -e py27-elasticsearch23, py34-elasticsearch23, py27-django18, py27-django19"
+      sh "tox -e py27-django19, py27-django110, py34-django18, py34-django19, py34-django110"
     when 1
-      sh "tox -e wait, py27-cassandra35, py27-cassandra36, py27-cassandra37,
-      py34-cassandra35, py34-cassandra36, py34-cassandra37, py27-flaskcache012,
-      py27-flask010, py27-flask011, py34-flask010, py34-flask011, py27-falcon-10,
-      py34-falcon-10, py27-psycog2, psy34-psycog2"
+      sh "tox -e wait, py27-cassandra35, py27-cassandra36, py27-cassandra37"
+      sh "tox -e py34-cassandra35, py34-cassandra36, py34-cassandra37, py27-flaskcache012"
+      sh "tox -e py27-flask010, py27-flask011, py34-flask010, py34-flask011, py27-falcon-10"
+      sh "tox -e py34-falcon-10, py27-psycog2, psy34-psycog2"
     when 2
       sh "tox -e wait, psy27-gevent10, psy27-gevent11, psy34-gevent10, psy34-gevent11"
     else
