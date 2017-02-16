@@ -9,29 +9,41 @@ task :test do
   sh "python -m tests.benchmark"
 end
 
+
+desc 'testing'
+task:te do
+  a = `tox -l | wc -l`
+  puts a
+  puts a
+end
+
+
+
+
 desc 'CI dependent task; tasks in parallel'
 task:ci_test do
-  sh "docker-compose up -d | cat"
-  sh "n_total_envs=$(tox -l | wc -l)"
-  sh "n_envs_chunk=$(($n_total_envs/3))"
-  begin
-    case ENV['CIRCLE_NODE_INDEX'].to_i
-    when 0
-      sh "tox -l | tr '\n' ',' | cut -d, -f-$n_envs_chunk | xargs tox -e"
-    when 1
-      sh "tox -e wait"
-      sh "env_limiter_one=$(($n_envs_chunk+1))"
-      sh "env_limiter_two=$((2*$n_envs_chunk))"
-      sh "tox -l | tr '\n' ',' | cut -d, -f$env_limiter_one-$env_limiter_two | xargs tox -e"
-    when 2
-      sh "tox -e wait"
-      sh "env_limiter_two=$((2*$n_envs_chunk+1))"
-      sh "tox -l | tr '\n' ',' | cut -d, -f$env_limiter_two- | xargs tox -e"
-    else
-      puts 'Too many workers than parallel tasks'
-    end
-  ensure
-    sh "docker-compose kill"
+  #sh "docker-compose up -d | cat"
+  n_total_envs = `tox -l | wc -l`
+  n_envs_chunk = n_total_envs.to_i / 3
+  puts n_envs_chunk
+begin
+  case ENV['CIRCLE_NODE_INDEX'].to_i
+  when 0
+    sh "tox -l | tr '\n' ',' | cut -d, -f-#{n_envs_chunk} | xargs tox -e"
+  when 1
+    sh "tox -e wait"
+    env_limiter_one = n_envs_chunk + 1
+    env_limiter_two = n_envs_chunk
+    sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+  when 2
+    sh "tox -e wait"
+    env_limiter_two = 2 * n_envs_chunk + 1
+    sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_two}- | xargs tox -e"
+  else
+    puts 'Too many workers than parallel tasks'
+  end
+ensure
+  sh "docker-compose kill"
   end
   sh "python -m tests.benchmark"
 end
