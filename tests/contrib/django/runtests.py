@@ -8,7 +8,7 @@ if __name__ == "__main__":
     app_to_test = "tests/contrib/django"
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 
-    log.info("Using DJANGO_SETTINGS_MODULE %s", os.environ.get("DJANGO_SETTINGS_MODULE")
+    log.info("Using DJANGO_SETTINGS_MODULE %s", os.environ.get("DJANGO_SETTINGS_MODULE"))
 
     # append the project root to the PYTHONPATH:
     # this is required because we don't want to put the current file
