@@ -21,7 +21,7 @@ class TracedPylonsApp(pylons.wsgiapp.PylonsApp):
         super(TracedPylonsApp, self).__init__(*args, **kwargs)
 
         service = os.environ.get("DATADOG_SERVICE_NAME") or "pylons"
-        pin = Pin(service=service, tracer=tracer).onto(self)
+        Pin(service=service, tracer=tracer).onto(self)
         tracer.set_service_info(
             service=service,
             app="pylons",
