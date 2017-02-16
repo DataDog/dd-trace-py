@@ -11,6 +11,7 @@ end
 
 desc 'CI dependent task; tasks in parallel'
 task:ci_test do
+  sh "docker-compose up -d | cat"
   case ENV['CIRCLE_NODE_INDEX'].to_i
   when 0
     sh "tox -e flake8, wait, py27-gevent10, py27-gevent11, py34-gevent10,
@@ -27,7 +28,10 @@ task:ci_test do
     py34-requests209, py34-requests210, py34-requests211"
   else
     puts 'Too many workers than parallel tasks'
+  ensure
+    sh "docker-compose kill"
   end
+  sh "python -m tests.benchmark"
 end
 
 desc "Run tests with envs matching the given pattern."
