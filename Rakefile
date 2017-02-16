@@ -22,7 +22,7 @@ end
 
 desc 'CI dependent task; tasks in parallel'
 task:ci_test do
-  #sh "docker-compose up -d | cat"
+  sh "docker-compose up -d | cat"
   n_total_envs = `tox -l | wc -l`
   n_envs_chunk = n_total_envs.to_i / 3
   puts n_envs_chunk
