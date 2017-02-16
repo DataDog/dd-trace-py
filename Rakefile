@@ -12,16 +12,21 @@ end
 desc 'CI dependent task; tasks in parallel'
 task:ci_test do
   sh "docker-compose up -d | cat"
+  sh "n_total_envs=$(tox -l | wc -l)"
+  sh "n_envs_chunk=$(($n_total_envs/3))"
   begin
     case ENV['CIRCLE_NODE_INDEX'].to_i
     when 0
-      sh "tox -l | tr '\n' ',' | cut -d, -f-16 | xargs tox -e"
+      sh "tox -l | tr '\n' ',' | cut -d, -f-$n_envs_chunk | xargs tox -e"
     when 1
       sh "tox -e wait"
-      sh "tox -l | tr '\n' ',' | cut -d, -f17-45 | xargs tox -e"
+      sh "env_limiter_one=$(($n_envs_chunk+1))"
+      sh "env_limiter_two=$((2*$n_envs_chunk))"
+      sh "tox -l | tr '\n' ',' | cut -d, -f$env_limiter_one-$env_limiter_two | xargs tox -e"
     when 2
       sh "tox -e wait"
-      sh "tox -l | tr '\n' ',' | cut -d, -f46- | xargs tox -e"
+      sh "env_limiter_two=$((2*$n_envs_chunk+1))"
+      sh "tox -l | tr '\n' ',' | cut -d, -f$env_limiter_two- | xargs tox -e"
     else
       puts 'Too many workers than parallel tasks'
     end
