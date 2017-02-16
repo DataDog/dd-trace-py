@@ -63,6 +63,7 @@ class AsyncWorker(object):
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
+        self._last_error_ts = 0
         self.api = api
         self.start()
 
@@ -113,7 +114,6 @@ class AsyncWorker(object):
                     time.sleep(0.05)
 
     def _target(self):
-        last_error_ts = 0
         result_traces = None
         result_services = None
 
@@ -141,19 +141,19 @@ class AsyncWorker(object):
             log_level = log.debug
             if result_traces and result_traces.status >= 400:
                 now = time.time()
-                if now > last_error_ts + LOG_ERR_INTERVAL:
+                if now > self._last_error_ts + LOG_ERR_INTERVAL:
                     log_level = log.error
-                    last_error_ts = now
-                log_level("traces to Agent: HTTP error status {}, reason {}, message {}".format(
+                    self._last_error_ts = now
+                log_level("failed_to_send traces to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_traces.status, result_traces.reason, result_traces.msg))
                 result_traces = None
 
             if result_services and result_services.status >= 400:
                 now = time.time()
-                if now > last_error_ts + LOG_ERR_INTERVAL:
+                if now > self._last_error_ts + LOG_ERR_INTERVAL:
                     log_level = log.error
-                    last_error_ts = now
-                log.debug("services to Agent: HTTP error status {}, reason {}, message {}".format(
+                    self._last_error_ts = now
+                log.debug("failed_to_send services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
                 result_services = None
 
