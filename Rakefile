@@ -16,22 +16,19 @@ task:scalable_test do
   n_envs_chunk = n_total_envs.to_i / ENV['CIRCLE_NODE_TOTAL'].to_i
   env_limiter_one = 1
   env_limiter_two = n_envs_chunk
-begin
-  for node_index in 0..ENV['CIRCLE_NODE_TOTAL'].to_i
-    case ENV['CIRCLE_NODE_INDEX'].to_i
-      when node_index
+  begin
+    for node_index in 0..ENV['CIRCLE_NODE_TOTAL'].to_i
+      if ENV['CIRCLE_NODE_INDEX']==node_index then
         if node_index > 1 then
           sh "tox -e wait"
         end
         sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
         env_limiter_one = env_limiter_two + 1
         env_limiter_two = env_limiter_two + n_envs_chunk
-    else
-      puts 'Too many workers than parallel tasks'
+      end
     end
-  end
-ensure
-  sh "docker-compose kill"
+  ensure
+    sh "docker-compose kill"
   end
   sh "python -m tests.benchmark"
 end
