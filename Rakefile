@@ -25,11 +25,9 @@ task:scalable_test do
           sh "tox -e wait"
         end
         sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
-        env_limiter_one = env_limiter_two + 1
-        env_limiter_two = env_limiter_two + n_envs_chunk
-      else
-        puts circle_node_tot
-        puts node_index
+      end
+      env_limiter_one = env_limiter_two + 1
+      env_limiter_two = env_limiter_two + n_envs_chunk
       end
     end
   ensure
