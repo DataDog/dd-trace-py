@@ -28,7 +28,6 @@ task:scalable_test do
       end
       env_limiter_one = env_limiter_two + 1
       env_limiter_two = env_limiter_two + n_envs_chunk
-      end
     end
   ensure
     sh "docker-compose kill"
