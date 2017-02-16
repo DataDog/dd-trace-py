@@ -27,13 +27,14 @@ task:ci_test do
   n_envs_chunk = n_total_envs.to_i / 3
   puts n_envs_chunk
 begin
+  for node_index in ENV['CIRCLE_NODE_TOTAL'].to_i
   case ENV['CIRCLE_NODE_INDEX'].to_i
   when 0
     sh "tox -l | tr '\n' ',' | cut -d, -f-#{n_envs_chunk} | xargs tox -e"
   when 1
     sh "tox -e wait"
     env_limiter_one = n_envs_chunk + 1
-    env_limiter_two = n_envs_chunk
+    env_limiter_two = 2 * n_envs_chunk
     sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
   when 2
     sh "tox -e wait"
