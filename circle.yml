@@ -19,7 +19,7 @@ dependencies:
 
 test:
   override:
-    - rake ci_test:
+    - rake scalable_test:
         parallel: true
 
 deployment:
