@@ -21,6 +21,10 @@ test:
   override:
     - rake ci_test:
         parallel: true
+    - rake ci_test:
+        parallel: true
+    - rake ci_test:
+        parallel: true
 
 
 deployment:
