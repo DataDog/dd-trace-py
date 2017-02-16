@@ -16,7 +16,6 @@ PATCH_MODULES = {
     'cassandra': True,
     'elasticsearch': True,
     'mongoengine': True,
-    'mysql': True,
     'psycopg': True,
     'pylibmc': True,
     'pymongo': True,
@@ -24,6 +23,9 @@ PATCH_MODULES = {
     'requests': False,  # Not ready yet
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
+    'django': False,
+    'flask': False,
+    'pylons': False,
 }
 
 _LOCK = threading.Lock()
