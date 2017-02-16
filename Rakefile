@@ -20,7 +20,7 @@ task:scalable_test do
   puts circle_node_tot
   begin
     for node_index in 0..circle_node_tot
-      if ENV['CIRCLE_NODE_INDEX'] == node_index then
+      if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
         if node_index >= 1 then
           sh "tox -e wait"
         end
