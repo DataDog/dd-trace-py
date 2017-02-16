@@ -10,5 +10,5 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
         ok_(django._datadog_patch)
 
         from django.conf import settings
-        ok_('ddtrace.contrib.django' in settings.INSTALLED_APS)
+        ok_('ddtrace.contrib.django' in settings.INSTALLED_APPS)
         eq_(settings.MIDDLEWARE_CLASSES[0], 'ddtrace.contrib.django.TraceMiddleware')
