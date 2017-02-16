@@ -25,9 +25,7 @@ task:ci_test do
   sh "docker-compose up -d | cat"
   n_total_envs = `tox -l | wc -l`
   n_envs_chunk = n_total_envs.to_i / 3
-  puts n_envs_chunk
 begin
-  for node_index in ENV['CIRCLE_NODE_TOTAL'].to_i
   case ENV['CIRCLE_NODE_INDEX'].to_i
   when 0
     sh "tox -l | tr '\n' ',' | cut -d, -f-#{n_envs_chunk} | xargs tox -e"
