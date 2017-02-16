@@ -5,7 +5,7 @@ import sys
 import time
 import traceback
 
-from .compat import StringIO, stringify, iteritems, numeric_types
+from .compat import StringIO, stringify, iteritems, numeric_types, string_type
 from .ext import errors
 
 
@@ -185,12 +185,19 @@ class Span(object):
             'error': self.error,
         }
 
-        # a common mistake is to set the error field to a boolean instead of an
-        # int. let's special case that here, because it's sure to happen in
-        # customer code.
+        # a common mistake is to set some fields without the proper type
+        # and this clashes with the msgpack encoding; to handle that we
+        # convert the field to the right type before encoding
+
+        # error must be an int
         err = d.get('error')
         if err and type(err) == bool:
             d['error'] = 1
+
+        # resource must be a string
+        resource = d.get('resource')
+        if resource and not isinstance(resource, string_type):
+            d['resource'] = stringify(resource)
 
         if self.start:
             d['start'] = int(self.start * 1e9)  # ns
