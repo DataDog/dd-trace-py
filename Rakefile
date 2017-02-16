@@ -13,18 +13,23 @@ desc 'CI dependent task; tasks in parallel'
 task:scalable_test do
   sh "docker-compose up -d | cat"
   n_total_envs = `tox -l | wc -l`
-  n_envs_chunk = n_total_envs.to_i / ENV['CIRCLE_NODE_TOTAL'].to_i
+  circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
+  n_envs_chunk = n_total_envs.to_i / circle_node_tot
   env_limiter_one = 1
   env_limiter_two = n_envs_chunk
+  puts circle_node_tot
   begin
-    for node_index in 0..ENV['CIRCLE_NODE_TOTAL'].to_i
-      if ENV['CIRCLE_NODE_INDEX']==node_index then
-        if node_index > 1 then
+    for node_index in 0..circle_node_tot
+      if ENV['CIRCLE_NODE_INDEX'] == node_index then
+        if node_index >= 1 then
           sh "tox -e wait"
         end
         sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
         env_limiter_one = env_limiter_two + 1
         env_limiter_two = env_limiter_two + n_envs_chunk
+      else
+        puts circle_node_tot
+        puts node_index
       end
     end
   ensure
