@@ -4,7 +4,7 @@ from ...context import Context
 from ...provider import DefaultContextProvider
 
 
-# Task attribute used to set/get the Context instance
+# greenlet attribute used to set/get the Context instance
 CONTEXT_ATTR = '__datadog_context'
 
 

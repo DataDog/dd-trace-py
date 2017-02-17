@@ -1,5 +1,7 @@
 import gevent
 
+from .provider import CONTEXT_ATTR
+
 
 class TracedGreenlet(gevent.Greenlet):
     """
@@ -17,11 +19,11 @@ class TracedGreenlet(gevent.Greenlet):
     def __init__(self, *args, **kwargs):
         # get the current Context if available
         current_g = gevent.getcurrent()
-        ctx = getattr(current_g, '__datadog_context', None)
+        ctx = getattr(current_g, CONTEXT_ATTR, None)
 
         # create the Greenlet as usual
         super(TracedGreenlet, self).__init__(*args, **kwargs)
 
         # the context is always available made exception of the main greenlet
         if ctx:
-            setattr(self, '__datadog_context', ctx)
+            setattr(self, CONTEXT_ATTR, ctx)
