@@ -67,6 +67,14 @@ class TraceMiddleware(object):
         else:
             _patch_render(tracer)
 
+    def __call__(self, environ, start_response):
+        """
+        Because tracing happens via signals, the purpose of this middleware
+        is only to comply to PEP333 and be able to wrapped with other WSGI apps
+        """
+        for chunk in self.app(environ, start_response):
+            yield chunk
+
     def _flask_signals_exist(self, names):
         """ Return true if the current version of flask has all of the given
             signals.
