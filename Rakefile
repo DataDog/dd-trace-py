@@ -11,13 +11,11 @@ end
 
 desc 'CI dependent task; tasks in parallel'
 task:test_parallel do
-
   begin
     ignore_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
   rescue StandardError => e
     ignore_cassandra = false
   end
-
   sh "docker-compose up -d | cat"
   # If cassandra hasn't been changed ignore cassandra tests
   if not ignore_cassandra
@@ -28,9 +26,10 @@ task:test_parallel do
     envs = "tox -l | tr '\n' ','"
   end
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
-  n_envs_chunk = n_total_envs.to_i / circle_node_tot
+  n_envs_chunk = n_total_envs / circle_node_tot
   env_limiter_one = 1
   env_limiter_two = n_envs_chunk
+  sh envs + "| cut -d, -f2-3"
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
@@ -38,7 +37,7 @@ task:test_parallel do
         if node_index >= 1 then
           sh "tox -e wait"
         end
-        sh "echo #{envs} | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+        sh envs + "| cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
       end
       env_limiter_one = env_limiter_two + 1
       env_limiter_two = env_limiter_two + n_envs_chunk
