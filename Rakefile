@@ -37,7 +37,7 @@ task:test_parallel do
         if node_index >= 1 then
           sh "tox -e wait"
         end
-        sh "echo #{envs} | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+        sh "#{envs} | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
       end
       env_limiter_one = env_limiter_two + 1
       env_limiter_two = env_limiter_two + n_envs_chunk
