@@ -11,11 +11,13 @@ end
 
 desc 'CI dependent task; tasks in parallel'
 task:test_parallel do
+
   begin
     ignore_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
   rescue StandardError => e
     ignore_cassandra = false
   end
+
   sh "docker-compose up -d | cat"
   # If cassandra hasn't been changed ignore cassandra tests
   if not ignore_cassandra
@@ -25,16 +27,14 @@ task:test_parallel do
     n_total_envs = `tox -l | wc -l`
     envs = "tox -l | tr '\n' ','"
   end
-  puts envs
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs.to_i / circle_node_tot
   env_limiter_one = 1
   env_limiter_two = n_envs_chunk
-  puts circle_node_tot
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
-        # Node 0 already does as second task wait test, the others will require it to ensure db connection
+        # Node 0 already does as second task wait test, the others will require it to ensure db connections
         if node_index >= 1 then
           sh "tox -e wait"
         end
