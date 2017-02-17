@@ -12,13 +12,13 @@ end
 desc 'CI dependent task; tasks in parallel'
 task:test_parallel do
   begin
-    ignore_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
+    test_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
   rescue StandardError => e
-    ignore_cassandra = false
+    test_cassandra = false
   end
   sh "docker-compose up -d | cat"
   # If cassandra hasn't been changed ignore cassandra tests
-  if not ignore_cassandra
+  if not test_cassandra
     n_total_envs = `tox -l | grep -v cassandra | wc -l`.to_i
     envs = 'tox -l | grep -v cassandra | tr \'\n\' \',\''
   else
