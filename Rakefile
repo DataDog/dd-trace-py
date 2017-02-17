@@ -10,7 +10,7 @@ task :test do
 end
 
 desc 'CI dependent task; tasks in parallel'
-task:scalable_test do
+task:test_parallel do
   sh "docker-compose up -d | cat"
   n_total_envs = `tox -l | wc -l`
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
@@ -21,6 +21,7 @@ task:scalable_test do
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
+        # Node 0 already does as second task wait test, the others will require it to ensure db connections
         if node_index >= 1 then
           sh "tox -e wait"
         end
