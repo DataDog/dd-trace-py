@@ -22,7 +22,7 @@ task:test_parallel do
     n_total_envs = "tox -l | grep -v cassandra | wc -l".to_i
     envs = "tox -l | grep -v cassandra | tr '\n' ','"
   else
-    n_total_envs = `tox -l | wc -l`
+    n_total_envs = `tox -l | wc -l`.to_i
     envs = "tox -l | tr '\n' ','"
   end
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
