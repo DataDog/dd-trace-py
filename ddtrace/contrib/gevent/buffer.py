@@ -19,6 +19,7 @@ class GreenletLocalSpanBuffer(SpanBuffer):
     def pop(self):
         span = self.get()
         self.set(None)
+
         return span
 
 

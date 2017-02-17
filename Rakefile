@@ -9,6 +9,45 @@ task :test do
   sh "python -m tests.beup -nchmark"
 end
 
+desc "Ultimate testing unit"
+task :test_unit do
+  begin
+    test_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
+  rescue StandardError => e
+    test_cassandra = false
+
+  end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 desc 'CI dependent task; tests in parallel'
 task:test_parallel do
 

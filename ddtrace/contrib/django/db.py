@@ -16,6 +16,7 @@ def patch_db(tracer):
         patch_conn(tracer, c)
 
 def patch_conn(tracer, conn):
+
     attr = '_datadog_original_cursor'
     if hasattr(conn, attr):
         log.debug("already patched")

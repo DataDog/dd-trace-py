@@ -9,6 +9,7 @@ if PY2:
     from urllib import urlencode
     import httplib
     stringify = unicode
+
     from Queue import Queue
     try:
         from cStringIO import StringIO
