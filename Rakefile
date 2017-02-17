@@ -9,14 +9,17 @@ task :test do
   sh "python -m tests.beup -nchmark"
 end
 
-desc 'CI dependent task; tasks in parallel'
+desc 'CI dependent task; tests in parallel'
 task:test_parallel do
+
   begin
     test_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
   rescue StandardError => e
     test_cassandra = false
   end
+
   sh "docker-compose up -d | cat"
+
   # If cassandra hasn't been changed ignore cassandra tests
   if not test_cassandra
     n_total_envs = `tox -l | grep -v cassandra | wc -l`.to_i
@@ -25,6 +28,7 @@ task:test_parallel do
     n_total_envs = `tox -l | wc -l`.to_i
     envs = 'tox -l | tr \'\n\' \',\''
   end
+
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs / circle_node_tot
   env_list_start = 1
@@ -44,6 +48,7 @@ task:test_parallel do
   ensure
     sh "docker-compose kill"
   end
+
   sh "python -m tests.benchmark"
 end
 
