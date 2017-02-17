@@ -27,9 +27,8 @@ task:test_parallel do
   end
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs / circle_node_tot
-  env_limiter_one = 1
-  env_limiter_two = n_envs_chunk
-  #sh envs + "| cut -d, -f2-3"
+  env_list_start = 1
+  env_list_end = n_envs_chunk
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
@@ -37,10 +36,10 @@ task:test_parallel do
         if node_index >= 1 then
           sh "tox -e wait"
         end
-        sh "#{envs} | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+        sh "#{envs} | cut -d, -f#{env_list_start}-#{env_list_end} | xargs tox -e"
       end
-      env_limiter_one = env_limiter_two + 1
-      env_limiter_two = env_limiter_two + n_envs_chunk
+      env_list_start = env_list_end + 1
+      env_list_end = env_list_end + n_envs_chunk
     end
   ensure
     sh "docker-compose kill"
