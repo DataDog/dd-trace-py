@@ -19,7 +19,8 @@ dependencies:
 
 test:
   override:
-    - rake test
+    - rake test_parallel:
+        parallel: true
 
 deployment:
   dev:

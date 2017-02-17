@@ -120,8 +120,10 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
         # check arguments
+        # FIXME: this is racy because we don't know which of /traces or /services will be hit first
         endpoint = self.api._put.call_args[0][0]
         payload = self._decode(self.api._put.call_args[0][1])
+
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
