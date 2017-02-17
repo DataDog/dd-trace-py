@@ -19,7 +19,7 @@ task:test_parallel do
   sh "docker-compose up -d | cat"
   # If cassandra hasn't been changed ignore cassandra tests
   if not ignore_cassandra
-    n_total_envs = "tox -l | grep -v cassandra | wc -l".to_i
+    n_total_envs = `tox -l | grep -v cassandra | wc -l`.to_i
     envs = "tox -l | grep -v cassandra | tr '\n' ','"
   else
     n_total_envs = `tox -l | wc -l`.to_i
@@ -29,7 +29,7 @@ task:test_parallel do
   n_envs_chunk = n_total_envs / circle_node_tot
   env_limiter_one = 1
   env_limiter_two = n_envs_chunk
-  sh envs + "| cut -d, -f2-3"
+  #sh envs + "| cut -d, -f2-3"
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
