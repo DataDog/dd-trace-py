@@ -7,6 +7,7 @@ class GreenletLocalSpanBuffer(SpanBuffer):
     """
 
     def __init__(self):
+
         self._locals = gevent.local.local()
 
     def set(self, span):
@@ -19,3 +20,5 @@ class GreenletLocalSpanBuffer(SpanBuffer):
         span = self.get()
         self.set(None)
         return span
+
+
