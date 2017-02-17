@@ -1,14 +1,16 @@
 import os
 import json
-import mock
 import time
 import msgpack
 import logging
+import httplib
+import mock
 
 from testfixtures import LogCapture
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 from nose.plugins.logcapture import LogCapture as LogCaptureNose
+from mock import patch
 
 from ddtrace.api import API
 from ddtrace.span import Span
@@ -17,11 +19,17 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from tests.test_tracer import get_dummy_tracer
 
 
-@skipUnless(
+class Flawed_API(API):
+    def _put(self, endpoint, data):
+        conn = http.HTTPConnection(self.hostname, self.port)
+        conn.request("HEAD", endpoint, data, self._headers)
+        return conn.getresponse()
+
+"""@skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
-
+"""
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -148,7 +156,7 @@ class TestWorkers(TestCase):
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
         eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
 
-    @skipUnless(False,
+    @skipUnless(True,
         'test to try the http log errors, to trigger it change'
         + 'https://github.com/DataDog/dd-trace-py/blob/master/ddtrace/api.py#L78'
         + 'to "conn.request("HEAD", endpoint, data, self._headers)"'
@@ -156,18 +164,20 @@ class TestWorkers(TestCase):
     def test_worker_http_error_logging(self):
         # make a single send() if multiple traces are created before the flush interval
         tracer = self.tracer
-        tracer.trace('client.testing').finish()
-        tracer.trace('client.testing').finish()
+        with patch(Flawed_API) as API:
+            self.tracer.writer.api = API()
+            tracer.trace('client.testing').finish()
+            tracer.trace('client.testing').finish()
 
-        with LogCapture(level=logging.ERROR) as l:
-        # sleeping 2 secs to writer exiting before logging
-            time.sleep(2)
-            self._wait_thread_flush()
-            l.check(
-                ('ddtrace.writer','ERROR',
-                    'traces to Agent: HTTP error status 400, reason Bad Request, '
-                    + 'message Content-Type: text/plain\r\nConnection: close\r\n')
-                )
+            with LogCapture(level=logging.ERROR) as l:
+                # sleeping 2 secs to writer exiting before logging
+                time.sleep(2)
+                self._wait_thread_flush()
+                l.check(
+                    ('ddtrace.writer','ERROR',
+                        'traces to Agent: HTTP error status 400, reason Bad Request, '
+                        + 'message Content-Type: text/plain\r\nConnection: close\r\n')
+                    )
 
 
 @skipUnless(
