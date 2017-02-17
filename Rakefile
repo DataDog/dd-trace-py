@@ -6,13 +6,26 @@ task :test do
   ensure
     sh "docker-compose kill"
   end
-  sh "python -m tests.benchmark"
+  sh "python -m tests.beup -nchmark"
 end
 
 desc 'CI dependent task; tasks in parallel'
-task:scalable_test do
+task:test_parallel do
+  begin
+    ignore_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
+  rescue StandardError => e
+    ignore_cassandra = false
+  end
   sh "docker-compose up -d | cat"
-  n_total_envs = `tox -l | wc -l`
+  # If cassandra hasn't been changed ignore cassandra tests
+  if not ignore_cassandra
+    n_total_envs = "tox -l | grep -v cassandra | wc -l".to_i
+    envs = "tox -l | grep -v cassandra | tr '\n' ','"
+  else
+    n_total_envs = `tox -l | wc -l`
+    envs = "tox -l | tr '\n' ','"
+  end
+  puts envs
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs.to_i / circle_node_tot
   env_limiter_one = 1
@@ -21,10 +34,11 @@ task:scalable_test do
   begin
     for node_index in 0..circle_node_tot
       if ENV['CIRCLE_NODE_INDEX'].to_i == node_index then
+        # Node 0 already does as second task wait test, the others will require it to ensure db connection
         if node_index >= 1 then
           sh "tox -e wait"
         end
-        sh "tox -l | tr '\n' ',' | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
+        sh "echo #{envs} | cut -d, -f#{env_limiter_one}-#{env_limiter_two} | xargs tox -e"
       end
       env_limiter_one = env_limiter_two + 1
       env_limiter_two = env_limiter_two + n_envs_chunk
