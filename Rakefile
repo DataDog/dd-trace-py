@@ -20,10 +20,10 @@ task:test_parallel do
   # If cassandra hasn't been changed ignore cassandra tests
   if not ignore_cassandra
     n_total_envs = `tox -l | grep -v cassandra | wc -l`.to_i
-    envs = 'tox -l | grep -v cassandra | tr '\n' ',''
+    envs = 'tox -l | grep -v cassandra | tr \'\n\' \',\''
   else
     n_total_envs = `tox -l | wc -l`.to_i
-    envs = 'tox -l | tr '\n' ',''
+    envs = 'tox -l | tr \'\n\' \',\''
   end
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs / circle_node_tot
