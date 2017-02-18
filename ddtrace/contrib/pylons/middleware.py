@@ -13,6 +13,8 @@ class PylonsTraceMiddleware(object):
         self._service = service
         self._tracer = tracer
 
+
+
         self._tracer.set_service_info(
             service=service,
             app="pylons",
