@@ -11,12 +11,12 @@ end
 
 desc "Ultimate testing unit"
 task :test_unit do
-
-
   begin
-    sh "git diff-tree --no-commit-id --name-only -r HEAD origin | grep .py | grep -v contrib"
+    origin_branch_name = ("origin/" + `git branch | grep \\* | cut -d' ' -f2`).strip
+    sh "git diff-tree --no-commit-id --name-only -r HEAD #{origin_branch_name} | grep .py | grep -v contrib"
     n_total_envs = `tox -l | wc -l`.to_i
     envs = "tox -l | tr '\n' ','"
+    puts origin_branch_name
 
   # No modification on the non contrib files
   rescue StandardError => e
@@ -26,7 +26,7 @@ task :test_unit do
     for contrib_index in 1..n_contrib
       contrib_name = `cd ddtrace/contrib/ && ls -d */ -1 | sed -n '#{contrib_index}p' | tr -d '/\n'`
       begin
-        sh "git diff-tree --no-commit-id --name-only -r HEAD origin | grep ddtrace/contrib/#{contrib_name}"
+        sh "git diff-tree --no-commit-id --name-only -r HEAD #{origin_branch_name} | grep ddtrace/contrib/#{contrib_name}"
       rescue StandardError => e
         envs_to_remove_command = envs_to_remove_command + "| grep -v #{contrib_name}"
       end
@@ -35,7 +35,7 @@ task :test_unit do
     n_total_envs = `tox -l #{envs_to_remove_command} | wc -l`.to_i
     envs = "tox -l #{envs_to_remove_command} | tr '\n' ','"
   end
-  # Iterate parallels on r
+    # Iterate parallels on r
   sh "docker-compose up -d | cat"
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs / circle_node_tot
