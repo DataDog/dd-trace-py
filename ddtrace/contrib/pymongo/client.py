@@ -37,6 +37,7 @@ def trace_mongo_client(client, tracer, service=mongox.TYPE):
 class TracedMongoClient(ObjectProxy):
 
     def __init__(self, client=None, *args, **kwargs):
+
         # To support the former trace_mongo_client interface, we have to keep this old interface
         # TODO(Benjamin): drop it in a later version
         if not isinstance(client, _MongoClient):
