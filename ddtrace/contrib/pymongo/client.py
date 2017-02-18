@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 
 @deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def trace_mongo_client(client, tracer, service=mongox.TYPE):
+
     tracer.set_service_info(
         service=service,
         app=mongox.TYPE,
