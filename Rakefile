@@ -12,62 +12,29 @@ end
 desc "Ultimate testing unit"
 task :test_unit do
   begin
-    test_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
-  rescue StandardError => e
-    test_cassandra = false
-
-  end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-desc 'CI dependent task; tests in parallel'
-task:test_parallel do
-
-  begin
-    test_cassandra = sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/cassandra"
-  rescue StandardError => e
-    test_cassandra = false
-  end
-
-  sh "docker-compose up -d | cat"
-
-  # If cassandra hasn't been changed ignore cassandra tests
-  if not test_cassandra
-    n_total_envs = `tox -l | grep -v cassandra | wc -l`.to_i
-    envs = 'tox -l | grep -v cassandra | tr \'\n\' \',\''
-  else
+    sh "git diff-tree --no-commit-id --name-only -r HEAD | grep .py | grep -v contrib"
     n_total_envs = `tox -l | wc -l`.to_i
-    envs = 'tox -l | tr \'\n\' \',\''
-  end
+    envs = "tox -l | tr '\n' ','"
 
+  # No modification on the non contrib files
+  rescue StandardError => e
+    n_contrib = `cd ddtrace/contrib/ && ls -d */ -1 | wc -l`.to_i
+    envs_to_remove_command = ""
+
+    for contrib_index in 1..n_contrib
+      contrib_name = `cd ddtrace/contrib/ && ls -d */ -1 | sed -n '#{contrib_index}p' | tr -d '/\n'`
+      begin
+        sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/#{contrib_name}"
+      rescue StandardError => e
+        envs_to_remove_command = envs_to_remove_command + "| grep -v #{contrib_name}"
+      end
+    end
+
+    n_total_envs = `tox -l #{envs_to_remove_command} | wc -l`.to_i
+    envs = "tox -l #{envs_to_remove_command} | tr '\n' ','"
+  end
+  # Iterate parallels on r
+  sh "docker-compose up -d | cat"
   circle_node_tot = ENV['CIRCLE_NODE_TOTAL'].to_i
   n_envs_chunk = n_total_envs / circle_node_tot
   env_list_start = 1
