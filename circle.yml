@@ -19,7 +19,7 @@ dependencies:
 
 test:
   override:
-    - rake test_parallel:
+    - rake test_unit:
         parallel: true
 
 deployment:
