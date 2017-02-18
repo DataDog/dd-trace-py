@@ -13,7 +13,7 @@ desc "Ultimate testing unit"
 task :test_unit do
   begin
     origin_branch_name = ("origin/" + `git branch | grep \\* | cut -d' ' -f2`).strip
-    sh "git diff-tree --no-commit-id --name-only -r | grep .py | grep -v contrib"
+    sh "git diff-tree --no-commit-id --name-only -r HEAD | grep .py | grep -v contrib"
     n_total_envs = `tox -l | wc -l`.to_i
     envs = "tox -l | tr '\n' ','"
     puts origin_branch_name
@@ -26,7 +26,7 @@ task :test_unit do
     for contrib_index in 1..n_contrib
       contrib_name = `cd ddtrace/contrib/ && ls -d */ -1 | sed -n '#{contrib_index}p' | tr -d '/\n'`
       begin
-        sh "git diff-tree --no-commit-id --name-only -r | grep ddtrace/contrib/#{contrib_name}"
+        sh "git diff-tree --no-commit-id --name-only -r HEAD | grep ddtrace/contrib/#{contrib_name}"
       rescue StandardError => e
         envs_to_remove_command = envs_to_remove_command + "| grep -v #{contrib_name}"
       end

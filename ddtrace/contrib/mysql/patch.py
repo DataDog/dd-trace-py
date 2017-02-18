@@ -25,6 +25,7 @@ def patch():
 def unpatch():
     if isinstance(mysql.connector.connect, wrapt.ObjectProxy):
         mysql.connector.connect = mysql.connector.connect.__wrapped__
+
         if hasattr(mysql.connector, 'Connect'):
             mysql.connector.Connect = mysql.connector.connect
 
