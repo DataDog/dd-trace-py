@@ -4,7 +4,7 @@ from aiohttp.test_utils import unittest_run_loop
 from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
 from .utils import TraceTestCase
-from .app.web import setup_app
+from .app.web import setup_app, noop_middleware
 
 
 class TestTraceMiddleware(TraceTestCase):
@@ -132,12 +132,18 @@ class TestTraceMiddleware(TraceTestCase):
     async def test_middleware_applied_twice(self):
         # it should be idempotent
         app = setup_app(self.app.loop)
-        TraceMiddleware(app, self.tracer)
-        # the middleware is present
+        # the middleware is not present
         eq_(1, len(app.middlewares))
+        eq_(noop_middleware, app.middlewares[0])
+        # the middleware is present (with the noop middleware)
+        wrapper = TraceMiddleware(app, self.tracer)
+        eq_(2, len(app.middlewares))
         # applying the middleware twice doesn't add it again
         TraceMiddleware(app, self.tracer)
-        eq_(1, len(app.middlewares))
+        eq_(2, len(app.middlewares))
+        # and the middleware is always the first
+        eq_(wrapper._middleware, app.middlewares[0])
+        eq_(noop_middleware, app.middlewares[1])
 
     @unittest_run_loop
     async def test_exception(self):

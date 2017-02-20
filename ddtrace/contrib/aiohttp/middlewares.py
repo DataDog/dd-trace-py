@@ -29,9 +29,12 @@ class TraceMiddleware(object):
             app_type=AppTypes.web,
         )
 
-        # add the async tracer middleware
-        self.app.middlewares.append(self.middleware_factory())
-        self.app.on_response_prepare.append(self.signal_factory())
+        # add the async tracer middleware as a first middleware
+        # and be sure that the on_prepare signal is the last one
+        self._middleware = self.middleware_factory()
+        self._on_prepare = self.signal_factory()
+        self.app.middlewares.insert(0, self._middleware)
+        self.app.on_response_prepare.append(self._on_prepare)
 
     def middleware_factory(self):
         """

@@ -62,6 +62,13 @@ async def delayed_handler(request):
     return web.Response(text='Done')
 
 
+async def noop_middleware(app, handler):
+    async def middleware_handler(request):
+        # noop middleware
+        return await handler(request)
+    return middleware_handler
+
+
 def setup_app(loop):
     """
     Use this method to create the app. It must receive
@@ -69,7 +76,12 @@ def setup_app(loop):
     ``AioHTTPTestCase`` class.
     """
     # configure the app
-    app = web.Application(loop=loop)
+    app = web.Application(
+        loop=loop,
+        middlewares=[
+            noop_middleware,
+        ],
+    )
     app.router.add_get('/', home)
     app.router.add_get('/delayed/', delayed_handler)
     app.router.add_get('/echo/{name}', name)
