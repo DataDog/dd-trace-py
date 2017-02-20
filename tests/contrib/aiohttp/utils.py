@@ -1,8 +1,6 @@
 import asyncio
 
 from aiohttp.test_utils import AioHTTPTestCase
-from ddtrace.contrib.asyncio import context_provider
-from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
 
 from .app.web import setup_app
 from ...test_tracer import get_dummy_tracer

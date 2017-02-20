@@ -8,7 +8,7 @@ from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
-from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
+from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
 
@@ -21,7 +21,7 @@ class TestRequestTracing(TraceTestCase):
         # enabled tracing:
         #   * middleware
         #   * templates
-        TraceMiddleware(self.app, self.tracer)
+        trace_app(self.app, self.tracer)
         patch()
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 

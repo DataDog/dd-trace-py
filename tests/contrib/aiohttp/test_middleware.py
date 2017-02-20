@@ -1,7 +1,7 @@
 from nose.tools import eq_, ok_
 from aiohttp.test_utils import unittest_run_loop
 
-from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
+from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
 
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
@@ -13,7 +13,7 @@ class TestTraceMiddleware(TraceTestCase):
     the beginning of a request.
     """
     def enable_tracing(self):
-        TraceMiddleware(self.app, self.tracer)
+        trace_app(self.app, self.tracer)
 
     @unittest_run_loop
     async def test_tracing_service(self):
@@ -136,13 +136,13 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(app.middlewares))
         eq_(noop_middleware, app.middlewares[0])
         # the middleware is present (with the noop middleware)
-        wrapper = TraceMiddleware(app, self.tracer)
+        trace_app(app, self.tracer)
         eq_(2, len(app.middlewares))
         # applying the middleware twice doesn't add it again
-        TraceMiddleware(app, self.tracer)
+        trace_app(app, self.tracer)
         eq_(2, len(app.middlewares))
         # and the middleware is always the first
-        eq_(wrapper._middleware, app.middlewares[0])
+        eq_(trace_middleware, app.middlewares[0])
         eq_(noop_middleware, app.middlewares[1])
 
     @unittest_run_loop

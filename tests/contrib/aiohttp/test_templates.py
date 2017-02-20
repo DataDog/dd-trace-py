@@ -100,7 +100,7 @@ class TestTraceTemplate(TraceTestCase):
         # it should trace a template rendering
         request = await self.client.request('GET', '/template_error/')
         eq_(500, request.status)
-        text = await request.text()
+        await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
