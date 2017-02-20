@@ -1,6 +1,9 @@
 import gevent
+import ddtrace
 
 from .greenlet import TracedGreenlet
+from .provider import GeventContextProvider
+from ...provider import DefaultContextProvider
 
 
 __Greenlet = gevent.Greenlet
@@ -16,6 +19,7 @@ def patch():
     class, the ``TracedGreenlet`` is used as a parent class.
     """
     _replace(TracedGreenlet)
+    ddtrace.tracer.configure(context_provider=GeventContextProvider())
 
 
 def unpatch():
@@ -25,6 +29,7 @@ def unpatch():
     class may be used during initialization.
     """
     _replace(__Greenlet)
+    ddtrace.tracer.configure(context_provider=DefaultContextProvider())
 
 
 def _replace(g_class):

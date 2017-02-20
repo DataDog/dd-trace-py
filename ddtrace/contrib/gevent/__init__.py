@@ -8,11 +8,8 @@ yield the context to one another.
 The simplest way to trace a ``gevent`` application is to configure the tracer and
 patch gevent before using it::
 
-    # Always monkey patch before importing gevent
+    # Always patch before importing gevent
     from ddtrace import patch, tracer
-    from ddtrace.contrib.gevent import context_provider
-
-    tracer.configure(context_provider=context_provider)
     patch(gevent=True)
 
     # use gevent as usual with or without the monkey module

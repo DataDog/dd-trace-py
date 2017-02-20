@@ -13,7 +13,7 @@ def silence_errors(f):
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
-        gevent.hub.Hub.NOT_ERROR=(Exception,)
+        gevent.hub.Hub.NOT_ERROR = (Exception,)
         f(*args, **kwargs)
         gevent.hub.Hub.NOT_ERROR = _NOT_ERROR
     return wrapper

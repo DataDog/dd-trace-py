@@ -1,13 +1,13 @@
 import gevent
+import ddtrace
 
-from ddtrace.contrib.gevent import patch, unpatch, context_provider
+from ddtrace.contrib.gevent import patch, unpatch
 
 from unittest import TestCase
-from nose.tools import eq_, ok_, assert_raises
+from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer
 
 from .utils import silence_errors
-
 
 
 class TestGeventTracer(TestCase):
@@ -16,12 +16,16 @@ class TestGeventTracer(TestCase):
     the default Tracer.
     """
     def setUp(self):
+        # use a dummy tracer
+        self.tracer = get_dummy_tracer()
+        self._original_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
         # trace gevent
         patch()
-        self.tracer = get_dummy_tracer()
-        self.tracer.configure(context_provider=context_provider)
 
     def tearDown(self):
+        # restore the original tracer
+        ddtrace.tracer = self._original_tracer
         # untrace gevent
         unpatch()
 
