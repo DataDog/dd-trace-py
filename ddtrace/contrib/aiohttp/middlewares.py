@@ -54,8 +54,9 @@ class TraceMiddleware(object):
                     span_type=http.TYPE,
                 )
 
-                # attach the context and the root span to the request
-                request['__datadog_context'] = request_span.context
+                # attach the context and the root span to the request; the Context
+                # may be freely used by the application code
+                request['datadog_context'] = request_span.context
                 request['__datadog_request_span'] = request_span
                 try:
                     return await handler(request)
