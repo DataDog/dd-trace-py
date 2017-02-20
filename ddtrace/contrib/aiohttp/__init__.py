@@ -30,6 +30,13 @@ instrumented, so you must use the ``patch()`` function::
 
 Modules that are currently supported by the ``patch()`` method are:
 * ``aiohttp_jinja2``
+
+When the request span is created, the ``Context`` for this logical execution is attached to the
+``aiohttp`` request object, so that it can be freely used in the application code::
+
+    async def home_handler(request):
+        ctx = request['datadog_context']
+        # do something with the request Context
 """
 from ..util import require_modules
 
