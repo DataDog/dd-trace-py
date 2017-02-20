@@ -45,13 +45,10 @@ def run_in_executor(executor, func, *args, loop=None, tracer=None):
     storage.
     """
     try:
-        # TODO: maybe the loop kwarg should be removed
         loop = loop or asyncio.get_event_loop()
     except RuntimeError:
         # this exception means that the run_in_executor is run in the
-        # wrong loop; this should happen only in wrong call usage
-        # TODO: here we can't do something better; it's the same as
-        # calling:
+        # wrong loop; this should happen only in wrong call usage like:
         #   loop = None
         #   loop.run_in_executor(...)
         raise
