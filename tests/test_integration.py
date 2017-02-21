@@ -21,7 +21,7 @@ from tests.test_tracer import get_dummy_tracer
 
 class Flawed_API(API):
     def _put(self, endpoint, data):
-        conn = http.HTTPConnection(self.hostname, self.port)
+        conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request("HEAD", endpoint, data, self._headers)
         return conn.getresponse()
 
@@ -162,28 +162,26 @@ class TestWorkers(TestCase):
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
         eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
 
-    @skipUnless(True,
-        'test to try the http log errors, to trigger it change'
-        + 'https://github.com/DataDog/dd-trace-py/blob/master/ddtrace/api.py#L78'
-        + 'to "conn.request("HEAD", endpoint, data, self._headers)"'
-        + 'skip TestAPITransport and TestAPIDowngrade as they will fail if you change PUT to HEAD')
     def test_worker_http_error_logging(self):
-        # make a single send() if multiple traces are created before the flush interval
+        # Tests the logging http error logic
         tracer = self.tracer
-        with patch(Flawed_API) as API:
-            self.tracer.writer.api = API()
-            tracer.trace('client.testing').finish()
-            tracer.trace('client.testing').finish()
+        self.tracer.writer.api = Flawed_API('localhost', 7777)
+        tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
+        eq_(tracer.writer._worker._last_error_ts, 0)
 
-            with LogCapture(level=logging.ERROR) as l:
-                # sleeping 2 secs to writer exiting before logging
-                time.sleep(2)
-                self._wait_thread_flush()
-                l.check(
+        with LogCapture(level=logging.ERROR) as l:
+            # sleeping 1.01 secs to prevent writer from exiting before logging
+            time.sleep(1.01)
+            self._wait_thread_flush()
+            print tracer.writer._worker._last_error_ts
+            print (time.time() - 1.01)
+            assert tracer.writer._worker._last_error_ts > (time.time() - 1.02)
+            assert tracer.writer._worker._last_error_ts < time.time()
+            l.check(
                     ('ddtrace.writer','ERROR',
-                        'traces to Agent: HTTP error status 400, reason Bad Request, '
-                        + 'message Content-Type: text/plain\r\nConnection: close\r\n')
-                    )
+                        'failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, '
+                        + 'message Content-Type: text/plain\r\nConnection: close\r\n'))
 
 
 @skipUnless(
