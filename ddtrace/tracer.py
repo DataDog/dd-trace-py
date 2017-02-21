@@ -17,17 +17,18 @@ class Tracer(object):
     execution time of sections of code.
 
     If you're running an application that will serve a single trace per thread,
-    you can use the global traced instance:
+    you can use the global tracer instance::
 
-    >>> from ddtrace import tracer
-    >>> trace = tracer.trace("app.request", "web-server").finish()
+        from ddtrace import tracer
+        trace = tracer.trace("app.request", "web-server").finish()
     """
     DEFAULT_HOSTNAME = 'localhost'
     DEFAULT_PORT = 7777
 
     def __init__(self):
         """
-        Create a new tracer
+        Create a new ``Tracer`` instance. A global tracer is already initialized
+        for common usage, so there is no need to initialize your own ``Tracer``.
         """
         # Apply the default configuration
         self.configure(
@@ -49,12 +50,19 @@ class Tracer(object):
 
     def get_call_context(self, *args, **kwargs):
         """
-        Returns the global context for this tracer. Returned ``Context`` must be thread-safe
-        or thread-local.
+        Return the current active ``Context`` for this traced execution. This method is
+        automatically called in the ``tracer.trace()``, but it can be used in the application
+        code during manual instrumentation like::
 
-        Mixin can be used to override this ``Tracer`` method so that the whole tracer is aware
-        of the current execution mode (i.e. the ``Context`` retrieval is different in
-        asynchronous environments).
+            from ddtrace import import tracer
+
+            async def web_handler(request):
+                context = tracer.get_call_context()
+                # use the context if needed
+                # ...
+
+        This method makes use of a ``ContextProvider`` that is automatically set during the tracer
+        initialization, or while using a library instrumentation.
         """
         return self._context_provider(*args, **kwargs)
 
@@ -63,11 +71,14 @@ class Tracer(object):
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
 
-        :param bool enabled: If True, finished traces will be
-            submitted to the API. Otherwise they'll be dropped.
+        :param bool enabled: If True, finished traces will be submitted to the API.
+            Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
+        :param object context_provider: The ``ContextProvider`` that will be used to retrieve
+            automatically the current call context
+
         """
         if enabled is not None:
             self.enabled = enabled
@@ -83,18 +94,29 @@ class Tracer(object):
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
-        Starts and returns a new ``Span`` representing a unit of work.
+        Return a span that will trace an operation called `name`. This method allows
+        parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
+        root span.
 
         :param str name: the name of the operation being traced.
-        :param object child_of: a Span or a Context instance representing the parent
-                                for this span.
+        :param object child_of: a ``Span`` or a ``Context`` instance representing the parent for this span.
         :param str service: the name of the service being traced.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
-        To start a new root span::
+        To start a new root span, simply::
 
-            >>> span = tracer.start_span("web.request")
+            span = tracer.start_span("web.request")
+
+        If you want to create a child for a root span, just::
+
+            root_span = tracer.start_span("web.request")
+            span = tracer.start_span("web.decoder", child_of=root_span)
+
+        Or if you have a ``Context`` object::
+
+            context = tracer.get_call_context()
+            span = tracer.start_span("web.worker", child_of=context)
         """
         # retrieve if the span is a child_of a Span or a Context
         if child_of is not None:
@@ -140,7 +162,7 @@ class Tracer(object):
     def trace(self, name, service=None, resource=None, span_type=None):
         """
         Return a span that will trace an operation called `name`. The context that created
-        the Span as well as the parent span, are automatically handled by the tracing
+        the span as well as the span parenting, are automatically handled by the tracing
         function.
 
         :param str name: the name of the operation being traced
@@ -150,7 +172,7 @@ class Tracer(object):
         :param str span_type: an optional operation type.
 
         You must call `finish` on all spans, either directly or with a context
-        manager.
+        manager::
 
         >>> span = tracer.trace("web.request")
             try:
@@ -158,18 +180,18 @@ class Tracer(object):
             finally:
                 span.finish()
         >>> with tracer.trace("web.request") as span:
-            # do something
+                # do something
 
-        Trace will store the created span and subsequent child traces will
-        become it's children.
+        Trace will store the current active span and subsequent child traces will
+        become it's children::
 
-        >>> tracer = Tracer()
-        >>> parent = tracer.trace("parent")     # has no parent span
-        >>> child  = tracer.trace("child")      # is a child of a parent
-        >>> child.finish()
-        >>> parent.finish()
-        >>> parent2 = tracer.trace("parent2")   # has no parent span
-        >>> parent2.finish()
+            parent = tracer.trace("parent")     # has no parent span
+            child  = tracer.trace("child")      # is a child of a parent
+            child.finish()
+            parent.finish()
+
+            parent2 = tracer.trace("parent2")   # has no parent span
+            parent2.finish()
         """
         # retrieve the Context using the context provider and create
         # a new Span that could be a root or a nested span
@@ -184,7 +206,8 @@ class Tracer(object):
 
     def current_span(self):
         """
-        Return the current active span in this call Context or None.
+        Return the active span for the current call context or ``None``
+        if not spans are available.
         """
         return self.get_call_context().get_current_span()
 

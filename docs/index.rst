@@ -26,10 +26,10 @@ Web
 The easiest way to get started with tracing is to instrument your web server.
 We support many `Web Frameworks`_. Install the middleware for yours.
 
-Databases
-~~~~~~~~~
+Instrument modules
+~~~~~~~~~~~~~~~~~~
 
-Then let's patch all the widely used Python libraries that you are running::
+Then let's patch all used Python libraries that you are running through::
 
     # Add the following a the main entry point of your application.
     from ddtrace import patch_all
