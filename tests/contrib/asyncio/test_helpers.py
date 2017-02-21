@@ -23,7 +23,8 @@ class TestAsyncioHelpers(AsyncioTestCase):
     @mark_asyncio
     def test_ensure_future(self):
         # the wrapper should create a new Future that has the Context attached
-        async def future_work():
+        @asyncio.coroutine
+        def future_work():
             # the ctx is available in this task
             ctx = self.tracer.get_call_context()
             eq_(1, len(ctx._trace))

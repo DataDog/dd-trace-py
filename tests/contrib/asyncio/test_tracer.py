@@ -41,7 +41,10 @@ class TestAsyncioTracer(AsyncioTestCase):
 
     @mark_asyncio
     def test_trace_multiple_coroutines(self):
-        async def coro():
+        # if multiple coroutines have nested tracing, they must belong
+        # to the same trace
+        @asyncio.coroutine
+        def coro():
             # another traced coroutine
             with self.tracer.trace('coroutine_2'):
                 return 42
@@ -57,6 +60,9 @@ class TestAsyncioTracer(AsyncioTestCase):
         eq_(2, len(traces[0]))
         eq_('coroutine_1', traces[0][0].name)
         eq_('coroutine_2', traces[0][1].name)
+        # the parenting is correct
+        eq_(traces[0][0], traces[0][1]._parent)
+        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
 
     @mark_asyncio
     def test_event_loop_exception(self):
@@ -78,7 +84,8 @@ class TestAsyncioTracer(AsyncioTestCase):
 
     @mark_asyncio
     def test_exception(self):
-        async def f1():
+        @asyncio.coroutine
+        def f1():
             with self.tracer.trace('f1'):
                 raise Exception('f1 error')
 
@@ -95,12 +102,15 @@ class TestAsyncioTracer(AsyncioTestCase):
 
     @mark_asyncio
     def test_nested_exceptions(self):
-        async def f1():
+        @asyncio.coroutine
+        def f1():
             with self.tracer.trace('f1'):
                 raise Exception('f1 error')
-        async def f2():
+
+        @asyncio.coroutine
+        def f2():
             with self.tracer.trace('f2'):
-                await f1()
+                yield from f1()
 
         with self.assertRaises(Exception):
             yield from f2()
@@ -122,13 +132,16 @@ class TestAsyncioTracer(AsyncioTestCase):
 
     @mark_asyncio
     def test_handled_nested_exceptions(self):
-        async def f1():
+        @asyncio.coroutine
+        def f1():
             with self.tracer.trace('f1'):
                 raise Exception('f1 error')
-        async def f2():
+
+        @asyncio.coroutine
+        def f2():
             with self.tracer.trace('f2'):
                 try:
-                    await f1()
+                    yield from f1()
                 except Exception:
                     pass
 
@@ -151,10 +164,11 @@ class TestAsyncioTracer(AsyncioTestCase):
     def test_trace_multiple_calls(self):
         # create multiple futures so that we expect multiple
         # traces instead of a single one (helper not used)
-        async def coro():
+        @asyncio.coroutine
+        def coro():
             # another traced coroutine
             with self.tracer.trace('coroutine'):
-                await asyncio.sleep(0.01)
+                yield from asyncio.sleep(0.01)
 
         futures = [asyncio.ensure_future(coro()) for x in range(10)]
         for future in futures:
