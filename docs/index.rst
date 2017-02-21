@@ -95,6 +95,11 @@ Pyramid
 
 .. automodule:: ddtrace.contrib.pyramid
 
+Aiohttp
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.aiohttp
+
 
 Other Libraries
 ---------------
@@ -157,6 +162,18 @@ SQLite
 
 .. automodule:: ddtrace.contrib.sqlite3
 
+Asynchronous libraries
+----------------------
+
+Asyncio
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.asyncio
+
+Gevent
+~~~~~~
+
+.. automodule:: ddtrace.contrib.gevent
 
 Tutorials
 ---------
