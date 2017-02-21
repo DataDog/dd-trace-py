@@ -39,6 +39,7 @@ class PylibmcCore(object):
         start = time.time()
         client.set("a", "crow")
         client.prepend("a", "holy ")
+
         client.append("a", "!")
 
         # FIXME[matt] there is a bug in pylibmc & python 3 (perhaps with just
