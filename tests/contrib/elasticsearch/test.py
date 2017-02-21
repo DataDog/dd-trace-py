@@ -122,10 +122,9 @@ class ElasticsearchTest(unittest.TestCase):
         # Raise error 404 with a non existent index
         writer.pop()
         try:
-            es.get(index=1000000, id=100)
-            eq_("error_not_raised","TransportError")
+            es.get(index="non_existent_index", id=100)
+            eq_("error_not_raised", "TransportError")
         except TransportError as e:
-            eq_(len(spans), 1)
             spans = writer.pop()
             assert spans
             span = spans[0]
@@ -135,7 +134,7 @@ class ElasticsearchTest(unittest.TestCase):
         try:
             es.indices.create(index=10)
             es.indices.create(index=10)
-            eq_("error_not_raised","TransportError")
+            eq_("error_not_raised", "TransportError")
         except TransportError as e:
             spans = writer.pop()
             assert spans
@@ -143,11 +142,8 @@ class ElasticsearchTest(unittest.TestCase):
             eq_(span.get_tag(http.STATUS_CODE), u'400')
 
         # Drop the index, checking it won't raise exception on success or failure
-
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
-
-
 
 
 class ElasticsearchPatchTest(unittest.TestCase):

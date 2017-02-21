@@ -91,6 +91,7 @@ def test_500():
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/error')
+    assert type(s.error) == int
 
 def test_json():
     app, tracer = _get_test_app(service='foobar')

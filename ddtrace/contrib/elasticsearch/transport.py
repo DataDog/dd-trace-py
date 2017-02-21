@@ -7,7 +7,6 @@ from ...compat import urlencode
 from ...ext import AppTypes, http
 from ...util import deprecated
 
-
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
@@ -30,7 +29,6 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-
             with self._datadog_tracer.trace("elasticsearch.query") as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:

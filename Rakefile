@@ -137,12 +137,16 @@ namespace :pypi do
     FileUtils.rm_rf(RELEASE_DIR)
   end
 
+  task :install do
+    sh 'pip install twine'
+  end
+
   task :build => :clean do
     puts "building release in #{RELEASE_DIR}"
     sh "python setup.py -q sdist -d #{RELEASE_DIR}"
   end
 
-  task :release => :build do
+  task :release => [:install, :build] do
     builds = Dir.entries(RELEASE_DIR).reject {|f| f == '.' || f == '..'}
     if builds.length == 0
         fail "no build found in #{RELEASE_DIR}"

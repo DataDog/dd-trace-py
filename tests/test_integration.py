@@ -182,6 +182,26 @@ class TestAPITransport(TestCase):
         ok_(response)
         eq_(response.status, 200)
 
+    def test_send_single_with_wrong_errors(self):
+        # if the error field is set to True, it must be cast as int so
+        # that the agent decoder handles that properly without providing
+        # a decoding error
+        span = self.tracer.trace('client.testing')
+        span.error = True
+        span.finish()
+        trace = self.tracer.writer.pop()
+        traces = [trace]
+
+        # test JSON encoder
+        response = self.api_json.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        response = self.api_msgpack.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
     def test_send_multiple_traces(self):
         # register some traces and send them to the trace agent
         self.tracer.trace('client.testing').finish()
