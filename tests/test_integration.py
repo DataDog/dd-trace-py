@@ -3,7 +3,6 @@ import json
 import time
 import msgpack
 import logging
-import httplib
 import mock
 
 from testfixtures import LogCapture
@@ -16,6 +15,7 @@ from ddtrace.api import API
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
+from ddtrace.compat import httplib
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -174,8 +174,8 @@ class TestWorkers(TestCase):
             # sleeping 1.01 secs to prevent writer from exiting before logging
             time.sleep(1.01)
             self._wait_thread_flush()
-            assert tracer.writer._worker._last_error_ts > (time.time() - 1.02)
             assert tracer.writer._worker._last_error_ts < time.time()
+            assert tracer.writer._worker._last_error_ts > (time.time() - 1.5)
             l.check(
                     ('ddtrace.writer','ERROR',
                         'failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, '
