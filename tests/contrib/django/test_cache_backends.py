@@ -36,6 +36,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django_redis.cache.RedisCache',
             'django.cache.key': 'missing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -64,6 +65,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django_redis.cache.RedisCache',
             'django.cache.key': str(['missing_key', 'another_key']),
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -92,6 +94,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.PyLibMCCache',
             'django.cache.key': 'missing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -120,6 +123,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.PyLibMCCache',
             'django.cache.key': str(['missing_key', 'another_key']),
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -148,6 +152,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.MemcachedCache',
             'django.cache.key': 'missing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -176,6 +181,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.MemcachedCache',
             'django.cache.key': str(['missing_key', 'another_key']),
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -204,6 +210,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django_pylibmc.memcached.PyLibMCCache',
             'django.cache.key': 'missing_key',
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)
@@ -232,6 +239,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         expected_meta = {
             'django.cache.backend': 'django_pylibmc.memcached.PyLibMCCache',
             'django.cache.key': str(['missing_key', 'another_key']),
+            'env': 'test',
         }
 
         eq_(span.meta, expected_meta)

@@ -68,6 +68,17 @@ class TestWorkers(TestCase):
         self.tracer.writer._worker.stop()
         self.tracer.writer._worker.join()
 
+    def _get_endpoint_payload(self, calls, endpoint):
+        """
+        Helper to retrieve the endpoint call from a concurrent
+        trace or service call.
+        """
+        for call, _ in calls:
+            if endpoint in call[0]:
+                return call[0], self._decode(call[1])
+
+        return None, None
+
     def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
         tracer = self.tracer
@@ -76,9 +87,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
@@ -93,9 +103,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
@@ -113,9 +122,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
@@ -131,9 +139,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
@@ -148,9 +155,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
@@ -202,6 +208,26 @@ class TestAPITransport(TestCase):
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace('client.testing').finish()
+        trace = self.tracer.writer.pop()
+        traces = [trace]
+
+        # test JSON encoder
+        response = self.api_json.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        response = self.api_msgpack.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+    def test_send_single_with_wrong_errors(self):
+        # if the error field is set to True, it must be cast as int so
+        # that the agent decoder handles that properly without providing
+        # a decoding error
+        span = self.tracer.trace('client.testing')
+        span.error = True
+        span.finish()
         trace = self.tracer.writer.pop()
         traces = [trace]
 
