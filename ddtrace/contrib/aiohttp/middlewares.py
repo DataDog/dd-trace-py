@@ -1,3 +1,5 @@
+import asyncio
+
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
@@ -8,7 +10,8 @@ REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
 
-async def trace_middleware(app, handler):
+@asyncio.coroutine
+def trace_middleware(app, handler):
     """
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
@@ -16,7 +19,8 @@ async def trace_middleware(app, handler):
         * the Task is used by the internal automatic instrumentation
         * the ``Context`` attached to the request can be freely used in the application code
     """
-    async def attach_context(request):
+    @asyncio.coroutine
+    def attach_context(request):
         # application configs
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
@@ -33,14 +37,16 @@ async def trace_middleware(app, handler):
         request[REQUEST_CONTEXT_KEY] = request_span.context
         request[REQUEST_SPAN_KEY] = request_span
         try:
-            return await handler(request)
+            response = yield from handler(request)  # noqa: E999
+            return response
         except Exception:
             request_span.set_traceback()
             raise
     return attach_context
 
 
-async def on_prepare(request, response):
+@asyncio.coroutine
+def on_prepare(request, response):
     """
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.

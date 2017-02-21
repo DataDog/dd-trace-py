@@ -11,19 +11,22 @@ STATIC_DIR = os.path.join(BASE_DIR, 'statics')
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 
 
-async def home(request):
+@asyncio.coroutine
+def home(request):
     return web.Response(text="What's tracing?")
 
 
-async def name(request):
+@asyncio.coroutine
+def name(request):
     name = request.match_info.get('name', 'Anonymous')
     return web.Response(text='Hello {}'.format(name))
 
 
-async def coroutine_chaining(request):
+@asyncio.coroutine
+def coroutine_chaining(request):
     tracer = get_tracer(request)
     span = tracer.trace('aiohttp.coro_1')
-    text = await coro_2(request)
+    text = yield from coro_2(request)
     span.finish()
     return web.Response(text=text)
 
@@ -32,40 +35,48 @@ def route_exception(request):
     raise Exception('error')
 
 
-async def route_async_exception(request):
+@asyncio.coroutine
+def route_async_exception(request):
     raise Exception('error')
 
 
-async def coro_2(request):
+@asyncio.coroutine
+def coro_2(request):
     tracer = get_tracer(request)
     with tracer.trace('aiohttp.coro_2') as span:
         span.set_tag('aiohttp.worker', 'pending')
     return 'OK'
 
 
-async def template_handler(request):
+@asyncio.coroutine
+def template_handler(request):
     return aiohttp_jinja2.render_template('template.jinja2', request, {'text': 'OK'})
 
 
 @aiohttp_jinja2.template('template.jinja2')
-async def template_decorator(request):
+@asyncio.coroutine
+def template_decorator(request):
     return {'text': 'OK'}
 
 
 @aiohttp_jinja2.template('error.jinja2')
-async def template_error(request):
+@asyncio.coroutine
+def template_error(request):
     return {}
 
 
-async def delayed_handler(request):
-    await asyncio.sleep(0.01)
+@asyncio.coroutine
+def delayed_handler(request):
+    yield from asyncio.sleep(0.01)
     return web.Response(text='Done')
 
 
-async def noop_middleware(app, handler):
-    async def middleware_handler(request):
+@asyncio.coroutine
+def noop_middleware(app, handler):
+    def middleware_handler(request):
         # noop middleware
-        return await handler(request)
+        response = yield from handler(request)
+        return response
     return middleware_handler
 
 

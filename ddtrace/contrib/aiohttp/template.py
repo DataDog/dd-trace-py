@@ -2,7 +2,7 @@ import aiohttp_jinja2
 
 from ddtrace import Pin
 
-from ...ext import http, errors, AppTypes
+from ...ext import http
 
 
 def _trace_render_template(func, module, args, kwargs):

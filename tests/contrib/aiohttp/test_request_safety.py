@@ -31,12 +31,13 @@ class TestAiohttpSafety(TraceTestCase):
         unpatch()
 
     @unittest_run_loop
-    async def test_full_request(self):
+    @asyncio.coroutine
+    def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = await self.client.request('GET', '/template/')
+        request = yield from self.client.request('GET', '/template/')
         eq_(200, request.status)
-        await request.text()
+        yield from request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
@@ -53,7 +54,8 @@ class TestAiohttpSafety(TraceTestCase):
         eq_('aiohttp.template', template_span.resource)
 
     @unittest_run_loop
-    async def test_multiple_full_request(self):
+    @asyncio.coroutine
+    def test_multiple_full_request(self):
         # it should produce a wrong trace, but the Context must
         # be finished
         def make_requests():
@@ -70,7 +72,7 @@ class TestAiohttpSafety(TraceTestCase):
 
         # we should yield so that this loop can handle
         # threads' requests
-        await asyncio.sleep(0.5)
+        yield from asyncio.sleep(0.5)
         for t in threads:
             t.join(timeout=0.5)
 
