@@ -4,6 +4,7 @@ import time
 import msgpack
 import logging
 import mock
+import sys
 
 from testfixtures import LogCapture
 from unittest import TestCase, skipUnless
@@ -18,6 +19,7 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib
 from tests.test_tracer import get_dummy_tracer
 
+PY2 = sys.version_info[0] == 2
 
 class Flawed_API(API):
     def _put(self, endpoint, data):
@@ -176,10 +178,14 @@ class TestWorkers(TestCase):
             self._wait_thread_flush()
             assert tracer.writer._worker._last_error_ts < time.time()
             assert tracer.writer._worker._last_error_ts > (time.time() - 1.5)
-            l.check(
+            if PY2:
+                l.check(
                     ('ddtrace.writer','ERROR',
                         'failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, '
                         + 'message Content-Type: text/plain\r\nConnection: close\r\n'))
+            else:
+                l.check(('ddtrace.writer','ERROR', 'failed_to_send traces to Agent: HTTP error status 400, reason Bad '
+                    'Request, message Content-Type: text/plain\n''Connection: close\n''\n'))
 
 
 @skipUnless(
