@@ -22,7 +22,7 @@ class TraceTestCase(AioHTTPTestCase):
         super(TraceTestCase, self).tearDown()
         self.disable_tracing()
 
-    async def get_app(self, loop):
+    def get_app(self, loop):
         """
         Override the get_app method to return the test application
         """
