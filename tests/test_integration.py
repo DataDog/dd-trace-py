@@ -174,8 +174,6 @@ class TestWorkers(TestCase):
             # sleeping 1.01 secs to prevent writer from exiting before logging
             time.sleep(1.01)
             self._wait_thread_flush()
-            print tracer.writer._worker._last_error_ts
-            print (time.time() - 1.01)
             assert tracer.writer._worker._last_error_ts > (time.time() - 1.02)
             assert tracer.writer._worker._last_error_ts < time.time()
             l.check(
