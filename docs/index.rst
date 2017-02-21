@@ -62,59 +62,6 @@ small example that shows adding a custom span to a Flask application::
 
 Read the full `API`_ for more details.
 
-Glossary
---------
-
-**Service**
-
-The name of a set of processes that do the same job. Some examples are :code:`datadog-web-app` or :code:`datadog-metrics-db`. In general, you only need to set the
-service in your application's top level entry point.
-
-**Resource**
-
-A particular query to a service. For a web application, some
-examples might be a URL stem like :code:`/user/home` or a handler function
-like :code:`web.user.home`. For a sql database, a resource
-would be the sql of the query itself like :code:`select * from users
-where id = ?`.
-
-You can track thousands (not millions or billions) of unique resources per services, so prefer
-resources like :code:`/user/home` rather than :code:`/user/home?id=123456789`.
-
-**App**
-
-Currently, an "app" doesn't provide much functionality and is subject to change in the future. For example, in the UI, hovering over the type icon (Web/Database/Custom) will display the “app” for a particular service. In the future the UI may use "app" as hints to group services together better and surface relevant metrics.
-
-**Span**
-
-A span tracks a unit of work in a service, like querying a database or
-rendering a template. Spans are associated with a service and optionally a
-resource. Spans have names, start times, durations and optional tags.
-
-API
----
-
-.. autoclass:: ddtrace.Tracer
-    :members:
-    :special-members: __init__
-
-
-.. autoclass:: ddtrace.Span
-    :members:
-    :special-members: __init__
-
-.. autoclass:: ddtrace.Pin
-    :members:
-    :special-members: __init__
-
-.. autofunction:: ddtrace.monkey.patch_all
-
-.. toctree::
-   :maxdepth: 2
-
-.. _integrations:
-
-
 Web Frameworks
 --------------
 
@@ -263,8 +210,60 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
             span.parent_id = parent_span_id
             span.trace_id = parent_trace_id
 
+Advanced Usage
+--------------
+
+API
+~~~
+
+.. autoclass:: ddtrace.Tracer
+    :members:
+    :special-members: __init__
 
 
+.. autoclass:: ddtrace.Span
+    :members:
+    :special-members: __init__
+
+.. autoclass:: ddtrace.Pin
+    :members:
+    :special-members: __init__
+
+.. autofunction:: ddtrace.monkey.patch_all
+
+.. toctree::
+   :maxdepth: 2
+
+.. _integrations:
+
+Glossary
+~~~~~~~~
+
+**Service**
+
+The name of a set of processes that do the same job. Some examples are :code:`datadog-web-app` or :code:`datadog-metrics-db`. In general, you only need to set the
+service in your application's top level entry point.
+
+**Resource**
+
+A particular query to a service. For a web application, some
+examples might be a URL stem like :code:`/user/home` or a handler function
+like :code:`web.user.home`. For a sql database, a resource
+would be the sql of the query itself like :code:`select * from users
+where id = ?`.
+
+You can track thousands (not millions or billions) of unique resources per services, so prefer
+resources like :code:`/user/home` rather than :code:`/user/home?id=123456789`.
+
+**App**
+
+Currently, an "app" doesn't provide much functionality and is subject to change in the future. For example, in the UI, hovering over the type icon (Web/Database/Custom) will display the “app” for a particular service. In the future the UI may use "app" as hints to group services together better and surface relevant metrics.
+
+**Span**
+
+A span tracks a unit of work in a service, like querying a database or
+rendering a template. Spans are associated with a service and optionally a
+resource. Spans have names, start times, durations and optional tags.
 
 Indices and tables
 ==================
