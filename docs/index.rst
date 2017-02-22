@@ -26,12 +26,12 @@ Web
 The easiest way to get started with tracing is to instrument your web server.
 We support many `Web Frameworks`_. Install the middleware for yours.
 
-Instrument modules
-~~~~~~~~~~~~~~~~~~
+Databases
+~~~~~~~~~
 
-Then let's patch all used Python libraries that you are running through::
+Then let's patch widely used Python libraries::
 
-    # Add the following a the main entry point of your application.
+    # Add the following at the main entry point of your application.
     from ddtrace import patch_all
     patch_all()
 
@@ -162,7 +162,7 @@ SQLite
 
 .. automodule:: ddtrace.contrib.sqlite3
 
-Asynchronous libraries
+Asynchronous Libraries
 ----------------------
 
 Asyncio
