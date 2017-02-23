@@ -7,7 +7,7 @@ import wrapt
 # Project
 from ddtrace import Pin
 from ddtrace.ext import AppTypes
-from .task import patch_task
+from .task import patch_task, unpatch_task
 from .util import APP, SERVICE, require_pin
 
 
@@ -29,6 +29,9 @@ def patch_app(app, pin=None):
 
         # Patch method
         setattr(app, method_name, wrapt.FunctionWrapper(method, wrapper))
+
+    # patch the Task class if available
+    setattr(app, 'Task', patch_task(app.Task))
 
     # Attach our pin to the app
     pin.onto(app)
@@ -53,6 +56,8 @@ def unpatch_app(app):
         # Restore original method
         setattr(app, method_name, wrapper.__wrapped__)
 
+    # restore the original Task class
+    setattr(app, 'Task', unpatch_task(app.Task))
     return app
 
 
