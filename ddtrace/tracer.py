@@ -183,7 +183,7 @@ class Tracer(object):
                 # do something
 
         Trace will store the current active span and subsequent child traces will
-        become it's children::
+        become its children::
 
             parent = tracer.trace("parent")     # has no parent span
             child  = tracer.trace("child")      # is a child of a parent
@@ -207,7 +207,7 @@ class Tracer(object):
     def current_span(self):
         """
         Return the active span for the current call context or ``None``
-        if not spans are available.
+        if no spans are available.
         """
         return self.get_call_context().get_current_span()
 

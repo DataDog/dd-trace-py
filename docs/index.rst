@@ -95,7 +95,7 @@ Pyramid
 
 .. automodule:: ddtrace.contrib.pyramid
 
-Aiohttp
+aiohttp
 ~~~~~~~
 
 .. automodule:: ddtrace.contrib.aiohttp
@@ -165,12 +165,12 @@ SQLite
 Asynchronous Libraries
 ----------------------
 
-Asyncio
+asyncio
 ~~~~~~~
 
 .. automodule:: ddtrace.contrib.asyncio
 
-Gevent
+gevent
 ~~~~~~
 
 .. automodule:: ddtrace.contrib.gevent
@@ -265,7 +265,7 @@ service in your application's top level entry point.
 
 A particular query to a service. For a web application, some
 examples might be a URL stem like :code:`/user/home` or a handler function
-like :code:`web.user.home`. For a sql database, a resource
+like :code:`web.user.home`. For a SQL database, a resource
 would be the sql of the query itself like :code:`select * from users
 where id = ?`.
 
@@ -280,7 +280,7 @@ Currently, an "app" doesn't provide much functionality and is subject to change 
 
 A span tracks a unit of work in a service, like querying a database or
 rendering a template. Spans are associated with a service and optionally a
-resource. Spans have names, start times, durations and optional tags.
+resource. A span has a name, start time, duration and optional tags.
 
 Indices and tables
 ==================
