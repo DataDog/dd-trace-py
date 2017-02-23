@@ -8,7 +8,7 @@ class TracedGreenlet(gevent.Greenlet):
     ``Greenlet`` class that is used to replace the original ``gevent``
     class. This class is supposed to do ``Context`` replacing operation, so
     that any greenlet inherits the context from the parent Greenlet.
-    When a new greenlet is spawn from the main greenlet, a new instance
+    When a new greenlet is spawned from the main greenlet, a new instance
     of ``Context`` is created. The main greenlet is not affected by this behavior.
 
     There is no need to inherit this class to create or optimize greenlets

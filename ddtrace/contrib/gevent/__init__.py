@@ -1,6 +1,6 @@
 """
-To trace a request in a gevent-ed environment, configure the tracer to use the Greenlet
-context provider, rather than the default one that relies in thread-local storaging.
+To trace a request in a ``gevent`` environment, configure the tracer to use the Greenlet
+context provider, rather than the default one that relies on thread-local storaging.
 
 This allows the tracer to pick up a transaction exactly where it left off as greenlets
 yield the context to one another.
