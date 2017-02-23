@@ -15,7 +15,7 @@ class TracePlugin(object):
     def __init__(self, service="bottle", tracer=None):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
-        tracer.set_service_info(
+        self.tracer.set_service_info(
             service=service,
             app="bottle",
             app_type=AppTypes.web)
