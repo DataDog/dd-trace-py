@@ -63,7 +63,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         eq_('SUCCESS', traces[0][1].get_tag('state'))
 
     def test_fn_task_parameters(self):
-        # it should execute a traced task with a returning value
+        # it should execute a traced task that has parameters
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
@@ -85,7 +85,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         eq_('SUCCESS', traces[0][1].get_tag('state'))
 
     def test_fn_task_parameters_bind(self):
-        # it should execute a traced task with a returning value
+        # it should execute a traced task that has parameters
         @self.app.task(bind=True)
         def fn_task_parameters(self, user, force_logout=False):
             return (self, user, force_logout)
@@ -108,7 +108,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         eq_('SUCCESS', traces[0][1].get_tag('state'))
 
     def test_fn_task_parameters_async(self):
-        # it should execute a traced task with a returning value
+        # it should execute a traced async task that has parameters
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
@@ -125,7 +125,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         ok_(traces[0][0].get_tag('id') is not None)
 
     def test_fn_task_parameters_delay(self):
-        # it should execute a traced task with a returning value
+        # using delay shorthand must preserve arguments
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
             return (user, force_logout)
@@ -142,7 +142,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         ok_(traces[0][0].get_tag('id') is not None)
 
     def test_fn_exception(self):
-        # it should...
+        # it should catch exceptions in task functions
         @self.app.task
         def fn_exception():
             raise Exception('Task class is failing')
@@ -167,7 +167,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         ok_('Task class is failing' in traces[0][0].get_tag('error.stack'))
 
     def test_class_task(self):
-        # it should...
+        # it should execute class based tasks with a returning value
         class BaseTask(self.app.Task):
             def run(self):
                 return 42
@@ -194,7 +194,7 @@ class CeleryIntegrationTask(CeleryTestCase):
         eq_('SUCCESS', traces[0][1].get_tag('state'))
 
     def test_class_task_exception(self):
-        # it should...
+        # it should catch exceptions in class based tasks
         class BaseTask(self.app.Task):
             def run(self):
                 raise Exception('Task class is failing')
