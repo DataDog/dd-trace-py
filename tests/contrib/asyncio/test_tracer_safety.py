@@ -41,10 +41,11 @@ class TestAsyncioSafety(AsyncioTestCase):
 
     @mark_asyncio
     def test_trace_multiple_calls(self):
-        async def coro():
+        @asyncio.coroutine
+        def coro():
             # another traced coroutine
             with self.tracer.trace('coroutine'):
-                await asyncio.sleep(0.01)
+                yield from asyncio.sleep(0.01)
 
         ctx = self.tracer.get_call_context()
         futures = [asyncio.ensure_future(coro()) for x in range(1000)]

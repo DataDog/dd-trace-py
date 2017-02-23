@@ -17,9 +17,10 @@ while working in ``asyncio``. The following helpers are in place:
     * ``ensure_future(coro_or_future, *, loop=None)``: wrapper for the
       ``asyncio.ensure_future`` that attaches the current context to a new
       ``Task`` instance
-    * ``run_in_executor(executor, func, *args, loop=None)``: wrapper for the
+    * ``run_in_executor(loop, executor, func, *args)``: wrapper for the
       ``loop.run_in_executor`` that attaches the current context to the
-      new thread so that the trace can be resumed
+      new thread so that the trace can be resumed regardless when
+      it's executed
 """
 from ..util import require_modules
 

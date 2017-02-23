@@ -23,7 +23,8 @@ class TestAsyncioHelpers(AsyncioTestCase):
     @mark_asyncio
     def test_ensure_future(self):
         # the wrapper should create a new Future that has the Context attached
-        async def future_work():
+        @asyncio.coroutine
+        def future_work():
             # the ctx is available in this task
             ctx = self.tracer.get_call_context()
             eq_(1, len(ctx._trace))
@@ -44,7 +45,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
             eq_('john', name)
             return True
 
-        future = helpers.run_in_executor(None, future_work, 42, 'john', tracer=self.tracer)
+        future = helpers.run_in_executor(self.loop, None, future_work, 42, 'john', tracer=self.tracer)
         result = yield from future
         ok_(result)
 
@@ -61,7 +62,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
             return True
 
         span = self.tracer.trace('coroutine')
-        future = helpers.run_in_executor(None, future_work, tracer=self.tracer)
+        future = helpers.run_in_executor(self.loop, None, future_work, tracer=self.tracer)
         # we close the Context
         span.finish()
         result = yield from future
