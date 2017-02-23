@@ -36,7 +36,7 @@ class CeleryTagsTest(TestCase):
         eq_(metas['timelimit'], ('now', 'later'))
         ok_(metas.get('custom_meta', None) is None)
 
-    def test_meta_from_context(self):
+    def test_meta_from_context_empty_keys(self):
         # it should not extract empty keys
         context = {
             'correlation_id': None,

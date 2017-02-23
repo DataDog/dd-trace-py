@@ -1,9 +1,8 @@
 import ddtrace
 
 from unittest import TestCase
-from celery import Celery, Task
+from celery import Celery
 
-from ddtrace.pin import Pin
 from ddtrace.contrib.celery import patch_app
 
 from ..config import REDIS_CONFIG

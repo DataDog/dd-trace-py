@@ -1,4 +1,3 @@
-from unittest import TestCase
 from nose.tools import eq_, ok_
 
 from .utils import CeleryTestCase

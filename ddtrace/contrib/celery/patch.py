@@ -3,7 +3,6 @@ import celery
 
 # Project
 from .app import patch_app, unpatch_app
-from .task import patch_task, unpatch_task
 
 
 def patch():
