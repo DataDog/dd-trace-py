@@ -188,8 +188,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertIsNone(span.parent_id)
@@ -256,8 +255,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -299,8 +297,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -318,8 +315,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertEqual(span.parent_id, parent_span_id)
@@ -339,7 +335,6 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
@@ -387,8 +382,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -430,8 +424,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -449,8 +442,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertEqual(span.parent_id, parent_span_id)
@@ -470,7 +462,6 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
