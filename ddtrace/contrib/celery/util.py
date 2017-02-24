@@ -29,7 +29,9 @@ def meta_from_context(context):
         if name == 'retries' and value == 0:
             continue
 
-        meta[name] = value
+        # prefix the tag as 'celery'
+        tag_name = 'celery.{}'.format(name)
+        meta[tag_name] = value
     return meta
 
 

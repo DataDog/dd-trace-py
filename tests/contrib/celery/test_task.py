@@ -218,12 +218,12 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
 
     def test_task_apply(self):
         """
@@ -345,12 +345,12 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
 
     def test_task_delay(self):
         """
@@ -472,9 +472,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))

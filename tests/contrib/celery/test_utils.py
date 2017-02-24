@@ -25,15 +25,15 @@ class CeleryTagsTest(TestCase):
         }
 
         metas = meta_from_context(context)
-        eq_(metas['correlation_id'], '44b7f305')
-        eq_(metas['delivery_info'], '{"eager": "True"}')
-        eq_(metas['eta'], 'soon')
-        eq_(metas['expires'], 'later')
-        eq_(metas['hostname'], 'localhost')
-        eq_(metas['id'], '44b7f305')
-        eq_(metas['reply_to'], '44b7f305')
-        eq_(metas['retries'], 4)
-        eq_(metas['timelimit'], ('now', 'later'))
+        eq_(metas['celery.correlation_id'], '44b7f305')
+        eq_(metas['celery.delivery_info'], '{"eager": "True"}')
+        eq_(metas['celery.eta'], 'soon')
+        eq_(metas['celery.expires'], 'later')
+        eq_(metas['celery.hostname'], 'localhost')
+        eq_(metas['celery.id'], '44b7f305')
+        eq_(metas['celery.reply_to'], '44b7f305')
+        eq_(metas['celery.retries'], 4)
+        eq_(metas['celery.timelimit'], ('now', 'later'))
         ok_(metas.get('custom_meta', None) is None)
 
     def test_meta_from_context_empty_keys(self):
