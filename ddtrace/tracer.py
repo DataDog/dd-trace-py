@@ -260,8 +260,20 @@ class Tracer(object):
         >>> @tracer.wrap('my.wrapped.function', service='my.service')
             def run():
                 return 'run'
-        >>> @tracer.wrap()  # name will default to 'execute' if unset
+
+        >>> # name will default to 'execute' if unset
+            @tracer.wrap()
             def execute():
+                return 'executed'
+
+        >>> # or use it in asyncio coroutines
+            @tracer.wrap()
+            async def coroutine():
+                return 'executed'
+
+        >>> @tracer.wrap()
+            @asyncio.coroutine
+            def coroutine():
                 return 'executed'
 
         You can access the current span using `tracer.current_span()` to set
