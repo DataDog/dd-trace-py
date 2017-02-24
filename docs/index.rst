@@ -167,6 +167,11 @@ Flask Cache
 
 .. automodule:: ddtrace.contrib.flask_cache
 
+Celery
+~~~~~~
+
+.. automodule:: ddtrace.contrib.celery
+
 MongoDB
 ~~~~~~~
 
