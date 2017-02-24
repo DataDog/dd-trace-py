@@ -87,7 +87,7 @@ def _task_run(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply(pin, func, task, args, kwargs):
-    with pin.tracer.trace(TASK_APPLY, resource=task.name) as span:
+    with pin.tracer.trace(TASK_APPLY, service=pin.service, resource=task.name) as span:
         # Call the original `apply` function
         res = func(*args, **kwargs)
 
@@ -102,7 +102,7 @@ def _task_apply(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply_async(pin, func, task, args, kwargs):
-    with pin.tracer.trace(TASK_APPLY_ASYNC, resource=task.name) as span:
+    with pin.tracer.trace(TASK_APPLY_ASYNC, service=pin.service, resource=task.name) as span:
         # Extract meta data from `kwargs`
         meta_keys = (
             'compression', 'countdown', 'eta', 'exchange', 'expires',

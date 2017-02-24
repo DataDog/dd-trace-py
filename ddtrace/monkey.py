@@ -14,6 +14,7 @@ import threading
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     'cassandra': True,
+    'celery': True,
     'elasticsearch': True,
     'mongoengine': True,
     'mysql': True,

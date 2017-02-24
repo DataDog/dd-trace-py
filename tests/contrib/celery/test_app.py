@@ -20,6 +20,7 @@ class CeleryAppTest(unittest.TestCase):
         """
         # Assert the base class has the wrapped function
         self.assertIsInstance(celery.Celery.task, wrapt.BoundFunctionWrapper)
+        self.assertIsInstance(celery.Celery.Task.__init__, wrapt.BoundFunctionWrapper)
 
         # Create an instance of `celery.Celery`
         app = celery.Celery()
@@ -40,3 +41,4 @@ class CeleryAppTest(unittest.TestCase):
 
         # Assert the method is not patched
         self.assertFalse(isinstance(celery.Celery.task, wrapt.BoundFunctionWrapper))
+        self.assertFalse(isinstance(celery.Celery.Task.__init__, wrapt.BoundFunctionWrapper))

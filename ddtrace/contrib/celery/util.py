@@ -22,14 +22,16 @@ def meta_from_context(context):
             continue
 
         # Skip `timelimit` if it is not set (it's default/unset value is `(None, None)`)
-        if name == 'timelimie' and value == (None, None):
+        if name == 'timelimit' and value == (None, None):
             continue
 
         # Skip `retries` if it's value is `0`
         if name == 'retries' and value == 0:
             continue
 
-        meta[name] = value
+        # prefix the tag as 'celery'
+        tag_name = 'celery.{}'.format(name)
+        meta[tag_name] = value
     return meta
 
 

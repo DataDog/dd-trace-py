@@ -283,6 +283,7 @@ def test_tracer_global_tags():
     s3.finish()
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
@@ -291,6 +292,7 @@ class DummyWriter(AgentWriter):
         super(DummyWriter, self).__init__()
         # dummy components
         self.spans = []
+        self.traces = []
         self.services = {}
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = MsgpackEncoder()
@@ -300,9 +302,11 @@ class DummyWriter(AgentWriter):
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
             # with both encoders
-            self.json_encoder.encode_traces([spans])
-            self.msgpack_encoder.encode_traces([spans])
+            trace = [spans]
+            self.json_encoder.encode_traces(trace)
+            self.msgpack_encoder.encode_traces(trace)
             self.spans += spans
+            self.traces += trace
 
         if services:
             self.json_encoder.encode_services(services)
@@ -314,6 +318,12 @@ class DummyWriter(AgentWriter):
         s = self.spans
         self.spans = []
         return s
+
+    def pop_traces(self):
+        # dummy method
+        traces = self.traces
+        self.traces = []
+        return traces
 
     def pop_services(self):
         # dummy method
