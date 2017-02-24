@@ -6,6 +6,7 @@ from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
+from . import compat
 
 
 log = logging.getLogger(__name__)
@@ -246,7 +247,8 @@ class Tracer(object):
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """
-        A decorator used to trace an entire function.
+        A decorator used to trace an entire function. If the traced function
+        is a coroutine, it traces the coroutine execution when is awaited.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
@@ -254,7 +256,6 @@ class Tracer(object):
                             it will inherit the service from it's parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
-        :param Context context: the context to use.
 
         >>> @tracer.wrap('my.wrapped.function', service='my.service')
             def run():
@@ -263,7 +264,7 @@ class Tracer(object):
             def execute():
                 return 'executed'
 
-        You can access the parent span using `tracer.current_span()` to set
+        You can access the current span using `tracer.current_span()` to set
         tags:
 
         >>> @tracer.wrap()
@@ -275,13 +276,27 @@ class Tracer(object):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
 
-            @functools.wraps(f)
-            def func_wrapper(*args, **kwargs):
-                with self.trace(span_name, service=service, resource=resource,
-                                span_type=span_type):
-                    return f(*args, **kwargs)
-            return func_wrapper
+            # detect if the the given function is a coroutine to use the
+            # right decorator; this initial check ensures that the
+            # evaluation is done only once for each @tracer.wrap
+            if compat.iscoroutinefunction(f):
+                # call the async factory that creates a tracing decorator capable
+                # to await the coroutine execution before finishing the span. This
+                # code is used for compatibility reasons to prevent Syntax errors
+                # in Python 2
+                func_wrapper = compat.make_async_decorator(
+                    self, f, span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            else:
+                @functools.wraps(f)
+                def func_wrapper(*args, **kwargs):
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return f(*args, **kwargs)
 
+            return func_wrapper
         return wrap_decorator
 
     def set_tags(self, tags):
