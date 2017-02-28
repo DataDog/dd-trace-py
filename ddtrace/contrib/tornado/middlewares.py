@@ -1,17 +1,16 @@
+from tornado.gen import coroutine
 from tornado.web import Application
 from tornado.stack_context import StackContext
 
-from . import handlers
-from .stack_context import ContextManager
+from . import TracerStackContext, handlers
 from ...ext import AppTypes
 
 
 class TraceMiddleware(object):
     """
-    Tornado middleware class that wraps a Tornado ``HTTPServer`` instance
-    so that the request_callback can be wrapped with a ``StackContext``
-    that uses the internal ``ContextManager``. This middleware creates
-    a root span for each request.
+    Tornado middleware class that traces a Tornado ``HTTPServer`` instance
+    so that the request_callback is wrapped in a ``TracerStackContext``.
+    This middleware creates a root span for each request.
     """
     def __init__(self, http_server, tracer, service='tornado-web'):
         """
@@ -26,6 +25,9 @@ class TraceMiddleware(object):
         # the default http_server callback must be preserved
         self._request_callback = http_server.request_callback
 
+        # the tracer must use the right Context propagation
+        self._tracer.configure(context_provider=TracerStackContext.current_context)
+
         # the middleware instance is callable so it behaves
         # like a regular request handler
         http_server.request_callback = self
@@ -38,7 +40,7 @@ class TraceMiddleware(object):
         )
 
         if isinstance(self._request_callback, Application):
-            # request handler is a Tornado web app and we can safely wrap it
+            # request handler is a Tornado web app that can be wrapped
             app = self._request_callback
             for _, specs in app.handlers:
                 for spec in specs:
@@ -53,15 +55,14 @@ class TraceMiddleware(object):
     def __call__(self, request):
         """
         The class instance is callable and can be used in the Tornado ``HTTPServer``
-        to handle the incoming requests under the same ``StackContext``.
+        to handle incoming requests under the same ``TracerStackContext``.
         The current context and the root request span are attached to the request so
-        that they can be used later.
+        that they can be used in the application code.
         """
-        with StackContext(lambda: ContextManager()):
-            # attach the context to the request
-            ctx = ContextManager.current_context()
-            setattr(request, '__datadog_context', ctx)
-            # trace the handler
-            request_span = self._tracer.trace('tornado.request_handler')
+        # attach the context to the request
+        with TracerStackContext():
+            setattr(request, 'datadog_context', self._tracer.get_call_context())
+            # store the request handler so that it can be retrieved later
+            request_span = self._tracer.trace('tornado.request_handler', service=self._service)
             setattr(request, '__datadog_request_span', request_span)
             return self._request_callback(request)
