@@ -63,4 +63,9 @@ setup(
     # plugin tox
     tests_require=['tox', 'flake8'],
     cmdclass={'test': Tox},
+    entry_points={
+        'console_scripts': [
+            'ddtrace-run = ddtrace.commands.ddtrace_run:main'
+        ]
+    }
 )
