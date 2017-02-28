@@ -2,9 +2,12 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-from __future__ import print_function
 
 import os
+import logging
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
 
 try:
     from ddtrace import tracer
@@ -23,4 +26,4 @@ try:
     if 'DATADOG_ENV' in os.environ:
         tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
 except Exception as e:
-    print("error configuring Datadog tracing")
+    log.warn("error configuring Datadog tracing", exc_info=True)
