@@ -1,48 +1,70 @@
-import threading
+from tornado.stack_context import StackContextInconsistentError, _state
 
 from ...context import Context
 
 
-class ContextManager(object):
+class TracerStackContext(object):
     """
-    A context manager that manages Context instances in thread-local state.
-    It must be used with the Tornado ``StackContext`` and not alone, because
-    it doesn't work in asynchronous environments. To use it within a
-    ``StackContext``, simply::
+    A context manager that manages ``Context`` instances in a thread-local state.
+    It must be used everytime a Tornado's handler or coroutine is used within a
+    tracing Context. It is meant to work like a traditional ``StackContext``,
+    preserving the state across asynchronous calls.
 
-        with StackContext(lambda: ContextManager()):
-            ctx = ContextManager.current_context()
-            # use your context here
+    Everytime a new manager is initialized, a new ``Context()`` is created for
+    this execution flow. Context created in a ``TracerStackContext`` is not shared
+    between different threads.
     """
+    def __init__(self):
+        self.active = True
+        self.context = Context()
 
-    _state = threading.local()
-    _state.context = None
+    def enter(self):
+        """
+        Used to preserve the ``StackContext`` interface.
+        """
+        pass
+
+    def exit(self, type, value, traceback):
+        """
+        Used to preserve the ``StackContext`` interface.
+        """
+        pass
+
+    def __enter__(self):
+        self.old_contexts = _state.contexts
+        self.new_contexts = (self.old_contexts[0] + (self,), self)
+        _state.contexts = self.new_contexts
+        return self
+
+    def __exit__(self, type, value, traceback):
+        final_contexts = _state.contexts
+        _state.contexts = self.old_contexts
+
+        if final_contexts is not self.new_contexts:
+            raise StackContextInconsistentError(
+                'stack_context inconsistency (may be caused by yield '
+                'within a "with TracerStackContext" block)')
+
+        # break the reference to allow faster GC on CPython
+        self.new_contexts = None
+
+    def deactivate(self):
+        self.active = False
 
     @classmethod
     def current_context(cls):
         """
-        Get the ``Context`` from the current execution flow. This method can be
-        used inside Tornado coroutines to retrieve and use the current context.
-        At the moment, the method cannot handle ``Context`` switching when
-        delayed callbacks are used.
+        Return the ``Context`` from the current execution flow. This method can be
+        used inside a Tornado coroutine to retrieve and use the current tracing context.
         """
-        return getattr(cls._state, 'context', None)
+        for ctx in reversed(_state.contexts[0]):
+            if isinstance(ctx, cls) and ctx.active:
+                return ctx.context
 
-    def __init__(self):
-        self._context = Context()
 
-    def __enter__(self):
-        """
-        Enable a new ``Context`` instance.
-        """
-        self._prev_context = self.__class__.current_context()
-        self.__class__._state.context = self._context
-        return self._context
-
-    def __exit__(self, *_):
-        """
-        Disable the current ``Context`` instance and activate the previous one.
-        """
-        self.__class__._state.context = self._prev_context
-        self._prev_context = None
-        return False
+def run_with_trace_context(context, func, *args, **kwargs):
+    """
+    Helper function that runs a function or a coroutine in the given context.
+    """
+    with context:
+        return func(*args, **kwargs)
