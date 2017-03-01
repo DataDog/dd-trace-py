@@ -1,5 +1,7 @@
 import asyncio
 
+from functools import wraps
+
 from unittest import TestCase
 from tests.test_tracer import get_dummy_tracer
 
@@ -34,11 +36,11 @@ def mark_asyncio(f):
     as an asynchronous coroutine. This uses the event loop set in the
     ``TestCase`` class, and runs the loop until it's completed.
     """
+    @wraps(f)
     def wrapper(*args, **kwargs):
         coro = asyncio.coroutine(f)
         future = coro(*args, **kwargs)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(future)
         loop.close()
-    wrapper.__name__ = f.__name__
     return wrapper

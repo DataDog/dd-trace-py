@@ -39,6 +39,13 @@ def route_exception(request):
 def route_async_exception(request):
     raise Exception('error')
 
+async def route_wrapped_coroutine(request):
+    tracer = get_tracer(request)
+    @tracer.wrap('nested')
+    async def nested():
+        await asyncio.sleep(0.25)
+    await nested()
+    return web.Response(text='OK')
 
 @asyncio.coroutine
 def coro_2(request):
@@ -99,6 +106,7 @@ def setup_app(loop):
     app.router.add_get('/chaining/', coroutine_chaining)
     app.router.add_get('/exception', route_exception)
     app.router.add_get('/async_exception', route_async_exception)
+    app.router.add_get('/wrapped_coroutine', route_wrapped_coroutine)
     app.router.add_static('/statics', STATIC_DIR)
     # configure templates
     set_memory_loader(app)
