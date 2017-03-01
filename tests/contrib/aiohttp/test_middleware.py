@@ -189,10 +189,11 @@ class TestTraceMiddleware(TraceTestCase):
         ok_('Exception: error' in span.get_tag('error.stack'))
 
     @unittest_run_loop
-    async def test_wrapped_coroutine(self):
-        request = await self.client.request('GET', '/wrapped_coroutine')
+    @asyncio.coroutine
+    def test_wrapped_coroutine(self):
+        request = yield from self.client.request('GET', '/wrapped_coroutine')
         eq_(200, request.status)
-        text = await request.text()
+        text = yield from request.text()
         eq_('OK', text)
 
         traces = self.tracer.writer.pop_traces()

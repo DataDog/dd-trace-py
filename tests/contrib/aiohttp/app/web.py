@@ -39,13 +39,19 @@ def route_exception(request):
 def route_async_exception(request):
     raise Exception('error')
 
-async def route_wrapped_coroutine(request):
+
+@asyncio.coroutine
+def route_wrapped_coroutine(request):
     tracer = get_tracer(request)
+
     @tracer.wrap('nested')
-    async def nested():
-        await asyncio.sleep(0.25)
-    await nested()
+    @asyncio.coroutine
+    def nested():
+        yield from asyncio.sleep(0.25)
+
+    yield from nested()
     return web.Response(text='OK')
+
 
 @asyncio.coroutine
 def coro_2(request):
