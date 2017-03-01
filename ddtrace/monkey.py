@@ -24,8 +24,7 @@ PATCH_MODULES = {
     'requests': False,  # Not ready yet
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
-    # TODO: it works if set to True?
-    'aiohttp': False,  # requires asyncio (Python 3.4+)
+    'aiohttp': True,  # requires asyncio (Python 3.4+)
 }
 
 _LOCK = threading.Lock()
