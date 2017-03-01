@@ -10,7 +10,6 @@ import wrapt
 import botocore.client
 
 from ...ext import AppTypes
-from ...ext import http
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -36,19 +35,17 @@ def patched_api_call(original_func, instance, args, kwargs):
         endpoint_name = getattr(_endpoint, "_endpoint_prefix", "unknown")
         _boto_meta = getattr(instance, "meta", None)
         region_name = getattr(_boto_meta, "region_name", "unknown")
+        operation, _ = args
         meta = {
             'aws.agent': 'botocore',
-            'aws.operation': args,
+            'aws.operation': operation,
             'aws.endpoint': endpoint_name,
             'aws.region': region_name,
         }
-        meta = add_cleaned_api_params(meta, args, kwargs)
-        span.resource = '%s.%s.%s' % (args, endpoint_name, region_name)
+        meta = add_cleaned_api_params(meta, operation, kwargs)
+        span.resource = '%s.%s.%s' % (operation, endpoint_name, region_name)
         span.set_tags(meta)
-
-        result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, 'HTTPStatusCode', 500))
-        return result
+        return original_func(*args, **kwargs)
 
 
 def add_cleaned_api_params(meta, operation_name, api_params):
