@@ -183,7 +183,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 2)
 
         # Assert the first span for calling `apply`
-        span = spans[1]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -203,7 +203,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # Assert the celery service span for calling `run`
-        span = spans[0]
+        span = spans[1]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -292,7 +292,7 @@ class CeleryTaskTest(unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 3)
 
-        span = spans[2]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -330,7 +330,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
-        span = spans[0]
+        span = spans[2]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -419,7 +419,7 @@ class CeleryTaskTest(unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 3)
 
-        span = spans[2]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -457,7 +457,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
-        span = spans[0]
+        span = spans[2]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']

@@ -6,7 +6,7 @@ machine:
     CASS_DRIVER_NO_EXTENSIONS: 1
     AGENT_BUILD_PATH: "/home/ubuntu/agent"
   post:
-    - pyenv global 2.7.11 3.4.4
+    - pyenv global 2.7.12 3.4.4 3.5.2 3.6.0
 
 dependencies:
   pre:
