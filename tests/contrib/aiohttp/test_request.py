@@ -8,7 +8,7 @@ from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
-from ddtrace.contrib.aiohttp.middlewares import TraceMiddleware
+from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
 
@@ -21,7 +21,7 @@ class TestRequestTracing(TraceTestCase):
         # enabled tracing:
         #   * middleware
         #   * templates
-        TraceMiddleware(self.app, self.tracer)
+        trace_app(self.app, self.tracer)
         patch()
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
@@ -29,12 +29,13 @@ class TestRequestTracing(TraceTestCase):
         unpatch()
 
     @unittest_run_loop
-    async def test_full_request(self):
+    @asyncio.coroutine
+    def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = await self.client.request('GET', '/template/')
+        request = yield from self.client.request('GET', '/template/')
         eq_(200, request.status)
-        await request.text()
+        yield from request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
@@ -51,7 +52,8 @@ class TestRequestTracing(TraceTestCase):
         eq_('aiohttp.template', template_span.resource)
 
     @unittest_run_loop
-    async def test_multiple_full_request(self):
+    @asyncio.coroutine
+    def test_multiple_full_request(self):
         # it should handle multiple requests using the same loop
         def make_requests():
             url = self.client.make_url('/delayed/')
@@ -66,7 +68,7 @@ class TestRequestTracing(TraceTestCase):
 
         # we should yield so that this loop can handle
         # threads' requests
-        await asyncio.sleep(0.5)
+        yield from asyncio.sleep(0.5)
         for t in threads:
             t.join(timeout=0.5)
 

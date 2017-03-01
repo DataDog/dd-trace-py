@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp_jinja2
 
 from nose.tools import eq_, ok_
@@ -22,11 +23,12 @@ class TestTraceTemplate(TraceTestCase):
         unpatch()
 
     @unittest_run_loop
-    async def test_template_rendering(self):
+    @asyncio.coroutine
+    def test_template_rendering(self):
         # it should trace a template rendering
-        request = await self.client.request('GET', '/template/')
+        request = yield from self.client.request('GET', '/template/')
         eq_(200, request.status)
-        text = await request.text()
+        text = yield from request.text()
         eq_('OK', text)
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -40,12 +42,13 @@ class TestTraceTemplate(TraceTestCase):
         eq_(0, span.error)
 
     @unittest_run_loop
-    async def test_template_rendering_filesystem(self):
+    @asyncio.coroutine
+    def test_template_rendering_filesystem(self):
         # it should trace a template rendering with a FileSystemLoader
         set_filesystem_loader(self.app)
-        request = await self.client.request('GET', '/template/')
+        request = yield from self.client.request('GET', '/template/')
         eq_(200, request.status)
-        text = await request.text()
+        text = yield from request.text()
         eq_('OK', text)
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -59,12 +62,13 @@ class TestTraceTemplate(TraceTestCase):
         eq_(0, span.error)
 
     @unittest_run_loop
-    async def test_template_rendering_package(self):
+    @asyncio.coroutine
+    def test_template_rendering_package(self):
         # it should trace a template rendering with a PackageLoader
         set_package_loader(self.app)
-        request = await self.client.request('GET', '/template/')
+        request = yield from self.client.request('GET', '/template/')
         eq_(200, request.status)
-        text = await request.text()
+        text = yield from request.text()
         eq_('OK', text)
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -78,11 +82,12 @@ class TestTraceTemplate(TraceTestCase):
         eq_(0, span.error)
 
     @unittest_run_loop
-    async def test_template_decorator(self):
+    @asyncio.coroutine
+    def test_template_decorator(self):
         # it should trace a template rendering
-        request = await self.client.request('GET', '/template_decorator/')
+        request = yield from self.client.request('GET', '/template_decorator/')
         eq_(200, request.status)
-        text = await request.text()
+        text = yield from request.text()
         eq_('OK', text)
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -96,11 +101,12 @@ class TestTraceTemplate(TraceTestCase):
         eq_(0, span.error)
 
     @unittest_run_loop
-    async def test_template_error(self):
+    @asyncio.coroutine
+    def test_template_error(self):
         # it should trace a template rendering
-        request = await self.client.request('GET', '/template_error/')
+        request = yield from self.client.request('GET', '/template_error/')
         eq_(500, request.status)
-        text = await request.text()
+        yield from request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))

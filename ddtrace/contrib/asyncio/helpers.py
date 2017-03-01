@@ -18,7 +18,7 @@ def set_call_context(task, ctx):
     setattr(task, CONTEXT_ATTR, ctx)
 
 
-def ensure_future(coro_or_future, *, loop=None, tracer=None):
+def ensure_future(coro_or_future, *, loop=None, tracer=None):  # noqa: E999
     """
     Wrapper for the asyncio.ensure_future() function that
     sets a context to the newly created Task. If the current
@@ -32,7 +32,7 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):
     return task
 
 
-def run_in_executor(executor, func, *args, loop=None, tracer=None):
+def run_in_executor(loop, executor, func, *args, tracer=None):
     """
     Wrapper for the loop.run_in_executor() function that
     sets a context to the newly created Thread. If the current
@@ -40,34 +40,22 @@ def run_in_executor(executor, func, *args, loop=None, tracer=None):
     with the current_span activated to inherit the ``trace_id``
     and the ``parent_id``.
 
-    Because the separated thread does synchronous execution, the
-    tracer context provider fallbacks to the thread-local ``Context``
-    storage.
-    """
-    try:
-        # TODO: maybe the loop kwarg should be removed
-        loop = loop or asyncio.get_event_loop()
-    except RuntimeError:
-        # this exception means that the run_in_executor is run in the
-        # wrong loop; this should happen only in wrong call usage
-        # TODO: here we can't do something better; it's the same as
-        # calling:
-        #   loop = None
-        #   loop.run_in_executor(...)
-        raise
+    Because the Executor can run the Thread immediately or after the
+    coroutine is executed, we may have two different scenarios:
+    * the Context is copied in the new Thread and the trace is sent twice
+    * the coroutine flushes the Context and when the Thread copies the
+      Context it is already empty (so it will be a root Span)
 
-    # because the Executor can run the Thread immediately or after the
-    # coroutine is executed, we may have two different scenarios:
-    # * the Context is copied in the new Thread and the trace is sent twice
-    # * the coroutine flushes the Context and when the Thread copies the
-    #   Context it is already empty (so it will be a root Span)
-    # because of that we create a new Context that knows only what was
-    # the latest active Span when the executor has been launched
+    To support both situations, we create a new Context that knows only what was
+    the latest active Span when the new thread was created. In this new thread,
+    we fallback to the thread-local ``Context`` storage.
+    """
     tracer = tracer or ddtrace.tracer
     ctx = Context()
     current_ctx = tracer.get_call_context()
     ctx._current_span = current_ctx._current_span
 
+    # prepare the future using an executor wrapper
     future = loop.run_in_executor(executor, _wrap_executor, func, args, tracer, ctx)
     return future
 

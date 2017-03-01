@@ -55,7 +55,6 @@ class Span(object):
         Create a new span. Call `finish` once the traced operation is over.
 
         :param Tracer tracer: the tracer that will submit this span when finished.
-        :param object context: the context of the span.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -67,6 +66,7 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
+        :param object context: the Context of the span.
         """
         # required span info
         self.name = name
@@ -270,7 +270,7 @@ class Span(object):
     @property
     def context(self):
         """
-        Provides access to the ``Context`` associated with this ``Span``.
+        Property that provides access to the ``Context`` associated with this ``Span``.
         The ``Context`` contains state that propagates from span to span in a
         larger trace.
         """
