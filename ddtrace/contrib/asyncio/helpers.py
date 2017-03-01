@@ -7,7 +7,7 @@ import asyncio
 import ddtrace
 
 from .provider import CONTEXT_ATTR
-from ...context import Context, ThreadLocalContext
+from ...context import Context
 
 
 def set_call_context(task, ctx):
