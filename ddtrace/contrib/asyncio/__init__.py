@@ -1,16 +1,26 @@
 """
-``asyncio`` module hosts the ``AsyncioContextProvider`` that follows the execution
-flow of ``Task``, making possible to trace asynchronous code built on top
-of ``asyncio``. To enable the provider, in your code you should::
+This integration provides the ``AsyncioContextProvider`` that follows the execution
+flow of a ``Task``, making possible to trace asynchronous code built on top
+of ``asyncio``. To trace asynchronous execution, you must::
 
+    import asyncio
     from ddtrace import tracer
     from ddtrace.contrib.asyncio import context_provider
 
     # enable asyncio support
     tracer.configure(context_provider=context_provider)
 
-Many helpers are provided to simplify the ``Context`` data structure handling
-while working in ``asyncio``. The following helpers are in place:
+    async def some_work():
+        with tracer.trace('asyncio.some_work'):
+            # do something
+
+    # launch your coroutines as usual
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(some_work())
+    loop.close()
+
+Many helpers are provided to simplify how the tracing ``Context`` is handled
+between scheduled coroutines and ``Future`` invoked in separated threads:
 
     * ``set_call_context(task, ctx)``: attach the context to the given ``Task``
       so that it will be available from the ``tracer.get_call_context()``

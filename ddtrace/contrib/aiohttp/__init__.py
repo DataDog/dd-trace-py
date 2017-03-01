@@ -18,9 +18,10 @@ Auto instrumentation is available using the ``trace_app`` function::
     web.run_app(app, port=8000)
 
 Third-party modules that are currently supported by the ``patch()`` method are:
+
 * ``aiohttp_jinja2``
 
-When the request span is automatically created, the ``Context`` for this logical execution
+When a request span is automatically created, the ``Context`` for this logical execution
 is attached to the ``request`` object, so that it can be used in the application code::
 
     async def home_handler(request):

@@ -1,14 +1,14 @@
 """
-To trace a request in a ``gevent`` environment, configure the tracer to use the Greenlet
-context provider, rather than the default one that relies on thread-local storaging.
+To trace a request in a ``gevent`` environment, configure the tracer to use the greenlet
+context provider, rather than the default one that relies on a thread-local storaging.
 
 This allows the tracer to pick up a transaction exactly where it left off as greenlets
-yield the context to one another.
+yield the context to another one.
 
 The simplest way to trace a ``gevent`` application is to configure the tracer and
-patch gevent before using it::
+patch ``gevent`` before using it::
 
-    # Always patch before importing gevent
+    # patch before importing gevent
     from ddtrace import patch, tracer
     patch(gevent=True)
 
