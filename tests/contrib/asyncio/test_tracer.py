@@ -178,3 +178,19 @@ class TestAsyncioTracer(AsyncioTestCase):
         eq_(10, len(traces))
         eq_(1, len(traces[0]))
         eq_('coroutine', traces[0][0].name)
+
+    @mark_asyncio
+    def test_wrapped_coroutine(self):
+        @self.tracer.wrap('f1')
+        @asyncio.coroutine
+        def f1():
+            yield from asyncio.sleep(0.25)
+
+        yield from f1()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        spans = traces[0]
+        eq_(1, len(spans))
+        span = spans[0]
+        ok_(span.duration > 0.25, msg='span.duration={}'.format(span.duration))
