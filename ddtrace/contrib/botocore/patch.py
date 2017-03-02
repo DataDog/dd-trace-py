@@ -10,6 +10,7 @@ import wrapt
 import botocore.client
 
 from ...ext import AppTypes
+from ...ext import http
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -45,7 +46,11 @@ def patched_api_call(original_func, instance, args, kwargs):
         meta = add_cleaned_api_params(meta, operation, kwargs)
         span.resource = '%s.%s.%s' % (operation, endpoint_name, region_name)
         span.set_tags(meta)
-        return original_func(*args, **kwargs)
+
+        result = original_func(*args, **kwargs)
+        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
+        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
+        return result
 
 
 def add_cleaned_api_params(meta, operation_name, api_params):
