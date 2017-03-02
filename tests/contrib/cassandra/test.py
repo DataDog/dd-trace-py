@@ -1,4 +1,3 @@
-
 # stdlib
 import logging
 import unittest
@@ -21,6 +20,22 @@ from ddtrace import Pin
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
 
+def setUpModule():
+    # skip all the modules if the Cluster is not available
+    if not Cluster:
+        raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
+
+    # create the KEYSPACE for this test module
+    cluster = Cluster(port=CASSANDRA_CONFIG['port'])
+    cluster.connect().execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1}")
+    cluster.connect().execute("CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)")
+
+def tearDownModule():
+    # destroy the KEYSPACE
+    cluster = Cluster(port=CASSANDRA_CONFIG['port'])
+    cluster.connect().execute("DROP KEYSPACE IF EXISTS test")
+
+
 class CassandraBase(object):
     """
     Needs a running Cassandra
@@ -35,25 +50,12 @@ class CassandraBase(object):
         pass
 
     def tearDown(self):
-        self.cluster.connect().execute("DROP KEYSPACE IF EXISTS test")
+        self.cluster.connect().execute('TRUNCATE test.person')
 
     def setUp(self):
-        if not Cluster:
-            raise unittest.SkipTest("cassandra.cluster.Cluster is not available.")
-
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
-        session = self.cluster.connect()
-        sqls = [
-            """CREATE KEYSPACE if not exists test WITH REPLICATION = {
-                'class' : 'SimpleStrategy',
-                'replication_factor': 1
-            }""",
-            "DROP TABLE IF EXISTS test.person",
-            "CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)",
-            "INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')",
-        ]
-        for sql in sqls:
-            session.execute(sql)
+        self.session = self.cluster.connect()
+        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
 
     def _assert_result_correct(self, result):
         eq_(len(result.current_rows), 1)
@@ -125,7 +127,6 @@ class CassandraBase(object):
         for s in spans:
             eq_(s.resource, query)
 
-
     def test_batch_statement(self):
         session, writer = self._traced_session()
 
@@ -157,10 +158,8 @@ class TestCassPatchDefault(CassandraBase):
 
     def _traced_session(self):
         tracer = get_dummy_tracer()
-        cluster = Cluster(port=CASSANDRA_CONFIG['port'])
-
-        Pin.get_from(cluster).clone(tracer=tracer).onto(cluster)
-        return cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
 
 class TestCassPatchAll(TestCassPatchDefault):
     """Test Cassandra instrumentation with patching and custom service on all clusters"""
@@ -179,9 +178,9 @@ class TestCassPatchAll(TestCassPatchDefault):
         tracer = get_dummy_tracer()
         # pin the global Cluster to test if they will conflict
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
-        cluster = Cluster(port=CASSANDRA_CONFIG['port'])
+        self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
-        return cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
 
 
 class TestCassPatchOne(TestCassPatchDefault):
@@ -201,10 +200,10 @@ class TestCassPatchOne(TestCassPatchDefault):
         tracer = get_dummy_tracer()
         # pin the global Cluster to test if they will conflict
         Pin(service='not-%s' % self.TEST_SERVICE).onto(Cluster)
-        cluster = Cluster(port=CASSANDRA_CONFIG['port'])
+        self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(cluster)
-        return cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(self.cluster)
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -245,5 +244,3 @@ def test_backwards_compat_get_traced_cassandra():
     cluster = get_traced_cassandra()
     session = cluster(port=CASSANDRA_CONFIG['port']).connect()
     session.execute("drop table if exists test.person")
-
-
