@@ -8,6 +8,8 @@ import ddtrace
 # 3p
 import wrapt
 import botocore.client
+import pkg_resources
+from distutils.version import LooseVersion
 
 from ...ext import AppTypes
 from ...ext import http
@@ -20,7 +22,9 @@ SPAN_TYPE = "botocore"
 
 
 def patch():
-    wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
+    # Checking for the version compatibility before patching
+    if LooseVersion(pkg_resources.get_distribution("botocore").version) >= LooseVersion("1.4.51"):
+        wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
 
 
 def patched_api_call(original_func, instance, args, kwargs):

@@ -34,7 +34,7 @@ class BotocoreTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag('aws.agent'), "botocore")
         eq_(span.get_tag('aws.region'), 'us-west-2')
-        eq_(span.get_tag('aws.endpoint'), 'ec2')
+        eq_(span.get_tag('aws.endpoint'), 'ecf2')
         eq_(span.get_tag('aws.operation'), 'DescribeInstances')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.get_tag('retry_attempts'), '0')
