@@ -1,7 +1,9 @@
+import mock
 import threading
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
+from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
@@ -83,6 +85,76 @@ class TestTracingContext(TestCase):
         # a Context is not finished if it's empty
         ctx = Context()
         ok_(ctx.is_finished() is False)
+
+    @mock.patch('logging.Logger.debug')
+    def test_log_unfinished_spans(self, log):
+        # when the root parent is finished, notify if there are spans still pending
+        tracer = get_dummy_tracer()
+        tracer.debug_logging = True
+        ctx = Context()
+        # manually create a root-child trace
+        root = Span(tracer=tracer, name='root')
+        child_1 = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child_2 = Span(tracer=tracer, name='child_2', trace_id=root.trace_id, parent_id=root.span_id)
+        child_1._parent = root
+        child_2._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child_1)
+        ctx.add_span(child_2)
+        # close only the parent
+        root.finish()
+        ok_(ctx.is_finished() is False)
+        unfinished_spans_log = log.call_args_list[-3][0][2]
+        child_1_log = log.call_args_list[-2][0][1]
+        child_2_log = log.call_args_list[-1][0][1]
+        eq_(2, unfinished_spans_log)
+        ok_('name child_1' in child_1_log)
+        ok_('name child_2' in child_2_log)
+        ok_('duration 0.000000s' in child_1_log)
+        ok_('duration 0.000000s' in child_2_log)
+
+    @mock.patch('logging.Logger.debug')
+    def test_log_unfinished_spans_disabled(self, log):
+        # the trace finished status logging is disabled
+        tracer = get_dummy_tracer()
+        tracer.debug_logging = False
+        ctx = Context()
+        # manually create a root-child trace
+        root = Span(tracer=tracer, name='root')
+        child_1 = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child_2 = Span(tracer=tracer, name='child_2', trace_id=root.trace_id, parent_id=root.span_id)
+        child_1._parent = root
+        child_2._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child_1)
+        ctx.add_span(child_2)
+        # close only the parent
+        root.finish()
+        ok_(ctx.is_finished() is False)
+        # the logger has never been invoked to print unfinished spans
+        for call, _ in log.call_args_list:
+            msg = call[0]
+            ok_('the trace has %d unfinished spans' not in msg)
+
+    @mock.patch('logging.Logger.debug')
+    def test_log_unfinished_spans_when_ok(self, log):
+        # if the unfinished spans logging is enabled but the trace is finished, don't log anything
+        tracer = get_dummy_tracer()
+        tracer.debug_logging = True
+        ctx = Context()
+        # manually create a root-child trace
+        root = Span(tracer=tracer, name='root')
+        child = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child)
+        # close the trace
+        child.finish()
+        root.finish()
+        # the logger has never been invoked to print unfinished spans
+        for call, _ in log.call_args_list:
+            msg = call[0]
+            ok_('the trace has %d unfinished spans' not in msg)
 
     def test_thread_safe(self):
         # the Context must be thread-safe

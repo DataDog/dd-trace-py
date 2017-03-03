@@ -1,4 +1,8 @@
+import logging
 import threading
+
+
+log = logging.getLogger(__name__)
 
 
 class Context(object):
@@ -54,6 +58,21 @@ class Context(object):
         with self._lock:
             self._finished_spans += 1
             self._current_span = span._parent
+
+            # notify if the trace is not closed properly; this check is executed only
+            # if the tracer debug_logging is enabled and when the root span is closed
+            # for an unfinished trace. This logging is meant to be used for debugging
+            # reasons, and it doesn't mean that the trace is wrongly generated.
+            # In asynchronous environments, it's legit to close the root span before
+            # some children. On the other hand, asynchronous web frameworks still expect
+            # to close the root span after all the children.
+            tracer = getattr(span, '_tracer', None)
+            if tracer and tracer.debug_logging and span._parent is None and not self._is_finished():
+                opened_spans = len(self._trace) - self._finished_spans
+                log.debug('Root span "%s" closed, but the trace has %d unfinished spans:', span.name, opened_spans)
+                spans = [x for x in self._trace if not x._finished]
+                for wrong_span in spans:
+                    log.debug('\n%s', wrong_span.pprint())
 
     def is_finished(self):
         """
