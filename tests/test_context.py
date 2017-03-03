@@ -136,6 +136,26 @@ class TestTracingContext(TestCase):
             msg = call[0]
             ok_('the trace has %d unfinished spans' not in msg)
 
+    @mock.patch('logging.Logger.debug')
+    def test_log_unfinished_spans_when_ok(self, log):
+        # if the unfinished spans logging is enabled but the trace is finished, don't log anything
+        tracer = get_dummy_tracer()
+        tracer.debug_logging = True
+        ctx = Context()
+        # manually create a root-child trace
+        root = Span(tracer=tracer, name='root')
+        child = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child)
+        # close the trace
+        child.finish()
+        root.finish()
+        # the logger has never been invoked to print unfinished spans
+        for call, _ in log.call_args_list:
+            msg = call[0]
+            ok_('the trace has %d unfinished spans' not in msg)
+
     def test_thread_safe(self):
         # the Context must be thread-safe
         ctx = Context()
