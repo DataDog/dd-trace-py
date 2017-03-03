@@ -57,7 +57,7 @@ class DjangoCacheTest(DjangoTraceTestCase):
         # an error trace must be sent
         spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
-        span = spans[1]
+        span = spans[0]
         eq_(span.resource, 'incr')
         eq_(span.name, 'django.cache')
         eq_(span.span_type, 'cache')
@@ -86,7 +86,7 @@ class DjangoCacheTest(DjangoTraceTestCase):
         # an error trace must be sent
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
-        span = spans[2]
+        span = spans[0]
         eq_(span.resource, 'decr')
         eq_(span.name, 'django.cache')
         eq_(span.span_type, 'cache')

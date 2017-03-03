@@ -25,6 +25,19 @@ try:
 except ImportError:
     from urllib import parse as urlparse
 
+try:
+    from asyncio import iscoroutinefunction
+    from .compat_async import _make_async_decorator as make_async_decorator
+except ImportError:
+    # asyncio is missing so we can't have coroutines; these
+    # functions are used only to ensure code executions in case
+    # of an unexpected behavior
+    def iscoroutinefunction(fn):
+        return False
+
+    def make_async_decorator(tracer, fn, *params, **kw_params):
+        return fn
+
 
 def iteritems(obj, **kwargs):
     func = getattr(obj, "iteritems", None)

@@ -8,9 +8,6 @@ To trace the falcon web framework, install the trace middleware::
     mw = TraceMiddleware(tracer, 'my-falcon-app')
     falcon.API(middleware=[mw])
 """
-
-
-from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import http as httpx, errors as errx
 
 
@@ -19,11 +16,8 @@ class TraceMiddleware(object):
     def __init__(self, tracer, service="falcon"):
         self.tracer = tracer
         self.service = service
-        self.buffer = ThreadLocalSpanBuffer()
 
     def process_request(self, req, resp):
-        self.buffer.pop()  # we should never really have anything here.
-
         span = self.tracer.trace(
             "falcon.request",
             service=self.service,
@@ -33,16 +27,14 @@ class TraceMiddleware(object):
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)
 
-        self.buffer.set(span)
-
     def process_resource(self, req, resp, resource, params):
-        span = self.buffer.get()
+        span = self.tracer.current_span()
         if not span:
             return  # unexpected
         span.resource = "%s %s" % (req.method, _name(resource))
 
     def process_response(self, req, resp, resource):
-        span = self.buffer.pop()
+        span = self.tracer.current_span()
         if not span:
             return  # unexpected
 
