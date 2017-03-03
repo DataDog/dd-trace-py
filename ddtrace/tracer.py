@@ -24,7 +24,7 @@ class Tracer(object):
         trace = tracer.trace("app.request", "web-server").finish()
     """
     DEFAULT_HOSTNAME = 'localhost'
-    DEFAULT_PORT = 7777
+    DEFAULT_PORT = 8126
 
     def __init__(self):
         """
