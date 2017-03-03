@@ -4,6 +4,7 @@ import boto.connection
 import wrapt
 
 from ...ext import AppTypes
+from ...ext import http
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
@@ -14,7 +15,7 @@ SPAN_TYPE = "boto"
 
 def patch():
 
-    """ AWSQueryConnection and AWSAuthConnectiona are two different classes called by
+    """ AWSQueryConnection and AWSAuthConnection are two different classes called by
     different services for connection. For exemple EC2 uses AWSQueryConnection and
     S3 uses AWSAuthConnection
     """
@@ -35,8 +36,8 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag('http_status', getattr(result, "status", 500))
-        span.set_tag('http_method', getattr(result, "_method", "unknown"))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status", 500))
+        span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
 
         host = getattr(instance, "host", "unknown.unknown..").split('.')
         if len(host) == 4:
@@ -59,8 +60,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag('http_status', getattr(result, "status", 500))
-        span.set_tag('http_method', getattr(result, "_method", "unknown"))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status", 500))
+        span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
 
         host = getattr(instance, "host", "unknown.unknown.").split('.')
         if len(host) == 3:

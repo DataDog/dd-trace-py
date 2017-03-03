@@ -8,6 +8,7 @@ import boto.s3
 
 # project
 from ddtrace.contrib.boto.patch import patch
+from ddtrace.ext import http
 
 # testing
 from ...test_tracer import get_dummy_tracer
@@ -20,21 +21,21 @@ class BotoTest(unittest.TestCase):
         patch()
 
     def test_ec2_client(self):
-                    ec2 = boto.ec2.connect_to_region("us-west-2")
-                    ec2.datadog_tracer = get_dummy_tracer()
-                    writer = ec2.datadog_tracer.writer
+        ec2 = boto.ec2.connect_to_region("us-west-2")
+        ec2.datadog_tracer = get_dummy_tracer()
+        writer = ec2.datadog_tracer.writer
 
-                    # Trying describe instances command
-                    ec2.get_all_instances()
+        # Trying describe instances command
+        ec2.get_all_instances()
 
-                    spans = writer.pop()
-                    assert spans
-                    span = spans[0]
-                    eq_(span.get_tag('aws.operation'), "DescribeInstances")
-                    eq_(span.get_tag('http_status'), "200")
-                    eq_(span.get_tag('http_method'), "POST")
-                    eq_(span.get_tag('aws.endpoint'), "ec2")
-                    eq_(span.get_tag('aws.region'), "us-west-2")
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        eq_(span.get_tag('aws.operation'), "DescribeInstances")
+        eq_(span.get_tag(http.STATUS_CODE), "200")
+        eq_(span.get_tag(http.METHOD), "POST")
+        eq_(span.get_tag('aws.endpoint'), "ec2")
+        eq_(span.get_tag('aws.region'), "us-west-2")
 
     def test_s3_client(self):
         s3 = boto.s3.connect_to_region("us-east-1")
@@ -47,7 +48,6 @@ class BotoTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        #eq_(span.get_tag('aws.operation'), "DescribeInstances")
-        eq_(span.get_tag('http_status'), "200")
-        eq_(span.get_tag('http_method'), "GET")
+        eq_(span.get_tag(http.STATUS_CODE), "200")
+        eq_(span.get_tag(http.METHOD), "GET")
         eq_(span.get_tag('aws.endpoint'), "s3")
