@@ -56,6 +56,17 @@ class TestWorkers(TestCase):
         self.tracer.writer._worker.stop()
         self.tracer.writer._worker.join()
 
+    def _get_endpoint_payload(self, calls, endpoint):
+        """
+        Helper to retrieve the endpoint call from a concurrent
+        trace or service call.
+        """
+        for call, _ in calls:
+            if endpoint in call[0]:
+                return call[0], self._decode(call[1])
+
+        return None, None
+
     def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
         tracer = self.tracer
@@ -64,9 +75,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
@@ -81,9 +91,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
@@ -101,9 +110,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
@@ -119,9 +127,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
@@ -136,9 +143,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})

@@ -26,6 +26,9 @@ class TracerConfig(AppConfig):
         """
         tracer = settings.TRACER
 
+        if settings.TAGS:
+            tracer.set_tags(settings.TAGS)
+
         # define the service details
         tracer.set_service_info(
             app='django',

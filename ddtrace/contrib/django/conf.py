@@ -27,6 +27,7 @@ DEFAULTS = {
     'AUTO_INSTRUMENT': True,
     'AGENT_HOSTNAME': 'localhost',
     'AGENT_PORT': 7777,
+    'TAGS': {},
 }
 
 # List of settings that may be in string import notation.
