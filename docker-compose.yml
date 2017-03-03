@@ -44,4 +44,3 @@ ddagent:
         - DD_API_KEY=invalid_key_but_this_is_fine
     ports:
         - "127.0.0.1:8126:8126"
-        - "127.0.0.1:7777:7777"

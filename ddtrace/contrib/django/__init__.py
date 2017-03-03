@@ -54,7 +54,7 @@ The available settings are:
   particular functions or views. If set to False, the request middleware will be
   disabled even if present.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
-* ``AGENT_PORT`` (default: ``7777``): define the port of the trace agent.
+* ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 """
 from ..util import require_modules
 
