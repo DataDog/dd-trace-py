@@ -1,4 +1,8 @@
+import logging
 import threading
+
+
+log = logging.getLogger(__name__)
 
 
 class Context(object):
@@ -54,6 +58,15 @@ class Context(object):
         with self._lock:
             self._finished_spans += 1
             self._current_span = span._parent
+
+            # notify if the trace is not closed properly
+            tracer = getattr(span, '_tracer', None)
+            if tracer and tracer.debug_logging and span._parent is None:
+                opened_spans = len(self._trace) - self._finished_spans
+                log.debug('Root span "%s" closed, but the trace has %d unfinished spans:', span.name, opened_spans)
+                spans = [x for x in self._trace if not x._finished]
+                for wrong_span in spans:
+                    log.debug('\n%s', wrong_span.pprint())
 
     def is_finished(self):
         """
