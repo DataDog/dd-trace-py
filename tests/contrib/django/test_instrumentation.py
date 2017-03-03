@@ -19,7 +19,7 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
     def test_tracer_flags(self):
         ok_(self.tracer.enabled)
         eq_(self.tracer.writer.api.hostname, 'localhost')
-        eq_(self.tracer.writer.api.port, 7777)
+        eq_(self.tracer.writer.api.port, 8126)
         eq_(self.tracer.tags, {'env': 'test'})
 
     def test_tracer_call(self):

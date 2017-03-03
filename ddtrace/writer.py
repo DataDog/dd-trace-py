@@ -21,7 +21,7 @@ DEFAULT_TIMEOUT = 5
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=7777):
+    def __init__(self, hostname='localhost', port=8126):
         self._pid = None
         self._traces = None
         self._services = None

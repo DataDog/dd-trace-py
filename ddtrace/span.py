@@ -32,6 +32,7 @@ class Span(object):
         'sampled',
         # Internal attributes
         '_tracer',
+        '_context',
         '_finished',
         '_parent',
     ]
@@ -48,12 +49,12 @@ class Span(object):
         span_id=None,
         parent_id=None,
         start=None,
+        context=None,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
-        :param Tracer tracer: the tracer that will submit this span when
-                              finished.
+        :param Tracer tracer: the tracer that will submit this span when finished.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -65,6 +66,7 @@ class Span(object):
         :param int span_id: the id of this span.
 
         :param int start: the start time of request as a unix epoch in seconds
+        :param object context: the Context of the span.
         """
         # required span info
         self.name = name
@@ -90,6 +92,7 @@ class Span(object):
         self.sampled = True
 
         self._tracer = tracer
+        self._context = context
         self._parent = None
 
         # state
@@ -111,9 +114,11 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration = ft - (self.start or ft)
 
-        if self._tracer:
+        # if a tracer is available to process the current context
+        if self._tracer and self._context:
             try:
-                self._tracer.record(self)
+                self._context.close_span(self)
+                self._tracer.record(self._context)
             except Exception:
                 log.exception("error recording finished trace")
 
@@ -261,6 +266,15 @@ class Span(object):
 
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
+
+    @property
+    def context(self):
+        """
+        Property that provides access to the ``Context`` associated with this ``Span``.
+        The ``Context`` contains state that propagates from span to span in a
+        larger trace.
+        """
+        return self._context
 
     def tracer(self):
         return self._tracer
