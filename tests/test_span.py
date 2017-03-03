@@ -203,6 +203,7 @@ def test_span_boolean_err():
 
 class DummyTracer(object):
     def __init__(self):
+        self.debug_logging = False
         self.last_span = None
         self.spans_recorded = 0
 
