@@ -15,8 +15,6 @@ def patch():
 def traced_setup(wrapped, instance, args, kwargs):
     from django.conf import settings
 
-    settings.INSTALLED_APPS = settings.INSTALLED_APPS + ('ddtrace.contrib.django', )
-    settings.MIDDLEWARE_CLASSES = (
-        'ddtrace.contrib.django.TraceMiddleware',
-    ) + settings.MIDDLEWARE_CLASSES
+    settings.INSTALLED_APPS.append('ddtrace.contrib.django')
+    settings.MIDDLEWARE_CLASSES.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
     wrapped(*args, **kwargs)
