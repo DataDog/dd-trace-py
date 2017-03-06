@@ -1,11 +1,9 @@
-import ddtrace
-
 import boto.connection
 import wrapt
-import pkg_resources
-from distutils.version import LooseVersion
+import json
 
-from ...ext import AppTypes
+from ddtrace import Pin
+
 from ...ext import http
 
 # Original boto client class
@@ -22,24 +20,28 @@ def patch():
     S3 uses AWSAuthConnection
     """
     # Checking on the version for compatibility before patching
-    if LooseVersion(pkg_resources.get_distribution("boto").version) >= LooseVersion("2.29.0"):
-        wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
-        wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
+    wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
+    wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
+    Pin(service="boto", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
+    Pin(service="boto", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
+
 
 # ec2, sqs, kinesis
 def patched_query_request(original_func, instance, args, kwargs):
-    tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-    tracer.set_service_info(service=DEFAULT_SERVICE, app=SPAN_TYPE, app_type=AppTypes.web)
 
-    if not tracer.enabled:
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with tracer.trace("aws.api.request") as span:
+    with pin.tracer.trace('boto.command', service=DEFAULT_SERVICE, span_type=SPAN_TYPE) as span:
         operation_name, _, _, _ = args
         span.set_tag('aws.operation', operation_name)
         # Obtaining region name
         region = getattr(instance, "region", ":")
         span.set_tag('aws.region', get_region_name(region))
+
+        span.set_tag("args", json.dumps(args))
+        span.set_tag("kwargs", json.dumps(kwargs))
 
         # Obtaining endpoint name and region name
         host = getattr(instance, "host", "unknown.unknown..").split('.')
@@ -50,25 +52,29 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, "status", 500))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
 
         return result
 
+
 # s3, lambda
 def patched_auth_request(original_func, instance, args, kwargs):
-    tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-    tracer.set_service_info(service=DEFAULT_SERVICE, app=SPAN_TYPE, app_type=AppTypes.web)
 
-    if not tracer.enabled:
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with tracer.trace("aws.api.request") as span:
+    with pin.tracer.trace('boto.command', service=DEFAULT_SERVICE, span_type=SPAN_TYPE) as span:
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, "status", 500))
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
+
+        span.set_tag("args", json.dumps(args))
+        span.set_tag("kwargs", json.dumps(kwargs))
+
         # Obtaining region name
         region = getattr(instance, "region", ":")
         span.set_tag('aws.region', get_region_name(region))
@@ -85,8 +91,9 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         return result
 
+
 def get_region_name(region):
-    if type(region) == str:
+    if isinstance(region, str):
         return region.split(":")[1]
     else:
         return region.name

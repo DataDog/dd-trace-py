@@ -1,5 +1,6 @@
 # stdlib
 import unittest
+import json
 
 # 3p
 from nose.tools import eq_
@@ -9,8 +10,8 @@ import boto.awslambda
 import boto.sqs
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs
 
-
 # project
+from ddtrace import Pin
 from ddtrace.contrib.boto.patch import patch
 from ddtrace.ext import http
 
@@ -21,14 +22,17 @@ from ...test_tracer import get_dummy_tracer
 class BotoTest(unittest.TestCase):
     """Botocore integration testsuite"""
 
+    TEST_SERVICE = "test-boto-tracing"
+
     def setUp(self):
         patch()
 
     @mock_ec2
     def test_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        ec2.datadog_tracer = get_dummy_tracer()
-        writer = ec2.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
 
         # Trying describe instances command
         ec2.get_all_instances()
@@ -52,11 +56,16 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.endpoint'), "ec2")
         eq_(span.get_tag('aws.region'), "us-west-2")
 
+        # Testing resource and service
+        eq_(span.service, "aws")
+        eq_(span.resource, "boto.command")
+
     @mock_s3
     def test_s3_client(self):
         s3 = boto.s3.connect_to_region("us-east-1")
-        s3.datadog_tracer = get_dummy_tracer()
-        writer = s3.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
         # Trying describe instances command
         s3.get_all_buckets()
@@ -88,8 +97,9 @@ class BotoTest(unittest.TestCase):
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
-        lamb.datadog_tracer = get_dummy_tracer()
-        writer = lamb.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
 
         # Trying describe instances command
         lamb.list_functions()
@@ -104,8 +114,9 @@ class BotoTest(unittest.TestCase):
     @mock_sqs
     def test_sqs_client(self):
         sqs = boto.sqs.connect_to_region("us-east-2")
-        sqs.datadog_tracer = get_dummy_tracer()
-        writer = sqs.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
 
         # Trying describe instances command
         sqs.create_queue('my_queue')

@@ -1,12 +1,14 @@
 # stdlib
 import unittest
+import json
 
 # 3p
 from nose.tools import eq_
 import botocore.session
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_lambda
+from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis
 
 # project
+from ddtrace import Pin
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.ext import http
 
@@ -17,6 +19,8 @@ from ...test_tracer import get_dummy_tracer
 class BotocoreTest(unittest.TestCase):
     """Botocore integration testsuite"""
 
+    TEST_SERVICE = "test-botocore-tracing"
+
     def setUp(self):
         patch()
         self.session = botocore.session.get_session()
@@ -25,9 +29,9 @@ class BotocoreTest(unittest.TestCase):
     def test_traced_client(self):
 
         ec2 = self.session.create_client('ec2', region_name='us-west-2')
-        ec2.datadog_tracer = get_dummy_tracer()
-        writer = ec2.datadog_tracer.writer
-
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
         # Trying describe instances command
         ec2.describe_instances()
 
@@ -41,11 +45,16 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.get_tag('retry_attempts'), '0')
 
+        # Testing resource and service
+        eq_(span.service, "aws")
+        eq_(span.resource, "DescribeInstances.ec2.us-west-2")
+
     @mock_s3
     def test_s3_client(self):
         s3 = self.session.create_client('s3', region_name='us-west-2')
-        s3.datadog_tracer = get_dummy_tracer()
-        writer = s3.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
         # Listing buckets
         s3.list_buckets()
@@ -57,11 +66,21 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListBuckets')
         eq_(span.get_tag(http.STATUS_CODE), '200')
 
+        try:
+            s3.list_objects(bucket='mybucket')
+        except Exception:
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(span.error, 1)
+            eq_(json.loads(span.get_tag('args')), [u'ListObjects', {u'bucket': u'mybucket'}])
+
     @mock_sqs
     def test_sqs_client(self):
         sqs = self.session.create_client('sqs', region_name='us-east-1')
-        sqs.datadog_tracer = get_dummy_tracer()
-        writer = sqs.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
 
         # Listing buckets
         sqs.list_queues()
@@ -77,8 +96,9 @@ class BotocoreTest(unittest.TestCase):
     @mock_kinesis
     def test_kinesis_client(self):
         kinesis = self.session.create_client('kinesis', region_name='us-east-1')
-        kinesis.datadog_tracer = get_dummy_tracer()
-        writer = kinesis.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
 
         # Listing buckets
         kinesis.list_streams()
@@ -94,8 +114,9 @@ class BotocoreTest(unittest.TestCase):
     @mock_lambda
     def test_lambda_client(self):
         lamb = self.session.create_client('lambda', region_name='us-east-1')
-        lamb.datadog_tracer = get_dummy_tracer()
-        writer = lamb.datadog_tracer.writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
 
         # Listing buckets
         lamb.list_functions()
