@@ -53,8 +53,6 @@ def patched_api_call(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
-
-
         return result
 
 
