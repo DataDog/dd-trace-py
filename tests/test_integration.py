@@ -167,8 +167,8 @@ class TestAPITransport(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 7777, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 7777, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -336,7 +336,7 @@ class TestAPIDowngrade(TestCase):
 
         # the encoder is right but we're targeting an API
         # endpoint that is not available
-        api = API('localhost', 7777)
+        api = API('localhost', 8126)
         api._traces = '/v0.0/traces'
         ok_(isinstance(api._encoder, MsgpackEncoder))
 
