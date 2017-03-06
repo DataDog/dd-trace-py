@@ -29,6 +29,7 @@ PATCH_MODULES = {
     'django': False,
     'flask': False,
     'pylons': False,
+    'botocore': True,
 }
 
 _LOCK = threading.Lock()
