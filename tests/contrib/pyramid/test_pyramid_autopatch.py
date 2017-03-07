@@ -15,7 +15,6 @@ from nose.tools import eq_
 # project
 import ddtrace
 from ddtrace import compat
-from ddtrace.contrib.pyramid import trace_pyramid
 
 
 def test_200():
@@ -144,10 +143,11 @@ def _get_app(service=None, tracer=None):
 
 def _get_test_app(service=None):
     """ return a webtest'able version of our test app. """
-    from tests.test_tracer import get_dummy_tracer
-    tracer = get_dummy_tracer()
-    app = _get_app(service=service, tracer=tracer)
-    return webtest.TestApp(app), tracer
+    from tests.test_tracer import DummyWriter
+    ddtrace.tracer.writer = DummyWriter()
+
+    app = _get_app(service=service, tracer=ddtrace.tracer)
+    return webtest.TestApp(app), ddtrace.tracer
 
 
 if __name__ == '__main__':
