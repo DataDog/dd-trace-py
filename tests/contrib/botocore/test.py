@@ -1,6 +1,5 @@
 # stdlib
 import unittest
-import json
 
 # 3p
 from nose.tools import eq_
@@ -73,7 +72,7 @@ class BotocoreTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.error, 1)
-            eq_(json.loads(span.get_tag('args')), [u'ListObjects', {u'bucket': u'mybucket'}])
+            eq_(span.get_tag('botocore.args'), u"(u'ListObjects', {'bucket': 'mybucket'})")
 
     @mock_sqs
     def test_sqs_client(self):
@@ -82,7 +81,6 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
 
-        # Listing buckets
         sqs.list_queues()
 
         spans = writer.pop()
@@ -100,7 +98,6 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
 
-        # Listing buckets
         kinesis.list_streams()
 
         spans = writer.pop()
@@ -118,7 +115,6 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
 
-        # Listing buckets
         lamb.list_functions()
 
         spans = writer.pop()
