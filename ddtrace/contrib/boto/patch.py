@@ -40,8 +40,8 @@ def patched_query_request(original_func, instance, args, kwargs):
         region = getattr(instance, "region", ":")
         span.set_tag('aws.region', get_region_name(region))
 
-        span.set_tag("args", json.dumps(args))
-        span.set_tag("kwargs", json.dumps(kwargs))
+        span.set_tag("args", json.dumps(args, ensure_ascii=False))
+        span.set_tag("kwargs", json.dumps(kwargs, ensure_ascii=False))
 
         # Obtaining endpoint name and region name
         host = getattr(instance, "host", "unknown.unknown..").split('.')
@@ -72,8 +72,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
 
-        span.set_tag("args", json.dumps(args))
-        span.set_tag("kwargs", json.dumps(kwargs))
+        span.set_tag("args", json.dumps(args, ensure_ascii=False))
+        span.set_tag("kwargs", json.dumps(kwargs, ensure_ascii=False))
 
         # Obtaining region name
         region = getattr(instance, "region", ":")
