@@ -1,7 +1,6 @@
 import os
 
 from .trace import trace_pyramid
-from ddtrace import tracer
 
 import pyramid.config
 
