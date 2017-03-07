@@ -46,11 +46,8 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.resource = '%s.%s.%s' % (operation, endpoint_name, region_name)
         span.set_tags(meta)
 
-
         span.set_meta("botocore.args", args)
         span.set_meta("botocore.kwargs", kwargs)
-        # span.set_tag("args", json.dumps(args, ensure_ascii=False))
-        # span.set_tag("kwargs", json.dumps(kwargs, ensure_ascii=False))
 
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
