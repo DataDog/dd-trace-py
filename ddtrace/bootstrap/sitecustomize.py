@@ -20,13 +20,14 @@ try:
         from ddtrace import patch_all; patch_all(django=True, flask=True, pylons=True) # noqa
 
         # If django is patched, unpatch redis so we don't double up on django.cache spans
-        from ddtrace import monkey; patches = monkey.get_patched_modules()
+        from ddtrace import monkey
+        patches = monkey.get_patched_modules()
+
         if 'django' in patches:
             if 'redis' in patches:
-                from ddtrace.contrib.redis.patch import unpatch; unpatch()
+                from ddtrace.contrib.redis.patch import unpatch; unpatch() # noqa
             if 'pylibmc' in patches:
-                from ddtrace.contrib.pylibmc.patch import unpatch; unpatch()
-
+                from ddtrace.contrib.pylibmc.patch import unpatch; unpatch() # noqa
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
     if debug and debug.lower() == "true":

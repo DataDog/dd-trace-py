@@ -40,7 +40,6 @@ IMPORT_STRINGS = (
 REMOVED_SETTINGS = ()
 
 
-
 def import_from_string(val, setting_name):
     """
     Attempt to import a class from a string representation.
