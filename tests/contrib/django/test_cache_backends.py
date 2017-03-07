@@ -198,7 +198,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, 'django')
@@ -227,7 +227,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, 'django')
