@@ -17,4 +17,6 @@ def traced_setup(wrapped, instance, args, kwargs):
 
     settings.INSTALLED_APPS.append('ddtrace.contrib.django')
     settings.MIDDLEWARE_CLASSES.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
+    if hasattr(settings, 'MIDDLEWARE'):
+        settings.MIDDLEWARE.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
     wrapped(*args, **kwargs)
