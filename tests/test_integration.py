@@ -56,6 +56,17 @@ class TestWorkers(TestCase):
         self.tracer.writer._worker.stop()
         self.tracer.writer._worker.join()
 
+    def _get_endpoint_payload(self, calls, endpoint):
+        """
+        Helper to retrieve the endpoint call from a concurrent
+        trace or service call.
+        """
+        for call, _ in calls:
+            if endpoint in call[0]:
+                return call[0], self._decode(call[1])
+
+        return None, None
+
     def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
         tracer = self.tracer
@@ -64,9 +75,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
@@ -81,9 +91,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
@@ -101,9 +110,8 @@ class TestWorkers(TestCase):
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
         eq_(endpoint, '/v0.3/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
@@ -119,9 +127,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 1)
         eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
@@ -136,9 +143,8 @@ class TestWorkers(TestCase):
         # expect a call for traces and services
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 2)
-        # check arguments
-        endpoint = self.api._put.call_args[0][0]
-        payload = self._decode(self.api._put.call_args[0][1])
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
         eq_(endpoint, '/v0.3/services')
         eq_(len(payload.keys()), 2)
         eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
@@ -161,8 +167,8 @@ class TestAPITransport(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 7777, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 7777, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -330,7 +336,7 @@ class TestAPIDowngrade(TestCase):
 
         # the encoder is right but we're targeting an API
         # endpoint that is not available
-        api = API('localhost', 7777)
+        api = API('localhost', 8126)
         api._traces = '/v0.0/traces'
         ok_(isinstance(api._encoder, MsgpackEncoder))
 

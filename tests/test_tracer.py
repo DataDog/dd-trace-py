@@ -4,12 +4,13 @@ tests for Tracer and utilities.
 
 import time
 
-from nose.tools import assert_raises, eq_
+from nose.tools import assert_raises, eq_, ok_
 from unittest.case import SkipTest
 
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
+from ddtrace.context import Context
 
 
 def test_tracer_vars():
@@ -283,6 +284,83 @@ def test_tracer_global_tags():
     s3.finish()
     assert s3.meta == {'env': 'staging', 'other': 'tag'}
 
+
+def test_global_context():
+    # the tracer uses a global thread-local Context
+    tracer = get_dummy_tracer()
+    span = tracer.trace('fake_span')
+    ctx = tracer.get_call_context()
+    eq_(1, len(ctx._trace))
+    eq_(span, ctx._trace[0])
+
+
+def test_tracer_current_span():
+    # the current span is in the local Context()
+    tracer = get_dummy_tracer()
+    span = tracer.trace('fake_span')
+    eq_(span, tracer.current_span())
+
+
+def test_start_span():
+    # it should create a root Span
+    tracer = get_dummy_tracer()
+    span = tracer.start_span('web.request')
+    eq_('web.request', span.name)
+    eq_(tracer, span._tracer)
+    ok_(span._parent is None)
+    ok_(span.parent_id is None)
+    ok_(span._context is not None)
+    eq_(span, span._context._current_span)
+
+
+def test_start_span_optional():
+    # it should create a root Span with arguments
+    tracer = get_dummy_tracer()
+    span = tracer.start_span('web.request', service='web', resource='/', span_type='http')
+    eq_('web.request', span.name)
+    eq_('web', span.service)
+    eq_('/', span.resource)
+    eq_('http', span.span_type)
+
+
+def test_start_child_span():
+    # it should create a child Span for the given parent
+    tracer = get_dummy_tracer()
+    parent = tracer.start_span('web.request')
+    child = tracer.start_span('web.worker', child_of=parent)
+    eq_('web.worker', child.name)
+    eq_(tracer, child._tracer)
+    eq_(parent, child._parent)
+    eq_(parent.span_id, child.parent_id)
+    eq_(parent.trace_id, child.trace_id)
+    eq_(parent._context, child._context)
+    eq_(child, child._context._current_span)
+
+
+def test_start_child_span_attributes():
+    # it should create a child Span with parent's attributes
+    tracer = get_dummy_tracer()
+    parent = tracer.start_span('web.request', service='web', resource='/', span_type='http')
+    child = tracer.start_span('web.worker', child_of=parent)
+    eq_('web.worker', child.name)
+    eq_('web', child.service)
+
+
+def test_start_child_from_context():
+    # it should create a child span with a populated Context
+    tracer = get_dummy_tracer()
+    root = tracer.start_span('web.request')
+    context = root.context
+    child = tracer.start_span('web.worker', child_of=context)
+    eq_('web.worker', child.name)
+    eq_(tracer, child._tracer)
+    eq_(root, child._parent)
+    eq_(root.span_id, child.parent_id)
+    eq_(root.trace_id, child.trace_id)
+    eq_(root._context, child._context)
+    eq_(child, child._context._current_span)
+
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
@@ -291,6 +369,7 @@ class DummyWriter(AgentWriter):
         super(DummyWriter, self).__init__()
         # dummy components
         self.spans = []
+        self.traces = []
         self.services = {}
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = MsgpackEncoder()
@@ -300,9 +379,11 @@ class DummyWriter(AgentWriter):
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
             # with both encoders
-            self.json_encoder.encode_traces([spans])
-            self.msgpack_encoder.encode_traces([spans])
+            trace = [spans]
+            self.json_encoder.encode_traces(trace)
+            self.msgpack_encoder.encode_traces(trace)
             self.spans += spans
+            self.traces += trace
 
         if services:
             self.json_encoder.encode_services(services)
@@ -314,6 +395,12 @@ class DummyWriter(AgentWriter):
         s = self.spans
         self.spans = []
         return s
+
+    def pop_traces(self):
+        # dummy method
+        traces = self.traces
+        self.traces = []
+        return traces
 
     def pop_services(self):
         # dummy method
