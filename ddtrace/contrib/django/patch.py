@@ -15,8 +15,15 @@ def patch():
 def traced_setup(wrapped, instance, args, kwargs):
     from django.conf import settings
 
-    settings.INSTALLED_APPS.append('ddtrace.contrib.django')
-    settings.MIDDLEWARE_CLASSES.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
+    if 'ddtrace.contrib.django' not in settings.INSTALLED_APPS:
+        settings.INSTALLED_APPS.append('ddtrace.contrib.django')
+
+    if hasattr(settings, 'MIDDLEWARE_CLASSES'):
+        if 'ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES:
+            settings.MIDDLEWARE_CLASSES.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
+
     if hasattr(settings, 'MIDDLEWARE'):
-        settings.MIDDLEWARE.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
+        if 'ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE:
+            settings.MIDDLEWARE.insert(0, 'ddtrace.contrib.django.TraceMiddleware')
+
     wrapped(*args, **kwargs)

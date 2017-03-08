@@ -17,6 +17,7 @@ PATCH_MODULES = {
     'celery': True,
     'elasticsearch': True,
     'mongoengine': True,
+    'mysql': True,
     'psycopg': True,
     'pylibmc': True,
     'pymongo': True,
