@@ -4,6 +4,7 @@ Trace queries to aws api done via botocore client
 
 # project
 from ddtrace import Pin
+from ddtrace.util import deep_getattr
 
 # 3p
 import wrapt
@@ -14,7 +15,6 @@ from ...ext import http
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
 
-DEFAULT_SERVICE = "aws"
 SPAN_TYPE = "http"
 
 
@@ -29,11 +29,10 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('botocore.command', service=DEFAULT_SERVICE, span_type=SPAN_TYPE) as span:
-        _endpoint = getattr(instance, "_endpoint", None)
-        endpoint_name = getattr(_endpoint, "_endpoint_prefix", "unknown")
-        _boto_meta = getattr(instance, "meta", None)
-        region_name = getattr(_boto_meta, "region_name", "unknown")
+    with pin.tracer.trace('botocore.command', service=pin.service, span_type=SPAN_TYPE) as span:
+        endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+        region_name = deep_getattr(instance, "meta.region_name")
+
         operation, _ = args
         meta = {
             'aws.agent': 'botocore',
@@ -42,7 +41,6 @@ def patched_api_call(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
 
-        meta = add_cleaned_api_params(meta, operation, kwargs)
         span.resource = '%s.%s.%s' % (operation, endpoint_name, region_name)
         span.set_tags(meta)
 
@@ -53,11 +51,3 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
         return result
-
-
-def add_cleaned_api_params(meta, operation_name, api_params):
-    """ Avoid sending sensitive information
-    """
-    if operation_name != 'AssumeRole' and api_params:
-        meta['aws.api_params'] = str(api_params)
-    return meta

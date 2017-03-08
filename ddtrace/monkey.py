@@ -13,6 +13,8 @@ import threading
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'boto': True,
+    'botocore': True,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
@@ -29,7 +31,6 @@ PATCH_MODULES = {
     'django': False,
     'flask': False,
     'pylons': False,
-    'botocore': True,
 }
 
 _LOCK = threading.Lock()

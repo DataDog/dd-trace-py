@@ -8,7 +8,7 @@ import boto.ec2
 import boto.s3
 import boto.awslambda
 import boto.sqs
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs
+from moto import mock_s3, mock_ec2, mock_lambda
 
 # project
 from ddtrace import Pin
@@ -34,7 +34,6 @@ class BotoTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
 
-        # Trying describe instances command
         ec2.get_all_instances()
         spans = writer.pop()
         assert spans
@@ -57,8 +56,8 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), "us-west-2")
 
         # Testing resource and service
-        eq_(span.service, "aws")
-        eq_(span.resource, "boto.command")
+        eq_(span.service, "test-boto-tracing")
+        eq_(span.resource, "RunInstances.ec2.us-west-2")
 
     @mock_s3
     def test_s3_client(self):
@@ -67,7 +66,6 @@ class BotoTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
-        # Trying describe instances command
         s3.get_all_buckets()
         spans = writer.pop()
         assert spans
@@ -94,6 +92,10 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.METHOD), "HEAD")
         eq_(span.get_tag('aws.endpoint'), "s3")
 
+        # Testing resource and service
+        eq_(span.service, "test-boto-tracing")
+        eq_(span.resource, "HEAD./.s3.None")
+
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -101,7 +103,6 @@ class BotoTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
 
-        # Trying describe instances command
         lamb.list_functions()
         spans = writer.pop()
         assert spans
@@ -111,19 +112,6 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.endpoint'), "lambda")
         eq_(span.get_tag('aws.region'), "us-east-2")
 
-    @mock_sqs
-    def test_sqs_client(self):
-        sqs = boto.sqs.connect_to_region("us-east-2")
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
-
-        # Trying describe instances command
-        sqs.create_queue('my_queue')
-        spans = writer.pop()
-        assert spans
-        span = spans[0]
-        eq_(span.get_tag(http.STATUS_CODE), "200")
-        eq_(span.get_tag(http.METHOD), "GET")
-        eq_(span.get_tag('aws.endpoint'), "us-east-2")
-        eq_(span.get_tag('aws.region'), "us-east-2")
+        # Testing resource and service
+        eq_(span.service, "test-boto-tracing")
+        eq_(span.resource, "GET./2014-11-13/functions/.lambda.us-east-2")

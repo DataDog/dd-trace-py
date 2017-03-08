@@ -8,7 +8,6 @@ from ...ext import http
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
 
-DEFAULT_SERVICE = "aws"
 SPAN_TYPE = "boto"
 
 
@@ -32,27 +31,38 @@ def patched_query_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('boto.command', service=DEFAULT_SERVICE, span_type=SPAN_TYPE) as span:
+    with pin.tracer.trace('boto.command', service=pin.service, span_type=SPAN_TYPE) as span:
         operation_name, _, _, _ = args
-        span.set_tag('aws.operation', operation_name)
+
         # Obtaining region name
-        region = getattr(instance, "region", ":")
-        span.set_tag('aws.region', get_region_name(region))
+        region = getattr(instance, "region")
+        region_name = get_region_name(region)
+
+        # Obtaining endpoint name and region name
+        endpoint_name = None
+        host = getattr(instance, "host")
+        if host:
+            host = host.split('.')
+            if len(host) > 2:
+                endpoint_name = host[0]
+
+        meta = {
+            'aws.agent': 'boto',
+            'aws.operation': operation_name,
+            'aws.endpoint': endpoint_name,
+            'aws.region': region_name,
+        }
+
+        span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
+        span.set_tags(meta)
 
         span.set_meta("boto.args", args)
         span.set_meta("boto.kwargs", kwargs)
 
-        # Obtaining endpoint name and region name
-        host = getattr(instance, "host", "unknown.unknown..").split('.')
-        endpoint_name = "unknown"
-        if len(host) == 4:
-            endpoint_name = host[0]
-        span.set_tag('aws.endpoint', endpoint_name)
-
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         return result
 
@@ -64,34 +74,45 @@ def patched_auth_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('boto.command', service=DEFAULT_SERVICE, span_type=SPAN_TYPE) as span:
+    with pin.tracer.trace('boto.command', service=pin.service, span_type=SPAN_TYPE) as span:
+        method = args[0]
+        path = args[1]
+        operation_name = "{}.{}".format(method, path)
 
-        # Original func returns a boto.connection.HPPResponse object
+        # Obtaining region name
+        region = getattr(instance, "region", None)
+        region_name = get_region_name(region)
+
+        # Obtaining endpoint name and if possible the region
+        host = getattr(instance, "host")
+        if host:
+            host = host.split('.')
+            endpoint_name = host[0]
+
+        meta = {
+            'aws.agent': 'boto',
+            'aws.operation': operation_name,
+            'aws.endpoint': endpoint_name,
+            'aws.region': region_name,
+        }
+
+        span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
+        span.set_tags(meta)
+
+        # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, getattr(result, "_method", "unknown"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         span.set_meta("boto.args", args)
         span.set_meta("boto.kwargs", kwargs)
-
-        # Obtaining region name
-        region = getattr(instance, "region", ":")
-        span.set_tag('aws.region', get_region_name(region))
-
-        # Obtaining endpoint name and if possible the region
-        host = getattr(instance, "host", "unknown.unknown.").split('.')
-        endpoint_name = "unknown"
-        if len(host) == 3:
-            endpoint_name = host[0]
-        # In this case we also have the the region name
-        elif len(host) >= 4:
-            endpoint_name = host[0]
-        span.set_tag('aws.endpoint', endpoint_name)
 
         return result
 
 
 def get_region_name(region):
+    if not region:
+        return None
     if isinstance(region, str):
         return region.split(":")[1]
     else:
