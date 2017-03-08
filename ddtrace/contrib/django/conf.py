@@ -12,6 +12,7 @@ back to the defaults.
 """
 from __future__ import unicode_literals
 
+import os
 import importlib
 
 from django.conf import settings as django_settings
@@ -73,7 +74,11 @@ class DatadogSettings(object):
     def __init__(self, user_settings=None, defaults=None, import_strings=None):
         if user_settings:
             self._user_settings = self.__check_user_settings(user_settings)
+
         self.defaults = defaults or DEFAULTS
+        if os.environ.get('DATADOG_ENV'):
+            self.defaults["TAGS"].update({"env": os.environ.get('DATADOG_ENV')})
+
         self.import_strings = import_strings or IMPORT_STRINGS
 
     @property
