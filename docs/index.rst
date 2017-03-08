@@ -287,6 +287,55 @@ A span tracks a unit of work in a service, like querying a database or
 rendering a template. Spans are associated with a service and optionally a
 resource. A span has a name, start time, duration and optional tags.
 
+Supported versions
+==================
+
+We officially support Python 2.7, 3.4 and above.
+
++-----------------+--------------------+
+| Integrations    | Supported versions |
++=================+====================+
+| bottle          | >= 1.2             |
++-----------------+--------------------+
+| django          | >= 1.8             |
++-----------------+--------------------+
+| falcon          | >= 1.0             |
++-----------------+--------------------+
+| flask           | >= 0.10            |
++-----------------+--------------------+
+| pylons          | >= 1.0             |
++-----------------+--------------------+
+| pyramid         | >= 1.7             |
++-----------------+--------------------+
+| aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| cassandra       | >= 3.5             |
++-----------------+--------------------+
+| elasticsearch   | >= 2.3             |
++-----------------+--------------------+
+| flask_cache     | >= 0.12            |
++-----------------+--------------------+
+| celery          | >= 3.1             |
++-----------------+--------------------+
+| mongoengine     | latest             |
++-----------------+--------------------+
+| pymongo         | >=3.0              |
++-----------------+--------------------+
+| pylibmc         | >=1.4              |
++-----------------+--------------------+
+| mysql-connector | >= 2.1             |
++-----------------+--------------------+
+| psycopg2        | >= 2.4             |
++-----------------+--------------------+
+| redis           | >= 2.6             |
++-----------------+--------------------+
+| sqlalchemy      | >= 1.0             |
++-----------------+--------------------+
+
+These are the fully tested versions but `ddtrace` can be compatible with lower versions.
+If some versions are missing, you can contribute or ask for it by contacting our support.
+For deprecated library versions, the support is best-effort.
+
 Indices and tables
 ==================
 
