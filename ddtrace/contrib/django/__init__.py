@@ -26,6 +26,7 @@ may contain::
 
     DATADOG_TRACE = {
         'DEFAULT_SERVICE': 'my-django-app',
+        'TAGS': {'env': 'production'},
     }
 
 If you need to access to the tracing settings, you should::
@@ -38,11 +39,13 @@ If you need to access to the tracing settings, you should::
 
 The available settings are:
 
+* ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
+  tracer. Usually this configuration must be updated with a meaningful name.
+* ``TAGS`` (default: ``{}``): set global tags that should be applied to all
+  spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
   instance that is used to trace Django internals. By default the ``ddtrace``
   tracer is used.
-* ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
-  tracer. Usually this configuration must be updated with a meaningful name.
 * ``ENABLED`` (default: ``not django_settings.DEBUG``): defines if the tracer is
   enabled or not. If set to false, the code is still instrumented but no spans
   are sent to the trace agent. This setting cannot be changed at runtime
