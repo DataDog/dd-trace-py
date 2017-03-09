@@ -287,6 +287,58 @@ A span tracks a unit of work in a service, like querying a database or
 rendering a template. Spans are associated with a service and optionally a
 resource. A span has a name, start time, duration and optional tags.
 
+Supported versions
+==================
+
+We officially support Python 2.7, 3.4 and above.
+
++-----------------+--------------------+
+| Integrations    | Supported versions |
++=================+====================+
+| aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| bottle          | >= 1.2             |
++-----------------+--------------------+
+| celery          | >= 3.1             |
++-----------------+--------------------+
+| cassandra       | >= 3.5             |
++-----------------+--------------------+
+| django          | >= 1.8             |
++-----------------+--------------------+
+| elasticsearch   | >= 2.3             |
++-----------------+--------------------+
+| falcon          | >= 1.0             |
++-----------------+--------------------+
+| flask           | >= 0.10            |
++-----------------+--------------------+
+| flask_cache     | >= 0.12            |
++-----------------+--------------------+
+| gevent          | >= 1.0             |
++-----------------+--------------------+
+| mongoengine     | >= 0.11            |
++-----------------+--------------------+
+| mysql-connector | >= 2.1             |
++-----------------+--------------------+
+| psycopg2        | >= 2.4             |
++-----------------+--------------------+
+| pylibmc         | >= 1.4             |
++-----------------+--------------------+
+| pylons          | >= 1.0             |
++-----------------+--------------------+
+| pymongo         | >= 3.0             |
++-----------------+--------------------+
+| pyramid         | >= 1.7             |
++-----------------+--------------------+
+| redis           | >= 2.6             |
++-----------------+--------------------+
+| sqlalchemy      | >= 1.0             |
++-----------------+--------------------+
+
+
+These are the fully tested versions but `ddtrace` can be compatible with lower versions.
+If some versions are missing, you can contribute or ask for it by contacting our support.
+For deprecated library versions, the support is best-effort.
+
 Indices and tables
 ==================
 
