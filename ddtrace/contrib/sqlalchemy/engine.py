@@ -11,13 +11,11 @@ instance you are using::
 
     engine.connect().execute("select count(*) from users")
 """
-
 # 3p
 from sqlalchemy.event import listen
 
 # project
 import ddtrace
-from ddtrace.buffer import ThreadLocalSpanBuffer
 from ddtrace.ext import sql as sqlx
 from ddtrace.ext import net as netx
 
@@ -49,15 +47,11 @@ class EngineTracer(object):
             app=self.vendor,
             app_type=sqlx.APP_TYPE)
 
-        self._span_buffer = ThreadLocalSpanBuffer()
-
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
         listen(engine, 'dbapi_error', self._dbapi_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
-        self._span_buffer.pop() # should always be empty
-
         span = self.tracer.trace(
             self.name,
             service=self.service,
@@ -67,10 +61,8 @@ class EngineTracer(object):
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
-        self._span_buffer.set(span)
-
     def _after_cur_exec(self, conn, cursor, statement, *args):
-        span = self._span_buffer.pop()
+        span = self.tracer.current_span()
         if not span:
             return
 
@@ -81,7 +73,7 @@ class EngineTracer(object):
             span.finish()
 
     def _dbapi_error(self, conn, cursor, statement, *args):
-        span = self._span_buffer.pop()
+        span = self.tracer.current_span()
         if not span:
             return
 

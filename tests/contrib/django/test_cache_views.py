@@ -23,18 +23,18 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 6)
         # the cache miss
-        eq_(spans[0].resource, 'get')
+        eq_(spans[1].resource, 'get')
         # store the result in the cache
-        eq_(spans[3].resource, 'set')
         eq_(spans[4].resource, 'set')
+        eq_(spans[5].resource, 'set')
 
         # check if the cache hit is traced
         response = self.client.get(url)
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_header = spans[0]
-        span_view = spans[1]
+        span_header = spans[1]
+        span_view = spans[2]
         eq_(span_view.service, 'django')
         eq_(span_view.resource, 'get')
         eq_(span_view.name, 'django.cache')
@@ -71,16 +71,16 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 5)
         # the cache miss
-        eq_(spans[0].resource, 'get')
+        eq_(spans[2].resource, 'get')
         # store the result in the cache
-        eq_(spans[2].resource, 'set')
+        eq_(spans[4].resource, 'set')
 
         # check if the cache hit is traced
         response = self.client.get(url)
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
 
-        span_template_cache = spans[0]
+        span_template_cache = spans[2]
         eq_(span_template_cache.service, 'django')
         eq_(span_template_cache.resource, 'get')
         eq_(span_template_cache.name, 'django.cache')

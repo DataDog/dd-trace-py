@@ -5,7 +5,6 @@ import time
 import psycopg2
 from psycopg2 import extras
 from nose.tools import eq_
-from unittest import SkipTest
 
 # project
 from ddtrace.contrib.psycopg import connection_factory
@@ -99,7 +98,6 @@ class PsycopgCore(object):
         extras.register_uuid(conn_or_curs=conn)
 
     def test_connect_factory(self):
-        raise SkipTest("Service metadata for psycopg2 patching isn't implemented yet")
         tracer = get_dummy_tracer()
 
         services = ["db", "another"]

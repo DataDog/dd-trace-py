@@ -6,7 +6,6 @@ import sys
 if __name__ == "__main__":
     # define django defaults
     app_to_test = "tests/contrib/django"
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 
     # append the project root to the PYTHONPATH:
     # this is required because we don't want to put the current file
