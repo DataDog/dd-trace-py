@@ -1,6 +1,4 @@
-from tornado.gen import coroutine
 from tornado.web import Application
-from tornado.stack_context import StackContext
 
 from . import TracerStackContext, handlers
 from ...ext import AppTypes
