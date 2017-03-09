@@ -6,11 +6,8 @@ import logging
 import mock
 import sys
 
-from testfixtures import LogCapture
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
-from nose.plugins.logcapture import LogCapture as LogCaptureNose
-from mock import patch
 
 from ddtrace.api import API
 from ddtrace.span import Span
@@ -21,17 +18,35 @@ from tests.test_tracer import get_dummy_tracer
 
 PY2 = sys.version_info[0] == 2
 
+
+class MockedLogHandler(logging.Handler):
+    """Mock logging handler to test logging"""
+
+    def __init__(self, *args, **kwargs):
+        self.messages = {'debug': [], 'info': [], 'warning': [], 'error': [],
+                         'critical': []}
+        super(MockedLogHandler, self).__init__(*args, **kwargs)
+
+    def emit(self, record):
+        self.acquire()
+        try:
+            self.messages[record.levelname.lower()].append(record.getMessage())
+        finally:
+            self.release()
+
+
 class Flawed_API(API):
     def _put(self, endpoint, data):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request("HEAD", endpoint, data, self._headers)
         return conn.getresponse()
 
-"""@skipUnless(
+
+@skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
-"""
+
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -172,20 +187,25 @@ class TestWorkers(TestCase):
         tracer.trace('client.testing').finish()
         eq_(tracer.writer._worker._last_error_ts, 0)
 
-        with LogCapture(level=logging.ERROR) as l:
-            # sleeping 1.01 secs to prevent writer from exiting before logging
-            time.sleep(1.01)
-            self._wait_thread_flush()
-            assert tracer.writer._worker._last_error_ts < time.time()
-            assert tracer.writer._worker._last_error_ts > (time.time() - 1.5)
-            if PY2:
-                l.check(
-                    ('ddtrace.writer','ERROR',
-                        'failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, '
-                        + 'message Content-Type: text/plain\r\nConnection: close\r\n'))
-            else:
-                l.check(('ddtrace.writer','ERROR', 'failed_to_send traces to Agent: HTTP error status 400, reason Bad '
-                    'Request, message Content-Type: text/plain\n''Connection: close\n''\n'))
+        log = logging.getLogger("ddtrace.writer")
+        log_handler = MockedLogHandler(level='DEBUG')
+        log.addHandler(log_handler)
+
+        # sleeping 1.01 secs to prevent writer from exiting before logging
+        time.sleep(1.01)
+        self._wait_thread_flush()
+        assert tracer.writer._worker._last_error_ts < time.time()
+        assert tracer.writer._worker._last_error_ts > 0
+
+        logged_errors = log_handler.messages['error']
+        eq_(len(logged_errors), 1)
+        if PY2:
+            eq_(logged_errors[0], 'failed_to_send traces to Agent: HTTP error status 400,' +
+                ' reason Bad Request, message Content-Type: text/plain\r\nConnection: close\r\n')
+
+        else:
+            eq_(logged_errors[0], 'failed_to_send traces to Agent: HTTP error status 400,' +
+                ' reason Bad Request, message Content-Type: text/plain\n''Connection: close\n''\n')
 
 
 @skipUnless(

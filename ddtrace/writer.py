@@ -137,7 +137,6 @@ class AsyncWorker(object):
                 # no traces and the queue is closed. our work is done
                 return
 
-            # Logging the http errors
             log_level = log.debug
             if result_traces and result_traces.status >= 400:
                 now = time.time()
@@ -153,7 +152,7 @@ class AsyncWorker(object):
                 if now > self._last_error_ts + LOG_ERR_INTERVAL:
                     log_level = log.error
                     self._last_error_ts = now
-                log.debug("failed_to_send services to Agent: HTTP error status {}, reason {}, message {}".format(
+                log.level("failed_to_send services to Agent: HTTP error status {}, reason {}, message {}".format(
                         result_services.status, result_services.reason, result_services.msg))
                 result_services = None
 
