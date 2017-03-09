@@ -4,7 +4,7 @@ import unittest
 # 3p
 from nose.tools import eq_
 import botocore.session
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis
+from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_sts
 
 # project
 from ddtrace import Pin
@@ -125,3 +125,26 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListFunctions')
         eq_(span.get_tag(http.STATUS_CODE), '200')
+
+    @mock_sts
+    def test_sts_client(self):
+        sts = self.session.create_client('sts', region_name='us-west-2')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sts)
+
+        sts.get_session_token()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        eq_(span.get_tag('aws.endpoint'), "sts")
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'GetSessionToken')
+
+        # Testing resource and service
+        eq_(span.service, "test-botocore-tracing")
+        eq_(span.resource, "GetSessionToken.sts.us-west-2")
+
+        # checking for protection
+        eq_(span.get_tag('botocore.args'), None)
