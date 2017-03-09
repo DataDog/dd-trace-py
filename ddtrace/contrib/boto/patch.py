@@ -56,8 +56,9 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
         span.set_tags(meta)
 
-        span.set_meta("boto.args", args)
-        span.set_meta("boto.kwargs", kwargs)
+        if not endpoint_name == "kms" and not endpoint_name == "sts":
+            span.set_meta("botocore.args", args)
+            span.set_meta("botocore.kwargs", kwargs)
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
@@ -104,8 +105,9 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
 
-        span.set_meta("boto.args", args)
-        span.set_meta("boto.kwargs", kwargs)
+        if not endpoint_name == "kms" and not endpoint_name == "sts":
+            span.set_meta("botocore.args", args)
+            span.set_meta("botocore.kwargs", kwargs)
 
         return result
 
