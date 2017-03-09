@@ -32,6 +32,7 @@ PATCH_MODULES = {
     'flask': False,
     'pylons': False,
     'falcon': False,
+    'pyramid': False,
 }
 
 _LOCK = threading.Lock()
