@@ -130,6 +130,7 @@ def _get_app(service=None, tracer=None):
         return {'a':1}
 
     config = Configurator()
+    import pdb ; pdb.set_trace()
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')
