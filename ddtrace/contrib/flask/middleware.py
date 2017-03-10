@@ -30,7 +30,6 @@ class TraceMiddleware(object):
         self._tracer = tracer
         self._service = service
 
-
         self._tracer.set_service_info(
             service=service,
             app="flask",
