@@ -9,7 +9,7 @@ required_modules = ['tornado']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .stack_context import run_with_trace_context, TracerStackContext
-        from .middlewares import TraceMiddleware
+        from .middlewares import TraceMiddleware, trace_app
 
         # alias for API compatibility
         context_provider = TracerStackContext.current_context
@@ -19,4 +19,5 @@ with require_modules(required_modules) as missing_modules:
             'run_with_trace_context',
             'TraceMiddleware',
             'TracerStackContext',
+            'trace_app',
         ]
