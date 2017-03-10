@@ -9,6 +9,14 @@ import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 
+EXTRA_PATCHED_MODULES = {
+    "django": True,
+    "flask": True,
+    "pylons": True,
+    "falcon": True,
+    "pyramid": True,
+}
+
 try:
     from ddtrace import tracer
 
@@ -17,7 +25,7 @@ try:
     if enabled and enabled.lower() == "false":
         tracer.configure(enabled=False)
     else:
-        from ddtrace import patch_all; patch_all(django=True, flask=True, pylons=True) # noqa
+        from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
     if debug and debug.lower() == "true":
