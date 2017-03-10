@@ -144,7 +144,8 @@ class AsyncWorker(object):
                     log_level = log.error
                     self._last_error_ts = now
                 log_level("failed_to_send traces to Agent: HTTP error status {}, reason {}, message {}".format(
-                        result_traces.status, result_traces.reason, result_traces.msg))
+                    getattr(result_traces, "status", None), getattr(result_traces, "reason", None),
+                    getattr(result_traces, "msg", None)))
                 result_traces = None
 
             if result_services and result_services.status >= 400:
@@ -153,10 +154,11 @@ class AsyncWorker(object):
                     log_level = log.error
                     self._last_error_ts = now
                 log.level("failed_to_send services to Agent: HTTP error status {}, reason {}, message {}".format(
-                        result_services.status, result_services.reason, result_services.msg))
+                    getattr(result_services, "status", None), getattr(result_services, "reason", None),
+                    getattr(result_services, "msg", None)))
                 result_services = None
 
-            time.sleep(1) # replace with a blocking pop.
+            time.sleep(1)  # replace with a blocking pop.
 
 
 class Q(object):
