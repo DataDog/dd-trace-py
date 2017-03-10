@@ -21,7 +21,7 @@ SPAN_TYPE = "http"
 def patch():
     # Checking for the version compatibility before patching
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
-    Pin(service="botocore", app="botocore", app_type="web").onto(botocore.client.BaseClient)
+    Pin(service="aws", app="botocore", app_type="web").onto(botocore.client.BaseClient)
 
 
 def patched_api_call(original_func, instance, args, kwargs):
@@ -29,7 +29,10 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('botocore.command', service=pin.service, span_type=SPAN_TYPE) as span:
+    endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+
+    with pin.tracer.trace('botocore.command', service="{}.{}".format(pin.service, endpoint_name),
+                          span_type=SPAN_TYPE) as span:
         endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
         region_name = deep_getattr(instance, "meta.region_name")
 
@@ -46,7 +49,6 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         if not endpoint_name == "kms" and not endpoint_name == "sts":
             span.set_meta("botocore.args", args)
-            span.set_meta("botocore.kwargs", kwargs)
 
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])

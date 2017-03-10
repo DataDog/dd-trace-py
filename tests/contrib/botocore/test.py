@@ -45,7 +45,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('retry_attempts'), '0')
 
         # Testing resource and service
-        eq_(span.service, "test-botocore-tracing")
+        eq_(span.service, "test-botocore-tracing.ec2")
         eq_(span.resource, "DescribeInstances.ec2.us-west-2")
 
     @mock_s3
@@ -143,7 +143,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'GetSessionToken')
 
         # Testing resource and service
-        eq_(span.service, "test-botocore-tracing")
+        eq_(span.service, "test-botocore-tracing.sts")
         eq_(span.resource, "GetSessionToken.sts.us-west-2")
 
         # checking for protection

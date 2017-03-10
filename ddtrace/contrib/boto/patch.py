@@ -1,5 +1,6 @@
 import boto.connection
 import wrapt
+import sys
 
 from ddtrace import Pin
 
@@ -20,8 +21,8 @@ def patch():
     # Checking on the version for compatibility before patching
     wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
     wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
-    Pin(service="boto", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
-    Pin(service="boto", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
+    Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
+    Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
 
 
 # ec2, sqs, kinesis
@@ -31,20 +32,19 @@ def patched_query_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('boto.command', service=pin.service, span_type=SPAN_TYPE) as span:
+    # Obtaining endpoint name
+    endpoint = getattr(instance, "host")
+    if endpoint:
+        endpoint = endpoint.split('.')
+        endpoint_name = endpoint[0]
+
+    with pin.tracer.trace('boto.command', service="{}.{}".format(pin.service, endpoint_name),
+                          span_type=SPAN_TYPE) as span:
         operation_name, _, _, _ = args
 
         # Obtaining region name
         region = getattr(instance, "region")
         region_name = get_region_name(region)
-
-        # Obtaining endpoint name and region name
-        endpoint_name = None
-        host = getattr(instance, "host")
-        if host:
-            host = host.split('.')
-            if len(host) > 2:
-                endpoint_name = host[0]
 
         meta = {
             'aws.agent': 'boto',
@@ -58,7 +58,6 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         if not endpoint_name == "kms" and not endpoint_name == "sts":
             span.set_meta("botocore.args", args)
-            span.set_meta("botocore.kwargs", kwargs)
 
         # Original func returns a boto.connection.HPPResponse object
         result = original_func(*args, **kwargs)
@@ -71,24 +70,31 @@ def patched_query_request(original_func, instance, args, kwargs):
 # s3, lambda
 def patched_auth_request(original_func, instance, args, kwargs):
 
+    # Catching the name of the operation that called make_request()
+    operation_name = sys._getframe(2).f_code.co_name
+
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    with pin.tracer.trace('boto.command', service=pin.service, span_type=SPAN_TYPE) as span:
-        method = args[0]
-        path = args[1]
-        operation_name = "{}.{}".format(method, path)
+    # Obtaining endpoint name
+    endpoint = getattr(instance, "host")
+    if endpoint:
+        endpoint = endpoint.split('.')
+        endpoint_name = endpoint[0]
+
+    with pin.tracer.trace('boto.command', service="{}.{}".format(pin.service, endpoint_name),
+                          span_type=SPAN_TYPE) as span:
 
         # Obtaining region name
         region = getattr(instance, "region", None)
         region_name = get_region_name(region)
 
-        # Obtaining endpoint name and if possible the region
-        host = getattr(instance, "host")
-        if host:
-            host = host.split('.')
-            endpoint_name = host[0]
+        # Obtaining endpoint name
+        endpoint = getattr(instance, "host")
+        if endpoint:
+            endpoint = endpoint.split('.')
+            endpoint_name = endpoint[0]
 
         meta = {
             'aws.agent': 'boto',
@@ -97,7 +103,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
 
-        span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
+        if region:
+            span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
+        else:
+            span.resource = '%s.%s' % (operation_name, endpoint_name)
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
@@ -107,7 +116,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         if not endpoint_name == "kms" and not endpoint_name == "sts":
             span.set_meta("botocore.args", args)
-            span.set_meta("botocore.kwargs", kwargs)
 
         return result
 
