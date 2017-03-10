@@ -62,9 +62,11 @@ class TracerStackContext(object):
                 return ctx.context
 
 
-def run_with_trace_context(context, func, *args, **kwargs):
+def run_with_trace_context(func, *args, **kwargs):
     """
-    Helper function that runs a function or a coroutine in the given context.
+    Run the given function within a traced StackContext. This function is used to
+    trace Tornado web handlers, but can be used in your code to trace coroutines
+    execution.
     """
-    with context:
+    with TracerStackContext():
         return func(*args, **kwargs)
