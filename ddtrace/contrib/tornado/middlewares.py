@@ -1,7 +1,51 @@
 from tornado.web import Application
 
 from . import TracerStackContext, handlers
+from .settings import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from ...ext import AppTypes
+
+
+def trace_app(app, tracer, service='tornado-web'):
+    """
+    Tracing function that patches the Tornado web application so that it will be
+    traced using the given ``tracer``.
+    """
+    # safe-guard: don't trace an application twice
+    if getattr(app, '__datadog_trace', False):
+        return
+    setattr(app, '__datadog_trace', True)
+
+    # configure Datadog settings
+    app.settings[CONFIG_KEY] = {
+        'tracer': tracer,
+        'service': service,
+    }
+
+    # the tracer must use the right Context propagation
+    tracer.configure(context_provider=TracerStackContext.current_context)
+
+    # configure the current service
+    tracer.set_service_info(
+        service=service,
+        app='tornado',
+        app_type=AppTypes.web,
+    )
+
+    # wrap Application handlers to collect tracing information
+    for _, specs in app.handlers:
+        for spec in specs:
+            # handlers for the request span
+            spec.handler_class._execute = handlers.wrap_execute(spec.handler_class._execute)
+            spec.handler_class.on_finish = handlers.wrap_on_finish(spec.handler_class.on_finish)
+            # handlers for exceptions
+            spec.handler_class.log_exception = handlers.wrap_log_exception(spec.handler_class.log_exception)
+
+    # wrap default handler if defined via settings
+    if app.settings.get('default_handler_class'):
+        # TODO: be sure not wrap twice
+        pass
+
+    # TODO: the default ErrorHandler is used so we want to detect when it's used
 
 
 class TraceMiddleware(object):
