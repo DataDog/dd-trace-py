@@ -30,6 +30,7 @@ class TraceMiddleware(object):
         self._tracer = tracer
         self._service = service
 
+
         self._tracer.set_service_info(
             service=service,
             app="flask",
@@ -41,6 +42,9 @@ class TraceMiddleware(object):
         if use_signals and not signals.signals_available:
             self.app.logger.info(_blinker_not_installed_msg)
         self.use_signals = use_signals and signals.signals_available
+
+        # our signal receivers
+        self._receivers = []
 
         # instrument request timings
         timing_signals = {
@@ -82,6 +86,7 @@ class TraceMiddleware(object):
                 log.warn("trying to instrument missing signal %s", name)
                 continue
             s.connect(handler, sender=self.app)
+            self._receivers.append(handler)
         return connected
 
     # common methods
