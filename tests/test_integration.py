@@ -20,11 +20,10 @@ PY2 = sys.version_info[0] == 2
 
 
 class MockedLogHandler(logging.Handler):
-    """Mock logging handler to test logging"""
+    """Record log messages to verify error logging logic"""
 
     def __init__(self, *args, **kwargs):
-        self.messages = {'debug': [], 'info': [], 'warning': [], 'error': [],
-                         'critical': []}
+        self.messages = {'debug': [], 'info': [], 'warning': [], 'error': [], 'critical': []}
         super(MockedLogHandler, self).__init__(*args, **kwargs)
 
     def emit(self, record):
@@ -35,7 +34,10 @@ class MockedLogHandler(logging.Handler):
             self.release()
 
 
-class Flawed_API(API):
+class FlawedAPI(API):
+    """
+    Deliberately report data with an incorrect method to trigger a 4xx response
+    """
     def _put(self, endpoint, data):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request("HEAD", endpoint, data, self._headers)
