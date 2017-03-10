@@ -19,12 +19,26 @@ EXTRA_PATCHED_MODULES = {
 
 try:
     from ddtrace import tracer
+    patch = True
 
     # Respect DATADOG_* environment variables in global tracer configuration
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
+    hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+    port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
+    opts = {}
+
     if enabled and enabled.lower() == "false":
-        tracer.configure(enabled=False)
-    else:
+        opts["enabled"] = False
+        patch = False
+    if hostname:
+        opts["hostname"] = hostname
+    if port:
+        opts["port"] = int(port)
+
+    if opts:
+        tracer.configure(**opts)
+
+    if patch:
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
