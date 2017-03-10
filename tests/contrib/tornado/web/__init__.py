@@ -1,1 +1,1 @@
-from .app import make_app
+from .app import make_app  # noqa
