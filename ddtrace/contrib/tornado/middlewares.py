@@ -1,7 +1,7 @@
 from tornado.web import Application
 
 from . import TracerStackContext, handlers
-from .settings import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
+from .settings import CONFIG_KEY
 from ...ext import AppTypes
 
 
