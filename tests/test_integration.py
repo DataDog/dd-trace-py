@@ -184,7 +184,7 @@ class TestWorkers(TestCase):
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
-        self.tracer.writer.api = Flawed_API('localhost', 7777)
+        self.tracer.writer.api = FlawedAPI('localhost', 7777)
         tracer.trace('client.testing').finish()
         tracer.trace('client.testing').finish()
         eq_(tracer.writer._worker._last_error_ts, 0)
