@@ -91,3 +91,15 @@ class DdtraceRunTest(unittest.TestCase):
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_debug.py']
         )
         assert out.startswith(b"Test success")
+
+    def test_host_port_from_env(self):
+        """
+        DATADOG_TRACE_AGENT_HOSTNAME|PORT point to the tracer
+        to the correct host/port for submission
+        """
+        os.environ["DATADOG_TRACE_AGENT_HOSTNAME"] = "172.10.0.1"
+        os.environ["DATADOG_TRACE_AGENT_PORT"] = "58126"
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
+        )
+        assert out.startswith(b"Test success")
