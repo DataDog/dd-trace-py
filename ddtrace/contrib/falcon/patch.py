@@ -5,6 +5,8 @@ from ddtrace import tracer
 
 import falcon
 
+import wrapt
+
 
 def patch():
     """
@@ -15,16 +17,13 @@ def patch():
         return
 
     setattr(falcon, '_datadog_patch', True)
-    setattr(falcon, 'API', TracedAPI)
+    wrapt.wrap_function_wrapper('falcon', 'API.__init__', traced_init)
 
+def traced_init(wrapped, instance, args, kwargs):
+    mw = kwargs.pop("middleware", [])
+    service = os.environ.get("DATADOG_SERVICE_NAME") or "falcon"
 
-class TracedAPI(falcon.API):
+    mw.insert(0, TraceMiddleware(tracer, service))
+    kwargs["middleware"] = mw
 
-    def __init__(self, *args, **kwargs):
-        mw = kwargs.pop("middleware", [])
-        service = os.environ.get("DATADOG_SERVICE_NAME") or "falcon"
-
-        mw.insert(0, TraceMiddleware(tracer, service))
-        kwargs["middleware"] = mw
-
-        super(TracedAPI, self).__init__(*args, **kwargs)
+    wrapped(*args, **kwargs)
