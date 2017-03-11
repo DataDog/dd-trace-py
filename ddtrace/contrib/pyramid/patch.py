@@ -4,6 +4,8 @@ from .trace import trace_pyramid
 
 import pyramid.config
 
+import wrapt
+
 
 def patch():
     """
@@ -13,19 +15,18 @@ def patch():
         return
 
     setattr(pyramid.config, '_datadog_patch', True)
-    setattr(pyramid.config, 'Configurator', TracedConfigurator)
+    _w = wrapt.wrap_function_wrapper
+    _w('pyramid.config', 'Configurator.__init__', traced_init)
 
 
-class TracedConfigurator(pyramid.config.Configurator):
+def traced_init(wrapped, instance, args, kwargs):
+    settings = kwargs.pop("settings", {})
+    service = os.environ.get("DATADOG_SERVICE_NAME") or "pyramid"
+    trace_settings = {
+        'datadog_trace_service' : service,
+    }
+    settings.update(trace_settings)
+    kwargs["settings"] = settings
 
-    def __init__(self, *args, **kwargs):
-        settings = kwargs.pop("settings", {})
-        service = os.environ.get("DATADOG_SERVICE_NAME") or "pyramid"
-        trace_settings = {
-            'datadog_trace_service' : service,
-        }
-        settings.update(trace_settings)
-        kwargs["settings"] = settings
-
-        super(TracedConfigurator, self).__init__(*args, **kwargs)
-        trace_pyramid(self)
+    wrapped(*args, **kwargs)
+    trace_pyramid(instance)
