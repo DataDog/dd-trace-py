@@ -1,6 +1,12 @@
+import os
+
 import tornado.web
 
 from .compat import sleep
+
+
+BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, 'statics')
 
 
 class SuccessHandler(tornado.web.RequestHandler):
@@ -70,11 +76,15 @@ def make_app(settings={}):
     different behaviors.
     """
     return tornado.web.Application([
+        # custom handlers
         (r'/success/', SuccessHandler),
         (r'/nested/', NestedHandler),
         (r'/nested_wrap/', NestedWrapHandler),
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
+        # built-in handlers
+        (r'/redirect/', tornado.web.RedirectHandler, {'url': '/success/'}),
+        (r'/statics/(.*)', tornado.web.StaticFileHandler, {'path': STATIC_DIR}),
         # synchronous handlers
         (r'/sync_success/', SyncSuccessHandler),
         (r'/sync_exception/', SyncExceptionHandler),
