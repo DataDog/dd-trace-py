@@ -43,7 +43,7 @@ class ExceptionHandler(tornado.web.RequestHandler):
 class HTTPExceptionHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        raise tornado.web.HTTPError(status_code=410, log_message='Gone', reason='No reason')
+        raise tornado.web.HTTPError(status_code=501, log_message='unavailable', reason='Not Implemented')
 
 
 class SyncSuccessHandler(tornado.web.RequestHandler):

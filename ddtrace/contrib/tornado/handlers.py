@@ -1,5 +1,7 @@
 from wrapt import function_wrapper
 
+from tornado.web import ErrorHandler, HTTPError
+
 from .settings import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 from ...ext import http
@@ -42,7 +44,7 @@ def wrap_on_finish(func, handler, args, kwargs):
     request = handler.request
     request_span = getattr(request, REQUEST_SPAN_KEY, None)
     if request_span:
-        # TODO: check if this works and doesn't spam users
+        # TODO: WARNING -> this spams users' resources if the default handler is used!!
         request_span.resource = request.path
         request_span.set_tag('http.method', request.method)
         request_span.set_tag('http.status_code', handler.get_status())
@@ -60,11 +62,47 @@ def wrap_log_exception(func, handler, args, kwargs):
     in the current active span. If the Tornado ``Finish`` exception is raised, this wrapper
     will not be called because ``Finish`` is not an exception.
     """
+    # safe-guard: expected arguments -> log_exception(self, typ, value, tb)
+    value = args[1] if len(args) == 3 else None
+    if not value:
+        return func(*args, **kwargs)
+
     # retrieve the current span
-    settings = handler.settings[CONFIG_KEY]
-    tracer = settings['tracer']
+    tracer = handler.settings[CONFIG_KEY]['tracer']
     current_span = tracer.current_span()
 
-    # received arguments are: log_exception(self, typ, value, tb)
-    current_span.set_exc_info(*args)
+    if isinstance(value, HTTPError):
+        # Tornado uses HTTPError exceptions to stop and return a status code that
+        # is not a 2xx. In this case we want to trace as errorsbe sure that only 5xx
+        # errors are traced as errors, while any other HTTPError exceptions are handled as
+        # usual.
+        if 500 < value.status_code < 599:
+            current_span.set_exc_info(*args)
+    else:
+        # any other uncaught exception should be reported as error
+        current_span.set_exc_info(*args)
+
     return func(*args, **kwargs)
+
+
+def wrap_methods(handler_class):
+    """
+    Shortcut that wraps all methods of the given class handler so that they're traced.
+    """
+    # handlers for the request span
+    handler_class._execute = wrap_execute(handler_class._execute)
+    handler_class.on_finish = wrap_on_finish(handler_class.on_finish)
+    # handlers for exceptions
+    handler_class.log_exception = wrap_log_exception(handler_class.log_exception)
+
+
+class TracerErrorHandler(ErrorHandler):
+    """
+    Error handler class that is used to trace Tornado errors when the framework
+    invokes the default handler. The class handles errors like the default
+    ``ErrorHandler``, while tracing the execution and the result.
+    """
+    pass
+
+
+wrap_methods(TracerErrorHandler)
