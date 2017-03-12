@@ -49,6 +49,33 @@ def trace_app(app, tracer, service='tornado-web'):
     app.settings['default_handler_args'] = dict(status_code=404)
 
 
+def untrace_app(app):
+    """
+    Remove all tracing functions in a Tornado web application.
+    """
+    # if the application is not traced there is nothing to do
+    if not getattr(app, '__datadog_trace', False):
+        return
+    delattr(app, '__datadog_trace')
+
+    # remove wrappers from all handlers
+    for _, specs in app.handlers:
+        for spec in specs:
+            handlers.unwrap_methods(spec.handler_class)
+
+    default_handler_class = app.settings.get('default_handler_class')
+
+    # remove the default handler class if it's our TracerErrorHandler
+    if default_handler_class is handlers.TracerErrorHandler:
+        app.settings.pop('default_handler_class')
+        app.settings.pop('default_handler_args')
+        return
+
+    # unset the default_handler_class tracing otherwise
+    if default_handler_class:
+        handlers.unwrap_methods(default_handler_class)
+
+
 class TraceMiddleware(object):
     """
     Tornado middleware class that traces a Tornado ``HTTPServer`` instance

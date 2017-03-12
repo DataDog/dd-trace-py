@@ -8,7 +8,7 @@ from ...ext import http
 
 
 @function_wrapper
-def wrap_execute(func, handler, args, kwargs):
+def _wrap_execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
@@ -35,7 +35,7 @@ def wrap_execute(func, handler, args, kwargs):
 
 
 @function_wrapper
-def wrap_on_finish(func, handler, args, kwargs):
+def _wrap_on_finish(func, handler, args, kwargs):
     """
     Wrap the ``RequestHandler.on_finish`` method. This is the last executed method
     after the response has been sent, and it's used to retrieve and close the
@@ -55,7 +55,7 @@ def wrap_on_finish(func, handler, args, kwargs):
 
 
 @function_wrapper
-def wrap_log_exception(func, handler, args, kwargs):
+def _wrap_log_exception(func, handler, args, kwargs):
     """
     Wrap the ``RequestHandler.log_exception``. This method is called when an
     Exception is not handled in the user code. In this case, we save the exception
@@ -89,11 +89,36 @@ def wrap_methods(handler_class):
     """
     Shortcut that wraps all methods of the given class handler so that they're traced.
     """
+    # safe-guard: ensure that the handler class is patched once; it's possible
+    # that the same handler is used in different endpoints
+    if getattr(handler_class, '__datadog_trace', False):
+        return
+    setattr(handler_class, '__datadog_trace', True)
+
     # handlers for the request span
-    handler_class._execute = wrap_execute(handler_class._execute)
-    handler_class.on_finish = wrap_on_finish(handler_class.on_finish)
+    handler_class._execute = _wrap_execute(handler_class._execute)
+    handler_class.on_finish = _wrap_on_finish(handler_class.on_finish)
     # handlers for exceptions
-    handler_class.log_exception = wrap_log_exception(handler_class.log_exception)
+    handler_class.log_exception = _wrap_log_exception(handler_class.log_exception)
+
+
+def unwrap_methods(handler_class):
+    """
+    Shortcut that unwraps all methods of the given class handler so that they aren't traced.
+    """
+    # safe-guard: ensure that the handler class is patched once; it's possible
+    # that the same handler is used in different endpoints
+    if not getattr(handler_class, '__datadog_trace', False):
+        return
+
+    # handlers for the request span
+    handler_class._execute = handler_class._execute.__wrapped__
+    handler_class.on_finish = handler_class.on_finish.__wrapped__
+    # handlers for exceptions
+    handler_class.log_exception = handler_class.log_exception.__wrapped__
+
+    # clear the attribute
+    delattr(handler_class, '__datadog_trace')
 
 
 class TracerErrorHandler(ErrorHandler):
