@@ -192,6 +192,57 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
 
+    def test_redirect_handler(self):
+        # it should trace the built-in RedirectHandler
+        response = self.fetch('/redirect/')
+        eq_(200, response.code)
+
+        # we trace two different calls: the RedirectHandler and the SuccessHandler
+        traces = self.tracer.writer.pop_traces()
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(1, len(traces[1]))
+
+        redirect_span = traces[0][0]
+        eq_('tornado-web', redirect_span.service)
+        eq_('tornado.request', redirect_span.name)
+        eq_('http', redirect_span.span_type)
+        eq_('/redirect/', redirect_span.resource)
+        eq_('GET', redirect_span.get_tag('http.method'))
+        eq_('301', redirect_span.get_tag('http.status_code'))
+        eq_('/redirect/', redirect_span.get_tag('http.url'))
+        eq_(0, redirect_span.error)
+
+        success_span = traces[1][0]
+        eq_('tornado-web', success_span.service)
+        eq_('tornado.request', success_span.name)
+        eq_('http', success_span.span_type)
+        eq_('/success/', success_span.resource)
+        eq_('GET', success_span.get_tag('http.method'))
+        eq_('200', success_span.get_tag('http.status_code'))
+        eq_('/success/', success_span.get_tag('http.url'))
+        eq_(0, success_span.error)
+
+    def test_static_handler(self):
+        # it should trace the access to static files
+        response = self.fetch('/statics/empty.txt')
+        eq_(200, response.code)
+        eq_('Static file\n', response.body.decode('utf-8'))
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+        eq_('tornado-web', request_span.service)
+        eq_('tornado.request', request_span.name)
+        eq_('http', request_span.span_type)
+        eq_('/statics/empty.txt', request_span.resource)
+        eq_('GET', request_span.get_tag('http.method'))
+        eq_('200', request_span.get_tag('http.status_code'))
+        eq_('/statics/empty.txt', request_span.get_tag('http.url'))
+        eq_(0, request_span.error)
+
 
 class TestCustomTornadoWeb(AsyncHTTPTestCase):
     """
