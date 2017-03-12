@@ -1,10 +1,56 @@
-from nose.tools import eq_, ok_
-from tornado.testing import AsyncHTTPTestCase
+import threading
+
+from nose.tools import eq_
+from tornado import httpclient
+from tornado.gen import sleep
+from tornado.testing import AsyncHTTPTestCase, gen_test
 
 from ddtrace.contrib.tornado import trace_app, untrace_app
 
 from . import web
 from ...test_tracer import get_dummy_tracer
+
+
+class TestAsyncConcurrency(AsyncHTTPTestCase):
+    """
+    Ensure that application instrumentation doesn't break asynchronous concurrency.
+    """
+    def get_app(self):
+        # create a dummy tracer and a Tornado web application
+        self.app = web.make_app()
+        self.tracer = get_dummy_tracer()
+        trace_app(self.app, self.tracer)
+        return self.app
+
+    def tearDown(self):
+        super(TestAsyncConcurrency, self).tearDown()
+        # reset the application if traced
+        untrace_app(self.app)
+
+    @gen_test
+    def test_concurrent_requests(self):
+        # the application must handle concurrent calls
+        def make_requests():
+            # use a blocking HTTP client (we're in another thread)
+            http_client = httpclient.HTTPClient()
+            url = self.get_url('/nested/')
+            response = http_client.fetch(url)
+            eq_(200, response.code)
+            eq_('OK', response.body.decode('utf-8'))
+
+        # blocking call executed in different threads
+        threads = [threading.Thread(target=make_requests) for _ in range(50)]
+        for t in threads:
+            t.daemon = True
+            t.start()
+
+        # wait for the execution; assuming this time as a timeout
+        yield sleep(0.2)
+
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(50, len(traces))
+        eq_(2, len(traces[0]))
 
 
 class TestAppSafety(AsyncHTTPTestCase):
