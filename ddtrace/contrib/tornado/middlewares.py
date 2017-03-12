@@ -31,21 +31,22 @@ def trace_app(app, tracer, service='tornado-web'):
         app_type=AppTypes.web,
     )
 
-    # wrap Application handlers to collect tracing information
+    # wrap all Application handlers to collect tracing information
     for _, specs in app.handlers:
         for spec in specs:
-            # handlers for the request span
-            spec.handler_class._execute = handlers.wrap_execute(spec.handler_class._execute)
-            spec.handler_class.on_finish = handlers.wrap_on_finish(spec.handler_class.on_finish)
-            # handlers for exceptions
-            spec.handler_class.log_exception = handlers.wrap_log_exception(spec.handler_class.log_exception)
+            handlers.wrap_methods(spec.handler_class)
 
-    # wrap default handler if defined via settings
-    if app.settings.get('default_handler_class'):
+    # wrap default handler class if defined via settings
+    default_handler_class = app.settings.get('default_handler_class')
+    if default_handler_class:
         # TODO: be sure not wrap twice
-        pass
+        return
 
-    # TODO: the default ErrorHandler is used so we want to detect when it's used
+    # if a default_handler_class is not defined, it means that the default ErrorHandler is used;
+    # to avoid a monkey-patch in the Tornado code, we use a custom TracerErrorHandler that behaves
+    # exactly like the default one, but it's wrapped as the others
+    app.settings['default_handler_class'] = handlers.TracerErrorHandler
+    app.settings['default_handler_args'] = dict(status_code=404)
 
 
 class TraceMiddleware(object):

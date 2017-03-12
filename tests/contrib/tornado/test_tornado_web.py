@@ -115,7 +115,7 @@ class TestTornadoWeb(AsyncHTTPTestCase):
     def test_http_exception_handler(self):
         # it should trace a handler that raises a Tornado HTTPError
         response = self.fetch('/http_exception/')
-        eq_(410, response.code)
+        eq_(501, response.code)
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
@@ -127,11 +127,11 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_('http', request_span.span_type)
         eq_('/http_exception/', request_span.resource)
         eq_('GET', request_span.get_tag('http.method'))
-        eq_('410', request_span.get_tag('http.status_code'))
+        eq_('501', request_span.get_tag('http.status_code'))
         eq_('/http_exception/', request_span.get_tag('http.url'))
         eq_(1, request_span.error)
-        eq_('HTTP 410: No reason (Gone)', request_span.get_tag('error.msg'))
-        ok_('HTTP 410: No reason (Gone)' in request_span.get_tag('error.stack'))
+        eq_('HTTP 501: Not Implemented (unavailable)', request_span.get_tag('error.msg'))
+        ok_('HTTP 501: Not Implemented (unavailable)' in request_span.get_tag('error.stack'))
 
     def test_sync_success_handler(self):
         # it should trace a synchronous handler that returns 200
@@ -186,8 +186,8 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
-        eq_('/success/', request_span.resource)
+        eq_('/does_not_exist/', request_span.resource)
         eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/success/', request_span.get_tag('http.url'))
+        eq_('404', request_span.get_tag('http.status_code'))
+        eq_('/does_not_exist/', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
