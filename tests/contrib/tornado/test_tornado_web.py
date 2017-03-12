@@ -191,3 +191,41 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_('404', request_span.get_tag('http.status_code'))
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
+
+
+class TestCustomTornadoWeb(AsyncHTTPTestCase):
+    """
+    Ensure that Tornado web handlers are properly traced when using
+    a custom default handler.
+    """
+    def get_app(self):
+        # create a dummy tracer and a Tornado web application with
+        # a custom default handler
+        settings = {
+            'default_handler_class': web.CustomDefaultHandler,
+            'default_handler_args': dict(status_code=400),
+        }
+
+        self.app = web.make_app(settings=settings)
+        self.tracer = get_dummy_tracer()
+        trace_app(self.app, self.tracer)
+        return self.app
+
+    def test_custom_default_handler(self):
+        # it should trace any call that uses a custom default handler
+        response = self.fetch('/custom_handler/')
+        eq_(400, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+        eq_('tornado-web', request_span.service)
+        eq_('tornado.request', request_span.name)
+        eq_('http', request_span.span_type)
+        eq_('/custom_handler/', request_span.resource)
+        eq_('GET', request_span.get_tag('http.method'))
+        eq_('400', request_span.get_tag('http.status_code'))
+        eq_('/custom_handler/', request_span.get_tag('http.url'))
+        eq_(0, request_span.error)

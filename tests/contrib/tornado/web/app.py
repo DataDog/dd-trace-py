@@ -56,7 +56,15 @@ class SyncExceptionHandler(tornado.web.RequestHandler):
         raise Exception('Ouch!')
 
 
-def make_app():
+class CustomDefaultHandler(tornado.web.ErrorHandler):
+    """
+    Default handler that is used in case of 404 error; in our tests
+    it's used only if defined in the get_app() function.
+    """
+    pass
+
+
+def make_app(settings={}):
     """
     Create a Tornado web application, useful to test
     different behaviors.
@@ -70,4 +78,4 @@ def make_app():
         # synchronous handlers
         (r'/sync_success/', SyncSuccessHandler),
         (r'/sync_exception/', SyncExceptionHandler),
-    ])
+    ], **settings)

@@ -36,10 +36,10 @@ def trace_app(app, tracer, service='tornado-web'):
         for spec in specs:
             handlers.wrap_methods(spec.handler_class)
 
-    # wrap default handler class if defined via settings
+    # wrap a custom default handler class if defined via settings
     default_handler_class = app.settings.get('default_handler_class')
     if default_handler_class:
-        # TODO: be sure not wrap twice
+        handlers.wrap_methods(default_handler_class)
         return
 
     # if a default_handler_class is not defined, it means that the default ErrorHandler is used;
