@@ -1,7 +1,7 @@
 from nose.tools import eq_, ok_
 from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace.contrib.tornado import trace_app
+from ddtrace.contrib.tornado import trace_app, untrace_app
 
 from . import web
 from ...test_tracer import get_dummy_tracer
@@ -17,6 +17,11 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         self.tracer = get_dummy_tracer()
         trace_app(self.app, self.tracer)
         return self.app
+
+    def tearDown(self):
+        super(TestTornadoWeb, self).tearDown()
+        # reset the application if traced
+        untrace_app(self.app)
 
     def test_success_handler(self):
         # it should trace a handler that returns 200
