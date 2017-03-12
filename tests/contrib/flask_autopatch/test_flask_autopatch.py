@@ -31,7 +31,6 @@ class TestError(Exception):
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, 'test_templates')
 
-print "############################" * 10
 app = flask.Flask(__name__, template_folder=tmpl_path)
 
 
