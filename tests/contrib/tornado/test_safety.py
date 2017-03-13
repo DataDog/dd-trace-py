@@ -111,7 +111,7 @@ class TestAppSafety(AsyncHTTPTestCase):
         eq_(1, len(traces[0]))
 
         request_span = traces[0][0]
-        eq_('SuccessHandler', request_span.resource)
+        eq_('tests.contrib.tornado.web.app.SuccessHandler', request_span.resource)
         eq_('/success/?magic_number=42', request_span.get_tag('http.url'))
 
     def test_arbitrary_resource_404(self):
@@ -125,7 +125,7 @@ class TestAppSafety(AsyncHTTPTestCase):
         eq_(1, len(traces[0]))
 
         request_span = traces[0][0]
-        eq_('TracerErrorHandler', request_span.resource)
+        eq_('ddtrace.contrib.tornado.handlers.TracerErrorHandler', request_span.resource)
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
 
 
