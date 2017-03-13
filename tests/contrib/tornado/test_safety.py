@@ -100,6 +100,34 @@ class TestAppSafety(AsyncHTTPTestCase):
         eq_(1, len(traces))
         eq_(1, len(traces[0]))
 
+    def test_arbitrary_resource_querystring(self):
+        # users inputs should not determine `span.resource` field
+        trace_app(self.app, self.tracer)
+        response = self.fetch('/success/?magic_number=42')
+        eq_(200, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+        eq_('SuccessHandler', request_span.resource)
+        eq_('/success/?magic_number=42', request_span.get_tag('http.url'))
+
+    def test_arbitrary_resource_404(self):
+        # users inputs should not determine `span.resource` field
+        trace_app(self.app, self.tracer)
+        response = self.fetch('/does_not_exist/')
+        eq_(404, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+        eq_('TracerErrorHandler', request_span.resource)
+        eq_('/does_not_exist/', request_span.get_tag('http.url'))
+
 
 class TestCustomAppSafety(AsyncHTTPTestCase):
     """
