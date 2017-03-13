@@ -1,7 +1,9 @@
 from tornado.web import Application
 
-from . import TracerStackContext, handlers
+from . import handlers, decorators
 from .settings import CONFIG_KEY
+from .stack_context import TracerStackContext
+
 from ...ext import AppTypes
 
 
@@ -21,8 +23,11 @@ def trace_app(app, tracer, service='tornado-web'):
         'service': service,
     }
 
-    # the tracer must use the right Context propagation
-    tracer.configure(context_provider=TracerStackContext.current_context)
+    # the tracer must use the right Context propagation and wrap executor
+    tracer.configure(
+        context_provider=TracerStackContext.current_context,
+        wrap_executor=decorators.wrap_executor,
+    )
 
     # configure the current service
     tracer.set_service_info(

@@ -1,4 +1,5 @@
 import os
+import time
 
 import tornado.web
 
@@ -29,12 +30,29 @@ class NestedWrapHandler(tornado.web.RequestHandler):
     def get(self):
         tracer = self.settings['datadog_trace']['tracer']
 
-        # define a wrapped coroutine: this approach
-        # is only for testing purpose
+        # define a wrapped coroutine: having an inner coroutine
+        # is only for easy testing
         @tracer.wrap('tornado.coro')
         @tornado.gen.coroutine
         def coro():
             yield sleep(0.05)
+
+        yield coro()
+        self.write('OK')
+
+
+class NestedExceptionWrapHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        tracer = self.settings['datadog_trace']['tracer']
+
+        # define a wrapped coroutine: having an inner coroutine
+        # is only for easy testing
+        @tracer.wrap('tornado.coro')
+        @tornado.gen.coroutine
+        def coro():
+            yield sleep(0.05)
+            raise Exception('Ouch!')
 
         yield coro()
         self.write('OK')
@@ -62,6 +80,35 @@ class SyncExceptionHandler(tornado.web.RequestHandler):
         raise Exception('Ouch!')
 
 
+class SyncNestedWrapHandler(tornado.web.RequestHandler):
+    def get(self):
+        tracer = self.settings['datadog_trace']['tracer']
+
+        # define a wrapped coroutine: having an inner coroutine
+        # is only for easy testing
+        @tracer.wrap('tornado.func')
+        def func():
+            time.sleep(0.05)
+
+        func()
+        self.write('OK')
+
+
+class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
+    def get(self):
+        tracer = self.settings['datadog_trace']['tracer']
+
+        # define a wrapped coroutine: having an inner coroutine
+        # is only for easy testing
+        @tracer.wrap('tornado.func')
+        def func():
+            time.sleep(0.05)
+            raise Exception('Ouch!')
+
+        func()
+        self.write('OK')
+
+
 class CustomDefaultHandler(tornado.web.ErrorHandler):
     """
     Default handler that is used in case of 404 error; in our tests
@@ -80,6 +127,7 @@ def make_app(settings={}):
         (r'/success/', SuccessHandler),
         (r'/nested/', NestedHandler),
         (r'/nested_wrap/', NestedWrapHandler),
+        (r'/nested_exception_wrap/', NestedExceptionWrapHandler),
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
         # built-in handlers
@@ -88,4 +136,6 @@ def make_app(settings={}):
         # synchronous handlers
         (r'/sync_success/', SyncSuccessHandler),
         (r'/sync_exception/', SyncExceptionHandler),
+        (r'/sync_nested_wrap/', SyncNestedWrapHandler),
+        (r'/sync_nested_exception_wrap/', SyncNestedExceptionWrapHandler),
     ], **settings)
