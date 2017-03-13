@@ -138,24 +138,24 @@ class AsyncWorker(object):
                 return
 
             log_level = log.debug
-            if result_traces and result_traces.status >= 400:
+            if result_traces and getattr(result_traces, "status", None) >= 400:
                 now = time.time()
                 if now > self._last_error_ts + LOG_ERR_INTERVAL:
                     log_level = log.error
                     self._last_error_ts = now
-                log_level("failed_to_send traces to Agent: HTTP error status {}, reason {}, message {}".format(
-                    getattr(result_traces, "status", None), getattr(result_traces, "reason", None),
-                    getattr(result_traces, "msg", None)))
+                log_level("failed_to_send traces to Agent: HTTP error status %s, reason %s, message %s",
+                          getattr(result_traces, "status", None), getattr(result_traces, "reason", None),
+                          getattr(result_traces, "msg", None))
                 result_traces = None
 
-            if result_services and result_services.status >= 400:
+            if result_services and getattr(result_services, "status", None) >= 400:
                 now = time.time()
                 if now > self._last_error_ts + LOG_ERR_INTERVAL:
                     log_level = log.error
                     self._last_error_ts = now
-                log.level("failed_to_send services to Agent: HTTP error status {}, reason {}, message {}".format(
-                    getattr(result_services, "status", None), getattr(result_services, "reason", None),
-                    getattr(result_services, "msg", None)))
+                log_level("failed_to_send services to Agent: HTTP error status %s, reason %s, message %s",
+                          getattr(result_services, "status", None), getattr(result_services, "reason", None),
+                          getattr(result_services, "msg", None))
                 result_services = None
 
             time.sleep(1)  # replace with a blocking pop.
