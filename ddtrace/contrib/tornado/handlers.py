@@ -47,7 +47,8 @@ def _wrap_on_finish(func, handler, args, kwargs):
         # use the class name as a resource; if an handler is not available, the
         # default handler class will be used so we don't pollute the resource
         # space here
-        request_span.resource = handler.__class__.__name__
+        klass = handler.__class__
+        request_span.resource = '{}.{}'.format(klass.__module__, klass.__name__)
         request_span.set_tag('http.method', request.method)
         request_span.set_tag('http.status_code', handler.get_status())
         request_span.set_tag('http.url', request.uri)
