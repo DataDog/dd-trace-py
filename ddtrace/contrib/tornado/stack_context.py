@@ -11,8 +11,11 @@ class TracerStackContext(object):
     preserving the state across asynchronous calls.
 
     Everytime a new manager is initialized, a new ``Context()`` is created for
-    this execution flow. Context created in a ``TracerStackContext`` is not shared
-    between different threads.
+    this execution flow. A context created in a ``TracerStackContext`` is not
+    shared between different threads.
+
+    This implementation follows some suggestions provided here:
+    https://github.com/tornadoweb/tornado/issues/1063
     """
     def __init__(self):
         self.active = True
@@ -20,13 +23,13 @@ class TracerStackContext(object):
 
     def enter(self):
         """
-        Used to preserve the ``StackContext`` interface.
+        Required to preserve the ``StackContext`` protocol.
         """
         pass
 
     def exit(self, type, value, traceback):
         """
-        Used to preserve the ``StackContext`` interface.
+        Required to preserve the ``StackContext`` protocol.
         """
         pass
 
