@@ -147,6 +147,11 @@ aiohttp
 
 .. automodule:: ddtrace.contrib.aiohttp
 
+Tornado
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.tornado
+
 
 Other Libraries
 ---------------
