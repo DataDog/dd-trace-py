@@ -56,7 +56,7 @@ class BotoTest(unittest.TestCase):
 
         # Testing resource and service
         eq_(span.service, "test-boto-tracing.ec2")
-        eq_(span.resource, "RunInstances.ec2.us-west-2")
+        eq_(span.resource, "ec2.runinstances.us-west-2")
 
     @mock_s3
     def test_s3_client(self):
@@ -72,6 +72,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")
         eq_(span.get_tag('aws.endpoint'), "s3")
+        eq_(span.get_tag('host'), 's3.amazonaws.com')
         eq_(span.get_tag('aws.operation'), "get_all_buckets")
 
         # Create a bucket command
@@ -81,6 +82,7 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "PUT")
+        eq_(span.get_tag('path'), '/')
         eq_(span.get_tag('aws.endpoint'), "s3")
         eq_(span.get_tag('aws.operation'), "create_bucket")
 
@@ -96,7 +98,7 @@ class BotoTest(unittest.TestCase):
 
         # Testing resource and service
         eq_(span.service, "test-boto-tracing.s3")
-        eq_(span.resource, "head_bucket.s3")
+        eq_(span.resource, "s3.head")
 
     @mock_lambda
     def test_lambda_client(self):
@@ -117,4 +119,4 @@ class BotoTest(unittest.TestCase):
 
         # Testing resource and service
         eq_(span.service, "test-boto-tracing.lambda")
-        eq_(span.resource, "list_functions.lambda.us-east-2")
+        eq_(span.resource, "lambda.get.us-east-2")

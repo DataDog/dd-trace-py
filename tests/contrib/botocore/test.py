@@ -46,7 +46,7 @@ class BotocoreTest(unittest.TestCase):
 
         # Testing resource and service
         eq_(span.service, "test-botocore-tracing.ec2")
-        eq_(span.resource, "DescribeInstances.ec2.us-west-2")
+        eq_(span.resource, "ec2.describeinstances.us-west-2")
 
     @mock_s3
     def test_s3_client(self):
@@ -144,7 +144,7 @@ class BotocoreTest(unittest.TestCase):
 
         # Testing resource and service
         eq_(span.service, "test-botocore-tracing.sts")
-        eq_(span.resource, "GetSessionToken.sts.us-west-2")
+        eq_(span.resource, "sts.getsessiontoken.us-west-2")
 
-        # checking for protection
+        # checking for protection on sts against security leak
         eq_(span.get_tag('botocore.args'), None)

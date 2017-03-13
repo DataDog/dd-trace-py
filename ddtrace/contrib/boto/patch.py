@@ -1,15 +1,18 @@
 import boto.connection
 import wrapt
-import sys
+import traceback
 
 from ddtrace import Pin
 
 from ...ext import http
+from ...ext import aws
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
 
 SPAN_TYPE = "boto"
+AWS_AUTH_ARGS_NAME = ('method', 'path', 'headers', 'data', 'host', 'auth_path', 'sender')
+AWS_AUTH_TRACED_ARGS = ['path', 'headers', 'data', 'host']
 
 
 def patch():
@@ -40,7 +43,8 @@ def patched_query_request(original_func, instance, args, kwargs):
 
     with pin.tracer.trace('boto.command', service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
-        operation_name, _, _, _ = args
+        # args contain action, params, path, verb
+        operation_name, params, path, _ = args
 
         # Obtaining region name
         region = getattr(instance, "region")
@@ -53,13 +57,16 @@ def patched_query_request(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
 
-        span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
+        span.resource = '%s.%s.%s' % (endpoint_name, operation_name.lower(), region_name)
         span.set_tags(meta)
 
-        if not endpoint_name == "kms" and not endpoint_name == "sts":
-            span.set_meta("botocore.args", args)
+        if not aws.is_blacklist(endpoint_name):
+            if path:
+                span.set_meta("args.path", path)
+            if params:
+                span.set_meta("args.params", params)
 
-        # Original func returns a boto.connection.HPPResponse object
+        # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
@@ -71,7 +78,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 def patched_auth_request(original_func, instance, args, kwargs):
 
     # Catching the name of the operation that called make_request()
-    operation_name = sys._getframe(2).f_code.co_name
+    operation_name = traceback.extract_stack()[-3][2]
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -103,19 +110,23 @@ def patched_auth_request(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
 
-        if region:
-            span.resource = '%s.%s.%s' % (operation_name, endpoint_name, region_name)
-        else:
-            span.resource = '%s.%s' % (operation_name, endpoint_name)
-        span.set_tags(meta)
-
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
+        http_method = getattr(result, "_method")
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
 
-        if not endpoint_name == "kms" and not endpoint_name == "sts":
-            span.set_meta("botocore.args", args)
+        if region:
+            span.resource = '%s.%s.%s' % (endpoint_name, http_method.lower(), region_name)
+        else:
+            span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+        span.set_tags(meta)
+
+        if not aws.is_blacklist(endpoint_name):
+
+            # args contain: method, path, headers, data, host, auth_path, sender
+            for arg in unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
+                span.set_tag(arg[0], arg[1])
 
         return result
 
@@ -127,3 +138,13 @@ def get_region_name(region):
         return region.split(":")[1]
     else:
         return region.name
+
+
+def unpacking_args(args, args_name, traced_args_list):
+    index = 0
+    response = []
+    for arg in args:
+        if arg and args_name[index] in traced_args_list:
+            response += [(args_name[index], arg)]
+        index += 1
+    return response

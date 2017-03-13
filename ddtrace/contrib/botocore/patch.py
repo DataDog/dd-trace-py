@@ -11,6 +11,7 @@ import wrapt
 import botocore.client
 
 from ...ext import http
+from ...ext import aws
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -44,10 +45,10 @@ def patched_api_call(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
 
-        span.resource = '%s.%s.%s' % (operation, endpoint_name, region_name)
+        span.resource = '%s.%s.%s' % (endpoint_name, operation.lower(), region_name)
         span.set_tags(meta)
 
-        if not endpoint_name == "kms" and not endpoint_name == "sts":
+        if not aws.is_blacklist(endpoint_name):
             span.set_meta("botocore.args", args)
 
         result = original_func(*args, **kwargs)
