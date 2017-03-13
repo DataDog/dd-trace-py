@@ -2,7 +2,6 @@ import threading
 
 from nose.tools import eq_
 from tornado import httpclient
-from tornado.gen import sleep
 from tornado.testing import AsyncHTTPTestCase, gen_test
 
 from ddtrace.contrib.tornado import trace_app, untrace_app
@@ -45,7 +44,7 @@ class TestAsyncConcurrency(AsyncHTTPTestCase):
             t.start()
 
         # wait for the execution; assuming this time as a timeout
-        yield sleep(0.2)
+        yield web.compat.sleep(0.2)
 
         # the trace is created
         traces = self.tracer.writer.pop_traces()
