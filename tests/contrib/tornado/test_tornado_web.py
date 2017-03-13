@@ -69,33 +69,6 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         ok_(request_span.duration >= 0.05)
         ok_(nested_span.duration >= 0.05)
 
-    def test_nested_wrap_handler(self):
-        # it should trace a handler that calls a coroutine that is
-        # wrapped using tracer.wrap() decorator
-        response = self.fetch('/nested_wrap/')
-        eq_(200, response.code)
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        # check request span
-        request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('/nested_wrap/', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/nested_wrap/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
-        # check nested span
-        nested_span = traces[0][1]
-        eq_('tornado-web', nested_span.service)
-        eq_('tornado.coro', nested_span.name)
-        eq_(0, nested_span.error)
-        # check durations because of the yield sleep
-        ok_(request_span.duration >= 0.05)
-        ok_(nested_span.duration >= 0.05)
-
     def test_exception_handler(self):
         # it should trace a handler that raises an exception
         response = self.fetch('/exception/')
