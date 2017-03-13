@@ -216,6 +216,32 @@ def test_tracer_wrap_class():
     eq_(sorted(names), sorted(["tests.test_tracer.%s" % n for n in ["s", "c", "i"]]))
 
 
+def test_tracer_wrap_factory():
+    # it should use a wrap_factory if defined
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    def wrap_executor(tracer, fn, args, kwargs, span_name, service, resource, span_type):
+        with tracer.trace('wrap.overwrite') as span:
+            span.set_tag('args', args)
+            span.set_tag('kwargs', kwargs)
+            return fn(*args, **kwargs)
+
+    @tracer.wrap()
+    def wrapped_function(param, kw_param=None):
+        eq_(42, param)
+        eq_(42, kw_param)
+
+    # set the custom wrap factory after the wrapper has been called
+    tracer.configure(wrap_executor=wrap_executor)
+
+    # call the function expecting that the custom tracing wrapper is used
+    wrapped_function(42, kw_param=42)
+    eq_(writer.spans[0].name, 'wrap.overwrite')
+    eq_(writer.spans[0].get_tag('args'), '(42,)')
+    eq_(writer.spans[0].get_tag('kwargs'), '{\'kw_param\': 42}')
+
 
 def test_tracer_disabled():
     # add some dummy tracing code.
