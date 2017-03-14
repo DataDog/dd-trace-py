@@ -39,7 +39,7 @@ def patched_query_request(original_func, instance, args, kwargs):
     endpoint = getattr(instance, "host")
     if endpoint:
         endpoint = endpoint.split('.')
-        endpoint_name = instance
+        endpoint_name = endpoint[0]
 
     with pin.tracer.trace('boto.command', service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
@@ -120,6 +120,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         http_method = getattr(result, "_method")
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, http_method)
+
         if region:
             span.resource = '%s.%s.%s' % (endpoint_name, http_method.lower(), region_name)
         else:
