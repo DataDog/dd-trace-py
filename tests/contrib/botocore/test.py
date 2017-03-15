@@ -4,7 +4,7 @@ import unittest
 # 3p
 from nose.tools import eq_
 import botocore.session
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_sts
+from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_sts, mock_kms
 
 # project
 from ddtrace import Pin
@@ -31,7 +31,7 @@ class BotocoreTest(unittest.TestCase):
         tracer = get_dummy_tracer()
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
-        # Trying describe instances command
+
         ec2.describe_instances()
 
         spans = writer.pop()
@@ -39,12 +39,9 @@ class BotocoreTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag('aws.agent'), "botocore")
         eq_(span.get_tag('aws.region'), 'us-west-2')
-        eq_(span.get_tag('aws.endpoint'), 'ec2')
         eq_(span.get_tag('aws.operation'), 'DescribeInstances')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.get_tag('retry_attempts'), '0')
-
-        # Testing resource and service
         eq_(span.service, "test-botocore-tracing.ec2")
         eq_(span.resource, "ec2.describeinstances.us-west-2")
 
@@ -55,16 +52,17 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
-        # Listing buckets
         s3.list_buckets()
 
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(span.get_tag('aws.endpoint'), "s3")
         eq_(span.get_tag('aws.operation'), 'ListBuckets')
         eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, "test-botocore-tracing.s3")
+        eq_(span.resource, "s3.listbuckets.us-west-2")
 
+        # testing for span error
         try:
             s3.list_objects(bucket='mybucket')
         except Exception:
@@ -72,8 +70,6 @@ class BotocoreTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.error, 1)
-            # test only work in py27, py34 returns another string
-            # eq_(span.get_tag('botocore.args'), u"(u'ListObjects', {'bucket': 'mybucket'})")
 
     @mock_sqs
     def test_sqs_client(self):
@@ -87,10 +83,11 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(span.get_tag('aws.endpoint'), "sqs")
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListQueues')
         eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, "test-botocore-tracing.sqs")
+        eq_(span.resource, "sqs.listqueues.us-east-1")
 
     @mock_kinesis
     def test_kinesis_client(self):
@@ -104,10 +101,11 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(span.get_tag('aws.endpoint'), "kinesis")
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListStreams')
         eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, "test-botocore-tracing.kinesis")
+        eq_(span.resource, "kinesis.liststreams.us-east-1")
 
     @mock_lambda
     def test_lambda_client(self):
@@ -121,30 +119,29 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(span.get_tag('aws.endpoint'), "lambda")
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListFunctions')
         eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, "test-botocore-tracing.lambda")
+        eq_(span.resource, "lambda.listfunctions.us-east-1")
 
-    @mock_sts
-    def test_sts_client(self):
-        sts = self.session.create_client('sts', region_name='us-west-2')
+    @mock_kms
+    def test_kms_client(self):
+        kms = self.session.create_client('kms', region_name='us-east-1')
         tracer = get_dummy_tracer()
         writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sts)
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kms)
 
-        sts.get_session_token()
+        kms.list_keys(Limit=21)
 
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(span.get_tag('aws.endpoint'), "sts")
-        eq_(span.get_tag('aws.region'), 'us-west-2')
-        eq_(span.get_tag('aws.operation'), 'GetSessionToken')
-
-        # Testing resource and service
-        eq_(span.service, "test-botocore-tracing.sts")
-        eq_(span.resource, "sts.getsessiontoken.us-west-2")
+        eq_(span.get_tag('aws.region'), 'us-east-1')
+        eq_(span.get_tag('aws.operation'), 'ListKeys')
+        eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, "test-botocore-tracing.kms")
+        eq_(span.resource, "kms.listkeys.us-east-1")
 
         # checking for protection on sts against security leak
-        eq_(span.get_tag('botocore.args'), None)
+        eq_(span.get_tag('params'), None)

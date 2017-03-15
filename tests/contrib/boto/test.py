@@ -7,7 +7,9 @@ import boto.ec2
 import boto.s3
 import boto.awslambda
 import boto.sqs
-from moto import mock_s3, mock_ec2, mock_lambda
+import boto.kms
+import boto.sts
+from moto import mock_s3, mock_ec2, mock_lambda, mock_kms, mock_sts
 
 # project
 from ddtrace import Pin
@@ -40,7 +42,6 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), "DescribeInstances")
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "POST")
-        eq_(span.get_tag('aws.endpoint'), "ec2")
         eq_(span.get_tag('aws.region'), "us-west-2")
 
         # Create an instance
@@ -51,10 +52,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), "RunInstances")
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "POST")
-        eq_(span.get_tag('aws.endpoint'), "ec2")
         eq_(span.get_tag('aws.region'), "us-west-2")
-
-        # Testing resource and service
         eq_(span.service, "test-boto-tracing.ec2")
         eq_(span.resource, "ec2.runinstances.us-west-2")
 
@@ -71,7 +69,6 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")
-        eq_(span.get_tag('aws.endpoint'), "s3")
         # eq_(span.get_tag('host'), 's3.amazonaws.com'). not same answers PY27, PY34..
         eq_(span.get_tag('aws.operation'), "get_all_buckets")
 
@@ -83,7 +80,6 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "PUT")
         eq_(span.get_tag('path'), '/')
-        eq_(span.get_tag('aws.endpoint'), "s3")
         eq_(span.get_tag('aws.operation'), "create_bucket")
 
         # Get the created bucket
@@ -93,10 +89,7 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "HEAD")
-        eq_(span.get_tag('aws.endpoint'), "s3")
         eq_(span.get_tag('aws.operation'), "head_bucket")
-
-        # Testing resource and service
         eq_(span.service, "test-boto-tracing.s3")
         eq_(span.resource, "s3.head")
 
@@ -113,10 +106,27 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")
-        eq_(span.get_tag('aws.endpoint'), "lambda")
         eq_(span.get_tag('aws.region'), "us-east-2")
         eq_(span.get_tag('aws.operation'), "list_functions")
-
-        # Testing resource and service
         eq_(span.service, "test-boto-tracing.lambda")
         eq_(span.resource, "lambda.get.us-east-2")
+
+    @mock_sts
+    def test_sts_client(self):
+        sts = boto.sts.connect_to_region('us-west-2')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sts)
+
+        sts.get_federation_token(12, duration=10)
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'GetFederationToken')
+        eq_(span.service, "test-boto-tracing.sts")
+        eq_(span.resource, "sts.getfederationtoken.us-west-2")
+
+        # checking for protection on sts against security leak
+        eq_(span.get_tag('args.path'), None)
