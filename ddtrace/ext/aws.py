@@ -1,8 +1,4 @@
-BLACKLIST_ENDPOINT = [
-"kms",
-"sts"
-]
-
+BLACKLIST_ENDPOINT = ["kms", "sts"]
 
 def is_blacklist(endpoint_name):
     """Protecting the args sent to kms, sts to avoid security leaks
@@ -13,7 +9,6 @@ def is_blacklist(endpoint_name):
         return True
     else:
         return False
-
 
 def unpacking_args(args, args_name, traced_args_list):
     index = 0

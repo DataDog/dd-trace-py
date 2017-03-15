@@ -36,10 +36,7 @@ def patched_query_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    # Obtaining endpoint name
-    endpoint = getattr(instance, "host")
-    if endpoint:
-        endpoint_name = endpoint.split('.')[0]
+    endpoint_name = getattr(instance, "host").split('.')[0]
 
     with pin.tracer.trace('boto.{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
@@ -81,6 +78,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     # Catching the name of the operation that called make_request()
     operation_name = None
     for trace in reversed(traceback.extract_stack()):
+        # Going backwards in the traceback till first call outside off ddtrace before make_request
         if "ddtrace" not in trace[0].split('/') and trace[2] != 'make_request':
             operation_name = trace[2]
             break
@@ -89,11 +87,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    # Obtaining endpoint name
-    endpoint = getattr(instance, "host")
-    enpoint_name = None
-    if endpoint:
-        endpoint_name = endpoint.split('.')[0]
+    endpoint_name = getattr(instance, "host").split('.')[0]
 
     with pin.tracer.trace('boto.{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
