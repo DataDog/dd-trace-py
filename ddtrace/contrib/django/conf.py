@@ -78,6 +78,8 @@ class DatadogSettings(object):
         self.defaults = defaults or DEFAULTS
         if os.environ.get('DATADOG_ENV'):
             self.defaults["TAGS"].update({"env": os.environ.get('DATADOG_ENV')})
+        if os.environ.get('DATADOG_SERVICE_NAME'):
+            self.defaults["DEFAULT_SERVICE"] = os.environ.get('DATADOG_SERVICE_NAME')
 
         self.import_strings = import_strings or IMPORT_STRINGS
 
