@@ -29,20 +29,21 @@ for changing your code::
 
     $ ddtrace-run -h
 
-    Execute the given Python program after configuring it to emit Datadog traces.
+    Execute the given Python program, after configuring it
+    to emit Datadog traces.
+
     Append command line arguments to your program as usual.
 
     Usage: [ENV_VARS] ddtrace-run <my_program>
 
-    Available environment variables:
 
-    DATADOG_ENV : override an application's environment (no default)
-    DATADOG_TRACE_ENABLED=true|false : override the value of tracer.enabled (default: true)
-    DATADOG_TRACE_DEBUG=true|false : override the value of tracer.debug_logging (default: false)
-    DATADOG_SERVICE_NAME : override the service name to be used for this program (no default)
-                           This value is passed through when setting up middleware for web framework integrations.
-                           (e.g. pylons, flask, django)
-                           For tracing without a web integration, prefer setting the service name in code.
+The available environment settings are:
+
+* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
+  will not generate any traces.
+* ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
+* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
+* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
 
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
