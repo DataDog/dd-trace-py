@@ -13,6 +13,8 @@ import threading
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'boto': False,
+    'botocore': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,

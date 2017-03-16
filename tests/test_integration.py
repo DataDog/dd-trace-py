@@ -18,6 +18,8 @@ from tests.test_tracer import get_dummy_tracer
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
+
+
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
