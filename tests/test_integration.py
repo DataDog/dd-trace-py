@@ -186,8 +186,6 @@ class TestWorkers(TestCase):
         tracer = self.tracer
         self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
         tracer.trace('client.testing').finish()
-        tracer.trace('client.testing').finish()
-        eq_(tracer.writer._worker._last_error_ts, 0)
 
         log = logging.getLogger("ddtrace.writer")
         log_handler = MockedLogHandler(level='DEBUG')
@@ -197,7 +195,6 @@ class TestWorkers(TestCase):
         time.sleep(1.01)
         self._wait_thread_flush()
         assert tracer.writer._worker._last_error_ts < time.time()
-        assert tracer.writer._worker._last_error_ts > 0
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)

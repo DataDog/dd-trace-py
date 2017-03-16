@@ -137,28 +137,23 @@ class AsyncWorker(object):
                 # no traces and the queue is closed. our work is done
                 return
 
-            log_level = log.debug
-            if result_traces and getattr(result_traces, "status", None) >= 400:
-                now = time.time()
-                if now > self._last_error_ts + LOG_ERR_INTERVAL:
-                    log_level = log.error
-                    self._last_error_ts = now
-                log_level("failed_to_send traces to Agent: HTTP error status %s, reason %s, message %s",
-                          getattr(result_traces, "status", None), getattr(result_traces, "reason", None),
-                          getattr(result_traces, "msg", None))
-                result_traces = None
-
-            if result_services and getattr(result_services, "status", None) >= 400:
-                now = time.time()
-                if now > self._last_error_ts + LOG_ERR_INTERVAL:
-                    log_level = log.error
-                    self._last_error_ts = now
-                log_level("failed_to_send services to Agent: HTTP error status %s, reason %s, message %s",
-                          getattr(result_services, "status", None), getattr(result_services, "reason", None),
-                          getattr(result_services, "msg", None))
-                result_services = None
+            self._log_error_status(result_traces)
+            result_traces = None
+            self._log_error_status(result_services)
+            result_services = None
 
             time.sleep(1)  # replace with a blocking pop.
+
+    def _log_error_status(self, result):
+        log_level = log.debug
+        if result and getattr(result, "status", None) >= 400:
+            now = time.time()
+            if now > self._last_error_ts + LOG_ERR_INTERVAL:
+                log_level = log.error
+                self._last_error_ts = now
+            log_level("failed_to_send services to Agent: HTTP error status %s, reason %s, message %s",
+                      getattr(result, "status", None), getattr(result, "reason", None),
+                      getattr(result, "msg", None))
 
 
 class Q(object):
