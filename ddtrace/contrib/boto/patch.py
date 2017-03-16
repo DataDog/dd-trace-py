@@ -79,7 +79,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     operation_name = None
     for trace in reversed(traceback.extract_stack()):
         # Going backwards in the traceback till first call outside off ddtrace before make_request
-        if len(trace) > 3 and "ddtrace" not in trace[0].split('/') and trace[2] != 'make_request':
+        if "ddtrace" not in trace[0].split('/') and trace[2] != 'make_request':
             operation_name = trace[2]
             break
 
