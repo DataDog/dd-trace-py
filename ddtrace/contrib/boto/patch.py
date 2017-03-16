@@ -1,6 +1,6 @@
 import boto.connection
 import wrapt
-import traceback
+import inspect
 
 from ddtrace import Pin
 
@@ -77,10 +77,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Catching the name of the operation that called make_request()
     operation_name = None
-    for trace in reversed(traceback.extract_stack()):
+    for frame in inspect.getouterframes(inspect.currentframe()):
         # Going backwards in the traceback till first call outside off ddtrace before make_request
-        if "ddtrace" not in trace[0].split('/') and trace[2] != 'make_request':
-            operation_name = trace[2]
+        if len(frame) > 3 and "ddtrace" not in frame[1].split('/') and frame[3] != 'make_request':
+            operation_name = frame[3]
             break
 
     pin = Pin.get_from(instance)
