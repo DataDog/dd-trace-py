@@ -4,7 +4,6 @@ import time
 import msgpack
 import logging
 import mock
-import sys
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
@@ -16,7 +15,6 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib
 from tests.test_tracer import get_dummy_tracer
 
-PY2 = sys.version_info[0] == 2
 
 
 class MockedLogHandler(logging.Handler):
@@ -197,13 +195,9 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)
-        if PY2:
-            eq_(logged_errors[0], 'failed_to_send traces to Agent: HTTP error status 400,' +
-                ' reason Bad Request, message Content-Type: text/plain\r\nConnection: close\r\n')
+        ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
+            in logged_errors[0])
 
-        else:
-            eq_(logged_errors[0], 'failed_to_send traces to Agent: HTTP error status 400,' +
-                ' reason Bad Request, message Content-Type: text/plain\n''Connection: close\n''\n')
 
 
 @skipUnless(
