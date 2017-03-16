@@ -137,21 +137,21 @@ class AsyncWorker(object):
                 # no traces and the queue is closed. our work is done
                 return
 
-            self._log_error_status(result_traces)
+            self._log_error_status(result_traces, "traces")
             result_traces = None
-            self._log_error_status(result_services)
+            self._log_error_status(result_services, "services")
             result_services = None
 
             time.sleep(1)  # replace with a blocking pop.
 
-    def _log_error_status(self, result):
+    def _log_error_status(self, result, result_name):
         log_level = log.debug
         if result and getattr(result, "status", None) >= 400:
             now = time.time()
             if now > self._last_error_ts + LOG_ERR_INTERVAL:
                 log_level = log.error
                 self._last_error_ts = now
-            log_level("failed_to_send services to Agent: HTTP error status %s, reason %s, message %s",
+            log_level("failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s", result_name,
                       getattr(result, "status", None), getattr(result, "reason", None),
                       getattr(result, "msg", None))
 
