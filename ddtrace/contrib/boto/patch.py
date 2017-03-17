@@ -48,14 +48,11 @@ def patched_query_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
+        span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
+
         # Obtaining region name
         region = getattr(instance, "region")
         region_name = get_region_name(region)
-
-        if region_name:
-            span.resource = '%s.%s.%s' % (endpoint_name, operation_name.lower(), region_name)
-        else:
-            span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
 
         meta = {
             'aws.agent': 'boto',
@@ -98,15 +95,13 @@ def patched_auth_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
+
+        http_method = args[0]
+        span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+
         # Obtaining region name
         region = getattr(instance, "region", None)
         region_name = get_region_name(region)
-
-        http_method = args[0]
-        if region_name:
-            span.resource = '%s.%s.%s' % (endpoint_name, http_method.lower(), region_name)
-        else:
-            span.resource = '%s.%s' % (endpoint_name, http_method.lower())
 
         meta = {
             'aws.agent': 'boto',
