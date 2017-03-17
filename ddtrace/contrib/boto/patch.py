@@ -43,6 +43,15 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         operation_name, _, _, _ = args
 
+        # Obtaining region name
+        region = getattr(instance, "region")
+        region_name = get_region_name(region)
+
+        if region_name:
+            span.resource = '%s.%s.%s' % (endpoint_name, operation_name.lower(), region_name)
+        else:
+            span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
+
         # Adding the args in AWS_QUERY_TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
             for arg in aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS):
@@ -52,15 +61,6 @@ def patched_query_request(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
-
-        # Obtaining region name
-        region = getattr(instance, "region")
-        region_name = get_region_name(region)
-
-        if region_name:
-            span.resource = '%s.%s.%s' % (endpoint_name, operation_name.lower(), region_name)
-        else:
-            span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
 
         meta = {
             'aws.agent': 'boto',
@@ -98,20 +98,21 @@ def patched_auth_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        # Original func returns a boto.connection.HTTPResponse object
-        result = original_func(*args, **kwargs)
-        http_method = getattr(result, "_method")
-        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, http_method)
-
         # Obtaining region name
         region = getattr(instance, "region", None)
         region_name = get_region_name(region)
+        http_method = args[0]
 
         if region_name:
             span.resource = '%s.%s.%s' % (endpoint_name, http_method.lower(), region_name)
         else:
             span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+
+        # Original func returns a boto.connection.HTTPResponse object
+        result = original_func(*args, **kwargs)
+        http_method = getattr(result, "_method")
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         meta = {
             'aws.agent': 'boto',
