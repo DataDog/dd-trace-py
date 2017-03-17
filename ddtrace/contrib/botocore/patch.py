@@ -49,16 +49,16 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         span.resource = '%s.%s.%s' % (endpoint_name, operation.lower(), region_name)
 
-        result = original_func(*args, **kwargs)
-
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
-
         meta = {
             'aws.agent': 'botocore',
             'aws.operation': operation,
             'aws.region': region_name,
         }
         span.set_tags(meta)
+
+        result = original_func(*args, **kwargs)
+
+        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
+        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
 
         return result
