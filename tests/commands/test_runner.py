@@ -15,18 +15,9 @@ class DdtraceRunTest(unittest.TestCase):
             if k in os.environ:
                 del os.environ[k]
 
-    def test_service_name_default(self):
-        """
-        In the absence of $DATADOG_SERVICE_NAME, use a default service derived from command-line
-        """
-        out = subprocess.check_output(
-            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service_default.py']
-        )
-        assert out.startswith(b"Test success")
-
     def test_service_name_passthrough(self):
         """
-        When $DATADOG_SERVICE_NAME is present don't override with a default
+        $DATADOG_SERVICE_NAME gets passed through to the program
         """
         os.environ["DATADOG_SERVICE_NAME"] = "my_test_service"
 
@@ -89,5 +80,17 @@ class DdtraceRunTest(unittest.TestCase):
         os.environ["DATADOG_TRACE_DEBUG"] = "true"
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_debug.py']
+        )
+        assert out.startswith(b"Test success")
+
+    def test_host_port_from_env(self):
+        """
+        DATADOG_TRACE_AGENT_HOSTNAME|PORT point to the tracer
+        to the correct host/port for submission
+        """
+        os.environ["DATADOG_TRACE_AGENT_HOSTNAME"] = "172.10.0.1"
+        os.environ["DATADOG_TRACE_AGENT_PORT"] = "58126"
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
         )
         assert out.startswith(b"Test success")

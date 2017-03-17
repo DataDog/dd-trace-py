@@ -28,9 +28,13 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
+
+    # Ignore some web framework integrations that might be configured explicitly in code
     'django': False,
     'flask': False,
     'pylons': False,
+    'falcon': False,
+    'pyramid': False,
 }
 
 _LOCK = threading.Lock()

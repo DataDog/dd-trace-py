@@ -1,4 +1,3 @@
-
 # stdlib
 import logging
 import json
@@ -16,7 +15,6 @@ from nose.tools import eq_
 # project
 import ddtrace
 from ddtrace import compat
-from ddtrace.contrib.pyramid import trace_pyramid
 
 
 def test_200():
@@ -32,22 +30,20 @@ def test_200():
     eq_(s.resource, 'index')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/')
-    eq_(s.meta.get('pyramid.route.name'), 'index')
 
-    # ensure services are set correctly
+    # ensure services are set correcgly
     services = writer.pop_services()
     expected = {
-        'foobar': {"app": "pyramid", "app_type": "web"}
+        'foobar': {"app":"pyramid", "app_type":"web"}
     }
     eq_(services, expected)
 
 
 def test_404():
     app, tracer = _get_test_app(service='foobar')
-    app.get('/404', status=404)
+    res = app.get('/404', status=404)
 
     writer = tracer.writer
     spans = writer.pop()
@@ -57,7 +53,6 @@ def test_404():
     eq_(s.resource, '404')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '404')
     eq_(s.meta.get('http.url'), '/404')
 
@@ -77,11 +72,8 @@ def test_exception():
     eq_(s.resource, 'exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/exception')
-    eq_(s.meta.get('pyramid.route.name'), 'exception')
-
 
 def test_500():
     app, tracer = _get_test_app(service='foobar')
@@ -95,12 +87,9 @@ def test_500():
     eq_(s.resource, 'error')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/error')
-    eq_(s.meta.get('pyramid.route.name'), 'error')
     assert type(s.error) == int
-
 
 def test_json():
     app, tracer = _get_test_app(service='foobar')
@@ -117,16 +106,13 @@ def test_json():
     eq_(s.resource, 'json')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/json')
-    eq_(s.meta.get('pyramid.route.name'), 'json')
 
     s = spans_by_name['pyramid.render']
     eq_(s.service, 'foobar')
     eq_(s.error, 0)
     eq_(s.span_type, 'template')
-
 
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
@@ -143,13 +129,7 @@ def _get_app(service=None, tracer=None):
     def json(request):
         return {'a':1}
 
-    settings = {
-        'datadog_trace_service': service,
-        'datadog_tracer': tracer or ddtrace.tracer
-    }
-
-    config = Configurator(settings=settings)
-    trace_pyramid(config)
+    config = Configurator()
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')
@@ -163,10 +143,11 @@ def _get_app(service=None, tracer=None):
 
 def _get_test_app(service=None):
     """ return a webtest'able version of our test app. """
-    from tests.test_tracer import get_dummy_tracer
-    tracer = get_dummy_tracer()
-    app = _get_app(service=service, tracer=tracer)
-    return webtest.TestApp(app), tracer
+    from tests.test_tracer import DummyWriter
+    ddtrace.tracer.writer = DummyWriter()
+
+    app = _get_app(service=service, tracer=ddtrace.tracer)
+    return webtest.TestApp(app), ddtrace.tracer
 
 
 if __name__ == '__main__':

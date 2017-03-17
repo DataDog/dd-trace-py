@@ -42,6 +42,9 @@ class TraceMiddleware(object):
             self.app.logger.info(_blinker_not_installed_msg)
         self.use_signals = use_signals and signals.signals_available
 
+        # our signal receivers
+        self._receivers = []
+
         # instrument request timings
         timing_signals = {
             'request_started': self._request_started,
@@ -82,6 +85,7 @@ class TraceMiddleware(object):
                 log.warn("trying to instrument missing signal %s", name)
                 continue
             s.connect(handler, sender=self.app)
+            self._receivers.append(handler)
         return connected
 
     # common methods

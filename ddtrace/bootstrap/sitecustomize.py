@@ -9,15 +9,37 @@ import logging
 logging.basicConfig()
 log = logging.getLogger(__name__)
 
+EXTRA_PATCHED_MODULES = {
+    "django": True,
+    "flask": True,
+    "pylons": True,
+    "falcon": True,
+    "pyramid": True,
+}
+
 try:
     from ddtrace import tracer
+    patch = True
 
     # Respect DATADOG_* environment variables in global tracer configuration
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
+    hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+    port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
+    opts = {}
+
     if enabled and enabled.lower() == "false":
-        tracer.configure(enabled=False)
-    else:
-        from ddtrace import patch_all; patch_all(django=True, flask=True, pylons=True) # noqa
+        opts["enabled"] = False
+        patch = False
+    if hostname:
+        opts["hostname"] = hostname
+    if port:
+        opts["port"] = int(port)
+
+    if opts:
+        tracer.configure(**opts)
+
+    if patch:
+        from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
     if debug and debug.lower() == "true":

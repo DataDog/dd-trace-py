@@ -20,10 +20,55 @@ Get Started
 Datadog Tracing can automatically instrument many widely used Python libraries
 and frameworks.
 
+Once installed, the package will make the ``ddtrace-run`` command-line entrypoint
+available in your Python environment.
+
+``ddtrace-run`` will trace available web frameworks and database modules without the need
+for changing your code::
+
+
+    $ ddtrace-run -h
+
+    Execute the given Python program, after configuring it
+    to emit Datadog traces.
+
+    Append command line arguments to your program as usual.
+
+    Usage: [ENV_VARS] ddtrace-run <my_program>
+
+
+The available environment settings are:
+
+* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
+  will not generate any traces.
+* ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
+* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
+* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
+
+
+``ddtrace-run`` respects a variety of common entrypoints for web applications:
+
+- ``ddtrace-run python my_app.py``
+- ``ddtrace-run python manage.py runserver``
+- ``ddtrace-run gunicorn myapp.wsgi:application``
+
+
+Pass along command-line arguments as your program would normally expect them::
+
+    ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
+
+`For most users, this should be sufficient to see your application traces in Datadog.`
+
+`Please read on if you are curious about further configuration, or
+would rather set up Datadog Tracing explicitly in code.`
+
+
+Instrumentation
+---------------
+
 Web
 ~~~
 
-The easiest way to get started with tracing is to instrument your web server.
 We support many `Web Frameworks`_. Install the middleware for yours.
 
 Databases
@@ -286,6 +331,58 @@ Currently, an "app" doesn't provide much functionality and is subject to change 
 A span tracks a unit of work in a service, like querying a database or
 rendering a template. Spans are associated with a service and optionally a
 resource. A span has a name, start time, duration and optional tags.
+
+Supported versions
+==================
+
+We officially support Python 2.7, 3.4 and above.
+
++-----------------+--------------------+
+| Integrations    | Supported versions |
++=================+====================+
+| aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| bottle          | >= 0.12            |
++-----------------+--------------------+
+| celery          | >= 3.1             |
++-----------------+--------------------+
+| cassandra       | >= 3.5             |
++-----------------+--------------------+
+| django          | >= 1.8             |
++-----------------+--------------------+
+| elasticsearch   | >= 2.3             |
++-----------------+--------------------+
+| falcon          | >= 1.0             |
++-----------------+--------------------+
+| flask           | >= 0.10            |
++-----------------+--------------------+
+| flask_cache     | >= 0.12            |
++-----------------+--------------------+
+| gevent          | >= 1.0             |
++-----------------+--------------------+
+| mongoengine     | >= 0.11            |
++-----------------+--------------------+
+| mysql-connector | >= 2.1             |
++-----------------+--------------------+
+| psycopg2        | >= 2.4             |
++-----------------+--------------------+
+| pylibmc         | >= 1.4             |
++-----------------+--------------------+
+| pylons          | >= 1.0             |
++-----------------+--------------------+
+| pymongo         | >= 3.0             |
++-----------------+--------------------+
+| pyramid         | >= 1.7             |
++-----------------+--------------------+
+| redis           | >= 2.6             |
++-----------------+--------------------+
+| sqlalchemy      | >= 1.0             |
++-----------------+--------------------+
+
+
+These are the fully tested versions but `ddtrace` can be compatible with lower versions.
+If some versions are missing, you can contribute or ask for it by contacting our support.
+For deprecated library versions, the support is best-effort.
 
 Indices and tables
 ==================

@@ -13,6 +13,9 @@ if debug and debug.lower() == "true":
 log = logging.getLogger(__name__)
 
 USAGE = """
+Execute the given Python program after configuring it to emit Datadog traces.
+Append command line arguments to your program as usual.
+
 Usage: [ENV_VARS] ddtrace-run <my_program>
 
 Available environment variables:
@@ -47,7 +50,7 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
 
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 or sys.argv[1] == "-h":
         print(USAGE)
         return
 
@@ -68,10 +71,5 @@ def main():
     # Find the executable path
     executable = spawn.find_executable(executable)
     log.debug("program executable: %s", executable)
-
-    if 'DATADOG_SERVICE_NAME' not in os.environ:
-        # infer service name from program command-line
-        service_name = os.path.basename(executable)
-        os.environ['DATADOG_SERVICE_NAME'] = service_name
 
     os.execl(executable, executable, *sys.argv[2:])

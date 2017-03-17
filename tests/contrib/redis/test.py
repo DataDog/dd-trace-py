@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
-
-import copy
-
 import redis
 from nose.tools import eq_, ok_
 
 from ddtrace import Pin, compat
-from ddtrace.contrib.redis import get_traced_redis, get_traced_redis_from
+from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
@@ -41,8 +38,7 @@ class TestRedisPatch(object):
     def test_long_command(self):
         r, tracer = self.get_redis_and_tracer()
 
-        long_cmd = "mget %s" % " ".join(map(str, range(1000)))
-        us = r.execute_command(long_cmd)
+        r.mget(*range(1000))
 
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
@@ -59,7 +55,7 @@ class TestRedisPatch(object):
         for k, v in meta.items():
             eq_(span.get_tag(k), v)
 
-        assert span.get_tag('redis.raw_command').startswith(u'mget 0 1 2 3')
+        assert span.get_tag('redis.raw_command').startswith(u'MGET 0 1 2 3')
         assert span.get_tag('redis.raw_command').endswith(u'...')
 
     def test_basics(self):
