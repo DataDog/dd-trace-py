@@ -93,6 +93,16 @@ class BotoTest(unittest.TestCase):
         eq_(span.service, "test-boto-tracing.s3")
         eq_(span.resource, "s3.head")
 
+        # Checking for resource incase of error
+        try:
+            s3.get_bucket("big_bucket")
+        except Exception:
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(span.resource, "s3.head")
+
+
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
