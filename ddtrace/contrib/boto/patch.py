@@ -48,11 +48,6 @@ def patched_query_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        # Original func returns a boto.connection.HTTPResponse object
-        result = original_func(*args, **kwargs)
-        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, getattr(result, "_method"))
-
         # Obtaining region name
         region = getattr(instance, "region")
         region_name = get_region_name(region)
@@ -68,6 +63,11 @@ def patched_query_request(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
         span.set_tags(meta)
+
+        # Original func returns a boto.connection.HTTPResponse object
+        result = original_func(*args, **kwargs)
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         return result
 
@@ -119,6 +119,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
         span.set_tags(meta)
+
+        # Original func returns a boto.connection.HTTPResponse object
+        result = original_func(*args, **kwargs)
+        http_method = getattr(result, "_method")
+        span.set_tag(http.STATUS_CODE, getattr(result, "status"))
+        span.set_tag(http.METHOD, getattr(result, "_method"))
 
         return result
 

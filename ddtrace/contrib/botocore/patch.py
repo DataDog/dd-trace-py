@@ -45,11 +45,6 @@ def patched_api_call(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        result = original_func(*args, **kwargs)
-
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
-
         region_name = deep_getattr(instance, "meta.region_name")
 
         span.resource = '%s.%s.%s' % (endpoint_name, operation.lower(), region_name)
@@ -60,5 +55,10 @@ def patched_api_call(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
         span.set_tags(meta)
+
+        result = original_func(*args, **kwargs)
+
+        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
+        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
 
         return result
