@@ -21,16 +21,22 @@ test:
         parallel: true
 
 deployment:
+  # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
   dev:
-    branch: /(master)|(develop)/
-    # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
+    # build only the nightly package
+    branch: /(master)/
+    commands:
+      - S3_DIR=trace-dev rake release:wheel
+  experimental:
+    # build the develop branch releasing development docs
+    branch: /(develop)/
     commands:
       - pip install mkwheelhouse sphinx
       - S3_DIR=trace-dev rake release:wheel
       - S3_DIR=trace-dev rake release:docs
   unstable:
+    # nullify VERSION_SUFFIX to deploy the package with its public version
     tag: /v[0-9]+(\.[0-9]+)*/
-    # Nullify VERSION_SUFFIX to deploy the package with its public version
     commands:
       - pip install mkwheelhouse sphinx
       - S3_DIR=trace rake release:docs
