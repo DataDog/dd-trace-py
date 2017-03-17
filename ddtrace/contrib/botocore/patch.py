@@ -34,7 +34,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    with pin.tracer.trace('botocore.{}.command'.format(endpoint_name),
+    with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 

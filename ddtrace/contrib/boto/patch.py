@@ -38,7 +38,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
     endpoint_name = getattr(instance, "host").split('.')[0]
 
-    with pin.tracer.trace('boto.{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
+    with pin.tracer.trace('{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
         operation_name, _, _, _ = args
