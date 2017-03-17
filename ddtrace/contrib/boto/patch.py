@@ -95,7 +95,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-
         http_method = args[0]
         span.resource = '%s.%s' % (endpoint_name, http_method.lower())
 
