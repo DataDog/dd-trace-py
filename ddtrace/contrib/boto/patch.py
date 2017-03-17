@@ -103,7 +103,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
         region_name = get_region_name(region)
         http_method = args[0]
 
-
         if region_name:
             span.resource = '%s.%s.%s' % (endpoint_name, http_method.lower(), region_name)
         else:
@@ -121,7 +120,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
         http_method = getattr(result, "_method")
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
-
 
         return result
 
