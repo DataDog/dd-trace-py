@@ -15,18 +15,9 @@ class DdtraceRunTest(unittest.TestCase):
             if k in os.environ:
                 del os.environ[k]
 
-    def test_service_name_default(self):
-        """
-        In the absence of $DATADOG_SERVICE_NAME, use a default service derived from command-line
-        """
-        out = subprocess.check_output(
-            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service_default.py']
-        )
-        assert out.startswith(b"Test success")
-
     def test_service_name_passthrough(self):
         """
-        When $DATADOG_SERVICE_NAME is present don't override with a default
+        $DATADOG_SERVICE_NAME gets passed through to the program
         """
         os.environ["DATADOG_SERVICE_NAME"] = "my_test_service"
 
