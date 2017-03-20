@@ -34,7 +34,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
-    with pin.tracer.trace('botocore.{}.command'.format(endpoint_name),
+    with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
@@ -45,14 +45,9 @@ def patched_api_call(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        result = original_func(*args, **kwargs)
-
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
+        span.resource = '%s.%s' % (endpoint_name, operation.lower())
 
         region_name = deep_getattr(instance, "meta.region_name")
-
-        span.resource = '%s.%s.%s' % (endpoint_name, operation.lower(), region_name)
 
         meta = {
             'aws.agent': 'botocore',
@@ -60,5 +55,10 @@ def patched_api_call(original_func, instance, args, kwargs):
             'aws.region': region_name,
         }
         span.set_tags(meta)
+
+        result = original_func(*args, **kwargs)
+
+        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
+        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
 
         return result

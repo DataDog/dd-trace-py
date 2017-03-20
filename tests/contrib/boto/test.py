@@ -54,7 +54,9 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.METHOD), "POST")
         eq_(span.get_tag('aws.region'), "us-west-2")
         eq_(span.service, "test-boto-tracing.ec2")
-        eq_(span.resource, "ec2.runinstances.us-west-2")
+        eq_(span.resource, "ec2.runinstances")
+        eq_(span.name, "ec2.command")
+
 
     @mock_s3
     def test_s3_client(self):
@@ -92,6 +94,17 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), "head_bucket")
         eq_(span.service, "test-boto-tracing.s3")
         eq_(span.resource, "s3.head")
+        eq_(span.name, "s3.command")
+
+        # Checking for resource incase of error
+        try:
+            s3.get_bucket("big_bucket")
+        except Exception:
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(span.resource, "s3.head")
+
 
     @mock_lambda
     def test_lambda_client(self):
@@ -109,7 +122,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), "us-east-2")
         eq_(span.get_tag('aws.operation'), "list_functions")
         eq_(span.service, "test-boto-tracing.lambda")
-        eq_(span.resource, "lambda.get.us-east-2")
+        eq_(span.resource, "lambda.get")
 
     @mock_sts
     def test_sts_client(self):
@@ -126,7 +139,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), 'us-west-2')
         eq_(span.get_tag('aws.operation'), 'GetFederationToken')
         eq_(span.service, "test-boto-tracing.sts")
-        eq_(span.resource, "sts.getfederationtoken.us-west-2")
+        eq_(span.resource, "sts.getfederationtoken")
 
         # checking for protection on sts against security leak
         eq_(span.get_tag('args.path'), None)

@@ -43,7 +43,8 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.get_tag('retry_attempts'), '0')
         eq_(span.service, "test-botocore-tracing.ec2")
-        eq_(span.resource, "ec2.describeinstances.us-west-2")
+        eq_(span.resource, "ec2.describeinstances")
+        eq_(span.name, "ec2.command")
 
     @mock_s3
     def test_s3_client(self):
@@ -60,7 +61,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListBuckets')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.s3")
-        eq_(span.resource, "s3.listbuckets.us-west-2")
+        eq_(span.resource, "s3.listbuckets")
 
         # testing for span error
         try:
@@ -70,6 +71,7 @@ class BotocoreTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.error, 1)
+            eq_(span.resource, "s3.listobjects")
 
     @mock_sqs
     def test_sqs_client(self):
@@ -87,7 +89,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListQueues')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.sqs")
-        eq_(span.resource, "sqs.listqueues.us-east-1")
+        eq_(span.resource, "sqs.listqueues")
 
     @mock_kinesis
     def test_kinesis_client(self):
@@ -105,7 +107,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListStreams')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.kinesis")
-        eq_(span.resource, "kinesis.liststreams.us-east-1")
+        eq_(span.resource, "kinesis.liststreams")
 
     @mock_lambda
     def test_lambda_client(self):
@@ -123,7 +125,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListFunctions')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.lambda")
-        eq_(span.resource, "lambda.listfunctions.us-east-1")
+        eq_(span.resource, "lambda.listfunctions")
 
     @mock_kms
     def test_kms_client(self):
@@ -141,7 +143,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), 'ListKeys')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.kms")
-        eq_(span.resource, "kms.listkeys.us-east-1")
+        eq_(span.resource, "kms.listkeys")
 
         # checking for protection on sts against security leak
         eq_(span.get_tag('params'), None)
