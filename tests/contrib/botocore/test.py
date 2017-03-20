@@ -70,6 +70,7 @@ class BotocoreTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.error, 1)
+            eq_(span.resource, "s3.listobjects.us-west-2")
 
     @mock_sqs
     def test_sqs_client(self):
