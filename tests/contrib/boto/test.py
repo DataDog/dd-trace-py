@@ -55,6 +55,8 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), "us-west-2")
         eq_(span.service, "test-boto-tracing.ec2")
         eq_(span.resource, "ec2.runinstances")
+        eq_(span.name, "ec2.command")
+
 
     @mock_s3
     def test_s3_client(self):
@@ -92,6 +94,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.operation'), "head_bucket")
         eq_(span.service, "test-boto-tracing.s3")
         eq_(span.resource, "s3.head")
+        eq_(span.name, "s3.command")
 
         # Checking for resource incase of error
         try:

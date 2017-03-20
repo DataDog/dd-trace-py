@@ -44,6 +44,7 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag('retry_attempts'), '0')
         eq_(span.service, "test-botocore-tracing.ec2")
         eq_(span.resource, "ec2.describeinstances")
+        eq_(span.name, "ec2.command")
 
     @mock_s3
     def test_s3_client(self):

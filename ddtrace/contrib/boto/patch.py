@@ -87,7 +87,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     endpoint_name = getattr(instance, "host").split('.')[0]
 
-    with pin.tracer.trace('boto.{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
+    with pin.tracer.trace('{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
         # Adding the args in AWS_AUTH_TRACED_ARGS if exist to the span
