@@ -32,11 +32,11 @@ deployment:
     branch: /(develop)/
     commands:
       - pip install mkwheelhouse sphinx
-      - S3_DIR=trace-dev rake release:wheel
-      - S3_DIR=trace-dev rake release:docs
+      - S3_DIR=trace-dev rake release:wheel --trace
+      - S3_DIR=trace-dev rake release:docs --trace
   unstable:
     # nullify VERSION_SUFFIX to deploy the package with its public version
     tag: /v[0-9]+(\.[0-9]+)*/
     commands:
       - pip install mkwheelhouse sphinx
-      - S3_DIR=trace rake release:docs
+      - S3_DIR=trace rake release:docs --trace
