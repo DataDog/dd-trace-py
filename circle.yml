@@ -25,6 +25,7 @@ deployment:
     # build only the nightly package
     branch: /(master)/
     commands:
+      - pip install mkwheelhouse sphinx
       - mkwheelhouse s3://pypi.datadoghq.com/trace-dev/ .
       - mkwheelhouse s3://pypi.datadoghq.com/trace-dev/
       - S3_DIR=trace-dev rake release:wheel
