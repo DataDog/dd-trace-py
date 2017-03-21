@@ -10,10 +10,11 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 
 EXTRA_PATCHED_MODULES = {
+    "bottle": True,
     "django": True,
+    "falcon": True,
     "flask": True,
     "pylons": True,
-    "falcon": True,
     "pyramid": True,
 }
 
