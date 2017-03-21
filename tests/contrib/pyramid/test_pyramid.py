@@ -32,20 +32,22 @@ def test_200():
     eq_(s.resource, 'index')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/')
+    eq_(s.meta.get('pyramid.route.name'), 'index')
 
-    # ensure services are set correcgly
+    # ensure services are set correctly
     services = writer.pop_services()
     expected = {
-        'foobar': {"app":"pyramid", "app_type":"web"}
+        'foobar': {"app": "pyramid", "app_type": "web"}
     }
     eq_(services, expected)
 
 
 def test_404():
     app, tracer = _get_test_app(service='foobar')
-    res = app.get('/404', status=404)
+    app.get('/404', status=404)
 
     writer = tracer.writer
     spans = writer.pop()
@@ -55,6 +57,7 @@ def test_404():
     eq_(s.resource, '404')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '404')
     eq_(s.meta.get('http.url'), '/404')
 
@@ -74,8 +77,11 @@ def test_exception():
     eq_(s.resource, 'exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/exception')
+    eq_(s.meta.get('pyramid.route.name'), 'exception')
+
 
 def test_500():
     app, tracer = _get_test_app(service='foobar')
@@ -89,9 +95,12 @@ def test_500():
     eq_(s.resource, 'error')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/error')
+    eq_(s.meta.get('pyramid.route.name'), 'error')
     assert type(s.error) == int
+
 
 def test_json():
     app, tracer = _get_test_app(service='foobar')
@@ -108,13 +117,16 @@ def test_json():
     eq_(s.resource, 'json')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/json')
+    eq_(s.meta.get('pyramid.route.name'), 'json')
 
     s = spans_by_name['pyramid.render']
     eq_(s.service, 'foobar')
     eq_(s.error, 0)
     eq_(s.span_type, 'template')
+
 
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """

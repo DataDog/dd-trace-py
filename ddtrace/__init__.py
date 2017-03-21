@@ -1,10 +1,9 @@
-
 from .monkey import patch, patch_all
 from .pin import Pin
 from .span import Span
 from .tracer import Tracer
 
-__version__ = '0.5.5'
+__version__ = '0.6.0'
 
 # a global tracer instance
 tracer = Tracer()
