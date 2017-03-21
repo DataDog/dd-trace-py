@@ -17,7 +17,8 @@ dependencies:
 
 test:
   override:
-    - echo true
+    - rake test_parallel:
+        parallel: true
 
 deployment:
   # CircleCI is configured to provide VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM
@@ -26,8 +27,6 @@ deployment:
     branch: /(master)/
     commands:
       - pip install mkwheelhouse sphinx
-      - mkwheelhouse s3://pypi.datadoghq.com/trace-dev/ .
-      - mkwheelhouse s3://pypi.datadoghq.com/trace-dev/
       - S3_DIR=trace-dev rake release:wheel
   experimental:
     # build the develop branch releasing development docs
