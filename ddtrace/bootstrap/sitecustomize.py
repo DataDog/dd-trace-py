@@ -12,8 +12,8 @@ log = logging.getLogger(__name__)
 EXTRA_PATCHED_MODULES = {
     "django": True,
     "flask": True,
-    "pylons": True,
     "falcon": True,
+    "pylons": True,
     "pyramid": True,
 }
 
