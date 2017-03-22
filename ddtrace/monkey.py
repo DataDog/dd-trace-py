@@ -15,6 +15,7 @@ import threading
 PATCH_MODULES = {
     'boto': False,
     'botocore': False,
+    'bottle': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
