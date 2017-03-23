@@ -9,7 +9,8 @@ import boto.awslambda
 import boto.sqs
 import boto.kms
 import boto.sts
-from moto import mock_s3, mock_ec2, mock_lambda, mock_kms, mock_sts
+import boto.elasticache
+from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
 
 # project
 from ddtrace import Pin
@@ -17,6 +18,7 @@ from ddtrace.contrib.boto.patch import patch
 from ddtrace.ext import http
 
 # testing
+from unittest import skipUnless
 from ...test_tracer import get_dummy_tracer
 
 
@@ -105,7 +107,6 @@ class BotoTest(unittest.TestCase):
             span = spans[0]
             eq_(span.resource, "s3.head")
 
-
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region("us-east-2")
@@ -143,3 +144,22 @@ class BotoTest(unittest.TestCase):
 
         # checking for protection on sts against security leak
         eq_(span.get_tag('args.path'), None)
+
+    @skipUnless(
+        False,
+    "Test to reproduce the case where args sent to patched function are None, can't be mocked: needs AWS crendentials"
+    )
+    def test_elasticache_client(self):
+        elasticache = boto.elasticache.connect_to_region('us-west-2')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(elasticache)
+
+        elasticache.describe_cache_clusters()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.service, "test-boto-tracing.elasticache")
+        eq_(span.resource, "elasticache")
