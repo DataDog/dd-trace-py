@@ -38,7 +38,9 @@ def patched_api_call(original_func, instance, args, kwargs):
                           service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
-        operation, _ = args
+        operation = None
+        if args and len(args) > 1:
+            operation = args[0]
 
         # Adding the args in TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):

@@ -41,7 +41,9 @@ def patched_query_request(original_func, instance, args, kwargs):
     with pin.tracer.trace('{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
-        operation_name, _, _, _ = args
+        operation_name = None
+        if args and len(args) > 3:
+            operation_name = args[0]
 
         # Adding the args in AWS_QUERY_TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
