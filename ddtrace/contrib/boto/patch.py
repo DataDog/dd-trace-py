@@ -46,7 +46,7 @@ def patched_query_request(original_func, instance, args, kwargs):
             operation_name = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
         else:
-            span.resource = '%s' % (endpoint_name)
+            span.resource = endpoint_name
 
         # Adding the args in AWS_QUERY_TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
@@ -102,7 +102,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
             http_method = args[0]
             span.resource = '%s.%s' % (endpoint_name, http_method.lower())
         else:
-            span.resource = '%s' % (endpoint_name)
+            span.resource = endpoint_name
 
         # Obtaining region name
         region = getattr(instance, "region", None)
