@@ -75,6 +75,9 @@ class TracedCursor(wrapt.ObjectProxy):
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
+    def __enter__(self):
+        return self
+
 
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
