@@ -42,7 +42,7 @@ def patched_query_request(original_func, instance, args, kwargs):
                           span_type=SPAN_TYPE) as span:
 
         operation_name = None
-        if args and len(args) > 3:
+        if args:
             operation_name = args[0]
             span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
         else:
@@ -98,7 +98,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        if args and len(args) > 0:
+        if args:
             http_method = args[0]
             span.resource = '%s.%s' % (endpoint_name, http_method.lower())
         else:
