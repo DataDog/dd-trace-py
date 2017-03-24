@@ -75,6 +75,15 @@ class TracedCursor(wrapt.ObjectProxy):
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
 
+    def __enter__(self):
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that errors
+        # messages will be the same.
+        self.__wrapped__.__enter__
+
+        # and finally, yield the traced cursor.
+        return self
+
 
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
