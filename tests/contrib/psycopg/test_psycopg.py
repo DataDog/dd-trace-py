@@ -19,9 +19,6 @@ from tests.test_tracer import get_dummy_tracer
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-version = map(int, psycopg2.__version__.split(' ')[0].split('.'))
-
-
 class PsycopgCore(object):
 
     # default service
@@ -88,11 +85,6 @@ class PsycopgCore(object):
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
-
-        # context managers aren't supported in earlier versions of pyscopg so
-        # skip this test. should we just drop support for < 2.5?
-        if version[0] == 2 and version[1] < 5:
-            return
 
         conn, tracer = self._get_conn_and_tracer()
         t = type(conn.cursor())
