@@ -32,6 +32,7 @@ def update_patched_modules():
 
         EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == 'true'})
 
+
 try:
     from ddtrace import tracer
     patch = True
