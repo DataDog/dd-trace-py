@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 class TracerConfig(AppConfig):
     name = 'ddtrace.contrib.django'
+    label = 'datadog_django'
 
     def ready(self):
         """
