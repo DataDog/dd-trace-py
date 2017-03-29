@@ -31,11 +31,11 @@ PATCH_MODULES = {
     'aiohttp': True,  # requires asyncio (Python 3.4+)
 
     # Ignore some web framework integrations that might be configured explicitly in code
-    'django': False,
-    'flask': False,
-    'pylons': False,
-    'falcon': False,
-    'pyramid': False,
+    "django": False,
+    "flask": False,
+    "falcon": False,
+    "pylons": False,
+    "pyramid": False,
 }
 
 _LOCK = threading.Lock()
