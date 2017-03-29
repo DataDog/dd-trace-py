@@ -41,14 +41,17 @@ def patched_query_request(original_func, instance, args, kwargs):
     with pin.tracer.trace('{}.command'.format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
-        operation_name, _, _, _ = args
+        operation_name = None
+        if args:
+            operation_name = args[0]
+            span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
+        else:
+            span.resource = endpoint_name
 
         # Adding the args in AWS_QUERY_TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
             for arg in aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
-
-        span.resource = '%s.%s' % (endpoint_name, operation_name.lower())
 
         # Obtaining region name
         region = getattr(instance, "region")
@@ -95,8 +98,11 @@ def patched_auth_request(original_func, instance, args, kwargs):
             for arg in aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS):
                 span.set_tag(arg[0], arg[1])
 
-        http_method = args[0]
-        span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+        if args:
+            http_method = args[0]
+            span.resource = '%s.%s' % (endpoint_name, http_method.lower())
+        else:
+            span.resource = endpoint_name
 
         # Obtaining region name
         region = getattr(instance, "region", None)
@@ -111,7 +117,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
-        http_method = getattr(result, "_method")
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
 

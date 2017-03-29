@@ -44,7 +44,9 @@ The available environment settings are:
 * ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
 * ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false`` : override the modules patched for this execution of the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost`` : override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126`` : override the port that the default tracer will submit to  (default: 8126)
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -364,7 +366,7 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | mysql-connector | >= 2.1             |
 +-----------------+--------------------+
-| psycopg2        | >= 2.4             |
+| psycopg2        | >= 2.5             |
 +-----------------+--------------------+
 | pylibmc         | >= 1.4             |
 +-----------------+--------------------+

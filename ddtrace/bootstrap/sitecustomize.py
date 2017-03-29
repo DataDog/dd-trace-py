@@ -18,6 +18,21 @@ EXTRA_PATCHED_MODULES = {
     "pyramid": True,
 }
 
+
+def update_patched_modules():
+    for patch in os.environ.get("DATADOG_PATCH_MODULES", '').split(','):
+        if len(patch.split(':')) != 2:
+            log.debug("skipping malformed patch instruction")
+            continue
+
+        module, should_patch = patch.split(':')
+        if should_patch.lower() not in ['true', 'false']:
+            log.debug("skipping malformed patch instruction for %s", module)
+            continue
+
+        EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == 'true'})
+
+
 try:
     from ddtrace import tracer
     patch = True
@@ -26,6 +41,7 @@ try:
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
     hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
+
     opts = {}
 
     if enabled and enabled.lower() == "false":
@@ -40,6 +56,7 @@ try:
         tracer.configure(**opts)
 
     if patch:
+        update_patched_modules()
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
