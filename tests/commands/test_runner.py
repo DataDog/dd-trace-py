@@ -94,3 +94,46 @@ class DdtraceRunTest(unittest.TestCase):
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
         )
         assert out.startswith(b"Test success")
+
+    def test_patch_modules_from_env(self):
+        """
+        DATADOG_PATCH_MODULES overrides the defaults for patch_all()
+        """
+        from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES, update_patched_modules
+        orig = EXTRA_PATCHED_MODULES.copy()
+
+        # empty / malformed strings are no-ops
+        os.environ["DATADOG_PATCH_MODULES"] = ""
+        update_patched_modules()
+        assert orig == EXTRA_PATCHED_MODULES
+
+        os.environ["DATADOG_PATCH_MODULES"] = ":"
+        update_patched_modules()
+        assert orig == EXTRA_PATCHED_MODULES
+
+        os.environ["DATADOG_PATCH_MODULES"] = ","
+        update_patched_modules()
+        assert orig == EXTRA_PATCHED_MODULES
+
+        os.environ["DATADOG_PATCH_MODULES"] = ",:"
+        update_patched_modules()
+        assert orig == EXTRA_PATCHED_MODULES
+
+        # overrides work in either direction
+        os.environ["DATADOG_PATCH_MODULES"] = "django:false"
+        update_patched_modules()
+        assert EXTRA_PATCHED_MODULES["django"] == False
+
+        os.environ["DATADOG_PATCH_MODULES"] = "boto:true"
+        update_patched_modules()
+        assert EXTRA_PATCHED_MODULES["boto"] == True
+
+        os.environ["DATADOG_PATCH_MODULES"] = "django:true,boto:false"
+        update_patched_modules()
+        assert EXTRA_PATCHED_MODULES["boto"] == False
+        assert EXTRA_PATCHED_MODULES["django"] == True
+
+        os.environ["DATADOG_PATCH_MODULES"] = "django:false,boto:true"
+        update_patched_modules()
+        assert EXTRA_PATCHED_MODULES["boto"] == True
+        assert EXTRA_PATCHED_MODULES["django"] == False
