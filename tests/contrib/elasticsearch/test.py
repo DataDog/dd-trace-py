@@ -274,6 +274,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
         spans = writer.pop()
         assert spans, spans
+        eq_(len(spans), 1)
         # eq_(len(spans), 1) TODO why is it 4??
 
         # Test unpatch
@@ -298,4 +299,4 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
         spans = writer.pop()
         assert spans, spans
-        # eq_(len(spans), 1) TODO why is this 3??
+        eq_(len(spans), 1)

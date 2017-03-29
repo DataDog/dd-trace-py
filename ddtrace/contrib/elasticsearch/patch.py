@@ -18,12 +18,18 @@ SPAN_TYPE = 'elasticsearch'
 
 
 def patch():
+
+    if getattr(elasticsearch, '_datadog_patch', False):
+        return
+    setattr(elasticsearch, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', _perform_request)
     Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db").onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
-    _unwrap(elasticsearch.transport.Transport, 'perform_request')
+    if getattr(elasticsearch, '_datadog_patch', False):
+        setattr(elasticsearch, '_datadog_patch', False)
+        _unwrap(elasticsearch.transport.Transport, 'perform_request')
     # wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', perform_request)
 
 
