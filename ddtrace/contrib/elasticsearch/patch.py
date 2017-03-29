@@ -13,9 +13,6 @@ from ...ext import http
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
-# Original perform_request function class
-# perform_request = elasticsearch.transport.Transport.perform_request
-
 
 def patch():
 
@@ -30,7 +27,6 @@ def unpatch():
     if getattr(elasticsearch, '_datadog_patch', False):
         setattr(elasticsearch, '_datadog_patch', False)
         _unwrap(elasticsearch.transport.Transport, 'perform_request')
-    # wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', perform_request)
 
 
 def _unwrap(obj, attr):
