@@ -28,5 +28,9 @@ def traced_init(wrapped, instance, args, kwargs):
     settings.update(trace_settings)
     kwargs["settings"] = settings
 
+    # Commit actions immediately after they are configured so as to
+    # skip conflict resolution when adding our tween
+    kwargs["autocommit"] = True
+
     wrapped(*args, **kwargs)
     trace_pyramid(instance)
