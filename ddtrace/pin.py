@@ -9,7 +9,7 @@ class Pin(object):
     """ Pin (a.k.a Patch INfo) is a small class which is used to
         set tracing metadata on a particular traced connection.
         This is useful if you wanted to, say, trace two different
-        database clusters clusters.
+        database clusters.
 
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> # Override a pin for a specific connection
