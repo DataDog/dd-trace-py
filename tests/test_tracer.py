@@ -222,7 +222,7 @@ def test_tracer_wrap_factory():
     tracer = Tracer()
     tracer.writer = writer
 
-    def wrap_executor(tracer, fn, args, kwargs, span_name, service, resource, span_type):
+    def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
         with tracer.trace('wrap.overwrite') as span:
             span.set_tag('args', args)
             span.set_tag('kwargs', kwargs)
@@ -249,7 +249,7 @@ def test_tracer_wrap_factory_nested():
     tracer = Tracer()
     tracer.writer = writer
 
-    def wrap_executor(tracer, fn, args, kwargs, span_name, service, resource, span_type):
+    def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
         with tracer.trace('wrap.overwrite') as span:
             span.set_tag('args', args)
             span.set_tag('kwargs', kwargs)
