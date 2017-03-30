@@ -276,8 +276,8 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
 
     def child_rpc_call(parent_trace_id, parent_span_id):
         with tracer.trace("child_span") as span:
-            span.parent_id = parent_span_id
-            span.trace_id = parent_trace_id
+            span.parent_id = int(parent_span_id)
+            span.trace_id = int(parent_trace_id)
 
 Advanced Usage
 --------------
