@@ -243,6 +243,39 @@ def test_tracer_wrap_factory():
     eq_(writer.spans[0].get_tag('kwargs'), '{\'kw_param\': 42}')
 
 
+def test_tracer_wrap_factory_nested():
+    # it should use a wrap_factory if defined even in nested tracing
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    def wrap_executor(tracer, fn, args, kwargs, span_name, service, resource, span_type):
+        with tracer.trace('wrap.overwrite') as span:
+            span.set_tag('args', args)
+            span.set_tag('kwargs', kwargs)
+            return fn(*args, **kwargs)
+
+    @tracer.wrap()
+    def wrapped_function(param, kw_param=None):
+        eq_(42, param)
+        eq_(42, kw_param)
+
+    # set the custom wrap factory after the wrapper has been called
+    tracer.configure(wrap_executor=wrap_executor)
+
+    # call the function expecting that the custom tracing wrapper is used
+    with tracer.trace('wrap.parent', service='webserver'):
+        wrapped_function(42, kw_param=42)
+
+    eq_(writer.spans[0].name, 'wrap.parent')
+    eq_(writer.spans[0].service, 'webserver')
+
+    eq_(writer.spans[1].name, 'wrap.overwrite')
+    eq_(writer.spans[1].service, 'webserver')
+    eq_(writer.spans[1].get_tag('args'), '(42,)')
+    eq_(writer.spans[1].get_tag('kwargs'), '{\'kw_param\': 42}')
+
+
 def test_tracer_disabled():
     # add some dummy tracing code.
     writer = DummyWriter()
