@@ -14,7 +14,7 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.boto.patch import patch
+from ddtrace.contrib.boto.patch import patch, unpatch
 from ddtrace.ext import http
 
 # testing
@@ -89,6 +89,11 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.METHOD), "PUT")
         eq_(span.get_tag('path'), '/')
         eq_(span.get_tag('aws.operation'), "create_bucket")
+
+        unpatch()
+        s3.get_all_buckets()
+        spans = writer.pop()
+        assert not spans, spans
 
         # extra patching to check if integration is not wrapped multiple times
         patch()

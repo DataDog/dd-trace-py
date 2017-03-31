@@ -8,7 +8,7 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_st
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.ext import http
 
 # testing
@@ -101,6 +101,13 @@ class BotocoreTest(unittest.TestCase):
         tracer = get_dummy_tracer()
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
+
+        unpatch()
+
+        kinesis.list_streams()
+
+        spans = writer.pop()
+        assert not spans, spans
 
         patch()
         patch()
