@@ -13,42 +13,27 @@ from ...ext import http
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
-# Original Elasticsearch class
-_Elasticsearch = elasticsearch.Elasticsearch
 
-
+# NB: We are patching the default elasticsearch.transport module
 def patch():
-    setattr(elasticsearch, 'Elasticsearch', TracedElasticsearch)
+
+    if getattr(elasticsearch, '_datadog_patch', False):
+        return
+    setattr(elasticsearch, '_datadog_patch', True)
+    wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', _perform_request)
+    Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db").onto(elasticsearch.transport.Transport)
+
 
 def unpatch():
-    setattr(elasticsearch, 'Elasticsearch', _Elasticsearch)
+    if getattr(elasticsearch, '_datadog_patch', False):
+        setattr(elasticsearch, '_datadog_patch', False)
+        _unwrap(elasticsearch.transport.Transport, 'perform_request')
 
 
-class TracedElasticsearch(wrapt.ObjectProxy):
-    """Traced Elasticsearch object
-
-    Consists in patching the transport.perform_request method and keeping reference of the pin.
-    """
-
-    def __init__(self, *args, **kwargs):
-        es = _Elasticsearch(*args, **kwargs)
-        super(TracedElasticsearch, self).__init__(es)
-
-        pin = Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db")
-        pin.onto(self)
-
-        wrapt.wrap_function_wrapper(es.transport, 'perform_request', _perform_request)
-
-    def __setddpin__(self, pin):
-        """Attach the Pin to the wrapped transport instance
-
-        Since that's where we create the spans.
-        """
-        pin.onto(self.__wrapped__.transport)
-
-    def __getddpin__(self):
-        """Get the Pin from the wrapped transport instance"""
-        return Pin.get_from(self.__wrapped__.transport)
+def _unwrap(obj, attr):
+    f = getattr(obj, attr, None)
+    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
+        setattr(obj, attr, f.__wrapped__)
 
 
 def _perform_request(func, instance, args, kwargs):
