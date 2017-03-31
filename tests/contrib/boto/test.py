@@ -40,6 +40,7 @@ class BotoTest(unittest.TestCase):
         ec2.get_all_instances()
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag('aws.operation'), "DescribeInstances")
         eq_(span.get_tag(http.STATUS_CODE), "200")
@@ -50,6 +51,7 @@ class BotoTest(unittest.TestCase):
         ec2.run_instances(21)
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag('aws.operation'), "RunInstances")
         eq_(span.get_tag(http.STATUS_CODE), "200")
@@ -70,6 +72,7 @@ class BotoTest(unittest.TestCase):
         s3.get_all_buckets()
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")
@@ -80,16 +83,22 @@ class BotoTest(unittest.TestCase):
         s3.create_bucket("cheese")
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "PUT")
         eq_(span.get_tag('path'), '/')
         eq_(span.get_tag('aws.operation'), "create_bucket")
 
+        # extra patching to check if integration is not wrapped multiple times
+        patch()
+        patch()
+
         # Get the created bucket
         s3.get_bucket("cheese")
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "HEAD")
@@ -114,9 +123,12 @@ class BotoTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
 
+        # multiple calls
+        lamb.list_functions()
         lamb.list_functions()
         spans = writer.pop()
         assert spans
+        eq_(len(spans), 2)
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")

@@ -22,6 +22,10 @@ TRACED_ARGS = ["params", "path", "verb"]
 
 
 def patch():
+    if getattr(botocore.client, '_datadog_patch', False):
+        return
+    setattr(botocore.client, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
     Pin(service="aws", app="botocore", app_type="web").onto(botocore.client.BaseClient)
 

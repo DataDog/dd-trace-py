@@ -23,6 +23,10 @@ def patch():
     different services for connection. For exemple EC2 uses AWSQueryConnection and
     S3 uses AWSAuthConnection
     """
+    if getattr(boto.connection, '_datadog_patch', False):
+        return
+    setattr(boto.connection, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
     wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
     Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)

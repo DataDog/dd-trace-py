@@ -37,6 +37,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.agent'), "botocore")
         eq_(span.get_tag('aws.region'), 'us-west-2')
         eq_(span.get_tag('aws.operation'), 'DescribeInstances')
@@ -54,10 +55,12 @@ class BotocoreTest(unittest.TestCase):
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
         s3.list_buckets()
+        s3.list_buckets()
 
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 2)
         eq_(span.get_tag('aws.operation'), 'ListBuckets')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.s3")
@@ -85,6 +88,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListQueues')
         eq_(span.get_tag(http.STATUS_CODE), '200')
@@ -98,11 +102,15 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
 
+        patch()
+        patch()
+
         kinesis.list_streams()
 
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListStreams')
         eq_(span.get_tag(http.STATUS_CODE), '200')
@@ -121,6 +129,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListFunctions')
         eq_(span.get_tag(http.STATUS_CODE), '200')
@@ -139,6 +148,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListKeys')
         eq_(span.get_tag(http.STATUS_CODE), '200')
