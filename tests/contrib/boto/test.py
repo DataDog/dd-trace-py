@@ -61,7 +61,6 @@ class BotoTest(unittest.TestCase):
         eq_(span.resource, "ec2.runinstances")
         eq_(span.name, "ec2.command")
 
-
     @mock_s3
     def test_s3_client(self):
         s3 = boto.s3.connect_to_region("us-east-1")
@@ -76,7 +75,6 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "GET")
-        # eq_(span.get_tag('host'), 's3.amazonaws.com'). not same answers PY27, PY34..
         eq_(span.get_tag('aws.operation'), "get_all_buckets")
 
         # Create a bucket command
@@ -89,15 +87,6 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag(http.METHOD), "PUT")
         eq_(span.get_tag('path'), '/')
         eq_(span.get_tag('aws.operation'), "create_bucket")
-
-        unpatch()
-        s3.get_all_buckets()
-        spans = writer.pop()
-        assert not spans, spans
-
-        # extra patching to check if integration is not wrapped multiple times
-        patch()
-        patch()
 
         # Get the created bucket
         s3.get_bucket("cheese")
@@ -120,6 +109,35 @@ class BotoTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.resource, "s3.head")
+
+    @mock_lambda
+    def test_unpatch(self):
+        lamb = boto.awslambda.connect_to_region("us-east-2")
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
+        unpatch()
+
+        # multiple calls
+        lamb.list_functions()
+        spans = writer.pop()
+        assert not spans, spans
+
+    @mock_s3
+    def test_double_patch(self):
+        s3 = boto.s3.connect_to_region("us-east-1")
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+
+        patch()
+        patch()
+
+        # Get the created bucket
+        s3.create_bucket("cheese")
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 1)
 
     @mock_lambda
     def test_lambda_client(self):
@@ -164,8 +182,7 @@ class BotoTest(unittest.TestCase):
 
     @skipUnless(
         False,
-    "Test to reproduce the case where args sent to patched function are None, can't be mocked: needs AWS crendentials"
-    )
+    "Test to reproduce the case where args sent to patched function are None, can't be mocked: needs AWS crendentials")
     def test_elasticache_client(self):
         elasticache = boto.elasticache.connect_to_region('us-west-2')
         tracer = get_dummy_tracer()

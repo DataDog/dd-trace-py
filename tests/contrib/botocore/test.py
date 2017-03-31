@@ -102,16 +102,6 @@ class BotocoreTest(unittest.TestCase):
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
 
-        unpatch()
-
-        kinesis.list_streams()
-
-        spans = writer.pop()
-        assert not spans, spans
-
-        patch()
-        patch()
-
         kinesis.list_streams()
 
         spans = writer.pop()
@@ -123,6 +113,35 @@ class BotocoreTest(unittest.TestCase):
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.kinesis")
         eq_(span.resource, "kinesis.liststreams")
+
+    @mock_kinesis
+    def test_unpatch(self):
+        kinesis = self.session.create_client('kinesis', region_name='us-east-1')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
+
+        unpatch()
+
+        kinesis.list_streams()
+        spans = writer.pop()
+        assert not spans, spans
+
+    @mock_sqs
+    def test_double_patch(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
+
+        patch()
+        patch()
+
+        sqs.list_queues()
+
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 1)
 
     @mock_lambda
     def test_lambda_client(self):
