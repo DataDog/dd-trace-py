@@ -13,10 +13,8 @@ from ...ext import http
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
-# Original perform_request function class
-# perform_request = elasticsearch.transport.Transport.perform_request
 
-
+# NB: We are patching the default elasticsearch.transport module
 def patch():
 
     if getattr(elasticsearch, '_datadog_patch', False):
