@@ -47,6 +47,35 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         span = spans[0]
         eq_(span.get_tag('http.status_code'), '403')
         eq_(span.get_tag('http.url'), '/fail-view/')
+        eq_(span.resource, 'tests.contrib.django.app.views.ForbiddenView')
+
+    def test_middleware_trace_function_based_view(self):
+        # ensures that the internals are properly traced when using a function views
+        url = reverse('fn-view')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag('http.url'), '/fn-view/')
+        eq_(span.resource, 'tests.contrib.django.app.views.function_view')
+
+    def test_middleware_trace_callable_view(self):
+        # ensures that the internals are properly traced when using callable views
+        url = reverse('feed-view')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag('http.url'), '/feed-view/')
+        eq_(span.resource, 'tests.contrib.django.app.views.FeedView')
 
     @modify_settings(
         MIDDLEWARE={
