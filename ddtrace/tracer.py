@@ -79,9 +79,11 @@ class Tracer(object):
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
-            automatically the current call context
+            automatically the current call context. This is an advanced option that usually
+            doesn't need to be changed from the default value
         :param object wrap_executor: callable that is used when a function is decorated with
-            ``Tracer.wrap()``
+            ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
+            from the default value
         """
         if enabled is not None:
             self.enabled = enabled
