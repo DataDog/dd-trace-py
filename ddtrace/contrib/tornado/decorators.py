@@ -18,7 +18,7 @@ def _finish_coroutine_span(future):
 
         span.finish()
 
-def wrap_executor(tracer, fn, args, kwargs, span_name, service, resource, span_type):
+def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=None, span_type=None):
     """
     Wrap executor function used to change the default behavior of
     ``Tracer.wrap()`` method. A decorated Tornado function can be
