@@ -8,8 +8,8 @@ This integration ignores autopatching, it can be enabled via
     import boto.ec2
     from ddtrace import patch
 
-    # If not patched yet, you can patch cassandra specifically
-    patch(cassandra=True)
+    # If not patched yet, you can patch boto specifically
+    patch(boto=True)
 
     # This will report spans with the default instrumentation
     ec2 = boto.ec2.connect_to_region("us-west-2")
