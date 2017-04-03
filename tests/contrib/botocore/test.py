@@ -8,7 +8,7 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_st
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.botocore.patch import patch
+from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.ext import http
 
 # testing
@@ -37,6 +37,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.agent'), "botocore")
         eq_(span.get_tag('aws.region'), 'us-west-2')
         eq_(span.get_tag('aws.operation'), 'DescribeInstances')
@@ -54,10 +55,12 @@ class BotocoreTest(unittest.TestCase):
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
 
         s3.list_buckets()
+        s3.list_buckets()
 
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 2)
         eq_(span.get_tag('aws.operation'), 'ListBuckets')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.s3")
@@ -85,6 +88,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListQueues')
         eq_(span.get_tag(http.STATUS_CODE), '200')
@@ -103,11 +107,41 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListStreams')
         eq_(span.get_tag(http.STATUS_CODE), '200')
         eq_(span.service, "test-botocore-tracing.kinesis")
         eq_(span.resource, "kinesis.liststreams")
+
+    @mock_kinesis
+    def test_unpatch(self):
+        kinesis = self.session.create_client('kinesis', region_name='us-east-1')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
+
+        unpatch()
+
+        kinesis.list_streams()
+        spans = writer.pop()
+        assert not spans, spans
+
+    @mock_sqs
+    def test_double_patch(self):
+        sqs = self.session.create_client('sqs', region_name='us-east-1')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
+
+        patch()
+        patch()
+
+        sqs.list_queues()
+
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 1)
 
     @mock_lambda
     def test_lambda_client(self):
@@ -121,6 +155,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListFunctions')
         eq_(span.get_tag(http.STATUS_CODE), '200')
@@ -139,6 +174,7 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        eq_(len(spans), 1)
         eq_(span.get_tag('aws.region'), 'us-east-1')
         eq_(span.get_tag('aws.operation'), 'ListKeys')
         eq_(span.get_tag(http.STATUS_CODE), '200')

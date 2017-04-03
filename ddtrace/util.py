@@ -5,6 +5,8 @@ Generic utilities for tracers
 from functools import wraps
 import inspect
 import logging
+import wrapt
+
 
 def deprecated(message='', version=None):
     """Function decorator to report a deprecated function"""
@@ -96,3 +98,9 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         setattr(patchable, key, dest)
     elif hasattr(patchable, '__class__'):
         setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
+
+
+def unwrap(obj, attr):
+    f = getattr(obj, attr, None)
+    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
+        setattr(obj, attr, f.__wrapped__)

@@ -3,6 +3,8 @@ import wrapt
 import inspect
 
 from ddtrace import Pin
+from ddtrace.util import unwrap
+
 
 from ...ext import http
 from ...ext import aws
@@ -23,10 +25,21 @@ def patch():
     different services for connection. For exemple EC2 uses AWSQueryConnection and
     S3 uses AWSAuthConnection
     """
+    if getattr(boto.connection, '_datadog_patch', False):
+        return
+    setattr(boto.connection, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
     wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
     Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
     Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
+
+
+def unpatch():
+    if getattr(boto.connection, '_datadog_patch', False):
+        setattr(boto.connection, '_datadog_patch', False)
+        unwrap(boto.connection.AWSQueryConnection, 'make_request')
+        unwrap(boto.connection.AWSAuthConnection, 'make_request')
 
 
 # ec2, sqs, kinesis
