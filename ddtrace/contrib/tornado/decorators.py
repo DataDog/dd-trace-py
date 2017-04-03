@@ -1,6 +1,6 @@
 from tornado.concurrent import Future
 
-from .settings import FUTURE_SPAN_KEY
+from .constants import FUTURE_SPAN_KEY
 
 
 def _finish_coroutine_span(future):
