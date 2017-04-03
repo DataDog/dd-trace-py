@@ -27,17 +27,9 @@ Auto instrumentation is available using the ``trace_app`` function as follows::
     app.listen(8888)
     tornado.ioloop.IOLoop.current().start()
 
-When a ``RequestHandler`` is hit, a request span is automatically created and attached
-to the current ``request`` object, so that it can be used in the application code::
-
-    class MainHandler(tornado.web.RequestHandler):
-        @tornado.gen.coroutine
-        def get(self):
-            ctx = getattr(self.request, 'datadog_context')
-            # do something with the tracing Context
-
-If you want to trace other part of your application, you can use both the ``Tracer.wrap()``
-decorator and the ``Tracer.trace()`` method::
+When a ``RequestHandler`` is hit, a request root span is automatically created and if you want
+to trace more parts of your application, you can use both the ``Tracer.wrap()`` decorator and
+the ``Tracer.trace()`` method like usual::
 
     class MainHandler(tornado.web.RequestHandler):
         @tornado.gen.coroutine
