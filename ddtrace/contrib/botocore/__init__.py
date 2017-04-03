@@ -1,3 +1,24 @@
+"""
+The Botocore integration will trace all aws calls made with the botocore
+library. Libraries like Boto3 that use Botocore will also be patched
+
+This integration ignores autopatching, it can be enabled via
+`patch_all(botocore=True)`
+::
+
+    import botocore.session
+    from ddtrace import patch
+
+    # If not patched yet, you can patch botocore specifically
+    patch(botocore=True)
+
+    # This will report spans with the default instrumentation
+    lamb = self.session.create_client('lambda', region_name='us-east-1')
+    # Example of instrumented query
+    lamb.list_functions()
+"""
+
+
 from ..util import require_modules
 
 required_modules = ['botocore.client']
