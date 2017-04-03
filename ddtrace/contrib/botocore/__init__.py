@@ -13,7 +13,8 @@ This integration ignores autopatching, it can be enabled via
     patch(botocore=True)
 
     # This will report spans with the default instrumentation
-    lamb = self.session.create_client('lambda', region_name='us-east-1')
+    botocore.session.get_session()
+    lamb = session.create_client('lambda', region_name='us-east-1')
     # Example of instrumented query
     lamb.list_functions()
 """
