@@ -2,7 +2,7 @@ from wrapt import function_wrapper
 
 from tornado.web import ErrorHandler, HTTPError
 
-from .settings import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
+from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 from ...ext import http
 

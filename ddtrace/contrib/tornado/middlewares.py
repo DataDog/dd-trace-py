@@ -1,5 +1,5 @@
 from . import handlers, decorators
-from .settings import CONFIG_KEY
+from .constants import CONFIG_KEY
 from .stack_context import TracerStackContext
 
 from ...ext import AppTypes
