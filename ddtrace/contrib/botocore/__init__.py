@@ -14,9 +14,9 @@ This integration ignores autopatching, it can be enabled via
 
     # This will report spans with the default instrumentation
     botocore.session.get_session()
-    lamb = session.create_client('lambda', region_name='us-east-1')
+    lambda_client = session.create_client('lambda', region_name='us-east-1')
     # Example of instrumented query
-    lamb.list_functions()
+    lambda_client.list_functions()
 """
 
 
