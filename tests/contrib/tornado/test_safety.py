@@ -36,6 +36,8 @@ class TestAsyncConcurrency(AsyncHTTPTestCase):
             response = http_client.fetch(url)
             eq_(200, response.code)
             eq_('OK', response.body.decode('utf-8'))
+            # freeing file descriptors
+            http_client.close()
 
         # blocking call executed in different threads
         threads = [threading.Thread(target=make_requests) for _ in range(50)]
@@ -44,7 +46,7 @@ class TestAsyncConcurrency(AsyncHTTPTestCase):
             t.start()
 
         # wait for the execution; assuming this time as a timeout
-        yield web.compat.sleep(0.2)
+        yield web.compat.sleep(0.5)
 
         # the trace is created
         traces = self.tracer.writer.pop_traces()
