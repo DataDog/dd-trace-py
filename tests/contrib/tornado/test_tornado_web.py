@@ -1,7 +1,7 @@
 from nose.tools import eq_, ok_
 from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace.contrib.tornado import trace_app, untrace_app
+from ddtrace.contrib.tornado import patch, unpatch
 
 from . import web
 from ...test_tracer import get_dummy_tracer
@@ -12,16 +12,23 @@ class TestTornadoWeb(AsyncHTTPTestCase):
     Ensure that Tornado web handlers are properly traced.
     """
     def get_app(self):
+        # patch Tornado
+        patch()
         # create a dummy tracer and a Tornado web application
-        self.app = web.make_app()
         self.tracer = get_dummy_tracer()
-        trace_app(self.app, self.tracer)
+        settings = {
+            'datadog_trace': {
+                'tracer': self.tracer,
+            },
+        }
+
+        self.app = web.make_app(settings=settings)
         return self.app
 
     def tearDown(self):
         super(TestTornadoWeb, self).tearDown()
-        # reset the application if traced
-        untrace_app(self.app)
+        # unpatch Tornado
+        unpatch()
 
     def test_success_handler(self):
         # it should trace a handler that returns 200
@@ -164,7 +171,7 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
-        eq_('ddtrace.contrib.tornado.handlers.TracerErrorHandler', request_span.resource)
+        eq_('tornado.web.ErrorHandler', request_span.resource)
         eq_('GET', request_span.get_tag('http.method'))
         eq_('404', request_span.get_tag('http.status_code'))
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
@@ -228,17 +235,26 @@ class TestCustomTornadoWeb(AsyncHTTPTestCase):
     a custom default handler.
     """
     def get_app(self):
+        # patch Tornado
+        patch()
         # create a dummy tracer and a Tornado web application with
         # a custom default handler
+        self.tracer = get_dummy_tracer()
         settings = {
             'default_handler_class': web.CustomDefaultHandler,
             'default_handler_args': dict(status_code=400),
+            'datadog_trace': {
+                'tracer': self.tracer,
+            },
         }
 
         self.app = web.make_app(settings=settings)
-        self.tracer = get_dummy_tracer()
-        trace_app(self.app, self.tracer)
         return self.app
+
+    def tearDown(self):
+        super(TestCustomTornadoWeb, self).tearDown()
+        # unpatch Tornado
+        unpatch()
 
     def test_custom_default_handler(self):
         # it should trace any call that uses a custom default handler
