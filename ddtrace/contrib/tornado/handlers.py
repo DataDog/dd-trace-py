@@ -1,14 +1,11 @@
-from wrapt import function_wrapper
-
-from tornado.web import ErrorHandler, HTTPError
+from tornado.web import HTTPError
 
 from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 from ...ext import http
 
 
-@function_wrapper
-def _wrap_execute(func, handler, args, kwargs):
+def execute(func, handler, args, kwargs):
     """
     Wrap the handler execute method so that the entire request is within the same
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
@@ -34,8 +31,7 @@ def _wrap_execute(func, handler, args, kwargs):
         return func(*args, **kwargs)
 
 
-@function_wrapper
-def _wrap_on_finish(func, handler, args, kwargs):
+def on_finish(func, handler, args, kwargs):
     """
     Wrap the ``RequestHandler.on_finish`` method. This is the last executed method
     after the response has been sent, and it's used to retrieve and close the
@@ -57,8 +53,7 @@ def _wrap_on_finish(func, handler, args, kwargs):
     return func(*args, **kwargs)
 
 
-@function_wrapper
-def _wrap_log_exception(func, handler, args, kwargs):
+def log_exception(func, handler, args, kwargs):
     """
     Wrap the ``RequestHandler.log_exception``. This method is called when an
     Exception is not handled in the user code. In this case, we save the exception
@@ -76,8 +71,8 @@ def _wrap_log_exception(func, handler, args, kwargs):
 
     if isinstance(value, HTTPError):
         # Tornado uses HTTPError exceptions to stop and return a status code that
-        # is not a 2xx. In this case we want to trace as errorsbe sure that only 5xx
-        # errors are traced as errors, while any other HTTPError exceptions are handled as
+        # is not a 2xx. In this case we want to check the status code to be sure that
+        # only 5xx are traced as errors, while any other HTTPError exception is handled as
         # usual.
         if 500 < value.status_code < 599:
             current_span.set_exc_info(*args)
@@ -86,51 +81,3 @@ def _wrap_log_exception(func, handler, args, kwargs):
         current_span.set_exc_info(*args)
 
     return func(*args, **kwargs)
-
-
-def wrap_methods(handler_class):
-    """
-    Shortcut that wraps all methods of the given class handler so that they're traced.
-    """
-    # safe-guard: ensure that the handler class is patched once; it's possible
-    # that the same handler is used in different endpoints
-    if getattr(handler_class, '__datadog_trace', False):
-        return
-    setattr(handler_class, '__datadog_trace', True)
-
-    # handlers for the request span
-    handler_class._execute = _wrap_execute(handler_class._execute)
-    handler_class.on_finish = _wrap_on_finish(handler_class.on_finish)
-    # handlers for exceptions
-    handler_class.log_exception = _wrap_log_exception(handler_class.log_exception)
-
-
-def unwrap_methods(handler_class):
-    """
-    Shortcut that unwraps all methods of the given class handler so that they aren't traced.
-    """
-    # safe-guard: ensure that the handler class is patched once; it's possible
-    # that the same handler is used in different endpoints
-    if not getattr(handler_class, '__datadog_trace', False):
-        return
-
-    # handlers for the request span
-    handler_class._execute = handler_class._execute.__wrapped__
-    handler_class.on_finish = handler_class.on_finish.__wrapped__
-    # handlers for exceptions
-    handler_class.log_exception = handler_class.log_exception.__wrapped__
-
-    # clear the attribute
-    delattr(handler_class, '__datadog_trace')
-
-
-class TracerErrorHandler(ErrorHandler):
-    """
-    Error handler class that is used to trace Tornado errors when the framework
-    invokes the default handler. The class handles errors like the default
-    ``ErrorHandler``, while tracing the execution and the result.
-    """
-    pass
-
-
-wrap_methods(TracerErrorHandler)

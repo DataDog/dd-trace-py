@@ -1,7 +1,7 @@
 from nose.tools import eq_, ok_
 from tornado.testing import AsyncHTTPTestCase
 
-from ddtrace.contrib.tornado import trace_app, untrace_app
+from ddtrace.contrib.tornado import patch, unpatch
 
 from . import web
 from ...test_tracer import get_dummy_tracer
@@ -12,16 +12,23 @@ class TestTornadoWebWrapper(AsyncHTTPTestCase):
     Ensure that Tracer.wrap() works with Tornado web handlers.
     """
     def get_app(self):
+        # patch Tornado
+        patch()
         # create a dummy tracer and a Tornado web application
-        self.app = web.make_app()
         self.tracer = get_dummy_tracer()
-        trace_app(self.app, self.tracer)
+        settings = {
+            'datadog_trace': {
+                'tracer': self.tracer,
+            },
+        }
+
+        self.app = web.make_app(settings=settings)
         return self.app
 
     def tearDown(self):
         super(TestTornadoWebWrapper, self).tearDown()
-        # reset the application if traced
-        untrace_app(self.app)
+        # unpatch Tornado
+        unpatch()
 
     def test_nested_wrap_handler(self):
         # it should trace a handler that calls a coroutine
