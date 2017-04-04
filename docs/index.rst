@@ -151,6 +151,16 @@ aiohttp
 Other Libraries
 ---------------
 
+Boto2
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.boto
+
+Botocore
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.botocore
+
 Cassandra
 ~~~~~~~~~
 
@@ -343,6 +353,10 @@ We officially support Python 2.7, 3.4 and above.
 | Integrations    | Supported versions |
 +=================+====================+
 | aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| boto            | >= 2.29.0          |
++-----------------+--------------------+
+| botocore        | >= 1.4.51          |
 +-----------------+--------------------+
 | bottle          | >= 0.12            |
 +-----------------+--------------------+
