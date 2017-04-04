@@ -1,35 +1,13 @@
 from nose.tools import eq_, ok_
-from tornado.testing import AsyncHTTPTestCase
-
-from ddtrace.contrib.tornado import patch, unpatch
 
 from . import web
-from ...test_tracer import get_dummy_tracer
+from .utils import TornadoTestCase
 
 
-class TestTornadoWeb(AsyncHTTPTestCase):
+class TestTornadoWeb(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced.
     """
-    def get_app(self):
-        # patch Tornado
-        patch()
-        # create a dummy tracer and a Tornado web application
-        self.tracer = get_dummy_tracer()
-        settings = {
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
-        }
-
-        self.app = web.make_app(settings=settings)
-        return self.app
-
-    def tearDown(self):
-        super(TestTornadoWeb, self).tearDown()
-        # unpatch Tornado
-        unpatch()
-
     def test_success_handler(self):
         # it should trace a handler that returns 200
         response = self.fetch('/success/')
@@ -229,32 +207,16 @@ class TestTornadoWeb(AsyncHTTPTestCase):
         eq_(0, request_span.error)
 
 
-class TestCustomTornadoWeb(AsyncHTTPTestCase):
+class TestCustomTornadoWeb(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced when using
     a custom default handler.
     """
-    def get_app(self):
-        # patch Tornado
-        patch()
-        # create a dummy tracer and a Tornado web application with
-        # a custom default handler
-        self.tracer = get_dummy_tracer()
-        settings = {
+    def get_settings(self):
+        return {
             'default_handler_class': web.CustomDefaultHandler,
             'default_handler_args': dict(status_code=400),
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
         }
-
-        self.app = web.make_app(settings=settings)
-        return self.app
-
-    def tearDown(self):
-        super(TestCustomTornadoWeb, self).tearDown()
-        # unpatch Tornado
-        unpatch()
 
     def test_custom_default_handler(self):
         # it should trace any call that uses a custom default handler

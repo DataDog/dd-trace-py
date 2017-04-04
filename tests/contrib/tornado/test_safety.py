@@ -2,37 +2,18 @@ import threading
 
 from nose.tools import eq_
 from tornado import httpclient
-from tornado.testing import AsyncHTTPTestCase, gen_test
+from tornado.testing import gen_test
 
 from ddtrace.contrib.tornado import patch, unpatch
 
 from . import web
-from ...test_tracer import get_dummy_tracer
+from .utils import TornadoTestCase
 
 
-class TestAsyncConcurrency(AsyncHTTPTestCase):
+class TestAsyncConcurrency(TornadoTestCase):
     """
     Ensure that application instrumentation doesn't break asynchronous concurrency.
     """
-    def get_app(self):
-        # patch Tornado
-        patch()
-        # create a dummy tracer and a Tornado web application
-        self.tracer = get_dummy_tracer()
-        settings = {
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
-        }
-
-        self.app = web.make_app(settings=settings)
-        return self.app
-
-    def tearDown(self):
-        super(TestAsyncConcurrency, self).tearDown()
-        # unpatch Tornado
-        unpatch()
-
     @gen_test
     def test_concurrent_requests(self):
         # the application must handle concurrent calls
@@ -61,29 +42,10 @@ class TestAsyncConcurrency(AsyncHTTPTestCase):
         eq_(2, len(traces[0]))
 
 
-class TestAppSafety(AsyncHTTPTestCase):
+class TestAppSafety(TornadoTestCase):
     """
     Ensure that the application patch has the proper safety guards.
     """
-    def get_app(self):
-        # patch Tornado
-        patch()
-        # create a dummy tracer and a Tornado web application
-        self.tracer = get_dummy_tracer()
-        settings = {
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
-        }
-
-        self.app = web.make_app(settings=settings)
-        return self.app
-
-    def tearDown(self):
-        super(TestAppSafety, self).tearDown()
-        # unpatch Tornado
-        unpatch()
-
     def test_trace_unpatch(self):
         # the application must not be traced if unpatch() is called
         patch()
@@ -145,32 +107,16 @@ class TestAppSafety(AsyncHTTPTestCase):
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
 
 
-class TestCustomAppSafety(AsyncHTTPTestCase):
+class TestCustomAppSafety(TornadoTestCase):
     """
     Ensure that the application patch has the proper safety guards,
     even for custom default handlers.
     """
-    def get_app(self):
-        # patch Tornado
-        patch()
-        # create a dummy tracer and a Tornado web application with
-        # a custom default handler
-        self.tracer = get_dummy_tracer()
-        settings = {
+    def get_settings(self):
+        return {
             'default_handler_class': web.CustomDefaultHandler,
             'default_handler_args': dict(status_code=400),
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
         }
-
-        self.app = web.make_app(settings=settings)
-        return self.app
-
-    def tearDown(self):
-        super(TestCustomAppSafety, self).tearDown()
-        # unpatch Tornado
-        unpatch()
 
     def test_trace_unpatch(self):
         # the application must not be traced if unpatch() is called
