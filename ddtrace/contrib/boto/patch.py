@@ -90,12 +90,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Catching the name of the operation that called make_request()
     operation_name = None
-    for frame in inspect.getouterframes(inspect.currentframe()):
-        # Going backwards in the traceback till first call outside off ddtrace before make_request
-        if len(frame) > 3:
-            if "ddtrace" not in frame[1].split('/') and frame[3] != 'make_request':
-                operation_name = frame[3]
-                break
+    frame = inspect.currentframe()
+    # go up the call stack twice to get into the boto frame
+    boto_frame = frame.f_back.f_back
+    operation_name = boto_frame.f_code.co_name
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
