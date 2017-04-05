@@ -79,15 +79,18 @@ def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=No
     # catch standard exceptions raised in synchronous executions
     try:
         future = fn(*args, **kwargs)
+
+        # duck-typing: if it has `add_done_callback` it's a Future
+        # object whatever is the underlying implementation
+        if callable(getattr(future, 'add_done_callback', None)):
+            setattr(future, FUTURE_SPAN_KEY, span)
+            future.add_done_callback(_finish_span)
+        else:
+            # TODO: it's a normal span
+            span.finish()
     except Exception:
         span.set_traceback()
         span.finish()
         raise
 
-    # attach the tracing span if it's a future
-    if isinstance(future, Future):
-        setattr(future, FUTURE_SPAN_KEY, span)
-        future.add_done_callback(_finish_coroutine_span)
-    else:
-        span.finish()
     return future
