@@ -161,6 +161,38 @@ class ExecutorDelayedHandler(tornado.web.RequestHandler):
         self.write('OK')
 
 
+class ExecutorCustomHandler(tornado.web.RequestHandler):
+    # not used automatically, a kwarg is required
+    custom_thread_pool = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        @tornado.concurrent.run_on_executor(executor='custom_thread_pool')
+        def outer_executor(self):
+            # wait before creating a trace so that we're sure
+            # the `tornado.executor.with` span has the right
+            # parent
+            tracer = self.settings['datadog_trace']['tracer']
+
+            with tracer.trace('tornado.executor.with'):
+                time.sleep(0.05)
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
+class ExecutorCustomArgsHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        # this is not a legit use of the decorator so a failure is expected
+        @tornado.concurrent.run_on_executor(object(), executor='_pool')
+        def outer_executor(self):
+            pass
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
 class ExecutorExceptionHandler(tornado.web.RequestHandler):
     # used automatically by the @run_on_executor decorator
     executor = ThreadPoolExecutor(max_workers=3)
@@ -233,6 +265,8 @@ def make_app(settings={}):
         # handlers that spawn new threads
         (r'/executor_handler/', ExecutorHandler),
         (r'/executor_delayed_handler/', ExecutorDelayedHandler),
+        (r'/executor_custom_handler/', ExecutorCustomHandler),
+        (r'/executor_custom_args_handler/', ExecutorCustomArgsHandler),
         (r'/executor_exception/', ExecutorExceptionHandler),
         (r'/executor_wrap_handler/', ExecutorWrapHandler),
         (r'/executor_wrap_exception/', ExecutorExceptionWrapHandler),
