@@ -24,6 +24,7 @@ def patch():
     _w('tornado.web', 'RequestHandler.on_finish', handlers.on_finish)
     _w('tornado.web', 'RequestHandler.log_exception', handlers.log_exception)
     _w('tornado.web', 'Application.__init__', application.tracer_config)
+    _w('tornado.concurrent', 'run_on_executor', decorators._run_on_executor)
 
     # configure the global tracer
     ddtrace.tracer.configure(
@@ -45,3 +46,4 @@ def unpatch():
     unwrap(tornado.web.RequestHandler, 'on_finish')
     unwrap(tornado.web.RequestHandler, 'log_exception')
     unwrap(tornado.web.Application, '__init__')
+    unwrap(tornado.concurrent, 'run_on_executor')
