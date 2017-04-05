@@ -36,6 +36,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
+        eq_(executor_span.parent_id, request_span.span_id)
         eq_(0, executor_span.error)
         ok_(executor_span.duration >= 0.05)
 
@@ -72,6 +73,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[1][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
+        eq_(executor_span.parent_id, request_span.span_id)
         eq_(0, executor_span.error)
         ok_(executor_span.duration >= 0.05)
 
@@ -102,6 +104,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
+        eq_(executor_span.parent_id, request_span.span_id)
         eq_(1, executor_span.error)
         eq_('Ouch!', executor_span.get_tag('error.msg'))
         ok_('Exception: Ouch!' in executor_span.get_tag('error.stack'))
