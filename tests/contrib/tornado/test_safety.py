@@ -1,6 +1,7 @@
 import threading
 
 from nose.tools import eq_
+
 from tornado import httpclient
 from tornado.testing import gen_test
 
