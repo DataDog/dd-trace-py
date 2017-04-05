@@ -1,11 +1,11 @@
-import wrapt
 import ddtrace
-
 import tornado
+
+from wrapt import wrap_function_wrapper as _w
 
 from . import handlers, application, decorators
 from .stack_context import TracerStackContext
-from ...util import unwrap
+from ...util import unwrap as _u
 
 
 def patch():
@@ -18,12 +18,15 @@ def patch():
         return
     setattr(tornado, '__datadog_patch', True)
 
-    # patch all classes and functions
-    _w = wrapt.wrap_function_wrapper
+    # patch Application to initialize properly our settings and tracer
+    _w('tornado.web', 'Application.__init__', application.tracer_config)
+
+    # patch RequestHandler to trace all Tornado handlers
     _w('tornado.web', 'RequestHandler._execute', handlers.execute)
     _w('tornado.web', 'RequestHandler.on_finish', handlers.on_finish)
     _w('tornado.web', 'RequestHandler.log_exception', handlers.log_exception)
-    _w('tornado.web', 'Application.__init__', application.tracer_config)
+
+    # patch Tornado decorators
     _w('tornado.concurrent', 'run_on_executor', decorators._run_on_executor)
 
     # configure the global tracer
@@ -41,9 +44,9 @@ def unpatch():
         return
     setattr(tornado, '__datadog_patch', False)
 
-    # unpatch all classes and functions
-    unwrap(tornado.web.RequestHandler, '_execute')
-    unwrap(tornado.web.RequestHandler, 'on_finish')
-    unwrap(tornado.web.RequestHandler, 'log_exception')
-    unwrap(tornado.web.Application, '__init__')
-    unwrap(tornado.concurrent, 'run_on_executor')
+    # unpatch Tornado
+    _u(tornado.web.RequestHandler, '_execute')
+    _u(tornado.web.RequestHandler, 'on_finish')
+    _u(tornado.web.RequestHandler, 'log_exception')
+    _u(tornado.web.Application, '__init__')
+    _u(tornado.concurrent, 'run_on_executor')
