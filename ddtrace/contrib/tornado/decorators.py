@@ -30,39 +30,46 @@ def _finish_span(future):
 
 def _run_on_executor(run_on_executor, _, params, kw_params):
     """
-    TODO
+    Wrap the `run_on_executor` function so that when a function is executed
+    in a different thread, we use an intermediate function (and a closure)
+    to keep track of the current `parent_span` if any. The real function
+    is then executed in a `TracerStackContext` so that `tracer.trace()`
+    can be used as usual, both with empty or existing `Context`.
     """
     # this is the original call that returns a decorator; invoked once,
     # it's used as a sanity check that may return exceptions as
     # expected in Tornado's code
-    run_on_executor(*params, **kw_params)
-    fn = params[0]
+    decorator = run_on_executor(*params, **kw_params)
+
+    # if `run_on_executor` is called without arguments, the
+    # function returns itself; here we mimic the same action
+    # returning this decorator
+    if decorator.__module__ == 'tornado.concurrent':
+        return decorator
 
     # closure that holds the parent_span of this logical execution; the
     # Context object may not exist and/or may be empty
     current_ctx = ddtrace.tracer.get_call_context()
-    parent_span = current_ctx._current_span
-
-    # parent_span = getattr(current_ctx, '_current_span', None)
+    parent_span = getattr(current_ctx, '_current_span', None)
 
     def traced_wrapper(*args, **kwargs):
         """
-        This function is executed in the newly created Thread so the right
-        ``Context`` can be set in the thread-local storage. This operation
-        is safe because the ``Context`` class is thread-safe and can be
-        updated concurrently.
+        This intermediate function is executed in the newly created thread. Here
+        using a `TracerStackContext` is legit because this function doesn't interfere
+        with the main thread loop. `StackContext` states, used as a carrier for our Context
+        object, are thread-local so retrieving the context here will always bring to an
+        empty `Context`.
         """
-        # we can use again a TracerStackContext because this function is executed in
-        # a new thread. StackContext states, used as a carrier for our Context object,
-        # are thread-local so retrieving the context here will always bring to an
-        # empty Context.
         with TracerStackContext():
+            # the function that must be called in the executor
+            fn = params[0]
             ctx = ddtrace.tracer.get_call_context()
             ctx._current_span = parent_span
-            # the real call (if we're here the wrapper call has been used as sanity check)
+
             return fn(*args, **kwargs)
 
-    # return our wrapper that executes custom code in a different thread
+    # return our wrapper function that executes an intermediate function to
+    # trace the real execution in a different thread
     return run_on_executor(traced_wrapper)
 
 
