@@ -2,8 +2,9 @@ import os
 import time
 
 import tornado.web
+import tornado.concurrent
 
-from .compat import sleep
+from .compat import sleep, ThreadPoolExecutor
 
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -117,6 +118,105 @@ class CustomDefaultHandler(tornado.web.ErrorHandler):
     pass
 
 
+class ExecutorHandler(tornado.web.RequestHandler):
+    # used automatically by the @run_on_executor decorator
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        @tornado.concurrent.run_on_executor
+        def outer_executor(self):
+            # wait before creating a trace so that we're sure
+            # the `tornado.executor.with` span has the right
+            # parent
+            tracer = self.settings['datadog_trace']['tracer']
+
+            with tracer.trace('tornado.executor.with'):
+                time.sleep(0.05)
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
+class ExecutorDelayedHandler(tornado.web.RequestHandler):
+    # used automatically by the @run_on_executor decorator
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        @tornado.concurrent.run_on_executor
+        def outer_executor(self):
+            # waiting here means expecting that the `get()` flushes
+            # the request trace
+            time.sleep(0.01)
+            tracer = self.settings['datadog_trace']['tracer']
+
+            with tracer.trace('tornado.executor.with'):
+                time.sleep(0.05)
+
+        # we don't yield here but we expect that the outer_executor
+        # has the right parent; tests that use this handler, must
+        # yield sleep() to wait thread execution
+        outer_executor(self)
+        self.write('OK')
+
+
+class ExecutorExceptionHandler(tornado.web.RequestHandler):
+    # used automatically by the @run_on_executor decorator
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        @tornado.concurrent.run_on_executor
+        def outer_executor(self):
+            # wait before creating a trace so that we're sure
+            # the `tornado.executor.with` span has the right
+            # parent
+            time.sleep(0.05)
+            tracer = self.settings['datadog_trace']['tracer']
+
+            with tracer.trace('tornado.executor.with'):
+                raise Exception('Ouch!')
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
+class ExecutorWrapHandler(tornado.web.RequestHandler):
+    # used automatically by the @run_on_executor decorator
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        tracer = self.settings['datadog_trace']['tracer']
+
+        @tracer.wrap('tornado.executor.wrap')
+        @tornado.concurrent.run_on_executor
+        def outer_executor(self):
+            time.sleep(0.05)
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
+class ExecutorExceptionWrapHandler(tornado.web.RequestHandler):
+    # used automatically by the @run_on_executor decorator
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    @tornado.gen.coroutine
+    def get(self):
+        tracer = self.settings['datadog_trace']['tracer']
+
+        @tracer.wrap('tornado.executor.wrap')
+        @tornado.concurrent.run_on_executor
+        def outer_executor(self):
+            time.sleep(0.05)
+            raise Exception('Ouch!')
+
+        yield outer_executor(self)
+        self.write('OK')
+
+
 def make_app(settings={}):
     """
     Create a Tornado web application, useful to test
@@ -130,6 +230,12 @@ def make_app(settings={}):
         (r'/nested_exception_wrap/', NestedExceptionWrapHandler),
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
+        # handlers that spawn new threads
+        (r'/executor_handler/', ExecutorHandler),
+        (r'/executor_delayed_handler/', ExecutorDelayedHandler),
+        (r'/executor_exception/', ExecutorExceptionHandler),
+        (r'/executor_wrap_handler/', ExecutorWrapHandler),
+        (r'/executor_wrap_exception/', ExecutorExceptionWrapHandler),
         # built-in handlers
         (r'/redirect/', tornado.web.RedirectHandler, {'url': '/success/'}),
         (r'/statics/(.*)', tornado.web.StaticFileHandler, {'path': STATIC_DIR}),

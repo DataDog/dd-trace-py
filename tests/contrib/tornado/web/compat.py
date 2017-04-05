@@ -2,6 +2,23 @@ from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 
 
+try:
+    from concurrent.futures import ThreadPoolExecutor
+except ImportError:
+    from tornado.concurrent import DummyExecutor
+
+    class ThreadPoolExecutor(DummyExecutor):
+        """
+        Fake executor class used to test our tracer when Python 2 is used
+        without the `futures` backport. This is not a real use case, but
+        it's required to be defensive when we have different `Executor`
+        implementations.
+        """
+        def __init__(self, *args, **kwargs):
+            # we accept any kind of interface
+            super(ThreadPoolExecutor, self).__init__()
+
+
 def sleep(duration):
     """
     Compatibility helper that return a Future() that can be yielded.
