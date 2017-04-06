@@ -72,6 +72,12 @@ class HTTPExceptionHandler(tornado.web.RequestHandler):
         raise tornado.web.HTTPError(status_code=501, log_message='unavailable', reason='Not Implemented')
 
 
+class HTTPException500Handler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        raise tornado.web.HTTPError(status_code=500, log_message='server error', reason='Server Error')
+
+
 class TemplateHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
@@ -283,6 +289,7 @@ def make_app(settings={}):
         (r'/nested_exception_wrap/', NestedExceptionWrapHandler),
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
+        (r'/http_exception_500/', HTTPException500Handler),
         (r'/template/', TemplateHandler),
         (r'/template_partial/', TemplatePartialHandler),
         (r'/template_exception/', TemplateExceptionHandler),
