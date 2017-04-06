@@ -95,7 +95,8 @@ def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=No
             setattr(future, FUTURE_SPAN_KEY, span)
             future.add_done_callback(_finish_span)
         else:
-            # TODO: it's a normal span
+            # we don't have a future so the `future` variable
+            # holds the result of the function
             span.finish()
     except Exception:
         span.set_traceback()

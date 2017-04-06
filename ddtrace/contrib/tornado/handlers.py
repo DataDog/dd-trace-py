@@ -14,7 +14,7 @@ def execute(func, handler, args, kwargs):
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
     tracer = settings['tracer']
-    service = settings['service']
+    service = settings['default_service']
 
     with TracerStackContext():
         # attach the context to the request

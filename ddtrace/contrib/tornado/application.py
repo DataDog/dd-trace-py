@@ -18,7 +18,7 @@ def tracer_config(__init__, app, args, kwargs):
     # default settings
     settings = {
         'tracer': ddtrace.tracer,
-        'service': 'tornado-web',
+        'default_service': 'tornado-web',
     }
 
     # update defaults with users settings
@@ -28,7 +28,7 @@ def tracer_config(__init__, app, args, kwargs):
 
     app.settings[CONFIG_KEY] = settings
     tracer = settings['tracer']
-    service = settings['service']
+    service = settings['default_service']
 
     # the tracer must use the right Context propagation and wrap executor;
     # this action is done twice because the patch() method uses the
@@ -37,7 +37,15 @@ def tracer_config(__init__, app, args, kwargs):
     tracer.configure(
         context_provider=TracerStackContext.current_context,
         wrap_executor=decorators.wrap_executor,
+        enabled=settings.get('enabled', None),
+        hostname=settings.get('agent_hostname', None),
+        port=settings.get('agent_port', None),
     )
+
+    # set global tags if any
+    tags = settings.get('tags', None)
+    if tags:
+        tracer.set_tags(tags)
 
     # configure the current service
     tracer.set_service_info(
