@@ -206,35 +206,6 @@ class TestTornadoWeb(TornadoTestCase):
         eq_('/statics/empty.txt', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
 
-    def test_template_handler(self):
-        # it should trace the template rendering
-        response = self.fetch('/template/')
-        eq_(200, response.code)
-        eq_('This is a rendered page called "home"\n', response.body.decode('utf-8'))
-
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-
-        request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.TemplateHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/template/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
-
-        template_span = traces[0][1]
-        eq_('tornado-web', template_span.service)
-        eq_('tornado.template', template_span.name)
-        eq_('template', template_span.span_type)
-        eq_('templates/page.html', template_span.resource)
-        eq_('templates/page.html', template_span.get_tag('tornado.template_name'))
-        eq_(template_span.parent_id, request_span.span_id)
-        eq_(0, template_span.error)
-
 
 class TestCustomTornadoWeb(TornadoTestCase):
     """

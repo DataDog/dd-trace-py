@@ -4,6 +4,7 @@ import time
 import tornado.web
 import tornado.concurrent
 
+from . import uimodules
 from .compat import sleep, ThreadPoolExecutor
 
 
@@ -75,6 +76,18 @@ class TemplateHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
         self.render('templates/page.html', name='home')
+
+
+class TemplatePartialHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.render('templates/list.html', items=['python', 'go', 'ruby'])
+
+
+class TemplateExceptionHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.render('templates/exception.html')
 
 
 class SyncSuccessHandler(tornado.web.RequestHandler):
@@ -260,6 +273,8 @@ def make_app(settings={}):
     Create a Tornado web application, useful to test
     different behaviors.
     """
+    settings['ui_modules'] = uimodules
+
     return tornado.web.Application([
         # custom handlers
         (r'/success/', SuccessHandler),
@@ -269,6 +284,8 @@ def make_app(settings={}):
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
         (r'/template/', TemplateHandler),
+        (r'/template_partial/', TemplatePartialHandler),
+        (r'/template_exception/', TemplateExceptionHandler),
         # handlers that spawn new threads
         (r'/executor_handler/', ExecutorHandler),
         (r'/executor_delayed_handler/', ExecutorDelayedHandler),
