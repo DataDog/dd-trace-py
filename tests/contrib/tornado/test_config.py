@@ -1,4 +1,4 @@
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 
 from .utils import TornadoTestCase
 
