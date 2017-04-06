@@ -71,6 +71,12 @@ class HTTPExceptionHandler(tornado.web.RequestHandler):
         raise tornado.web.HTTPError(status_code=501, log_message='unavailable', reason='Not Implemented')
 
 
+class TemplateHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.render('templates/page.html', name='home')
+
+
 class SyncSuccessHandler(tornado.web.RequestHandler):
     def get(self):
         self.write('OK')
@@ -262,6 +268,7 @@ def make_app(settings={}):
         (r'/nested_exception_wrap/', NestedExceptionWrapHandler),
         (r'/exception/', ExceptionHandler),
         (r'/http_exception/', HTTPExceptionHandler),
+        (r'/template/', TemplateHandler),
         # handlers that spawn new threads
         (r'/executor_handler/', ExecutorHandler),
         (r'/executor_delayed_handler/', ExecutorDelayedHandler),

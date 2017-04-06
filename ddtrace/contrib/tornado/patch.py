@@ -3,7 +3,7 @@ import tornado
 
 from wrapt import wrap_function_wrapper as _w
 
-from . import handlers, application, decorators
+from . import handlers, application, decorators, template
 from .stack_context import TracerStackContext
 from ...util import unwrap as _u
 
@@ -29,6 +29,9 @@ def patch():
     # patch Tornado decorators
     _w('tornado.concurrent', 'run_on_executor', decorators._run_on_executor)
 
+    # patch Template system
+    _w('tornado.template', 'Template.generate', template.generate)
+
     # configure the global tracer
     ddtrace.tracer.configure(
         context_provider=TracerStackContext.current_context,
@@ -50,3 +53,4 @@ def unpatch():
     _u(tornado.web.RequestHandler, 'log_exception')
     _u(tornado.web.Application, '__init__')
     _u(tornado.concurrent, 'run_on_executor')
+    _u(tornado.template.Template, 'generate')
