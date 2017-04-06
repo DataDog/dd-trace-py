@@ -17,13 +17,10 @@ class TornadoTestCase(AsyncHTTPTestCase):
         patch()
         # create a dummy tracer and a Tornado web application
         self.tracer = get_dummy_tracer()
-        settings = {
-            'datadog_trace': {
-                'tracer': self.tracer,
-            },
-        }
-
-        settings.update(self.get_settings())
+        settings = self.get_settings()
+        trace_settings = settings.get('datadog_trace', {})
+        settings['datadog_trace'] = trace_settings
+        trace_settings['tracer'] = self.tracer
         self.app = web.make_app(settings=settings)
         return self.app
 
