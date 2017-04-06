@@ -1,5 +1,7 @@
 import ddtrace
 
+from tornado import template
+
 from . import decorators
 from .constants import CONFIG_KEY
 from .stack_context import TracerStackContext
@@ -53,3 +55,6 @@ def tracer_config(__init__, app, args, kwargs):
         app='tornado',
         app_type=AppTypes.web,
     )
+
+    # configure the PIN object for template rendering
+    ddtrace.Pin(app='tornado', service=service, app_type='web', tracer=tracer).onto(template)
