@@ -9,6 +9,7 @@ try:
     import msgpack
     from msgpack._packer import Packer  # noqa
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
+    from msgpack._version import version
     MSGPACK_ENCODING = True
 except ImportError:
     MSGPACK_ENCODING = False
@@ -73,8 +74,11 @@ class MsgpackEncoder(Encoder):
         self.content_type = 'application/msgpack'
 
     def _encode(self, obj):
-        return msgpack.packb(obj, use_bin_type=True)
-
+        # use_bin_type kwarg only exists since msgpack-python v0.4.0
+        if version >= (0, 4, 0):
+            return msgpack.packb(obj, use_bin_type=True)
+        else:
+            return msgpack.packb(obj)
 
 def get_encoder():
     """
