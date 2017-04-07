@@ -37,7 +37,7 @@ class TestEncoders(TestCase):
         eq_(len(items[1]), 2)
 
     def test_encode_traces_msgpack(self):
-        # test encoding for JSON format
+        # test encoding for MsgPack format
         traces = []
         traces.append([
             Span(name='client.testing', tracer=None),
