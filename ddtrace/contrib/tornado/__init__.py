@@ -20,9 +20,6 @@ Auto instrumentation is available using the ``patch`` function as follows::
         (r'/', MainHandler),
     ])
 
-    # trace your application before the execution
-    trace_app(app, tracer, service='tornado-site')
-
     # and run it as usual
     app.listen(8888)
     tornado.ioloop.IOLoop.current().start()
