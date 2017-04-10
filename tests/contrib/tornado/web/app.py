@@ -181,23 +181,31 @@ class ExecutorDelayedHandler(tornado.web.RequestHandler):
         self.write('OK')
 
 
-class ExecutorCustomHandler(tornado.web.RequestHandler):
-    # not used automatically, a kwarg is required
-    custom_thread_pool = ThreadPoolExecutor(max_workers=3)
+try:
+    class ExecutorCustomHandler(tornado.web.RequestHandler):
+        # not used automatically, a kwarg is required
+        custom_thread_pool = ThreadPoolExecutor(max_workers=3)
 
-    @tornado.concurrent.run_on_executor(executor='custom_thread_pool')
-    def outer_executor(self):
-        # wait before creating a trace so that we're sure
-        # the `tornado.executor.with` span has the right
-        # parent
-        tracer = self.settings['datadog_trace']['tracer']
-        with tracer.trace('tornado.executor.with'):
-            time.sleep(0.05)
+        @tornado.concurrent.run_on_executor(executor='custom_thread_pool')
+        def outer_executor(self):
+            # wait before creating a trace so that we're sure
+            # the `tornado.executor.with` span has the right
+            # parent
+            tracer = self.settings['datadog_trace']['tracer']
+            with tracer.trace('tornado.executor.with'):
+                time.sleep(0.05)
 
-    @tornado.gen.coroutine
-    def get(self):
-        yield self.outer_executor()
-        self.write('OK')
+        @tornado.gen.coroutine
+        def get(self):
+            yield self.outer_executor()
+            self.write('OK')
+except TypeError:
+    # the class definition fails because Tornado 4.0 and 4.1 don't support
+    # `run_on_executor` with params. Because it's just this case, we can
+    # use a try-except block, but if we have another case we may move
+    # these endpoints outside the module and use a compatibility system
+    class ExecutorCustomHandler(tornado.web.RequestHandler):
+        pass
 
 
 class ExecutorCustomArgsHandler(tornado.web.RequestHandler):
