@@ -1,7 +1,9 @@
 import sys
 import ddtrace
 
-from .constants import FUTURE_SPAN_KEY
+from functools import wraps
+
+from .constants import FUTURE_SPAN_KEY, PARENT_SPAN_KEY
 from .stack_context import TracerStackContext
 
 
@@ -31,19 +33,36 @@ def _finish_span(future):
 def _run_on_executor(run_on_executor, _, params, kw_params):
     """
     Wrap the `run_on_executor` function so that when a function is executed
-    in a different thread, we use an intermediate function (and a closure)
-    to keep track of the current `parent_span` if any. The real function
-    is then executed in a `TracerStackContext` so that `tracer.trace()`
+    in a different thread, we pass the current parent Span to the intermediate
+    function that will execute the original call. The original function
+    is then executed within a `TracerStackContext` so that `tracer.trace()`
     can be used as usual, both with empty or existing `Context`.
     """
-    # we expect exceptions if the `run_on_executor` is called with
-    # wrong arguments; in this case we should not do anything
-    decorator = run_on_executor(*params, **kw_params)
+    def pass_context_decorator(fn):
+        """
+        Decorator that is used to wrap the original `run_on_executor_decorator`
+        so that we can pass the current active context before the `executor.submit`
+        is called. In this case we get the `parent_span` reference and we pass
+        that reference to `fn` reference. Because in the outer wrapper we replace
+        the original call with our `traced_wrapper`, we're sure that the `parent_span`
+        is passed to our intermediate function and not to the user function.
+        """
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            # from the current context, retrive the active span
+            current_ctx = ddtrace.tracer.get_call_context()
+            parent_span = getattr(current_ctx, '_current_span', None)
 
-    # closure that holds the parent_span of this logical execution; the
-    # Context object may not exist and/or may be empty
-    current_ctx = ddtrace.tracer.get_call_context()
-    parent_span = getattr(current_ctx, '_current_span', None)
+            # pass the current parent span in the Future call so that
+            # it can be retrieved later
+            kwargs.update({PARENT_SPAN_KEY: parent_span})
+            return fn(*args, **kwargs)
+        return wrapper
+
+    # we expect exceptions here if the `run_on_executor` is called with
+    # wrong arguments; in that case we should not do anything because
+    # the exception must not be handled here
+    decorator = run_on_executor(*params, **kw_params)
 
     # `run_on_executor` can be called with arguments; in this case we
     # return an inner decorator that holds the real function that should be
@@ -51,15 +70,21 @@ def _run_on_executor(run_on_executor, _, params, kw_params):
     if decorator.__module__ == 'tornado.concurrent':
         def run_on_executor_decorator(deco_fn):
             def inner_traced_wrapper(*args, **kwargs):
+                # retrieve the parent span from the function kwargs
+                parent_span = kwargs.pop(PARENT_SPAN_KEY, None)
                 return run_executor_stack_context(deco_fn, args, kwargs, parent_span)
-            return decorator(inner_traced_wrapper)
+            return pass_context_decorator(decorator(inner_traced_wrapper))
+
         return run_on_executor_decorator
 
     # return our wrapper function that executes an intermediate function to
     # trace the real execution in a different thread
     def traced_wrapper(*args, **kwargs):
+        # retrieve the parent span from the function kwargs
+        parent_span = kwargs.pop(PARENT_SPAN_KEY, None)
         return run_executor_stack_context(params[0], args, kwargs, parent_span)
-    return run_on_executor(traced_wrapper)
+
+    return pass_context_decorator(run_on_executor(traced_wrapper))
 
 
 def run_executor_stack_context(fn, args, kwargs, parent_span):
