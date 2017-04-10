@@ -147,19 +147,15 @@ class ExecutorHandler(tornado.web.RequestHandler):
     # used automatically by the @run_on_executor decorator
     executor = ThreadPoolExecutor(max_workers=3)
 
+    @tornado.concurrent.run_on_executor
+    def outer_executor(self):
+        tracer = self.settings['datadog_trace']['tracer']
+        with tracer.trace('tornado.executor.with'):
+            time.sleep(0.05)
+
     @tornado.gen.coroutine
     def get(self):
-        @tornado.concurrent.run_on_executor
-        def outer_executor(self):
-            # wait before creating a trace so that we're sure
-            # the `tornado.executor.with` span has the right
-            # parent
-            tracer = self.settings['datadog_trace']['tracer']
-
-            with tracer.trace('tornado.executor.with'):
-                time.sleep(0.05)
-
-        yield outer_executor(self)
+        yield self.outer_executor()
         self.write('OK')
 
 
@@ -167,22 +163,21 @@ class ExecutorDelayedHandler(tornado.web.RequestHandler):
     # used automatically by the @run_on_executor decorator
     executor = ThreadPoolExecutor(max_workers=3)
 
+    @tornado.concurrent.run_on_executor
+    def outer_executor(self):
+        # waiting here means expecting that the `get()` flushes
+        # the request trace
+        time.sleep(0.01)
+        tracer = self.settings['datadog_trace']['tracer']
+        with tracer.trace('tornado.executor.with'):
+            time.sleep(0.05)
+
     @tornado.gen.coroutine
     def get(self):
-        @tornado.concurrent.run_on_executor
-        def outer_executor(self):
-            # waiting here means expecting that the `get()` flushes
-            # the request trace
-            time.sleep(0.01)
-            tracer = self.settings['datadog_trace']['tracer']
-
-            with tracer.trace('tornado.executor.with'):
-                time.sleep(0.05)
-
         # we don't yield here but we expect that the outer_executor
         # has the right parent; tests that use this handler, must
         # yield sleep() to wait thread execution
-        outer_executor(self)
+        self.outer_executor()
         self.write('OK')
 
 
@@ -190,19 +185,18 @@ class ExecutorCustomHandler(tornado.web.RequestHandler):
     # not used automatically, a kwarg is required
     custom_thread_pool = ThreadPoolExecutor(max_workers=3)
 
+    @tornado.concurrent.run_on_executor(executor='custom_thread_pool')
+    def outer_executor(self):
+        # wait before creating a trace so that we're sure
+        # the `tornado.executor.with` span has the right
+        # parent
+        tracer = self.settings['datadog_trace']['tracer']
+        with tracer.trace('tornado.executor.with'):
+            time.sleep(0.05)
+
     @tornado.gen.coroutine
     def get(self):
-        @tornado.concurrent.run_on_executor(executor='custom_thread_pool')
-        def outer_executor(self):
-            # wait before creating a trace so that we're sure
-            # the `tornado.executor.with` span has the right
-            # parent
-            tracer = self.settings['datadog_trace']['tracer']
-
-            with tracer.trace('tornado.executor.with'):
-                time.sleep(0.05)
-
-        yield outer_executor(self)
+        yield self.outer_executor()
         self.write('OK')
 
 
@@ -222,20 +216,19 @@ class ExecutorExceptionHandler(tornado.web.RequestHandler):
     # used automatically by the @run_on_executor decorator
     executor = ThreadPoolExecutor(max_workers=3)
 
+    @tornado.concurrent.run_on_executor
+    def outer_executor(self):
+        # wait before creating a trace so that we're sure
+        # the `tornado.executor.with` span has the right
+        # parent
+        time.sleep(0.05)
+        tracer = self.settings['datadog_trace']['tracer']
+        with tracer.trace('tornado.executor.with'):
+            raise Exception('Ouch!')
+
     @tornado.gen.coroutine
     def get(self):
-        @tornado.concurrent.run_on_executor
-        def outer_executor(self):
-            # wait before creating a trace so that we're sure
-            # the `tornado.executor.with` span has the right
-            # parent
-            time.sleep(0.05)
-            tracer = self.settings['datadog_trace']['tracer']
-
-            with tracer.trace('tornado.executor.with'):
-                raise Exception('Ouch!')
-
-        yield outer_executor(self)
+        yield self.outer_executor()
         self.write('OK')
 
 
