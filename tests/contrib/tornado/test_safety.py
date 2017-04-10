@@ -8,6 +8,7 @@ from tornado.testing import gen_test
 from ddtrace.contrib.tornado import patch, unpatch
 
 from . import web
+from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
 
@@ -115,7 +116,7 @@ class TestCustomAppSafety(TornadoTestCase):
     """
     def get_settings(self):
         return {
-            'default_handler_class': web.CustomDefaultHandler,
+            'default_handler_class': CustomDefaultHandler,
             'default_handler_args': dict(status_code=400),
         }
 

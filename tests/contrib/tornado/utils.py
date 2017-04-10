@@ -2,7 +2,8 @@ from tornado.testing import AsyncHTTPTestCase
 
 from ddtrace.contrib.tornado import patch, unpatch
 
-from . import web
+from .web import app
+from .web.compat import reload_module
 from ...test_tracer import get_dummy_tracer
 
 
@@ -13,15 +14,16 @@ class TornadoTestCase(AsyncHTTPTestCase):
     in the `self.tracer` attribute.
     """
     def get_app(self):
-        # patch Tornado
+        # patch Tornado and reload module app
         patch()
+        reload_module(app)
         # create a dummy tracer and a Tornado web application
         self.tracer = get_dummy_tracer()
         settings = self.get_settings()
         trace_settings = settings.get('datadog_trace', {})
         settings['datadog_trace'] = trace_settings
         trace_settings['tracer'] = self.tracer
-        self.app = web.make_app(settings=settings)
+        self.app = app.make_app(settings=settings)
         return self.app
 
     def get_settings(self):
@@ -32,3 +34,4 @@ class TornadoTestCase(AsyncHTTPTestCase):
         super(TornadoTestCase, self).tearDown()
         # unpatch Tornado
         unpatch()
+        reload_module(app)

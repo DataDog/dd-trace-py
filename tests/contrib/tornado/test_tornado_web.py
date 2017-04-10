@@ -1,6 +1,6 @@
 from nose.tools import eq_, ok_
 
-from . import web
+from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
 
@@ -235,7 +235,7 @@ class TestCustomTornadoWeb(TornadoTestCase):
     """
     def get_settings(self):
         return {
-            'default_handler_class': web.CustomDefaultHandler,
+            'default_handler_class': CustomDefaultHandler,
             'default_handler_args': dict(status_code=400),
         }
 
