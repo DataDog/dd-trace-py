@@ -3,6 +3,8 @@ import wrapt
 import inspect
 
 from ddtrace import Pin
+from ddtrace.util import unwrap
+
 
 from ...ext import http
 from ...ext import aws
@@ -23,10 +25,21 @@ def patch():
     different services for connection. For exemple EC2 uses AWSQueryConnection and
     S3 uses AWSAuthConnection
     """
+    if getattr(boto.connection, '_datadog_patch', False):
+        return
+    setattr(boto.connection, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
     wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
     Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
     Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
+
+
+def unpatch():
+    if getattr(boto.connection, '_datadog_patch', False):
+        setattr(boto.connection, '_datadog_patch', False)
+        unwrap(boto.connection.AWSQueryConnection, 'make_request')
+        unwrap(boto.connection.AWSAuthConnection, 'make_request')
 
 
 # ec2, sqs, kinesis
@@ -77,12 +90,10 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Catching the name of the operation that called make_request()
     operation_name = None
-    for frame in inspect.getouterframes(inspect.currentframe()):
-        # Going backwards in the traceback till first call outside off ddtrace before make_request
-        if len(frame) > 3:
-            if "ddtrace" not in frame[1].split('/') and frame[3] != 'make_request':
-                operation_name = frame[3]
-                break
+    frame = inspect.currentframe()
+    # go up the call stack twice to get into the boto frame
+    boto_frame = frame.f_back.f_back
+    operation_name = boto_frame.f_code.co_name
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():

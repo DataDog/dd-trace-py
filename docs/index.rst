@@ -147,9 +147,24 @@ aiohttp
 
 .. automodule:: ddtrace.contrib.aiohttp
 
+Tornado
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.tornado
+
 
 Other Libraries
 ---------------
+
+Boto2
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.boto
+
+Botocore
+~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.botocore
 
 Cassandra
 ~~~~~~~~~
@@ -276,8 +291,8 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
 
     def child_rpc_call(parent_trace_id, parent_span_id):
         with tracer.trace("child_span") as span:
-            span.parent_id = parent_span_id
-            span.trace_id = parent_trace_id
+            span.parent_id = int(parent_span_id)
+            span.trace_id = int(parent_trace_id)
 
 Advanced Usage
 --------------
@@ -343,6 +358,10 @@ We officially support Python 2.7, 3.4 and above.
 | Integrations    | Supported versions |
 +=================+====================+
 | aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| boto            | >= 2.29.0          |
++-----------------+--------------------+
+| botocore        | >= 1.4.51          |
 +-----------------+--------------------+
 | bottle          | >= 0.12            |
 +-----------------+--------------------+

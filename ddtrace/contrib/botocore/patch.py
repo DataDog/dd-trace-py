@@ -4,7 +4,7 @@ Trace queries to aws api done via botocore client
 
 # project
 from ddtrace import Pin
-from ddtrace.util import deep_getattr
+from ddtrace.util import deep_getattr, unwrap
 
 # 3p
 import wrapt
@@ -12,6 +12,7 @@ import botocore.client
 
 from ...ext import http
 from ...ext import aws
+
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -22,8 +23,18 @@ TRACED_ARGS = ["params", "path", "verb"]
 
 
 def patch():
+    if getattr(botocore.client, '_datadog_patch', False):
+        return
+    setattr(botocore.client, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
     Pin(service="aws", app="botocore", app_type="web").onto(botocore.client.BaseClient)
+
+
+def unpatch():
+    if getattr(botocore.client, '_datadog_patch', False):
+        setattr(botocore.client, '_datadog_patch', False)
+        unwrap(botocore.client.BaseClient, '_make_api_call')
 
 
 def patched_api_call(original_func, instance, args, kwargs):
