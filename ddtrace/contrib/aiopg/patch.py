@@ -2,18 +2,31 @@ import asyncio
 
 # 3p
 import aiopg.connection
+from aiopg.utils import _ContextManager
 import wrapt
 
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.psycopg.patch import _patch_extensions, patch_conn as psycppg_patch_conn
 from ddtrace.ext import sql
+from ddtrace import Pin
 
 
 # Original connect method, we don't want the _ContextManager
 _connect = aiopg.connection._connect
 
 
-class AIOTracedCursor(dbapi.TracedCursor):
+class AIOTracedCursor(wrapt.ObjectProxy):
+    """ TracedCursor wraps a psql cursor and traces it's queries. """
+
+    _datadog_pin = None
+    _datadog_name = None
+
+    def __init__(self, cursor, pin):
+        super(AIOTracedCursor, self).__init__(cursor)
+        self._datadog_pin = pin
+        name = pin.app or 'sql'
+        self._datadog_name = '%s.query' % name
+
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = self._datadog_pin
@@ -54,7 +67,22 @@ class AIOTracedCursor(dbapi.TracedCursor):
         return result
 
 
-class AIOTracedConnection(dbapi.TracedConnection):
+class AIOTracedConnection(wrapt.ObjectProxy):
+    """ TracedConnection wraps a Connection with tracing code. """
+
+    _datadog_pin = None
+
+    def __init__(self, conn):
+        super(AIOTracedConnection, self).__init__(conn)
+        name = dbapi._get_vendor(conn)
+        Pin(service=name, app=name).onto(self)
+
+    def cursor(self, *args, **kwargs):
+        # unfortunately we also need to patch this method as otherwise "self" ends up being
+        # the aiopg connection object
+        coro = self._cursor(*args, **kwargs)
+        return _ContextManager(coro)
+
     @asyncio.coroutine
     def _cursor(self, *args, **kwargs):
         cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
@@ -69,12 +97,13 @@ def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    wrapt.wrap_function_wrapper(aiopg, 'connect', patched_connect)
-    _patch_extensions() # do this early just in case
+    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', patched_connect)
+    _patch_extensions()  # do this early just in case
 
 def unpatch():
     aiopg.connection._connect = _connect
 
+@asyncio.coroutine
 def patched_connect(connect_func, _, args, kwargs):
-    conn = connect_func(*args, **kwargs)
+    conn = yield from connect_func(*args, **kwargs)
     return psycppg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
