@@ -20,13 +20,13 @@ def patch():
 def unpatch():
     psycopg2.connect = _connect
 
-def patch_conn(conn):
+def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _patch_extensions()
 
-    c = dbapi.TracedConnection(conn)
+    c = traced_conn_cls(conn)
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)

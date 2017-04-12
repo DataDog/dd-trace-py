@@ -28,52 +28,35 @@ class TracedCursor(wrapt.ObjectProxy):
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
 
-    def executemany(self, query, *args, **kwargs):
+    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
-            return self.__wrapped__.executemany(query, *args, **kwargs)
+            return method(*args, **kwargs)
         service = pin.service
 
+        with pin.tracer.trace(self._datadog_name, service=service, resource=resource) as s:
+            s.span_type = sql.TYPE
+            s.set_tag(sql.QUERY, resource)
+            s.set_tags(pin.tags)
+
+            for k, v in extra_tags.items():
+                s.set_tag(k, v)
+
+            try:
+                return method(*args, **kwargs)
+            finally:
+                s.set_metric("db.rowcount", self.rowcount)
+
+    def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        with pin.tracer.trace(self._datadog_name, service=service, resource=query) as s:
-            s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, query)
-            s.set_tags(pin.tags)
-            s.set_tag("sql.executemany", "true")
-            try:
-                return self.__wrapped__.executemany(query, *args, **kwargs)
-            finally:
-                s.set_metric("db.rowcount", self.rowcount)
+        return self._trace_method(self.__wrapped__.executemany, query, {'sql.executemany', 'true'}, query, *args, **kwargs)
 
     def execute(self, query, *args, **kwargs):
-        pin = self._datadog_pin
-        if not pin or not pin.enabled():
-            return self.__wrapped__.execute(query, *args, **kwargs)
-
-        service = pin.service
-        with pin.tracer.trace(self._datadog_name, service=service, resource=query) as s:
-            s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, query)
-            s.set_tags(pin.tags)
-            try:
-                return self.__wrapped__.execute(query, *args, **kwargs)
-            finally:
-                s.set_metric("db.rowcount", self.rowcount)
+        return self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):
-        pin = self._datadog_pin
-        if not pin or not pin.enabled():
-            return self.__wrapped__.callproc(proc, args)
-
-        with pin.tracer.trace(self._datadog_name, service=pin.service, resource=proc) as s:
-            s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, proc)
-            s.set_tags(pin.tags)
-            try:
-                return self.__wrapped__.callproc(proc, args)
-            finally:
-                s.set_metric("db.rowcount", self.rowcount)
+        self._trace_method(self.__wrapped__.callproc, proc, {}, proc, args)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's

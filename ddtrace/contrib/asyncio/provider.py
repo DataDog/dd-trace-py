@@ -1,4 +1,5 @@
 import asyncio
+from asyncio.base_events import BaseEventLoop
 
 from ...context import Context
 from ...provider import DefaultContextProvider
@@ -48,3 +49,23 @@ class AsyncioContextProvider(DefaultContextProvider):
         setattr(task, CONTEXT_ATTR, ctx)
         return ctx
 
+
+def enable_task_linking() -> None:
+    """ This method will enable spawned tasks to share the same context as their base task context """
+    # Monkeypatch BaseEventLoop.create_task to associate task contexts to spawned tasks
+    _orig_create_task = BaseEventLoop.create_task
+
+    def _create_task(*args, **kwargs):
+        new_task = _orig_create_task(*args, **kwargs)
+        current_task = asyncio.Task.current_task()
+
+        ctx = getattr(current_task, CONTEXT_ATTR, None)
+        if ctx:
+            # current task has a context, so link the two
+            setattr(new_task, CONTEXT_ATTR, ctx)
+
+        return new_task
+
+    BaseEventLoop.create_task = _create_task
+
+enable_task_linking()
