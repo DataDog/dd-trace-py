@@ -10,7 +10,7 @@ This integration ignores autopatching, it can be enabled via
     from ddtrace import patch
 
     # If not patched yet, you can patch botocore specifically
-    patch(botocore=True)
+    patch(aiobotocore=True)
 
     # This will report spans with the default instrumentation
     aiobotocore.session.get_session()

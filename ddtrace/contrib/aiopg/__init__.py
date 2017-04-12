@@ -10,7 +10,7 @@
     patch(aiopg=True)
 
     # This will report a span with the default settings
-    async with aiopg.connect(connection_factory=factory) as db:
+    async with aiopg.connect(DSN) as db:
         with (await db.cursor()) as cursor:
             await cursor.execute("select * from users where id = 1")
 
