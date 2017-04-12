@@ -6,7 +6,8 @@ from aiopg.utils import _ContextManager
 import wrapt
 
 from ddtrace.contrib import dbapi
-from ddtrace.contrib.psycopg.patch import _patch_extensions, patch_conn as psycppg_patch_conn
+from ddtrace.contrib.psycopg.patch import _patch_extensions, \
+    patch_conn as psycppg_patch_conn
 from ddtrace.ext import sql
 from ddtrace import Pin
 
@@ -35,7 +36,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             return result
         service = pin.service
 
-        with pin.tracer.trace(self._datadog_name, service=service, resource=resource) as s:
+        with pin.tracer.trace(self._datadog_name, service=service,
+                              resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
@@ -53,17 +55,21 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        result = yield from self._trace_method(self.__wrapped__.executemany, query, {'sql.executemany': 'true'}, query, *args, **kwargs)
+        result = yield from self._trace_method(
+            self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
+            query, *args, **kwargs)
         return result
 
     @asyncio.coroutine
     def execute(self, query, *args, **kwargs):
-        result = yield from self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        result = yield from self._trace_method(
+            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
     @asyncio.coroutine
     def callproc(self, proc, args):
-        result = yield from self._trace_method(self.__wrapped__.callproc, proc, {}, proc, args)
+        result = yield from self._trace_method(
+            self.__wrapped__.callproc, proc, {}, proc, args)
         return result
 
 
@@ -78,8 +84,8 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         Pin(service=name, app=name).onto(self)
 
     def cursor(self, *args, **kwargs):
-        # unfortunately we also need to patch this method as otherwise "self" ends up being
-        # the aiopg connection object
+        # unfortunately we also need to patch this method as otherwise "self"
+        # ends up being the aiopg connection object
         coro = self._cursor(*args, **kwargs)
         return _ContextManager(coro)
 
@@ -90,7 +96,6 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         if not pin:
             return cursor
         return AIOTracedCursor(cursor, pin)
-
 
 
 def patch():

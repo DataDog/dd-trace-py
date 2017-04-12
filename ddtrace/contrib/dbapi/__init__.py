@@ -50,10 +50,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        return self._trace_method(self.__wrapped__.executemany, query, {'sql.executemany', 'true'}, query, *args, **kwargs)
+        return self._trace_method(
+            self.__wrapped__.executemany, query, {'sql.executemany', 'true'},
+            query, *args, **kwargs)
 
     def execute(self, query, *args, **kwargs):
-        return self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        return self._trace_method(
+            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):
         self._trace_method(self.__wrapped__.callproc, proc, {}, proc, args)

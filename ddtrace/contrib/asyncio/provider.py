@@ -68,4 +68,5 @@ def enable_task_linking() -> None:
 
     BaseEventLoop.create_task = _create_task
 
+
 enable_task_linking()
