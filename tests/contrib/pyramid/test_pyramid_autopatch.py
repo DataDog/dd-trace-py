@@ -1,16 +1,15 @@
 # stdlib
-import logging
 import json
+import logging
 import sys
-from wsgiref.simple_server import make_server
-
-# 3p
-from pyramid.response import Response
-from pyramid.config import Configurator
-from pyramid.view import view_config
-from pyramid.httpexceptions import HTTPInternalServerError
 import webtest
 from nose.tools import eq_
+from pyramid.config import Configurator
+from pyramid.httpexceptions import HTTPInternalServerError
+# 3p
+from pyramid.response import Response
+from pyramid.view import view_config
+from wsgiref.simple_server import make_server
 
 # project
 import ddtrace
@@ -71,7 +70,7 @@ def test_exception():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'exception')
+    eq_(s.resource, 'GET exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.status_code'), '500')
