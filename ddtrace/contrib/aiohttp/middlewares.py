@@ -1,5 +1,6 @@
 import asyncio
 from  aiohttp.web import HTTPException
+import functools
 
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
@@ -13,9 +14,11 @@ REQUEST_SPAN_KEY = '__datadog_request_span'
 PARENT_TRACE_HEADER_ID = 'x-ddtrace-parent_trace_id'
 PARENT_SPAN_HEADER_ID = 'x-ddtrace-parent_span_id'
 
+SPAN_MIN_ERROR = 400
+
 
 @asyncio.coroutine
-def trace_middleware(app, handler):
+def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
     """
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
@@ -55,9 +58,8 @@ def trace_middleware(app, handler):
             return response
         except HTTPException as e:
             # If one of these special aiohttp exceptions is raised then we only store a traceback if the
-            # status is >= 400, and we make sure to re-raise
-            status_code = e.status_code
-            if status_code >= 400:
+            # status is >= `span_min_error`, and we make sure to re-raise
+            if e.status_code >= span_min_error:
                 request_span.set_traceback()
             raise
         except BaseException:
@@ -67,7 +69,7 @@ def trace_middleware(app, handler):
 
 
 @asyncio.coroutine
-def on_prepare(request, response):
+def on_prepare(request, response, span_min_error=SPAN_MIN_ERROR):
     """
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.
@@ -98,17 +100,23 @@ def on_prepare(request, response):
     # `span.error` must be an integer
     # following the conventions in the ddtrace codebase, only 4XX codes are
     # considered 'errors'
-    request_span.error = int(response.status >= 400)
+    request_span.error = int(response.status >= span_min_error)
 
     request_span.set_tag('http.url', request.path)
     request_span.finish()
 
 
-def trace_app(app, tracer, service='aiohttp-web'):
+def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
+        
+    :param app: aiohttp application to trace
+    :param tracer: tracer instance to use
+    :param service: service name of tracer
+    :param span_min_error: minimum http response status to be considered an error
     """
+
     # safe-guard: don't trace an application twice
     if getattr(app, '__datadog_trace', False):
         return
@@ -132,5 +140,8 @@ def trace_app(app, tracer, service='aiohttp-web'):
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one
-    app.middlewares.insert(0, trace_middleware)
-    app.on_response_prepare.append(on_prepare)
+    app.middlewares.insert(0,
+                           functools.partial(trace_middleware,
+                                             span_min_error=span_min_error))
+    app.on_response_prepare.append(
+        functools.partial(on_prepare, span_min_error=span_min_error))
