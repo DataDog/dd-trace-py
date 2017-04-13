@@ -42,11 +42,11 @@ def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
         # set parent trace/span IDs if present:
         #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
         parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
-        if parent_trace_id:
+        if parent_trace_id is not None:
             request_span.trace_id = int(parent_trace_id)
 
         parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-        if parent_span_id:
+        if parent_span_id is not None:
             request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context

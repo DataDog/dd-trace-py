@@ -22,6 +22,9 @@ SPAN_TYPE = "http"
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = ["params", "path", "verb"]
 
+PARENT_TRACE_KWARG_ID = 'x-ddtrace-parent_trace_id'
+PARENT_SPAN_KWARG_ID = 'x-ddtrace-parent_span_id'
+
 
 def patch():
     if getattr(aiobotocore.client, '_datadog_patch', False):
@@ -40,7 +43,6 @@ def unpatch():
 
 @asyncio.coroutine
 def patched_api_call(original_func, instance, args, kwargs):
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         result = yield from original_func(*args, **kwargs)  # noqa: E999
@@ -51,6 +53,16 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
+
+        # set parent trace/span IDs if present:
+        #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
+        parent_trace_id = args[1].pop(PARENT_TRACE_KWARG_ID, None)
+        if parent_trace_id is not None:
+            span.trace_id = int(parent_trace_id)
+
+        parent_span_id = args[1].pop(PARENT_SPAN_KWARG_ID, None)
+        if parent_span_id is not None:
+            span.parent_id = int(parent_span_id)
 
         operation = None
         if args:
