@@ -29,7 +29,7 @@ def test_200():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'index')
+    eq_(s.resource, 'GET index')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -74,7 +74,7 @@ def test_exception():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'exception')
+    eq_(s.resource, 'GET exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -92,7 +92,7 @@ def test_500():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'error')
+    eq_(s.resource, 'GET error')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -114,7 +114,7 @@ def test_json():
     spans_by_name = {s.name:s for s in spans}
     s = spans_by_name['pyramid.request']
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'json')
+    eq_(s.resource, 'GET json')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
