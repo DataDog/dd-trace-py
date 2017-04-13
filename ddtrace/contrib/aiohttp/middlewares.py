@@ -94,6 +94,12 @@ def on_prepare(request, response):
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)
     request_span.set_tag('http.status_code', response.status)
+
+    # `span.error` must be an integer
+    # following the conventions in the ddtrace codebase, only 4XX codes are
+    # considered 'errors'
+    request_span.error = int(response.status >= 400)
+
     request_span.set_tag('http.url', request.path)
     request_span.finish()
 
