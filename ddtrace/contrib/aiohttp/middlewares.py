@@ -9,6 +9,9 @@ CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
+PARENT_TRACE_HEADER_ID = 'x-ddtrace-parent_trace_id'
+PARENT_SPAN_HEADER_ID = 'x-ddtrace-parent_span_id'
+
 
 @asyncio.coroutine
 def trace_middleware(app, handler):
@@ -31,6 +34,16 @@ def trace_middleware(app, handler):
             service=service,
             span_type=http.TYPE,
         )
+
+        # set parent trace/span IDs if present:
+        #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
+        parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
+        if parent_trace_id:
+            request_span.trace_id = int(parent_trace_id)
+
+        parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
+        if parent_span_id:
+            request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
