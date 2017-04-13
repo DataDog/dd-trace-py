@@ -32,7 +32,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = self._datadog_pin
         if not pin or not pin.enabled():
-            result = yield from method(*args, **kwargs)
+            result = yield from method(*args, **kwargs)  # noqa: E999
             return result
         service = pin.service
 
@@ -57,7 +57,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # with different libs.
         result = yield from self._trace_method(
             self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)
+            query, *args, **kwargs)  # noqa: E999
         return result
 
     @asyncio.coroutine
@@ -69,7 +69,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     @asyncio.coroutine
     def callproc(self, proc, args):
         result = yield from self._trace_method(
-            self.__wrapped__.callproc, proc, {}, proc, args)
+            self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
         return result
 
 
@@ -91,7 +91,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 
     @asyncio.coroutine
     def _cursor(self, *args, **kwargs):
-        cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
+        cursor = yield from self.__wrapped__._cursor(*args, **kwargs)  # noqa: E999
         pin = self._datadog_pin
         if not pin:
             return cursor

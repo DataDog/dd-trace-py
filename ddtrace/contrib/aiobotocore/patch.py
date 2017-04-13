@@ -43,7 +43,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        result = yield from original_func(*args, **kwargs)
+        result = yield from original_func(*args, **kwargs)  # noqa: E999
         return result
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
@@ -74,7 +74,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         }
         span.set_tags(meta)
 
-        result = yield from original_func(*args, **kwargs)
+        result = yield from original_func(*args, **kwargs)  # noqa: E999
 
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])

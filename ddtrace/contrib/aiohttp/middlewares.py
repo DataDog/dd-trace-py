@@ -1,4 +1,5 @@
 import asyncio
+from  aiohttp.web import HTTPException
 
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
@@ -52,7 +53,14 @@ def trace_middleware(app, handler):
         try:
             response = yield from handler(request)  # noqa: E999
             return response
-        except Exception:
+        except HTTPException as e:
+            # If one of these special aiohttp exceptions is raised then we only store a traceback if the
+            # status is >= 400, and we make sure to re-raise
+            status_code = e.status_code
+            if status_code >= 400:
+                request_span.set_traceback()
+            raise
+        except BaseException:
             request_span.set_traceback()
             raise
     return attach_context
