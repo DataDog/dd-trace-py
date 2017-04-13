@@ -1,4 +1,3 @@
-
 # stdlib
 import logging
 import json
@@ -106,12 +105,12 @@ def test_json():
     app, tracer = _get_test_app(service='foobar')
     res = app.get('/json', status=200)
     parsed = json.loads(compat.to_unicode(res.body))
-    eq_(parsed, {'a':1})
+    eq_(parsed, {'a': 1})
 
     writer = tracer.writer
     spans = writer.pop()
     eq_(len(spans), 2)
-    spans_by_name = {s.name:s for s in spans}
+    spans_by_name = {s.name: s for s in spans}
     s = spans_by_name['pyramid.request']
     eq_(s.service, 'foobar')
     eq_(s.resource, 'GET json')
@@ -138,10 +137,10 @@ def _get_app(service=None, tracer=None):
         raise HTTPInternalServerError("oh no")
 
     def exception(request):
-        1/0
+        1 / 0
 
     def json(request):
-        return {'a':1}
+        return {'a': 1}
 
     settings = {
         'datadog_trace_service': service,
