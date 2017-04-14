@@ -59,19 +59,19 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
                 service=self.__parent_span.service,
                 span_type=self.__parent_span.span_type) as span:
             span.meta = self.__parent_span.meta
-            result = yield from self.__wrapped__.read(*args, **kwargs)
+            result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
         return result
 
     if PY_VER >= (3, 5, 0):
         @asyncio.coroutine
         def __aenter__(self):
-            result = yield from self.__wrapped__.__aenter__()
+            result = yield from self.__wrapped__.__aenter__()  # noqa: E999
             assert result == self.__wrapped__
             return self
 
         @asyncio.coroutine
         def __aexit__(self, *args, **kwargs):
-            result = yield from self.__wrapped__.__aexit__(*args, **kwargs)
+            result = yield from self.__wrapped__.__aexit__(*args, **kwargs)  # noqa: E999
             return result
 
 

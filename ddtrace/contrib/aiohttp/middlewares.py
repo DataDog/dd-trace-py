@@ -1,5 +1,5 @@
 import asyncio
-from  aiohttp.web import HTTPException
+from aiohttp.web import HTTPException
 import functools
 
 from ..asyncio import context_provider
@@ -110,7 +110,7 @@ def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR)
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
-        
+
     :param app: aiohttp application to trace
     :param tracer: tracer instance to use
     :param service: service name of tracer
