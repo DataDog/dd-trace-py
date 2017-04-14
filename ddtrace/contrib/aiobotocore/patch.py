@@ -26,13 +26,13 @@ PARENT_TRACE_KWARG_ID = 'x-ddtrace-parent_trace_id'
 PARENT_SPAN_KWARG_ID = 'x-ddtrace-parent_span_id'
 
 
-def patch():
+def patch(tracer=None):
     if getattr(aiobotocore.client, '_datadog_patch', False):
         return
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', patched_api_call)
-    Pin(service="aws", app="aiobotocore", app_type="web").onto(aiobotocore.client.AioBaseClient)
+    Pin(service="aws", app="aiobotocore", app_type="web", tracer=tracer).onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():

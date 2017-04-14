@@ -1,6 +1,7 @@
 # 3p
 import psycopg2
 import wrapt
+import functools
 
 # project
 from ddtrace import Pin
@@ -10,17 +11,20 @@ from ddtrace.ext import sql, net, db
 # Original connect method
 _connect = psycopg2.connect
 
-def patch():
+
+def patch(tracer=None):
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    wrapt.wrap_function_wrapper(psycopg2, 'connect', patched_connect)
-    _patch_extensions() # do this early just in case
+    wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
+    _patch_extensions()  # do this early just in case
+
 
 def unpatch():
     psycopg2.connect = _connect
 
-def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
+
+def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
@@ -42,9 +46,11 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         service="postgres",
         app="postgres",
         app_type="db",
+        tracer=tracer,
         tags=tags).onto(c)
 
     return c
+
 
 def _patch_extensions():
     # we must patch extensions all the time (it's pretty harmless) so split
@@ -54,19 +60,22 @@ def _patch_extensions():
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
+
 def _unpatch_extensions():
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for original, module, func, _ in _extensions:
         setattr(module, func, original)
 
+
 #
 # monkeypatch targets
 #
 
-def patched_connect(connect_func, _, args, kwargs):
+def patched_connect(connect_func, _, args, kwargs, tracer=None):
     conn = connect_func(*args, **kwargs)
-    return patch_conn(conn)
+    return patch_conn(conn, tracer)
+
 
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):

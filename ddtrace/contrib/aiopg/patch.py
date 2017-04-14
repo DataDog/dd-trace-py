@@ -1,8 +1,8 @@
-import asyncio
-
 # 3p
+import asyncio
 import aiopg.connection
 from aiopg.utils import _ContextManager
+import functools
 import wrapt
 
 from ddtrace.contrib import dbapi
@@ -98,17 +98,19 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         return AIOTracedCursor(cursor, pin)
 
 
-def patch():
+def patch(tracer=None):
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', patched_connect)
+    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', functools.partial(patched_connect, tracer=tracer))
     _patch_extensions()  # do this early just in case
+
 
 def unpatch():
     aiopg.connection._connect = _connect
 
+
 @asyncio.coroutine
-def patched_connect(connect_func, _, args, kwargs):
+def patched_connect(connect_func, _, args, kwargs, tracer=None):
     conn = yield from connect_func(*args, **kwargs)
-    return psycppg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
+    return psycppg_patch_conn(conn, tracer, traced_conn_cls=AIOTracedConnection)
