@@ -46,16 +46,19 @@ def unpatch():
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
-    def __init__(self, wrapped, pin, endpoint_name):
+    def __init__(self, wrapped, pin, parent_span):
         super(WrappedClientResponseContentProxy, self).__init__(wrapped)
         self.__pin = pin
-        self.__endpoint_name = endpoint_name
+        self.__parent_span = parent_span
 
     @asyncio.coroutine
     def read(self, *args, **kwargs):
-        with self.__pin.tracer.trace('{}.read'.format(self.__endpoint_name),
-                                  service="{}.{}".format(self.__pin.service, self.__endpoint_name),
-                                  span_type=SPAN_TYPE) as span:
+        with self.__pin.tracer.trace('{}.read'.format(
+                self.__parent_span.name),
+                resource=self.__parent_span.resource,
+                service=self.__parent_span.service,
+                span_type=self.__parent_span.span_type) as span:
+            span.meta = self.__parent_span.meta
             result = yield from self.__wrapped__.read(*args, **kwargs)
         return result
 
@@ -111,7 +114,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         region_name = deep_getattr(instance, "meta.region_name")
 
         meta = {
-            'aws.agent': 'botocore',
+            'aws.agent': 'aiobotocore',
             'aws.operation': operation,
             'aws.region': region_name,
         }
@@ -121,7 +124,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         body = result.get('Body')
         if isinstance(body, ClientResponseContentProxy):
-            result['Body'] = WrappedClientResponseContentProxy(body, pin, endpoint_name)
+            result['Body'] = WrappedClientResponseContentProxy(body, pin, span)
 
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
