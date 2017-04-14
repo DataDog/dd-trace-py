@@ -4,15 +4,19 @@ Trace queries to aws api done via aiobotocore client
 
 # project
 import asyncio
+import sys
 from ddtrace import Pin
 from ddtrace.util import deep_getattr, unwrap
 
 # 3p
 import wrapt
 import aiobotocore.client
+from aiobotocore.endpoint import ClientResponseContentProxy
 
 from ...ext import http
 from ...ext import aws
+
+PY_VER = sys.version_info
 
 
 # Original botocore client class
@@ -39,6 +43,33 @@ def unpatch():
     if getattr(aiobotocore.client, '_datadog_patch', False):
         setattr(aiobotocore.client, '_datadog_patch', False)
         unwrap(aiobotocore.client.AioBaseClient, '_make_api_call')
+
+
+class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
+    def __init__(self, wrapped, pin, endpoint_name):
+        super(WrappedClientResponseContentProxy, self).__init__(wrapped)
+        self.__pin = pin
+        self.__endpoint_name = endpoint_name
+
+    @asyncio.coroutine
+    def read(self, *args, **kwargs):
+        with self.__pin.tracer.trace('{}.read'.format(self.__endpoint_name),
+                                  service="{}.{}".format(self.__pin.service, self.__endpoint_name),
+                                  span_type=SPAN_TYPE) as span:
+            result = yield from self.__wrapped__.read(*args, **kwargs)
+        return result
+
+    if PY_VER >= (3, 5, 0):
+        @asyncio.coroutine
+        def __aenter__(self):
+            result = yield from self.__wrapped__.__aenter__()
+            assert result == self.__wrapped__
+            return self
+
+        @asyncio.coroutine
+        def __aexit__(self, *args, **kwargs):
+            result = yield from self.__wrapped__.__aexit__(*args, **kwargs)
+            return result
 
 
 @asyncio.coroutine
@@ -87,6 +118,10 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tags(meta)
 
         result = yield from original_func(*args, **kwargs)  # noqa: E999
+
+        body = result.get('Body')
+        if isinstance(body, ClientResponseContentProxy):
+            result['Body'] = WrappedClientResponseContentProxy(body, pin, endpoint_name)
 
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
