@@ -75,6 +75,15 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             return result
 
 
+def truncate_arg_value(value, max_len=1024):
+    """ Method will truncate values which are bytes and greater than `max_len`.
+    Useful for parameters like 'Body' in `put_object` operations. """
+    if isinstance(value, bytes) and len(value)> max_len:
+        return b'...'
+
+    return value
+
+
 @asyncio.coroutine
 def patched_api_call(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
@@ -108,8 +117,10 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         # Adding the args in TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
-            for arg in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
-                span.set_tag(arg[0], arg[1])
+            for name, value in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
+                if name == 'params':
+                    value = {k: truncate_arg_value(v) for k, v in value.items()}
+                span.set_tag(name, (value))
 
         region_name = deep_getattr(instance, "meta.region_name")
 
