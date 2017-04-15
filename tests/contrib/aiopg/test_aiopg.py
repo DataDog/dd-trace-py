@@ -20,15 +20,23 @@ from tests.test_tracer import get_dummy_tracer
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-class AioPGCore(asynctest.TestCase):
-
+class TestPsycopgPatch(asynctest.TestCase):
     # default service
     TEST_SERVICE = 'postgres'
 
+    def setUp(self):
+        patch()
+
+    def tearDown(self):
+        unpatch()
+
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
-        # implement me
-        pass
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        tracer = get_dummy_tracer()
+        Pin.get_from(conn).clone(tracer=tracer).onto(conn)
+
+        return conn, tracer
 
     @asyncio.coroutine
     def assert_conn_is_traced(self, tracer, db, service):
@@ -138,23 +146,6 @@ class AioPGCore(asynctest.TestCase):
             "another" : {"app":"postgres", "app_type":"db"},
         }
         eq_(service_meta, expected)
-
-
-class TestPsycopgPatch(AioPGCore):
-
-    def setUp(self):
-        patch()
-
-    def tearDown(self):
-        unpatch()
-
-    @asyncio.coroutine
-    def _get_conn_and_tracer(self):
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        tracer = get_dummy_tracer()
-        Pin.get_from(conn).clone(tracer=tracer).onto(conn)
-
-        return conn, tracer
 
     @asyncio.coroutine
     def test_patch_unpatch(self):
