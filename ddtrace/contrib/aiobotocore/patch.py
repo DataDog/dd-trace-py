@@ -78,7 +78,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
 def truncate_arg_value(value, max_len=1024):
     """ Method will truncate values which are bytes and greater than `max_len`.
     Useful for parameters like 'Body' in `put_object` operations. """
-    if isinstance(value, bytes) and len(value)> max_len:
+    if isinstance(value, bytes) and len(value) > max_len:
         return b'...'
 
     return value
