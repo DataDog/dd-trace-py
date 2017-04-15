@@ -168,7 +168,7 @@ class TestPsycopgPatch(asynctest.TestCase):
             Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
             yield from self.assert_conn_is_traced(tracer, conn, service)
             conn.close()
-            
+
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {

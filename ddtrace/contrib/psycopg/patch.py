@@ -67,7 +67,7 @@ def _patch_extensions(_extensions):
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
 
-def _unpatch_extensions():
+def _unpatch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for original, module, func, _ in _extensions:
