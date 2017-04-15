@@ -59,7 +59,8 @@ class TracedCursor(wrapt.ObjectProxy):
             self.__wrapped__.execute, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):
-        self._trace_method(self.__wrapped__.callproc, proc, {}, proc, args)
+        return self._trace_method(self.__wrapped__.callproc, proc, {}, proc,
+                                  args)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's

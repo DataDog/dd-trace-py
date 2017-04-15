@@ -20,11 +20,12 @@ from tests.test_tracer import get_dummy_tracer
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-class AioPGCore(asynctest.TestCase):
+class AioPGCore(object):
 
     # default service
     TEST_SERVICE = 'postgres'
 
+    @asyncio.coroutine
     def _get_conn_and_tracer(self):
         # implement me
         pass
@@ -95,7 +96,7 @@ class AioPGCore(asynctest.TestCase):
             assert t == type(cur), "%s != %s" % (t, type(cur))
             cur.execute(query="select 'blah'")
             rows = yield from cur.fetchall()
-            assert len(rows) == 1, row
+            assert len(rows) == 1
             assert rows[0][0] == 'blah'
 
         spans = tracer.writer.pop()
@@ -195,4 +196,5 @@ class TestPsycopgPatch(AioPGCore):
         eq_(len(spans), 1)
 
 
-
+if __name__ == '__main__':
+    asynctest.main()
