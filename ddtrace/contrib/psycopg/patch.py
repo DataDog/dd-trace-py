@@ -21,7 +21,7 @@ def patch(tracer=None):
     setattr(psycopg2, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
-    _patch_extensions()  # do this early just in case
+    _patch_extensions(_psycopg2_extensions)  # do this early just in case
 
 
 def unpatch():
@@ -34,7 +34,7 @@ def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
-    _patch_extensions()
+    _patch_extensions(_psycopg2_extensions)
 
     c = traced_conn_cls(conn)
 
@@ -58,7 +58,7 @@ def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
     return c
 
 
-def _patch_extensions():
+def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
@@ -97,7 +97,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
 
 # extension hooks
-_extensions = [
+_psycopg2_extensions = [
     (psycopg2.extensions.register_type,
      psycopg2.extensions, 'register_type',
      _extensions_register_type),

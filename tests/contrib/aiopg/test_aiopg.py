@@ -2,6 +2,7 @@
 import asynctest
 import asyncio
 import time
+import sys
 
 # 3p
 import aiopg
@@ -18,6 +19,7 @@ from tests.test_tracer import get_dummy_tracer
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
+PY_35 = sys.version_info >= (3, 5)
 
 
 class TestPsycopgPatch(asynctest.TestCase):
@@ -25,14 +27,18 @@ class TestPsycopgPatch(asynctest.TestCase):
     TEST_SERVICE = 'postgres'
 
     def setUp(self):
+        self._conn = None
         patch()
 
     def tearDown(self):
+        if self._conn and not self._conn.closed:
+            self._conn.close()
+
         unpatch()
 
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
         tracer = get_dummy_tracer()
         Pin.get_from(conn).clone(tracer=tracer).onto(conn)
 
@@ -93,24 +99,47 @@ class TestPsycopgPatch(asynctest.TestCase):
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
-    @asyncio.coroutine
-    def test_cursor_ctx_manager(self):
-        # ensure cursors work with context managers
-        # https://github.com/DataDog/dd-trace-py/issues/228
+    if PY_35:
+        async def test_cursor_ctx_manager(self):
+            # ensure cursors work with context managers
+            # https://github.com/DataDog/dd-trace-py/issues/228
 
-        conn, tracer = yield from self._get_conn_and_tracer()
-        t = type(conn.cursor())
-        with (yield from conn.cursor()) as cur:
-            assert t == type(cur), "%s != %s" % (t, type(cur))
-            cur.execute(query="select 'blah'")
-            rows = yield from cur.fetchall()
-            assert len(rows) == 1
-            assert rows[0][0] == 'blah'
+            conn, tracer = await self._get_conn_and_tracer()
+            cur = await conn.cursor()
+            t = type(cur)
 
-        spans = tracer.writer.pop()
-        assert len(spans) == 1
-        span = spans[0]
-        eq_(span.name, "postgres.query")
+            async with conn.cursor() as cur:
+                assert t == type(cur), "%s != %s" % (t, type(cur))
+                await cur.execute(query="select 'blah';")
+                rows = await cur.fetchall()
+                assert len(rows) == 1
+                assert rows[0][0] == 'blah'
+
+            spans = tracer.writer.pop()
+            assert len(spans) == 1
+            span = spans[0]
+            eq_(span.name, "postgres.query")
+    else:
+        @asyncio.coroutine
+        def test_cursor_ctx_manager(self):
+            # ensure cursors work with context managers
+            # https://github.com/DataDog/dd-trace-py/issues/228
+
+            conn, tracer = yield from self._get_conn_and_tracer()
+            cur = yield from conn.cursor()
+            t = type(cur)
+
+            with (yield from conn.cursor()) as cur:
+                assert t == type(cur), "%s != %s" % (t, type(cur))
+                yield from cur.execute(query="select 'blah'")
+                rows = yield from cur.fetchall()
+                assert len(rows) == 1
+                assert rows[0][0] == 'blah'
+
+            spans = tracer.writer.pop()
+            assert len(spans) == 1
+            span = spans[0]
+            eq_(span.name, "postgres.query")
 
     @asyncio.coroutine
     def test_disabled_execute(self):
@@ -138,12 +167,13 @@ class TestPsycopgPatch(asynctest.TestCase):
             conn, _ = yield from self._get_conn_and_tracer()
             Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
             yield from self.assert_conn_is_traced(tracer, conn, service)
-
+            conn.close()
+            
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {
-            "db" : {"app":"postgres", "app_type":"db"},
-            "another" : {"app":"postgres", "app_type":"db"},
+            "db": {"app": "postgres", "app_type": "db"},
+            "another": {"app": "postgres", "app_type": "db"},
         }
         eq_(service_meta, expected)
 
@@ -161,6 +191,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
         yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
 
         spans = writer.pop()
         assert spans, spans
@@ -171,6 +202,7 @@ class TestPsycopgPatch(asynctest.TestCase):
 
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
         yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
 
         spans = writer.pop()
         assert not spans, spans
@@ -181,6 +213,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         conn = yield from aiopg.connect(**POSTGRES_CONFIG)
         Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
         yield from (yield from conn.cursor()).execute("select 'blah'")
+        conn.close()
 
         spans = writer.pop()
         assert spans, spans

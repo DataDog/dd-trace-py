@@ -4,6 +4,7 @@ import aiopg.connection
 from aiopg.utils import _ContextManager
 import functools
 import wrapt
+import psycopg2.extensions
 
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.psycopg.patch import _patch_extensions, \
@@ -72,6 +73,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
         return result
 
+    # aiopg doesn't support __enter__/__exit__ however we're adding it here to
+    # support unittests with both styles
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__wrapped__.close()
+
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
@@ -107,7 +116,7 @@ def patch(tracer=None):
     setattr(aiopg, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper(aiopg.connection, '_connect', functools.partial(patched_connect, tracer=tracer))
-    _patch_extensions()  # do this early just in case
+    _patch_extensions(_aiopg_extensions)  # do this early just in case
 
 
 def unpatch():
@@ -120,3 +129,24 @@ def unpatch():
 def patched_connect(connect_func, _, args, kwargs, tracer=None):
     conn = yield from connect_func(*args, **kwargs)
     return psycppg_patch_conn(conn, tracer, traced_conn_cls=AIOTracedConnection)
+
+
+def _extensions_register_type(func, _, args, kwargs):
+    def _unroll_args(obj, scope=None):
+        return obj, scope
+    obj, scope = _unroll_args(*args, **kwargs)
+
+    # register_type performs a c-level check of the object
+    # type so we must be sure to pass in the actual db connection
+    if scope and isinstance(scope, wrapt.ObjectProxy):
+        scope = scope.__wrapped__._conn
+
+    return func(obj, scope) if scope else func(obj)
+
+
+# extension hooks
+_aiopg_extensions = [
+    (psycopg2.extensions.register_type,
+     psycopg2.extensions, 'register_type',
+     _extensions_register_type),
+]
