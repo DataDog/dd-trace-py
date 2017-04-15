@@ -20,7 +20,7 @@ from tests.test_tracer import get_dummy_tracer
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-class AioPGCore(object):
+class AioPGCore(asynctest.TestCase):
 
     # default service
     TEST_SERVICE = 'postgres'
@@ -33,7 +33,7 @@ class AioPGCore(object):
     @asyncio.coroutine
     def assert_conn_is_traced(self, tracer, db, service):
 
-        # ensure the trace pscyopg client doesn't add non-standard
+        # ensure the trace aiopg client doesn't add non-standard
         # methods
         try:
             yield from db.execute("select 'foobar'")
