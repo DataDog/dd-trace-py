@@ -99,47 +99,26 @@ class TestPsycopgPatch(asynctest.TestCase):
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
-    if PY_35:
-        async def test_cursor_ctx_manager(self):
-            # ensure cursors work with context managers
-            # https://github.com/DataDog/dd-trace-py/issues/228
+    @asyncio.coroutine
+    def test_cursor_ctx_manager(self):
+        # ensure cursors work with context managers
+        # https://github.com/DataDog/dd-trace-py/issues/228
 
-            conn, tracer = await self._get_conn_and_tracer()
-            cur = await conn.cursor()
-            t = type(cur)
+        conn, tracer = yield from self._get_conn_and_tracer()
+        cur = yield from conn.cursor()
+        t = type(cur)
 
-            async with conn.cursor() as cur:
-                assert t == type(cur), "%s != %s" % (t, type(cur))
-                await cur.execute(query="select 'blah';")
-                rows = await cur.fetchall()
-                assert len(rows) == 1
-                assert rows[0][0] == 'blah'
+        with (yield from conn.cursor()) as cur:
+            assert t == type(cur), "%s != %s" % (t, type(cur))
+            yield from cur.execute(query="select 'blah'")
+            rows = yield from cur.fetchall()
+            assert len(rows) == 1
+            assert rows[0][0] == 'blah'
 
-            spans = tracer.writer.pop()
-            assert len(spans) == 1
-            span = spans[0]
-            eq_(span.name, "postgres.query")
-    else:
-        @asyncio.coroutine
-        def test_cursor_ctx_manager(self):
-            # ensure cursors work with context managers
-            # https://github.com/DataDog/dd-trace-py/issues/228
-
-            conn, tracer = yield from self._get_conn_and_tracer()
-            cur = yield from conn.cursor()
-            t = type(cur)
-
-            with (yield from conn.cursor()) as cur:
-                assert t == type(cur), "%s != %s" % (t, type(cur))
-                yield from cur.execute(query="select 'blah'")
-                rows = yield from cur.fetchall()
-                assert len(rows) == 1
-                assert rows[0][0] == 'blah'
-
-            spans = tracer.writer.pop()
-            assert len(spans) == 1
-            span = spans[0]
-            eq_(span.name, "postgres.query")
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        eq_(span.name, "postgres.query")
 
     @asyncio.coroutine
     def test_disabled_execute(self):
