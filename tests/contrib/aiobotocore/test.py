@@ -1,7 +1,7 @@
 # stdlib
 import asyncio
 import asynctest
-
+import os
 
 # 3p
 from nose.tools import eq_
@@ -27,10 +27,14 @@ class AIOBotocoreTest(asynctest.TestCase):
     def setUp(self):
         patch()
         self.session = aiobotocore.session.get_session()
+        os.environ['AWS_ACCESS_KEY_ID'] = 'dummy'
+        os.environ['AWS_SECRET_ACCESS_KEY'] = 'dummy'
 
     def tearDown(self):
         unpatch()
         self.session = None
+        del os.environ['AWS_ACCESS_KEY_ID']
+        del os.environ['AWS_SECRET_ACCESS_KEY']
 
     @MotoService('ec2')
     @asyncio.coroutine
