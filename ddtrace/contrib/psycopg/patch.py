@@ -16,12 +16,18 @@ def patch(tracer=None):
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
+    if getattr(psycopg2, '_datadog_patch', False):
+        return
+    setattr(psycopg2, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
     _patch_extensions()  # do this early just in case
 
 
 def unpatch():
-    psycopg2.connect = _connect
+    if getattr(psycopg2, '_datadog_patch', False):
+        setattr(psycopg2, '_datadog_patch', False)
+        psycopg2.connect = _connect
 
 
 def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):

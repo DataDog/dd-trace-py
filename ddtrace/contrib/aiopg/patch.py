@@ -102,12 +102,18 @@ def patch(tracer=None):
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
+    if getattr(aiopg, '_datadog_patch', False):
+        return
+    setattr(aiopg, '_datadog_patch', True)
+
     wrapt.wrap_function_wrapper(aiopg.connection, '_connect', functools.partial(patched_connect, tracer=tracer))
     _patch_extensions()  # do this early just in case
 
 
 def unpatch():
-    aiopg.connection._connect = _connect
+    if getattr(aiopg, '_datadog_patch', False):
+        setattr(aiopg, '_datadog_patch', False)
+        aiopg.connection._connect = _connect
 
 
 @asyncio.coroutine
