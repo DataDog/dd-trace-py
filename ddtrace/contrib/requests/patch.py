@@ -6,6 +6,7 @@ https://github.com/kennethreitz/requests
 
 # stdlib
 import logging
+from urlparse import urlparse
 
 # 3p
 import requests
@@ -39,8 +40,11 @@ def _traced_request_func(func, instance, args, kwargs):
 
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
+    parsed_url = urlparse(url)
+    resource = o.path or '/'
 
-    with tracer.trace("requests.request", span_type=http.TYPE) as span:
+    with tracer.trace("requests.request", service=parsed_url.netloc, resource=resource,
+        span_type=http.TYPE) as span:
         resp = None
         try:
             resp = func(*args, **kwargs)
