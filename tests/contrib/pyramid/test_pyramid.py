@@ -1,4 +1,3 @@
-
 # stdlib
 import logging
 import json
@@ -29,7 +28,7 @@ def test_200():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'index')
+    eq_(s.resource, 'GET index')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -74,7 +73,7 @@ def test_exception():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'exception')
+    eq_(s.resource, 'GET exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -92,7 +91,7 @@ def test_500():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'error')
+    eq_(s.resource, 'GET error')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -106,15 +105,15 @@ def test_json():
     app, tracer = _get_test_app(service='foobar')
     res = app.get('/json', status=200)
     parsed = json.loads(compat.to_unicode(res.body))
-    eq_(parsed, {'a':1})
+    eq_(parsed, {'a': 1})
 
     writer = tracer.writer
     spans = writer.pop()
     eq_(len(spans), 2)
-    spans_by_name = {s.name:s for s in spans}
+    spans_by_name = {s.name: s for s in spans}
     s = spans_by_name['pyramid.request']
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'json')
+    eq_(s.resource, 'GET json')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.method'), 'GET')
@@ -138,10 +137,10 @@ def _get_app(service=None, tracer=None):
         raise HTTPInternalServerError("oh no")
 
     def exception(request):
-        1/0
+        1 / 0
 
     def json(request):
-        return {'a':1}
+        return {'a': 1}
 
     settings = {
         'datadog_trace_service': service,
