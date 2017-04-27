@@ -16,7 +16,7 @@ def traced_setup(wrapped, instance, args, kwargs):
     from django.conf import settings
 
     if 'ddtrace.contrib.django' not in settings.INSTALLED_APPS:
-        if isinstance(tuple, settings.INSTALLED_APPS):
+        if isinstance(settings.INSTALLED_APPS, tuple):
             # INSTALLED_APPS is a tuple < 1.9
             settings.INSTALLED_APPS = settings.INSTALLED_APPS + ('ddtrace.contrib.django', )
         else:
