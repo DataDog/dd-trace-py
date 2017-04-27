@@ -16,7 +16,11 @@ def traced_setup(wrapped, instance, args, kwargs):
     from django.conf import settings
 
     if 'ddtrace.contrib.django' not in settings.INSTALLED_APPS:
-        settings.INSTALLED_APPS.append('ddtrace.contrib.django')
+        if isinstance(tuple, settings.INSTALLED_APPS):
+            # INSTALLED_APPS is a tuple < 1.9
+            settings.INSTALLED_APPS = settings.INSTALLED_APPS + ('ddtrace.contrib.django', )
+        else:
+            settings.INSTALLED_APPS.append('ddtrace.contrib.django')
 
     if hasattr(settings, 'MIDDLEWARE_CLASSES'):
         if 'ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES:
