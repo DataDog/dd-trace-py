@@ -1,6 +1,7 @@
 # stdlib
 import logging
 import time
+import copy
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -9,6 +10,7 @@ from .compat import httplib
 
 log = logging.getLogger(__name__)
 
+TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 
 class API(object):
     """
@@ -44,7 +46,7 @@ class API(object):
             return
         start = time.time()
         data = self._encoder.encode_traces(traces)
-        response = self._put(self._traces, data)
+        response = self._put(self._traces, data, len(traces))
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._compatibility_mode is False:
@@ -73,7 +75,13 @@ class API(object):
         log.debug("reported %d services", len(services))
         return response
 
-    def _put(self, endpoint, data):
+    def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
-        conn.request("PUT", endpoint, data, self._headers)
+
+        headers = self._headers
+        if count:
+            headers = copy.copy(self._headers)
+            headers[TRACE_COUNT_HEADER] = str(count)
+
+        conn.request("PUT", endpoint, data, headers)
         return conn.getresponse()
