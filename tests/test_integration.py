@@ -36,9 +36,9 @@ class FlawedAPI(API):
     """
     Deliberately report data with an incorrect method to trigger a 4xx response
     """
-    def _put(self, endpoint, data):
+    def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
-        conn.request("HEAD", endpoint, data, self._headers)
+        conn.request('HEAD', endpoint, data, self._headers)
         return conn.getresponse()
 
 
