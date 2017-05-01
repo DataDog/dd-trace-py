@@ -201,7 +201,6 @@ class TestWorkers(TestCase):
             in logged_errors[0])
 
 
-
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -220,6 +219,44 @@ class TestAPITransport(TestCase):
         self.tracer = get_dummy_tracer()
         self.api_json = API('localhost', 8126, encoder=JSONEncoder())
         self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+
+    @mock.patch('ddtrace.api.httplib.HTTPConnection')
+    def test_send_presampler_headers(self, mocked_http):
+        # register a single trace with a span and send them to the trace agent
+        self.tracer.trace('client.testing').finish()
+        trace = self.tracer.writer.pop()
+        traces = [trace]
+
+        # make a call and retrieve the `conn` Mock object
+        response = self.api_msgpack.send_traces(traces)
+        request_call = mocked_http.return_value.request
+        eq_(request_call.call_count, 1)
+
+        # retrieve the headers from the mocked request call
+        params, _ = request_call.call_args_list[0]
+        headers = params[3]
+        ok_('X-Datadog-Trace-Count' in headers.keys())
+        eq_(headers['X-Datadog-Trace-Count'], '1')
+
+    @mock.patch('ddtrace.api.httplib.HTTPConnection')
+    def test_send_presampler_headers_not_in_services(self, mocked_http):
+        # register some services and send them to the trace agent
+        services = [{
+            'client.service': {
+                'app': 'django',
+                'app_type': 'web',
+            },
+        }]
+
+        # make a call and retrieve the `conn` Mock object
+        response = self.api_msgpack.send_services(services)
+        request_call = mocked_http.return_value.request
+        eq_(request_call.call_count, 1)
+
+        # retrieve the headers from the mocked request call
+        params, _ = request_call.call_args_list[0]
+        headers = params[3]
+        ok_('X-Datadog-Trace-Count' not in headers.keys())
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
