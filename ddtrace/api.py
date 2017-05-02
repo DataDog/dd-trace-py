@@ -1,7 +1,6 @@
 # stdlib
 import logging
 import time
-import copy
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -80,7 +79,7 @@ class API(object):
 
         headers = self._headers
         if count:
-            headers = copy.copy(self._headers)
+            headers = dict(self._headers)
             headers[TRACE_COUNT_HEADER] = str(count)
 
         conn.request("PUT", endpoint, data, headers)
