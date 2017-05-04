@@ -61,8 +61,8 @@ def trace_tween_factory(handler, registry):
                     span.set_tag(http.URL, request.path)
                     span.set_tag(http.METHOD, request.method)
                     if request.matched_route:
-                        span.resource = request.matched_route.name
-                        span.set_tag("pyramid.route.name", request.matched_route.name)
+                        span.resource = '{} {}'.format(request.method, request.matched_route.name)
+                        span.set_tag('pyramid.route.name', request.matched_route.name)
                     # set response tags
                     if response:
                         span.set_tag(http.STATUS_CODE, response.status_code)
