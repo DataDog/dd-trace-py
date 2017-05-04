@@ -1,6 +1,7 @@
 import wrapt
 
 from ...pin import Pin
+from ddtrace.util import unwrap
 
 
 try:
@@ -35,10 +36,4 @@ def unpatch():
     if template_module:
         if getattr(aiohttp_jinja2, '__datadog_patch', False):
             setattr(aiohttp_jinja2, '__datadog_patch', False)
-            _unwrap(aiohttp_jinja2, 'render_template')
-
-
-def _unwrap(obj, attr):
-    f = getattr(obj, attr, None)
-    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
-        setattr(obj, attr, f.__wrapped__)
+            unwrap(aiohttp_jinja2, 'render_template')

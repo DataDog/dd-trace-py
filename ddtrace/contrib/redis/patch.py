@@ -6,6 +6,7 @@ import wrapt
 # project
 from ddtrace import Pin
 from ddtrace.ext import redis as redisx
+from ddtrace.util import unwrap
 from .util import format_command_args, _extract_conn_tags
 
 
@@ -30,18 +31,11 @@ def patch():
 def unpatch():
     if getattr(redis, '_datadog_patch', False):
         setattr(redis, '_datadog_patch', False)
-        _unwrap(redis.StrictRedis, 'execute_command')
-        _unwrap(redis.StrictRedis, 'pipeline')
-        _unwrap(redis.Redis, 'pipeline')
-        _unwrap(redis.client.BasePipeline, 'execute')
-        _unwrap(redis.client.BasePipeline, 'immediate_execute_command')
-
-
-def _unwrap(obj, attr):
-    f = getattr(obj, attr, None)
-    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
-        setattr(obj, attr, f.__wrapped__)
-
+        unwrap(redis.StrictRedis, 'execute_command')
+        unwrap(redis.StrictRedis, 'pipeline')
+        unwrap(redis.Redis, 'pipeline')
+        unwrap(redis.client.BasePipeline, 'execute')
+        unwrap(redis.client.BasePipeline, 'immediate_execute_command')
 
 #
 # tracing functions

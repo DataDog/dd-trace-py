@@ -1,16 +1,15 @@
 # stdlib
-import logging
 import json
+import logging
 import sys
-from wsgiref.simple_server import make_server
-
-# 3p
-from pyramid.response import Response
-from pyramid.config import Configurator
-from pyramid.view import view_config
-from pyramid.httpexceptions import HTTPInternalServerError
 import webtest
 from nose.tools import eq_
+from pyramid.config import Configurator
+from pyramid.httpexceptions import HTTPInternalServerError
+# 3p
+from pyramid.response import Response
+from pyramid.view import view_config
+from wsgiref.simple_server import make_server
 
 # project
 import ddtrace
@@ -27,23 +26,24 @@ def test_200():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'index')
+    eq_(s.resource, 'GET index')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/')
 
-    # ensure services are set correcgly
+    # ensure services are set correctly
     services = writer.pop_services()
     expected = {
-        'foobar': {"app":"pyramid", "app_type":"web"}
+        'foobar': {"app": "pyramid", "app_type": "web"}
     }
     eq_(services, expected)
 
 
 def test_404():
     app, tracer = _get_test_app(service='foobar')
-    res = app.get('/404', status=404)
+    app.get('/404', status=404)
 
     writer = tracer.writer
     spans = writer.pop()
@@ -53,6 +53,7 @@ def test_404():
     eq_(s.resource, '404')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '404')
     eq_(s.meta.get('http.url'), '/404')
 
@@ -69,11 +70,12 @@ def test_exception():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'exception')
+    eq_(s.resource, 'GET exception')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/exception')
+
 
 def test_500():
     app, tracer = _get_test_app(service='foobar')
@@ -84,28 +86,31 @@ def test_500():
     eq_(len(spans), 1)
     s = spans[0]
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'error')
+    eq_(s.resource, 'GET error')
     eq_(s.error, 1)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '500')
     eq_(s.meta.get('http.url'), '/error')
     assert type(s.error) == int
+
 
 def test_json():
     app, tracer = _get_test_app(service='foobar')
     res = app.get('/json', status=200)
     parsed = json.loads(compat.to_unicode(res.body))
-    eq_(parsed, {'a':1})
+    eq_(parsed, {'a': 1})
 
     writer = tracer.writer
     spans = writer.pop()
     eq_(len(spans), 2)
-    spans_by_name = {s.name:s for s in spans}
+    spans_by_name = {s.name: s for s in spans}
     s = spans_by_name['pyramid.request']
     eq_(s.service, 'foobar')
-    eq_(s.resource, 'json')
+    eq_(s.resource, 'GET json')
     eq_(s.error, 0)
     eq_(s.span_type, 'http')
+    eq_(s.meta.get('http.method'), 'GET')
     eq_(s.meta.get('http.status_code'), '200')
     eq_(s.meta.get('http.url'), '/json')
 
@@ -113,6 +118,7 @@ def test_json():
     eq_(s.service, 'foobar')
     eq_(s.error, 0)
     eq_(s.span_type, 'template')
+
 
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
@@ -124,10 +130,10 @@ def _get_app(service=None, tracer=None):
         raise HTTPInternalServerError("oh no")
 
     def exception(request):
-        1/0
+        1 / 0
 
     def json(request):
-        return {'a':1}
+        return {'a': 1}
 
     config = Configurator()
     config.add_route('index', '/')

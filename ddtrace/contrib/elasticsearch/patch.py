@@ -5,6 +5,7 @@ from elasticsearch.exceptions import TransportError
 from . import metadata
 from .quantize import quantize
 
+from ddtrace.util import unwrap
 from ...compat import urlencode
 from ...pin import Pin
 from ...ext import http
@@ -27,14 +28,7 @@ def patch():
 def unpatch():
     if getattr(elasticsearch, '_datadog_patch', False):
         setattr(elasticsearch, '_datadog_patch', False)
-        _unwrap(elasticsearch.transport.Transport, 'perform_request')
-
-
-def _unwrap(obj, attr):
-    f = getattr(obj, attr, None)
-    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
-        setattr(obj, attr, f.__wrapped__)
-
+        unwrap(elasticsearch.transport.Transport, 'perform_request')
 
 def _perform_request(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
