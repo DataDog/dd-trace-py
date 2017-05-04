@@ -30,7 +30,7 @@ class TestAsyncConcurrency(TornadoTestCase):
             http_client.close()
 
         # blocking call executed in different threads
-        threads = [threading.Thread(target=make_requests) for _ in range(50)]
+        threads = [threading.Thread(target=make_requests) for _ in range(25)]
         for t in threads:
             t.daemon = True
             t.start()
@@ -40,7 +40,7 @@ class TestAsyncConcurrency(TornadoTestCase):
 
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(50, len(traces))
+        eq_(25, len(traces))
         eq_(2, len(traces[0]))
 
 
