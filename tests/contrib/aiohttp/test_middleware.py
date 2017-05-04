@@ -151,7 +151,7 @@ class TestTraceMiddleware(TraceTestCase):
         trace_app(app, self.tracer)
         eq_(2, len(app.middlewares))
         # and the middleware is always the first
-        eq_(trace_middleware, app.middlewares[0])
+        eq_(trace_middleware, app.middlewares[0].func)
         eq_(noop_middleware, app.middlewares[1])
 
     @unittest_run_loop
