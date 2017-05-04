@@ -24,6 +24,9 @@ class BotocoreTest(unittest.TestCase):
         patch()
         self.session = botocore.session.get_session()
 
+    def tearDown(self):
+        unpatch()
+
     @mock_ec2
     def test_traced_client(self):
 
@@ -183,3 +186,6 @@ class BotocoreTest(unittest.TestCase):
 
         # checking for protection on sts against security leak
         eq_(span.get_tag('params'), None)
+
+if __name__ == '__main__':
+    unittest.main()
