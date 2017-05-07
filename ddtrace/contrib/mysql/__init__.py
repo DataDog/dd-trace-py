@@ -26,6 +26,17 @@ https://dev.mysql.com/doc/connector-python/en/
 """
 from ..util import require_modules
 
+# check `MySQL-python` availability
+required_modules = ['_mysql']
+
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        # MySQL python package is not supported at the moment;
+        # here we raise an import error so that the external
+        # loader knows that the integration is not available
+        raise ImportError('No module named mysql-python')
+
+# check `mysql-connector` availability
 required_modules = ['mysql.connector']
 
 with require_modules(required_modules) as missing_modules:
