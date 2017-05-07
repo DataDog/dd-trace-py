@@ -47,3 +47,20 @@ class SQLAlchemyPatchTestCase(TestCase):
         eq_(span.service, 'postgres')
         eq_(span.error, 0)
         ok_(span.duration > 0)
+
+    def test_engine_pin_service(self):
+        # ensures that the engine service is updated with the PIN object
+        Pin.override(self.engine, service='replica-db')
+        rows = self.conn.execute('SELECT 1').fetchall()
+        eq_(len(rows), 1)
+
+        traces = self.tracer.writer.pop_traces()
+        # trace composition
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        # check subset of span fields
+        eq_(span.name, 'postgres.query')
+        eq_(span.service, 'replica-db')
+        eq_(span.error, 0)
+        ok_(span.duration > 0)
