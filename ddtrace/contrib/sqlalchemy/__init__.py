@@ -19,7 +19,7 @@ required_modules = ['sqlalchemy', 'sqlalchemy.event']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch
+        from .patch import patch, unpatch
         from .engine import trace_engine
 
-        __all__ = ['trace_engine', 'patch']
+        __all__ = ['trace_engine', 'patch', 'unpatch']
