@@ -10,7 +10,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TestCase):
     """TestCase for the SQLite engine"""
     VENDOR = 'sqlite'
     SQL_DB = ':memory:'
-    SERVICE = 'sqlite-test'
+    SERVICE = 'sqlite'
     ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
 
     def test_engine_execute_errors(self):

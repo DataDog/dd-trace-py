@@ -13,7 +13,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, TestCase):
     """TestCase for Postgres Engine"""
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
-    SERVICE = 'postgres-test'
+    SERVICE = 'postgres'
     ENGINE_ARGS = {'url': 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG}
 
     def check_meta(self, span):
@@ -54,5 +54,5 @@ class PostgresCreatorTestCase(PostgresTestCase):
     """
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
-    SERVICE = 'postgres-test'
+    SERVICE = 'postgres'
     ENGINE_ARGS = {'url': 'postgresql://', 'creator': lambda: psycopg2.connect(**POSTGRES_CONFIG)}

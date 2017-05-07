@@ -89,7 +89,7 @@ class SQLAlchemyTestMixin(object):
 
         # trace the engine
         self.tracer = get_dummy_tracer()
-        trace_engine(self.engine, self.tracer, service=self.SERVICE)
+        trace_engine(self.engine, self.tracer)
 
     def tearDown(self):
         # clear the database and dispose the engine
