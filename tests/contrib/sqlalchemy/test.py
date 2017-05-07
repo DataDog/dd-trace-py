@@ -8,7 +8,7 @@ from unittest import TestCase
 from nose.tools import eq_, ok_, assert_raises
 from nose.plugins.attrib import attr
 
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import (
@@ -41,11 +41,14 @@ class Player(Base):
     name = Column(String)
 
 
-class SQLiteTestCase(TestCase):
-    """Testing SQLite engine"""
-    VENDOR = 'sqlite'
-    SERVICE = 'sqlite-test'
-    ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
+class SQLAlchemyTestMixin(object):
+    """SQLAlchemy test mixin that adds many functionalities.
+    TODO: document how to use it
+    """
+    VENDOR = None
+    SQL_DB = None
+    SERVICE = None
+    ENGINE_ARGS = None
 
     def create_engine(self, engine_args):
         # create a SQLAlchemy engine
@@ -63,12 +66,18 @@ class SQLiteTestCase(TestCase):
         finally:
             conn.close()
 
+    def check_meta(self, span):
+        # function that can be implemented according to the
+        # specific engine implementation
+        return
+
     def setUp(self):
         # create an engine
         self.engine = self.create_engine(self.ENGINE_ARGS)
 
         # create the database / entities and prepare a session for the test
-        Base.metadata.create_all(self.engine)
+        Base.metadata.drop_all(bind=self.engine)
+        Base.metadata.create_all(self.engine, checkfirst=False)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
@@ -78,6 +87,7 @@ class SQLiteTestCase(TestCase):
 
     def tearDown(self):
         # clear the database and dispose the engine
+        self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
 
@@ -93,10 +103,10 @@ class SQLiteTestCase(TestCase):
         eq_(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
-        eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-test')
-        eq_(span.resource, 'INSERT INTO players (id, name) VALUES (?, ?)')
-        eq_(span.get_tag('sql.db'), ':memory:')
+        eq_(span.name, '{}.query'.format(self.VENDOR))
+        eq_(span.service, self.SERVICE)
+        ok_('INSERT INTO players' in span.resource)
+        eq_(span.get_tag('sql.db'), self.SQL_DB)
         eq_(span.get_tag('sql.rows'), '1')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
@@ -113,11 +123,11 @@ class SQLiteTestCase(TestCase):
         eq_(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
-        eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-test')
-        eq_(span.resource, 'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name = ?')
-        eq_(span.get_tag('sql.db'), ':memory:')
-        ok_(span.get_tag('sql.rows') is None)
+        eq_(span.name, '{}.query'.format(self.VENDOR))
+        eq_(span.service, self.SERVICE)
+        ok_('SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name' in span.resource)
+        eq_(span.get_tag('sql.db'), self.SQL_DB)
+        eq_(span.get_tag('sql.rows'), '0')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
         ok_(span.duration > 0)
@@ -134,14 +144,30 @@ class SQLiteTestCase(TestCase):
         eq_(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
-        eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-test')
+        eq_(span.name, '{}.query'.format(self.VENDOR))
+        eq_(span.service, self.SERVICE)
         eq_(span.resource, 'SELECT * FROM players')
-        eq_(span.get_tag('sql.db'), ':memory:')
-        ok_(span.get_tag('sql.rows') is None)
+        eq_(span.get_tag('sql.db'), self.SQL_DB)
+        eq_(span.get_tag('sql.rows'), '0')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
         ok_(span.duration > 0)
+
+    def test_traced_service(self):
+        # ensures that the service is set as expected
+        services = self.tracer.writer.pop_services()
+        expected = {
+            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
+        }
+        eq_(services, expected)
+
+
+class SQLiteTestCase(SQLAlchemyTestMixin, TestCase):
+    """Testing SQLite engine"""
+    VENDOR = 'sqlite'
+    SQL_DB = ':memory:'
+    SERVICE = 'sqlite-test'
+    ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
@@ -155,10 +181,10 @@ class SQLiteTestCase(TestCase):
         eq_(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
-        eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-test')
+        eq_(span.name, '{}.query'.format(self.VENDOR))
+        eq_(span.service, self.SERVICE)
         eq_(span.resource, 'SELECT * FROM a_wrong_table')
-        eq_(span.get_tag('sql.db'), ':memory:')
+        eq_(span.get_tag('sql.db'), self.SQL_DB)
         ok_(span.get_tag('sql.rows') is None)
         eq_(span.span_type, 'sql')
         ok_(span.duration > 0)
@@ -168,138 +194,49 @@ class SQLiteTestCase(TestCase):
         ok_('OperationalError' in span.get_tag('error.type'))
         ok_('OperationalError: no such table: a_wrong_table' in span.get_tag('error.stack'))
 
-    def test_traced_service(self):
-        # ensures that the service is set as expected
-        services = self.tracer.writer.pop_services()
-        expected = {
-            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
-        }
-        eq_(services, expected)
+
+class PostgresTestCase(SQLAlchemyTestMixin, TestCase):
+    """Testing Postgres engine"""
+    VENDOR = 'postgres'
+    SQL_DB = 'postgres'
+    SERVICE = 'postgres-test'
+    ENGINE_ARGS = {'url': 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG}
+
+    def check_meta(self, span):
+        # check database connection tags
+        eq_(span.get_tag('out.host'), POSTGRES_CONFIG['host'])
+        eq_(span.get_tag('out.port'), str(POSTGRES_CONFIG['port']))
+
+    def test_engine_execute_errors(self):
+        # ensures that SQL errors are reported
+        with assert_raises(ProgrammingError) as ex:
+            with self.connection() as conn:
+                conn.execute('SELECT * FROM a_wrong_table').fetchall()
+
+        traces = self.tracer.writer.pop_traces()
+        # trace composition
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        # span fields
+        eq_(span.name, '{}.query'.format(self.VENDOR))
+        eq_(span.service, self.SERVICE)
+        eq_(span.resource, 'SELECT * FROM a_wrong_table')
+        eq_(span.get_tag('sql.db'), self.SQL_DB)
+        ok_(span.get_tag('sql.rows') is None)
+        self.check_meta(span)
+        eq_(span.span_type, 'sql')
+        ok_(span.duration > 0)
+        # check the error
+        eq_(span.error, 1)
+        ok_('relation "a_wrong_table" does not exist' in span.get_tag('error.msg'))
+        ok_('ProgrammingError' in span.get_tag('error.type'))
+        ok_('ProgrammingError: relation "a_wrong_table" does not exist' in span.get_tag('error.stack'))
 
 
-@attr('postgres')
-def test_postgres():
-    u = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG
-    engine_args = {'url' : u}
-    meta = {
-        sqlx.DB: POSTGRES_CONFIG["dbname"],
-        netx.TARGET_HOST: POSTGRES_CONFIG['host'],
-        netx.TARGET_PORT: str(POSTGRES_CONFIG['port']),
-    }
-
-    _test_create_engine(engine_args, "pg-foo", "postgres", meta)
-
-
-@attr('postgres')
-def test_postgres_creator_func():
-    def _creator():
-        return psycopg2.connect(**POSTGRES_CONFIG)
-
-    engine_args = {'url' : 'postgresql://', 'creator' : _creator}
-
-    meta = {
-        netx.TARGET_HOST: POSTGRES_CONFIG['host'],
-        netx.TARGET_PORT: str(POSTGRES_CONFIG['port']),
-        sqlx.DB: POSTGRES_CONFIG["dbname"],
-    }
-
-    _test_create_engine(engine_args, "pg-foo", "postgres", meta)
-
-
-def _test_create_engine(engine_args, service, vendor, expected_meta):
-    url = engine_args.pop("url")
-    engine = create_engine(url, **engine_args)
-    try:
-        _test_engine(engine, service, vendor, expected_meta)
-    finally:
-        engine.dispose()
-
-
-def _test_engine(engine, service, vendor, expected_meta):
-    """ a test suite for various sqlalchemy engines. """
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
-    # create an engine and start tracing.
-    trace_engine(engine, tracer, service=service)
-    start = time.time()
-
-    @contextlib.contextmanager
-    def _connect():
-        try:
-            conn = engine.connect()
-            yield conn
-        finally:
-            conn.close()
-
-    with _connect() as conn:
-        try:
-            conn.execute("delete from players")
-        except Exception:
-            pass
-
-    # boilerplate
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    # do an ORM insert
-    wayne = Player(id=1, name="wayne")
-    session.add(wayne)
-    session.commit()
-
-    out = list(session.query(Player).filter_by(name="nothing"))
-    eq_(len(out), 0)
-
-    # do a regular old query that works
-    with _connect() as conn:
-        rows = conn.execute("select * from players").fetchall()
-        eq_(len(rows), 1)
-        eq_(rows[0]['name'], 'wayne')
-
-    with _connect() as conn:
-        try:
-            conn.execute("select * from foo_Bah_blah")
-        except Exception:
-            pass
-        else:
-            assert 0
-
-    end = time.time()
-
-    spans = tracer.writer.pop()
-    for span in spans:
-        eq_(span.name, "%s.query" % vendor)
-        eq_(span.service, service)
-        eq_(span.span_type, "sql")
-
-        for k, v in expected_meta.items():
-            eq_(span.meta[k], v)
-
-        # FIXME[matt] could be finer grained but i'm lazy
-        assert start < span.start < end
-        assert span.duration
-        assert span.duration < end - start
-
-    by_rsc = {s.resource:s for s in spans}
-
-    # ensure errors work
-    s = by_rsc["select * from foo_Bah_blah"]
-    eq_(s.error, 1)
-    assert "foo_Bah_blah" in s.get_tag(errorsx.ERROR_MSG)
-    assert "foo_Bah_blah" in s.get_tag(errorsx.ERROR_STACK)
-
-    expected = [
-        "select * from players",
-        "select * from foo_Bah_blah",
-    ]
-
-    for i in expected:
-        assert i in by_rsc, "%s not in %s" % (i, by_rsc.keys())
-
-    # ensure we have the service types
-    services = tracer.writer.pop_services()
-    expected = {
-        service : {"app":vendor, "app_type":"db"}
-    }
-    eq_(services, expected)
+class PostgresCreatorTestCase(PostgresTestCase):
+    """Testing Postgres with a specific creator function"""
+    VENDOR = 'postgres'
+    SQL_DB = 'postgres'
+    SERVICE = 'postgres-test'
+    ENGINE_ARGS = {'url': 'postgresql://', 'creator': lambda: psycopg2.connect(**POSTGRES_CONFIG)}
