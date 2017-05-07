@@ -43,11 +43,15 @@ class Player(Base):
 
 class SQLiteTestCase(TestCase):
     """Testing SQLite engine"""
+    VENDOR = 'sqlite'
+    SERVICE = 'sqlite-test'
+    ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
 
-    def create_engine(self, engine_args, meta):
+    def create_engine(self, engine_args):
         # create a SQLAlchemy engine
-        url = engine_args.pop('url')
-        return create_engine(url, **engine_args)
+        config = dict(engine_args)
+        url = config.pop('url')
+        return create_engine(url, **config)
 
     @contextlib.contextmanager
     def connection(self):
@@ -60,12 +64,8 @@ class SQLiteTestCase(TestCase):
             conn.close()
 
     def setUp(self):
-        # TODO: move these at class level?
-        self.vendor = 'sqlite'
-        self.meta = {sqlx.DB: ':memory:'}
-        self.engine_args = {'url': 'sqlite:///:memory:'}
         # create an engine
-        self.engine = self.create_engine(self.engine_args, self.meta)
+        self.engine = self.create_engine(self.ENGINE_ARGS)
 
         # create the database / entities and prepare a session for the test
         Base.metadata.create_all(self.engine)
@@ -74,7 +74,7 @@ class SQLiteTestCase(TestCase):
 
         # trace the engine
         self.tracer = get_dummy_tracer()
-        trace_engine(self.engine, self.tracer, service='sqlite-foo')
+        trace_engine(self.engine, self.tracer, service=self.SERVICE)
 
     def tearDown(self):
         # clear the database and dispose the engine
@@ -94,7 +94,7 @@ class SQLiteTestCase(TestCase):
         span = traces[0][0]
         # span fields
         eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-foo')
+        eq_(span.service, 'sqlite-test')
         eq_(span.resource, 'INSERT INTO players (id, name) VALUES (?, ?)')
         eq_(span.get_tag('sql.db'), ':memory:')
         eq_(span.get_tag('sql.rows'), '1')
@@ -114,7 +114,7 @@ class SQLiteTestCase(TestCase):
         span = traces[0][0]
         # span fields
         eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-foo')
+        eq_(span.service, 'sqlite-test')
         eq_(span.resource, 'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name = ?')
         eq_(span.get_tag('sql.db'), ':memory:')
         ok_(span.get_tag('sql.rows') is None)
@@ -135,7 +135,7 @@ class SQLiteTestCase(TestCase):
         span = traces[0][0]
         # span fields
         eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-foo')
+        eq_(span.service, 'sqlite-test')
         eq_(span.resource, 'SELECT * FROM players')
         eq_(span.get_tag('sql.db'), ':memory:')
         ok_(span.get_tag('sql.rows') is None)
@@ -156,7 +156,7 @@ class SQLiteTestCase(TestCase):
         span = traces[0][0]
         # span fields
         eq_(span.name, 'sqlite.query')
-        eq_(span.service, 'sqlite-foo')
+        eq_(span.service, 'sqlite-test')
         eq_(span.resource, 'SELECT * FROM a_wrong_table')
         eq_(span.get_tag('sql.db'), ':memory:')
         ok_(span.get_tag('sql.rows') is None)
@@ -172,7 +172,7 @@ class SQLiteTestCase(TestCase):
         # ensures that the service is set as expected
         services = self.tracer.writer.pop_services()
         expected = {
-            'sqlite-foo': {'app': self.vendor, 'app_type': 'db'}
+            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
         }
         eq_(services, expected)
 
