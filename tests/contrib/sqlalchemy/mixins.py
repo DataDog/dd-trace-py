@@ -32,8 +32,24 @@ class Player(Base):
 
 
 class SQLAlchemyTestMixin(object):
-    """SQLAlchemy test mixin that adds many functionalities.
-    TODO: document how to use it
+    """SQLAlchemy test mixin that includes a complete set of tests
+    that must be executed for different engine. When a new test (or
+    a regression test) should be added to SQLAlchemy test suite, a new
+    entry must be appended here so that it will be executed for all
+    available and supported engines. If the test is specific to only
+    one engine, that test must be added to the specific `TestCase`
+    implementation.
+
+    To support a new engine, create a new `TestCase` that inherits from
+    `SQLAlchemyTestMixin` and `TestCase`. Then you must define the following
+    static class variables:
+      * VENDOR: the database vendor name
+      * SQL_DB: the `sql.db` tag that we expect
+      * SERVICE: the service that we expect by default
+      * ENGINE_ARGS: all arguments required to create the engine
+
+    To check specific tags in each test, you must implement the
+    `check_meta(self, span)` method.
     """
     VENDOR = None
     SQL_DB = None
@@ -62,7 +78,7 @@ class SQLAlchemyTestMixin(object):
         return
 
     def setUp(self):
-        # create an engine
+        # create an engine with the given arguments
         self.engine = self.create_engine(self.ENGINE_ARGS)
 
         # create the database / entities and prepare a session for the test
@@ -98,6 +114,7 @@ class SQLAlchemyTestMixin(object):
         ok_('INSERT INTO players' in span.resource)
         eq_(span.get_tag('sql.db'), self.SQL_DB)
         eq_(span.get_tag('sql.rows'), '1')
+        self.check_meta(span)
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
         ok_(span.duration > 0)
@@ -118,6 +135,7 @@ class SQLAlchemyTestMixin(object):
         ok_('SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name' in span.resource)
         eq_(span.get_tag('sql.db'), self.SQL_DB)
         eq_(span.get_tag('sql.rows'), '0')
+        self.check_meta(span)
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
         ok_(span.duration > 0)
@@ -139,6 +157,7 @@ class SQLAlchemyTestMixin(object):
         eq_(span.resource, 'SELECT * FROM players')
         eq_(span.get_tag('sql.db'), self.SQL_DB)
         eq_(span.get_tag('sql.rows'), '0')
+        self.check_meta(span)
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
         ok_(span.duration > 0)

@@ -10,7 +10,7 @@ from ..config import POSTGRES_CONFIG
 
 
 class PostgresTestCase(SQLAlchemyTestMixin, TestCase):
-    """Testing Postgres engine"""
+    """TestCase for Postgres Engine"""
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
     SERVICE = 'postgres-test'
@@ -49,7 +49,9 @@ class PostgresTestCase(SQLAlchemyTestMixin, TestCase):
 
 
 class PostgresCreatorTestCase(PostgresTestCase):
-    """Testing Postgres with a specific creator function"""
+    """TestCase for Postgres Engine that includes the same tests set
+    of `PostgresTestCase`, but it uses a specific `creator` function.
+    """
     VENDOR = 'postgres'
     SQL_DB = 'postgres'
     SERVICE = 'postgres-test'

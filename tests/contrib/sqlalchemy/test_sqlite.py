@@ -7,7 +7,7 @@ from .mixins import SQLAlchemyTestMixin
 
 
 class SQLiteTestCase(SQLAlchemyTestMixin, TestCase):
-    """Testing SQLite engine"""
+    """TestCase for the SQLite engine"""
     VENDOR = 'sqlite'
     SQL_DB = ':memory:'
     SERVICE = 'sqlite-test'
