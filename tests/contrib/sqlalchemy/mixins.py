@@ -28,7 +28,7 @@ class Player(Base):
     __tablename__ = 'players'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String(20))
 
 
 class SQLAlchemyTestMixin(object):
@@ -44,7 +44,8 @@ class SQLAlchemyTestMixin(object):
     `SQLAlchemyTestMixin` and `TestCase`. Then you must define the following
     static class variables:
       * VENDOR: the database vendor name
-      * SQL_DB: the `sql.db` tag that we expect
+      * SQL_DB: the `sql.db` tag that we expect (it's the name of the database
+        available in the `.env` file)
       * SERVICE: the service that we expect by default
       * ENGINE_ARGS: all arguments required to create the engine
 
