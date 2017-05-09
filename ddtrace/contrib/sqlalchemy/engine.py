@@ -104,10 +104,6 @@ class EngineTracer(object):
         try:
             if cursor and cursor.rowcount >= 0:
                 span.set_tag(sqlx.ROWS, cursor.rowcount)
-            elif cursor and cursor.rowcount == -1:
-                # SQLite sets the value to -1 when there is
-                # no row matches for the current query
-                span.set_tag(sqlx.ROWS, 0)
         finally:
             span.finish()
 
