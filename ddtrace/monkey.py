@@ -42,6 +42,11 @@ _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 
+class PatchException(Exception):
+    """Wraps regular `Exception` class when patching modules"""
+    pass
+
+
 def patch_all(**patch_modules):
     """ Automatically patches all available modules.
 
@@ -105,8 +110,16 @@ def _patch_module(module):
             logging.debug("already patched: %s", path)
             return False
 
-        imported_module = importlib.import_module(path)
-        imported_module.patch()
+        try:
+            imported_module = importlib.import_module(path)
+            imported_module.patch()
+        except ImportError:
+            # if the import fails, the integration is not available
+            raise PatchException('integration not available')
+        except AttributeError:
+            # if patch() is not available in the module, it means
+            # that the library is not installed in the environment
+            raise PatchException('module not installed')
 
         _PATCHED_MODULES.add(module)
         return True
