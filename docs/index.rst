@@ -101,7 +101,7 @@ small example that shows adding a custom span to a Flask application::
         # Or just trace part of a function with the `trace`
         # context manager.
         with tracer.trace("thumbnails.save") as span:
-            span.set_metric("thumbnails.count", len(span))
+            span.set_meta("thumbnails.sizes", str(sizes))
 
             image_server.store(thumbnails)
 
