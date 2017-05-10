@@ -38,7 +38,7 @@ class PylonsTraceMiddleware(object):
 
             try:
                 return self.app(environ, _start_response)
-            except Exception as e:
+            except BaseException as e:
                 # "unexpected errors"
                 # exc_info set by __exit__ on current tracer
                 span.set_tag(http.STATUS_CODE, getattr(e, 'code', 500))
