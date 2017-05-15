@@ -182,13 +182,14 @@ class Tracer(object):
         You must call `finish` on all spans, either directly or with a context
         manager::
 
-        >>> span = tracer.trace("web.request")
-            try:
-                # do something
-            finally:
-                span.finish()
-        >>> with tracer.trace("web.request") as span:
-                # do something
+            >>> span = tracer.trace("web.request")
+                try:
+                    # do something
+                finally:
+                    span.finish()
+
+            >>> with tracer.trace("web.request") as span:
+                    # do something
 
         Trace will store the current active span and subsequent child traces will
         become its children::

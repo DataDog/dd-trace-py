@@ -48,12 +48,11 @@ class PatchException(Exception):
 
 
 def patch_all(**patch_modules):
-    """ Automatically patches all available modules.
+    """Automatically patches all available modules.
 
-    :param dict **patch_modules: Override whether particular modules
-            are patched or not.
+    :param dict \**patch_modules: Override whether particular modules are patched or not.
 
-    >>> patch_all({'redis': False, 'cassandra': False})
+        >>> patch_all({'redis': False, 'cassandra': False})
     """
     modules = PATCH_MODULES.copy()
     modules.update(patch_modules)
@@ -61,11 +60,12 @@ def patch_all(**patch_modules):
     patch(raise_errors=False, **modules)
 
 def patch(raise_errors=True, **patch_modules):
-    """ Patch a set of given modules
+    """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
-    :param dict **patch_modules: List of modules to patch.
-        Example: {'psycopg': True, 'elasticsearch': True}
+    :param dict \**patch_modules: List of modules to patch.
+
+        >>> patch({'psycopg': True, 'elasticsearch': True})
     """
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     count = 0
