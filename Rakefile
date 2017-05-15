@@ -93,14 +93,6 @@ task :docs do
   end
 end
 
-task :'docs:loop' do
-  # FIXME do something real here
-  while true do
-    sleep 2
-    Rake::Task["docs"].execute
-  end
-end
-
 # Deploy tasks
 S3_BUCKET = 'pypi.datadoghq.com'
 S3_DIR = ENV['S3_DIR']
