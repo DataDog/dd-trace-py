@@ -314,6 +314,8 @@ API
 
 .. autofunction:: ddtrace.monkey.patch_all
 
+.. autofunction:: ddtrace.monkey.patch
+
 .. toctree::
    :maxdepth: 2
 
