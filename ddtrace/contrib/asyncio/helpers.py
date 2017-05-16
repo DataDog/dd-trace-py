@@ -79,7 +79,14 @@ _orig_create_task = None
 
 
 def enable_task_linking():
-    """ This method will enable spawned tasks to share the same context as their base task context """
+    """ This method will enable spawned tasks to parent to the base task context """
+    # Note: we can't just link the tasks due to the following scenario:
+    # begin task A
+    # task A starts task B1..B10
+    # finish task B1-B9 (B10 still on trace stack)
+    # task A starts task C
+    #
+    # now task C gets parented to task B10 since it's still on the stack, however was not actually triggered by B10
 
     global _orig_create_task
 
@@ -92,9 +99,19 @@ def enable_task_linking():
         current_task = asyncio.Task.current_task()
 
         ctx = getattr(current_task, CONTEXT_ATTR, None)
-        if ctx:
-            # current task has a context, so link the two
-            set_call_context(new_task, ctx)
+        span = ctx.get_current_span() if ctx else None
+        if span:
+            parent_trace_id, parent_span_id = span.trace_id, span.span_id
+        elif ctx:
+            parent_trace_id, parent_span_id = ctx.get_base_parent_span_ids()
+        else:
+            parent_trace_id = parent_span_id = None
+
+        if parent_trace_id and parent_span_id:
+            # current task has a context, so parent a new context to the base context
+            new_ctx = Context()
+            new_ctx.set_base_parent_span_ids(parent_trace_id, parent_span_id)
+            set_call_context(new_task, new_ctx)
 
         return new_task
 
