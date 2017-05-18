@@ -14,6 +14,7 @@ from ...ext import net as netx
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 # MongoDB wire protocol commands

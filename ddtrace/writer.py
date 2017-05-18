@@ -11,6 +11,7 @@ from ddtrace import api
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 MAX_TRACES = 1000

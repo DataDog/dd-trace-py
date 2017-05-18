@@ -8,6 +8,7 @@ from .compat import httplib
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 

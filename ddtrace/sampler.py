@@ -7,6 +7,7 @@ import array
 import threading
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 MAX_TRACE_ID = 2 ** 64
 

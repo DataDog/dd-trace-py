@@ -18,6 +18,7 @@ from flask import g, request, signals
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class TraceMiddleware(object):

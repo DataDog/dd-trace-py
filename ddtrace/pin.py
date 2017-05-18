@@ -3,6 +3,7 @@ import logging
 import ddtrace
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class Pin(object):

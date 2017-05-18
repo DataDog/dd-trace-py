@@ -16,6 +16,7 @@ except ImportError:
     MiddlewareClass = object
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class TraceMiddleware(MiddlewareClass):

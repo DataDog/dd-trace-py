@@ -9,6 +9,7 @@ from .utils import quantize_key_values, _resource_from_cache_prefix
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 # code instrumentation
 DATADOG_NAMESPACE = '__datadog_original_{method}'

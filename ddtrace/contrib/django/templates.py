@@ -14,6 +14,7 @@ from django.template import Template
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 def patch_template(tracer):

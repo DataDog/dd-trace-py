@@ -10,6 +10,7 @@ from .ext import errors
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 class Span(object):

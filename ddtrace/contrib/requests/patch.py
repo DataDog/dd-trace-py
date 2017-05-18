@@ -17,6 +17,7 @@ from ddtrace.ext import http
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.WARNING)
 
 
 def patch():
