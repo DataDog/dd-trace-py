@@ -168,7 +168,7 @@ class TraceMiddleware(object):
         span = self._tracer.trace('flask.template')
         try:
             span.span_type = http.TEMPLATE
-            span.set_tag("flask.template", template.name or "string")
+            span.set_tag("flask.template", template.name or "<string>")
         finally:
             g.flask_datadog_tmpl_span = span
 
@@ -184,9 +184,13 @@ def _patch_render(tracer):
     _render = flask.templating._render
 
     def _traced_render(template, context, app):
-        with tracer.trace('flask.template') as span:
+        with tracer.trace('flask.render', resource=str(request.url_rule)) as span:
             span.span_type = http.TEMPLATE
-            span.set_tag("flask.template", template.name or "string")
+            span.set_tag("flask.template", template.name or "<string>")
+            span.set_tag('flask.request.url_rule',request.url_rule)
+            span.set_tag('http.method',request.method)
+            for header in request.headers:
+                span.set_tag('http.header.'+header[0],header[1])
             return _render(template, context, app)
 
     flask.templating._render = _traced_render
