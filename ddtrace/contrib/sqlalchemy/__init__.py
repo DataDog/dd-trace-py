@@ -2,14 +2,18 @@
 To trace sqlalchemy queries, add instrumentation to the engine class or
 instance you are using::
 
-    from ddtrace import tracer
-    from ddtrace.contrib.sqlalchemy import trace_engine
+    # patch before importing `create_engine`
+    from ddtrace import Pin, patch
+    patch(sqlalchemy=True)
+
+    # use SQLAlchemy as usual
     from sqlalchemy import create_engine
 
     engine = create_engine('sqlite:///:memory:')
-    trace_engine(engine, tracer, "my-database")
+    engine.connect().execute("SELECT COUNT(*) FROM users")
 
-    engine.connect().execute("select count(*) from users")
+    # Use a PIN to specify metadata related to this engine
+    Pin.override(engine, service='replica-db')
 """
 
 
@@ -19,5 +23,7 @@ required_modules = ['sqlalchemy', 'sqlalchemy.event']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import patch, unpatch
         from .engine import trace_engine
-        __all__ = ['trace_engine']
+
+        __all__ = ['trace_engine', 'patch', 'unpatch']
