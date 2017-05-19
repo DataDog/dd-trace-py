@@ -26,7 +26,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(service="sqlite", app="sqlite").onto(wrapped)
+    Pin(service="sqlite", app="sqlite", app_type="db").onto(wrapped)
     return wrapped
 
 class TracedSQLite(TracedConnection):
