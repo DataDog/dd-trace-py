@@ -214,7 +214,7 @@ class Span(object):
 
         return d
 
-    def set_traceback(self):
+    def set_traceback(self, limit=20):
         """ If the current stack has a traceback, tag the span with the
             relevant error info.
 
@@ -226,7 +226,14 @@ class Span(object):
             >>> span.set_exc_info(*exc)
         """
         (exc_type, exc_val, exc_tb) = sys.exc_info()
-        self.set_exc_info(exc_type, exc_val, exc_tb)
+
+        if (exc_type and exc_val and exc_tb):
+            self.set_exc_info(exc_type, exc_val, exc_tb)
+        else:
+            buff = StringIO()
+            traceback.print_stack(file=buff, limit=limit)
+            tb = buff.getvalue()
+            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Change "error.stack" into "python.stack"
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
