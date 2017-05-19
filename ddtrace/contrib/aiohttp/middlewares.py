@@ -86,11 +86,7 @@ def on_prepare(request, response):
         # collect the resource name based on http resource type
         res_info = request.match_info.route.resource.get_info()
 
-        if res_info.get('pattern'):
-            resource = str(res_info.get('pattern'))
-            # TODO: is there a better way to un-escape the compiled RE pattern?
-            resource = resource.replace(r'\/', '/')
-        elif res_info.get('path'):
+        if res_info.get('path'):
             resource = res_info.get('path')
         elif res_info.get('formatter'):
             resource = res_info.get('formatter')
