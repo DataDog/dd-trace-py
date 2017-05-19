@@ -44,6 +44,10 @@ class PylonsTraceMiddleware(object):
                 span.set_tag(http.STATUS_CODE, getattr(e, 'code', 500))
                 span.error = 1
                 raise
+            except SystemExit:
+                span.set_tag(http.STATUS_CODE, 500)
+                span.error = 1
+                raise
             finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')

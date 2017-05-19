@@ -16,6 +16,8 @@ from sqlalchemy.event import listen
 
 # project
 import ddtrace
+
+from ddtrace import Pin
 from ddtrace.ext import sql as sqlx
 from ddtrace.ext import net as netx
 
@@ -30,6 +32,20 @@ def trace_engine(engine, tracer=None, service=None):
     """
     tracer = tracer or ddtrace.tracer  # by default use global
     EngineTracer(tracer, service, engine)
+
+
+def _wrap_create_engine(func, module, args, kwargs):
+    """Trace the SQLAlchemy engine, creating an `EngineTracer`
+    object that will listen to SQLAlchemy events. A PIN object
+    is attached to the engine instance so that it can be
+    used later.
+    """
+    # the service name is set to `None` so that the engine
+    # name is used by default; users can update this setting
+    # using the PIN object
+    engine = func(*args, **kwargs)
+    EngineTracer(ddtrace.tracer, None, engine)
+    return engine
 
 
 class EngineTracer(object):
@@ -47,22 +63,41 @@ class EngineTracer(object):
             app=self.vendor,
             app_type=sqlx.APP_TYPE)
 
+        # attach the PIN
+        Pin(
+            app=self.vendor,
+            tracer=tracer,
+            service=self.service,
+            app_type=sqlx.APP_TYPE,
+        ).onto(engine)
+
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
         listen(engine, 'dbapi_error', self._dbapi_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
-        span = self.tracer.trace(
+        pin = Pin.get_from(self.engine)
+        if not pin or not pin.enabled():
+            # don't trace the execution
+            return
+
+        span = pin.tracer.trace(
             self.name,
-            service=self.service,
+            service=pin.service,
             span_type=sqlx.TYPE,
-            resource=statement)
+            resource=statement,
+        )
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
-        span = self.tracer.current_span()
+        pin = Pin.get_from(self.engine)
+        if not pin or not pin.enabled():
+            # don't trace the execution
+            return
+
+        span = pin.tracer.current_span()
         if not span:
             return
 
@@ -73,7 +108,12 @@ class EngineTracer(object):
             span.finish()
 
     def _dbapi_error(self, conn, cursor, statement, *args):
-        span = self.tracer.current_span()
+        pin = Pin.get_from(self.engine)
+        if not pin or not pin.enabled():
+            # don't trace the execution
+            return
+
+        span = pin.tracer.current_span()
         if not span:
             return
 

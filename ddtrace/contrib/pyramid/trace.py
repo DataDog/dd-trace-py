@@ -52,7 +52,7 @@ def trace_tween_factory(handler, registry):
                 response = None
                 try:
                     response = handler(request)
-                except Exception:
+                except BaseException:
                     span.set_tag(http.STATUS_CODE, 500)
                     raise
                 finally:
