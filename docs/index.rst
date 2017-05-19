@@ -102,7 +102,6 @@ small example that shows adding a custom span to a Flask application::
         # context manager.
         with tracer.trace("thumbnails.save") as span:
             span.set_meta("thumbnails.sizes", str(sizes))
-            span.set_metric("thumbnails.count", len(span))
 
             image_server.store(thumbnails)
 
@@ -320,6 +319,8 @@ API
     :special-members: __init__
 
 .. autofunction:: ddtrace.monkey.patch_all
+
+.. autofunction:: ddtrace.monkey.patch
 
 .. toctree::
    :maxdepth: 2
