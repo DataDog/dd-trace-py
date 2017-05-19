@@ -69,7 +69,7 @@ def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
 
 
 @asyncio.coroutine
-def on_prepare(request, response, span_min_error=SPAN_MIN_ERROR):
+def on_prepare(request, response):
     """
     The on_prepare signal is used to close the request span that is created during
     the trace middleware execution.
@@ -141,5 +141,4 @@ def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR)
     app.middlewares.insert(0,
                            functools.partial(trace_middleware,
                                              span_min_error=span_min_error))
-    app.on_response_prepare.append(
-        functools.partial(on_prepare, span_min_error=span_min_error))
+    app.on_response_prepare.append(on_prepare)
