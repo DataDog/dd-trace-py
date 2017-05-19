@@ -153,6 +153,7 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.METHOD), 'GET')
 
         services = writer.pop_services()
         expected = {
@@ -181,6 +182,7 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.METHOD), 'GET')
 
         t = by_name["flask.template"]
         eq_(t.get_tag("flask.template"), "test.html")
@@ -278,6 +280,7 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.METHOD), 'GET')
         eq_(s.meta.get(http.URL), u'http://localhost/üŋïĉóđē')
 
     def test_404(self):
@@ -299,4 +302,5 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '404')
+        eq_(s.meta.get(http.METHOD), 'GET')
         eq_(s.meta.get(http.URL), u'http://localhost/404/üŋïĉóđē')
