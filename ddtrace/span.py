@@ -6,7 +6,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .ext import errors, PYTHON_STACK
+from .ext import errors
 
 
 log = logging.getLogger(__name__)
@@ -223,10 +223,8 @@ class Span(object):
         if (exc_type and exc_val and exc_tb):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
-            tb = ''.join(traceback.format_stack(limit=limit))
-            self.set_tag(PYTHON_STACK, tb)
-            # FIXME[gabin] Delete this line when frontend will display "python.stack" tag correctly
-            self.set_tag(errors.ERROR_STACK, tb)
+            tb = ''.join(traceback.format_stack(limit=limit + 2)[:-2])
+            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace "error.stack" tag with "python.stack"
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
