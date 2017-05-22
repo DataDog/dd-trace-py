@@ -230,9 +230,7 @@ class Span(object):
         if (exc_type and exc_val and exc_tb):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
-            buff = StringIO()
-            traceback.print_stack(file=buff, limit=limit)
-            tb = buff.getvalue()
+            tb = ''.join(traceback.format_stack(limit=limit))
             self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Change "error.stack" into "python.stack"
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):

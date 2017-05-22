@@ -1,6 +1,6 @@
 import time
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
@@ -140,7 +140,7 @@ def test_traceback_with_error():
     assert s.error
     assert 'by zero' in s.get_tag(errors.ERROR_MSG)
     assert "ZeroDivisionError" in s.get_tag(errors.ERROR_TYPE)
-    assert s.get_tag(errors.ERROR_STACK)
+    ok_("ZeroDivisionError: integer division or modulo by zero" in s.get_tag(errors.ERROR_STACK))
 
 def test_traceback_without_error():
     s = Span(None, "test.span")
@@ -148,7 +148,7 @@ def test_traceback_without_error():
     assert not s.error
     assert not s.get_tag(errors.ERROR_MSG)
     assert not s.get_tag(errors.ERROR_TYPE)
-    assert s.get_tag(errors.ERROR_STACK)
+    ok_("tb = ''.join(traceback.format_stack(limit=limit))" in s.get_tag(errors.ERROR_STACK))
 
 def test_ctx_mgr():
     dt = DummyTracer()
