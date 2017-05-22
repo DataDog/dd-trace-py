@@ -1,9 +1,26 @@
 import gevent
+import gevent.pool as gpool
 
 from .provider import CONTEXT_ATTR
 
 
-class TracedGreenlet(gevent.Greenlet):
+class TracingMixin(object):
+    def __init__(self, *args, **kwargs):
+        # get the current Context if available
+        current_g = gevent.getcurrent()
+        ctx = getattr(current_g, CONTEXT_ATTR, None)
+
+        # create the Greenlet as usual
+        super(TracingMixin, self).__init__(*args, **kwargs)
+
+        # the context is always available made exception of the main greenlet
+        if ctx:
+            # create a new context that inherits the current active span
+            new_ctx = ctx.clone()
+            setattr(self, CONTEXT_ATTR, new_ctx)
+
+
+class TracedGreenlet(TracingMixin, gevent.Greenlet):
     """
     ``Greenlet`` class that is used to replace the original ``gevent``
     class. This class is supposed to do ``Context`` replacing operation, so
@@ -17,15 +34,14 @@ class TracedGreenlet(gevent.Greenlet):
     ``Greenlet`` class means extending automatically ``TracedGreenlet``.
     """
     def __init__(self, *args, **kwargs):
-        # get the current Context if available
-        current_g = gevent.getcurrent()
-        ctx = getattr(current_g, CONTEXT_ATTR, None)
-
-        # create the Greenlet as usual
         super(TracedGreenlet, self).__init__(*args, **kwargs)
 
-        # the context is always available made exception of the main greenlet
-        if ctx:
-            # create a new context that inherits the current active span
-            new_ctx = ctx.clone()
-            setattr(self, CONTEXT_ATTR, new_ctx)
+
+class TracedIMapUnordered(TracingMixin, gpool.IMapUnordered):
+    def __init__(self, *args, **kwargs):
+        super(TracedIMapUnordered, self).__init__(*args, **kwargs)
+
+
+class TracedIMap(gpool.IMap, TracedIMapUnordered):
+    def __init__(self, *args, **kwargs):
+        super(TracedIMap, self).__init__(*args, **kwargs)
