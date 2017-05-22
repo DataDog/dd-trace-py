@@ -7,7 +7,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 
-from ...ext import Apptypes
+from ...ext import AppTypes
 
 # Original connect method
 _connect = sqlite3.connect
