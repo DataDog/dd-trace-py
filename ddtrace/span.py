@@ -225,7 +225,8 @@ class Span(object):
         else:
             tb = ''.join(traceback.format_stack(limit=limit))
             self.set_tag(PYTHON_STACK, tb)
-            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Delete this line when frontend will display "python.stack" tag correctly
+            # FIXME[gabin] Delete this line when frontend will display "python.stack" tag correctly
+            self.set_tag(errors.ERROR_STACK, tb)
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
