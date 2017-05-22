@@ -212,6 +212,7 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.error, 1)
         eq_(s.meta.get(http.STATUS_CODE), '500')
+        eq_(s.meta.get(http.METHOD), 'GET')
 
     def test_error(self):
         start = time.time()
@@ -232,6 +233,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.meta.get(http.STATUS_CODE), '500')
+        eq_(s.meta.get(http.METHOD), 'GET')
 
     def test_fatal(self):
         if not traced_app.use_signals:
@@ -256,6 +258,7 @@ class TestFlask(object):
         assert s.start >= start
         assert s.duration <= end - start
         eq_(s.meta.get(http.STATUS_CODE), '500')
+        eq_(s.meta.get(http.METHOD), 'GET')
         assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE)
         msg = s.meta.get(errors.ERROR_MSG)
         assert "by zero" in msg, msg

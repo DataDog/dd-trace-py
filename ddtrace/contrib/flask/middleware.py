@@ -111,7 +111,7 @@ class TraceMiddleware(object):
             if span.sampled:
                 error = 0
                 code = response.status_code if response else None
-                method = request.method if response else None
+                method = request.method if request else None
 
                 # if we didn't get a response, but we did get an exception, set
                 # codes accordingly.
