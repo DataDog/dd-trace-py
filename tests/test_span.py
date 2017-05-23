@@ -147,7 +147,7 @@ def test_traceback_without_error():
     assert not s.error
     assert not s.get_tag(errors.ERROR_MSG)
     assert not s.get_tag(errors.ERROR_TYPE)
-    assert "File" in s.get_tag(errors.ERROR_STACK)
+    assert "in test_traceback_without_error" in s.get_tag(errors.ERROR_STACK)
 
 def test_ctx_mgr():
     dt = DummyTracer()

@@ -223,7 +223,7 @@ class Span(object):
         if (exc_type and exc_val and exc_tb):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
-            tb = ''.join(traceback.format_stack(limit=limit + 2)[:-2])
+            tb = ''.join(traceback.format_stack(limit=limit + 1)[:-1])
             self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace "error.stack" tag with "python.stack"
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
