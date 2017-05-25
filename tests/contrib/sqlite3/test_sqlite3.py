@@ -1,4 +1,3 @@
-
 # stdlib
 import sqlite3
 import time
@@ -12,8 +11,6 @@ from ddtrace.contrib.sqlite3 import connection_factory
 from ddtrace.contrib.sqlite3.patch import patch, unpatch
 from ddtrace.ext import errors
 from tests.test_tracer import get_dummy_tracer
-
-
 
 
 def test_backwards_compat():
@@ -44,6 +41,7 @@ class TestSQLite(object):
             db = sqlite3.connect(":memory:")
             pin = Pin.get_from(db)
             assert pin
+            eq_("db", pin.app_type)
             pin.clone(
                 service=service,
                 tracer=tracer).onto(db)
@@ -100,7 +98,7 @@ class TestSQLite(object):
 
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
-        assert pin 
+        assert pin
         pin.clone(tracer=tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
@@ -122,7 +120,7 @@ class TestSQLite(object):
 
         db = sqlite3.connect(":memory:")
         pin = Pin.get_from(db)
-        assert pin 
+        assert pin
         pin.clone(tracer=tracer).onto(db)
         db.cursor().execute("select 'blah'").fetchall()
 
