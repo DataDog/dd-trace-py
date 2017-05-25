@@ -140,7 +140,6 @@ def test_traceback_with_error():
     assert s.error
     assert 'by zero' in s.get_tag(errors.ERROR_MSG)
     assert "ZeroDivisionError" in s.get_tag(errors.ERROR_TYPE)
-    assert s.get_tag(errors.ERROR_STACK)
 
 def test_traceback_without_error():
     s = Span(None, "test.span")
@@ -148,7 +147,7 @@ def test_traceback_without_error():
     assert not s.error
     assert not s.get_tag(errors.ERROR_MSG)
     assert not s.get_tag(errors.ERROR_TYPE)
-    assert not s.get_tag(errors.ERROR_STACK)
+    assert "in test_traceback_without_error" in s.get_tag(errors.ERROR_STACK)
 
 def test_ctx_mgr():
     dt = DummyTracer()
