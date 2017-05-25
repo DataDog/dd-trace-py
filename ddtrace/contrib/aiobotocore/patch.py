@@ -58,8 +58,12 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
                 resource=self.__parent_span.resource,
                 service=self.__parent_span.service,
                 span_type=self.__parent_span.span_type) as span:
-            span.meta = self.__parent_span.meta
+            span.trace_id = self.__parent_span.trace_id
+            span.parent_id = self.__parent_span.span_id
+            span.meta = dict(self.__parent_span.meta)
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
+            span.set_tag('Length', len(result))
+
         return result
 
     if PY_VER >= (3, 5, 0):
@@ -137,7 +141,18 @@ def patched_api_call(original_func, instance, args, kwargs):
         if isinstance(body, ClientResponseContentProxy):
             result['Body'] = WrappedClientResponseContentProxy(body, pin, span)
 
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
+        response_meta = result['ResponseMetadata']
+        response_headers = response_meta['HTTPHeaders']
+
+        span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
+        span.set_tag("retry_attempts", response_meta['RetryAttempts'])
+
+        request_id = response_meta.get('RequestId')
+        if request_id:
+            span.set_tag("aws.requestid", request_id)
+
+        request_id2 = response_headers.get('x-amz-id-2')
+        if request_id2:
+            span.set_tag("aws.requestid2", request_id2)
 
         return result
