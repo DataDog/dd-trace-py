@@ -11,7 +11,10 @@ from ddtrace.compat import httplib, PY2
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
+
+from .utils import override_global_tracer
 from ...test_tracer import get_dummy_tracer
+
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -316,7 +319,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
            we return the original response
            we capture a span for the request
         """
-        resp = urlopen('http://httpstat.us/200')
+        with override_global_tracer(self.tracer):
+            resp = urlopen('http://httpstat.us/200')
+
         self.assertEqual(self.to_str(resp.read()), '200 OK')
         self.assertEqual(resp.getcode(), 200)
 
@@ -338,7 +343,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                we return the original response
                we capture a span for the request
         """
-        resp = urlopen('https://httpbin.org/status/200')
+        with override_global_tracer(self.tracer):
+            resp = urlopen('https://httpbin.org/status/200')
+
         self.assertEqual(self.to_str(resp.read()), '')
         self.assertEqual(resp.getcode(), 200)
 
@@ -361,7 +368,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                we capture a span for the request
         """
         req = Request('http://httpstat.us/200')
-        resp = urlopen(req)
+        with override_global_tracer(self.tracer):
+            resp = urlopen(req)
+
         self.assertEqual(self.to_str(resp.read()), '200 OK')
         self.assertEqual(resp.getcode(), 200)
 
@@ -383,7 +392,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
            we capture a span for the request
         """
         opener = build_opener()
-        resp = opener.open('http://httpstat.us/200')
+        with override_global_tracer(self.tracer):
+            resp = opener.open('http://httpstat.us/200')
+
         self.assertEqual(self.to_str(resp.read()), '200 OK')
         self.assertEqual(resp.getcode(), 200)
 
@@ -410,7 +421,9 @@ if PY2:
                we return the original response
                we capture a span for the request
             """
-            resp = urllib.urlopen('http://httpstat.us/200')
+            with override_global_tracer(self.tracer):
+                resp = urllib.urlopen('http://httpstat.us/200')
+
             self.assertEqual(resp.read(), '200 OK')
             self.assertEqual(resp.getcode(), 200)
 
@@ -432,7 +445,9 @@ if PY2:
                    we return the original response
                    we capture a span for the request
             """
-            resp = urllib.urlopen('https://httpbin.org/status/200')
+            with override_global_tracer(self.tracer):
+                resp = urllib.urlopen('https://httpbin.org/status/200')
+
             self.assertEqual(resp.read(), '')
             self.assertEqual(resp.getcode(), 200)
 
