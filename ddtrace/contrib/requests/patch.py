@@ -41,7 +41,6 @@ def _traced_request_func(func, instance, args, kwargs):
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
     parsed_url = urlparse(url)
-    resource = parsed_url.path or '/'
 
     with tracer.trace("requests.request", service=parsed_url.netloc, span_type=http.TYPE) as span:
         resp = None
