@@ -217,17 +217,17 @@ class TestAsyncioTracer(AsyncioTestCase):
             @self.tracer.wrap('f2')
             @asyncio.coroutine
             def f2():
-                yield from f1()
+                yield from asyncio.ensure_future(f1())
 
-            yield from f2()
+            yield from asyncio.ensure_future(f2())
 
-        traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 1
-        spans = traces[0]
-        assert len(spans) == 3
+        traces = list(reversed(self.tracer.writer.pop_traces()))
+        assert len(traces) == 3
+        root_span = traces[0][0]
         last_span_id = None
-        root_span = spans[0]
-        for span in spans:
+        for trace in traces:
+            assert len(trace) == 1
+            span = trace[0]
             assert span.trace_id == root_span.trace_id
             assert span.parent_id == last_span_id
             last_span_id = span.span_id
@@ -268,7 +268,6 @@ class TestAsyncioTracer(AsyncioTestCase):
         assert isinstance(self.tracer._context_provider, DefaultContextProvider)
         assert BaseEventLoop.create_task == _orig_create_task
 
-    @mark_asyncio
     def test_double_patch(self):
         patch(self.tracer)
-        yield from self.test_patch_chain()
+        self.test_patch_chain()
