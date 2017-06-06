@@ -1,8 +1,15 @@
 import asyncio
+from asyncio import BaseEventLoop
+
+from ddtrace.contrib.asyncio.patch import patch, unpatch
+from ddtrace.contrib.asyncio import context_provider
+from ddtrace.provider import DefaultContextProvider
 
 from nose.tools import eq_, ok_
 
 from .utils import AsyncioTestCase, mark_asyncio
+
+_orig_create_task = BaseEventLoop.create_task
 
 
 class TestAsyncioTracer(AsyncioTestCase):
@@ -194,3 +201,74 @@ class TestAsyncioTracer(AsyncioTestCase):
         eq_(1, len(spans))
         span = spans[0]
         ok_(span.duration > 0.25, msg='span.duration={}'.format(span.duration))
+
+    @mark_asyncio
+    def test_patch_chain(self):
+        patch(self.tracer)
+
+        assert self.tracer._context_provider is context_provider
+
+        with self.tracer.trace('foo'):
+            @self.tracer.wrap('f1')
+            @asyncio.coroutine
+            def f1():
+                yield from asyncio.sleep(0.1)
+
+            @self.tracer.wrap('f2')
+            @asyncio.coroutine
+            def f2():
+                yield from f1()
+
+            yield from f2()
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 3
+        last_span_id = None
+        root_span = spans[0]
+        for span in spans:
+            assert span.trace_id == root_span.trace_id
+            assert span.parent_id == last_span_id
+            last_span_id = span.span_id
+
+    @mark_asyncio
+    def test_patch_parallel(self):
+        patch(self.tracer)
+
+        assert self.tracer._context_provider is context_provider
+
+        with self.tracer.trace('foo'):
+            @self.tracer.wrap('f1')
+            @asyncio.coroutine
+            def f1():
+                yield from asyncio.sleep(0.1)
+
+            @self.tracer.wrap('f2')
+            @asyncio.coroutine
+            def f2():
+                yield from asyncio.sleep(0.1)
+
+            yield from asyncio.gather(f1(), f2())
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 3
+        root_span = traces[2][0]
+        for trace in traces[:2]:
+            assert len(trace) == 1
+            span = trace[0]
+            assert span.trace_id == root_span.trace_id
+            assert span.parent_id == root_span.span_id
+
+    @mark_asyncio
+    def test_unpatch(self):
+        patch(self.tracer)
+        unpatch(self.tracer)
+
+        assert isinstance(self.tracer._context_provider, DefaultContextProvider)
+        assert BaseEventLoop.create_task == _orig_create_task
+
+    @mark_asyncio
+    def test_double_patch(self):
+        patch(self.tracer)
+        yield from self.test_patch_chain()
