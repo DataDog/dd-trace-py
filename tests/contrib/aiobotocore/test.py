@@ -179,31 +179,29 @@ class AIOBotocoreTest(asynctest.TestCase):
         finally:
             sqs.close()
 
-    # TODO: could not get lambda working with moto server as it uses a url with
-    #  \d{} which gets escaped seemingly incorrectly to flask
-    # @MotoService('lambda')
-    # @asyncio.coroutine
-    # def test_lambda_client(self):
-    #     lamb = self.session.create_client('lambda', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-    #     try:
-    #         tracer = get_dummy_tracer()
-    #         writer = tracer.writer
-    #         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
-    #
-    #         # https://github.com/spulec/moto/issues/906
-    #         yield from lamb.list_functions(MaxItems=5)
-    #
-    #         spans = writer.pop()
-    #         assert spans
-    #         span = spans[0]
-    #         eq_(len(spans), 1)
-    #         eq_(span.get_tag('aws.region'), 'us-east-1')
-    #         eq_(span.get_tag('aws.operation'), 'ListFunctions')
-    #         eq_(span.get_tag(http.STATUS_CODE), '200')
-    #         eq_(span.service, "test-aiobotocore-tracing.lambda")
-    #         eq_(span.resource, "lambda.listfunctions")
-    #     finally:
-    #         lamb.close()
+    @MotoService('lambda')
+    @asyncio.coroutine
+    def test_lambda_client(self):
+        lamb = self.session.create_client('lambda', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
+        try:
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
+
+            # https://github.com/spulec/moto/issues/906
+            yield from lamb.list_functions(MaxItems=5)
+
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(len(spans), 1)
+            eq_(span.get_tag('aws.region'), 'us-east-1')
+            eq_(span.get_tag('aws.operation'), 'ListFunctions')
+            eq_(span.get_tag(http.STATUS_CODE), '200')
+            eq_(span.service, "test-aiobotocore-tracing.lambda")
+            eq_(span.resource, "lambda.listfunctions")
+        finally:
+            lamb.close()
 
     @MotoService('kms')
     @asyncio.coroutine
