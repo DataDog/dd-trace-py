@@ -94,6 +94,42 @@ class AIOBotocoreTest(asynctest.TestCase):
         finally:
             s3.close()
 
+    @MotoService('s3')
+    @asyncio.coroutine
+    def test_s3_client_read(self):
+        s3 = self.session.create_client('s3', region_name='us-west-2', endpoint_url=MOTO_ENDPOINT_URL)
+        yield from s3.create_bucket(Bucket='foo')
+        yield from s3.put_object(Bucket='foo', Key='bar', Body=b'')
+
+        try:
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+
+            response = yield from s3.get_object(Bucket='foo', Key='bar')
+            data = yield from response['Body'].read()
+
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(len(spans), 2)
+            eq_(span.get_tag('aws.operation'), 'GetObject')
+            eq_(span.get_tag(http.STATUS_CODE), '200')
+            eq_(span.service, "test-aiobotocore-tracing.s3")
+            eq_(span.resource, "s3.getobject")
+
+            # Should be same as parent span
+            span = spans[1]
+            eq_(span.get_tag('aws.operation'), 'GetObject')
+            eq_(span.get_tag(http.STATUS_CODE), '200')
+            eq_(span.service, "test-aiobotocore-tracing.s3")
+            eq_(span.resource, "s3.getobject")
+            eq_(span.name, 's3.command.read')
+            eq_(span.parent_id, spans[0].span_id)
+            eq_(span.trace_id, spans[0].trace_id)
+        finally:
+            s3.close()
+
     @MotoService('sqs')
     @asyncio.coroutine
     def test_sqs_client(self):
@@ -179,31 +215,29 @@ class AIOBotocoreTest(asynctest.TestCase):
         finally:
             sqs.close()
 
-    # TODO: could not get lambda working with moto server as it uses a url with
-    #  \d{} which gets escaped seemingly incorrectly to flask
-    # @MotoService('lambda')
-    # @asyncio.coroutine
-    # def test_lambda_client(self):
-    #     lamb = self.session.create_client('lambda', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-    #     try:
-    #         tracer = get_dummy_tracer()
-    #         writer = tracer.writer
-    #         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
-    #
-    #         # https://github.com/spulec/moto/issues/906
-    #         yield from lamb.list_functions(MaxItems=5)
-    #
-    #         spans = writer.pop()
-    #         assert spans
-    #         span = spans[0]
-    #         eq_(len(spans), 1)
-    #         eq_(span.get_tag('aws.region'), 'us-east-1')
-    #         eq_(span.get_tag('aws.operation'), 'ListFunctions')
-    #         eq_(span.get_tag(http.STATUS_CODE), '200')
-    #         eq_(span.service, "test-aiobotocore-tracing.lambda")
-    #         eq_(span.resource, "lambda.listfunctions")
-    #     finally:
-    #         lamb.close()
+    @MotoService('lambda')
+    @asyncio.coroutine
+    def test_lambda_client(self):
+        lamb = self.session.create_client('lambda', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
+        try:
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
+
+            # https://github.com/spulec/moto/issues/906
+            yield from lamb.list_functions(MaxItems=5)
+
+            spans = writer.pop()
+            assert spans
+            span = spans[0]
+            eq_(len(spans), 1)
+            eq_(span.get_tag('aws.region'), 'us-east-1')
+            eq_(span.get_tag('aws.operation'), 'ListFunctions')
+            eq_(span.get_tag(http.STATUS_CODE), '200')
+            eq_(span.service, "test-aiobotocore-tracing.lambda")
+            eq_(span.resource, "lambda.listfunctions")
+        finally:
+            lamb.close()
 
     @MotoService('kms')
     @asyncio.coroutine

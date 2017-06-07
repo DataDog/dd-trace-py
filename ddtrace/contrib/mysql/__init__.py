@@ -28,13 +28,16 @@ import logging
 
 from ..util import require_modules
 
+
+log = logging.getLogger(__name__)
+
 # check `MySQL-python` availability
 required_modules = ['_mysql']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         # MySQL-python package is not supported at the moment
-        logging.debug('failed to patch mysql-python: integration not available')
+        log.debug('failed to patch mysql-python: integration not available')
 
 # check `mysql-connector` availability
 required_modules = ['mysql.connector']

@@ -97,9 +97,6 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service="{}.{}".format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
-
-        # set parent trace/span IDs if present:
-        #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
         operation = None
         if args:
             operation = args[0]
