@@ -111,6 +111,7 @@ class TraceMiddleware(object):
             if span.sampled:
                 error = 0
                 code = response.status_code if response else None
+                method = request.method if request else None
 
                 # if we didn't get a response, but we did get an exception, set
                 # codes accordingly.
@@ -126,6 +127,7 @@ class TraceMiddleware(object):
                 span.resource = compat.to_unicode(resource).lower()
                 span.set_tag(http.URL, compat.to_unicode(request.base_url or ''))
                 span.set_tag(http.STATUS_CODE, code)
+                span.set_tag(http.METHOD, method)
                 span.error = error
             span.finish()
             # Clear our span just in case.

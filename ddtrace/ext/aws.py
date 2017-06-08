@@ -12,8 +12,8 @@ def is_blacklist(endpoint_name):
 def unpacking_args(args, args_name, traced_args_list):
     """
     @params:
-        args: tupple of args sent to a patched function
-        args_name: tupple containing the names of all the args that can be sent
+        args: tuple of args sent to a patched function
+        args_name: tuple containing the names of all the args that can be sent
         traced_args_list: list of names of the args we want to trace
     Returns a list of (arg name, arg) of the args we want to trace
     The number of args being variable from one call to another, this function
