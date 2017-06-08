@@ -10,6 +10,7 @@ from ddtrace.ext import sql, net, db
 # Original connect method
 _connect = psycopg2.connect
 
+
 def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
@@ -19,6 +20,24 @@ def patch():
 
 def unpatch():
     psycopg2.connect = _connect
+
+def create_pin(dsn, tracer=None):
+    """ Create a Pin from a DSN and optional tracer. """
+    tags = {
+        net.TARGET_HOST: dsn.get("host"),
+        net.TARGET_PORT: dsn.get("port"),
+        db.NAME: dsn.get("dbname"),
+        db.USER: dsn.get("user"),
+        "db.application" : dsn.get("application_name"),
+    }
+
+    return Pin(
+        service="postgres",
+        app="postgres",
+        app_type="db",
+        tags=tags,
+        tracer=tracer)
+
 
 def patch_conn(conn):
     """ Wrap will patch the instance so that it's queries are traced."""
@@ -30,20 +49,7 @@ def patch_conn(conn):
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
-    tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application" : dsn.get("application_name"),
-    }
-
-    Pin(
-        service="postgres",
-        app="postgres",
-        app_type="db",
-        tags=tags).onto(c)
-
+    create_pin(dsn).onto(c)
     return c
 
 def _patch_extensions():
