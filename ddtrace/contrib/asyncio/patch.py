@@ -15,7 +15,7 @@ _orig_create_task = asyncio.BaseEventLoop.create_task
 
 def patch(tracer=ddtrace.tracer):
     """
-    Patches `BaseEventLoop.create_task` to enable spawned tasks to parent to 
+    Patches `BaseEventLoop.create_task` to enable spawned tasks to parent to
     the base task context.  Will also enable the asyncio task context.
     """
     # TODO: figure what to do with helpers.ensure_future and
