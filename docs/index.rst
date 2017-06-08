@@ -53,6 +53,7 @@ The available environment settings are:
 - ``ddtrace-run python my_app.py``
 - ``ddtrace-run python manage.py runserver``
 - ``ddtrace-run gunicorn myapp.wsgi:application``
+- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
 
 
 Pass along command-line arguments as your program would normally expect them::
@@ -145,6 +146,12 @@ aiohttp
 ~~~~~~~
 
 .. automodule:: ddtrace.contrib.aiohttp
+
+aiobotocore
+~~~~~~~~~~~
+
+.. automodule:: ddtrace.contrib.aiobotocore
+
 
 Tornado
 ~~~~~~~
@@ -359,6 +366,8 @@ We officially support Python 2.7, 3.4 and above.
 | Integrations    | Supported versions |
 +=================+====================+
 | aiohttp         | >= 1.2             |
++-----------------+--------------------+
+| aiobotocore     | >= 0.2.3           |
 +-----------------+--------------------+
 | aiopg           | >= 0.13.0          |
 +-----------------+--------------------+
