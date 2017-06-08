@@ -11,6 +11,8 @@ import importlib
 import threading
 
 
+log = logging.getLogger(__name__)
+
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     'boto': False,
@@ -29,6 +31,7 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
+    'aiobotocore': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
@@ -74,7 +77,7 @@ def patch(raise_errors=True, **patch_modules):
         if patched:
             count += 1
 
-    logging.info("patched %s/%s modules (%s)",
+    log.info("patched %s/%s modules (%s)",
         count,
         len(modules),
         ",".join(get_patched_modules()))
@@ -90,7 +93,7 @@ def patch_module(module, raise_errors=True):
     except Exception as exc:
         if raise_errors:
             raise
-        logging.debug("failed to patch %s: %s", module, exc)
+        log.debug("failed to patch %s: %s", module, exc)
         return False
 
 def get_patched_modules():
@@ -107,7 +110,7 @@ def _patch_module(module):
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
         if module in _PATCHED_MODULES:
-            logging.debug("already patched: %s", path)
+            log.debug("already patched: %s", path)
             return False
 
         try:
