@@ -43,5 +43,3 @@ class TracePlugin(object):
                     s.set_tag(http.METHOD, request.method)
 
         return wrapped
-
-
