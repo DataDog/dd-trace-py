@@ -28,6 +28,7 @@ def patch_conn(tracer, conn):
 
     conn.cursor = cursor
 
+import random
 
 class TracedCursor(object):
 
@@ -37,7 +38,7 @@ class TracedCursor(object):
         self.cursor = cursor
 
         self._vendor = getattr(conn, 'vendor', 'db')     # e.g sqlite, postgres
-        self._alias = getattr(conn, 'alias', 'default')  # e.g. default, users
+        self._alias = getattr(conn, 'alias', str(random.randint(1,99999999999)))  # e.g. default, users
 
         prefix = sqlx.normalize_vendor(self._vendor)
         self._name = "%s.%s" % (prefix, "query")                # e.g sqlite.query
