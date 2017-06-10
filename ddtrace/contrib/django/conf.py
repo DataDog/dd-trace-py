@@ -10,7 +10,6 @@ This module provides the `setting` object, that is used to access
 Datadog settings, checking for user settings first, then falling
 back to the defaults.
 """
-from __future__ import unicode_literals
 
 import os
 import importlib
