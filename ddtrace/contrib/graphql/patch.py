@@ -5,7 +5,6 @@ https://github.com/graphql-python/graphql-core
 """
 
 # stdlib
-import sys
 import logging
 
 # 3p
