@@ -1,5 +1,5 @@
 # 3p
-from nose.tools import eq_, assert_raises
+from nose.tools import eq_, assert_raises, assert_true
 from graphql import (
     GraphQLSchema,
     GraphQLObjectType,
@@ -7,16 +7,60 @@ from graphql import (
     GraphQLString
 )
 import graphql
+from wrapt import FunctionWrapper
 
 # project
-from ddtrace.ext import errors
-from tests.test_tracer import get_dummy_tracer
 import ddtrace
-from ddtrace.contrib.graphql import patch, unpatch, QUERY, TracedGraphQLSchema, traced_graphql
+from ddtrace.contrib.graphql import (
+    TracedGraphQLSchema,
+    patch, unpatch, traced_graphql,
+    QUERY, ERRORS, INVALID
+)
+from tests.test_tracer import get_dummy_tracer
 
+
+def get_traced_schema(tracer=None, query=None):
+    tracer = tracer or get_dummy_tracer()
+    query = query or GraphQLObjectType(
+        name='RootQueryType',
+        fields={
+            'hello': GraphQLField(
+                type=GraphQLString,
+                resolver=lambda *_: 'world'
+            )
+        }
+    )
+    return tracer, TracedGraphQLSchema(query=query, datadog_tracer=tracer)
 
 
 class TestGraphQL(object):
+
+    @staticmethod
+    def test_unpatch():
+        gql = graphql.graphql
+        unpatch()
+        eq_(gql, graphql.graphql)
+        assert_true(not isinstance(graphql.graphql, FunctionWrapper))
+        patch()
+        assert_true(isinstance(graphql.graphql, FunctionWrapper))
+        unpatch()
+        eq_(gql, graphql.graphql)
+
+    @staticmethod
+    def test_invalid():
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, '{ hello world }')
+        span = tracer.writer.pop()[0]
+        eq_(span.get_metric(INVALID), int(result.invalid))
+
+        result = traced_graphql(schema, '{ hello }')
+        print(result.errors)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_metric(INVALID), int(result.invalid))
+
+    @staticmethod
+    def test_request_string_resolve():
+        pass
 
     @staticmethod
     def test_query():
