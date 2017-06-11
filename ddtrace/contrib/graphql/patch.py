@@ -84,10 +84,6 @@ def _traced_graphql(func, _, args, kwargs):
             if result is not None:
                 span.set_tag(ERRORS, result.errors)
                 span.set_metric(INVALID, int(result.invalid))
-            else:
-                logger.debug(
-                    'Uncaught exception occurred during graphql execution.',
-                    exc_info=True)
 
 
 def traced_graphql(*args, **kwargs):
