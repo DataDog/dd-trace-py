@@ -66,7 +66,7 @@ def _traced_graphql(func, _, args, kwargs):
     else:
         query = request_string
 
-    # allow schamas their own tracer with fallback to the global
+    # allow schemas their own tracer with fall-back to the global
     tracer = getattr(schema, 'datadog_tracer', ddtrace.tracer)
 
     if not tracer.enabled:
@@ -86,7 +86,7 @@ def _traced_graphql(func, _, args, kwargs):
                 span.set_metric(INVALID, int(result.invalid))
             else:
                 logger.debug(
-                    'Uncaught exception occured during graphql execution.',
+                    'Uncaught exception occurred during graphql execution.',
                     exc_info=True)
 
 
