@@ -7,6 +7,8 @@ from graphql import (
     GraphQLString
 )
 import graphql
+from graphql.language.source import Source as GraphQLSource
+from graphql.language.parser import parse as graphql_parse
 from wrapt import FunctionWrapper
 
 # project
@@ -54,55 +56,59 @@ class TestGraphQL(object):
         eq_(span.get_metric(INVALID), int(result.invalid))
 
         result = traced_graphql(schema, '{ hello }')
-        print(result.errors)
         span = tracer.writer.pop()[0]
         eq_(span.get_metric(INVALID), int(result.invalid))
 
     @staticmethod
     def test_request_string_resolve():
-        pass
+        query = '{ hello }'
+
+        # string as args[1]
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
+
+        # string as kwargs.get('request_string')
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, request_string=query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
+
+        # ast as args[1]
+        tracer, schema = get_traced_schema()
+        ast_query = graphql_parse(GraphQLSource(query, 'Test Request'))
+        result = traced_graphql(schema, ast_query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
+
+        # ast as kwargs.get('request_string')
+        tracer, schema = get_traced_schema()
+        ast_query = graphql_parse(GraphQLSource(query, 'Test Request'))
+        result = traced_graphql(schema, request_string=ast_query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
 
     @staticmethod
-    def test_query():
-        patch()
-        tracer = get_dummy_tracer()
-        schema = TracedGraphQLSchema(
-          query= GraphQLObjectType(
-            name='RootQueryType',
-            fields={
-              'hello': GraphQLField(
-                type= GraphQLString,
-                resolver=lambda *_: 'world'
-              )
-            }
-          ),
-          datadog_tracer=tracer,
-        )
-        query = '{ hello world }'
-        result = graphql.graphql(schema, query)
-        # assert result.data['hello'] == 'world'
-        spans = tracer.writer.pop()
-        eq_(len(spans), 1)
-        s = spans[0]
-        eq_(s.get_tag(QUERY), query)
-        eq_(s.error, 1)
-
-        unpatch()
-        tracer = get_dummy_tracer()
-        schema = TracedGraphQLSchema(
-          query= GraphQLObjectType(
-            name='RootQueryType',
-            fields={
-              'hello': GraphQLField(
-                type= GraphQLString,
-                resolver=lambda *_: 'world'
-              )
-            }
-          ),
-          datadog_tracer=tracer,
-        )
+    def test_query_tag():
         query = '{ hello }'
-        result = graphql.graphql(schema, query)
-        spans = tracer.writer.pop()
-        assert result.data['hello'] == 'world'
-        eq_(len(spans), 0)
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
+
+        # test query also for error span, just in case
+        query = '{ hello world }'
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, query)
+        span = tracer.writer.pop()[0]
+        eq_(span.get_tag(QUERY), query)
+
+    @staticmethod
+    def test_errors_tag():
+        query = '{ hello world }'
+        tracer, schema = get_traced_schema()
+        result = traced_graphql(schema, query)
+        span = tracer.writer.pop()[0]
+        assert_true(span.get_tag(ERRORS))
+        eq_(str(result.errors), span.get_tag(ERRORS))
