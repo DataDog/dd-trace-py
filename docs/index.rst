@@ -195,6 +195,11 @@ Cassandra
 
 .. automodule:: ddtrace.contrib.cassandra
 
+Celery
+~~~~~~
+
+.. automodule:: ddtrace.contrib.celery
+
 Elasticsearch
 ~~~~~~~~~~~~~
 
@@ -205,10 +210,11 @@ Flask Cache
 
 .. automodule:: ddtrace.contrib.flask_cache
 
-Celery
-~~~~~~
+GraphQL
+~~~~~~~
 
-.. automodule:: ddtrace.contrib.celery
+.. automodule:: ddtrace.contrib.graphql
+
 
 MongoDB
 ~~~~~~~
