@@ -1,4 +1,5 @@
 import logging
+from exceptions import ValueError
 
 from ...ext import http
 from ...ext import AppTypes
@@ -48,7 +49,7 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except:
+                except ValueError:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
@@ -56,7 +57,7 @@ class PylonsTraceMiddleware(object):
             except SystemExit:
                 span.set_tag(http.STATUS_CODE, 500)
                 span.error = 1
-                raise e
+                raise
             finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')
