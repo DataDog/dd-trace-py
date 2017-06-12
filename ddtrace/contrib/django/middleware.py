@@ -8,6 +8,7 @@ from ...contrib import func_name
 
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
+from django.conf import settings as django_settings
 
 try:
     from django.utils.deprecation import MiddlewareMixin
@@ -17,10 +18,18 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
+def insert_exception_middleware():
+    exception_middleware = 'ddtrace.contrib.django.TraceExceptionMiddleware'
+    middleware_attributes = ['MIDDLEWARE', 'MIDDLEWARE_CLASSES']
+    for middleware_attribute in middleware_attributes:
+        middleware = getattr(django_settings, middleware_attribute, None)
+        if middleware and exception_middleware not in set(middleware):
+            setattr(django_settings, middleware_attribute, middleware + type(middleware)((exception_middleware,)))
 
-class TraceMiddleware(MiddlewareClass):
+
+class InstrumentationMixin(MiddlewareClass):
     """
-    Middleware that traces Django requests
+    Useful mixin base class for tracing middlewares
     """
     def __init__(self, get_response=None):
         # disable the middleware if the tracer is not enabled
@@ -29,9 +38,27 @@ class TraceMiddleware(MiddlewareClass):
         if not settings.AUTO_INSTRUMENT:
             raise MiddlewareNotUsed
 
+
+class TraceExceptionMiddleware(InstrumentationMixin):
+    """
+    Middleware that traces exceptions raised
+    """
+    def process_exception(self, request, exception):
+        try:
+            span = _get_req_span(request)
+            if span:
+                span.set_tag(http.STATUS_CODE, '500')
+                span.set_traceback() # will set the exception info
+        except Exception:
+            log.debug("error processing exception", exc_info=True)
+
+
+class TraceMiddleware(InstrumentationMixin):
+    """
+    Middleware that traces Django requests
+    """
     def process_request(self, request):
         tracer = settings.TRACER
-
         try:
             span = tracer.trace(
                 'django.request',
@@ -62,15 +89,6 @@ class TraceMiddleware(MiddlewareClass):
             log.debug("error tracing request", exc_info=True)
         finally:
             return response
-
-    def process_exception(self, request, exception):
-        try:
-            span = _get_req_span(request)
-            if span:
-                span.set_tag(http.STATUS_CODE, '500')
-                span.set_traceback() # will set the exception info
-        except Exception:
-            log.debug("error processing exception", exc_info=True)
 
 
 def _get_req_span(request):
