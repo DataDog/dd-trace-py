@@ -1,5 +1,4 @@
 import logging
-from exceptions import ValueError
 
 from ...ext import http
 from ...ext import AppTypes
