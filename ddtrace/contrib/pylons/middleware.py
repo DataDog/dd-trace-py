@@ -41,17 +41,22 @@ class PylonsTraceMiddleware(object):
             except Exception as e:
                 # "unexpected errors"
                 # exc_info set by __exit__ on current tracer
+
+                # e.code can either be a string or an int
                 code = getattr(e, 'code', 500)
-                if isinstance(code, int) and code >= 100 and code < 600:
-                    span.set_tag(http.STATUS_CODE, code)
-                else:
-                    span.set_tag(http.STATUS_CODE, 500)
+                try:
+                    code = int(code)
+                    if not 100 <= code < 600:
+                        code = 500
+                except:
+                    code = 500
+                span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
-                raise
+                raise e
             except SystemExit:
                 span.set_tag(http.STATUS_CODE, 500)
                 span.error = 1
-                raise
+                raise e
             finally:
                 controller = environ.get('pylons.routes_dict', {}).get('controller')
                 action = environ.get('pylons.routes_dict', {}).get('action')
