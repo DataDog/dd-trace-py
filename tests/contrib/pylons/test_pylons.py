@@ -1,6 +1,6 @@
 import time
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 from ddtrace import Tracer
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
@@ -27,6 +27,16 @@ class FakeWSGIApp(object):
         self.out_code = status
         self.out_headers = headers
 
+    def start_response_exception(self, status, headers):
+        e = Exception("Some exception")
+        e.code = 'wrong formatted code'
+        raise e
+
+    def start_response_string_code(self, status, headers):
+        e = Exception("Custom exception")
+        e.code = '512'
+        raise e
+
 
 def test_pylons():
     writer = DummyWriter()
@@ -36,7 +46,7 @@ def test_pylons():
     traced = PylonsTraceMiddleware(app, tracer, service="p")
 
     # successful request
-    assert not writer.pop()
+    eq_(writer.pop(), [])
     app.code = '200 OK'
     app.body = ['woo']
     app.environ = {
@@ -53,15 +63,87 @@ def test_pylons():
     eq_(out, app.body)
     eq_(app.code, app.out_code)
 
-    assert not tracer.current_span(), tracer.current_span().pprint()
+    eq_(tracer.current_span(), None)
     spans = writer.pop()
-    assert spans, spans
+    ok_(spans, spans)
     eq_(len(spans), 1)
     s = spans[0]
 
     eq_(s.service, "p")
     eq_(s.resource, "foo.bar")
-    assert s.start >= start
-    assert s.duration <= end - start
+    ok_(s.start >= start)
+    ok_(s.duration <= end - start)
     eq_(s.error, 0)
     eq_(s.meta.get(http.STATUS_CODE), '200')
+
+def test_pylons_exceptions():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+    app = FakeWSGIApp()
+    traced = PylonsTraceMiddleware(app, tracer, service="p")
+
+    # successful request
+    eq_(writer.pop(), [])
+    app.code = '200 OK'
+    app.body = ['woo']
+    app.environ = {
+        'REQUEST_METHOD':'GET',
+        'pylons.routes_dict' : {
+            'controller' : 'foo',
+            'action' : 'bar',
+        }
+    }
+
+    try:
+        out = traced(app.environ,  app.start_response_exception)
+    except Exception as e:
+        pass
+
+    eq_(tracer.current_span(), None)
+    spans = writer.pop()
+    ok_(spans, spans)
+    eq_(len(spans), 1)
+    s = spans[0]
+
+    eq_(s.error, 1)
+    eq_(s.get_tag("error.msg"), "Some exception")
+    sc = int(s.get_tag("http.status_code"))
+    eq_(sc, 500)
+    ok_(s.get_tag("error.stack"))
+
+def test_pylons_string_code():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+    app = FakeWSGIApp()
+    traced = PylonsTraceMiddleware(app, tracer, service="p")
+
+    # successful request
+    eq_(writer.pop(), [])
+    app.code = '200 OK'
+    app.body = ['woo']
+    app.environ = {
+        'REQUEST_METHOD':'GET',
+        'pylons.routes_dict' : {
+            'controller' : 'foo',
+            'action' : 'bar',
+        }
+    }
+
+    try:
+        out = traced(app.environ,  app.start_response_string_code)
+    except Exception as e:
+        pass
+
+    eq_(tracer.current_span(), None)
+    spans = writer.pop()
+    ok_(spans, spans)
+    eq_(len(spans), 1)
+    s = spans[0]
+
+    eq_(s.error, 1)
+    eq_(s.get_tag("error.msg"), "Custom exception")
+    sc = int(s.get_tag("http.status_code"))
+    eq_(sc, 512)
+    ok_(s.get_tag("error.stack"))
