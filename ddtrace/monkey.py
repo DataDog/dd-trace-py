@@ -32,6 +32,7 @@ PATCH_MODULES = {
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiobotocore': False,
+    'httplib': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
