@@ -101,7 +101,7 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
     if span:
         parent_trace_id, parent_span_id = span.trace_id, span.span_id
     elif ctx:
-        parent_trace_id, parent_span_id = ctx.get_parent_span_ids()
+        parent_trace_id, parent_span_id = ctx._get_parent_span_ids()
     else:
         parent_trace_id = parent_span_id = None
 
