@@ -20,30 +20,24 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    def __init__(self):
+    def __init__(self, trace_id=None, span_id=None):
         """
         Initialize a new thread-safe ``Context``.
+
+        :param int trace_id: trace_id of parent span
+        :param int span_id: span_id of parent span
         """
         self._trace = []
         self._sampled = False
         self._finished_spans = 0
         self._current_span = None
         self._lock = threading.Lock()
-        self._base_parent_span_id = None
-        self._base_parent_trace_id = None
+        self._parent_span_id = span_id
+        self._parent_trace_id = trace_id
 
-    def set_base_parent_span_ids(self, trace_id, span_id):
-        """
-        Will set the base parent trace/span IDs.  These can be used as fall-backs
-        for distributed tracing in case a full Span is not available.
-        """
-        with self._lock:
-            self._base_parent_trace_id = trace_id
-            self._base_parent_span_id = span_id
-
-    def get_base_parent_span_ids(self):
+    def get_parent_span_ids(self):
         """ Returns tuple of base trace_id, span_id for distributed tracing."""
-        return self._base_parent_trace_id, self._base_parent_span_id
+        return self._parent_trace_id, self._parent_span_id
 
     def get_current_span(self):
         """

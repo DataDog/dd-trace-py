@@ -1,6 +1,8 @@
 import asyncio
 from asyncio import BaseEventLoop
 
+from ddtrace.context import Context
+from ddtrace.contrib.asyncio.helpers import set_call_context
 from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.provider import DefaultContextProvider
@@ -259,6 +261,26 @@ class TestAsyncioTracer(AsyncioTestCase):
             span = trace[0]
             assert span.trace_id == root_span.trace_id
             assert span.parent_id == root_span.span_id
+
+    @mark_asyncio
+    def test_distributed(self):
+        patch(self.tracer)
+
+        task = asyncio.Task.current_task()
+        ctx = Context(trace_id=100, span_id=101)
+        set_call_context(task, ctx)
+
+        with self.tracer.trace('foo'):
+            pass
+
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 1
+        trace = traces[0]
+        assert len(trace) == 1
+        span = trace[0]
+
+        assert span.trace_id == ctx._parent_trace_id
+        assert span.parent_id == ctx._parent_span_id
 
     @mark_asyncio
     def test_unpatch(self):

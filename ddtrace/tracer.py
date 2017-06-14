@@ -159,7 +159,7 @@ class Tracer(object):
             )
 
             #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id, parent_span_id = context.get_base_parent_span_ids()
+            parent_trace_id, parent_span_id = context.get_parent_span_ids()
             if parent_trace_id:
                 span.trace_id = parent_trace_id
 
