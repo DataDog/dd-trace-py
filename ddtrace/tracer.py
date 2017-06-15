@@ -1,12 +1,12 @@
 import functools
 import logging
-import platform
 
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
+from .compat import DEFAULT_TAGS
 from . import compat
 
 
@@ -44,8 +44,8 @@ class Tracer(object):
         # A hook for local debugging. shouldn't be needed or used in production
         self.debug_logging = False
 
-        # globally set tags (`lang` and `lang.version` are set by default)
-        self.tags = {"lang": "python", "lang.version": platform.python_version()}
+        # globally set tags
+        self.tags = DEFAULT_TAGS
 
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
