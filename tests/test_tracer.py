@@ -331,17 +331,26 @@ def test_tracer_global_tags():
 
     s1 = tracer.trace('brie')
     s1.finish()
-    assert not s1.meta
+    assert len(s1.meta) == 2
+    assert s1.get_tag('lang') == 'python'
+    assert s1.get_tag('lang.version') != None
 
     tracer.set_tags({'env': 'prod'})
     s2 = tracer.trace('camembert')
     s2.finish()
-    assert s2.meta == {'env': 'prod'}
+    assert len(s2.meta) == 3
+    assert s2.get_tag('lang') == 'python'
+    assert s2.get_tag('lang.version') != None
+    assert s2.get_tag('env') == 'prod'
 
     tracer.set_tags({'env': 'staging', 'other': 'tag'})
     s3 = tracer.trace('gruyere')
     s3.finish()
-    assert s3.meta == {'env': 'staging', 'other': 'tag'}
+    assert len(s3.meta) == 4
+    assert s3.get_tag('lang') == 'python'
+    assert s3.get_tag('lang.version') != None
+    assert s3.get_tag('env') == 'staging'
+    assert s3.get_tag('other') == 'tag'
 
 
 def test_global_context():
