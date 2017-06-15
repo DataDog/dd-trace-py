@@ -37,7 +37,8 @@ class Context(object):
 
     def _get_parent_span_ids(self):
         """ Returns tuple of base trace_id, span_id for distributed tracing."""
-        return self._parent_trace_id, self._parent_span_id
+        with self._lock:
+            return self._parent_trace_id, self._parent_span_id
 
     def get_current_span(self):
         """
