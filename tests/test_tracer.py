@@ -11,7 +11,7 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 from ddtrace.context import Context
-from ddtrace.compat import DEFAULT_TAGS
+from ddtrace.tracer import DEFAULT_TAGS
 
 
 def test_tracer_vars():

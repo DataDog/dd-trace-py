@@ -4,12 +4,9 @@ import platform
 
 PY2 = sys.version_info[0] == 2
 
-# Default tags we use when we initialize the tracer
-DEFAULT_TAGS = {
-    "lang": "python",
-    "lang.version": platform.python_version(),
-    "lang.interpreter": platform.python_implementation()
-}
+# Infos we pass in the meta  when we initialize the tracer
+PYTHON_VERSION = platform.python_version()
+PYTHON_INTERPRETER = platform.python_implementation()
 
 stringify = str
 

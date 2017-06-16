@@ -6,12 +6,17 @@ from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
-from .compat import DEFAULT_TAGS
+from .compat import PYTHON_VERSION, PYTHON_INTERPRETER
 from . import compat
 
 
 log = logging.getLogger(__name__)
 
+DEFAULT_TAGS = {
+    "lang": "python",
+    "lang.version": PYTHON_VERSION,
+    "lang.interpreter": PYTHON_INTERPRETER
+}
 
 class Tracer(object):
     """
@@ -45,7 +50,7 @@ class Tracer(object):
         self.debug_logging = False
 
         # globally set tags
-        self.tags = DEFAULT_TAGS
+        self.tags = dict(DEFAULT_TAGS)
 
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
