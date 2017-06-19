@@ -4,7 +4,7 @@ import time
 
 # project
 from .encoding import get_encoder, JSONEncoder
-from .compat import httplib
+from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER
 
 
 log = logging.getLogger(__name__)
@@ -25,7 +25,12 @@ class API(object):
 
         # overwrite the Content-type with the one chosen in the Encoder
         self._headers = headers or {}
-        self._headers.update({'Content-Type': self._encoder.content_type})
+        self._headers.update({
+            'Content-Type': self._encoder.content_type,
+            'Meta-Lang': 'python',
+            'Meta-Lang-Version': PYTHON_VERSION,
+            'Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+        })
 
     def _downgrade(self):
         """
