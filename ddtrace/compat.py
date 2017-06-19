@@ -1,7 +1,12 @@
 import sys
+import platform
 
 
 PY2 = sys.version_info[0] == 2
+
+# Infos we pass in the meta  when we initialize the tracer
+PYTHON_VERSION = platform.python_version()
+PYTHON_INTERPRETER = platform.python_implementation()
 
 stringify = str
 

@@ -11,6 +11,7 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 from ddtrace.context import Context
+from ddtrace.tracer import DEFAULT_TAGS
 
 
 def test_tracer_vars():
@@ -331,17 +332,21 @@ def test_tracer_global_tags():
 
     s1 = tracer.trace('brie')
     s1.finish()
-    assert not s1.meta
+    assert s1.meta == DEFAULT_TAGS
 
-    tracer.set_tags({'env': 'prod'})
+    tags = {'env': 'prod'}
+    tracer.set_tags(tags)
     s2 = tracer.trace('camembert')
     s2.finish()
-    assert s2.meta == {'env': 'prod'}
+    tags.update(DEFAULT_TAGS)
+    assert s2.meta == tags
 
-    tracer.set_tags({'env': 'staging', 'other': 'tag'})
+    tags = {'env': 'staging', 'other': 'tag'}
+    tracer.set_tags(tags)
     s3 = tracer.trace('gruyere')
     s3.finish()
-    assert s3.meta == {'env': 'staging', 'other': 'tag'}
+    tags.update(DEFAULT_TAGS)
+    assert s3.meta == tags
 
 
 def test_global_context():
