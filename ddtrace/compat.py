@@ -1,7 +1,6 @@
 import sys
 import platform
 
-
 PY2 = sys.version_info[0] == 2
 
 # Infos about python passed to the trace agent through the header

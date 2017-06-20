@@ -27,9 +27,10 @@ class API(object):
         self._headers = headers or {}
         self._headers.update({
             'Content-Type': self._encoder.content_type,
-            'Meta-Lang': 'python',
-            'Meta-Lang-Version': PYTHON_VERSION,
-            'Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+            'Datadog-Meta-Lang': 'python',
+            'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+            'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+            'Datadog-Meta-Tracer-Version': '0.8.5',
         })
 
     def _downgrade(self):

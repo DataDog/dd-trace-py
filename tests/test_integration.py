@@ -8,6 +8,7 @@ import mock
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
+from ddtrace import __version__
 from ddtrace.api import API
 from ddtrace.compat import PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.span import Span
@@ -234,16 +235,17 @@ class TestAPITransport(TestCase):
 
         # retrieve the headers from the mocked request call
         expected_headers = {
-                'Meta-Lang': 'python',
-                'Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': __version__,
                 'X-Datadog-Trace-Count': '1',
                 'Content-Type': 'application/msgpack'
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
         eq_(len(expected_headers), len(headers))
-        for k, v in expected_headers.iteritems():
+        for k, v in expected_headers.items():
             eq_(v, headers[k])
 
     @mock.patch('ddtrace.api.httplib.HTTPConnection')
@@ -263,15 +265,16 @@ class TestAPITransport(TestCase):
 
         # retrieve the headers from the mocked request call
         expected_headers = {
-                'Meta-Lang': 'python',
-                'Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': __version__,
                 'Content-Type': 'application/msgpack'
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
         eq_(len(expected_headers), len(headers))
-        for k, v in expected_headers.iteritems():
+        for k, v in expected_headers.items():
             eq_(v, headers[k])
 
         # retrieve the headers from the mocked request call
