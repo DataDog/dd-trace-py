@@ -58,6 +58,7 @@ The available settings are:
   disabled even if present.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
+* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services.
 """
 from ..util import require_modules
 

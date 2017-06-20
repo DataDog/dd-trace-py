@@ -1,7 +1,5 @@
 # 3rd party
-from django.db import connections
 from django.test import TestCase
-from django.template import Template
 
 # project
 from ddtrace.tracer import Tracer
