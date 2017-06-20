@@ -92,6 +92,34 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(span.get_tag('http.url'), '/feed-view/')
         eq_(span.resource, 'tests.contrib.django.app.views.FeedView')
 
+    def test_middleware_trace_partial_based_view(self):
+        # ensures that the internals are properly traced when using a function views
+        url = reverse('partial-view')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag('http.url'), '/partial-view/')
+        eq_(span.resource, 'partial')
+
+    def test_middleware_trace_lambda_based_view(self):
+        # ensures that the internals are properly traced when using a function views
+        url = reverse('lambda-view')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag('http.url'), '/lambda-view/')
+        eq_(span.resource, 'tests.contrib.django.app.views.<lambda>')
+
     @modify_settings(
         MIDDLEWARE={
             'remove': 'django.contrib.auth.middleware.AuthenticationMiddleware',
