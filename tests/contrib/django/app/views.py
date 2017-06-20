@@ -1,6 +1,9 @@
 """
 Class based views used for Django tests.
 """
+
+from functools import partial
+
 from django.http import HttpResponse
 from django.conf.urls import url
 
@@ -50,6 +53,11 @@ class FeedView(Feed):
     def item_description(self, item):
         return 'empty'
 
+partial_view = partial(function_view)
+
+# disabling flake8 test below, yes, declaring a func like this is bad, we know
+lambda_view = lambda request: function_view(request)  # NOQA
+
 # use this url patterns for tests
 urlpatterns = [
     url(r'^users/$', UserList.as_view(), name='users-list'),
@@ -58,5 +66,7 @@ urlpatterns = [
     url(r'^fail-view/$', ForbiddenView.as_view(), name='forbidden-view'),
     url(r'^fn-view/$', function_view, name='fn-view'),
     url(r'^feed-view/$', FeedView(), name='feed-view'),
+    url(r'^partial-view/$', partial_view, name='partial-view'),
+    url(r'^lambda-view/$', lambda_view, name='lambda-view'),
     url(r'^error-500/$', error_500, name='error-500'),
 ]
