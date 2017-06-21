@@ -10,18 +10,17 @@ from ext import sql
 class AIOTracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces it's queries. """
 
-    _datadog_pin = None
     _datadog_name = None
 
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
-        self._datadog_pin = pin
+        pin.onto(self)
         name = pin.app or 'sql'
         self._datadog_name = '%s.query' % name
 
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
-        pin = self._datadog_pin
+        pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             result = yield from method(*args, **kwargs)  # noqa: E999
             return result
@@ -75,8 +74,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    _datadog_pin = None
-
     def __init__(self, conn):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
@@ -91,7 +88,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     @asyncio.coroutine
     def _cursor(self, *args, **kwargs):
         cursor = yield from self.__wrapped__._cursor(*args, **kwargs)  # noqa: E999
-        pin = self._datadog_pin
+        pin = Pin.get_from(self)
         if not pin:
             return cursor
         return AIOTracedCursor(cursor, pin)

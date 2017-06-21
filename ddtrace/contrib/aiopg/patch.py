@@ -7,10 +7,8 @@ import psycopg2.extensions
 import wrapt
 from contrib.aiopg.connection import AIOTracedConnection
 from ddtrace.contrib.psycopg.patch import _patch_extensions, \
-    patch_conn as psycppg_patch_conn
-
-# Original connect method, we don't want the _ContextManager
-_connect = aiopg.connection._connect
+    _unpatch_extensions, patch_conn as psycppg_patch_conn
+from ...util import unwrap as _u
 
 
 def patch(tracer=None):
@@ -28,7 +26,8 @@ def patch(tracer=None):
 def unpatch():
     if getattr(aiopg, '_datadog_patch', False):
         setattr(aiopg, '_datadog_patch', False)
-        aiopg.connection._connect = _connect
+        _u(aiopg.connection, '_connect')
+        _unpatch_extensions(_aiopg_extensions)
 
 
 @asyncio.coroutine
