@@ -10,8 +10,6 @@ from ext import sql
 class AIOTracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces it's queries. """
 
-    _datadog_name = None
-
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
@@ -31,9 +29,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
-
-            for k, v in extra_tags.items():
-                s.set_tag(k, v)
+            s.set_tags(extra_tags)
 
             try:
                 result = yield from method(*args, **kwargs)
