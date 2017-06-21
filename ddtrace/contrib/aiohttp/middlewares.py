@@ -137,5 +137,5 @@ def trace_app(app, tracer, service='aiohttp-web', enable_distributed=False):
     # and be sure that the on_prepare signal is the last one
     app.middlewares.insert(0, functools.partial(
         trace_middleware, enable_distributed=enable_distributed))
-    
+
     app.on_response_prepare.append(on_prepare)
