@@ -1,8 +1,6 @@
 # stdlib
-import asynctest
 import asyncio
 import time
-import sys
 
 # 3p
 import aiopg
@@ -16,13 +14,12 @@ from ddtrace import Pin
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
-
+from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
-PY_35 = sys.version_info >= (3, 5)
 
 
-class TestPsycopgPatch(asynctest.TestCase):
+class TestPsycopgPatch(AsyncioTestCase):
     # default service
     TEST_SERVICE = 'postgres'
 
@@ -39,10 +36,9 @@ class TestPsycopgPatch(asynctest.TestCase):
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
         conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        tracer = get_dummy_tracer()
-        Pin.get_from(conn).clone(tracer=tracer).onto(conn)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
-        return conn, tracer
+        return conn, self.tracer
 
     @asyncio.coroutine
     def assert_conn_is_traced(self, tracer, db, service):
@@ -99,7 +95,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
-    @asyncio.coroutine
+    @mark_asyncio
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
@@ -120,7 +116,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         span = spans[0]
         eq_(span.name, "postgres.query")
 
-    @asyncio.coroutine
+    @mark_asyncio
     def test_disabled_execute(self):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
@@ -129,7 +125,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         yield from (yield from conn.cursor()).execute("select 'blah'")
         assert not tracer.writer.pop()
 
-    @asyncio.coroutine
+    @mark_asyncio
     def test_manual_wrap_extension_types(self):
         conn, _ = yield from self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
@@ -137,7 +133,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
 
-    @asyncio.coroutine
+    @mark_asyncio
     def test_connect_factory(self):
         tracer = get_dummy_tracer()
 
@@ -156,7 +152,7 @@ class TestPsycopgPatch(asynctest.TestCase):
         }
         eq_(service_meta, expected)
 
-    @asyncio.coroutine
+    @mark_asyncio
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
         writer = tracer.writer
@@ -197,7 +193,3 @@ class TestPsycopgPatch(asynctest.TestCase):
         spans = writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
-
-
-if __name__ == '__main__':
-    asynctest.main()
