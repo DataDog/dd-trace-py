@@ -1,6 +1,7 @@
 # stdlib
 import logging
 import time
+import ddtrace
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -30,7 +31,7 @@ class API(object):
             'Datadog-Meta-Lang': 'python',
             'Datadog-Meta-Lang-Version': PYTHON_VERSION,
             'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-            'Datadog-Meta-Tracer-Version': '0.8.5',
+            'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
 
     def _downgrade(self):

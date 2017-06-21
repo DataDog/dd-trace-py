@@ -4,11 +4,11 @@ import time
 import msgpack
 import logging
 import mock
+import ddtrace
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
-from ddtrace import __version__
 from ddtrace.api import API
 from ddtrace.compat import PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.span import Span
@@ -238,7 +238,7 @@ class TestAPITransport(TestCase):
                 'Datadog-Meta-Lang': 'python',
                 'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
                 'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': __version__,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
                 'X-Datadog-Trace-Count': '1',
                 'Content-Type': 'application/msgpack'
         }
@@ -268,7 +268,7 @@ class TestAPITransport(TestCase):
                 'Datadog-Meta-Lang': 'python',
                 'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
                 'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': __version__,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
                 'Content-Type': 'application/msgpack'
         }
         params, _ = request_call.call_args_list[0]
