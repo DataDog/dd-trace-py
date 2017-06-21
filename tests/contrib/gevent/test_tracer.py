@@ -116,7 +116,7 @@ class TestGeventTracer(TestCase):
         eq_('greenlet', traces[0][0].name)
         eq_('base', traces[0][0].resource)
 
-    def test_trace_multiple_greenlets_single_trace(self):
+    def test_trace_spawn_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with self.tracer.trace('greenlet.main') as span:
@@ -136,14 +136,24 @@ class TestGeventTracer(TestCase):
 
         gevent.spawn(entrypoint).join()
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(3, len(traces[0]))
-        eq_('greenlet.main', traces[0][0].name)
-        eq_('base', traces[0][0].resource)
-        eq_('1', traces[0][1].get_tag('worker_id'))
-        eq_('2', traces[0][2].get_tag('worker_id'))
+        eq_(3, len(traces))
+        eq_(1, len(traces[0]))
+        parent_span = traces[2][0]
+        worker_1 = traces[0][0]
+        worker_2 = traces[1][0]
+        # check spans data and hierarchy
+        eq_(parent_span.name, 'greenlet.main')
+        eq_(parent_span.resource, 'base')
+        eq_(worker_1.get_tag('worker_id'), '1')
+        eq_(worker_1.name, 'greenlet.worker')
+        eq_(worker_1.resource, 'greenlet.worker')
+        eq_(worker_1.parent_id, parent_span.span_id)
+        eq_(worker_2.get_tag('worker_id'), '2')
+        eq_(worker_2.name, 'greenlet.worker')
+        eq_(worker_2.resource, 'greenlet.worker')
+        eq_(worker_2.parent_id, parent_span.span_id)
 
-    def test_trace_later_multiple_greenlets_single_trace(self):
+    def test_trace_spawn_later_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace
         def entrypoint():
             with self.tracer.trace('greenlet.main') as span:
@@ -163,12 +173,22 @@ class TestGeventTracer(TestCase):
 
         gevent.spawn(entrypoint).join()
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(3, len(traces[0]))
-        eq_('greenlet.main', traces[0][0].name)
-        eq_('base', traces[0][0].resource)
-        eq_('1', traces[0][1].get_tag('worker_id'))
-        eq_('2', traces[0][2].get_tag('worker_id'))
+        eq_(3, len(traces))
+        eq_(1, len(traces[0]))
+        parent_span = traces[2][0]
+        worker_1 = traces[0][0]
+        worker_2 = traces[1][0]
+        # check spans data and hierarchy
+        eq_(parent_span.name, 'greenlet.main')
+        eq_(parent_span.resource, 'base')
+        eq_(worker_1.get_tag('worker_id'), '1')
+        eq_(worker_1.name, 'greenlet.worker')
+        eq_(worker_1.resource, 'greenlet.worker')
+        eq_(worker_1.parent_id, parent_span.span_id)
+        eq_(worker_2.get_tag('worker_id'), '2')
+        eq_(worker_2.name, 'greenlet.worker')
+        eq_(worker_2.resource, 'greenlet.worker')
+        eq_(worker_2.parent_id, parent_span.span_id)
 
     def test_trace_concurrent_calls(self):
         # create multiple futures so that we expect multiple
