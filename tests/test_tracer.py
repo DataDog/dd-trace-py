@@ -3,11 +3,13 @@ tests for Tracer and utilities.
 """
 
 import time
+from os import getpid
 
 from nose.tools import assert_raises, eq_, ok_
 from unittest.case import SkipTest
 
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
+from ddtrace.ext import system
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 from ddtrace.context import Context
@@ -66,6 +68,7 @@ def test_tracer():
     assert make.span_id
     assert make.parent_id is None
     assert make.trace_id
+    eq_(make.get_tag(system.PID), str(getpid())) # Root span should contain the pid of the current process
 
     for other in ["cake.mix", "cake.bake"]:
         s = spans_by_name[other]
@@ -73,6 +76,7 @@ def test_tracer():
         eq_(s.trace_id, make.trace_id)
         eq_(s.service, make.service) # ensure it inherits the service
         eq_(s.resource, s.name)      # ensure when we don't set a resource, it's there.
+        eq_(s.get_tag(system.PID), None) # Child spans should not contain a pid tag
 
 
     # do it again and make sure it has new trace ids
@@ -331,17 +335,20 @@ def test_tracer_global_tags():
 
     s1 = tracer.trace('brie')
     s1.finish()
-    assert not s1.meta
+    assert not s1.get_tag('env')
+    assert not s1.get_tag('other')
 
     tracer.set_tags({'env': 'prod'})
     s2 = tracer.trace('camembert')
     s2.finish()
-    assert s2.meta == {'env': 'prod'}
+    assert s2.get_tag('env') == 'prod'
+    assert not s2.get_tag('other')
 
     tracer.set_tags({'env': 'staging', 'other': 'tag'})
     s3 = tracer.trace('gruyere')
     s3.finish()
-    assert s3.meta == {'env': 'staging', 'other': 'tag'}
+    assert s3.get_tag('env') == 'staging'
+    assert s3.get_tag('other') == 'tag'
 
 
 def test_global_context():
