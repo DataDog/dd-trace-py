@@ -14,11 +14,11 @@ REQUEST_SPAN_KEY = '__datadog_request_span'
 PARENT_TRACE_HEADER_ID = 'x-ddtrace-parent_trace_id'
 PARENT_SPAN_HEADER_ID = 'x-ddtrace-parent_span_id'
 
-SPAN_MIN_ERROR = 400
+_SPAN_MIN_ERROR = 400
 
 
 @asyncio.coroutine
-def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
+def trace_middleware(app, handler, enable_distributed=False):
     """
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
@@ -39,15 +39,16 @@ def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
             span_type=http.TYPE,
         )
 
-        # set parent trace/span IDs if present:
-        #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-        parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
-        if parent_trace_id is not None:
-            request_span.trace_id = int(parent_trace_id)
+        if enable_distributed:
+            # set parent trace/span IDs if present:
+            #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
+            parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
+            if parent_trace_id is not None:
+                request_span.trace_id = int(parent_trace_id)
 
-        parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-        if parent_span_id is not None:
-            request_span.parent_id = int(parent_span_id)
+            parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
+            if parent_span_id is not None:
+                request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
@@ -59,7 +60,7 @@ def trace_middleware(app, handler, span_min_error=SPAN_MIN_ERROR):
         except HTTPException as e:
             # If one of these special aiohttp exceptions is raised then we only store a traceback if the
             # status is >= `span_min_error`, and we make sure to re-raise
-            if e.status_code >= span_min_error:
+            if e.status_code >= _SPAN_MIN_ERROR:
                 request_span.set_traceback()
             raise
         except BaseException:
@@ -100,7 +101,7 @@ def on_prepare(request, response):
     request_span.finish()
 
 
-def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR):
+def trace_app(app, tracer, service='aiohttp-web', enable_distributed=False):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
@@ -108,7 +109,7 @@ def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR)
     :param app: aiohttp application to trace
     :param tracer: tracer instance to use
     :param service: service name of tracer
-    :param span_min_error: minimum http response status to be considered an error
+    :param enable_distributed: enable distributed tracing support
     """
 
     # safe-guard: don't trace an application twice
@@ -134,7 +135,7 @@ def trace_app(app, tracer, service='aiohttp-web', span_min_error=SPAN_MIN_ERROR)
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one
-    app.middlewares.insert(0,
-                           functools.partial(trace_middleware,
-                                             span_min_error=span_min_error))
+    app.middlewares.insert(0, functools.partial(
+        trace_middleware, enable_distributed=enable_distributed))
+    
     app.on_response_prepare.append(on_prepare)
