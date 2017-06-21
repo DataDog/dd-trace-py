@@ -24,10 +24,12 @@ class TestPsycopgPatch(AsyncioTestCase):
     TEST_SERVICE = 'postgres'
 
     def setUp(self):
+        super().setUp()
         self._conn = None
         patch()
 
     def tearDown(self):
+        super().tearDown()
         if self._conn and not self._conn.closed:
             self._conn.close()
 

@@ -5,8 +5,9 @@ import functools
 import aiopg.connection
 import psycopg2.extensions
 import wrapt
-from contrib.aiopg.connection import AIOTracedConnection
-from ddtrace.contrib.psycopg.patch import _patch_extensions, \
+
+from .connection import AIOTracedConnection
+from ..psycopg.patch import _patch_extensions, \
     _unpatch_extensions, patch_conn as psycppg_patch_conn
 from ...util import unwrap as _u
 

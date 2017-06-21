@@ -2,9 +2,10 @@ import asyncio
 
 import wrapt
 from aiopg.utils import _ContextManager
-from contrib import dbapi
+from .. import dbapi
 from ddtrace import Pin
 from ext import sql
+from aiopg.cursor import Cursor
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -58,13 +59,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
         return result
 
-    # aiopg doesn't support __enter__/__exit__ however we're adding it here to
+    # aiopg doesn't support __enter__/__exit__ yet so we're adding it here to
     # support unittests with both styles
-    def __enter__(self):
-        return self
+    if getattr(Cursor, '__enter__', None) is None:
+        def __enter__(self):
+            return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.close()
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.__wrapped__.close()
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):
