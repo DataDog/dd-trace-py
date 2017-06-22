@@ -1,7 +1,6 @@
 # 3p
 import psycopg2
 import wrapt
-import functools
 
 # project
 from ddtrace import Pin
