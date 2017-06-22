@@ -81,6 +81,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+
+    'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
 ]
 
 # Pre 1.10 style
@@ -96,6 +98,8 @@ MIDDLEWARE_CLASSES = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+
+    'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
 ]
 
 INSTALLED_APPS = [

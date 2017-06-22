@@ -33,6 +33,7 @@ PATCH_MODULES = {
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiopg': True,
     'aiobotocore': False,
+    'httplib': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
