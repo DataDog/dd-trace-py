@@ -35,7 +35,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE) as span:
             _set_request_tags(span, self.url)
-            result = yield from self.__wrapped__.start(*args, **kwargs)
+            result = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
 
@@ -51,7 +51,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
             span.trace_id = parent_span.trace_id
             span.parent_id = parent_span.span_id
             _set_request_tags(span, self.url)
-            result = yield from self.__wrapped__.read(*args, **kwargs)
+            result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
 
@@ -94,7 +94,7 @@ def _wrap_request(enable_distributed, func, instance, args, kwargs):
     method, url = args[0], URL(args[1])
 
     if should_skip_request(pin, url):
-        result = yield from func(*args, **kwargs)
+        result = yield from func(*args, **kwargs)  # noqa: E999
         return result
 
     # Create a new span and attach to this instance (so we can
@@ -113,7 +113,7 @@ def _wrap_request(enable_distributed, func, instance, args, kwargs):
         _set_request_tags(span, url)
         span.set_tag(ext_http.METHOD, method)
 
-        resp = yield from func(*args, **kwargs)
+        resp = yield from func(*args, **kwargs)  # noqa: E999
 
         span.set_tag(ext_http.STATUS_CODE, resp.status)
         span.error = int(_SPAN_MIN_ERROR <= resp.status)
