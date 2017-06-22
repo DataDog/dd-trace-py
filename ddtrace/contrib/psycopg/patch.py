@@ -1,7 +1,6 @@
 # 3p
 import psycopg2
 import wrapt
-import functools
 
 # project
 from ddtrace import Pin
@@ -11,32 +10,23 @@ from ddtrace.ext import sql, net, db
 # Original connect method
 _connect = psycopg2.connect
 
-
-def patch(tracer=None):
+def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    if getattr(psycopg2, '_datadog_patch', False):
-        return
-    setattr(psycopg2, '_datadog_patch', True)
-
-    wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
-    _patch_extensions(_psycopg2_extensions)  # do this early just in case
-
+    wrapt.wrap_function_wrapper(psycopg2, 'connect', patched_connect)
+    _patch_extensions() # do this early just in case
 
 def unpatch():
-    if getattr(psycopg2, '_datadog_patch', False):
-        setattr(psycopg2, '_datadog_patch', False)
-        psycopg2.connect = _connect
+    psycopg2.connect = _connect
 
-
-def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
+def patch_conn(conn):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
-    _patch_extensions(_psycopg2_extensions)
+    _patch_extensions()
 
-    c = traced_conn_cls(conn)
+    c = dbapi.TracedConnection(conn)
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
@@ -52,13 +42,11 @@ def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
         service="postgres",
         app="postgres",
         app_type="db",
-        tracer=tracer,
         tags=tags).onto(c)
 
     return c
 
-
-def _patch_extensions(_extensions):
+def _patch_extensions():
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
@@ -66,22 +54,19 @@ def _patch_extensions(_extensions):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
-
-def _unpatch_extensions(_extensions):
+def _unpatch_extensions():
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for original, module, func, _ in _extensions:
         setattr(module, func, original)
 
-
 #
 # monkeypatch targets
 #
 
-def patched_connect(connect_func, _, args, kwargs, tracer=None):
+def patched_connect(connect_func, _, args, kwargs):
     conn = connect_func(*args, **kwargs)
-    return patch_conn(conn, tracer)
-
+    return patch_conn(conn)
 
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
@@ -97,7 +82,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
 
 # extension hooks
-_psycopg2_extensions = [
+_extensions = [
     (psycopg2.extensions.register_type,
      psycopg2.extensions, 'register_type',
      _extensions_register_type),

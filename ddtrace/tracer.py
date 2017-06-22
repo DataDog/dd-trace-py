@@ -157,15 +157,6 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
             )
-
-            #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id, parent_span_id = context.get_base_parent_span_ids()
-            if parent_trace_id:
-                span.trace_id = parent_trace_id
-
-            if parent_span_id:
-                span.parent_id = parent_span_id
-
             self.sampler.sample(span)
 
         # add common tags
