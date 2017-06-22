@@ -59,15 +59,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
         return result
 
-    # aiopg doesn't support __enter__/__exit__ yet so we're adding it here to
-    # support unittests with both styles
-    if getattr(Cursor, '__enter__', None) is None:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            self.__wrapped__.close()
-
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """

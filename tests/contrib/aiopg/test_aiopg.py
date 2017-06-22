@@ -1,5 +1,7 @@
 # stdlib
 import asyncio
+import sys
+from textwrap import dedent
 import time
 
 # 3p
@@ -16,8 +18,9 @@ from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
 
+TEST_PORT = str(POSTGRES_CONFIG['port'])
+PY35 = sys.version_info >= (3, 5)
 
 class TestPsycopgPatch(AsyncioTestCase):
     # default service
@@ -102,21 +105,26 @@ class TestPsycopgPatch(AsyncioTestCase):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
 
-        conn, tracer = yield from self._get_conn_and_tracer()
-        cur = yield from conn.cursor()
-        t = type(cur)
-
-        with (yield from conn.cursor()) as cur:
-            assert t == type(cur), "%s != %s" % (t, type(cur))
-            yield from cur.execute(query="select 'blah'")
-            rows = yield from cur.fetchall()
-            assert len(rows) == 1
-            assert rows[0][0] == 'blah'
-
-        spans = tracer.writer.pop()
-        assert len(spans) == 1
-        span = spans[0]
-        eq_(span.name, "postgres.query")
+        if PY35:
+            # We have to exec this due to syntax errors on earlier versions.
+            aenter_code = dedent("""
+                conn, tracer = await self._get_conn_and_tracer()
+                cur = await conn.cursor()
+                t = type(cur)
+        
+                async with conn.cursor() as cur:
+                    assert t == type(cur), "%s != %s" % (t, type(cur))
+                    await cur.execute(query="select 'blah'")
+                    rows = await cur.fetchall()
+                    assert len(rows) == 1
+                    assert rows[0][0] == 'blah'
+        
+                spans = tracer.writer.pop()
+                assert len(spans) == 1
+                span = spans[0]
+                eq_(span.name, "postgres.query")
+            """)
+            exec(aenter_code)
 
     @mark_asyncio
     def test_disabled_execute(self):
