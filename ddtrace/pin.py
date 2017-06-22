@@ -1,8 +1,15 @@
 import logging
+import wrapt
 
 import ddtrace
 
 log = logging.getLogger(__name__)
+
+_DD_PIN_NAME = '_datadog_pin'
+
+# To set attributes on wrapt proxy objects use this prefix:
+# http://wrapt.readthedocs.io/en/latest/wrappers.html
+_DD_PIN_PROXY_NAME = '_self_' + _DD_PIN_NAME
 
 
 class Pin(object):
@@ -10,7 +17,6 @@ class Pin(object):
         set tracing metadata on a particular traced connection.
         This is useful if you wanted to, say, trace two different
         database clusters.
-
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
@@ -40,20 +46,19 @@ class Pin(object):
     @staticmethod
     def get_from(obj):
         """ Return the pin associated with the given object.
-
             >>> pin = Pin.get_from(conn)
         """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
-        return getattr(obj, '_datadog_pin', None)
+
+        pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+        return getattr(obj, pin_name, None)
 
     @classmethod
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Override an object with the given attributes.
-
         That's the recommended way to customize an already instrumented client, without
         losing existing attributes.
-
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
@@ -93,7 +98,9 @@ class Pin(object):
         try:
             if hasattr(obj, '__setddpin__'):
                 return obj.__setddpin__(self)
-            return setattr(obj, '_datadog_pin', self)
+
+            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+            return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 

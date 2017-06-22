@@ -19,28 +19,23 @@ log = logging.getLogger(__name__)
 class TracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces it's queries. """
 
-    _datadog_pin = None
-    _datadog_name = None
-
     def __init__(self, cursor, pin):
         super(TracedCursor, self).__init__(cursor)
-        self._datadog_pin = pin
+        pin.onto(self)
         name = pin.app or 'sql'
-        self._datadog_name = '%s.query' % name
+        self._self_datadog_name = '%s.query' % name
 
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
-        pin = self._datadog_pin
+        pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         service = pin.service
 
-        with pin.tracer.trace(self._datadog_name, service=service, resource=resource) as s:
+        with pin.tracer.trace(self._self_datadog_name, service=service, resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
-
-            for k, v in extra_tags.items():
-                s.set_tag(k, v)
+            s.set_tags(extra_tags)
 
             try:
                 return method(*args, **kwargs)
@@ -66,7 +61,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__enter__
+        self.__wrapped__.__enter__()
 
         # and finally, yield the traced cursor.
         return self
@@ -75,8 +70,6 @@ class TracedCursor(wrapt.ObjectProxy):
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    _datadog_pin = None
-
     def __init__(self, conn):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
@@ -84,7 +77,7 @@ class TracedConnection(wrapt.ObjectProxy):
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
-        pin = self._datadog_pin
+        pin = Pin.get_from(self)
         if not pin:
             return cursor
         return TracedCursor(cursor, pin)
@@ -100,6 +93,7 @@ def _get_vendor(conn):
         log.debug("couldnt parse module name", exc_info=True)
         name = "sql"
     return sql.normalize_vendor(name)
+
 
 def _get_module_name(conn):
     return conn.__class__.__module__.split('.')[0]

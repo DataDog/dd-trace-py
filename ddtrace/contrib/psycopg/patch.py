@@ -1,7 +1,6 @@
 # 3p
 import psycopg2
 import wrapt
-import functools
 
 # project
 from ddtrace import Pin
@@ -12,7 +11,7 @@ from ddtrace.ext import sql, net, db
 _connect = psycopg2.connect
 
 
-def patch(tracer=None):
+def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
@@ -20,7 +19,7 @@ def patch(tracer=None):
         return
     setattr(psycopg2, '_datadog_patch', True)
 
-    wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
+    wrapt.wrap_function_wrapper(psycopg2, 'connect', patched_connect)
     _patch_extensions(_psycopg2_extensions)  # do this early just in case
 
 
@@ -30,7 +29,7 @@ def unpatch():
         psycopg2.connect = _connect
 
 
-def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
+def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
@@ -52,7 +51,6 @@ def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
         service="postgres",
         app="postgres",
         app_type="db",
-        tracer=tracer,
         tags=tags).onto(c)
 
     return c
@@ -78,9 +76,9 @@ def _unpatch_extensions(_extensions):
 # monkeypatch targets
 #
 
-def patched_connect(connect_func, _, args, kwargs, tracer=None):
+def patched_connect(connect_func, _, args, kwargs):
     conn = connect_func(*args, **kwargs)
-    return patch_conn(conn, tracer)
+    return patch_conn(conn)
 
 
 def _extensions_register_type(func, _, args, kwargs):
