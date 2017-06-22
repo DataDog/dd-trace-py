@@ -77,9 +77,9 @@ def _unpatch_extensions(_extensions):
 # monkeypatch targets
 #
 
-def patched_connect(connect_func, _, args, kwargs, tracer=None):
+def patched_connect(connect_func, _, args, kwargs):
     conn = connect_func(*args, **kwargs)
-    return patch_conn(conn, tracer)
+    return patch_conn(conn)
 
 
 def _extensions_register_type(func, _, args, kwargs):
