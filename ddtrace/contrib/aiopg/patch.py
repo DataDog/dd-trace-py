@@ -12,7 +12,7 @@ from ..psycopg.patch import _patch_extensions, \
 from ...util import unwrap as _u
 
 
-def patch(tracer=None):
+def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
@@ -20,7 +20,7 @@ def patch(tracer=None):
         return
     setattr(aiopg, '_datadog_patch', True)
 
-    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', functools.partial(patched_connect, tracer=tracer))
+    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', patched_connect)
     _patch_extensions(_aiopg_extensions)  # do this early just in case
 
 
@@ -32,9 +32,9 @@ def unpatch():
 
 
 @asyncio.coroutine
-def patched_connect(connect_func, _, args, kwargs, tracer=None):
+def patched_connect(connect_func, _, args, kwargs):
     conn = yield from connect_func(*args, **kwargs)
-    return psycppg_patch_conn(conn, tracer, traced_conn_cls=AIOTracedConnection)
+    return psycppg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
 
 
 def _extensions_register_type(func, _, args, kwargs):

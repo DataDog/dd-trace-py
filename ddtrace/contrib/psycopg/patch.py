@@ -30,7 +30,7 @@ def unpatch():
         psycopg2.connect = _connect
 
 
-def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
+def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
@@ -52,7 +52,6 @@ def patch_conn(conn, tracer=None, traced_conn_cls=dbapi.TracedConnection):
         service="postgres",
         app="postgres",
         app_type="db",
-        tracer=tracer,
         tags=tags).onto(c)
 
     return c
