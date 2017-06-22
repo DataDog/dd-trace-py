@@ -12,7 +12,7 @@ from ddtrace.ext import sql, net, db
 _connect = psycopg2.connect
 
 
-def patch(tracer=None):
+def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
@@ -20,7 +20,7 @@ def patch(tracer=None):
         return
     setattr(psycopg2, '_datadog_patch', True)
 
-    wrapt.wrap_function_wrapper(psycopg2, 'connect', functools.partial(patched_connect, tracer=tracer))
+    wrapt.wrap_function_wrapper(psycopg2, 'connect', patched_connect)
     _patch_extensions(_psycopg2_extensions)  # do this early just in case
 
 
