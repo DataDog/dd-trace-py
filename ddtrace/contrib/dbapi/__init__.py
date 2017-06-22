@@ -35,9 +35,7 @@ class TracedCursor(wrapt.ObjectProxy):
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
-
-            for k, v in extra_tags.items():
-                s.set_tag(k, v)
+            s.set_tags(extra_tags)
 
             try:
                 return method(*args, **kwargs)
