@@ -31,6 +31,7 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
+    'aiopg': True,
     'aiobotocore': False,
     'httplib': False,
 
