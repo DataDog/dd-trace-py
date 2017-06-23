@@ -1,13 +1,22 @@
 import sys
 
 from ddtrace.ext import http as httpx
+from ...ext import AppTypes
 
 
 class TraceMiddleware(object):
 
     def __init__(self, tracer, service="falcon"):
+        # store tracing references
         self.tracer = tracer
         self.service = service
+
+        # configure Falcon service
+        self.tracer.set_service_info(
+            app='falcon',
+            app_type=AppTypes.web,
+            service=service,
+        )
 
     def process_request(self, req, resp):
         span = self.tracer.trace(

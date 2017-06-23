@@ -9,14 +9,12 @@ class FalconTestCase(object):
     and automatic instrumentation.
     """
     def test_falcon_service(self):
-        services = self.tracer.writer.pop_services()
-        expected_service = {
-            'app_type': 'web',
-            'app': 'falcon',
-        }
+        services = self.tracer._services
+        expected_service = (self._service, 'falcon', 'web')
+
         # ensure users set service name is in the services list
-        eq_(self._service, services.keys())
-        eq_(services['falcon'], expected_service)
+        ok_(self._service in services.keys())
+        eq_(services[self._service], expected_service)
 
     def test_404(self):
         out = self.simulate_get('/fake_endpoint')
