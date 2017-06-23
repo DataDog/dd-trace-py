@@ -24,6 +24,14 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 
+def _get_url_obj(obj):
+    url_obj = getattr(obj, 'url_obj', None)  # 1.x
+    if url_obj is None:
+        url_obj = obj.url  # 2.x
+
+    return url_obj
+
+
 class _WrappedResponseClass(wrapt.ObjectProxy):
     @asyncio.coroutine
     def start(self, *args, **kwargs):
@@ -33,7 +41,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         # This will parent correctly as we'll always have an enclosing span
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE) as span:
-            _set_request_tags(span, getattr(self, 'url_obj', self.url))
+            _set_request_tags(span, _get_url_obj(self))
             result = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
@@ -49,7 +57,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               span_type=ext_http.TYPE) as span:
             span.trace_id = parent_span.trace_id
             span.parent_id = parent_span.span_id
-            _set_request_tags(span, getattr(self, 'url_obj', self.url))
+            _set_request_tags(span, _get_url_obj(self))
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
