@@ -40,10 +40,11 @@ required_modules = ['asyncio']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .provider import AsyncioContextProvider
-        from .helpers import set_call_context, ensure_future, run_in_executor
-        from .patch import patch
 
         context_provider = AsyncioContextProvider()
+
+        from .helpers import set_call_context, ensure_future, run_in_executor
+        from .patch import patch
 
         __all__ = [
             'context_provider',
