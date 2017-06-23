@@ -1,11 +1,12 @@
 import asyncio
-
 import wrapt
+
 from aiopg.utils import _ContextManager
+
 from .. import dbapi
+from ...ext import sql
+
 from ddtrace import Pin
-from ext import sql
-from aiopg.cursor import Cursor
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
