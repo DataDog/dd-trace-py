@@ -2,7 +2,6 @@ import asyncio
 import functools
 import logging
 import wrapt
-from yarl import URL
 
 from ddtrace.util import unwrap
 
@@ -12,7 +11,7 @@ from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
 import aiohttp.client
-
+from aiohttp.client import URL
 
 try:
     # instrument external packages only if they're available
@@ -34,7 +33,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         # This will parent correctly as we'll always have an enclosing span
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE) as span:
-            _set_request_tags(span, self.url)
+            _set_request_tags(span, getattr(self, 'url_obj', self.url))
             result = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
@@ -50,7 +49,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               span_type=ext_http.TYPE) as span:
             span.trace_id = parent_span.trace_id
             span.parent_id = parent_span.span_id
-            _set_request_tags(span, self.url)
+            _set_request_tags(span, getattr(self, 'url_obj', self.url))
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
