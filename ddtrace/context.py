@@ -32,8 +32,8 @@ class Context(object):
         self._finished_spans = 0
         self._current_span = None
         self._lock = threading.Lock()
-        self._parent_span_id = None
-        self._parent_trace_id = None
+        self._parent_span_id = span_id
+        self._parent_trace_id = trace_id
 
     def _get_parent_span_ids(self):
         """ Returns tuple of base trace_id, span_id for distributed tracing."""
