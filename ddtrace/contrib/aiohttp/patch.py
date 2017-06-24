@@ -67,7 +67,8 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         # This will parent correctly as we'll always have an enclosing span
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
-                              span_type=ext_http.TYPE) as span:
+                              span_type=ext_http.TYPE,
+                              service=pin.service) as span:
             _set_request_tags(span, _get_url_obj(self))
             result = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
@@ -80,6 +81,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         # This may not have an immediate parent as the request completed
         with pin.tracer.trace('{}.read'.format(self.__class__.__name__),
+                              service=pin.service,
                               span_type=ext_http.TYPE) as span:
 
             span.trace_id = self._self_parent_span.trace_id
@@ -180,7 +182,8 @@ def _create_wrapped_request(method, enable_distributed, trace_headers, trace_con
     # Create a new span and attach to this instance (so we can
     # retrieve/update/close later on the response)
     # Note that we aren't tracing redirects
-    span = pin.tracer.trace('ClientSession.request', span_type=ext_http.TYPE)
+    span = pin.tracer.trace('ClientSession.request', service=pin.service,
+                            span_type=ext_http.TYPE)
 
     _set_request_tags(span, url)
     span.set_tag(ext_http.METHOD, method)
@@ -226,7 +229,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
     _w = wrapt.wrap_function_wrapper
     if not getattr(aiohttp, '__datadog_patch', False):
         setattr(aiohttp, '__datadog_patch', True)
-        pin = Pin(app='aiohttp', service=None, app_type=ext_http.TYPE,
+        pin = Pin(service='aiohttp.client', app='aiohttp', app_type=ext_http.TYPE,
                   tracer=tracer)
         pin.onto(aiohttp.client.ClientSession)
 
