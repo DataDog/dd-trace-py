@@ -90,6 +90,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
             _set_request_tags(span, _get_url_obj(self))
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
+            span.set_tag('Length', len(result))
             span.error = int(_SPAN_MIN_ERROR <= self.status)
 
         return result
