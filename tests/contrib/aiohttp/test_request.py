@@ -49,7 +49,7 @@ class TestRequestTracing(TraceTestCase):
         root_span_id = client_request_span.span_id
         root_trace_id = client_request_span.trace_id
         eq_(None, client_request_span.parent_id)
-        eq_(None, client_request_span.service)
+        eq_('aiohttp.client', client_request_span.service)
         eq_('ClientSession.request', client_request_span.name)
         eq_('/', client_request_span.resource)
 
@@ -57,7 +57,7 @@ class TestRequestTracing(TraceTestCase):
         client_start_span = traces[1][1]
         eq_(root_span_id, client_start_span.parent_id)
         eq_(root_trace_id, client_start_span.trace_id)
-        eq_(None, client_start_span.service)
+        eq_('aiohttp.client', client_start_span.service)
         eq_('ClientResponse.start', client_start_span.name)
         eq_('/', client_start_span.resource)
 
@@ -75,7 +75,7 @@ class TestRequestTracing(TraceTestCase):
         read_span = traces[2][0]
         eq_(root_span_id, read_span.parent_id)
         eq_(root_trace_id, read_span.trace_id)
-        eq_(None, read_span.service)
+        eq_('aiohttp.client', read_span.service)
         eq_('ClientResponse.read', read_span.name)
         eq_('/', read_span.resource)
 
