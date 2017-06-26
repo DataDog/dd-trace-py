@@ -52,13 +52,14 @@ def _set_request_tags(span, url):
 
 
 class _WrappedResponseClass(wrapt.ObjectProxy):
-    def __init__(self, obj, pin):
+    def __init__(self, obj, pin, trace_headers):
         super().__init__(obj)
 
         pin.onto(self)
 
         # We'll always have a parent span from outer request
         self._self_parent_span = pin.tracer.current_span()
+        self._self_trace_headers = trace_headers
 
     @asyncio.coroutine
     def start(self, *args, **kwargs):
@@ -70,11 +71,20 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               span_type=ext_http.TYPE,
                               service=pin.service) as span:
             _set_request_tags(span, _get_url_obj(self))
-            result = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
+
+            resp = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
+
+            if self._self_trace_headers:
+                tags = {hdr: resp.headers[hdr]
+                        for hdr in self._self_trace_headers
+                        if hdr in resp.headers}
+                span.set_tags(tags)
+
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.error = int(_SPAN_MIN_ERROR <= self.status)
+            span.set_tag(ext_http.METHOD, resp.method)
 
-        return result
+        return resp
 
     @asyncio.coroutine
     def read(self, *args, **kwargs):
@@ -111,7 +121,9 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
             resp = yield from coro  # noqa: E999
 
             if self._self_trace_headers:
-                tags = {hdr: resp.headers[hdr] for hdr in self._self_trace_headers if hdr in resp.headers}
+                tags = {hdr: resp.headers[hdr]
+                        for hdr in self._self_trace_headers
+                        if hdr in resp.headers}
                 self._self_span.set_tags(tags)
 
             self._self_span.set_tag(ext_http.STATUS_CODE, resp.status)
@@ -154,9 +166,8 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
             return resp
 
 
-def _create_wrapped_request(method, enable_distributed, trace_headers, trace_context,
-                            func, instance, args, kwargs):
-
+def _create_wrapped_request(method, enable_distributed, trace_headers,
+                            trace_context, func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
 
@@ -200,14 +211,17 @@ def _create_wrapped_request(method, enable_distributed, trace_headers, trace_con
     return obj
 
 
-def _create_wrapped_response(client_session, cls, instance, args, kwargs):
-    obj = _WrappedResponseClass(cls(*args, **kwargs), Pin.get_from(client_session))
+def _create_wrapped_response(client_session, trace_headers, cls, instance,
+                             args, kwargs):
+    obj = _WrappedResponseClass(cls(*args, **kwargs),
+                                Pin.get_from(client_session), trace_headers)
     return obj
 
 
-def _wrap_clientsession_init(func, instance, args, kwargs):
+def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
     response_class = kwargs.get('response_class', aiohttp.client.ClientResponse)
-    wrapper = functools.partial(_create_wrapped_response, instance)
+    wrapper = functools.partial(_create_wrapped_response, instance,
+                                trace_headers)
     kwargs['response_class'] = wrapt.FunctionWrapper(response_class, wrapper)
 
     return func(*args, **kwargs)
@@ -234,7 +248,8 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
                   tracer=tracer)
         pin.onto(aiohttp.client.ClientSession)
 
-        _w('aiohttp.client', 'ClientSession.__init__', _wrap_clientsession_init)
+        wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
+        _w('aiohttp.client', 'ClientSession.__init__', wrapper)
 
         for method in \
                 {'get', 'options', 'head', 'post', 'put', 'patch', 'delete',
