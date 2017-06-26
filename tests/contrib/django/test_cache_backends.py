@@ -6,6 +6,7 @@ from django.core.cache import caches
 
 # testing
 from .utils import DjangoTraceTestCase
+from ...util import assert_dict_issuperset
 
 
 class DjangoCacheRedisTest(DjangoTraceTestCase):
@@ -39,7 +40,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_redis_get_many(self):
@@ -68,7 +69,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_pylibmc_get(self):
@@ -97,7 +98,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_pylibmc_get_many(self):
@@ -126,7 +127,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_memcached_get(self):
@@ -155,7 +156,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_memcached_get_many(self):
@@ -184,7 +185,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_django_pylibmc_get(self):
@@ -213,7 +214,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_django_pylibmc_get_many(self):
@@ -242,5 +243,5 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end

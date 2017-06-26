@@ -14,6 +14,7 @@ from ddtrace.pin import Pin
 
 from .utils import override_global_tracer
 from ...test_tracer import get_dummy_tracer
+from ...util import assert_dict_issuperset
 
 
 if PY2:
@@ -142,7 +143,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
-        self.assertDictEqual(
+        assert_dict_issuperset(
             span.meta,
             {
                 'http.method': 'GET',
@@ -172,7 +173,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
-        self.assertDictEqual(
+        assert_dict_issuperset(
             span.meta,
             {
                 'http.method': 'GET',
@@ -201,7 +202,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
-        self.assertDictEqual(
+        assert_dict_issuperset(
             span.meta,
             {
                 'http.method': 'POST',
@@ -229,7 +230,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
-        self.assertDictEqual(
+        assert_dict_issuperset(
             span.meta,
             {
                 'http.method': 'GET',

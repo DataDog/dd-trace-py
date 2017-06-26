@@ -68,7 +68,6 @@ def test_tracer():
     assert make.span_id
     assert make.parent_id is None
     assert make.trace_id
-    eq_(make.get_tag(system.PID), str(getpid())) # Root span should contain the pid of the current process
 
     for other in ["cake.mix", "cake.bake"]:
         s = spans_by_name[other]
@@ -76,7 +75,6 @@ def test_tracer():
         eq_(s.trace_id, make.trace_id)
         eq_(s.service, make.service) # ensure it inherits the service
         eq_(s.resource, s.name)      # ensure when we don't set a resource, it's there.
-        eq_(s.get_tag(system.PID), None) # Child spans should not contain a pid tag
 
 
     # do it again and make sure it has new trace ids
@@ -84,6 +82,16 @@ def test_tracer():
     spans = writer.pop()
     for s in spans:
         assert s.trace_id != make.trace_id
+
+def test_tracer_pid():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+    with tracer.trace("root") as root_span:
+        with tracer.trace("child") as child_span:
+            time.sleep(0.05)
+    eq_(root_span.get_tag(system.PID), str(getpid())) # Root span should contain the pid of the current process
+    eq_(child_span.get_tag(system.PID), None) # Child span should not contain a pid tag
 
 def test_tracer_wrap():
     writer = DummyWriter()
