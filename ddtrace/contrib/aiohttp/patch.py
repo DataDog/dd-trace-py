@@ -171,7 +171,7 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
 
-    if 'method' == 'request':
+    if method == 'REQUEST':
         if 'method' in kwargs:
             method = kwargs['method']
         else:
