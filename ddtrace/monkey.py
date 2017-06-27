@@ -23,6 +23,7 @@ PATCH_MODULES = {
     'elasticsearch': True,
     'mongoengine': True,
     'mysql': True,
+    'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
     'pymongo': True,
