@@ -4,6 +4,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Pin
+from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MYSQL_CONFIG
@@ -18,8 +19,8 @@ class PyMySQLCore(object):
     DB_INFO = {
         'out.host': MYSQL_CONFIG.get("host"),
         'out.port': str(MYSQL_CONFIG.get("port")),
-        'db.user': MYSQL_CONFIG.get("user"),
-        'db.name': MYSQL_CONFIG.get("database")
+        'db.user': stringify(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
+        'db.name': stringify(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8"))
     }
 
     def tearDown(self):
