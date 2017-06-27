@@ -26,6 +26,7 @@ PATCH_MODULES = {
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
+    'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
     'pymongo': True,
