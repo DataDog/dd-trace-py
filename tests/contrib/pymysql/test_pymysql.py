@@ -4,9 +4,12 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Pin
+from ddtrace.compat import PY2
+from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MYSQL_CONFIG
+from ...util import assert_dict_issuperset
 
 
 class PyMySQLCore(object):
@@ -18,9 +21,17 @@ class PyMySQLCore(object):
     DB_INFO = {
         'out.host': MYSQL_CONFIG.get("host"),
         'out.port': str(MYSQL_CONFIG.get("port")),
-        'db.user': MYSQL_CONFIG.get("user"),
-        'db.name': MYSQL_CONFIG.get("database")
     }
+    if PY2:
+        DB_INFO.update({
+            'db.user': MYSQL_CONFIG.get("user"),
+            'db.name': MYSQL_CONFIG.get("database")
+        })
+    else:
+        DB_INFO.update({
+            'db.user': stringify(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
+            'db.name': stringify(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8"))
+        })
 
     def tearDown(self):
         # if self.conn and self.conn.is_connected():
@@ -49,7 +60,7 @@ class PyMySQLCore(object):
         eq_(span.error, 0)
         meta = {'sql.query': u'SELECT 1'}
         meta.update(self.DB_INFO)
-        eq_(span.meta, meta)
+        assert_dict_issuperset(span.meta, meta)
         # eq_(span.get_metric('sql.rows'), -1)
 
     def test_query_with_several_rows(self):
@@ -140,7 +151,7 @@ class PyMySQLCore(object):
         eq_(span.error, 0)
         meta = {'sql.query': u'sp_sum'}
         meta.update(self.DB_INFO)
-        eq_(span.meta, meta)
+        assert_dict_issuperset(span.meta, meta)
         # eq_(span.get_metric('sql.rows'), 1)
 
 
@@ -202,7 +213,7 @@ class TestPyMysqlPatch(PyMySQLCore):
 
             meta = {'sql.query': u'SELECT 1'}
             meta.update(self.DB_INFO)
-            eq_(span.meta, meta)
+            assert_dict_issuperset(span.meta, meta)
 
         finally:
             unpatch()
