@@ -20,7 +20,7 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    def __init__(self, trace_id=None, span_id=None):
+    def __init__(self, trace_id=None, span_id=None, sampled=True):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -28,7 +28,7 @@ class Context(object):
         :param int span_id: span_id of parent span
         """
         self._trace = []
-        self._sampled = False
+        self._sampled = sampled
         self._finished_spans = 0
         self._current_span = None
         self._lock = threading.Lock()
