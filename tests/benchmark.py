@@ -4,6 +4,7 @@ import timeit
 from ddtrace import Tracer
 
 from .test_tracer import DummyWriter
+from os import getpid
 
 
 REPEAT = 10
@@ -72,7 +73,14 @@ def benchmark_tracer_wrap():
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
     print("- method execution time: {:8.6f}".format(min(result)))
 
+def benchmark_getpid():
+    timer = timeit.Timer(getpid)
+    result = timer.repeat(repeat=REPEAT, number=NUMBER)
+    print("## getpid wrapper benchmark: {} loops ##".format(NUMBER))
+    print("- getpid execution time: {:8.6f}".format(min(result)))
+
 
 if __name__ == '__main__':
     benchmark_tracer_wrap()
     benchmark_tracer_trace()
+    benchmark_getpid()

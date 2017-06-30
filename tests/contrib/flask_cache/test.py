@@ -15,6 +15,7 @@ from flask import Flask
 # testing
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 from ...test_tracer import DummyWriter
+from ...util import assert_dict_issuperset
 
 
 class FlaskCacheTest(unittest.TestCase):
@@ -48,7 +49,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_set(self):
         # initialize the dummy writer
@@ -76,7 +77,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_add(self):
         # initialize the dummy writer
@@ -104,7 +105,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_delete(self):
         # initialize the dummy writer
@@ -132,7 +133,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_delete_many(self):
         # initialize the dummy writer
@@ -160,7 +161,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_clear(self):
         # initialize the dummy writer
@@ -187,7 +188,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_get_many(self):
         # initialize the dummy writer
@@ -215,7 +216,7 @@ class FlaskCacheTest(unittest.TestCase):
             "flask_cache.backend": "simple",
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
 
     def test_simple_cache_set_many(self):
         # initialize the dummy writer
@@ -240,11 +241,6 @@ class FlaskCacheTest(unittest.TestCase):
         eq_(span.name, "flask_cache.cmd")
         eq_(span.span_type, "cache")
         eq_(span.error, 0)
-
-        expected_meta = {
-            "flask_cache.key": "['first_complex_op', 'second_complex_op']",
-            "flask_cache.backend": "simple",
-        }
 
         eq_(span.meta["flask_cache.backend"], "simple")
         ok_("first_complex_op" in span.meta["flask_cache.key"])

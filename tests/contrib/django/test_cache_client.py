@@ -6,6 +6,7 @@ from django.core.cache import caches
 
 # testing
 from .utils import DjangoTraceTestCase
+from ...util import assert_dict_issuperset
 
 
 class DjangoCacheWrapperTest(DjangoTraceTestCase):
@@ -38,7 +39,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_set(self):
@@ -67,7 +68,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_add(self):
@@ -96,7 +97,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_delete(self):
@@ -125,7 +126,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span.meta, expected_meta)
+        assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_incr(self):
@@ -164,8 +165,8 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span_get.meta, expected_meta)
-        eq_(span_incr.meta, expected_meta)
+        assert_dict_issuperset(span_get.meta, expected_meta)
+        assert_dict_issuperset(span_incr.meta, expected_meta)
         assert start < span_incr.start < span_incr.start + span_incr.duration < end
 
     def test_cache_decr(self):
@@ -210,9 +211,9 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span_get.meta, expected_meta)
-        eq_(span_incr.meta, expected_meta)
-        eq_(span_decr.meta, expected_meta)
+        assert_dict_issuperset(span_get.meta, expected_meta)
+        assert_dict_issuperset(span_incr.meta, expected_meta)
+        assert_dict_issuperset(span_decr.meta, expected_meta)
         assert start < span_decr.start < span_decr.start + span_decr.duration < end
 
     def test_cache_get_many(self):
@@ -255,7 +256,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
             'env': 'test',
         }
 
-        eq_(span_get_many.meta, expected_meta)
+        assert_dict_issuperset(span_get_many.meta, expected_meta)
         assert start < span_get_many.start < span_get_many.start + span_get_many.duration < end
 
     def test_cache_set_many(self):

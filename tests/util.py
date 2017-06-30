@@ -1,4 +1,5 @@
 import mock
+from nose.tools import ok_
 
 class FakeTime(object):
     """"Allow to mock time.time for tests
@@ -29,3 +30,11 @@ class FakeTime(object):
 def patch_time():
     """Patch time.time with FakeTime"""
     return mock.patch('time.time', new_callable=FakeTime)
+
+def assert_dict_issuperset(a, b):
+    ok_(set(a.items()).issuperset(set(b.items())),
+            msg="{a} is not a superset of {b}".format(a=a, b=b))
+
+def assert_list_issuperset(a, b):
+    ok_(set(a).issuperset(set(b)),
+            msg="{a} is not a superset of {b}".format(a=a, b=b))
