@@ -1,7 +1,3 @@
-# stdlib
-import asyncio
-import asynctest
-
 # 3p
 from nose.tools import eq_, ok_, assert_raises
 from botocore.errorfactory import ClientError
@@ -12,21 +8,24 @@ from ddtrace.ext import http
 
 # testing
 from .utils import MotoService, aiobotocore_client
+from ..asyncio.utils import AsyncioTestCase, mark_asyncio
 from ...test_tracer import get_dummy_tracer
 
 
-class AIOBotocoreTest(asynctest.TestCase):
+class AIOBotocoreTest(AsyncioTestCase):
     """Botocore integration testsuite"""
     def setUp(self):
+        super(AIOBotocoreTest, self).setUp()
         patch()
         self.tracer = get_dummy_tracer()
 
     def tearDown(self):
+        super(AIOBotocoreTest, self).tearDown()
         unpatch()
         self.tracer = None
 
     @MotoService('ec2')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_traced_client(self):
         with aiobotocore_client('ec2', self.tracer) as ec2:
             yield from ec2.describe_instances()
@@ -46,7 +45,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.name, 'ec2.command')
 
     @MotoService('s3')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_s3_client(self):
         with aiobotocore_client('s3', self.tracer) as s3:
             yield from s3.list_buckets()
@@ -64,7 +63,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.name, 's3.command')
 
     @MotoService('s3')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_s3_client_error(self):
         with aiobotocore_client('s3', self.tracer) as s3:
             with assert_raises(ClientError):
@@ -80,7 +79,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         ok_('NoSuchBucket' in span.get_tag('error.msg'))
 
     @MotoService('s3')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_s3_client_read(self):
         with aiobotocore_client('s3', self.tracer) as s3:
             # prepare S3 and flush traces if any
@@ -113,7 +112,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(read_span.trace_id, span.trace_id)
 
     @MotoService('sqs')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_sqs_client(self):
         with aiobotocore_client('sqs', self.tracer) as sqs:
             yield from sqs.list_queues()
@@ -130,7 +129,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.resource, 'sqs.listqueues')
 
     @MotoService('kinesis')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_kinesis_client(self):
         with aiobotocore_client('kinesis', self.tracer) as kinesis:
             yield from kinesis.list_streams()
@@ -147,7 +146,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.resource, 'kinesis.liststreams')
 
     @MotoService('lambda')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_lambda_client(self):
         with aiobotocore_client('lambda', self.tracer) as lambda_client:
             # https://github.com/spulec/moto/issues/906
@@ -165,7 +164,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.resource, 'lambda.listfunctions')
 
     @MotoService('kms')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_kms_client(self):
         with aiobotocore_client('kms', self.tracer) as kms:
             yield from kms.list_keys(Limit=21)
@@ -184,7 +183,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(span.get_tag('params'), None)
 
     @MotoService('kinesis')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_unpatch(self):
         unpatch()
         with aiobotocore_client('kinesis', self.tracer) as kinesis:
@@ -194,7 +193,7 @@ class AIOBotocoreTest(asynctest.TestCase):
         eq_(len(traces), 0)
 
     @MotoService('sqs')
-    @asyncio.coroutine
+    @mark_asyncio
     def test_double_patch(self):
         patch()
         with aiobotocore_client('sqs', self.tracer) as sqs:
@@ -203,6 +202,3 @@ class AIOBotocoreTest(asynctest.TestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
-
-if __name__ == '__main__':
-    asynctest.main()
