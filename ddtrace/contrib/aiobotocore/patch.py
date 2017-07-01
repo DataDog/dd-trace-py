@@ -8,6 +8,7 @@ from ddtrace.util import deep_getattr, unwrap
 from aiobotocore.endpoint import ClientResponseContentProxy
 
 from ...ext import http, aws
+from ...compat import PYTHON_VERSION
 
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
@@ -50,6 +51,16 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.set_tag('Length', len(result))
 
         return result
+
+    # wrapt doesn't proxy `async with` context managers
+    if PYTHON_VERSION >= (3, 5, 0):
+        @asyncio.coroutine
+        def __aenter__(self):
+            return self.__wrapped__.__aenter__()
+
+        @asyncio.coroutine
+        def __aexit__(self, *args, **kwargs):
+            return self.__wrapped__.__aexit__(*args, **kwargs)
 
 
 def truncate_arg_value(value, max_len=1024):
