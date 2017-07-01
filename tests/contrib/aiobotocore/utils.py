@@ -7,15 +7,33 @@ import threading
 import requests
 import time
 
+import aiobotocore.session
+from ddtrace import Pin
+from contextlib import contextmanager
+
 
 MOTO_PORT = 5000
 MOTO_HOST = '127.0.0.1'
 MOTO_ENDPOINT_URL = 'http://{}:{}'.format(MOTO_HOST, MOTO_PORT)
 
 _proxy_bypass = {
-  "http": None,
-  "https": None,
+    "http": None,
+    "https": None,
 }
+
+
+@contextmanager
+def aiobotocore_client(service, tracer):
+    """Helper function that creates a new aiobotocore client so that
+    it is closed at the end of the context manager.
+    """
+    session = aiobotocore.session.get_session()
+    client = session.create_client(service, region_name='us-west-2', endpoint_url=MOTO_ENDPOINT_URL)
+    Pin.override(client, tracer=tracer)
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 class MotoService:
