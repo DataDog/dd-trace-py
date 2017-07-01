@@ -1,5 +1,5 @@
 """
-The aiootocore integration will trace all aws calls made with the aiobotocore
+The aiootocore integration will trace all AWS calls made with the `aiobotocore`
 library.
 
 This integration ignores autopatching, it can be enabled via
@@ -18,13 +18,13 @@ This integration ignores autopatching, it can be enabled via
     # Example of instrumented query
     lambda_client.list_functions()
 """
-
-
 from ..util import require_modules
+
 
 required_modules = ['aiobotocore.client']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
+
         __all__ = ['patch']
