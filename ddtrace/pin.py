@@ -1,15 +1,8 @@
 import logging
-import wrapt
 
 import ddtrace
 
 log = logging.getLogger(__name__)
-
-_DD_PIN_NAME = '_datadog_pin'
-
-# To set attributes on wrapt proxy objects use this prefix:
-# http://wrapt.readthedocs.io/en/latest/wrappers.html
-_DD_PIN_PROXY_NAME = '_self_' + _DD_PIN_NAME
 
 
 class Pin(object):
@@ -53,8 +46,7 @@ class Pin(object):
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
 
-        pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
-        return getattr(obj, pin_name, None)
+        return getattr(obj, '_datadog_pin', None)
 
     @classmethod
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
@@ -102,9 +94,7 @@ class Pin(object):
         try:
             if hasattr(obj, '__setddpin__'):
                 return obj.__setddpin__(self)
-
-            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
-            return setattr(obj, pin_name, self)
+            return setattr(obj, '_datadog_pin', self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 

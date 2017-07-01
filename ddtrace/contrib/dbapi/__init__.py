@@ -23,7 +23,7 @@ class TracedCursor(wrapt.ObjectProxy):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
         name = pin.app or 'sql'
-        self._self_datadog_name = '%s.query' % name
+        self._datadog_name = '%s.query' % name
 
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
@@ -31,7 +31,7 @@ class TracedCursor(wrapt.ObjectProxy):
             return method(*args, **kwargs)
         service = pin.service
 
-        with pin.tracer.trace(self._self_datadog_name, service=service, resource=resource) as s:
+        with pin.tracer.trace(self._datadog_name, service=service, resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
