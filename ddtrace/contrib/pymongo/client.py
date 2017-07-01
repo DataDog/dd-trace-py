@@ -45,13 +45,14 @@ class TracedMongoClient(ObjectProxy):
             client = _MongoClient(client, *args, **kwargs)
 
         super(TracedMongoClient, self).__init__(client)
-        # Default Pin
-        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
         # NOTE[matt] the TracedMongoClient attempts to trace all of the network
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which
         # could change. We'll see how this goes.
         client._topology = TracedTopology(client._topology)
+
+        # Default Pin
+        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
