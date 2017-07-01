@@ -1,269 +1,208 @@
 # stdlib
 import asyncio
 import asynctest
-import os
 
 # 3p
-from nose.tools import eq_
-import aiobotocore.session
-
+from nose.tools import eq_, ok_, assert_raises
+from botocore.errorfactory import ClientError
 
 # project
-from ddtrace import Pin
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 from ddtrace.ext import http
 
-
 # testing
+from .utils import MotoService, aiobotocore_client
 from ...test_tracer import get_dummy_tracer
-from .utils import MotoService, MOTO_ENDPOINT_URL
 
 
 class AIOBotocoreTest(asynctest.TestCase):
     """Botocore integration testsuite"""
-
-    TEST_SERVICE = "test-aiobotocore-tracing"
-
     def setUp(self):
         patch()
-        self.session = aiobotocore.session.get_session()
-        os.environ['AWS_ACCESS_KEY_ID'] = 'dummy'
-        os.environ['AWS_SECRET_ACCESS_KEY'] = 'dummy'
+        self.tracer = get_dummy_tracer()
 
     def tearDown(self):
         unpatch()
-        self.session = None
-        del os.environ['AWS_ACCESS_KEY_ID']
-        del os.environ['AWS_SECRET_ACCESS_KEY']
+        self.tracer = None
 
     @MotoService('ec2')
     @asyncio.coroutine
     def test_traced_client(self):
-        ec2 = self.session.create_client('ec2', region_name='us-west-2', endpoint_url=MOTO_ENDPOINT_URL)
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
+        with aiobotocore_client('ec2', self.tracer) as ec2:
+            yield from ec2.describe_instances()
 
-        yield from ec2.describe_instances()
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
 
-        spans = writer.pop()
-        assert spans
-        span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.agent'), "aiobotocore")
+        eq_(span.get_tag('aws.agent'), 'aiobotocore')
         eq_(span.get_tag('aws.region'), 'us-west-2')
         eq_(span.get_tag('aws.operation'), 'DescribeInstances')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.get_tag('http.status_code'), '200')
         eq_(span.get_tag('retry_attempts'), '0')
-        eq_(span.service, "test-aiobotocore-tracing.ec2")
-        eq_(span.resource, "ec2.describeinstances")
-        eq_(span.name, "ec2.command")
-
-        ec2.close()
+        eq_(span.service, 'aws.ec2')
+        eq_(span.resource, 'ec2.describeinstances')
+        eq_(span.name, 'ec2.command')
 
     @MotoService('s3')
     @asyncio.coroutine
     def test_s3_client(self):
-        s3 = self.session.create_client('s3', region_name='us-west-2', endpoint_url=MOTO_ENDPOINT_URL)
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
-
+        with aiobotocore_client('s3', self.tracer) as s3:
             yield from s3.list_buckets()
             yield from s3.list_buckets()
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 2)
-            eq_(span.get_tag('aws.operation'), 'ListBuckets')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.s3")
-            eq_(span.resource, "s3.listbuckets")
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 2)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
 
-            # testing for span error
-            try:
-                yield from s3.list_objects(bucket='mybucket')
-            except Exception:
-                spans = writer.pop()
-                assert spans
-                span = spans[0]
-                eq_(span.error, 1)
-                eq_(span.resource, "s3.listobjects")
-        finally:
-            s3.close()
+        eq_(span.get_tag('aws.operation'), 'ListBuckets')
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.service, 'aws.s3')
+        eq_(span.resource, 's3.listbuckets')
+        eq_(span.name, 's3.command')
+
+    @MotoService('s3')
+    @asyncio.coroutine
+    def test_s3_client_error(self):
+        with aiobotocore_client('s3', self.tracer) as s3:
+            with assert_raises(ClientError):
+                yield from s3.list_objects(Bucket='mybucket')
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+
+        eq_(span.resource, 's3.listobjects')
+        eq_(span.error, 1)
+        ok_('NoSuchBucket' in span.get_tag('error.msg'))
 
     @MotoService('s3')
     @asyncio.coroutine
     def test_s3_client_read(self):
-        s3 = self.session.create_client('s3', region_name='us-west-2', endpoint_url=MOTO_ENDPOINT_URL)
-        yield from s3.create_bucket(Bucket='foo')
-        yield from s3.put_object(Bucket='foo', Key='bar', Body=b'')
+        with aiobotocore_client('s3', self.tracer) as s3:
+            # prepare S3 and flush traces if any
+            yield from s3.create_bucket(Bucket='tracing')
+            yield from s3.put_object(Bucket='tracing', Key='apm', Body=b'')
+            self.tracer.writer.pop_traces()
+            # calls under test
+            response = yield from s3.get_object(Bucket='tracing', Key='apm')
+            yield from response['Body'].read()
 
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 2)
+        eq_(len(traces[0]), 1)
+        eq_(len(traces[1]), 1)
 
-            response = yield from s3.get_object(Bucket='foo', Key='bar')
-            data = yield from response['Body'].read()
+        span = traces[0][0]
+        eq_(span.get_tag('aws.operation'), 'GetObject')
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.service, 'aws.s3')
+        eq_(span.resource, 's3.getobject')
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 2)
-            eq_(span.get_tag('aws.operation'), 'GetObject')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.s3")
-            eq_(span.resource, "s3.getobject")
-
-            # Should be same as parent span
-            span = spans[1]
-            eq_(span.get_tag('aws.operation'), 'GetObject')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.s3")
-            eq_(span.resource, "s3.getobject")
-            eq_(span.name, 's3.command.read')
-            eq_(span.parent_id, spans[0].span_id)
-            eq_(span.trace_id, spans[0].trace_id)
-        finally:
-            s3.close()
+        read_span = traces[1][0]
+        eq_(read_span.get_tag('aws.operation'), 'GetObject')
+        eq_(read_span.get_tag('http.status_code'), '200')
+        eq_(read_span.service, 'aws.s3')
+        eq_(read_span.resource, 's3.getobject')
+        eq_(read_span.name, 's3.command.read')
+        # enforce parenting
+        eq_(read_span.parent_id, span.span_id)
+        eq_(read_span.trace_id, span.trace_id)
 
     @MotoService('sqs')
     @asyncio.coroutine
     def test_sqs_client(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
-
+        with aiobotocore_client('sqs', self.tracer) as sqs:
             yield from sqs.list_queues()
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 1)
-            eq_(span.get_tag('aws.region'), 'us-east-1')
-            eq_(span.get_tag('aws.operation'), 'ListQueues')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.sqs")
-            eq_(span.resource, "sqs.listqueues")
-        finally:
-            sqs.close()
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+
+        span = traces[0][0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'ListQueues')
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.service, 'aws.sqs')
+        eq_(span.resource, 'sqs.listqueues')
 
     @MotoService('kinesis')
     @asyncio.coroutine
     def test_kinesis_client(self):
-        kinesis = self.session.create_client('kinesis', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
-
+        with aiobotocore_client('kinesis', self.tracer) as kinesis:
             yield from kinesis.list_streams()
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 1)
-            eq_(span.get_tag('aws.region'), 'us-east-1')
-            eq_(span.get_tag('aws.operation'), 'ListStreams')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.kinesis")
-            eq_(span.resource, "kinesis.liststreams")
-        finally:
-            kinesis.close()
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
 
-    @MotoService('kinesis')
-    @asyncio.coroutine
-    def test_unpatch(self):
-        kinesis = self.session.create_client('kinesis', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kinesis)
-
-            unpatch()
-
-            yield from kinesis.list_streams()
-            spans = writer.pop()
-            assert not spans, spans
-        finally:
-            kinesis.close()
-
-    @MotoService('sqs')
-    @asyncio.coroutine
-    def test_double_patch(self):
-        sqs = self.session.create_client('sqs', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sqs)
-
-            patch()
-            patch()
-
-            yield from sqs.list_queues()
-
-            spans = writer.pop()
-            assert spans
-            eq_(len(spans), 1)
-        finally:
-            sqs.close()
+        span = traces[0][0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'ListStreams')
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.service, 'aws.kinesis')
+        eq_(span.resource, 'kinesis.liststreams')
 
     @MotoService('lambda')
     @asyncio.coroutine
     def test_lambda_client(self):
-        lamb = self.session.create_client('lambda', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
-
+        with aiobotocore_client('lambda', self.tracer) as lambda_client:
             # https://github.com/spulec/moto/issues/906
-            yield from lamb.list_functions(MaxItems=5)
+            yield from lambda_client.list_functions(MaxItems=5)
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 1)
-            eq_(span.get_tag('aws.region'), 'us-east-1')
-            eq_(span.get_tag('aws.operation'), 'ListFunctions')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.lambda")
-            eq_(span.resource, "lambda.listfunctions")
-        finally:
-            lamb.close()
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+
+        span = traces[0][0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'ListFunctions')
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.service, 'aws.lambda')
+        eq_(span.resource, 'lambda.listfunctions')
 
     @MotoService('kms')
     @asyncio.coroutine
     def test_kms_client(self):
-        kms = self.session.create_client('kms', region_name='us-east-1', endpoint_url=MOTO_ENDPOINT_URL)
-        try:
-            tracer = get_dummy_tracer()
-            writer = tracer.writer
-            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(kms)
-
+        with aiobotocore_client('kms', self.tracer) as kms:
             yield from kms.list_keys(Limit=21)
 
-            spans = writer.pop()
-            assert spans
-            span = spans[0]
-            eq_(len(spans), 1)
-            eq_(span.get_tag('aws.region'), 'us-east-1')
-            eq_(span.get_tag('aws.operation'), 'ListKeys')
-            eq_(span.get_tag(http.STATUS_CODE), '200')
-            eq_(span.service, "test-aiobotocore-tracing.kms")
-            eq_(span.resource, "kms.listkeys")
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
 
-            # checking for protection on sts against security leak
-            eq_(span.get_tag('params'), None)
-        finally:
-            kms.close()
+        span = traces[0][0]
+        eq_(span.get_tag('aws.region'), 'us-west-2')
+        eq_(span.get_tag('aws.operation'), 'ListKeys')
+        eq_(span.get_tag(http.STATUS_CODE), '200')
+        eq_(span.service, 'aws.kms')
+        eq_(span.resource, 'kms.listkeys')
+        # checking for protection on STS against security leak
+        eq_(span.get_tag('params'), None)
+
+    @MotoService('kinesis')
+    @asyncio.coroutine
+    def test_unpatch(self):
+        unpatch()
+        with aiobotocore_client('kinesis', self.tracer) as kinesis:
+            yield from kinesis.list_streams()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 0)
+
+    @MotoService('sqs')
+    @asyncio.coroutine
+    def test_double_patch(self):
+        patch()
+        with aiobotocore_client('sqs', self.tracer) as sqs:
+            yield from sqs.list_queues()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
 
 if __name__ == '__main__':
     asynctest.main()
