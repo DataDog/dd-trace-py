@@ -1,11 +1,10 @@
 import os
-
-from .middleware import TraceMiddleware
-from ddtrace import tracer
-
+import wrapt
 import falcon
 
-import wrapt
+from ddtrace import tracer
+
+from .middleware import TraceMiddleware
 
 
 def patch():
@@ -20,10 +19,10 @@ def patch():
     wrapt.wrap_function_wrapper('falcon', 'API.__init__', traced_init)
 
 def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
-    service = os.environ.get("DATADOG_SERVICE_NAME") or "falcon"
+    mw = kwargs.pop('middleware', [])
+    service = os.environ.get('DATADOG_SERVICE_NAME') or 'falcon'
 
     mw.insert(0, TraceMiddleware(tracer, service))
-    kwargs["middleware"] = mw
+    kwargs['middleware'] = mw
 
     wrapped(*args, **kwargs)

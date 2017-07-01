@@ -11,6 +11,7 @@ from ddtrace.contrib.celery.task import patch_task, unpatch_task
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
+from ...util import assert_list_issuperset
 
 
 class CeleryTaskTest(unittest.TestCase):
@@ -110,16 +111,12 @@ class CeleryTaskTest(unittest.TestCase):
         span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
-            ['service', 'resource', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
+            ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
         self.assertEqual(span.error, 0)
-
-        # Assert the metadata is correct
-        meta = span.meta
-        self.assertDictEqual(meta, dict())
 
     def test_task___call__(self):
         """
@@ -148,16 +145,12 @@ class CeleryTaskTest(unittest.TestCase):
         span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
-            ['service', 'resource', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
+            ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
         self.assertEqual(span.error, 0)
-
-        # Assert the metadata is correct
-        meta = span.meta
-        self.assertDictEqual(meta, dict())
 
     def test_task_apply_async(self):
         """
@@ -199,7 +192,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id', 'state'])
+        assert_list_issuperset(meta.keys(), ['id', 'state'])
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # Assert the celery service span for calling `run`
@@ -216,7 +209,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(
+        assert_list_issuperset(
             meta.keys(),
             ['celery.delivery_info', 'celery.id']
         )
@@ -263,7 +256,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id'])
 
     def test_task_apply_eager(self):
         """
@@ -308,7 +301,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id'])
 
         span = spans[1]
         self.assert_items_equal(
@@ -326,7 +319,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id', 'state'])
+        assert_list_issuperset(meta.keys(), ['id', 'state'])
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
@@ -343,7 +336,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(
+        assert_list_issuperset(
             meta.keys(),
             ['celery.delivery_info', 'celery.id']
         )
@@ -390,7 +383,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id'])
 
     def test_task_delay_eager(self):
         """
@@ -435,7 +428,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id'])
 
         span = spans[1]
         self.assert_items_equal(
@@ -453,7 +446,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(meta.keys(), ['id', 'state'])
+        assert_list_issuperset(meta.keys(), ['id', 'state'])
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
@@ -470,7 +463,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assert_items_equal(
+        assert_list_issuperset(
             meta.keys(),
             ['celery.delivery_info', 'celery.id']
         )
