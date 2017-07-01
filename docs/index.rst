@@ -152,6 +152,10 @@ aiobotocore
 
 .. automodule:: ddtrace.contrib.aiobotocore
 
+aiopg
+~~~~~
+
+.. automodule:: ddtrace.contrib.aiopg
 
 Tornado
 ~~~~~~~
