@@ -47,9 +47,9 @@ class Pin(object):
     @staticmethod
     def get_from(obj):
         """ Return the pin associated with the given object.
+
             >>> pin = Pin.get_from(conn)
         """
-
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
 
@@ -59,6 +59,7 @@ class Pin(object):
     @classmethod
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Override an object with the given attributes.
+
         That's the recommended way to customize an already instrumented client, without
         losing existing attributes.
 
@@ -66,7 +67,6 @@ class Pin(object):
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
         """
-
         if not obj:
             return
 
