@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'asyncio': False,
     'boto': False,
     'botocore': False,
     'bottle': False,
@@ -31,9 +32,9 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
+    'aiopg': True,
     'aiobotocore': False,
     'httplib': False,
-    'asyncio': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
