@@ -27,7 +27,9 @@ class DjangoTraceTestCase(TestCase):
         # empty the tracer spans from previous operations
         # such as database creation queries
         self.tracer.writer.spans = []
+        self.tracer.writer.pop_traces()
 
     def tearDown(self):
         # empty the tracer spans from test operations
         self.tracer.writer.spans = []
+        self.tracer.writer.pop_traces()

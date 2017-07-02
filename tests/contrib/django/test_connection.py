@@ -3,17 +3,11 @@ import time
 # 3rd party
 from nose.tools import eq_
 from django.contrib.auth.models import User
-from django.test import override_settings
+
+from ddtrace.contrib.django.conf import settings
 
 # testing
 from .utils import DjangoTraceTestCase
-
-
-NEW_SETTINGS = {
-    'TRACER': 'tests.contrib.django.utils.tracer',
-    'ENABLED': True,
-    'DEFAULT_DATABASE_PREFIX': 'my_prefix_db'
-}
 
 
 class DjangoConnectionTest(DjangoTraceTestCase):
@@ -41,13 +35,14 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         eq_(span.get_tag('sql.query'), 'SELECT COUNT(*) AS "__count" FROM "auth_user"')
         assert start < span.start < span.start + span.duration < end
 
-    @override_settings(DATADOG_TRACE=NEW_SETTINGS)
     def test_should_append_database_prefix(self):
-        # trace a simple query
+        # trace a simple query and check if the prefix is correctly
+        # loaded from Django settings
+        settings.DEFAULT_DATABASE_PREFIX = 'my_prefix_db'
         User.objects.count()
 
-        # tests
-        spans = self.tracer.writer.pop()
-        span = spans[0]
-
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
         eq_(span.service, 'my_prefix_db-defaultdb')
