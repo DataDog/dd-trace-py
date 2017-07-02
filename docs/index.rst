@@ -152,6 +152,10 @@ aiobotocore
 
 .. automodule:: ddtrace.contrib.aiobotocore
 
+aiopg
+~~~~~
+
+.. automodule:: ddtrace.contrib.aiopg
 
 Tornado
 ~~~~~~~
@@ -368,6 +372,8 @@ We officially support Python 2.7, 3.4 and above.
 | aiohttp         | >= 1.2             |
 +-----------------+--------------------+
 | aiobotocore     | >= 0.2.3           |
++-----------------+--------------------+
+| aiopg           | >= 0.12.0          |
 +-----------------+--------------------+
 | boto            | >= 2.29.0          |
 +-----------------+--------------------+
