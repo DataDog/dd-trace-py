@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'asyncio': False,
     'boto': False,
     'botocore': False,
     'bottle': False,
