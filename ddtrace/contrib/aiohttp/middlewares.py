@@ -9,6 +9,9 @@ CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
+PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
+PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
+
 
 @asyncio.coroutine
 def trace_middleware(app, handler):
@@ -24,6 +27,7 @@ def trace_middleware(app, handler):
         # application configs
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
+        distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
 
         # trace the handler
         request_span = tracer.trace(
@@ -31,6 +35,17 @@ def trace_middleware(app, handler):
             service=service,
             span_type=http.TYPE,
         )
+
+        if distributed_tracing:
+            # set parent trace/span IDs if present:
+            # http://pypi.datadoghq.com/trace/docs/#distributed-tracing
+            parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
+            if parent_trace_id is not None:
+                request_span.trace_id = int(parent_trace_id)
+
+            parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
+            if parent_span_id is not None:
+                request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
@@ -81,7 +96,12 @@ def trace_app(app, tracer, service='aiohttp-web'):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
+
+    :param app: aiohttp application to trace
+    :param tracer: tracer instance to use
+    :param service: service name of tracer
     """
+
     # safe-guard: don't trace an application twice
     if getattr(app, '__datadog_trace', False):
         return
@@ -91,6 +111,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     app[CONFIG_KEY] = {
         'tracer': tracer,
         'service': service,
+        'distributed_tracing_enabled': False,
     }
 
     # the tracer must work with asynchronous Context propagation

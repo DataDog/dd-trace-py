@@ -206,3 +206,48 @@ class TestTraceMiddleware(TraceTestCase):
         eq_('nested', span.name)
         ok_(span.duration > 0.25,
             msg="span.duration={0}".format(span.duration))
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_distributed_tracing(self):
+        # activate distributed tracing
+        self.app['datadog_trace']['distributed_tracing_enabled'] = True
+        tracing_headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+        }
+
+        request = yield from self.client.request('GET', '/', headers=tracing_headers)
+        eq_(200, request.status)
+        text = yield from request.text()
+        eq_("What's tracing?", text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right trace_id and parent_id
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_distributed_tracing_disabled_default(self):
+        # pass headers for distributed tracing
+        tracing_headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+        }
+
+        request = yield from self.client.request('GET', '/', headers=tracing_headers)
+        eq_(200, request.status)
+        text = yield from request.text()
+        eq_("What's tracing?", text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # distributed tracing must be ignored by default
+        ok_(span.trace_id is not 100)
+        ok_(span.parent_id is not 42)
