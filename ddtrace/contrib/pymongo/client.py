@@ -45,7 +45,6 @@ class TracedMongoClient(ObjectProxy):
             client = _MongoClient(client, *args, **kwargs)
 
         super(TracedMongoClient, self).__init__(client)
-
         # NOTE[matt] the TracedMongoClient attempts to trace all of the network
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which

@@ -17,6 +17,7 @@ class Pin(object):
         set tracing metadata on a particular traced connection.
         This is useful if you wanted to, say, trace two different
         database clusters.
+
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
@@ -48,6 +49,7 @@ class Pin(object):
         """ Return the pin associated with the given object.
             >>> pin = Pin.get_from(conn)
         """
+
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
 
@@ -59,10 +61,12 @@ class Pin(object):
         """Override an object with the given attributes.
         That's the recommended way to customize an already instrumented client, without
         losing existing attributes.
+
         >>> conn = sqlite.connect("/tmp/user.db")
         >>> # Override a pin for a specific connection
         >>> pin = Pin.override(conn, service="user-db")
         """
+
         if not obj:
             return
 

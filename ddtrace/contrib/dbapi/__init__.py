@@ -61,7 +61,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that errors
         # messages will be the same.
-        self.__wrapped__.__enter__()
+        self.__wrapped__.__enter__
 
         # and finally, yield the traced cursor.
         return self
