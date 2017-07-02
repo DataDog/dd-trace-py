@@ -22,13 +22,14 @@ from django.test.signals import setting_changed
 
 # List of available settings with their defaults
 DEFAULTS = {
-    'TRACER': 'ddtrace.tracer',
-    'DEFAULT_SERVICE': 'django',
-    'ENABLED': True,
-    'AUTO_INSTRUMENT': True,
     'AGENT_HOSTNAME': 'localhost',
     'AGENT_PORT': 8126,
+    'AUTO_INSTRUMENT': True,
+    'DEFAULT_DATABASE_PREFIX': '',
+    'DEFAULT_SERVICE': 'django',
+    'ENABLED': True,
     'TAGS': {},
+    'TRACER': 'ddtrace.tracer',
 }
 
 # List of settings that may be in string import notation.
@@ -77,9 +78,9 @@ class DatadogSettings(object):
 
         self.defaults = defaults or DEFAULTS
         if os.environ.get('DATADOG_ENV'):
-            self.defaults["TAGS"].update({"env": os.environ.get('DATADOG_ENV')})
+            self.defaults['TAGS'].update({'env': os.environ.get('DATADOG_ENV')})
         if os.environ.get('DATADOG_SERVICE_NAME'):
-            self.defaults["DEFAULT_SERVICE"] = os.environ.get('DATADOG_SERVICE_NAME')
+            self.defaults['DEFAULT_SERVICE'] = os.environ.get('DATADOG_SERVICE_NAME')
 
         self.import_strings = import_strings or IMPORT_STRINGS
 

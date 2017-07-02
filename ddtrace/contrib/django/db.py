@@ -7,6 +7,8 @@ from django.db import connections
 from ...ext import sql as sqlx
 from ...ext import AppTypes
 
+from .conf import settings
+
 
 log = logging.getLogger(__name__)
 
@@ -14,6 +16,7 @@ log = logging.getLogger(__name__)
 def patch_db(tracer):
     for c in connections.all():
         patch_conn(tracer, c)
+
 
 def patch_conn(tracer, conn):
     attr = '_datadog_original_cursor'
@@ -40,8 +43,18 @@ class TracedCursor(object):
         self._alias = getattr(conn, 'alias', 'default')  # e.g. default, users
 
         prefix = sqlx.normalize_vendor(self._vendor)
-        self._name = "%s.%s" % (prefix, "query")                # e.g sqlite.query
-        self._service = "%s%s" % (self._alias or prefix, "db")  # e.g. defaultdb or postgresdb
+        self._name = "%s.%s" % (prefix, "query")  # e.g sqlite.query
+
+        database_prefix = (
+            '{}-'.format(settings.DEFAULT_DATABASE_PREFIX)
+            if settings.DEFAULT_DATABASE_PREFIX else ''
+        )
+
+        self._service = "%s%s%s" % (
+            database_prefix,
+            self._alias,
+            "db"
+        )  # e.g. service-defaultdb or service-postgresdb
 
         self.tracer.set_service_info(
             service=self._service,
@@ -50,10 +63,12 @@ class TracedCursor(object):
         )
 
     def _trace(self, func, sql, params):
-        span = self.tracer.trace(self._name,
+        span = self.tracer.trace(
+            self._name,
             resource=sql,
             service=self._service,
-            span_type=sqlx.TYPE)
+            span_type=sqlx.TYPE
+        )
 
         with span:
             span.set_tag(sqlx.QUERY, sql)
