@@ -17,6 +17,21 @@ Auto instrumentation is available using the ``trace_app`` function::
     trace_app(app, tracer, service='async-api')
     web.run_app(app, port=8000)
 
+Tracer settings are available under the `datadog_trace` namespace:
+
+* `tracer` (default: `ddtrace.tracer`): set the default tracer instance that is used to
+trace `aiohttp` internals. By default the `ddtrace` tracer is used.
+* `service` (default: `aiohttp-web`): set the service name used by the tracer. Usually
+this configuration must be updated with a meaningful name.
+* `distributed_tracing_enabled` (default: `False): enable distributed tracing during
+the middleware execution, so that a new span is created with the given `trace_id` and
+`parent_id` passed via request headers.
+
+To update your settings, just:
+
+    # activates distributed tracing for all received requests
+    app['datadog_trace']['distributed_tracing_enabled'] = True
+
 Third-party modules that are currently supported by the ``patch()`` method are:
 
 * ``aiohttp_jinja2``
