@@ -26,8 +26,8 @@ class TestRequestTracing(TraceTestCase):
         # enabled tracing:
         #   * middleware
         #   * templates
-        trace_app(self.app, self.tracer, enable_distributed=True)
-        patch(self.tracer, enable_distributed=True)
+        trace_app(self.app, self.tracer)
+        patch()
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
     def disable_tracing(self):

@@ -89,7 +89,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
-
         eq_(span.name, 'postgres.query')
         eq_(span.resource, q)
         eq_(span.service, service)
