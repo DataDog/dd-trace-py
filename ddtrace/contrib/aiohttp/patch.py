@@ -25,9 +25,6 @@ log = logging.getLogger(__name__)
 PY_35 = sys.version_info >= (3, 5)
 
 
-_SPAN_MIN_ERROR = 500
-
-
 # NOTE: this will create a trace for the outer request, and a span for each
 #       connect (redirect), and optionally a span for the read of the body
 
@@ -83,7 +80,6 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                 span.set_tags(tags)
 
             span.set_tag(ext_http.STATUS_CODE, self.status)
-            span.error = int(_SPAN_MIN_ERROR <= self.status)
             span.set_tag(ext_http.METHOD, resp.method)
 
         return resp
@@ -103,7 +99,6 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.set_tag('Length', len(result))
-            span.error = int(_SPAN_MIN_ERROR <= self.status)
 
         return result
 
@@ -129,7 +124,6 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
                 self._self_span.set_tags(tags)
 
             self._self_span.set_tag(ext_http.STATUS_CODE, resp.status)
-            self._self_span.error = int(_SPAN_MIN_ERROR <= resp.status)
             return resp
         except:
             self._self_span.set_traceback()
@@ -246,8 +240,8 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
     _w = wrapt.wrap_function_wrapper
     if not getattr(aiohttp, '__datadog_patch', False):
         setattr(aiohttp, '__datadog_patch', True)
-        pin = Pin(service='aiohttp.client', app='aiohttp', app_type=ext_http.TYPE,
-                  tracer=tracer)
+        pin = Pin(service='aiohttp.client', app='aiohttp',
+                  app_type=ext_http.TYPE, tracer=tracer)
         pin.onto(aiohttp.client.ClientSession)
 
         wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
