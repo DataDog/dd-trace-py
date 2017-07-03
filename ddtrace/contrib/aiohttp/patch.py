@@ -6,8 +6,7 @@ import wrapt
 
 from ddtrace.util import unwrap
 
-from .middlewares import _SPAN_MIN_ERROR, PARENT_TRACE_HEADER_ID, \
-    PARENT_SPAN_HEADER_ID
+from .middlewares import PARENT_TRACE_HEADER_ID, PARENT_SPAN_HEADER_ID
 from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
@@ -24,6 +23,9 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 PY_35 = sys.version_info >= (3, 5)
+
+
+_SPAN_MIN_ERROR = 500
 
 
 # NOTE: this will create a trace for the outer request, and a span for each
