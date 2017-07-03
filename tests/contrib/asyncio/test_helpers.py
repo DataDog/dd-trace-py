@@ -31,7 +31,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
             eq_('coroutine', ctx._trace[0].name)
             return ctx._trace[0].name
 
-        span = self.tracer.trace('coroutine')
+        self.tracer.trace('coroutine')
         # schedule future work and wait for a result
         delayed_task = helpers.ensure_future(future_work(), tracer=self.tracer)
         result = yield from asyncio.wait_for(delayed_task, timeout=1)
@@ -67,3 +67,21 @@ class TestAsyncioHelpers(AsyncioTestCase):
         span.finish()
         result = yield from future
         ok_(result)
+
+    @mark_asyncio
+    def test_create_task(self):
+        # the helper should create a new Task that has the Context attached
+        @asyncio.coroutine
+        def future_work():
+            # the ctx is available in this task
+            ctx = self.tracer.get_call_context()
+            eq_(0, len(ctx._trace))
+            child_span = self.tracer.trace('child_task')
+            return child_span
+
+        root_span = self.tracer.trace('main_task')
+        # schedule future work and wait for a result
+        task = helpers.create_task(future_work())
+        result = yield from task
+        eq_(root_span.trace_id, result.trace_id)
+        eq_(root_span.span_id, result.parent_id)
