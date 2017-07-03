@@ -1,5 +1,5 @@
 """
-The aiootocore integration will trace all AWS calls made with the `aiobotocore`
+The aiobotocore integration will trace all AWS calls made with the `aiobotocore`
 library.
 
 This integration ignores autopatching, it can be enabled via
