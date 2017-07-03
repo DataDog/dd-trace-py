@@ -79,8 +79,11 @@ def _wrap_executor(fn, args, tracer, ctx):
 
 
 def create_task(*args, **kwargs):
-    """ This method will enable spawned tasks to parent to the base task context """
-    return _wrapped_create_task(_orig_create_task, None, args, kwargs)
+    """This function spawns a task with a Context that inherits the
+    `trace_id` and the `parent_id` from the current active one if available.
+    """
+    loop = asyncio.get_event_loop()
+    return _wrapped_create_task(loop.create_task, None, args, kwargs)
 
 
 def _wrapped_create_task(wrapped, instance, args, kwargs):
