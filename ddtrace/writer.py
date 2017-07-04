@@ -22,11 +22,12 @@ LOG_ERR_INTERVAL = 60
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=8126):
+    def __init__(self, hostname='localhost', port=8126, processing_pipeline=None):
         self._pid = None
         self._traces = None
         self._services = None
         self._worker = None
+        self._processing_pipeline = processing_pipeline
         self.api = api.API(hostname, port)
 
     def write(self, spans=None, services=None):
@@ -52,17 +53,18 @@ class AgentWriter(object):
 
         # ensure we have an active thread working on this queue
         if not self._worker or not self._worker.is_alive():
-            self._worker = AsyncWorker(self.api, self._traces, self._services)
+            self._worker = AsyncWorker(self.api, self._traces, self._services, processing_pipeline=self._processing_pipeline)
 
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT):
+    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT, processing_pipeline=None):
         self._trace_queue = trace_queue
         self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
+        self._processing_pipeline = processing_pipeline
         self._last_error_ts = 0
         self.api = api
         self.start()
@@ -120,6 +122,13 @@ class AsyncWorker(object):
         while True:
             traces = self._trace_queue.pop()
             if traces:
+                # Before sending the traces, make them go through the
+                # processing pipeline
+                try:
+                    traces = self._apply_processing_pipeline(traces)
+                except Exception as err:
+                    log.error("error while processing traces:{0}".format(err))
+            if traces:
                 # If we have data, let's try to send it.
                 try:
                     result_traces = self.api.send_traces(traces)
@@ -154,6 +163,19 @@ class AsyncWorker(object):
             log_level("failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s", result_name,
                       getattr(result, "status", None), getattr(result, "reason", None),
                       getattr(result, "msg", None))
+
+    def _apply_processing_pipeline(self, traces):
+        if self._processing_pipeline is not None:
+            processed_traces = []
+            for trace in traces:
+                for processor in self._processing_pipeline:
+                    trace = processor.process_trace(trace)
+                    if trace is None:
+                        break
+                if trace is not None:
+                    processed_traces.append(trace)
+            return processed_traces
+        return traces
 
 
 class Q(object):

@@ -7,6 +7,7 @@ from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
+from .settings import PP_KEY
 from . import compat
 from os import getpid
 
@@ -70,7 +71,7 @@ class Tracer(object):
         return self._context_provider(*args, **kwargs)
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                context_provider=None, wrap_executor=None):
+                context_provider=None, wrap_executor=None, settings=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -90,8 +91,12 @@ class Tracer(object):
         if enabled is not None:
             self.enabled = enabled
 
-        if hostname is not None or port is not None:
-            self.writer = AgentWriter(hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT)
+        processing_pipeline = None
+        if settings is not None and PP_KEY in settings:
+                processing_pipeline = settings[PP_KEY]
+
+        if hostname is not None or port is not None or processing_pipeline is not None:
+            self.writer = AgentWriter(hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT, processing_pipeline=processing_pipeline)
 
         if sampler is not None:
             self.sampler = sampler
