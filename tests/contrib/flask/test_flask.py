@@ -3,6 +3,7 @@
 import time
 import logging
 import os
+import re
 
 # 3p
 from flask import Flask, render_template
@@ -260,8 +261,8 @@ class TestFlask(object):
         eq_(s.meta.get(http.STATUS_CODE), '500')
         eq_(s.meta.get(http.METHOD), 'GET')
         assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE)
-        msg = s.meta.get(errors.ERROR_MSG)
-        assert "by zero" in msg, msg
+        assert "by zero" in s.meta.get(errors.ERROR_MSG)
+        assert re.search('File ".*/contrib/flask/test_flask.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
 
     def test_unicode(self):
         start = time.time()
