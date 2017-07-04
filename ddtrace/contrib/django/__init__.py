@@ -12,8 +12,8 @@ installed apps and in your middleware classes in ``settings.py``::
         'ddtrace.contrib.django',
     ]
 
-    # It might be MIDDLEWARE instead of MIDDLEWARE_CLASSES for Django 1.10+
-    MIDDLEWARE_CLASSES = (
+    # or MIDDLEWARE_CLASSES for Django pre 1.10
+    MIDDLEWARE = (
         # the tracer must be the first middleware
         'ddtrace.contrib.django.TraceMiddleware',
 
@@ -39,8 +39,10 @@ If you need to access to the tracing settings, you should::
 
 The available settings are:
 
-* ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
+* ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the
   tracer. Usually this configuration must be updated with a meaningful name.
+* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
+  so that your service is listed such as `prefix-defaultdb`.
 * ``TAGS`` (default: ``{}``): set global tags that should be applied to all
   spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
@@ -58,7 +60,6 @@ The available settings are:
   disabled even if present.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
-* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services.
 """
 from ..util import require_modules
 
