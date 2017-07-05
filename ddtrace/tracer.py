@@ -96,7 +96,11 @@ class Tracer(object):
                 processing_pipeline = settings[PP_KEY]
 
         if hostname is not None or port is not None or processing_pipeline is not None:
-            self.writer = AgentWriter(hostname or self.DEFAULT_HOSTNAME, port or self.DEFAULT_PORT, processing_pipeline=processing_pipeline)
+            self.writer = AgentWriter(
+                        hostname or self.DEFAULT_HOSTNAME,
+                        port or self.DEFAULT_PORT,
+                        processing_pipeline=processing_pipeline
+                    )
 
         if sampler is not None:
             self.sampler = sampler

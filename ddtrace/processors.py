@@ -11,7 +11,8 @@ class FilterRequestsOnUrl():
     the provided regular expression using the standard python regexp match
     semantic (https://docs.python.org/2/library/re.html#re.match).
 
-    :param list regexps: the  list of regular expressions (as strings) defining the urls that should be filtered out. (a single string is also accepted)
+    :param list regexps: the  list of regular expressions (as strings) defining
+    the urls that should be filtered out. (a single string is also accepted)
 
     Examples:
 
@@ -42,7 +43,7 @@ class FilterRequestsOnUrl():
         trace is discarded.
         """
         for span in trace:
-            if span.parent_id == None and span.get_tag(http.URL) is not None:
+            if span.parent_id is None and span.get_tag(http.URL) is not None:
                 url = span.get_tag(http.URL)
                 for regexp in self._regexps:
                     if regexp.match(url):

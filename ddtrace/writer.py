@@ -53,7 +53,11 @@ class AgentWriter(object):
 
         # ensure we have an active thread working on this queue
         if not self._worker or not self._worker.is_alive():
-            self._worker = AsyncWorker(self.api, self._traces, self._services, processing_pipeline=self._processing_pipeline)
+            self._worker = AsyncWorker(
+                        self.api,
+                        self._traces,
+                        self._services, processing_pipeline=self._processing_pipeline
+                    )
 
 
 class AsyncWorker(object):
