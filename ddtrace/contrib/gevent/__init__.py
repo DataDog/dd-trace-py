@@ -6,7 +6,7 @@ This allows the tracer to pick up a transaction exactly where it left off as gre
 yield the context to another one.
 
 The simplest way to trace a ``gevent`` application is to configure the tracer and
-patch ``gevent`` before using it::
+patch ``gevent`` **before importing** the library::
 
     # patch before importing gevent
     from ddtrace import patch, tracer

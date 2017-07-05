@@ -1,9 +1,10 @@
 """
 The Django integration will trace requests, database calls and template
-renders.
+renderers.
 
-To install the Django tracing middleware, add it to the list of your
-installed apps and in your middleware classes in ``settings.py``::
+To enable the Django integration, add the application to your installed
+apps and our tracing middleware **as a first middleware** in your ``MIDDLEWARE``
+list, as follows::
 
     INSTALLED_APPS = [
         # your Django apps...
@@ -13,23 +14,22 @@ installed apps and in your middleware classes in ``settings.py``::
     ]
 
     # or MIDDLEWARE_CLASSES for Django pre 1.10
-    MIDDLEWARE = (
+    MIDDLEWARE = [
         # the tracer must be the first middleware
         'ddtrace.contrib.django.TraceMiddleware',
 
         # your middlewares...
-    )
+    ]
 
-The configuration of this integration is all namespaced inside a single
-Django setting, named ``DATADOG_TRACE``. For example, your ``settings.py``
-may contain::
+The configuration for this integration is namespaced under the ``DATADOG_TRACE``
+Django setting. For example, your ``settings.py`` may contain::
 
     DATADOG_TRACE = {
         'DEFAULT_SERVICE': 'my-django-app',
         'TAGS': {'env': 'production'},
     }
 
-If you need to access to the tracing settings, you should::
+If you need to access to integration settings, you should::
 
     from ddtrace.contrib.django.conf import settings
 

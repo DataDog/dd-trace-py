@@ -37,7 +37,7 @@ for changing your code::
     Usage: [ENV_VARS] ddtrace-run <my_program>
 
 
-The available environment settings are:
+The available environment variables are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
