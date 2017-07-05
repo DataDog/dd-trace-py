@@ -36,7 +36,8 @@ between scheduled coroutines and ``Future`` invoked in separated threads:
       are attached to the main trace
 
 A ``patch(asyncio=True)`` is available if you want to automatically use above
-wrappers without changing your code.
+wrappers without changing your code. In that case, the patch method **must be
+called before** importing stdlib functions.
 """
 from ..util import require_modules
 
