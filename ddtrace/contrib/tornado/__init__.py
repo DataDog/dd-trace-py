@@ -1,7 +1,9 @@
 """
 The Tornado integration traces all ``RequestHandler`` defined in a Tornado web application.
-Auto instrumentation is available using the ``patch`` function as follows::
+Auto instrumentation is available using the ``patch`` function that **must be called before**
+importing the tornado library. The following is an example::
 
+    # patch before importing tornado
     from ddtrace import tracer, patch
     patch(tornado=True)
 

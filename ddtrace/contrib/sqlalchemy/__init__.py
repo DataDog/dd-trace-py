@@ -1,6 +1,6 @@
 """
-To trace sqlalchemy queries, add instrumentation to the engine class or
-instance you are using::
+To trace sqlalchemy queries, add instrumentation to the engine class
+using the patch method that **must be called before** importing sqlalchemy::
 
     # patch before importing `create_engine`
     from ddtrace import Pin, patch

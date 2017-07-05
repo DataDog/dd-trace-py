@@ -1,9 +1,10 @@
 """
 The Django integration will trace requests, database calls and template
-renders.
+renderers.
 
-To install the Django tracing middleware, add it to the list of your
-installed apps and in your middleware classes in ``settings.py``::
+To enable the Django integration, add the application to your installed
+apps and our tracing middleware **as a first middleware** in your ``MIDDLEWARE``
+list, as follows::
 
     INSTALLED_APPS = [
         # your Django apps...
@@ -12,24 +13,23 @@ installed apps and in your middleware classes in ``settings.py``::
         'ddtrace.contrib.django',
     ]
 
-    # It might be MIDDLEWARE instead of MIDDLEWARE_CLASSES for Django 1.10+
-    MIDDLEWARE_CLASSES = (
+    # or MIDDLEWARE_CLASSES for Django pre 1.10
+    MIDDLEWARE = [
         # the tracer must be the first middleware
         'ddtrace.contrib.django.TraceMiddleware',
 
         # your middlewares...
-    )
+    ]
 
-The configuration of this integration is all namespaced inside a single
-Django setting, named ``DATADOG_TRACE``. For example, your ``settings.py``
-may contain::
+The configuration for this integration is namespaced under the ``DATADOG_TRACE``
+Django setting. For example, your ``settings.py`` may contain::
 
     DATADOG_TRACE = {
         'DEFAULT_SERVICE': 'my-django-app',
         'TAGS': {'env': 'production'},
     }
 
-If you need to access to the tracing settings, you should::
+If you need to access to integration settings, you should::
 
     from ddtrace.contrib.django.conf import settings
 
@@ -39,8 +39,10 @@ If you need to access to the tracing settings, you should::
 
 The available settings are:
 
-* ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
+* ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the
   tracer. Usually this configuration must be updated with a meaningful name.
+* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
+  so that your service is listed such as `prefix-defaultdb`.
 * ``TAGS`` (default: ``{}``): set global tags that should be applied to all
   spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
@@ -58,7 +60,6 @@ The available settings are:
   disabled even if present.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
-* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services.
 """
 from ..util import require_modules
 
