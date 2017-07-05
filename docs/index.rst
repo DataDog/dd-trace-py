@@ -83,7 +83,10 @@ Then let's patch widely used Python libraries::
     from ddtrace import patch_all
     patch_all()
 
-Start your web server and you should be off to the races.
+Start your web server and you should be off to the races. Here you can find
+which `framework is automatically instrumented`_ with the ``patch_all()`` method.
+
+.. _framework is automatically instrumented: #instrumented-libraries
 
 Custom
 ~~~~~~
@@ -422,6 +425,26 @@ We officially support Python 2.7, 3.4 and above.
 These are the fully tested versions but `ddtrace` can be compatible with lower versions.
 If some versions are missing, you can contribute or ask for it by contacting our support.
 For deprecated library versions, the support is best-effort.
+
+Instrumented libraries
+======================
+
+The following is the list of libraries that are automatically instrumented when the
+``patch_all()`` method is called. Always use ``patch()`` and ``patch_all()`` as
+soon as possible in your Python entrypoint.
+
+* sqlite3
+* mysql
+* psycopg
+* redis
+* cassandra
+* pymongo
+* mongoengine
+* elasticsearch
+* pylibmc
+* celery
+* aiopg
+* aiohttp (only third-party modules such as ``aiohttp_jinja2``)
 
 Indices and tables
 ==================
