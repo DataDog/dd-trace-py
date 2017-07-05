@@ -152,8 +152,10 @@ class Span(object):
         self.set_tags(kvs)
 
     def set_metric(self, key, value):
-        # FIXME[matt] we could push this check to serialization time as well.
+        # This method sets a numeric tag value for the given key. It acts
+        # like `set_meta()` and it simply add a tag without further processing.
 
+        # FIXME[matt] we could push this check to serialization time as well.
         # only permit types that are commonly serializable (don't use
         # isinstance so that we convert unserializable types like numpy
         # numbers)
