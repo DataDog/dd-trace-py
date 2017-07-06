@@ -56,11 +56,13 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     if PYTHON_VERSION >= (3, 5, 0):
         @asyncio.coroutine
         def __aenter__(self):
-            return self.__wrapped__.__aenter__()
+            yield from self.__wrapped__.__aenter__()
+            return self  # so we don't slice ourselves out
 
         @asyncio.coroutine
         def __aexit__(self, *args, **kwargs):
-            return self.__wrapped__.__aexit__(*args, **kwargs)
+            response = yield from self.__wrapped__.__aexit__(*args, **kwargs)
+            return response
 
 
 def truncate_arg_value(value, max_len=1024):
