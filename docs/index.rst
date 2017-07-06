@@ -312,23 +312,43 @@ Advanced Usage
 Trace Filtering
 ~~~~~~~~~~~~~~~
 
-It is possible to filter or modify traces before they are sent to the agent by configuring the tracer with a processing pipeline. For instance to filter out all traces of incoming requests to a specific url::
+It is possible to filter or modify traces before they are sent to the agent by
+configuring the tracer with a processing pipeline. For instance to filter out
+all traces of incoming requests to a specific url::
 
     processing_pipeline = [FilterRequestsOnUrl(r'http://test\.example\.com')]
     Tracer.configure(settings={'PROCESSING_PIPELINE': processing_pipeline})
 
-All the processors in the processing pipeline will be evaluated sequentially for each trace and the resulting trace will either be sent to the agent or discarded depending on the output of the pipeline.
+All the processors in the processing pipeline will be evaluated sequentially
+for each trace and the resulting trace will either be sent to the agent or
+discarded depending on the output of the pipeline.
 
 **Use the standard processors**
 
-The library comes with a FilterRequestsOnUrl processor that can be used to filter out incoming requests to specific urls:
+The library comes with a FilterRequestsOnUrl processor that can be used to
+filter out incoming requests to specific urls:
 
 .. autoclass:: ddtrace.processors.FilterRequestsOnUrl
     :members:
 
 **Write a custom processor**
 
-Creating your own processors is as simple as implementing a class with a process_trace method and adding it to the processing pipeline parameter of Tracer.configure. process_trace should either return a trace to be fed to the next step of the pipeline or None if the trace should be discarded. (see processors.py for example implementations)
+Creating your own processors is as simple as implementing a class with a
+process_trace method and adding it to the processing pipeline parameter of
+Tracer.configure. process_trace should either return a trace to be fed to the
+next step of the pipeline or None if the trace should be discarded::
+
+    class ProcessorExample(object):
+        def process_trace(self, trace):
+            # write here your logic to return the `trace` or None;
+            # `trace` instance is owned by the thread and you can alter
+            # each single span or the whole trace if needed
+
+    # And then instantiate it with
+    processing_pipeline = [ProcessorExample()]
+    Tracer.configure(settings={'PROCESSING_PIPELINE': processing_pipeline})
+
+(see processors.py for other example implementations)
 
 
 API

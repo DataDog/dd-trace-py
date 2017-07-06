@@ -7,7 +7,7 @@ from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
-from .settings import PP_KEY
+from .constants import PROCESSING_PIPELINE_KEY as PP_KEY
 from . import compat
 from os import getpid
 
@@ -92,15 +92,15 @@ class Tracer(object):
             self.enabled = enabled
 
         processing_pipeline = None
-        if settings is not None and PP_KEY in settings:
-                processing_pipeline = settings[PP_KEY]
+        if settings is not None:
+                processing_pipeline = settings.get([PP_KEY])
 
         if hostname is not None or port is not None or processing_pipeline is not None:
             self.writer = AgentWriter(
-                        hostname or self.DEFAULT_HOSTNAME,
-                        port or self.DEFAULT_PORT,
-                        processing_pipeline=processing_pipeline
-                    )
+                hostname or self.DEFAULT_HOSTNAME,
+                port or self.DEFAULT_PORT,
+                processing_pipeline=processing_pipeline
+            )
 
         if sampler is not None:
             self.sampler = sampler

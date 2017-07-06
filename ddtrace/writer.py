@@ -54,10 +54,11 @@ class AgentWriter(object):
         # ensure we have an active thread working on this queue
         if not self._worker or not self._worker.is_alive():
             self._worker = AsyncWorker(
-                        self.api,
-                        self._traces,
-                        self._services, processing_pipeline=self._processing_pipeline
-                    )
+                self.api,
+                self._traces,
+                self._services,
+                processing_pipeline=self._processing_pipeline,
+            )
 
 
 class AsyncWorker(object):
@@ -169,6 +170,11 @@ class AsyncWorker(object):
                       getattr(result, "msg", None))
 
     def _apply_processing_pipeline(self, traces):
+        """
+        Here we make each trace go through the processing pipeline configured
+        in the tracer. There is no need for a lock since the traces are owned
+        by the AsyncWorker at that point.
+        """
         if self._processing_pipeline is not None:
             processed_traces = []
             for trace in traces:
