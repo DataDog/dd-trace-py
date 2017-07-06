@@ -4,8 +4,8 @@ can be used to simplify some operations while handling
 Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
-from asyncio.base_events import BaseEventLoop
 import ddtrace
+from asyncio.base_events import BaseEventLoop
 
 from .provider import CONTEXT_ATTR
 from ...context import Context
@@ -87,15 +87,18 @@ def create_task(*args, **kwargs):
 
 
 def _wrapped_create_task(wrapped, instance, args, kwargs):
-    # Note: we can't just link the task contexts due to the following scenario:
-    # begin task A
-    # task A starts task B1..B10
-    # finish task B1-B9 (B10 still on trace stack)
-    # task A starts task C
-    #
-    # now task C gets parented to task B10 since it's still on the stack, however
-    # was not actually triggered by B10
+    """Wrapper for ``create_task(coro)`` that propagates the current active
+    ``Context`` to the new ``Task``. This function is useful to connect traces
+    of detached executions.
 
+    Note: we can't just link the task contexts due to the following scenario:
+        * begin task A
+        * task A starts task B1..B10
+        * finish task B1-B9 (B10 still on trace stack)
+        * task A starts task C
+        * now task C gets parented to task B10 since it's still on the stack,
+          however was not actually triggered by B10
+    """
     new_task = wrapped(*args, **kwargs)
     current_task = asyncio.Task.current_task()
 
