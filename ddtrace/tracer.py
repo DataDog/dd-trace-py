@@ -93,7 +93,7 @@ class Tracer(object):
 
         processing_pipeline = None
         if settings is not None:
-                processing_pipeline = settings.get([PP_KEY])
+                processing_pipeline = settings.get(PP_KEY)
 
         if hostname is not None or port is not None or processing_pipeline is not None:
             self.writer = AgentWriter(

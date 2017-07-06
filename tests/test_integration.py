@@ -11,7 +11,7 @@ from nose.tools import eq_, ok_
 from ddtrace.api import API
 from ddtrace.ext import http
 from ddtrace.processors import FilterRequestsOnUrl
-from ddtrace.settings import PP_KEY
+from ddtrace.constants import PROCESSING_PIPELINE_KEY as PP_KEY
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
