@@ -57,7 +57,15 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         pin.onto(self)
 
         # We'll always have a parent span from outer request
-        self._self_parent_span = pin.tracer.current_span()
+        ctx = pin.tracer.get_call_context()
+        parent_span = ctx.get_current_span()
+        if parent_span:
+            self._self_parent_trace_id = parent_span.trace_id
+            self._self_parent_span_id = parent_span.span_id
+        else:
+            self._self_parent_trace_id, self._self_parent_span_id = \
+                ctx._get_parent_span_ids()
+
         self._self_trace_headers = trace_headers
 
     @asyncio.coroutine
@@ -92,8 +100,11 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               service=pin.service,
                               span_type=ext_http.TYPE) as span:
 
-            span.trace_id = self._self_parent_span.trace_id
-            span.parent_id = self._self_parent_span.span_id
+            if self._self_parent_trace_id:
+                span.trace_id = self._self_parent_trace_id
+
+            if self._self_parent_span_id:
+                span.parent_id = self._self_parent_span_id
 
             _set_request_tags(span, _get_url_obj(self))
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
