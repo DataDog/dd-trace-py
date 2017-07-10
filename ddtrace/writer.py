@@ -147,7 +147,7 @@ class AsyncWorker(object):
                 except Exception as err:
                     log.error("cannot send services: {0}".format(err))
 
-            elif self._trace_queue.closed():
+            if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
                 return
 
