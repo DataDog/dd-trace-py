@@ -316,8 +316,11 @@ It is possible to filter or modify traces before they are sent to the agent by
 configuring the tracer with a processing pipeline. For instance to filter out
 all traces of incoming requests to a specific url::
 
-    processing_pipeline = [FilterRequestsOnUrl(r'http://test\.example\.com')]
-    Tracer.configure(settings={'PROCESSING_PIPELINE': processing_pipeline})
+    Tracer.configure(settings={
+        'PROCESSING_PIPELINE': [
+            FilterRequestsOnUrl(r'http://test\.example\.com'),
+        ],
+    })
 
 All the processors in the processing pipeline will be evaluated sequentially
 for each trace and the resulting trace will either be sent to the agent or
