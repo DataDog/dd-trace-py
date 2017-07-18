@@ -49,17 +49,20 @@ class TracerConfig(AppConfig):
         if settings.AUTO_INSTRUMENT:
             # trace Django internals
             insert_exception_middleware()
-            try:
-                patch_db(tracer)
-            except Exception:
-                log.exception('error patching Django database connections')
 
             try:
                 patch_template(tracer)
             except Exception:
                 log.exception('error patching Django template rendering')
 
-            try:
-                patch_cache(tracer)
-            except Exception:
-                log.exception('error patching Django cache')
+            if settings.DATABASE_AUTO_INSTRUMENT:
+                try:
+                    patch_db(tracer)
+                except Exception:
+                    log.exception('error patching Django database connections')
+
+            if settings.CACHE_AUTO_INSTRUMENT:
+                try:
+                    patch_cache(tracer)
+                except Exception:
+                    log.exception('error patching Django cache')

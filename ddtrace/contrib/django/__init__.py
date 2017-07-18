@@ -58,6 +58,10 @@ The available settings are:
   be useful if you want to use the Django integration, but you want to trace only
   particular functions or views. If set to False, the request middleware will be
   disabled even if present.
+* ``DATABASE_AUTO_INSTRUMENT`` (default: ``True``): if set to false database will not
+ be instrumented. Only is configurable when ``AUTO_INSTRUMENT`` is set to true.
+* ``CACHE_AUTO_INSTRUMENT`` (default: ``True``): if set to false cache will not
+ be instrumented. Only is configurable when ``AUTO_INSTRUMENT`` is set to true.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 """

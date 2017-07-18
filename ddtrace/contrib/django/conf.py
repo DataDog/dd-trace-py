@@ -25,6 +25,8 @@ DEFAULTS = {
     'AGENT_HOSTNAME': 'localhost',
     'AGENT_PORT': 8126,
     'AUTO_INSTRUMENT': True,
+    'DATABASE_AUTO_INSTRUMENT': True,
+    'CACHE_AUTO_INSTRUMENT': True,
     'DEFAULT_DATABASE_PREFIX': '',
     'DEFAULT_SERVICE': 'django',
     'ENABLED': True,
