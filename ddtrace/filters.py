@@ -37,10 +37,10 @@ class FilterRequestsOnUrl(object):
 
     def process_trace(self, trace):
         """
-        process_trace is called by the processing pipeline on each trace
-        before it is sent to the agent, the returned value will be fed to the
-        next step of the pipeline. If process_trace returns None, the whole
-        trace is discarded.
+        When the filter is registered in the tracer, process_trace is called by
+        on each trace before it is sent to the agent, the returned value will
+        be fed to the next filter in the list. If process_trace returns None,
+        the whole trace is discarded.
         """
         for span in trace:
             if span.parent_id is None and span.get_tag(http.URL) is not None:

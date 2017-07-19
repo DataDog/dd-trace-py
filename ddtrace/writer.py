@@ -22,12 +22,12 @@ LOG_ERR_INTERVAL = 60
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=8126, processing_pipeline=None):
+    def __init__(self, hostname='localhost', port=8126, filters=None):
         self._pid = None
         self._traces = None
         self._services = None
         self._worker = None
-        self._processing_pipeline = processing_pipeline
+        self._filters = filters
         self.api = api.API(hostname, port)
 
     def write(self, spans=None, services=None):
@@ -57,19 +57,19 @@ class AgentWriter(object):
                 self.api,
                 self._traces,
                 self._services,
-                processing_pipeline=self._processing_pipeline,
+                filters=self._filters,
             )
 
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT, processing_pipeline=None):
+    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT, filters=None):
         self._trace_queue = trace_queue
         self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
-        self._processing_pipeline = processing_pipeline
+        self._filters = filters
         self._last_error_ts = 0
         self.api = api
         self.start()
@@ -128,11 +128,11 @@ class AsyncWorker(object):
             traces = self._trace_queue.pop()
             if traces:
                 # Before sending the traces, make them go through the
-                # processing pipeline
+                # filters
                 try:
-                    traces = self._apply_processing_pipeline(traces)
+                    traces = self._apply_filters(traces)
                 except Exception as err:
-                    log.error("error while processing traces:{0}".format(err))
+                    log.error("error while filtering traces:{0}".format(err))
             if traces:
                 # If we have data, let's try to send it.
                 try:
@@ -169,22 +169,22 @@ class AsyncWorker(object):
                       getattr(result, "status", None), getattr(result, "reason", None),
                       getattr(result, "msg", None))
 
-    def _apply_processing_pipeline(self, traces):
+    def _apply_filters(self, traces):
         """
-        Here we make each trace go through the processing pipeline configured
-        in the tracer. There is no need for a lock since the traces are owned
-        by the AsyncWorker at that point.
+        Here we make each trace go through the filters configured in the
+        tracer. There is no need for a lock since the traces are owned by the
+        AsyncWorker at that point.
         """
-        if self._processing_pipeline is not None:
-            processed_traces = []
+        if self._filters is not None:
+            filtered_traces = []
             for trace in traces:
-                for processor in self._processing_pipeline:
-                    trace = processor.process_trace(trace)
+                for filtr in self._filters:
+                    trace = filtr.process_trace(trace)
                     if trace is None:
                         break
                 if trace is not None:
-                    processed_traces.append(trace)
-            return processed_traces
+                    filtered_traces.append(trace)
+            return filtered_traces
         return traces
 
 

@@ -10,8 +10,8 @@ from nose.tools import eq_, ok_
 
 from ddtrace.api import API
 from ddtrace.ext import http
-from ddtrace.processors import FilterRequestsOnUrl
-from ddtrace.constants import PROCESSING_PIPELINE_KEY as PP_KEY
+from ddtrace.filters import FilterRequestsOnUrl
+from ddtrace.constants import FILTERS_KEY
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
@@ -204,7 +204,7 @@ class TestWorkers(TestCase):
             in logged_errors[0])
 
     def test_worker_filter_request(self):
-        self.tracer.configure(settings={PP_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
+        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
         # spy the send() method
         self.api = self.tracer.writer.api
         self.api._put = mock.Mock(self.api._put, wraps=self.api._put)

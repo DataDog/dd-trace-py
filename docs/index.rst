@@ -313,45 +313,45 @@ Trace Filtering
 ~~~~~~~~~~~~~~~
 
 It is possible to filter or modify traces before they are sent to the agent by
-configuring the tracer with a processing pipeline. For instance to filter out
+configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
     Tracer.configure(settings={
-        'PROCESSING_PIPELINE': [
+        'FILTERS': [
             FilterRequestsOnUrl(r'http://test\.example\.com'),
         ],
     })
 
-All the processors in the processing pipeline will be evaluated sequentially
+All the filters in the filters list will be evaluated sequentially
 for each trace and the resulting trace will either be sent to the agent or
-discarded depending on the output of the pipeline.
+discarded depending on the output.
 
-**Use the standard processors**
+**Use the standard filters**
 
-The library comes with a FilterRequestsOnUrl processor that can be used to
+The library comes with a FilterRequestsOnUrl filter that can be used to
 filter out incoming requests to specific urls:
 
-.. autoclass:: ddtrace.processors.FilterRequestsOnUrl
+.. autoclass:: ddtrace.filters.FilterRequestsOnUrl
     :members:
 
-**Write a custom processor**
+**Write a custom filter**
 
-Creating your own processors is as simple as implementing a class with a
-process_trace method and adding it to the processing pipeline parameter of
+Creating your own filters is as simple as implementing a class with a
+process_trace method and adding it to the filters parameter of
 Tracer.configure. process_trace should either return a trace to be fed to the
 next step of the pipeline or None if the trace should be discarded::
 
-    class ProcessorExample(object):
+    class FilterExample(object):
         def process_trace(self, trace):
             # write here your logic to return the `trace` or None;
             # `trace` instance is owned by the thread and you can alter
             # each single span or the whole trace if needed
 
     # And then instantiate it with
-    processing_pipeline = [ProcessorExample()]
-    Tracer.configure(settings={'PROCESSING_PIPELINE': processing_pipeline})
+    filters = [FilterExample()]
+    Tracer.configure(settings={'FILTERS': filters})
 
-(see processors.py for other example implementations)
+(see filters.py for other example implementations)
 
 
 API
