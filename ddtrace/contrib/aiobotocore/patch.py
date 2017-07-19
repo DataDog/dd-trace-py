@@ -33,19 +33,19 @@ def unpatch():
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     def __init__(self, body, pin, parent_span):
         super(WrappedClientResponseContentProxy, self).__init__(body)
-        self.__pin = pin
-        self.__parent_span = parent_span
+        self._self_pin = pin
+        self._self_parent_span = parent_span
 
     @asyncio.coroutine
     def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
-        operation_name = '{}.read'.format(self.__parent_span.name)
+        operation_name = '{}.read'.format(self._self_parent_span.name)
 
-        with self.__pin.tracer.start_span(operation_name, child_of=self.__parent_span) as span:
+        with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
             # inherit parent attributes
-            span.resource = self.__parent_span.resource
-            span.span_type = self.__parent_span.span_type
-            span.meta = dict(self.__parent_span.meta)
+            span.resource = self._self_parent_span.resource
+            span.span_type = self._self_parent_span.span_type
+            span.meta = dict(self._self_parent_span.meta)
 
             result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
             span.set_tag('Length', len(result))
@@ -56,11 +56,14 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     if PYTHON_VERSION >= (3, 5, 0):
         @asyncio.coroutine
         def __aenter__(self):
-            return self.__wrapped__.__aenter__()
+            # call the wrapped method but return the object proxy
+            yield from self.__wrapped__.__aenter__()
+            return self
 
         @asyncio.coroutine
         def __aexit__(self, *args, **kwargs):
-            return self.__wrapped__.__aexit__(*args, **kwargs)
+            response = yield from self.__wrapped__.__aexit__(*args, **kwargs)
+            return response
 
 
 def truncate_arg_value(value, max_len=1024):
