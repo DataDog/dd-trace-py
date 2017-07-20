@@ -9,6 +9,7 @@ from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MYSQL_CONFIG
+from ...util import assert_dict_issuperset
 
 
 class PyMySQLCore(object):
@@ -59,7 +60,7 @@ class PyMySQLCore(object):
         eq_(span.error, 0)
         meta = {'sql.query': u'SELECT 1'}
         meta.update(self.DB_INFO)
-        eq_(span.meta, meta)
+        assert_dict_issuperset(span.meta, meta)
         # eq_(span.get_metric('sql.rows'), -1)
 
     def test_query_with_several_rows(self):
@@ -150,7 +151,7 @@ class PyMySQLCore(object):
         eq_(span.error, 0)
         meta = {'sql.query': u'sp_sum'}
         meta.update(self.DB_INFO)
-        eq_(span.meta, meta)
+        assert_dict_issuperset(span.meta, meta)
         # eq_(span.get_metric('sql.rows'), 1)
 
 
@@ -212,7 +213,7 @@ class TestPyMysqlPatch(PyMySQLCore):
 
             meta = {'sql.query': u'SELECT 1'}
             meta.update(self.DB_INFO)
-            eq_(span.meta, meta)
+            assert_dict_issuperset(span.meta, meta)
 
         finally:
             unpatch()
