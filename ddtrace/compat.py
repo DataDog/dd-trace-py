@@ -1,6 +1,6 @@
 import sys
 
-
+PYTHON_VERSION = sys.version_info
 PY2 = sys.version_info[0] == 2
 
 stringify = str

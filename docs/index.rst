@@ -37,7 +37,7 @@ for changing your code::
     Usage: [ENV_VARS] ddtrace-run <my_program>
 
 
-The available environment settings are:
+The available environment variables are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
@@ -83,7 +83,10 @@ Then let's patch widely used Python libraries::
     from ddtrace import patch_all
     patch_all()
 
-Start your web server and you should be off to the races.
+Start your web server and you should be off to the races. Here you can find
+which `framework is automatically instrumented`_ with the ``patch_all()`` method.
+
+.. _framework is automatically instrumented: #instrumented-libraries
 
 Custom
 ~~~~~~
@@ -152,6 +155,10 @@ aiobotocore
 
 .. automodule:: ddtrace.contrib.aiobotocore
 
+aiopg
+~~~~~
+
+.. automodule:: ddtrace.contrib.aiopg
 
 Tornado
 ~~~~~~~
@@ -283,15 +290,17 @@ Users can pass along the parent_trace_id and parent_span_id via whatever method 
     def parent_rpc_call():
         with tracer.trace("parent_span") as span:
             import requests
-            headers = {'x-ddtrace-parent_trace_id':span.trace_id,
-                       'x-ddtrace-parent_span_id':span.span_id}
+            headers = {
+                'x-datadog-trace-id':span.trace_id,
+                'x-datadog-parent-id':span.span_id,
+            }
             url = "<some RPC endpoint>"
             r = requests.get(url, headers=headers)
 
 
     from flask import request
-    parent_trace_id = request.headers.get(‘x-ddtrace-parent_trace_id‘)
-    parent_span_id = request.headers.get(‘x-ddtrace-parent_span_id‘)
+    parent_trace_id = request.headers.get('x-datadog-trace-id')
+    parent_span_id = request.headers.get('x-datadog-parent-id')
     child_rpc_call(parent_trace_id, parent_span_id)
 
 
@@ -369,6 +378,8 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | aiobotocore     | >= 0.2.3           |
 +-----------------+--------------------+
+| aiopg           | >= 0.12.0          |
++-----------------+--------------------+
 | boto            | >= 2.29.0          |
 +-----------------+--------------------+
 | botocore        | >= 1.4.51          |
@@ -414,6 +425,26 @@ We officially support Python 2.7, 3.4 and above.
 These are the fully tested versions but `ddtrace` can be compatible with lower versions.
 If some versions are missing, you can contribute or ask for it by contacting our support.
 For deprecated library versions, the support is best-effort.
+
+Instrumented libraries
+======================
+
+The following is the list of libraries that are automatically instrumented when the
+``patch_all()`` method is called. Always use ``patch()`` and ``patch_all()`` as
+soon as possible in your Python entrypoint.
+
+* sqlite3
+* mysql
+* psycopg
+* redis
+* cassandra
+* pymongo
+* mongoengine
+* elasticsearch
+* pylibmc
+* celery
+* aiopg
+* aiohttp (only third-party modules such as ``aiohttp_jinja2``)
 
 Indices and tables
 ==================

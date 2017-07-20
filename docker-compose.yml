@@ -36,6 +36,18 @@ memcached:
     image: memcached:1.4
     ports:
         - "127.0.0.1:${TEST_MEMCACHED_PORT}:11211"
+moto:
+    # container that executes mocked AWS services; this is a custom
+    # build that runs all of them in a single container. It is built
+    # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
+    image: palazzem/moto:1.0.1
+    ports:
+        - "127.0.0.1:${TEST_MOTO_S3}:5000"
+        - "127.0.0.1:${TEST_MOTO_EC2}:5001"
+        - "127.0.0.1:${TEST_MOTO_KMS}:5002"
+        - "127.0.0.1:${TEST_MOTO_SQS}:5003"
+        - "127.0.0.1:${TEST_MOTO_LAMBDA}:5004"
+        - "127.0.0.1:${TEST_MOTO_KINESIS}:5005"
 ddagent:
     image: datadog/docker-dd-agent
     environment:

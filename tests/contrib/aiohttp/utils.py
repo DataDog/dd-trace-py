@@ -22,10 +22,13 @@ class TraceTestCase(AioHTTPTestCase):
         super(TraceTestCase, self).tearDown()
         self.disable_tracing()
 
-    def get_app(self, loop):
+    def get_app(self, loop=None):
         """
         Override the get_app method to return the test application
         """
+        # aiohttp 2.0+ stores the loop instance in self.loop; for
+        # backward compatibility, we should expect a `loop` argument
+        loop = loop or self.loop
         # create the app with the testing loop
         self.app = setup_app(loop)
         asyncio.set_event_loop(loop)
