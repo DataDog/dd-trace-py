@@ -7,6 +7,7 @@ from ddtrace import Pin
 from ddtrace.contrib.mysql.patch import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MYSQL_CONFIG
+from ...util import assert_dict_issuperset
 
 
 class MySQLCore(object):
@@ -39,7 +40,7 @@ class MySQLCore(object):
         eq_(span.name, 'mysql.query')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
-        eq_(span.meta, {
+        assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'53306',
             'db.name': u'test',
@@ -126,7 +127,7 @@ class MySQLCore(object):
         eq_(span.name, 'mysql.query')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
-        eq_(span.meta, {
+        assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'53306',
             'db.name': u'test',
@@ -191,7 +192,7 @@ class TestMysqlPatch(MySQLCore):
             eq_(span.name, 'mysql.query')
             eq_(span.span_type, 'sql')
             eq_(span.error, 0)
-            eq_(span.meta, {
+            assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
                 'out.port': u'53306',
                 'db.name': u'test',

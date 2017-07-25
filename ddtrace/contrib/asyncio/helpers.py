@@ -5,9 +5,13 @@ Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
 import ddtrace
+from asyncio.base_events import BaseEventLoop
 
 from .provider import CONTEXT_ATTR
 from ...context import Context
+
+
+_orig_create_task = BaseEventLoop.create_task
 
 
 def set_call_context(task, ctx):
@@ -72,3 +76,44 @@ def _wrap_executor(fn, args, tracer, ctx):
     # fn() will be executed outside the asyncio loop as a synchronous code
     tracer._context_provider._local.set(ctx)
     return fn(*args)
+
+
+def create_task(*args, **kwargs):
+    """This function spawns a task with a Context that inherits the
+    `trace_id` and the `parent_id` from the current active one if available.
+    """
+    loop = asyncio.get_event_loop()
+    return _wrapped_create_task(loop.create_task, None, args, kwargs)
+
+
+def _wrapped_create_task(wrapped, instance, args, kwargs):
+    """Wrapper for ``create_task(coro)`` that propagates the current active
+    ``Context`` to the new ``Task``. This function is useful to connect traces
+    of detached executions.
+
+    Note: we can't just link the task contexts due to the following scenario:
+        * begin task A
+        * task A starts task B1..B10
+        * finish task B1-B9 (B10 still on trace stack)
+        * task A starts task C
+        * now task C gets parented to task B10 since it's still on the stack,
+          however was not actually triggered by B10
+    """
+    new_task = wrapped(*args, **kwargs)
+    current_task = asyncio.Task.current_task()
+
+    ctx = getattr(current_task, CONTEXT_ATTR, None)
+    span = ctx.get_current_span() if ctx else None
+    if span:
+        parent_trace_id, parent_span_id = span.trace_id, span.span_id
+    elif ctx:
+        parent_trace_id, parent_span_id = ctx._get_parent_span_ids()
+    else:
+        parent_trace_id = parent_span_id = None
+
+    if parent_trace_id and parent_span_id:
+        # current task has a context, so parent a new context to the base context
+        new_ctx = Context(trace_id=parent_trace_id, span_id=parent_span_id)
+        set_call_context(new_task, new_ctx)
+
+    return new_task

@@ -32,6 +32,12 @@ docker <https://www.docker.com/products/docker>`__ and
 `docker-compose <https://www.docker.com/products/docker-compose>`__
 using the instructions provided by your platform.
 
+The test suite requires also ``tox`` to be ran. You can install it with:
+
+::
+
+    $ pip install tox
+
 You can launch the test matrix using the following rake command:
 
 ::

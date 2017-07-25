@@ -116,10 +116,17 @@ class TraceMiddleware(object):
                 # if we didn't get a response, but we did get an exception, set
                 # codes accordingly.
                 if not response and exception:
-                    error = 1
                     code = 500
+                    # The 3 next lines might not be strictly required, since `set_traceback`
+                    # also get the exception from the sys.exc_info (and fill the error meta).
+                    # Since we aren't sure it always work/for insuring no BC break, keep
+                    # these lines which get overridden anyway.
+                    error = 1
                     span.set_tag(errors.ERROR_TYPE, type(exception))
                     span.set_tag(errors.ERROR_MSG, exception)
+                    # The provided `exception` object doesn't have a stack trace attached,
+                    # so attach the stack trace with `set_traceback`.
+                    span.set_traceback()
 
                 # the endpoint that matched the request is None if an exception
                 # happened so we fallback to a common resource

@@ -60,7 +60,7 @@ class API(object):
             self._downgrade()
             return self.send_traces(traces)
 
-        log.debug("reported %d spans in %.5fs", len(traces), time.time() - start)
+        log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
         return response
 
     def send_services(self, services):

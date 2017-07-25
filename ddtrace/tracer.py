@@ -1,12 +1,14 @@
 import functools
 import logging
 
+from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler
 from .writer import AgentWriter
 from .span import Span
 from . import compat
+from os import getpid
 
 
 log = logging.getLogger(__name__)
@@ -157,6 +159,17 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
             )
+
+            span.set_tag(system.PID, getpid())
+
+            #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
+            parent_trace_id, parent_span_id = context._get_parent_span_ids()
+            if parent_trace_id:
+                span.trace_id = parent_trace_id
+
+            if parent_span_id:
+                span.parent_id = parent_span_id
+
             self.sampler.sample(span)
 
         # add common tags

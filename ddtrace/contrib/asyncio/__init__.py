@@ -31,6 +31,13 @@ between scheduled coroutines and ``Future`` invoked in separated threads:
       ``loop.run_in_executor`` that attaches the current context to the
       new thread so that the trace can be resumed regardless when
       it's executed
+    * ``create_task(coro)``: creates a new asyncio ``Task`` that inherits
+      the current active ``Context`` so that generated traces in the new task
+      are attached to the main trace
+
+A ``patch(asyncio=True)`` is available if you want to automatically use above
+wrappers without changing your code. In that case, the patch method **must be
+called before** importing stdlib functions.
 """
 from ..util import require_modules
 
@@ -40,13 +47,16 @@ required_modules = ['asyncio']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .provider import AsyncioContextProvider
-        from .helpers import set_call_context, ensure_future, run_in_executor
 
         context_provider = AsyncioContextProvider()
+
+        from .helpers import set_call_context, ensure_future, run_in_executor
+        from .patch import patch
 
         __all__ = [
             'context_provider',
             'set_call_context',
             'ensure_future',
             'run_in_executor',
+            'patch'
         ]
