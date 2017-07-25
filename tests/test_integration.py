@@ -9,6 +9,9 @@ from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
 from ddtrace.api import API
+from ddtrace.ext import http
+from ddtrace.filters import FilterRequestsOnUrl
+from ddtrace.constants import FILTERS_KEY
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
@@ -200,6 +203,27 @@ class TestWorkers(TestCase):
         ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
+    def test_worker_filter_request(self):
+        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
+        # spy the send() method
+        self.api = self.tracer.writer.api
+        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
+
+        span = self.tracer.trace('testing.filteredurl')
+        span.set_tag(http.URL, 'http://example.com/health')
+        span.finish()
+        span = self.tracer.trace('testing.nonfilteredurl')
+        span.set_tag(http.URL, 'http://example.com/api/resource')
+        span.finish()
+        self._wait_thread_flush()
+
+        # Only the second trace should have been sent
+        eq_(self.api._put.call_count, 1)
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
+        eq_(endpoint, '/v0.3/traces')
+        eq_(len(payload), 1)
+        eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
