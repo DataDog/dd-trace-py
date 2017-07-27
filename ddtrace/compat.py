@@ -1,7 +1,12 @@
 import sys
+import platform
 
-PYTHON_VERSION = sys.version_info
+PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
+
+# Infos about python passed to the trace agent through the header
+PYTHON_VERSION = platform.python_version()
+PYTHON_INTERPRETER = platform.python_implementation()
 
 stringify = str
 

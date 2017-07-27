@@ -8,7 +8,7 @@ from ddtrace.util import deep_getattr, unwrap
 from aiobotocore.endpoint import ClientResponseContentProxy
 
 from ...ext import http, aws
-from ...compat import PYTHON_VERSION
+from ...compat import PYTHON_VERSION_INFO
 
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
@@ -53,7 +53,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         return result
 
     # wrapt doesn't proxy `async with` context managers
-    if PYTHON_VERSION >= (3, 5, 0):
+    if PYTHON_VERSION_INFO >= (3, 5, 0):
         @asyncio.coroutine
         def __aenter__(self):
             # call the wrapped method but return the object proxy

@@ -4,6 +4,7 @@ import time
 import msgpack
 import logging
 import mock
+import ddtrace
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
@@ -15,9 +16,8 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
-from ddtrace.compat import httplib
+from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from tests.test_tracer import get_dummy_tracer
-
 
 
 class MockedLogHandler(logging.Handler):
@@ -257,10 +257,19 @@ class TestAPITransport(TestCase):
         eq_(request_call.call_count, 1)
 
         # retrieve the headers from the mocked request call
+        expected_headers = {
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+                'X-Datadog-Trace-Count': '1',
+                'Content-Type': 'application/msgpack'
+        }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
-        ok_('X-Datadog-Trace-Count' in headers.keys())
-        eq_(headers['X-Datadog-Trace-Count'], '1')
+        eq_(len(expected_headers), len(headers))
+        for k, v in expected_headers.items():
+            eq_(v, headers[k])
 
     @mock.patch('ddtrace.api.httplib.HTTPConnection')
     def test_send_presampler_headers_not_in_services(self, mocked_http):
@@ -276,6 +285,20 @@ class TestAPITransport(TestCase):
         response = self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
+
+        # retrieve the headers from the mocked request call
+        expected_headers = {
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+                'Content-Type': 'application/msgpack'
+        }
+        params, _ = request_call.call_args_list[0]
+        headers = params[3]
+        eq_(len(expected_headers), len(headers))
+        for k, v in expected_headers.items():
+            eq_(v, headers[k])
 
         # retrieve the headers from the mocked request call
         params, _ = request_call.call_args_list[0]
