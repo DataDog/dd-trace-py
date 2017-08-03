@@ -50,6 +50,7 @@ class Span(object):
         parent_id=None,
         start=None,
         context=None,
+        sampled=None,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -89,7 +90,10 @@ class Span(object):
         self.parent_id = parent_id
 
         # sampling
-        self.sampled = True
+        if sampled is None:
+            self.sampled = _get_service_sampling(self.service)
+            else:
+            self.sampled = sampled
 
         self._tracer = tracer
         self._context = context
