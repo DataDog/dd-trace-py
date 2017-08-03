@@ -1,15 +1,15 @@
 import functools
 import logging
+from os import getpid
 
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler
+from .sampler import AllSampler, RateSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
 from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY
 from . import compat
-from os import getpid
 
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,9 @@ class Tracer(object):
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
         """
+        self.sampler = None
+        self.priority_sampler = None
+
         # Apply the default configuration
         self.configure(
             enabled=True,
@@ -76,7 +79,8 @@ class Tracer(object):
         return self._context_provider
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                context_provider=None, wrap_executor=None, settings=None):
+                  context_provider=None, wrap_executor=None, priority_sampling=None,
+                  settings=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -85,13 +89,15 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
-        :param object sampler: A custom Sampler instance
+        :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
+        :param priority_sampling: enable priority sampling, this is required for
+            complete distributed tracing support.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -100,15 +106,20 @@ class Tracer(object):
         if settings is not None:
                 filters = settings.get(FILTERS_KEY)
 
-        if hostname is not None or port is not None or filters is not None:
+        if sampler is not None:
+            self.sampler = sampler
+
+        if priority_sampling:
+            self.priority_sampler = RateByServiceSampler()
+
+        if hostname is not None or port is not None or filters is not None or \
+                priority_sampling is not None:
             self.writer = AgentWriter(
                 hostname or self.DEFAULT_HOSTNAME,
                 port or self.DEFAULT_PORT,
-                filters=filters
+                filters=filters,
+                priority_sampler=self.priority_sampler,
             )
-
-        if sampler is not None:
-            self.sampler = sampler
 
         if context_provider is not None:
             self._context_provider = context_provider
@@ -142,8 +153,8 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span("web.worker", child_of=context)
         """
-        # retrieve if the span is a child_of a Span or a Context
         if child_of is not None:
+            # retrieve if the span is a child_of a Span or a of Context
             child_of_context = isinstance(child_of, Context)
             context = child_of if child_of_context else child_of.context
             parent = child_of.get_current_span() if child_of_context else child_of
@@ -152,20 +163,37 @@ class Tracer(object):
             parent = None
 
         if parent:
-            # this is a child span
+            trace_id = parent.trace_id
+            parent_span_id = parent.span_id
+            sampling_priority = parent.get_sampling_priority()
+        else:
+            trace_id, parent_span_id, sampling_priority = context.get_context_attributes()
+
+        if trace_id:
+            # child_of a non-empty context, so either a local child span or from a remote context
+
+            # when not provided, inherit from parent's service
+            if parent:
+                service = service or parent.service
+
             span = Span(
                 self,
                 name,
-                service=(service or parent.service),
+                trace_id=trace_id,
+                parent_id=parent_span_id,
+                service=service,
                 resource=resource,
                 span_type=span_type,
-                trace_id=parent.trace_id,
-                parent_id=parent.span_id,
             )
-            span._parent = parent
-            span.sampled = parent.sampled
+            span.set_sampling_priority(sampling_priority)
+
+            # Extra attributes when from a local parent
+            if parent:
+                span.sampled = parent.sampled
+                span._parent = parent
+
         else:
-            # this is a root span
+            # this is the root span of a new trace
             span = Span(
                 self,
                 name,
@@ -174,24 +202,34 @@ class Tracer(object):
                 span_type=span_type,
             )
 
-            span.set_tag(system.PID, getpid())
+            span.sampled = self.sampler.sample(span)
+            if span.sampled:
+                # When doing client sampling in the client, keep the sample rate so that we can
+                # scale up statistics in the next steps of the pipeline.
+                if isinstance(self.sampler, RateSampler):
+                    span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
 
-            #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id, parent_span_id = context._get_parent_span_ids()
-            if parent_trace_id:
-                span.trace_id = parent_trace_id
-
-            if parent_span_id:
-                span.parent_id = parent_span_id
-
-            self.sampler.sample(span)
+                if self.priority_sampler:
+                    if self.priority_sampler.sample(span):
+                        span.set_sampling_priority(1)
+                    else:
+                        span.set_sampling_priority(0)
+            else:
+                if self.priority_sampler:
+                    # If dropped by the local sampler, distributed instrumentation can drop it too.
+                    span.set_sampling_priority(0)
 
         # add common tags
         if self.tags:
             span.set_tags(self.tags)
+        if not span._parent:
+            span.set_tag(system.PID, getpid())
+
+        # TODO: add protection if the service is missing?
 
         # add it to the current context
         context.add_span(span)
+
         return span
 
     def trace(self, name, service=None, resource=None, span_type=None):
@@ -237,7 +275,7 @@ class Tracer(object):
             child_of=context,
             service=service,
             resource=resource,
-            span_type=span_type
+            span_type=span_type,
         )
 
     def current_span(self):

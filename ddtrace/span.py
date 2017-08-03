@@ -7,6 +7,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
+from .constants import SAMPLING_PRIORITY_KEY
 
 
 log = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '_sampling_priority',
     ]
 
     def __init__(
@@ -90,6 +92,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
+        self._sampling_priority = None
 
         self._tracer = tracer
         self._context = context
@@ -181,6 +184,32 @@ class Span(object):
     def get_metric(self, key):
         return self.metrics.get(key)
 
+    def set_sampling_priority(self, sampling_priority):
+        """
+        Set the sampling priority.
+
+        0 means that the trace can be dropped, any higher value indicates the
+        importance of the trace to the backend sampler.
+        Default is None, the priority mechanism is disabled.
+        """
+        if sampling_priority is None:
+            self._sampling_priority = None
+        else:
+            try:
+                self._sampling_priority = int(sampling_priority)
+            except ValueError:
+                # if the provided sampling_priority is invalid, ignore it.
+                log.debug("invalid sampling priority %s", repr(sampling_priority))
+                pass
+
+    def get_sampling_priority(self):
+        """
+        Return the sampling priority.
+
+        Return an positive integer. Can also be None when not defined.
+        """
+        return self._sampling_priority
+
     def to_dict(self):
         d = {
             'trace_id' : self.trace_id,
@@ -213,6 +242,12 @@ class Span(object):
 
         if self.span_type:
             d['type'] = self.span_type
+
+        if self._sampling_priority is not None:
+            if d.get('metrics'):
+                d['metrics'][SAMPLING_PRIORITY_KEY] = self._sampling_priority
+            else:
+                d['metrics'] = {SAMPLING_PRIORITY_KEY : self._sampling_priority}
 
         return d
 
@@ -260,6 +295,7 @@ class Span(object):
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", "%fs" % (self.duration or 0)),
+            ("sampling_priority", self._sampling_priority),
             ("error", self.error),
             ("tags", "")
         ]

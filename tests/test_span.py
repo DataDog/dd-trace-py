@@ -19,6 +19,10 @@ def test_ids():
     eq_(s2.span_id, 2)
     eq_(s2.parent_id, 1)
 
+def test_sampled():
+    s = Span(tracer=None, name="span.test")
+    assert s.sampled
+    assert s.get_sampling_priority() is None
 
 def test_tags():
     s = Span(tracer=None, name="test.span")
@@ -83,7 +87,7 @@ def test_tags_not_string():
     # ensure we can cast as strings
     class Foo(object):
         def __repr__(self):
-            1/0
+            1 / 0
 
     s = Span(tracer=None, name="test.span")
     s.set_tag("a", Foo())
@@ -131,7 +135,7 @@ def test_finish_set_span_duration():
 def test_traceback_with_error():
     s = Span(None, "test.span")
     try:
-        1/0
+        1 / 0
     except ZeroDivisionError:
         s.set_traceback()
     else:
@@ -171,8 +175,43 @@ def test_ctx_mgr():
     else:
         assert 0, "should have failed"
 
+def test_span_priority():
+    s = Span(tracer=None, name="test.span", service="s", resource="r")
+    for i in range(10):
+        s.set_sampling_priority(i)
+        eq_(i, s._sampling_priority)
+        eq_(i, s.get_sampling_priority())
+    s.set_sampling_priority('this is not a valid integer')
+    eq_(9, s._sampling_priority)
+    eq_(9, s.get_sampling_priority())
+    s.set_sampling_priority(None)
+    eq_(None, s._sampling_priority)
+    eq_(None, s.get_sampling_priority())
+    s.set_sampling_priority(0.0)
+    eq_(0, s._sampling_priority)
+    eq_(0, s.get_sampling_priority())
+
 def test_span_to_dict():
-    s = Span(tracer=None, name="test.span", service="s",  resource="r")
+    s = Span(tracer=None, name="test.span", service="s", resource="r")
+    s.span_type = "foo"
+    s.set_tag("a", "1")
+    s.set_meta("b", "2")
+    s.finish()
+
+    d = s.to_dict()
+    assert d
+    eq_(d["span_id"], s.span_id)
+    eq_(d["trace_id"], s.trace_id)
+    eq_(d["parent_id"], s.parent_id)
+    eq_(d["meta"], {"a": "1", "b": "2"})
+    eq_(d["type"], "foo")
+    eq_(d["error"], 0)
+    eq_(type(d["error"]), int)
+
+def test_span_to_dict_sub():
+    parent = Span(tracer=None, name="test.span", service="s", resource="r")
+    s = Span(tracer=None, name="test.span", service="s", resource="r")
+    s._parent = parent
     s.span_type = "foo"
     s.set_tag("a", "1")
     s.set_meta("b", "2")
@@ -189,7 +228,7 @@ def test_span_to_dict():
     eq_(type(d["error"]), int)
 
 def test_span_boolean_err():
-    s = Span(tracer=None, name="foo.bar", service="s",  resource="r")
+    s = Span(tracer=None, name="foo.bar", service="s", resource="r")
     s.error = True
     s.finish()
 
@@ -198,7 +237,25 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
+def test_span_to_dict_priority():
+    for i in range(10):
+        s = Span(tracer=None, name="test.span", service="s", resource="r")
+        s.span_type = "foo"
+        s.set_tag("a", "1")
+        s.set_meta("b", "2")
+        s.set_sampling_priority(i)
+        s.finish()
 
+        d = s.to_dict()
+        assert d
+        eq_(d["span_id"], s.span_id)
+        eq_(d["trace_id"], s.trace_id)
+        eq_(d["parent_id"], s.parent_id)
+        eq_(d["meta"], {"a": "1", "b": "2"})
+        eq_(d["metrics"], {"_sampling_priority_v1": i})
+        eq_(d["type"], "foo")
+        eq_(d["error"], 0)
+        eq_(type(d["error"]), int)
 
 class DummyTracer(object):
     def __init__(self):
