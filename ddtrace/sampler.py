@@ -101,5 +101,6 @@ class ThroughputSampler(object):
             self.counter -= self.counter_buffer[key]
             self.counter_buffer[key] = 0
 
-def _get_service_sampling(service):
-    return True # [TODO:christian] implement this
+def get_sampled_for_service(service):
+    """Randomly return wether we should sample a span"""
+    return True # [TODO:christian] implement this, should rely on agent feedback

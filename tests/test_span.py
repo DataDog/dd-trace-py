@@ -198,7 +198,17 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
+def test_sampled_root_default():
+    s = Span(tracer=None, name="test.span")
+    eq_(True, s.sampled)
 
+def test_sampled_root_force_true():
+    s = Span(tracer=None, name="test.span", sampled=True)
+    eq_(True, s.sampled)
+
+def test_sampled_root_force_false():
+    s = Span(tracer=None, name="test.span", sampled=False)
+    eq_(False, s.sampled)
 
 class DummyTracer(object):
     def __init__(self):

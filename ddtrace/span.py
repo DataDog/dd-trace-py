@@ -7,7 +7,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
-
+from .sampler import get_sampled_for_service
 
 log = logging.getLogger(__name__)
 
@@ -91,8 +91,8 @@ class Span(object):
 
         # sampling
         if sampled is None:
-            self.sampled = _get_service_sampling(self.service)
-            else:
+            self.sampled = get_sampled_for_service(self.service)
+        else:
             self.sampled = sampled
 
         self._tracer = tracer
