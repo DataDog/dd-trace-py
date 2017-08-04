@@ -40,6 +40,7 @@ class Tracer(object):
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
+            distributed_sampler=AllSampler(),
             context_provider=DefaultContextProvider(),
         )
 
@@ -75,8 +76,9 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                context_provider=None, wrap_executor=None, settings=None):
+    def configure(self, enabled=None, hostname=None, port=None,
+                  sampler=None, distributed_sampler=None,
+                  context_provider=None, wrap_executor=None, settings=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -86,6 +88,7 @@ class Tracer(object):
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
+        :param object distributed_sampler: A custom Sampler instance, for distributed tracing
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value
@@ -109,6 +112,9 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
+
+        if distributed_sampler is not None:
+            self.distributed_sampler = distributed_sampler
 
         if context_provider is not None:
             self._context_provider = context_provider
@@ -164,6 +170,7 @@ class Tracer(object):
             )
             span._parent = parent
             span.sampled = parent.sampled
+            span.distributed.sampled = parent.distributed.sampled
         else:
             # this is a root span
             span = Span(
@@ -185,6 +192,14 @@ class Tracer(object):
                 span.parent_id = parent_span_id
 
             self.sampler.sample(span)
+            if span.sampled:
+                # Distributed sampling is applied after local sampling.
+                # We want to avoid having to deal with a span
+                # sent but which should be excluded from stats.
+                # It can still happen because span.distributed.sampled
+                # can be set by another upstream service, but we want to
+                # to limit that case.
+                self.distributed_sampler.sample(span.distributed)
 
         # add common tags
         if self.tags:

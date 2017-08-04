@@ -20,7 +20,6 @@ class AllSampler(object):
     def sample(self, span):
         span.sampled = True
 
-
 class RateSampler(object):
     """Sampler based on a rate
 
@@ -45,7 +44,8 @@ class RateSampler(object):
 
     def sample(self, span):
         span.sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
-        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
+        if callable(getattr(span, 'set_metric')):
+            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
 
 class ThroughputSampler(object):
     """ Sampler applying a strict limit over the trace volume.
@@ -100,3 +100,20 @@ class ThroughputSampler(object):
             key = self.key_from_time(start + i + 1)
             self.counter -= self.counter_buffer[key]
             self.counter_buffer[key] = 0
+
+class DistributedSampled(object):
+    """ Holds the sampled attribute for distributed traces
+
+        Distributed sampling and sampling are two different things.
+        In classic, local sampling, one decides to send or not the
+        trace to the agent depending on the sampled attribute.
+
+        In distributed tracing, the root span sets the sampled value
+        to true or false, and this is propagated to all child spans.
+        Then the trace is sent to the agent, *and* it should be send
+        to the API also.
+    """
+
+    def __init__(self):
+        """ Creates a basic object with a simple sampled attribute """
+        self.sampled = True

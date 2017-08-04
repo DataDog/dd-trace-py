@@ -43,6 +43,7 @@ def trace_middleware(app, handler):
             parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
             if parent_trace_id is not None:
                 request_span.trace_id = int(parent_trace_id)
+                request_span.tracer().sampler.sample(request_span) # Sampling depends on trace_id.
 
             parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
             if parent_span_id is not None:
@@ -50,7 +51,7 @@ def trace_middleware(app, handler):
 
             is_sampled = request.headers.get(IS_SAMPLED_HEADER_ID)
             if is_sampled is not None:
-                request_span.sampled = bool(is_sampled)
+                request_span.distributed.sampled = bool(is_sampled)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code

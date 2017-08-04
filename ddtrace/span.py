@@ -7,7 +7,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
-
+from .sampler import DistributedSampled
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class Span(object):
         'duration',
         # Sampler attributes
         'sampled',
+        'distributed',
         # Internal attributes
         '_tracer',
         '_context',
@@ -90,6 +91,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
+        self.distributed = DistributedSampled()
 
         self._tracer = tracer
         self._context = context
