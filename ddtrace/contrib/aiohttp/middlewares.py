@@ -11,6 +11,7 @@ REQUEST_SPAN_KEY = '__datadog_request_span'
 
 PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
 PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
+IS_SAMPLED_HEADER_ID = 'x-datadog-is-sampled'
 
 
 @asyncio.coroutine
@@ -46,6 +47,10 @@ def trace_middleware(app, handler):
             parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
             if parent_span_id is not None:
                 request_span.parent_id = int(parent_span_id)
+
+            is_sampled = request.headers.get(IS_SAMPLED_HEADER_ID)
+            if is_sampled is not None:
+                request_span.sampled = bool(is_sampled)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code

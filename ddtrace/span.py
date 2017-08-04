@@ -7,7 +7,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
-from .sampler import get_sampled_for_service
+
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,6 @@ class Span(object):
         parent_id=None,
         start=None,
         context=None,
-        sampled=None,
     ):
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -90,10 +89,7 @@ class Span(object):
         self.parent_id = parent_id
 
         # sampling
-        if sampled is None:
-            self.sampled = get_sampled_for_service(self.service)
-        else:
-            self.sampled = sampled
+        self.sampled = True
 
         self._tracer = tracer
         self._context = context

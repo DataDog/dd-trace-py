@@ -100,7 +100,3 @@ class ThroughputSampler(object):
             key = self.key_from_time(start + i + 1)
             self.counter -= self.counter_buffer[key]
             self.counter_buffer[key] = 0
-
-def get_sampled_for_service(service):
-    """Randomly return wether we should sample a span"""
-    return True # [TODO:christian] implement this, should rely on agent feedback
