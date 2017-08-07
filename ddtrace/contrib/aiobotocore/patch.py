@@ -8,7 +8,7 @@ from ddtrace.util import deep_getattr, unwrap
 from aiobotocore.endpoint import ClientResponseContentProxy
 
 from ...ext import http, aws
-from ...compat import PYTHON_VERSION
+from ...compat import PYTHON_VERSION_INFO
 
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
@@ -21,7 +21,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aiobotocore', app_type='web').onto(aiobotocore.client.AioBaseClient)
+    Pin(service='aws', app='aws', app_type='web').onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -53,7 +53,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         return result
 
     # wrapt doesn't proxy `async with` context managers
-    if PYTHON_VERSION >= (3, 5, 0):
+    if PYTHON_VERSION_INFO >= (3, 5, 0):
         @asyncio.coroutine
         def __aenter__(self):
             # call the wrapped method but return the object proxy
