@@ -36,7 +36,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             # Get the span attached to this instance, if available
             span = getattr(instance, '_datadog_span', None)
             if not span:
-                return
+                return resp
 
             if resp:
                 span.set_tag(ext_http.STATUS_CODE, resp.status)
