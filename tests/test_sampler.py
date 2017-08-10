@@ -20,12 +20,11 @@ class RateSamplerTest(unittest.TestCase):
             tracer = Tracer()
             tracer.writer = writer
 
-            sample_rate = 0.5
             tracer.sampler = RateSampler(sample_rate)
 
             random.seed(1234)
 
-            iterations = int(2e4)
+            iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
                 span = tracer.trace(i)
@@ -34,11 +33,11 @@ class RateSamplerTest(unittest.TestCase):
             samples = writer.pop()
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
-            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == 0.5
+            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
             # Less than 1% deviation when "enough" iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.01, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
 
 class ThroughputSamplerTest(unittest.TestCase):
@@ -109,7 +108,6 @@ class ThroughputSamplerTest(unittest.TestCase):
 
                 assert abs(got - expected) <= error_delta, \
                     "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
-
 
     def test_concurrency(self):
         # Test that the sampler works well when used in different threads

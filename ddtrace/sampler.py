@@ -44,8 +44,11 @@ class RateSampler(object):
 
     def sample(self, span):
         span.sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
-        if callable(getattr(span, 'set_metric')):
-            span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
+        try:
+            if callable(getattr(span, 'set_metric')):
+                span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
+        except AttributeError:
+            pass
 
 class ThroughputSampler(object):
     """ Sampler applying a strict limit over the trace volume.
@@ -114,6 +117,7 @@ class DistributedSampled(object):
         to the API also.
     """
 
-    def __init__(self):
+    def __init__(self, trace_id):
         """ Creates a basic object with a simple sampled attribute """
         self.sampled = True
+        self.trace_id = trace_id

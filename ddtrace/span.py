@@ -91,7 +91,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
-        self.distributed = DistributedSampled()
+        self.distributed = DistributedSampled(self.trace_id)
 
         self._tracer = tracer
         self._context = context
