@@ -4,6 +4,7 @@ from nose.tools import eq_, ok_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
+from ddtrace.sampler import RateSampler
 
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
@@ -229,6 +230,67 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
+        eq_(span.distributed.sampled, True)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_distributed_tracing_with_sampling_true(self):
+        old_sampler = self.tracer.distributed_sampler
+        self.tracer.distributed_sampler = RateSampler(0.1)
+
+        # activate distributed tracing
+        self.app['datadog_trace']['distributed_tracing_enabled'] = True
+        tracing_headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-is-sampled': '1',
+        }
+
+        request = yield from self.client.request('GET', '/', headers=tracing_headers)
+        eq_(200, request.status)
+        text = yield from request.text()
+        eq_("What's tracing?", text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right trace_id and parent_id
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.distributed.sampled, True)
+
+        self.tracer.distributed_sampler = old_sampler
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_distributed_tracing_with_sampling_false(self):
+        old_sampler = self.tracer.distributed_sampler
+        self.tracer.distributed_sampler = RateSampler(0.9)
+
+        # activate distributed tracing
+        self.app['datadog_trace']['distributed_tracing_enabled'] = True
+        tracing_headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-is-sampled': '0',
+        }
+
+        request = yield from self.client.request('GET', '/', headers=tracing_headers)
+        eq_(200, request.status)
+        text = yield from request.text()
+        eq_("What's tracing?", text)
+        # the trace is created
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        # with the right trace_id and parent_id
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.distributed.sampled, False)
+
+        self.tracer.distributed_sampler = old_sampler
 
     @unittest_run_loop
     @asyncio.coroutine

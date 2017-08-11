@@ -38,20 +38,27 @@ def trace_middleware(app, handler):
         )
 
         if distributed_tracing:
-            # set parent trace/span IDs if present:
+            # Set parent trace/span IDs if present:
             # http://pypi.datadoghq.com/trace/docs/#distributed-tracing
             parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
             if parent_trace_id is not None:
-                request_span.trace_id = int(parent_trace_id)
-                request_span.tracer().sampler.sample(request_span) # Sampling depends on trace_id.
-
-            parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-            if parent_span_id is not None:
-                request_span.parent_id = int(parent_span_id)
-
-            is_sampled = request.headers.get(IS_SAMPLED_HEADER_ID)
-            if is_sampled is not None:
-                request_span.distributed.sampled = bool(is_sampled)
+                parent_trace_id = int(parent_trace_id)
+                parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
+                if parent_span_id is not None:
+                    parent_span_id = int(parent_span_id)
+                    # Only set both of them together, if one is not available, set nothing.
+                    request_span.trace_id = parent_trace_id
+                    request_span.parent_id = parent_span_id
+                    # We change the trace_id, need to re-run sampler as it depends on this.
+                    request_span.tracer().sampler.sample(request_span)
+                    # is_sampled is read only if all other headers are here
+                    is_sampled = request.headers.get(IS_SAMPLED_HEADER_ID)
+                    if is_sampled is not None:
+                        try:
+                            is_sampled = int(is_sampled)
+                            request_span.distributed.sampled = bool(is_sampled)
+                        except ValueError:
+                            pass
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
