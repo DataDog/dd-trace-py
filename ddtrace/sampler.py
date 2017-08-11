@@ -6,6 +6,8 @@ import logging
 import array
 import threading
 
+from random import getrandbits
+
 log = logging.getLogger(__name__)
 
 MAX_TRACE_ID = 2 ** 64
@@ -43,7 +45,15 @@ class RateSampler(object):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        span.sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
+        try:
+            processed_id = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID)
+        except AttributeError:
+            # When there's no trace_id, pick up a totally random one,
+            # this is typically used by the distributed sampler, it does
+            # not care about applying the same decision on a given span
+            # as the decision is taken only once, by design.
+            processed_id = getrandbits(64)
+        span.sampled = processed_id <= self.sampling_id_threshold
         try:
             if callable(getattr(span, 'set_metric')):
                 span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
@@ -117,7 +127,6 @@ class DistributedSampled(object):
         to the API also.
     """
 
-    def __init__(self, trace_id):
+    def __init__(self):
         """ Creates a basic object with a simple sampled attribute """
         self.sampled = True
-        self.trace_id = trace_id

@@ -6,6 +6,7 @@ import time
 import threading
 
 from ddtrace.tracer import Tracer
+from ddtrace.span import Span
 from ddtrace.sampler import RateSampler, ThroughputSampler, SAMPLE_RATE_METRIC_KEY
 from .test_tracer import DummyWriter
 from .util import patch_time
@@ -35,10 +36,32 @@ class RateSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
-            # Less than 1% deviation when "enough" iterations (arbitrary, just check if it converges)
+            # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
             assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
+    def test_deterministic_behavior(self):
+        """ Test that for a given trace ID, the result is always the same """
+        writer = DummyWriter()
+
+        tracer = Tracer()
+        tracer.writer = writer
+
+        tracer.sampler = RateSampler(0.5)
+
+        random.seed(1234)
+
+        for i in range(10):
+            span = tracer.trace(i)
+            span.finish()
+
+            samples = writer.pop()
+            assert len(samples) <= 1, "there should be 0 or 1 spans"
+            sampled = (1 == len(samples))
+            for j in range(10):
+                other_span = Span(tracer, i, trace_id=span.trace_id)
+                tracer.sampler.sample(other_span)
+                assert sampled == other_span.sampled, "sampling should give the same result for a given trace_id"
 
 class ThroughputSamplerTest(unittest.TestCase):
     """Test suite for the ThroughputSampler"""

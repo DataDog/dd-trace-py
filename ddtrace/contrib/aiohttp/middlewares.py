@@ -43,7 +43,6 @@ def trace_middleware(app, handler):
             parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
             if parent_trace_id is not None:
                 request_span.trace_id = int(parent_trace_id)
-                request_span.distributed.trace_id = int(parent_trace_id) # setting it too to avoid confusion
                 request_span.tracer().sampler.sample(request_span) # Sampling depends on trace_id.
 
             parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
