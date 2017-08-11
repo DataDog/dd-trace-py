@@ -191,6 +191,8 @@ def test_span_to_dict():
     eq_(d["type"], "foo")
     eq_(d["error"], 0)
     eq_(type(d["error"]), int)
+    eq_(d["distributed_sampled"], 1)
+    eq_(type(d["distributed_sampled"]), int)
 
 def test_span_boolean_err():
     s = Span(tracer=None, name="foo.bar", service="s", resource="r")

@@ -192,6 +192,7 @@ class Span(object):
             'resource' : self.resource,
             'name' : self.name,
             'error': self.error,
+            'distributed_sampled': int(self.distributed.sampled),
         }
 
         # a common mistake is to set the error field to a boolean instead of an

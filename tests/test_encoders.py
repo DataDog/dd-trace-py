@@ -35,6 +35,10 @@ class TestEncoders(TestCase):
         eq_(len(items), 2)
         eq_(len(items[0]), 2)
         eq_(len(items[1]), 2)
+        for i in range(2):
+            for j in range(2):
+                eq_('client.testing', items[i][j]['name'])
+                ok_(items[i][j]['distributed_sampled'])
 
     def test_encode_traces_msgpack(self):
         # test encoding for MsgPack format
@@ -58,3 +62,7 @@ class TestEncoders(TestCase):
         eq_(len(items), 2)
         eq_(len(items[0]), 2)
         eq_(len(items[1]), 2)
+        for i in range(2):
+            for j in range(2):
+                eq_(b'client.testing', items[i][j][b'name'])
+                ok_(items[i][j][b'distributed_sampled'])
