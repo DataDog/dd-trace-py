@@ -192,7 +192,6 @@ class Span(object):
             'resource' : self.resource,
             'name' : self.name,
             'error': self.error,
-            'distributed_sampled': int(self.distributed.sampled),
         }
 
         # a common mistake is to set the error field to a boolean instead of an
@@ -201,6 +200,10 @@ class Span(object):
         err = d.get('error')
         if err and type(err) == bool:
             d['error'] = 1
+
+        # Set distributed_sampled only for root spans
+        if not self._parent:
+            d['distributed_sampled'] = int(self.distributed.sampled)
 
         if self.start:
             d['start'] = int(self.start * 1e9)  # ns
