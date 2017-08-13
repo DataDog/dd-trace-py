@@ -21,7 +21,14 @@ def aiobotocore_client(service, tracer):
     """
     session = aiobotocore.session.get_session()
     endpoint = LOCALSTACK_ENDPOINT_URL[service]
-    client = session.create_client(service, region_name='us-west-2', endpoint_url=endpoint)
+    client = session.create_client(
+        service,
+        region_name='us-west-2',
+        endpoint_url=endpoint,
+        aws_access_key_id='aws',
+        aws_secret_access_key='aws',
+        aws_session_token='aws',
+    )
     Pin.override(client, tracer=tracer)
     try:
         yield client
