@@ -5,12 +5,12 @@ from contextlib import contextmanager
 
 
 LOCALSTACK_ENDPOINT_URL = {
-    's3': 'http://127.0.0.1:55000',
-    'ec2': 'http://127.0.0.1:55001',
-    'kms': 'http://127.0.0.1:55002',
-    'sqs': 'http://127.0.0.1:55003',
-    'lambda': 'http://127.0.0.1:55004',
-    'kinesis': 'http://127.0.0.1:55005',
+    's3': 'http://localhost:55000',
+    'ec2': 'http://localhost:55001',
+    'kms': 'http://localhost:55002',
+    'sqs': 'http://localhost:55003',
+    'lambda': 'http://localhost:55004',
+    'kinesis': 'http://localhost:55005',
 }
 
 
