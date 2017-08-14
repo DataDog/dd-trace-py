@@ -243,7 +243,7 @@ class TestTraceMiddleware(TraceTestCase):
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
-            'x-datadog-is-sampled': '1',
+            'x-datadog-sampling-priority': '1',
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
@@ -256,9 +256,9 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # with the right trace_id and parent_id
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.distributed.sampled, True)
+        eq_(100, span.trace_id)
+        eq_(42, span.parent_id)
+        eq_(1, span.get_sampling_priority())
 
         self.tracer.distributed_sampler = old_sampler
 
@@ -273,7 +273,7 @@ class TestTraceMiddleware(TraceTestCase):
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
-            'x-datadog-is-sampled': '0',
+            'x-datadog-sampling-priority': '0',
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
@@ -286,9 +286,9 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # with the right trace_id and parent_id
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.distributed.sampled, False)
+        eq_(100, span.trace_id)
+        eq_(42, span.parent_id)
+        eq_(0, span.get_sampling_priority())
 
         self.tracer.distributed_sampler = old_sampler
 

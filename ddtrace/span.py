@@ -8,6 +8,8 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
 from .sampler import DistributedSampled
+from .constants import SAMPLING_PRIORITY_KEY
+
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +93,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
-        self.distributed = DistributedSampled()
+        self.distributed = DistributedSampled(self)
 
         self._tracer = tracer
         self._context = context
@@ -183,6 +185,29 @@ class Span(object):
     def get_metric(self, key):
         return self.metrics.get(key)
 
+    def set_sampled(self, sampled):
+        """ Mark the span as sampled, or not. This is used for distributed tracing. """
+        self.sampled = bool(sampled)
+
+    def set_sampling_priority(self, sampling_priority):
+        """ Sets the sampling priority.
+            Default is 0, any higher value is interpreted as a hint on
+            how interesting this span is, and should be kept by the backend.
+        """
+        sampling_priority = int(sampling_priority)
+        if sampling_priority > 0:
+            self.set_tag(SAMPLING_PRIORITY_KEY, sampling_priority)
+        else:
+            if SAMPLING_PRIORITY_KEY in self.meta:
+                del self.meta[SAMPLING_PRIORITY_KEY]
+
+    def get_sampling_priority(self):
+        """ Return the sampling priority. """
+        if SAMPLING_PRIORITY_KEY in self.meta:
+            return int(self.get_tag(SAMPLING_PRIORITY_KEY))
+        else:
+            return 0
+
     def to_dict(self):
         d = {
             'trace_id' : self.trace_id,
@@ -200,10 +225,6 @@ class Span(object):
         err = d.get('error')
         if err and type(err) == bool:
             d['error'] = 1
-
-        # Set distributed_sampled only for root spans
-        if not self._parent:
-            d['distributed_sampled'] = int(self.distributed.sampled)
 
         if self.start:
             d['start'] = int(self.start * 1e9)  # ns

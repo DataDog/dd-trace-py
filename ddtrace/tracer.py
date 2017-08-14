@@ -170,7 +170,7 @@ class Tracer(object):
             )
             span._parent = parent
             span.sampled = parent.sampled
-            span.distributed.sampled = parent.distributed.sampled
+            span.set_sampling_priority(parent.get_sampling_priority())
         else:
             # this is a root span
             span = Span(

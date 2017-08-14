@@ -11,7 +11,7 @@ REQUEST_SPAN_KEY = '__datadog_request_span'
 
 PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
 PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
-IS_SAMPLED_HEADER_ID = 'x-datadog-is-sampled'
+SAMPLING_PRIORITY_HEADER_ID = 'x-datadog-sampling-priority'
 
 
 @asyncio.coroutine
@@ -51,12 +51,12 @@ def trace_middleware(app, handler):
                     request_span.parent_id = parent_span_id
                     # We change the trace_id, need to re-run sampler as it depends on this.
                     request_span.tracer().sampler.sample(request_span)
-                    # is_sampled is read only if all other headers are here
-                    is_sampled = request.headers.get(IS_SAMPLED_HEADER_ID)
-                    if is_sampled is not None:
+                    # sampling_priority is read only if all other headers are here
+                    sampling_priority = request.headers.get(SAMPLING_PRIORITY_HEADER_ID)
+                    if sampling_priority is not None:
                         try:
-                            is_sampled = int(is_sampled)
-                            request_span.distributed.sampled = bool(is_sampled)
+                            sampling_priority = int(sampling_priority)
+                            request_span.set_sampling_priority(sampling_priority)
                         except ValueError:
                             pass
 

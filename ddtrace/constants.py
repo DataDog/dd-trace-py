@@ -1,1 +1,2 @@
 FILTERS_KEY = 'FILTERS'
+SAMPLING_PRIORITY_KEY = 'sampling.priority'

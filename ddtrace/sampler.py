@@ -53,7 +53,7 @@ class RateSampler(object):
             # not care about applying the same decision on a given span
             # as the decision is taken only once, by design.
             processed_id = getrandbits(64)
-        span.sampled = processed_id <= self.sampling_id_threshold
+        span.set_sampled(processed_id <= self.sampling_id_threshold)
         try:
             if callable(getattr(span, 'set_metric')):
                 span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
@@ -96,9 +96,10 @@ class ThroughputSampler(object):
                 self.last_track_time = now
                 self.expire_buckets(last_track_time, now)
 
-            span.sampled = self.counter < self.buffer_limit
+            sampled = self.counter < self.buffer_limit
+            span.set_sampled(sampled)
 
-            if span.sampled:
+            if sampled:
                 self.counter += 1
                 self.counter_buffer[self.key_from_time(now)] += 1
 
@@ -127,6 +128,10 @@ class DistributedSampled(object):
         to the API also.
     """
 
-    def __init__(self):
-        """ Creates a basic object with a simple sampled attribute """
-        self.sampled = True
+    def __init__(self, span):
+        """ Creates a basic sampling proxy with refers to a span. """
+        self.span = span
+
+    def set_sampled(self, sampled):
+        """ Marks the span as sampled. """
+        self.span.set_sampling_priority(1 if sampled else 0)
