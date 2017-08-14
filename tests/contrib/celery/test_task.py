@@ -18,12 +18,6 @@ EXPECTED_KEYS = ['service', 'resource', 'meta', 'name',
                  'duration', 'error', 'start',
 ]
 
-EXPECTED_KEYS_DISTRIBUTED = ['service', 'resource', 'meta', 'name',
-                             'parent_id', 'trace_id', 'span_id',
-                             'duration', 'error', 'start',
-                             'distributed_sampled',
-]
-
 class CeleryTaskTest(unittest.TestCase):
     def assert_items_equal(self, a, b):
         if PY2:
@@ -119,7 +113,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
@@ -150,7 +144,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
@@ -181,10 +175,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the first span for calling `apply`
         span = spans[0]
-        self.assert_items_equal(
-            span.to_dict().keys(),
-            EXPECTED_KEYS_DISTRIBUTED,
-        )
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
@@ -245,7 +236,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
@@ -284,7 +275,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 3)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
@@ -360,7 +351,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
@@ -399,7 +390,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 3)
 
         span = spans[0]
-        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS_DISTRIBUTED)
+        self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
