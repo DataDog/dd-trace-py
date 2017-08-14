@@ -134,4 +134,5 @@ class DistributedSampled(object):
 
     def set_sampled(self, sampled):
         """ Marks the span as sampled. """
-        self.span.set_sampling_priority(1 if sampled else 0)
+        if self.span:
+            self.span.set_sampling_priority(1 if sampled else 0)

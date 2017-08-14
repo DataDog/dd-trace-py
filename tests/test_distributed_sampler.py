@@ -4,7 +4,7 @@ import unittest
 import random
 
 from ddtrace.tracer import Tracer
-from ddtrace.sampler import RateSampler, DistributedSampled, SAMPLE_RATE_METRIC_KEY
+from ddtrace.sampler import RateSampler, SAMPLE_RATE_METRIC_KEY
 from .test_tracer import DummyWriter
 
 
@@ -33,7 +33,7 @@ class DistributedRateSamplerTest(unittest.TestCase):
 
             distributed_sampled = 0
             for span in samples:
-                if span.distributed.sampled:
+                if span.get_sampling_priority() > 0:
                     distributed_sampled += 1
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
@@ -57,11 +57,12 @@ class DistributedRateSamplerTest(unittest.TestCase):
 
         iterations = int(1e4)
         sampled = 0
-        pseudo_span = DistributedSampled()
+        span = tracer.trace('something')
+        pseudo_span = span.distributed
 
         for i in range(iterations):
             tracer.sampler.sample(pseudo_span)
-            if pseudo_span.sampled:
+            if span.get_sampling_priority() > 0:
                 sampled += 1
 
         # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
@@ -106,7 +107,7 @@ class DistributedCombinedRateSamplerTest(unittest.TestCase):
 
                 distributed_sampled = 0
                 for span in samples:
-                    if span.distributed.sampled:
+                    if span.get_sampling_priority() > 0:
                         distributed_sampled += 1
 
                 # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
