@@ -1,6 +1,6 @@
 import time
 
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
@@ -22,7 +22,7 @@ def test_ids():
 def test_sampled():
     s = Span(tracer=None, name="span.test")
     assert s.sampled
-    assert s.distributed.sampled
+    assert 0 == s.get_sampling_priority() # set later when starting span
 
 def test_tags():
     s = Span(tracer=None, name="test.span")
@@ -191,8 +191,6 @@ def test_span_to_dict():
     eq_(d["type"], "foo")
     eq_(d["error"], 0)
     eq_(type(d["error"]), int)
-    eq_(d["distributed_sampled"], 1)
-    eq_(type(d["distributed_sampled"]), int)
 
 def test_span_to_dict_sub():
     parent = Span(tracer=None, name="test.span", service="s", resource="r")
@@ -212,7 +210,6 @@ def test_span_to_dict_sub():
     eq_(d["type"], "foo")
     eq_(d["error"], 0)
     eq_(type(d["error"]), int)
-    ok_("distributed_sampled" not in d, "distributed_sampled should be set only for root spans when sent to agent")
 
 def test_span_boolean_err():
     s = Span(tracer=None, name="foo.bar", service="s", resource="r")
