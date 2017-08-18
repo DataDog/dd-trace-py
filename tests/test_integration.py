@@ -480,3 +480,37 @@ class TestAPIDowngrade(TestCase):
         ok_(response)
         eq_(response.status, 200)
         ok_(isinstance(api._encoder, JSONEncoder))
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestRateByService(TestCase):
+    """
+    Check we get feedback from the agent and we're able to process it.
+    """
+    def setUp(self):
+        """
+        Create a tracer without workers, while spying the ``send()`` method
+        """
+        # create a new API object to test the transport using synchronous calls
+        self.tracer = get_dummy_tracer()
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+
+    def test_send_single_trace(self):
+        # register a single trace with a span and send them to the trace agent
+        self.tracer.trace('client.testing').finish()
+        trace = self.tracer.writer.pop()
+        traces = [trace]
+
+        # test JSON encoder
+        response = self.api_json.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        response = self.api_msgpack.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+        eq_(b"OK\n", response.readall()) # [TODO:christian] use the new endpoint, and we should see the JSON here
