@@ -3,6 +3,7 @@ import asyncio
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
+from ...context import Context
 
 
 CONFIG_KEY = 'datadog_trace'
@@ -30,35 +31,26 @@ def trace_middleware(app, handler):
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
 
+        context = tracer.get_call_context()
+
+        # Create a new context based on the propagated information
+        if distributed_tracing:
+            trace_id = int(request.headers.get(PARENT_TRACE_HEADER_ID, 0))
+            parent_span_id = int(request.headers.get(PARENT_SPAN_HEADER_ID, 0))
+            sampling_priority = request.headers.get(SAMPLING_PRIORITY_HEADER_ID)
+            # keep sampling priority as None if not propagated, to support older client versions on the parent side
+            if sampling_priority:
+                sampling_priority = int(sampling_priority)
+
+            context = Context(trace_id=trace_id, span_id=parent_span_id, sampling_priority=sampling_priority)
+
         # trace the handler
-        request_span = tracer.trace(
+        request_span = tracer.start_span(
             'aiohttp.request',
             service=service,
             span_type=http.TYPE,
+            child_of=context,
         )
-
-        if distributed_tracing:
-            # Set parent trace/span IDs if present:
-            # http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
-            if parent_trace_id is not None:
-                parent_trace_id = int(parent_trace_id)
-                parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-                if parent_span_id is not None:
-                    parent_span_id = int(parent_span_id)
-                    # Only set both of them together, if one is not available, set nothing.
-                    request_span.trace_id = parent_trace_id
-                    request_span.parent_id = parent_span_id
-                    # We change the trace_id, need to re-run sampler as it depends on this.
-                    request_span.tracer().sampler.sample(request_span)
-                    # sampling_priority is read only if all other headers are here
-                    sampling_priority = request.headers.get(SAMPLING_PRIORITY_HEADER_ID)
-                    if sampling_priority is not None:
-                        try:
-                            sampling_priority = int(sampling_priority)
-                            request_span.set_sampling_priority(sampling_priority)
-                        except ValueError:
-                            pass
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code

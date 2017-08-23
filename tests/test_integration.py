@@ -513,4 +513,3 @@ class TestRateByService(TestCase):
         response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
-        eq_(b"OK\n", response.readall()) # [TODO:christian] use the new endpoint, and we should see the JSON here

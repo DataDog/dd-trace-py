@@ -62,7 +62,7 @@ class TestTracingContext(TestCase):
         eq_(0, len(ctx._trace))
         eq_(0, ctx._finished_spans)
         ok_(ctx._current_span is None)
-        ok_(ctx._sampled is False)
+        ok_(ctx._sampled is True)
 
     def test_get_trace_empty(self):
         # it should return None if the Context is not finished

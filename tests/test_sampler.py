@@ -60,5 +60,4 @@ class RateSamplerTest(unittest.TestCase):
             sampled = (1 == len(samples))
             for j in range(10):
                 other_span = Span(tracer, i, trace_id=span.trace_id)
-                tracer.sampler.sample(other_span)
-                assert sampled == other_span.sampled, "sampling should give the same result for a given trace_id"
+                assert sampled == tracer.sampler.sample(other_span), "sampling should give the same result for a given trace_id"

@@ -1,15 +1,15 @@
 import functools
 import logging
+from os import getpid
 
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler
+from .sampler import AllSampler, RateSampler, SAMPLE_RATE_METRIC_KEY
 from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY
 from . import compat
-from os import getpid
 
 
 log = logging.getLogger(__name__)
@@ -40,7 +40,8 @@ class Tracer(object):
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
-            distributed_sampler=AllSampler(),
+            # TODO: by default, a ServiceSampler periodically updated
+            distributed_sampler=None,
             context_provider=DefaultContextProvider(),
         )
 
@@ -87,8 +88,8 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
-        :param object sampler: A custom Sampler instance
-        :param object distributed_sampler: A custom Sampler instance, for distributed tracing
+        :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
+        :param object distributed_sampler: A custom Sampler instance, taking the distributed sampling decision.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value
@@ -148,8 +149,8 @@ class Tracer(object):
             context = tracer.get_call_context()
             span = tracer.start_span("web.worker", child_of=context)
         """
-        # retrieve if the span is a child_of a Span or a Context
         if child_of is not None:
+            # retrieve if the span is a child_of a Span or a of Context
             child_of_context = isinstance(child_of, Context)
             context = child_of if child_of_context else child_of.context
             parent = child_of.get_current_span() if child_of_context else child_of
@@ -158,21 +159,37 @@ class Tracer(object):
             parent = None
 
         if parent:
-            # this is a child span
+            trace_id = parent.trace_id
+            parent_span_id = parent.span_id
+            sampling_priority = parent.get_sampling_priority()
+        else:
+            trace_id, parent_span_id, sampling_priority = context.get_context_attributes()
+
+        if trace_id:
+            # child_of a non-empty context, so either a local child span or from a remote context
+
+            # when not provided, inherit from parent's service
+            if parent:
+                service = service or parent.service
+
             span = Span(
                 self,
                 name,
-                service=(service or parent.service),
+                trace_id=trace_id,
+                parent_id=parent_span_id,
+                service=service,
                 resource=resource,
                 span_type=span_type,
-                trace_id=parent.trace_id,
-                parent_id=parent.span_id,
             )
-            span._parent = parent
-            span.sampled = parent.sampled
-            span.set_sampling_priority(parent.get_sampling_priority())
+            span.set_sampling_priority(sampling_priority)
+
+            # Extra attributes when from a local parent
+            if parent:
+                span.sampled = parent.sampled
+                span._parent = parent
+
         else:
-            # this is a root span
+            # this is the root span of a new trace
             span = Span(
                 self,
                 name,
@@ -181,32 +198,34 @@ class Tracer(object):
                 span_type=span_type,
             )
 
-            span.set_tag(system.PID, getpid())
-
-            #    http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id, parent_span_id = context._get_parent_span_ids()
-            if parent_trace_id:
-                span.trace_id = parent_trace_id
-
-            if parent_span_id:
-                span.parent_id = parent_span_id
-
-            self.sampler.sample(span)
+            span.sampled = self.sampler.sample(span)
             if span.sampled:
-                # Distributed sampling is applied after local sampling.
-                # We want to avoid having to deal with a span
-                # sent but which should be excluded from stats.
-                # It can still happen because span.distributed.sampled
-                # can be set by another upstream service, but we want to
-                # to limit that case.
-                self.distributed_sampler.sample(span.distributed)
+                # When doing client sampling in the client, keep the sample rate so that we can
+                # scale up statistics in the next steps of the pipeline.
+                if isinstance(self.sampler, RateSampler):
+                    span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
+
+                if self.distributed_sampler:
+                    if self.distributed_sampler.sample(span):
+                        span.set_sampling_priority(1)
+                    else:
+                        span.set_sampling_priority(0)
+            else:
+                if self.distributed_sampler:
+                    # If dropped by the local sampler, distributed instrumentation can drop it too.
+                    span.set_sampling_priority(0)
 
         # add common tags
         if self.tags:
             span.set_tags(self.tags)
+        if not span._parent:
+            span.set_tag(system.PID, getpid())
+
+        # TODO: add protection if the service is missing?
 
         # add it to the current context
         context.add_span(span)
+
         return span
 
     def trace(self, name, service=None, resource=None, span_type=None):
@@ -252,7 +271,7 @@ class Tracer(object):
             child_of=context,
             service=service,
             resource=resource,
-            span_type=span_type
+            span_type=span_type,
         )
 
     def current_span(self):

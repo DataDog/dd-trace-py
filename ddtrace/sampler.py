@@ -4,8 +4,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import logging
 
-from random import getrandbits
-
 log = logging.getLogger(__name__)
 
 MAX_TRACE_ID = 2 ** 64
@@ -18,7 +16,7 @@ class AllSampler(object):
     """Sampler sampling all the traces"""
 
     def sample(self, span):
-        span.sampled = True
+        return True
 
 class RateSampler(object):
     """Sampler based on a rate
@@ -43,39 +41,6 @@ class RateSampler(object):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        try:
-            processed_id = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID)
-        except AttributeError:
-            # When there's no trace_id, pick up a totally random one,
-            # this is typically used by the distributed sampler, it does
-            # not care about applying the same decision on a given span
-            # as the decision is taken only once, by design.
-            processed_id = getrandbits(64)
-        span.set_sampled(processed_id <= self.sampling_id_threshold)
-        try:
-            if callable(getattr(span, 'set_metric')):
-                span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
-        except AttributeError:
-            pass
+        sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
 
-class DistributedSampled(object):
-    """ Holds the sampled attribute for distributed traces
-
-        Distributed sampling and sampling are two different things.
-        In classic, local sampling, one decides to send or not the
-        trace to the agent depending on the sampled attribute.
-
-        In distributed tracing, the root span sets the sampled value
-        to true or false, and this is propagated to all child spans.
-        Then the trace is sent to the agent, *and* it should be send
-        to the API also.
-    """
-
-    def __init__(self, span):
-        """ Creates a basic sampling proxy with refers to a span. """
-        self.span = span
-
-    def set_sampled(self, sampled):
-        """ Marks the span as sampled. """
-        if self.span:
-            self.span.set_sampling_priority(1 if sampled else 0)
+        return sampled

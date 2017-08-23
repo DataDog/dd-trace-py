@@ -22,7 +22,7 @@ def test_ids():
 def test_sampled():
     s = Span(tracer=None, name="span.test")
     assert s.sampled
-    assert 0 == s.get_sampling_priority() # set later when starting span
+    assert s.get_sampling_priority() is None
 
 def test_tags():
     s = Span(tracer=None, name="test.span")

@@ -230,7 +230,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
-        eq_(span.distributed.sampled, True)
+        eq_(span.get_sampling_priority(), None)
 
     @unittest_run_loop
     @asyncio.coroutine

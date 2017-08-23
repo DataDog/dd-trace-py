@@ -107,16 +107,11 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
 
     ctx = getattr(current_task, CONTEXT_ATTR, None)
     span = ctx.get_current_span() if ctx else None
-    if span:
-        parent_trace_id, parent_span_id = span.trace_id, span.span_id
-    elif ctx:
-        parent_trace_id, parent_span_id = ctx._get_parent_span_ids()
-    else:
-        parent_trace_id = parent_span_id = None
+    if ctx:
+        parent_trace_id, parent_span_id, sampling_priority = ctx.get_context_attributes()
 
-    if parent_trace_id and parent_span_id:
         # current task has a context, so parent a new context to the base context
-        new_ctx = Context(trace_id=parent_trace_id, span_id=parent_span_id)
+        new_ctx = Context(trace_id=parent_trace_id, span_id=parent_span_id, sampling_priority=sampling_priority)
         set_call_context(new_task, new_ctx)
 
     return new_task

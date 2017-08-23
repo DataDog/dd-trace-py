@@ -7,7 +7,6 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
-from .sampler import DistributedSampled
 from .constants import SAMPLING_PRIORITY_KEY
 
 
@@ -32,7 +31,7 @@ class Span(object):
         'duration',
         # Sampler attributes
         'sampled',
-        'distributed',
+        'priority',
         # Internal attributes
         '_tracer',
         '_context',
@@ -93,7 +92,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
-        self.distributed = DistributedSampled(self)
+        self.priority = None
 
         self._tracer = tracer
         self._context = context
@@ -185,28 +184,30 @@ class Span(object):
     def get_metric(self, key):
         return self.metrics.get(key)
 
-    def set_sampled(self, sampled):
-        """ Mark the span as sampled, or not. This is used for distributed tracing. """
-        self.sampled = bool(sampled)
-
     def set_sampling_priority(self, sampling_priority):
-        """ Sets the sampling priority.
-            Default is 0, any higher value is interpreted as a hint on
-            how interesting this span is, and should be kept by the backend.
         """
-        sampling_priority = int(sampling_priority)
-        if sampling_priority > 0:
-            self.set_tag(SAMPLING_PRIORITY_KEY, sampling_priority)
+        Set the sampling priority.
+
+        0 means that the trace can be dropped, any higher value indicates the
+        importance of the trace to the backend sampler.
+        Default is None, the priority mechanism is disabled.
+        """
+        if sampling_priority is None:
+            self.priority = None
         else:
-            if SAMPLING_PRIORITY_KEY in self.meta:
-                del self.meta[SAMPLING_PRIORITY_KEY]
+            try:
+                self.priority = int(sampling_priority)
+            except TypeError:
+                # if the provided sampling_priority is invalid, ignore it.
+                pass
 
     def get_sampling_priority(self):
-        """ Return the sampling priority. """
-        if SAMPLING_PRIORITY_KEY in self.meta:
-            return int(self.get_tag(SAMPLING_PRIORITY_KEY))
-        else:
-            return 0
+        """
+        Return the sampling priority.
+
+        Return an positive integer. Can also be None when not defined.
+        """
+        return self.priority
 
     def to_dict(self):
         d = {
@@ -240,6 +241,12 @@ class Span(object):
 
         if self.span_type:
             d['type'] = self.span_type
+
+        if self.priority is not None:
+            if d.get('meta'):
+                d['meta'][SAMPLING_PRIORITY_KEY] = stringify(self.priority)
+            else:
+                d['meta'] = {SAMPLING_PRIORITY_KEY : stringify(self.priority)}
 
         return d
 
@@ -287,6 +294,7 @@ class Span(object):
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", "%fs" % (self.duration or 0)),
+            ("priority", self.priority),
             ("error", self.error),
             ("tags", "")
         ]
