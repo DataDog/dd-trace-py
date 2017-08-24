@@ -47,7 +47,6 @@ def traced_execute_async_errback(exc, span):
     except:
         span.set_exc_info(*sys.exc_info())
     span.finish()
-    return
 
 def safe_clear_callbacks(func, instance, args, kwargs):
     """

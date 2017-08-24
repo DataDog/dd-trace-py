@@ -6,7 +6,7 @@ from threading import Event, Lock
 # 3p
 from nose.tools import eq_
 from nose.plugins.attrib import attr
-from cassandra.cluster import Cluster
+from cassandra.cluster import Cluster, ResultSet
 from cassandra.query import BatchStatement, SimpleStatement
 
 # project
@@ -98,9 +98,9 @@ class CassandraBase(object):
             eq_(r.age, 100)
             eq_(r.description, "A cruel mistress")
 
-    def test_query(self):
+    def _test_query_base(self, execute_fn):
         session, tracer = self._traced_session()
-        result = session.execute(self.TEST_QUERY)
+        result = execute_fn(session, self.TEST_QUERY)
         self._assert_result_correct(result)
 
         assert tracer.wait_for_spans_completion()
@@ -119,42 +119,32 @@ class CassandraBase(object):
         eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
         eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
+
+
+    def test_query(self):
+        def execute_fn(session, query):
+            return session.execute(self.TEST_QUERY)
+        self._test_query_base(execute_fn)
 
     def test_query_async(self):
-        session, tracer = self._traced_session()
-        result = session.execute_async(self.TEST_QUERY).result()
-        self._assert_result_correct(result)
+        def execute_fn(session, query):
+            event = Event()
+            result = []
+            future = session.execute_async(self.TEST_QUERY)
+            def callback(results):
+                result.append(ResultSet(future, results))
+                event.set()
+            future.add_callback(callback)
+            event.wait()
+            return result[0]
+        self._test_query_base(execute_fn)
 
-        assert tracer.wait_for_spans_completion()
-        spans = tracer.writer.pop()
-        assert spans, spans
-
-        # another for the actual query
-        eq_(len(spans), 1)
-
-        query = spans[0]
-        eq_(query.service, self.TEST_SERVICE)
-        eq_(query.resource, self.TEST_QUERY)
-        eq_(query.span_type, cassx.TYPE)
-
-        eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
-        eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
-        eq_(query.get_tag(cassx.ROW_COUNT), "1")
-        eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
-
-    def test_query_async_works_after_clearing_callbacks(self):
-        session, tracer = self._traced_session()
-        future = session.execute_async(self.TEST_QUERY)
-        future.clear_callbacks()
-        result = future.result()
-        self._assert_result_correct(result)
-
-        assert tracer.wait_for_spans_completion()
-        spans = tracer.writer.pop()
-        assert spans, spans
-
-        # another for the actual query
-        eq_(len(spans), 1)
+    def test_query_async_clearing_callbacks(self):
+        def execute_fn(session, query):
+            future = session.execute_async(self.TEST_QUERY)
+            future.clear_callbacks()
+            return future.result()
+        self._test_query_base(execute_fn)
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
