@@ -31,13 +31,6 @@ class TracerConfig(AppConfig):
         if settings.TAGS:
             tracer.set_tags(settings.TAGS)
 
-        # define the service details
-        tracer.set_service_info(
-            app='django',
-            app_type=AppTypes.web,
-            service=settings.DEFAULT_SERVICE,
-        )
-
         # configure the tracer instance
         # TODO[manu]: we may use configure() but because it creates a new
         # AgentWriter, it breaks all tests. The configure() behavior must
@@ -45,6 +38,13 @@ class TracerConfig(AppConfig):
         tracer.enabled = settings.ENABLED
         tracer.writer.api.hostname = settings.AGENT_HOSTNAME
         tracer.writer.api.port = settings.AGENT_PORT
+
+        # define the service details
+        tracer.set_service_info(
+            app='django',
+            app_type=AppTypes.web,
+            service=settings.DEFAULT_SERVICE,
+        )
 
         if settings.AUTO_INSTRUMENT:
             # trace Django internals
