@@ -1,6 +1,7 @@
 # stdlib
 import logging
 import unittest
+from threading import Event, Lock
 
 # 3p
 from nose.tools import eq_
@@ -10,15 +11,48 @@ from cassandra.query import BatchStatement, SimpleStatement
 
 # project
 from tests.contrib.config import CASSANDRA_CONFIG
-from tests.test_tracer import get_dummy_tracer
+from tests.test_tracer import DummyWriter
 from ddtrace.contrib.cassandra.patch import patch, unpatch
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
 from ddtrace.ext import net, cassandra as cassx, errors
+from ddtrace.tracer import Tracer
 from ddtrace import Pin
 
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
+class TestTracer(Tracer):
+    def __init__(self, *args, **kwargs):
+        super(TestTracer, self).__init__(*args, **kwargs)
+        self._started_spans = 0
+        self._finished_spans = 0
+        self._event = Event()
+        self._lock = Lock()
+        self._waiting = False
+
+    def start_span(self, *args, **kwargs):
+        with self._lock:
+            self._started_spans += 1
+        return super(TestTracer, self).start_span(*args, **kwargs)
+
+    def record(self, context):
+        super(TestTracer, self).record(context)
+        with self._lock:
+            self._finished_spans += 1
+            if self._waiting and self._finished_spans == self._started_spans:
+                self._event.set()
+
+    def wait_for_spans_completion(self, timeout=10):
+        with self._lock:
+            if self._finished_spans == self._started_spans:
+                return True
+            self._waiting = True
+        return self._event.wait(timeout)
+
+def get_dummy_tracer():
+    tracer = TestTracer()
+    tracer.writer = DummyWriter()
+    return tracer
 
 def setUpModule():
     # skip all the modules if the Cluster is not available
@@ -65,11 +99,12 @@ class CassandraBase(object):
             eq_(r.description, "A cruel mistress")
 
     def test_query(self):
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
         result = session.execute(self.TEST_QUERY)
         self._assert_result_correct(result)
 
-        spans = writer.pop()
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
         assert spans, spans
 
         # another for the actual query
@@ -85,17 +120,54 @@ class CassandraBase(object):
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
         eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
 
+    def test_query_async(self):
+        session, tracer = self._traced_session()
+        result = session.execute_async(self.TEST_QUERY).result()
+        self._assert_result_correct(result)
+
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
+        assert spans, spans
+
+        # another for the actual query
+        eq_(len(spans), 1)
+
+        query = spans[0]
+        eq_(query.service, self.TEST_SERVICE)
+        eq_(query.resource, self.TEST_QUERY)
+        eq_(query.span_type, cassx.TYPE)
+
+        eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
+        eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
+        eq_(query.get_tag(cassx.ROW_COUNT), "1")
+        eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
+
+    def test_query_async_works_after_clearing_callbacks(self):
+        session, tracer = self._traced_session()
+        future = session.execute_async(self.TEST_QUERY)
+        future.clear_callbacks()
+        result = future.result()
+        self._assert_result_correct(result)
+
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
+        assert spans, spans
+
+        # another for the actual query
+        eq_(len(spans), 1)
+
     def test_trace_with_service(self):
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
         session.execute(self.TEST_QUERY)
-        spans = writer.pop()
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
         assert spans
         eq_(len(spans), 1)
         query = spans[0]
         eq_(query.service, self.TEST_SERVICE)
 
     def test_trace_error(self):
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
         try:
             session.execute("select * from test.i_dont_exist limit 1")
         except Exception:
@@ -103,7 +175,8 @@ class CassandraBase(object):
         else:
             assert 0
 
-        spans = writer.pop()
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
         assert spans
         query = spans[0]
         eq_(query.error, 1)
@@ -112,7 +185,7 @@ class CassandraBase(object):
 
     @attr('bound')
     def test_bound_statement(self):
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
 
         query = "INSERT INTO test.person (name, age, description) VALUES (?, ?, ?)"
         prepared = session.prepare(query)
@@ -122,20 +195,22 @@ class CassandraBase(object):
         bound_stmt = prepared.bind(("leo", 16, "fr"))
         session.execute(bound_stmt)
 
-        spans = writer.pop()
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
         eq_(len(spans), 2)
         for s in spans:
             eq_(s.resource, query)
 
     def test_batch_statement(self):
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
 
         batch = BatchStatement()
         batch.add(SimpleStatement("INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)"), ("Joe", 1, "a"))
         batch.add(SimpleStatement("INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)"), ("Jane", 2, "b"))
         session.execute(batch)
 
-        spans = writer.pop()
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
         eq_(s.resource, 'BatchStatement')
@@ -159,7 +234,7 @@ class TestCassPatchDefault(CassandraBase):
     def _traced_session(self):
         tracer = get_dummy_tracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
-        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
 class TestCassPatchAll(TestCassPatchDefault):
     """Test Cassandra instrumentation with patching and custom service on all clusters"""
@@ -180,7 +255,7 @@ class TestCassPatchAll(TestCassPatchDefault):
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(Cluster)
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
-        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
 
 class TestCassPatchOne(TestCassPatchDefault):
@@ -203,7 +278,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
 
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(self.cluster)
-        return self.cluster.connect(self.TEST_KEYSPACE), tracer.writer
+        return self.cluster.connect(self.TEST_KEYSPACE), tracer
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -216,6 +291,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
+        assert tracer.wait_for_spans_completion()
         spans = tracer.writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
@@ -226,6 +302,8 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
+
+        assert tracer.wait_for_spans_completion()
         spans = tracer.writer.pop()
         assert not spans, spans
 
@@ -236,6 +314,7 @@ class TestCassPatchOne(TestCassPatchDefault):
         session = Cluster(port=CASSANDRA_CONFIG['port']).connect(self.TEST_KEYSPACE)
         session.execute(self.TEST_QUERY)
 
+        assert tracer.wait_for_spans_completion()
         spans = tracer.writer.pop()
         assert spans, spans
 

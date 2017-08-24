@@ -1,6 +1,7 @@
 """
 Trace queries along a session to a cassandra cluster
 """
+import sys
 # 3p
 import cassandra.cluster
 import wrapt
@@ -31,10 +32,39 @@ def traced_connect(func, instance, args, kwargs):
     session = func(*args, **kwargs)
     if not isinstance(session.execute, wrapt.FunctionWrapper):
         # FIXME[matt] this should probably be private.
-        setattr(session, 'execute', wrapt.FunctionWrapper(session.execute, traced_execute))
+        setattr(session, 'execute_async', wrapt.FunctionWrapper(session.execute_async, traced_execute_async))
     return session
 
-def traced_execute(func, instance, args, kwargs):
+
+def traced_execute_async_callback(results, future, span):
+    span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, results)))
+    span.finish()
+
+def traced_execute_async_errback(exc, span):
+    # FIXME how should we handle an exception that hasn't be rethrown yet
+    try:
+        raise exc
+    except:
+        span.set_exc_info(*sys.exc_info())
+    span.finish()
+    return
+
+def safe_clear_callbacks(func, instance, args, kwargs):
+    """
+    This overrides the original clear_callbacks of the ResponseFuture to make
+    sure our callbacks are not removed by application code.
+    """
+    try:
+        callback_lock = getattr(instance, '_callback_lock')
+        with callback_lock:
+            callbacks = getattr(instance, '_callbacks')
+            errbacks = getattr(instance, '_errbacks')
+            callbacks = [callbacks[0]] if callbacks else []
+            errbacks = [errbacks[0]] if errbacks else []
+    except:
+        func(*args, **kwargs)
+
+def traced_execute_async(func, instance, args, kwargs):
     cluster = getattr(instance, 'cluster', None)
     pin = Pin.get_from(cluster)
     if not pin or not pin.enabled():
@@ -45,18 +75,24 @@ def traced_execute(func, instance, args, kwargs):
 
     query = kwargs.get("kwargs") or args[0]
 
-    with tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE) as span:
-        _sanitize_query(span, query)
-        span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
-        span.set_tags(_extract_cluster_metas(cluster))
-        result = None
-        try:
-            result = func(*args, **kwargs)
-            return result
-        finally:
-            if result:
-                span.set_tags(_extract_result_metas(result))
-
+    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
+    _sanitize_query(span, query)
+    span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
+    span.set_tags(_extract_cluster_metas(cluster))
+    try:
+        result = func(*args, **kwargs)
+        result.add_callbacks(
+            traced_execute_async_callback,
+            traced_execute_async_errback,
+            callback_args=(result, span),
+            errback_args=(span,)
+        )
+        setattr(result, 'clear_callbacks', wrapt.FunctionWrapper(result.clear_callbacks, safe_clear_callbacks))
+        return result
+    except:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
 
 def _extract_session_metas(session):
     metas = {}
