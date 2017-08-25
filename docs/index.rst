@@ -113,9 +113,9 @@ small example that shows adding a custom span to a Flask application::
 Read the full `API`_ for more details.
 
 Modifying the Agent hostname and port
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this:
+If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
 
     from ddtrace import tracer
     
