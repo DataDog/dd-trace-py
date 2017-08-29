@@ -11,12 +11,13 @@ from ...test_tracer import DummyWriter
 
 
 class DjangoTracingDisabledTest(TestCase):
-    def test_nothing_is_written(self):
+    def setUp(self):
         tracer = Tracer()
         tracer.writer = DummyWriter()
+        self.tracer = tracer
         # Backup the old conf
-        backupTracer = settings.TRACER
-        backupEnabled = settings.ENABLED
+        self.backupTracer = settings.TRACER
+        self.backupEnabled = settings.ENABLED
         # Disable tracing
         settings.ENABLED = False
         settings.TRACER = tracer
@@ -24,11 +25,16 @@ class DjangoTracingDisabledTest(TestCase):
         app = apps.get_app_config('datadog_django')
         app.ready()
 
-        traces = tracer.writer.pop_traces()
-        assert len(traces) == 0
-        services = tracer.writer.pop_services()
+    def tearDown(self):
+        # Reset the original settings
+        settings.ENABLED = self.backupEnabled
+        settings.TRACER = self.backupTracer
+
+    def test_no_service_info_is_written(self):
+        services = self.tracer.writer.pop_services()
         assert len(services) == 0
 
-        # Reset the original settings
-        settings.ENABLED = backupEnabled
-        settings.TRACER = backupTracer
+    def test_no_trace_is_written(self):
+        settings.TRACER.trace("client.testing").finish()
+        traces = self.tracer.writer.pop_traces()
+        assert len(traces) == 0
