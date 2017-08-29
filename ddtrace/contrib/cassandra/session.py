@@ -2,6 +2,7 @@
 Trace queries along a session to a cassandra cluster
 """
 import sys
+import logging
 # 3p
 import cassandra.cluster
 import wrapt
@@ -12,6 +13,7 @@ from ddtrace.compat import stringify
 from ...util import deep_getattr, deprecated
 from ...ext import net, cassandra as cassx
 
+log = logging.getLogger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
 SERVICE = "cassandra"
@@ -36,11 +38,19 @@ def traced_connect(func, instance, args, kwargs):
     return session
 
 
-def traced_execute_async_callback(results, future, span):
+def traced_execute_async_callback(results, future):
+    span = getattr(future, '_current_span')
+    if not span:
+        log.debug('Callback was unable to get the current span from the ResponseFuture')
+        return
     span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, results)))
     span.finish()
 
-def traced_execute_async_errback(exc, span):
+def traced_execute_async_errback(exc, future):
+    span = getattr(future, '_current_span')
+    if not span:
+        log.debug('Errback was unable to get the current span from the ResponseFuture')
+        return
     # FIXME how should we handle an exception that hasn't be rethrown yet
     try:
         raise exc
@@ -83,9 +93,10 @@ def traced_execute_async(func, instance, args, kwargs):
         result.add_callbacks(
             traced_execute_async_callback,
             traced_execute_async_errback,
-            callback_args=(result, span),
-            errback_args=(span,)
+            callback_args=(result,),
+            errback_args=(result,)
         )
+        setattr(result, '_current_span', span)
         setattr(result, 'clear_callbacks', wrapt.FunctionWrapper(result.clear_callbacks, safe_clear_callbacks))
         return result
     except:
