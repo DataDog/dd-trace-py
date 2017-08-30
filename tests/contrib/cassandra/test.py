@@ -74,7 +74,8 @@ class CassandraBase(object):
     """
     Needs a running Cassandra
     """
-    TEST_QUERY = "SELECT * from test.person"
+    TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
+    TEST_QUERY_PAGINATED = "SELECT * from test.person"
     TEST_KEYSPACE = "test"
     TEST_PORT = str(CASSANDRA_CONFIG['port'])
     TEST_SERVICE = 'test-cassandra'
@@ -90,6 +91,8 @@ class CassandraBase(object):
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
         self.session = self.cluster.connect()
         self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
+        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
 
     def _assert_result_correct(self, result):
         eq_(len(result.current_rows), 1)
@@ -123,14 +126,14 @@ class CassandraBase(object):
 
     def test_query(self):
         def execute_fn(session, query):
-            return session.execute(self.TEST_QUERY)
+            return session.execute(query)
         self._test_query_base(execute_fn)
 
     def test_query_async(self):
         def execute_fn(session, query):
             event = Event()
             result = []
-            future = session.execute_async(self.TEST_QUERY)
+            future = session.execute_async(query)
             def callback(results):
                 result.append(ResultSet(future, results))
                 event.set()
@@ -141,10 +144,39 @@ class CassandraBase(object):
 
     def test_query_async_clearing_callbacks(self):
         def execute_fn(session, query):
-            future = session.execute_async(self.TEST_QUERY)
+            future = session.execute_async(query)
             future.clear_callbacks()
             return future.result()
         self._test_query_base(execute_fn)
+
+    def test_paginated_query(self):
+        session, tracer = self._traced_session()
+        statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
+        result = session.execute(statement)
+        #iterate over all pages
+        results = list(result)
+        eq_(len(results), 3)
+
+        assert tracer.wait_for_spans_completion()
+        spans = tracer.writer.pop()
+        assert spans, spans
+
+        eq_(len(spans), 4)
+
+        for i in range(4):
+            query = spans[i]
+            eq_(query.service, self.TEST_SERVICE)
+            eq_(query.resource, self.TEST_QUERY_PAGINATED)
+            eq_(query.span_type, cassx.TYPE)
+
+            eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
+            eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
+            if i == 3:
+                eq_(query.get_tag(cassx.ROW_COUNT), "0")
+            else:
+                eq_(query.get_tag(cassx.ROW_COUNT), "1")
+            eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
+            eq_(query.get_tag(cassx.PAGE_NUMBER), str(i+1))
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()

@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
 SERVICE = "cassandra"
+CURRENT_SPAN = "_ddtrace_current_span"
+PAGE_NUMBER = "_ddtrace_page_number"
 
 # Original connect connect function
 _connect = cassandra.cluster.Cluster.connect
@@ -39,15 +41,17 @@ def traced_connect(func, instance, args, kwargs):
 
 
 def traced_execute_async_callback(results, future):
-    span = getattr(future, '_current_span')
+    span = getattr(future, CURRENT_SPAN, None)
     if not span:
         log.debug('Callback was unable to get the current span from the ResponseFuture')
         return
-    span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, results)))
-    span.finish()
+    try:
+        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, results)))
+    finally:
+        span.finish()
 
 def traced_execute_async_errback(exc, future):
-    span = getattr(future, '_current_span')
+    span = getattr(future, CURRENT_SPAN, None)
     if not span:
         log.debug('Errback was unable to get the current span from the ResponseFuture')
         return
@@ -73,6 +77,43 @@ def safe_clear_callbacks(func, instance, args, kwargs):
     except:
         func(*args, **kwargs)
 
+def traced_start_fetching_next_page(func, instance, args, kwargs):
+    log.debug("Fetching next page")
+    has_more_pages = instance._paging_state is not None
+    if not has_more_pages:
+        return func(*args, **kwargs)
+    session = getattr(instance, 'session', None)
+    cluster = getattr(session, 'cluster', None)
+    pin = Pin.get_from(cluster)
+    if not pin or not pin.enabled():
+        return func(*args, **kwargs)
+
+    service = pin.service
+    tracer = pin.tracer
+
+    # In case the current span has not been finished we make sure to finish it
+    old_span = getattr(instance, CURRENT_SPAN, None)
+    if old_span:
+        old_span.finish()
+
+    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
+    query = getattr(instance, 'query', None)
+    _sanitize_query(span, query)
+    span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
+    span.set_tags(_extract_cluster_metas(cluster))
+    page_number = getattr(instance, PAGE_NUMBER, 0) + 1
+    setattr(instance, PAGE_NUMBER, page_number)
+    span.set_tag(cassx.PAGE_NUMBER, page_number)
+    try:
+        setattr(instance, CURRENT_SPAN, span)
+        func(*args, **kwargs)
+        return
+    except:
+        log.info('Exception on start {}'.format(sys.exc_info()))
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
 def traced_execute_async(func, instance, args, kwargs):
     cluster = getattr(instance, 'cluster', None)
     pin = Pin.get_from(cluster)
@@ -88,16 +129,19 @@ def traced_execute_async(func, instance, args, kwargs):
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
+    span.set_tag(cassx.PAGE_NUMBER, 1)
     try:
         result = func(*args, **kwargs)
+        setattr(result, CURRENT_SPAN, span)
+        setattr(result, PAGE_NUMBER, 1)
         result.add_callbacks(
             traced_execute_async_callback,
             traced_execute_async_errback,
             callback_args=(result,),
             errback_args=(result,)
         )
-        setattr(result, '_current_span', span)
         setattr(result, 'clear_callbacks', wrapt.FunctionWrapper(result.clear_callbacks, safe_clear_callbacks))
+        setattr(result, 'start_fetching_next_page', wrapt.FunctionWrapper(result.start_fetching_next_page, traced_start_fetching_next_page))
         return result
     except:
         span.set_exc_info(*sys.exc_info())
@@ -125,7 +169,7 @@ def _extract_cluster_metas(cluster):
 
 def _extract_result_metas(result):
     metas = {}
-    if not result:
+    if result is None:
         return metas
 
     future = getattr(result, "response_future", None)
