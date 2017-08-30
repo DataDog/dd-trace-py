@@ -107,9 +107,30 @@ def traced_execute_async(func, instance, args, kwargs):
         result = func(*args, **kwargs)
         setattr(result, CURRENT_SPAN, span)
         setattr(result, PAGE_NUMBER, 1)
-        setattr(result, '_set_final_result', wrapt.FunctionWrapper(result._set_final_result, traced_set_final_result))
-        setattr(result, '_set_final_exception', wrapt.FunctionWrapper(result._set_final_exception, traced_set_final_exception))
-        setattr(result, 'start_fetching_next_page', wrapt.FunctionWrapper(result.start_fetching_next_page, traced_start_fetching_next_page))
+        setattr(
+            result,
+            '_set_final_result',
+            wrapt.FunctionWrapper(
+                result._set_final_result,
+                traced_set_final_result
+            )
+        )
+        setattr(
+            result,
+            '_set_final_exception',
+            wrapt.FunctionWrapper(
+                result._set_final_exception,
+                traced_set_final_exception
+            )
+        )
+        setattr(
+            result,
+            'start_fetching_next_page',
+            wrapt.FunctionWrapper(
+                result.start_fetching_next_page,
+                traced_start_fetching_next_page
+            )
+        )
         return result
     except:
         span.set_exc_info(*sys.exc_info())
