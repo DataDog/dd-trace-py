@@ -39,28 +39,34 @@ def traced_connect(func, instance, args, kwargs):
         setattr(session, 'execute_async', wrapt.FunctionWrapper(session.execute_async, traced_execute_async))
     return session
 
-def traced_set_final_result(func, instance, args, kwargs):
-    result = kwargs.get('result') or args[0]
-    span = getattr(instance, CURRENT_SPAN, None)
+def _close_span_on_success(result, future):
+    span = getattr(future, CURRENT_SPAN, None)
     if not span:
         log.debug('traced_set_final_result was not able to get the current span from the ResponseFuture')
-        return func(*args, **kwargs)
+        return
     with span:
-        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(instance, result)))
+        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
+
+def traced_set_final_result(func, instance, args, kwargs):
+    result = kwargs.get('result') or args[0]
+    _close_span_on_success(result, instance)
     return func(*args, **kwargs)
 
-def traced_set_final_exception(func, instance, args, kwargs):
-    exc = kwargs.get('result') or args[0]
-    span = getattr(instance, CURRENT_SPAN, None)
+def _close_span_on_error(exc, future):
+    span = getattr(future, CURRENT_SPAN, None)
     if not span:
         log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
-        return func(*args, **kwargs)
+        return
     with span:
         # FIXME how should we handle an exception that hasn't be rethrown yet
         try:
             raise exc
         except:
             span.set_exc_info(*sys.exc_info())
+
+def traced_set_final_exception(func, instance, args, kwargs):
+    exc = kwargs.get('result') or args[0]
+    _close_span_on_error(exc, instance)
     return func(*args, **kwargs)
 
 def traced_start_fetching_next_page(func, instance, args, kwargs):
@@ -131,6 +137,12 @@ def traced_execute_async(func, instance, args, kwargs):
                 traced_start_fetching_next_page
             )
         )
+        # Since we cannot be sure that the previous methods were overwritten
+        # before the call ended, we add callbacks that will be run
+        # synchronously if the call already returned and we remove them right
+        # after.
+        result.add_callbacks(_close_span_on_success, _close_span_on_error, callback_args=(result,), errback_args=(result,))
+        result.clear_callbacks()
         return result
     except:
         span.set_exc_info(*sys.exc_info())
