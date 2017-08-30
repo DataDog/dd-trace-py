@@ -39,46 +39,31 @@ def traced_connect(func, instance, args, kwargs):
         setattr(session, 'execute_async', wrapt.FunctionWrapper(session.execute_async, traced_execute_async))
     return session
 
-
-def traced_execute_async_callback(results, future):
-    span = getattr(future, CURRENT_SPAN, None)
+def traced_set_final_result(func, instance, args, kwargs):
+    result = kwargs.get('result') or args[0]
+    span = getattr(instance, CURRENT_SPAN, None)
     if not span:
-        log.debug('Callback was unable to get the current span from the ResponseFuture')
-        return
-    try:
-        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, results)))
-    finally:
-        span.finish()
+        log.debug('traced_set_final_result was not able to get the current span from the ResponseFuture')
+        return func(*args, **kwargs)
+    with span:
+        span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(instance, result)))
+    return func(*args, **kwargs)
 
-def traced_execute_async_errback(exc, future):
-    span = getattr(future, CURRENT_SPAN, None)
+def traced_set_final_exception(func, instance, args, kwargs):
+    exc = kwargs.get('result') or args[0]
+    span = getattr(instance, CURRENT_SPAN, None)
     if not span:
-        log.debug('Errback was unable to get the current span from the ResponseFuture')
-        return
-    # FIXME how should we handle an exception that hasn't be rethrown yet
-    try:
-        raise exc
-    except:
-        span.set_exc_info(*sys.exc_info())
-    span.finish()
-
-def safe_clear_callbacks(func, instance, args, kwargs):
-    """
-    This overrides the original clear_callbacks of the ResponseFuture to make
-    sure our callbacks are not removed by application code.
-    """
-    try:
-        callback_lock = getattr(instance, '_callback_lock')
-        with callback_lock:
-            callbacks = getattr(instance, '_callbacks')
-            errbacks = getattr(instance, '_errbacks')
-            callbacks = [callbacks[0]] if callbacks else []
-            errbacks = [errbacks[0]] if errbacks else []
-    except:
-        func(*args, **kwargs)
+        log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
+        return func(*args, **kwargs)
+    with span:
+        # FIXME how should we handle an exception that hasn't be rethrown yet
+        try:
+            raise exc
+        except:
+            span.set_exc_info(*sys.exc_info())
+    return func(*args, **kwargs)
 
 def traced_start_fetching_next_page(func, instance, args, kwargs):
-    log.debug("Fetching next page")
     has_more_pages = instance._paging_state is not None
     if not has_more_pages:
         return func(*args, **kwargs)
@@ -88,28 +73,22 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    service = pin.service
-    tracer = pin.tracer
-
-    # In case the current span has not been finished we make sure to finish it
+    # In case the current span is not finished we make sure to finish it
     old_span = getattr(instance, CURRENT_SPAN, None)
     if old_span:
+        log.debug('previous span was not finished before fetching next page')
         old_span.finish()
 
-    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
     query = getattr(instance, 'query', None)
-    _sanitize_query(span, query)
-    span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
-    span.set_tags(_extract_cluster_metas(cluster))
     page_number = getattr(instance, PAGE_NUMBER, 0) + 1
+
+    span = _start_span_and_set_tags(pin, query, session, cluster, page_number)
+
     setattr(instance, PAGE_NUMBER, page_number)
-    span.set_tag(cassx.PAGE_NUMBER, page_number)
+    setattr(instance, CURRENT_SPAN, span)
     try:
-        setattr(instance, CURRENT_SPAN, span)
-        func(*args, **kwargs)
-        return
+        return func(*args, **kwargs)
     except:
-        log.info('Exception on start {}'.format(sys.exc_info()))
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise
@@ -120,33 +99,32 @@ def traced_execute_async(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    service = pin.service
-    tracer = pin.tracer
-
     query = kwargs.get("kwargs") or args[0]
 
-    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
-    _sanitize_query(span, query)
-    span.set_tags(_extract_session_metas(instance))     # FIXME[matt] do once?
-    span.set_tags(_extract_cluster_metas(cluster))
-    span.set_tag(cassx.PAGE_NUMBER, 1)
+    span = _start_span_and_set_tags(pin, query, instance, cluster, page_number=1)
+
     try:
         result = func(*args, **kwargs)
         setattr(result, CURRENT_SPAN, span)
         setattr(result, PAGE_NUMBER, 1)
-        result.add_callbacks(
-            traced_execute_async_callback,
-            traced_execute_async_errback,
-            callback_args=(result,),
-            errback_args=(result,)
-        )
-        setattr(result, 'clear_callbacks', wrapt.FunctionWrapper(result.clear_callbacks, safe_clear_callbacks))
+        setattr(result, '_set_final_result', wrapt.FunctionWrapper(result._set_final_result, traced_set_final_result))
+        setattr(result, '_set_final_exception', wrapt.FunctionWrapper(result._set_final_exception, traced_set_final_exception))
         setattr(result, 'start_fetching_next_page', wrapt.FunctionWrapper(result.start_fetching_next_page, traced_start_fetching_next_page))
         return result
     except:
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise
+
+def _start_span_and_set_tags(pin, query, session, cluster, page_number):
+    service = pin.service
+    tracer = pin.tracer
+    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
+    _sanitize_query(span, query)
+    span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
+    span.set_tags(_extract_cluster_metas(cluster))
+    span.set_tag(cassx.PAGE_NUMBER, page_number)
+    return span
 
 def _extract_session_metas(session):
     metas = {}
@@ -193,9 +171,6 @@ def _extract_result_metas(result):
     if hasattr(result, "has_more_pages"):
         metas[cassx.PAGINATED] = bool(result.has_more_pages)
 
-    # NOTE(aaditya): this number only reflects the first page of results
-    # which could be misleading. But a true count would require iterating through
-    # all pages which is expensive
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
         metas[cassx.ROW_COUNT] = len(result_rows)
