@@ -99,7 +99,7 @@ def traced_execute_async(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    query = kwargs.get("kwargs") or args[0]
+    query = kwargs.get("query") or args[0]
 
     span = _start_span_and_set_tags(pin, query, instance, cluster, page_number=1)
 
