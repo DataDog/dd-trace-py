@@ -141,7 +141,12 @@ def traced_execute_async(func, instance, args, kwargs):
         # before the call ended, we add callbacks that will be run
         # synchronously if the call already returned and we remove them right
         # after.
-        result.add_callbacks(_close_span_on_success, _close_span_on_error, callback_args=(result,), errback_args=(result,))
+        result.add_callbacks(
+            _close_span_on_success,
+            _close_span_on_error,
+            callback_args=(result,),
+            errback_args=(result,)
+        )
         result.clear_callbacks()
         return result
     except:
