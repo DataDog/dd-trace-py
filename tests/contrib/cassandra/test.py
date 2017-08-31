@@ -87,6 +87,8 @@ class CassandraBase(object):
         eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
         eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
         eq_(query.get_tag(cassx.ROW_COUNT), "1")
+        eq_(query.get_tag(cassx.PAGE_NUMBER), None)
+        eq_(query.get_tag(cassx.PAGINATED), 'False')
         eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
 
 
@@ -143,6 +145,7 @@ class CassandraBase(object):
             else:
                 eq_(query.get_tag(cassx.ROW_COUNT), "1")
             eq_(query.get_tag(net.TARGET_HOST), "127.0.0.1")
+            eq_(query.get_tag(cassx.PAGINATED), 'True')
             eq_(query.get_tag(cassx.PAGE_NUMBER), str(i+1))
 
     def test_trace_with_service(self):

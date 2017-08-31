@@ -74,7 +74,7 @@ def traced_set_final_exception(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 def traced_start_fetching_next_page(func, instance, args, kwargs):
-    has_more_pages = instance._paging_state is not None
+    has_more_pages = getattr(instance, 'has_more_pages', True)
     if not has_more_pages:
         return func(*args, **kwargs)
     session = getattr(instance, 'session', None)
@@ -90,10 +90,10 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
         old_span.finish()
 
     query = getattr(instance, 'query', None)
-    page_number = getattr(instance, PAGE_NUMBER, 0) + 1
 
-    span = _start_span_and_set_tags(pin, query, session, cluster, page_number)
+    span = _start_span_and_set_tags(pin, query, session, cluster)
 
+    page_number = getattr(instance, PAGE_NUMBER, 1) + 1
     setattr(instance, PAGE_NUMBER, page_number)
     setattr(instance, CURRENT_SPAN, span)
     try:
@@ -111,7 +111,7 @@ def traced_execute_async(func, instance, args, kwargs):
 
     query = kwargs.get("query") or args[0]
 
-    span = _start_span_and_set_tags(pin, query, instance, cluster, page_number=1)
+    span = _start_span_and_set_tags(pin, query, instance, cluster)
 
     try:
         result = func(*args, **kwargs)
@@ -158,14 +158,13 @@ def traced_execute_async(func, instance, args, kwargs):
             span.set_exc_info(*sys.exc_info())
         raise
 
-def _start_span_and_set_tags(pin, query, session, cluster, page_number):
+def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
     span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
-    span.set_tag(cassx.PAGE_NUMBER, page_number)
     return span
 
 def _extract_session_metas(session):
@@ -210,8 +209,13 @@ def _extract_result_metas(result):
         if getattr(query, "keyspace", None):
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
-    if hasattr(result, "has_more_pages"):
-        metas[cassx.PAGINATED] = bool(result.has_more_pages)
+        page_number = getattr(future, PAGE_NUMBER, 1)
+        has_more_pages = getattr(future, "has_more_pages")
+        is_paginated = has_more_pages or page_number > 1
+        metas[cassx.PAGINATED] = is_paginated
+        if is_paginated:
+            metas[cassx.PAGE_NUMBER] = page_number
+
 
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
