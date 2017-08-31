@@ -95,8 +95,8 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
     try:
         return func(*args, **kwargs)
     except:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
+        with span:
+            span.set_exc_info(*sys.exc_info())
         raise
 
 def traced_execute_async(func, instance, args, kwargs):
@@ -150,8 +150,8 @@ def traced_execute_async(func, instance, args, kwargs):
         result.clear_callbacks()
         return result
     except:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
+        with span:
+            span.set_exc_info(*sys.exc_info())
         raise
 
 def _start_span_and_set_tags(pin, query, session, cluster, page_number):
