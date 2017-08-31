@@ -65,7 +65,7 @@ def _close_span_on_error(exc, future):
             span.set_exc_info(*sys.exc_info())
 
 def traced_set_final_exception(func, instance, args, kwargs):
-    exc = kwargs.get('result') or args[0]
+    exc = args[0]
     _close_span_on_error(exc, instance)
     return func(*args, **kwargs)
 
