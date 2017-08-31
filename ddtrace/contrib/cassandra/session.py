@@ -44,6 +44,9 @@ def _close_span_on_success(result, future):
     if not span:
         log.debug('traced_set_final_result was not able to get the current span from the ResponseFuture')
         return
+    if span._finished:
+        log.debug('Doing nothing the span was already closed')
+        return
     with span:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
 
@@ -56,6 +59,9 @@ def _close_span_on_error(exc, future):
     span = getattr(future, CURRENT_SPAN, None)
     if not span:
         log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
+        return
+    if span._finished:
+        log.debug('Doing nothing the span was already closed')
         return
     try:
         # handling the exception manually because we
