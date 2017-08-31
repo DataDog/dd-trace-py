@@ -167,7 +167,7 @@ class CassandraBase(object):
         assert spans
         query = spans[0]
         eq_(query.error, 1)
-        for k in (errors.ERROR_MSG, errors.ERROR_TYPE, errors.ERROR_STACK):
+        for k in (errors.ERROR_MSG, errors.ERROR_TYPE):
             assert query.get_tag(k)
 
     @attr('bound')

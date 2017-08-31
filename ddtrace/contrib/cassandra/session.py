@@ -11,7 +11,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.compat import stringify
 from ...util import deep_getattr, deprecated
-from ...ext import net, cassandra as cassx
+from ...ext import net, cassandra as cassx, errors
 
 log = logging.getLogger(__name__)
 
@@ -57,12 +57,16 @@ def _close_span_on_error(exc, future):
     if not span:
         log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
         return
-    with span:
-        # FIXME how should we handle an exception that hasn't be rethrown yet
-        try:
-            raise exc
-        except:
-            span.set_exc_info(*sys.exc_info())
+    try:
+      # handling the exception manually because we
+      # don't have an ongoing exception here
+      span.error = 1
+      span.set_tag(errors.ERROR_MSG, exc.args[0])
+      span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
+    except Exception, e:
+        log.debug('traced_set_final_exception was not able to set the error, failed with error: {}'.format(e))
+    finally:
+      span.finish()
 
 def traced_set_final_exception(func, instance, args, kwargs):
     exc = args[0]
