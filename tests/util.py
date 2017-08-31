@@ -1,4 +1,6 @@
+import ddtrace
 import mock
+from contextlib import contextmanager
 from nose.tools import ok_
 
 class FakeTime(object):
@@ -38,3 +40,15 @@ def assert_dict_issuperset(a, b):
 def assert_list_issuperset(a, b):
     ok_(set(a).issuperset(set(b)),
             msg="{a} is not a superset of {b}".format(a=a, b=b))
+
+@contextmanager
+def override_global_tracer(tracer):
+    """Helper functions that overrides the global tracer available in the
+    `ddtrace` package. This is required because in some `httplib` tests we
+    can't get easily the PIN object attached to the `HTTPConnection` to
+    replace the used tracer with a dummy tracer.
+    """
+    original_tracer = ddtrace.tracer
+    ddtrace.tracer = tracer
+    yield
+    ddtrace.tracer = original_tracer
