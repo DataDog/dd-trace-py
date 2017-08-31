@@ -58,15 +58,15 @@ def _close_span_on_error(exc, future):
         log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
         return
     try:
-      # handling the exception manually because we
-      # don't have an ongoing exception here
-      span.error = 1
-      span.set_tag(errors.ERROR_MSG, exc.args[0])
-      span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
+        # handling the exception manually because we
+        # don't have an ongoing exception here
+        span.error = 1
+        span.set_tag(errors.ERROR_MSG, exc.args[0])
+        span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
     except Exception, e:
         log.debug('traced_set_final_exception was not able to set the error, failed with error: {}'.format(e))
     finally:
-      span.finish()
+        span.finish()
 
 def traced_set_final_exception(func, instance, args, kwargs):
     exc = args[0]
@@ -215,7 +215,6 @@ def _extract_result_metas(result):
         metas[cassx.PAGINATED] = is_paginated
         if is_paginated:
             metas[cassx.PAGE_NUMBER] = page_number
-
 
     if hasattr(result, "current_rows"):
         result_rows = result.current_rows or []
