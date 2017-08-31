@@ -34,6 +34,9 @@ class Tracer(object):
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
         """
+        self.sampler = None
+        self.distributed_sampler = None
+
         # Apply the default configuration
         self.configure(
             enabled=True,
@@ -41,7 +44,7 @@ class Tracer(object):
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
             # TODO: by default, a ServiceSampler periodically updated
-            distributed_sampler=None,
+            distributed_sampler=AllSampler(),
             context_provider=DefaultContextProvider(),
         )
 
