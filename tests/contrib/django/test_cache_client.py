@@ -5,7 +5,7 @@ from nose.tools import eq_, ok_
 from django.core.cache import caches
 
 # testing
-from .utils import DjangoTraceTestCase
+from .utils import DjangoTraceTestCase, override_ddtrace_settings
 from ...util import assert_dict_issuperset
 
 
@@ -41,6 +41,20 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
+
+    @override_ddtrace_settings(INSTRUMENT_CACHE=False)
+    def test_cache_disabled(self):
+        # get the default cache
+        cache = caches['default']
+
+        # (trace) the cache miss
+        start = time.time()
+        hit = cache.get('missing_key')
+        end = time.time()
+
+        # tests
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
 
     def test_cache_set(self):
         # get the default cache

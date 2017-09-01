@@ -8,7 +8,7 @@ from .db import patch_db
 from .conf import settings
 from .cache import patch_cache
 from .templates import patch_template
-from .middleware import insert_exception_middleware
+from .middleware import insert_exception_middleware, insert_trace_middleware
 
 from ...ext import AppTypes
 
@@ -48,20 +48,22 @@ class TracerConfig(AppConfig):
 
         if settings.AUTO_INSTRUMENT:
             # trace Django internals
+            insert_trace_middleware()
             insert_exception_middleware()
 
-            try:
-                patch_template(tracer)
-            except Exception:
-                log.exception('error patching Django template rendering')
+            if settings.INSTRUMENT_TEMPLATE:
+                try:
+                    patch_template(tracer)
+                except Exception:
+                    log.exception('error patching Django template rendering')
 
-            if settings.DATABASE_AUTO_INSTRUMENT:
+            if settings.INSTRUMENT_DATABASE:
                 try:
                     patch_db(tracer)
                 except Exception:
                     log.exception('error patching Django database connections')
 
-            if settings.CACHE_AUTO_INSTRUMENT:
+            if settings.INSTRUMENT_CACHE:
                 try:
                     patch_cache(tracer)
                 except Exception:

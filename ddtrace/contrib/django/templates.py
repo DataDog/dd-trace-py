@@ -15,6 +15,7 @@ from django.template import Template
 
 log = logging.getLogger(__name__)
 
+RENDER_ATTR = '_datadog_original_render'
 
 def patch_template(tracer):
     """ will patch django's template rendering function to include timing
@@ -24,12 +25,11 @@ def patch_template(tracer):
     # FIXME[matt] we're patching the template class here. ideally we'd only
     # patch so we can use multiple tracers at once, but i suspect this is fine
     # in practice.
-    attr = '_datadog_original_render'
-    if getattr(Template, attr, None):
+    if getattr(Template, RENDER_ATTR, None):
         log.debug("already patched")
         return
 
-    setattr(Template, attr, Template.render)
+    setattr(Template, RENDER_ATTR, Template.render)
 
     def traced_render(self, context):
         with tracer.trace('django.template', span_type=http.TEMPLATE) as span:
@@ -41,3 +41,11 @@ def patch_template(tracer):
                 span.set_tag('django.template_name', template_name)
 
     Template.render = traced_render
+
+def unpatch_template():
+    render = getattr(Template, RENDER_ATTR, None)
+    if render is None:
+        log.debug('nothing to do Template is already patched')
+        return
+    Template.render = render
+    delattr(Template, RENDER_ATTR)
