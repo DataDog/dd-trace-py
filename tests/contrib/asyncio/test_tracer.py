@@ -273,12 +273,30 @@ class TestAsyncioPropagation(AsyncioTestCase):
         eq_(child_2.parent_id, main_task.span_id)
 
     @mark_asyncio
-    def test_propagation_with_new_context(self):
+    def test_propagation_with_set_call_context(self):
         # ensures that if a new Context is attached to the current
-        # running Task, a previous trace is resumed
+        # running Task via helpers, a previous trace is resumed
         task = asyncio.Task.current_task()
         ctx = Context(trace_id=100, span_id=101)
         set_call_context(task, ctx)
+
+        with self.tracer.trace('async_task'):
+            yield from asyncio.sleep(0.01)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 101)
+
+    @mark_asyncio
+    def test_propagation_with_new_context(self):
+        # ensures that if a new Context is activated, a trace
+        # with the Context arguments is created
+        task = asyncio.Task.current_task()
+        ctx = Context(trace_id=100, span_id=101)
+        self.tracer.context_provider.activate(ctx)
 
         with self.tracer.trace('async_task'):
             yield from asyncio.sleep(0.01)
