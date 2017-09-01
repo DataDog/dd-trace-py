@@ -5,7 +5,7 @@ from os import getpid
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, RateSampler, SAMPLE_RATE_METRIC_KEY
+from .sampler import AllSampler, RateSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
 from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY
@@ -44,7 +44,7 @@ class Tracer(object):
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
             # TODO: by default, a ServiceSampler periodically updated
-            distributed_sampler=AllSampler(),
+            distributed_sampler=RateByServiceSampler(),
             context_provider=DefaultContextProvider(),
         )
 
@@ -107,18 +107,19 @@ class Tracer(object):
         if settings is not None:
                 filters = settings.get(FILTERS_KEY)
 
-        if hostname is not None or port is not None or filters is not None:
-            self.writer = AgentWriter(
-                hostname or self.DEFAULT_HOSTNAME,
-                port or self.DEFAULT_PORT,
-                filters=filters
-            )
-
         if sampler is not None:
             self.sampler = sampler
 
         if distributed_sampler is not None:
             self.distributed_sampler = distributed_sampler
+
+        if hostname is not None or port is not None or filters is not None:
+            self.writer = AgentWriter(
+                hostname or self.DEFAULT_HOSTNAME,
+                port or self.DEFAULT_PORT,
+                filters=filters,
+                distributed_sampler=self.distributed_sampler,
+            )
 
         if context_provider is not None:
             self._context_provider = context_provider
