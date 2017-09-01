@@ -375,6 +375,36 @@ def test_tracer_current_span():
     eq_(span, tracer.current_span())
 
 
+def test_default_provider_get():
+    # Tracer Context Provider must return a Context object
+    # even if empty
+    tracer = get_dummy_tracer()
+    ctx = tracer.context_provider.active()
+    ok_(isinstance(ctx, Context))
+    eq_(len(ctx._trace), 0)
+
+
+def test_default_provider_set():
+    # The Context Provider can set the current active Context;
+    # this could happen in distributed tracing
+    tracer = get_dummy_tracer()
+    ctx = Context(trace_id=42, span_id=100)
+    tracer.context_provider.activate(ctx)
+    span = tracer.trace('web.request')
+    eq_(span.trace_id, 42)
+    eq_(span.parent_id, 100)
+
+
+def test_default_provider_trace():
+    # Context handled by a default provider must be used
+    # when creating a trace
+    tracer = get_dummy_tracer()
+    span = tracer.trace('web.request')
+    ctx = tracer.context_provider.active()
+    eq_(len(ctx._trace), 1)
+    eq_(span._context, ctx)
+
+
 def test_start_span():
     # it should create a root Span
     tracer = get_dummy_tracer()
