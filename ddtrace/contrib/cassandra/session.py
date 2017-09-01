@@ -51,7 +51,7 @@ def _close_span_on_success(result, future):
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
 
 def traced_set_final_result(func, instance, args, kwargs):
-    result = kwargs.get('result') or args[0]
+    result = args[0]
     _close_span_on_success(result, instance)
     return func(*args, **kwargs)
 
