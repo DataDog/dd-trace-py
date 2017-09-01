@@ -70,6 +70,11 @@ class Tracer(object):
         """
         return self._context_provider(*args, **kwargs)
 
+    @property
+    def context_provider(self):
+        """Returns the current Tracer Context Provider"""
+        return self._context_provider
+
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
                 context_provider=None, wrap_executor=None, settings=None):
         """
