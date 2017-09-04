@@ -87,7 +87,9 @@ class RateByServiceSampler(object):
 
     def set_sample_rates_from_json(self, body):
         try:
-            log.debug("setting sample rates from JSON '%s'" % body)
+            log.debug("setting sample rates from JSON '%s'" % repr(body))
+            if not isinstance(body, str):
+                body = body.decode('utf-8')
             content = loads(body)
         except ValueError as err:
             log.error("unable to load JSON '%s': %s" % (body, err))
