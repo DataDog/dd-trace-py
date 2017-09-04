@@ -15,6 +15,15 @@ from wsgiref.simple_server import make_server
 import ddtrace
 from ddtrace import compat
 
+def _include_me(config):
+    pass
+
+def test_config_include():
+    """ This test makes sure that relative imports still work when the
+    application is run with ddtrace-run """
+    config = Configurator()
+    config.include('._include_me')
+
 
 def test_200():
     app, tracer = _get_test_app(service='foobar')
