@@ -24,7 +24,6 @@ def test_config_include():
     config = Configurator()
     config.include('._include_me')
 
-
 def test_200():
     app, tracer = _get_test_app(service='foobar')
     res = app.get('/', status=200)
