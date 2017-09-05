@@ -19,8 +19,8 @@ class API(object):
     def __init__(self, hostname, port, headers=None, encoder=None):
         self.hostname = hostname
         self.port = port
-        self._traces = '/v0.4/traces'
-        self._services = '/v0.4/services'
+        self._traces = '/v0.3/traces'
+        self._services = '/v0.3/services'
         self._compatibility_mode = False
         self._encoder = encoder or get_encoder()
 
