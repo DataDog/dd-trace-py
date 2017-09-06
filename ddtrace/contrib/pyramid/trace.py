@@ -10,6 +10,9 @@ from ...ext import http, AppTypes
 
 
 def trace_pyramid(config):
+    config.include('ddtrace.contrib.pyramid')
+
+def includeme(config):
     config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
     # ensure we only patch the renderer once.
     if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
