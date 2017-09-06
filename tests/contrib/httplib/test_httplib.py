@@ -12,9 +12,8 @@ from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
 
-from .utils import override_global_tracer
 from ...test_tracer import get_dummy_tracer
-from ...util import assert_dict_issuperset
+from ...util import assert_dict_issuperset, override_global_tracer
 
 
 if PY2:
