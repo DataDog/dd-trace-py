@@ -22,13 +22,13 @@ LOG_ERR_INTERVAL = 60
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=8126, filters=None, distributed_sampler=None):
+    def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
         self._pid = None
         self._traces = None
         self._services = None
         self._worker = None
         self._filters = filters
-        self._distributed_sampler = distributed_sampler
+        self._priority_sampler = priority_sampler
         self.api = api.API(hostname, port)
 
     def write(self, spans=None, services=None):
@@ -59,21 +59,21 @@ class AgentWriter(object):
                 self._traces,
                 self._services,
                 filters=self._filters,
-                distributed_sampler=self._distributed_sampler,
+                priority_sampler=self._priority_sampler,
             )
 
 
 class AsyncWorker(object):
 
     def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT,
-                 filters=None, distributed_sampler=None):
+                 filters=None, priority_sampler=None):
         self._trace_queue = trace_queue
         self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
         self._filters = filters
-        self._distributed_sampler = distributed_sampler
+        self._priority_sampler = priority_sampler
         self._last_error_ts = 0
         self.api = api
         self.start()
@@ -157,8 +157,8 @@ class AsyncWorker(object):
 
             if hasattr(result_traces, 'read'):
                 result_traces_body = result_traces.read()
-                if hasattr(self._distributed_sampler, 'set_sample_rates_from_json'):
-                    self._distributed_sampler.set_sample_rates_from_json(result_traces_body)
+                if hasattr(self._priority_sampler, 'set_sample_rates_from_json'):
+                    self._priority_sampler.set_sample_rates_from_json(result_traces_body)
 
             self._log_error_status(result_traces, "traces")
             result_traces = None

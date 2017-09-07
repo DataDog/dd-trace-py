@@ -35,7 +35,7 @@ class Tracer(object):
         for common usage, so there is no need to initialize your own ``Tracer``.
         """
         self.sampler = None
-        self.distributed_sampler = None
+        self.priority_sampler = None
 
         # Apply the default configuration
         self.configure(

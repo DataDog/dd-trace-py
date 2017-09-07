@@ -175,6 +175,22 @@ def test_ctx_mgr():
     else:
         assert 0, "should have failed"
 
+def test_span_priority():
+    s = Span(tracer=None, name="test.span", service="s", resource="r")
+    for i in range(10):
+        s.set_sampling_priority(i)
+        eq_(i, s.priority)
+        eq_(i, s.get_sampling_priority())
+    s.set_sampling_priority('this is not a valid integer')
+    eq_(9, s.priority)
+    eq_(9, s.get_sampling_priority())
+    s.set_sampling_priority(None)
+    eq_(None, s.priority)
+    eq_(None, s.get_sampling_priority())
+    s.set_sampling_priority(0.0)
+    eq_(0, s.priority)
+    eq_(0, s.get_sampling_priority())
+
 def test_span_to_dict():
     s = Span(tracer=None, name="test.span", service="s", resource="r")
     s.span_type = "foo"
@@ -221,6 +237,25 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
+def test_span_to_dict_priority():
+    for i in range(10):
+        s = Span(tracer=None, name="test.span", service="s", resource="r")
+        s.span_type = "foo"
+        s.set_tag("a", "1")
+        s.set_meta("b", "2")
+        s.set_sampling_priority(i)
+        s.finish()
+
+        d = s.to_dict()
+        assert d
+        eq_(d["span_id"], s.span_id)
+        eq_(d["trace_id"], s.trace_id)
+        eq_(d["parent_id"], s.parent_id)
+        eq_(d["meta"], {"a": "1", "b": "2"})
+        eq_(d["metrics"], {"_sampling_priority_v1": i})
+        eq_(d["type"], "foo")
+        eq_(d["error"], 0)
+        eq_(type(d["error"]), int)
 
 class DummyTracer(object):
     def __init__(self):

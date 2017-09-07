@@ -197,7 +197,7 @@ class Span(object):
         else:
             try:
                 self.priority = int(sampling_priority)
-            except TypeError:
+            except ValueError:
                 # if the provided sampling_priority is invalid, ignore it.
                 pass
 
@@ -243,10 +243,10 @@ class Span(object):
             d['type'] = self.span_type
 
         if self.priority is not None:
-            if d.get('meta'):
-                d['meta'][SAMPLING_PRIORITY_KEY] = stringify(self.priority)
+            if d.get('metrics'):
+                d['metrics'][SAMPLING_PRIORITY_KEY] = self.priority
             else:
-                d['meta'] = {SAMPLING_PRIORITY_KEY : stringify(self.priority)}
+                d['metrics'] = {SAMPLING_PRIORITY_KEY : self.priority}
 
         return d
 
