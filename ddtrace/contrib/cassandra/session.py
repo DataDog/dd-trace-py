@@ -16,9 +16,9 @@ from ...ext import net, cassandra as cassx, errors
 log = logging.getLogger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
-SERVICE = "cassandra"
-CURRENT_SPAN = "_ddtrace_current_span"
-PAGE_NUMBER = "_ddtrace_page_number"
+SERVICE = 'cassandra'
+CURRENT_SPAN = '_ddtrace_current_span'
+PAGE_NUMBER = '_ddtrace_page_number'
 
 # Original connect connect function
 _connect = cassandra.cluster.Cluster.connect
@@ -44,11 +44,13 @@ def _close_span_on_success(result, future):
     if not span:
         log.debug('traced_set_final_result was not able to get the current span from the ResponseFuture')
         return
-    if span._finished:
-        log.debug('Doing nothing the span was already closed')
-        return
-    with span:
+    try:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
+    except Exception as e:
+        log.debug('an exception occured while setting tags: %s', e)
+    finally:
+        span.finish()
+        delattr(future, CURRENT_SPAN)
 
 def traced_set_final_result(func, instance, args, kwargs):
     result = args[0]
@@ -60,9 +62,6 @@ def _close_span_on_error(exc, future):
     if not span:
         log.debug('traced_set_final_exception was not able to get the current span from the ResponseFuture')
         return
-    if span._finished:
-        log.debug('Doing nothing the span was already closed')
-        return
     try:
         # handling the exception manually because we
         # don't have an ongoing exception here
@@ -70,9 +69,10 @@ def _close_span_on_error(exc, future):
         span.set_tag(errors.ERROR_MSG, exc.args[0])
         span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
     except Exception as e:
-        log.debug('traced_set_final_exception was not able to set the error, failed with error: {}'.format(e))
+        log.debug('traced_set_final_exception was not able to set the error, failed with error: %s', e)
     finally:
         span.finish()
+        delattr(future, CURRENT_SPAN)
 
 def traced_set_final_exception(func, instance, args, kwargs):
     exc = args[0]
