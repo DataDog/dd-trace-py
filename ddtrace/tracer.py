@@ -43,8 +43,7 @@ class Tracer(object):
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
-            # TODO: by default, a ServiceSampler periodically updated
-            distributed_sampler=RateByServiceSampler(),
+            # priority_sampler=RateByServiceSampler(),
             context_provider=DefaultContextProvider(),
         )
 
@@ -81,7 +80,7 @@ class Tracer(object):
         return self._context_provider
 
     def configure(self, enabled=None, hostname=None, port=None,
-                  sampler=None, distributed_sampler=None,
+                  sampler=None, priority_sampler=None,
                   context_provider=None, wrap_executor=None, settings=None):
         """
         Configure an existing Tracer the easy way.
@@ -92,7 +91,7 @@ class Tracer(object):
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
-        :param object distributed_sampler: A custom Sampler instance, taking the distributed sampling decision.
+        :param object priority_sampler: A custom Sampler instance, taking the priority sampling decision.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value
@@ -110,15 +109,15 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        if distributed_sampler is not None:
-            self.distributed_sampler = distributed_sampler
+        if priority_sampler is not None:
+            self.priority_sampler = priority_sampler
 
         if hostname is not None or port is not None or filters is not None:
             self.writer = AgentWriter(
                 hostname or self.DEFAULT_HOSTNAME,
                 port or self.DEFAULT_PORT,
                 filters=filters,
-                distributed_sampler=self.distributed_sampler,
+                priority_sampler=self.priority_sampler,
             )
 
         if context_provider is not None:
@@ -209,13 +208,13 @@ class Tracer(object):
                 if isinstance(self.sampler, RateSampler):
                     span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
 
-                if self.distributed_sampler:
-                    if self.distributed_sampler.sample(span):
+                if self.priority_sampler:
+                    if self.priority_sampler.sample(span):
                         span.set_sampling_priority(1)
                     else:
                         span.set_sampling_priority(0)
             else:
-                if self.distributed_sampler:
+                if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
                     span.set_sampling_priority(0)
 
