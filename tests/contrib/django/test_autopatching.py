@@ -1,41 +1,69 @@
+import django
+
 from ddtrace.monkey import patch
 from .utils import DjangoTraceTestCase
 from nose.tools import eq_, ok_
+from django.conf import settings
+from unittest import skipIf
+
 
 class DjangoAutopatchTest(DjangoTraceTestCase):
-    def test_autopatching(self):
+    def setUp(self):
+        super(DjangoAutopatchTest, self).setUp()
         patch(django=True)
-
-        import django
-        ok_(django._datadog_patch)
         django.setup()
 
-        from django.conf import settings
+    @skipIf(django.VERSION >= (1, 10), 'skip if version above 1.10')
+    def test_autopatching_middleware_classes(self):
+        ok_(django._datadog_patch)
         ok_('ddtrace.contrib.django' in settings.INSTALLED_APPS)
         eq_(settings.MIDDLEWARE_CLASSES[0], 'ddtrace.contrib.django.TraceMiddleware')
+        eq_(settings.MIDDLEWARE_CLASSES[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
 
 
-    def test_autopatching_twice(self):
-        patch(django=True)
-
+    @skipIf(django.VERSION >= (1, 10), 'skip if version above 1.10')
+    def test_autopatching_twice_middleware_classes(self):
+        ok_(django._datadog_patch)
         # Call django.setup() twice and ensure we don't add a duplicate tracer
-        import django
-        django.setup()
         django.setup()
 
-        from django.conf import settings
-        found_app = 0
-
-        for app in settings.INSTALLED_APPS:
-            if app == 'ddtrace.contrib.django':
-                found_app += 1
-
+        found_app = settings.INSTALLED_APPS.count('ddtrace.contrib.django')
         eq_(found_app, 1)
+
         eq_(settings.MIDDLEWARE_CLASSES[0], 'ddtrace.contrib.django.TraceMiddleware')
+        eq_(settings.MIDDLEWARE_CLASSES[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
 
-        found_mw = 0
-        for mw in settings.MIDDLEWARE_CLASSES:
-            if mw == 'ddtrace.contrib.django.TraceMiddleware':
-                found_mw += 1
+        found_mw = settings.MIDDLEWARE_CLASSES.count('ddtrace.contrib.django.TraceMiddleware')
+        eq_(found_mw, 1)
+        found_mw = settings.MIDDLEWARE_CLASSES.count('ddtrace.contrib.django.TraceExceptionMiddleware')
+        eq_(found_mw, 1)
 
+    @skipIf(django.VERSION < (1, 10), 'skip if version is below 1.10')
+    def test_autopatching_middleware(self):
+        ok_(django._datadog_patch)
+        ok_('ddtrace.contrib.django' in settings.INSTALLED_APPS)
+        eq_(settings.MIDDLEWARE[0], 'ddtrace.contrib.django.TraceMiddleware')
+        ok_('ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        eq_(settings.MIDDLEWARE[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
+        ok_('ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
+
+
+    @skipIf(django.VERSION < (1, 10), 'skip if version is below 1.10')
+    def test_autopatching_twice_middleware(self):
+        ok_(django._datadog_patch)
+        # Call django.setup() twice and ensure we don't add a duplicate tracer
+        django.setup()
+
+        found_app = settings.INSTALLED_APPS.count('ddtrace.contrib.django')
+        eq_(found_app, 1)
+
+        eq_(settings.MIDDLEWARE[0], 'ddtrace.contrib.django.TraceMiddleware')
+        ok_('ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        eq_(settings.MIDDLEWARE[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
+        ok_('ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
+
+        found_mw = settings.MIDDLEWARE.count('ddtrace.contrib.django.TraceMiddleware')
+        eq_(found_mw, 1)
+
+        found_mw = settings.MIDDLEWARE.count('ddtrace.contrib.django.TraceExceptionMiddleware')
         eq_(found_mw, 1)
