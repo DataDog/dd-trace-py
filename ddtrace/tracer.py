@@ -5,7 +5,7 @@ from os import getpid
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, RateSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
+from .sampler import AllSampler, RateSampler, SAMPLE_RATE_METRIC_KEY
 from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY
@@ -43,7 +43,6 @@ class Tracer(object):
             hostname=self.DEFAULT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
-            # priority_sampler=RateByServiceSampler(),
             context_provider=DefaultContextProvider(),
         )
 
