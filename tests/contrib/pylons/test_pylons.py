@@ -77,6 +77,9 @@ def test_pylons():
     eq_(s.meta.get(http.STATUS_CODE), '200')
 
 def test_pylons_exceptions():
+    # ensures the reported status code is 500 even if a wrong
+    # status code is set and that the stacktrace points to the
+    # right function
     writer = DummyWriter()
     tracer = Tracer()
     tracer.writer = writer
@@ -107,10 +110,10 @@ def test_pylons_exceptions():
     s = spans[0]
 
     eq_(s.error, 1)
-    eq_(s.get_tag("error.msg"), "Some exception")
-    sc = int(s.get_tag("http.status_code"))
-    eq_(sc, 500)
-    ok_(s.get_tag("error.stack"))
+    eq_(s.get_tag('error.msg'), 'Some exception')
+    eq_(int(s.get_tag('http.status_code')), 500)
+    ok_('start_response_exception' in s.get_tag('error.stack'))
+    ok_('Exception: Some exception' in s.get_tag('error.stack'))
 
 def test_pylons_string_code():
     writer = DummyWriter()
