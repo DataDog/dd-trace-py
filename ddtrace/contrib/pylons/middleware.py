@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from ...ext import http
 from ...ext import AppTypes
@@ -39,8 +40,8 @@ class PylonsTraceMiddleware(object):
             try:
                 return self.app(environ, _start_response)
             except Exception as e:
-                # "unexpected errors"
-                # exc_info set by __exit__ on current tracer
+                # store current exceptions info so we can re-raise it later
+                (typ, val, tb) = sys.exc_info()
 
                 # e.code can either be a string or an int
                 code = getattr(e, 'code', 500)
@@ -52,7 +53,9 @@ class PylonsTraceMiddleware(object):
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
-                raise e
+
+                # re-raise the original exception with its original traceback
+                raise typ, val, tb
             except SystemExit:
                 span.set_tag(http.STATUS_CODE, 500)
                 span.error = 1
