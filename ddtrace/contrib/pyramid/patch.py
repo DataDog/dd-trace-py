@@ -29,10 +29,6 @@ def traced_init(wrapped, instance, args, kwargs):
     settings.update(trace_settings)
     kwargs['settings'] = settings
 
-    # Commit actions immediately after they are configured so as to
-    # skip conflict resolution when adding our tween
-    kwargs['autocommit'] = True
-
     # `caller_package` works by walking a fixed amount of frames up the stack
     # to find the calling package. So if we let the original `__init__`
     # function call it, our wrapper will mess things up.

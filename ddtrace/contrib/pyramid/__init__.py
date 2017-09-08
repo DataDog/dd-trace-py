@@ -22,11 +22,12 @@ required_modules = ['pyramid']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import trace_pyramid, trace_tween_factory
+        from .trace import trace_pyramid, trace_tween_factory, includeme
         from .patch import patch
 
         __all__ = [
             'patch',
             'trace_pyramid',
             'trace_tween_factory',
+            'includeme',
         ]
