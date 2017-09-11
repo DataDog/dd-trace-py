@@ -235,8 +235,8 @@ class TestTraceMiddleware(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing_with_sampling_true(self):
-        old_sampler = self.tracer.distributed_sampler
-        self.tracer.distributed_sampler = RateSampler(0.1)
+        old_sampler = self.tracer.priority_sampler
+        self.tracer.priority_sampler = RateSampler(0.1)
 
         # activate distributed tracing
         self.app['datadog_trace']['distributed_tracing_enabled'] = True
@@ -260,13 +260,13 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(42, span.parent_id)
         eq_(1, span.get_sampling_priority())
 
-        self.tracer.distributed_sampler = old_sampler
+        self.tracer.priority_sampler = old_sampler
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing_with_sampling_false(self):
-        old_sampler = self.tracer.distributed_sampler
-        self.tracer.distributed_sampler = RateSampler(0.9)
+        old_sampler = self.tracer.priority_sampler
+        self.tracer.priority_sampler = RateSampler(0.9)
 
         # activate distributed tracing
         self.app['datadog_trace']['distributed_tracing_enabled'] = True
@@ -290,7 +290,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(42, span.parent_id)
         eq_(0, span.get_sampling_priority())
 
-        self.tracer.distributed_sampler = old_sampler
+        self.tracer.priority_sampler = old_sampler
 
     @unittest_run_loop
     @asyncio.coroutine
