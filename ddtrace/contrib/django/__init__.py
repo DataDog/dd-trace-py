@@ -1,10 +1,9 @@
 """
-The Django integration will trace requests, database calls and template
-renderers.
+The Django integration will trace users requests, template renderers, database and cache
+calls.
 
 To enable the Django integration, add the application to your installed
-apps and our tracing middleware **as a first middleware** in your ``MIDDLEWARE``
-list, as follows::
+apps, as follows::
 
     INSTALLED_APPS = [
         # your Django apps...
@@ -21,7 +20,7 @@ Django setting. For example, your ``settings.py`` may contain::
         'TAGS': {'env': 'production'},
     }
 
-If you need to access to integration settings, you should::
+If you need to access to Datadog settings, you can::
 
     from ddtrace.contrib.django.conf import settings
 
@@ -45,6 +44,8 @@ The available settings are:
   are sent to the trace agent. This setting cannot be changed at runtime
   and a restart is required. By default the tracer is disabled when in ``DEBUG``
   mode, enabled otherwise.
+* ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
+* ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 * ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
   instrumented (even if ``INSTRUMENT_DATABASE``, ``INSTRUMENT_CACHE`` or
   ``INSTRUMENT_TEMPLATE`` are set to ``True``), while the tracer may be active
@@ -58,8 +59,6 @@ The available settings are:
 * ``INSTRUMENT_TEMPLATE`` (default: ``True``): if set to ``False`` template
   rendering will not be instrumented. Only configurable when ``AUTO_INSTRUMENT``
   is set to ``True``.
-* ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
-* ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 """
 from ..util import require_modules
 
