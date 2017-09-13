@@ -59,6 +59,9 @@ def tmpl():
 def tmpl_err():
     return render_template('err.html')
 
+@app.route('/tmpl/render_err')
+def tmpl_render_err():
+    return render_template('render_err.html')
 
 @app.route('/child')
 def child():
@@ -214,6 +217,36 @@ class TestFlask(object):
         eq_(s.error, 1)
         eq_(s.meta.get(http.STATUS_CODE), '500')
         eq_(s.meta.get(http.METHOD), 'GET')
+
+    def test_template_render_err(self):
+        tracer.debug_logging = True
+        start = time.time()
+        try:
+            app.get('/tmpl/render_err')
+        except Exception:
+            pass
+        else:
+            assert 0
+        end = time.time()
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        by_name = {s.name:s for s in spans}
+        s = by_name["flask.request"]
+        eq_(s.service, service)
+        eq_(s.resource, "tmpl_render_err")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 1)
+        eq_(s.meta.get(http.STATUS_CODE), '500')
+        eq_(s.meta.get(http.METHOD), 'GET')
+        t = by_name["flask.template"]
+        eq_(t.get_tag("flask.template"), "render_err.html")
+        eq_(t.error, 1)
+        eq_(t.parent_id, s.span_id)
+        eq_(t.trace_id, s.trace_id)
 
     def test_error(self):
         start = time.time()

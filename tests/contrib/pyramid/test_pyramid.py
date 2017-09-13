@@ -159,6 +159,22 @@ def _get_app(service=None, tracer=None):
     config.add_view(json, route_name='json', renderer='json')
     return config.make_wsgi_app()
 
+def includeme(config):
+    pass
+
+def test_include():
+    """ Test that includes do not create conflicts """
+    from ...test_tracer import get_dummy_tracer
+    from ...util import override_global_tracer
+    tracer = get_dummy_tracer()
+    with override_global_tracer(tracer):
+        config = Configurator(settings={'pyramid.includes': 'tests.contrib.pyramid.test_pyramid'})
+        trace_pyramid(config)
+        app = webtest.TestApp(config.make_wsgi_app())
+        app.get('/', status=404)
+        spans = tracer.writer.pop()
+        assert spans
+        eq_(len(spans), 1)
 
 def _get_test_app(service=None):
     """ return a webtest'able version of our test app. """

@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from ddtrace.contrib.django.conf import settings
 
 # testing
-from .utils import DjangoTraceTestCase
+from .utils import DjangoTraceTestCase, override_ddtrace_settings
 
 
 class DjangoConnectionTest(DjangoTraceTestCase):
@@ -34,6 +34,16 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         eq_(span.get_tag('django.db.alias'), 'default')
         eq_(span.get_tag('sql.query'), 'SELECT COUNT(*) AS "__count" FROM "auth_user"')
         assert start < span.start < span.start + span.duration < end
+
+    @override_ddtrace_settings(INSTRUMENT_DATABASE=False)
+    def test_connection_disabled(self):
+        # trace a simple query
+        users = User.objects.count()
+        eq_(users, 0)
+
+        # tests
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
 
     def test_should_append_database_prefix(self):
         # trace a simple query and check if the prefix is correctly

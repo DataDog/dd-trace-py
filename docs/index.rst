@@ -37,7 +37,7 @@ for changing your code::
     Usage: [ENV_VARS] ddtrace-run <my_program>
 
 
-The available environment variables are:
+The available environment variables for `ddtrace-run` are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
@@ -111,6 +111,17 @@ small example that shows adding a custom span to a Flask application::
 
 
 Read the full `API`_ for more details.
+
+Modifying the Agent hostname and port
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
+
+    from ddtrace import tracer
+    
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+
+By default, these will be set to localhost and 8126 respectively. 
 
 Web Frameworks
 --------------
@@ -437,7 +448,7 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | django          | >= 1.8             |
 +-----------------+--------------------+
-| elasticsearch   | >= 2.3             |
+| elasticsearch   | >= 1.6             |
 +-----------------+--------------------+
 | falcon          | >= 1.0             |
 +-----------------+--------------------+

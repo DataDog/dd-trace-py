@@ -6,6 +6,7 @@ import webtest
 from nose.tools import eq_
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPInternalServerError
+
 # 3p
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -15,6 +16,14 @@ from wsgiref.simple_server import make_server
 import ddtrace
 from ddtrace import compat
 
+def _include_me(config):
+    pass
+
+def test_config_include():
+    """ This test makes sure that relative imports still work when the
+    application is run with ddtrace-run """
+    config = Configurator()
+    config.include('._include_me')
 
 def test_200():
     app, tracer = _get_test_app(service='foobar')
@@ -119,6 +128,21 @@ def test_json():
     eq_(s.error, 0)
     eq_(s.span_type, 'template')
 
+def includeme(config):
+    pass
+
+def test_include():
+    """ Test that includes do not create conflicts """
+    from ...test_tracer import get_dummy_tracer
+    from ...util import override_global_tracer
+    tracer = get_dummy_tracer()
+    with override_global_tracer(tracer):
+        config = Configurator(settings={'pyramid.includes': 'tests.contrib.pyramid.test_pyramid_autopatch'})
+        app = webtest.TestApp(config.make_wsgi_app())
+        app.get('/', status=404)
+        spans = tracer.writer.pop()
+        assert spans
+        eq_(len(spans), 1)
 
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
