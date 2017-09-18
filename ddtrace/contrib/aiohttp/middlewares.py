@@ -34,7 +34,10 @@ def trace_middleware(app, handler):
         context = tracer.get_call_context()
 
         # Create a new context based on the propagated information
-        if distributed_tracing:
+        # Do not fill context with distributed sampling if the tracer is disabled
+        # because the would call the callee to generate references to data which
+        # has never been sent to agent.
+        if tracer.enabled and distributed_tracing:
             trace_id = int(request.headers.get(PARENT_TRACE_HEADER_ID, 0))
             parent_span_id = int(request.headers.get(PARENT_SPAN_HEADER_ID, 0))
             sampling_priority = request.headers.get(SAMPLING_PRIORITY_HEADER_ID)
