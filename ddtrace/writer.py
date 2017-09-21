@@ -29,7 +29,7 @@ class AgentWriter(object):
         self._worker = None
         self._filters = filters
         self._priority_sampler = priority_sampler
-        self.api = api.API(hostname, port)
+        self.api = api.API(hostname, port, priority_sampling=priority_sampler is not None)
 
     def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.

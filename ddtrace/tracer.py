@@ -5,7 +5,7 @@ from os import getpid
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, RateSampler, SAMPLE_RATE_METRIC_KEY
+from .sampler import AllSampler, RateSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
 from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY
@@ -80,7 +80,8 @@ class Tracer(object):
 
     def configure(self, enabled=None, hostname=None, port=None,
                   sampler=None, priority_sampler=None,
-                  context_provider=None, wrap_executor=None, settings=None):
+                  context_provider=None, wrap_executor=None, priority_sampling=False,
+                  settings=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -97,6 +98,8 @@ class Tracer(object):
         :param object wrap_executor: callable that is used when a function is decorated with
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
+        :param priority_sampling: enable priority sampling, this is required for
+            complete distributed tracing support.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -107,6 +110,9 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
+
+        if priority_sampling and priority_sampler is None:
+            self.priority_sampler = RateByServiceSampler()
 
         if priority_sampler is not None:
             self.priority_sampler = priority_sampler
