@@ -80,7 +80,7 @@ class Tracer(object):
 
     def configure(self, enabled=None, hostname=None, port=None,
                   sampler=None, priority_sampler=None,
-                  context_provider=None, wrap_executor=None, priority_sampling=False,
+                  context_provider=None, wrap_executor=None, priority_sampling=None,
                   settings=None):
         """
         Configure an existing Tracer the easy way.
@@ -118,7 +118,7 @@ class Tracer(object):
             self.priority_sampler = priority_sampler
 
         if hostname is not None or port is not None or filters is not None or \
-                priority_sampler is not None or priority_sampling:
+                priority_sampler is not None or priority_sampling is not None:
             self.writer = AgentWriter(
                 hostname or self.DEFAULT_HOSTNAME,
                 port or self.DEFAULT_PORT,
