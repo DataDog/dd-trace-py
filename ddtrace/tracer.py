@@ -117,7 +117,8 @@ class Tracer(object):
         if priority_sampler is not None:
             self.priority_sampler = priority_sampler
 
-        if hostname is not None or port is not None or filters is not None:
+        if hostname is not None or port is not None or filters is not None or \
+                priority_sampler is not None or priority_sampling:
             self.writer = AgentWriter(
                 hostname or self.DEFAULT_HOSTNAME,
                 port or self.DEFAULT_PORT,
