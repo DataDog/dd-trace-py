@@ -7,6 +7,8 @@ import logging
 from json import loads
 from threading import Lock
 
+from .compat import iteritems
+
 log = logging.getLogger(__name__)
 
 MAX_TRACE_ID = 2 ** 64
@@ -96,9 +98,9 @@ class RateByServiceSampler(object):
             return
 
         rate_by_service = content['rate_by_service']
-        for key, sample_rate in rate_by_service.iteritems():
+        for key, sample_rate in iteritems(rate_by_service):
             self._set_sample_rate_by_key(sample_rate, key)
         with self._lock:
-            for key in self._by_service_samplers:
+            for key in self._by_service_samplers.keys():
                 if key not in rate_by_service and key != self._default_key:
-                    del self.by_service_samplers[key]
+                    del self._by_service_samplers[key]

@@ -91,3 +91,35 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
             assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+
+    def test_set_sample_rates_from_json(self):
+        cases = {
+            '{"rate_by_service": {"service:,env:": 1}}': {"service:,env:":1},
+            '{"rate_by_service": {"service:,env:": 1, "service:mcnulty,env:dev": 0.33, "service:postgres,env:dev": 0.7}}': {"service:,env:":1, "service:mcnulty,env:dev":0.33, "service:postgres,env:dev":0.7},
+            '{"rate_by_service": {"service:,env:": 1, "service:mcnulty,env:dev": 0.25, "service:postgres,env:dev": 0.5, "service:redis,env:prod": 0.75}}': {"service:,env:":1, "service:mcnulty,env:dev": 0.25, "service:postgres,env:dev": 0.5, "service:redis,env:prod": 0.75}
+        }
+
+        writer = DummyWriter()
+
+        tracer = Tracer()
+        priority_sampler = RateByServiceSampler()
+        tracer.configure(sampler=AllSampler(), priority_sampler=priority_sampler)
+        tracer.writer = writer
+        keys = cases.keys()
+        for k in keys:
+            case = cases[k]
+            priority_sampler.set_sample_rates_from_json(k)
+            rates = {}
+            for k,v in priority_sampler._by_service_samplers.iteritems():
+                rates[k] = v.sample_rate
+            assert case == rates
+        # It's important to also test in reverse mode for we want to make sure key deletion
+        # works as well as key insertion (and doing this both ways ensures we trigger both cases)
+        keys.reverse()
+        for k in keys:
+            case = cases[k]
+            priority_sampler.set_sample_rates_from_json(k)
+            rates = {}
+            for k,v in priority_sampler._by_service_samplers.iteritems():
+                rates[k] = v.sample_rate
+            assert case == rates
