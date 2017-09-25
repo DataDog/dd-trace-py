@@ -8,6 +8,7 @@ import threading
 from ddtrace.tracer import Tracer
 from ddtrace.span import Span
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
+from ddtrace.compat import iteritems
 from .test_tracer import DummyWriter
 from .util import patch_time
 
@@ -105,12 +106,12 @@ class RateByServiceSamplerTest(unittest.TestCase):
         priority_sampler = RateByServiceSampler()
         tracer.configure(sampler=AllSampler(), priority_sampler=priority_sampler)
         tracer.writer = writer
-        keys = cases.keys()
+        keys = list(cases)
         for k in keys:
             case = cases[k]
             priority_sampler.set_sample_rates_from_json(k)
             rates = {}
-            for k,v in priority_sampler._by_service_samplers.iteritems():
+            for k,v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
             assert case == rates
         # It's important to also test in reverse mode for we want to make sure key deletion
@@ -120,6 +121,6 @@ class RateByServiceSamplerTest(unittest.TestCase):
             case = cases[k]
             priority_sampler.set_sample_rates_from_json(k)
             rates = {}
-            for k,v in priority_sampler._by_service_samplers.iteritems():
+            for k,v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
             assert case == rates

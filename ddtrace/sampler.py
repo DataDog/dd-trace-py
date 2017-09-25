@@ -101,6 +101,6 @@ class RateByServiceSampler(object):
         for key, sample_rate in iteritems(rate_by_service):
             self._set_sample_rate_by_key(sample_rate, key)
         with self._lock:
-            for key in self._by_service_samplers.keys():
+            for key in list(self._by_service_samplers):
                 if key not in rate_by_service and key != self._default_key:
                     del self._by_service_samplers[key]
