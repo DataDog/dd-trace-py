@@ -1,5 +1,6 @@
 
 # 3p
+import logging
 import pyramid.renderers
 from pyramid.interfaces import ITweens
 from pyramid.settings import asbool
@@ -8,6 +9,8 @@ import wrapt
 # project
 import ddtrace
 from ...ext import http, AppTypes
+
+log = logging.getLogger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 
@@ -23,19 +26,20 @@ def includeme(config):
 
 
 def trace_render(func, instance, args, kwargs):
-    # get the tracer from the request or fall back to the global version
-    def _tracer(value, system_values, request=None):
-        if request:
-            span = getattr(request, '_datadog_span', None)
-            if span:
-                return span.tracer()
-        return ddtrace.tracer
-
-    t = _tracer(*args, **kwargs)
-    with t.trace('pyramid.render') as span:
-        span.span_type = http.TEMPLATE
+    # If the request is not traced, we do not trace
+    request = kwargs.pop('request', {})
+    if not request:
+        log.debug("No request passed to render, will not be traced")
+        return func(*args, **kwargs)
+    span = getattr(request, '_datadog_span', None)
+    if not span:
+        log.debug("No span found in request, will not be traced")
         return func(*args, **kwargs)
 
+    tracer = span.tracer()
+    with tracer.trace('pyramid.render') as span:
+        span.span_type = http.TEMPLATE
+        return func(*args, **kwargs)
 
 def trace_tween_factory(handler, registry):
     # configuration

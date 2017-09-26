@@ -155,18 +155,23 @@ def test_include():
         assert spans
         eq_(len(spans), 1)
 
-def test_explicit_tweens_declaration():
+def test_tween_overriden():
+    """ In case our tween is overriden by the user config we should not log
+    rendering """
     from ...test_tracer import get_dummy_tracer
     from ...util import override_global_tracer
     tracer = get_dummy_tracer()
     with override_global_tracer(tracer):
         config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
         trace_pyramid(config)
+        def json(request):
+            return {'a': 1}
+        config.add_route('json', '/json')
+        config.add_view(json, route_name='json', renderer='json')
         app = webtest.TestApp(config.make_wsgi_app())
-        app.get('/', status=404)
+        app.get('/json', status=200)
         spans = tracer.writer.pop()
-        assert spans
-        eq_(len(spans), 1)
+        assert not spans
 
 def test_insert_tween_if_needed_already_set():
     settings = {'pyramid.tweens': 'ddtrace.contrib.pyramid:trace_tween_factory'}
