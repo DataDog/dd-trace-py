@@ -19,11 +19,22 @@ from .test_pyramid import PyramidBase, get_app
 
 class TestPyramidAutopatch(PyramidBase):
     def setUp(self):
-        from tests.test_tracer import DummyWriter
-        self.tracer = ddtrace.tracer
-        self.tracer.writer = DummyWriter()
+        from tests.test_tracer import get_dummy_tracer
+        self.tracer = get_dummy_tracer()
+        ddtrace.tracer = self.tracer
 
         config = Configurator()
+
+        app = get_app(config)
+        self.app = webtest.TestApp(app)
+
+class TestPyramidExplicitTweens(PyramidBase):
+    def setUp(self):
+        from tests.test_tracer import get_dummy_tracer
+        self.tracer = get_dummy_tracer()
+        ddtrace.tracer = self.tracer
+
+        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n'})
 
         app = get_app(config)
         self.app = webtest.TestApp(app)
@@ -40,26 +51,13 @@ def test_config_include():
 def includeme(config):
     pass
 
-def test_include():
+def test_include_conflicts():
     """ Test that includes do not create conflicts """
     from ...test_tracer import get_dummy_tracer
     from ...util import override_global_tracer
     tracer = get_dummy_tracer()
     with override_global_tracer(tracer):
         config = Configurator(settings={'pyramid.includes': 'tests.contrib.pyramid.test_pyramid_autopatch'})
-        app = webtest.TestApp(config.make_wsgi_app())
-        app.get('/', status=404)
-        spans = tracer.writer.pop()
-        assert spans
-        eq_(len(spans), 1)
-
-def test_explicit_tweens_declaration():
-    """ Test that tracing still works when tweens are explicitely set """
-    from ...test_tracer import get_dummy_tracer
-    from ...util import override_global_tracer
-    tracer = get_dummy_tracer()
-    with override_global_tracer(tracer):
-        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
         app = webtest.TestApp(config.make_wsgi_app())
         app.get('/', status=404)
         spans = tracer.writer.pop()

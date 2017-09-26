@@ -16,6 +16,7 @@ from nose.tools import eq_
 import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.pyramid import trace_pyramid
+from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 
 class PyramidBase(object):
 
@@ -122,6 +123,21 @@ class PyramidBase(object):
         eq_(s.error, 0)
         eq_(s.span_type, 'template')
 
+class TestPyramid(PyramidBase):
+    def setUp(self):
+        from tests.test_tracer import get_dummy_tracer
+        self.tracer = get_dummy_tracer()
+
+        settings = {
+            'datadog_trace_service': 'foobar',
+            'datadog_tracer': self.tracer
+        }
+        config = Configurator(settings=settings)
+        trace_pyramid(config)
+
+        app = get_app(config)
+        self.app = webtest.TestApp(app)
+
 def includeme(config):
     pass
 
@@ -152,20 +168,30 @@ def test_explicit_tweens_declaration():
         assert spans
         eq_(len(spans), 1)
 
-class TestPyramid(PyramidBase):
-    def setUp(self):
-        from tests.test_tracer import get_dummy_tracer
-        self.tracer = get_dummy_tracer()
+def test_insert_tween_if_needed_already_set():
+    settings = {'pyramid.tweens': 'ddtrace.contrib.pyramid:trace_tween_factory'}
+    insert_tween_if_needed(settings)
+    eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory')
 
-        settings = {
-            'datadog_trace_service': 'foobar',
-            'datadog_tracer': self.tracer
-        }
-        config = Configurator(settings=settings)
-        trace_pyramid(config)
+def test_insert_tween_if_needed_none():
+    settings = {'pyramid.tweens': ''}
+    insert_tween_if_needed(settings)
+    eq_(settings['pyramid.tweens'], '')
 
-        app = get_app(config)
-        self.app = webtest.TestApp(app)
+def test_insert_tween_if_needed_excview():
+    settings = {'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'}
+    insert_tween_if_needed(settings)
+    eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory')
+
+def test_insert_tween_if_needed_excview_and_other():
+    settings = {'pyramid.tweens': 'a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n'}
+    insert_tween_if_needed(settings)
+    eq_(settings['pyramid.tweens'], 'a.first.tween\nddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory\na.last.tween\n')
+
+def test_insert_tween_if_needed_others():
+    settings = {'pyramid.tweens': 'a.random.tween\nand.another.one'}
+    insert_tween_if_needed(settings)
+    eq_(settings['pyramid.tweens'], 'a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory')
 
 def get_app(config):
     """ return a pyramid wsgi app with various urls. """
