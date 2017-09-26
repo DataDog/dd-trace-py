@@ -144,6 +144,19 @@ def test_include():
         assert spans
         eq_(len(spans), 1)
 
+def test_explicit_tweens_declaration():
+    """ Test that tracing still works when tweens are explicitely set """
+    from ...test_tracer import get_dummy_tracer
+    from ...util import override_global_tracer
+    tracer = get_dummy_tracer()
+    with override_global_tracer(tracer):
+        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
+        app = webtest.TestApp(config.make_wsgi_app())
+        app.get('/', status=404)
+        spans = tracer.writer.pop()
+        assert spans
+        eq_(len(spans), 1)
+
 def _get_app(service=None, tracer=None):
     """ return a pyramid wsgi app with various urls. """
 

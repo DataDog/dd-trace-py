@@ -1,6 +1,7 @@
 
 # 3p
 import pyramid.renderers
+from pyramid.interfaces import ITweens
 from pyramid.settings import asbool
 import wrapt
 
@@ -8,12 +9,14 @@ import wrapt
 import ddtrace
 from ...ext import http, AppTypes
 
+DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
 
 def includeme(config):
-    config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
+    # Add our tween just before the default exception handler
+    config.add_tween(DD_TWEEN_NAME, over=pyramid.tweens.EXCVIEW)
     # ensure we only patch the renderer once.
     if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
         wrapt.wrap_function_wrapper('pyramid.renderers', 'RendererHelper.render', trace_render)

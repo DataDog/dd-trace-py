@@ -176,6 +176,20 @@ def test_include():
         assert spans
         eq_(len(spans), 1)
 
+def test_explicit_tweens_declaration():
+    """ Test that includes do not create conflicts """
+    from ...test_tracer import get_dummy_tracer
+    from ...util import override_global_tracer
+    tracer = get_dummy_tracer()
+    with override_global_tracer(tracer):
+        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
+        trace_pyramid(config)
+        app = webtest.TestApp(config.make_wsgi_app())
+        app.get('/', status=404)
+        spans = tracer.writer.pop()
+        assert spans
+        eq_(len(spans), 1)
+
 def _get_test_app(service=None):
     """ return a webtest'able version of our test app. """
     from tests.test_tracer import get_dummy_tracer
