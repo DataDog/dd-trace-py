@@ -2,7 +2,6 @@
 # 3p
 import logging
 import pyramid.renderers
-from pyramid.interfaces import ITweens
 from pyramid.settings import asbool
 import wrapt
 
