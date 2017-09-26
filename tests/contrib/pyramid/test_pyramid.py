@@ -17,147 +17,110 @@ import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.pyramid import trace_pyramid
 
+class PyramidBase(object):
 
-def test_200():
-    app, tracer = _get_test_app(service='foobar')
-    res = app.get('/', status=200)
-    assert b'idx' in res.body
+    def test_200(self):
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
 
-    writer = tracer.writer
-    spans = writer.pop()
-    eq_(len(spans), 1)
-    s = spans[0]
-    eq_(s.service, 'foobar')
-    eq_(s.resource, 'GET index')
-    eq_(s.error, 0)
-    eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
-    eq_(s.meta.get('http.status_code'), '200')
-    eq_(s.meta.get('http.url'), '/')
-    eq_(s.meta.get('pyramid.route.name'), 'index')
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET index')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '200')
+        eq_(s.meta.get('http.url'), '/')
+        eq_(s.meta.get('pyramid.route.name'), 'index')
 
-    # ensure services are set correctly
-    services = writer.pop_services()
-    expected = {
-        'foobar': {"app": "pyramid", "app_type": "web"}
-    }
-    eq_(services, expected)
-
-
-def test_404():
-    app, tracer = _get_test_app(service='foobar')
-    app.get('/404', status=404)
-
-    writer = tracer.writer
-    spans = writer.pop()
-    eq_(len(spans), 1)
-    s = spans[0]
-    eq_(s.service, 'foobar')
-    eq_(s.resource, '404')
-    eq_(s.error, 0)
-    eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
-    eq_(s.meta.get('http.status_code'), '404')
-    eq_(s.meta.get('http.url'), '/404')
+        # ensure services are set correctly
+        services = writer.pop_services()
+        expected = {
+            'foobar': {"app": "pyramid", "app_type": "web"}
+        }
+        eq_(services, expected)
 
 
-def test_exception():
-    app, tracer = _get_test_app(service='foobar')
-    try:
-        app.get('/exception', status=500)
-    except ZeroDivisionError:
-        pass
+    def test_404(self):
+        self.app.get('/404', status=404)
 
-    writer = tracer.writer
-    spans = writer.pop()
-    eq_(len(spans), 1)
-    s = spans[0]
-    eq_(s.service, 'foobar')
-    eq_(s.resource, 'GET exception')
-    eq_(s.error, 1)
-    eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
-    eq_(s.meta.get('http.status_code'), '500')
-    eq_(s.meta.get('http.url'), '/exception')
-    eq_(s.meta.get('pyramid.route.name'), 'exception')
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, '404')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '404')
+        eq_(s.meta.get('http.url'), '/404')
 
 
-def test_500():
-    app, tracer = _get_test_app(service='foobar')
-    app.get('/error', status=500)
+    def test_exception(self):
+        try:
+            self.app.get('/exception', status=500)
+        except ZeroDivisionError:
+            pass
 
-    writer = tracer.writer
-    spans = writer.pop()
-    eq_(len(spans), 1)
-    s = spans[0]
-    eq_(s.service, 'foobar')
-    eq_(s.resource, 'GET error')
-    eq_(s.error, 1)
-    eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
-    eq_(s.meta.get('http.status_code'), '500')
-    eq_(s.meta.get('http.url'), '/error')
-    eq_(s.meta.get('pyramid.route.name'), 'error')
-    assert type(s.error) == int
-
-
-def test_json():
-    app, tracer = _get_test_app(service='foobar')
-    res = app.get('/json', status=200)
-    parsed = json.loads(compat.to_unicode(res.body))
-    eq_(parsed, {'a': 1})
-
-    writer = tracer.writer
-    spans = writer.pop()
-    eq_(len(spans), 2)
-    spans_by_name = {s.name: s for s in spans}
-    s = spans_by_name['pyramid.request']
-    eq_(s.service, 'foobar')
-    eq_(s.resource, 'GET json')
-    eq_(s.error, 0)
-    eq_(s.span_type, 'http')
-    eq_(s.meta.get('http.method'), 'GET')
-    eq_(s.meta.get('http.status_code'), '200')
-    eq_(s.meta.get('http.url'), '/json')
-    eq_(s.meta.get('pyramid.route.name'), 'json')
-
-    s = spans_by_name['pyramid.render']
-    eq_(s.service, 'foobar')
-    eq_(s.error, 0)
-    eq_(s.span_type, 'template')
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET exception')
+        eq_(s.error, 1)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '500')
+        eq_(s.meta.get('http.url'), '/exception')
+        eq_(s.meta.get('pyramid.route.name'), 'exception')
 
 
-def _get_app(service=None, tracer=None):
-    """ return a pyramid wsgi app with various urls. """
+    def test_500(self):
+        self.app.get('/error', status=500)
 
-    def index(request):
-        return Response('idx')
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET error')
+        eq_(s.error, 1)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '500')
+        eq_(s.meta.get('http.url'), '/error')
+        eq_(s.meta.get('pyramid.route.name'), 'error')
+        assert type(s.error) == int
 
-    def error(request):
-        raise HTTPInternalServerError("oh no")
 
-    def exception(request):
-        1 / 0
+    def test_json(self):
+        res = self.app.get('/json', status=200)
+        parsed = json.loads(compat.to_unicode(res.body))
+        eq_(parsed, {'a': 1})
 
-    def json(request):
-        return {'a': 1}
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        spans_by_name = {s.name: s for s in spans}
+        s = spans_by_name['pyramid.request']
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET json')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '200')
+        eq_(s.meta.get('http.url'), '/json')
+        eq_(s.meta.get('pyramid.route.name'), 'json')
 
-    settings = {
-        'datadog_trace_service': service,
-        'datadog_tracer': tracer or ddtrace.tracer
-    }
-
-    config = Configurator(settings=settings)
-    trace_pyramid(config)
-    config.add_route('index', '/')
-    config.add_route('error', '/error')
-    config.add_route('exception', '/exception')
-    config.add_route('json', '/json')
-    config.add_view(index, route_name='index')
-    config.add_view(error, route_name='error')
-    config.add_view(exception, route_name='exception')
-    config.add_view(json, route_name='json', renderer='json')
-    return config.make_wsgi_app()
+        s = spans_by_name['pyramid.render']
+        eq_(s.service, 'foobar')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'template')
 
 def includeme(config):
     pass
@@ -177,7 +140,6 @@ def test_include():
         eq_(len(spans), 1)
 
 def test_explicit_tweens_declaration():
-    """ Test that includes do not create conflicts """
     from ...test_tracer import get_dummy_tracer
     from ...util import override_global_tracer
     tracer = get_dummy_tracer()
@@ -190,18 +152,57 @@ def test_explicit_tweens_declaration():
         assert spans
         eq_(len(spans), 1)
 
-def _get_test_app(service=None):
-    """ return a webtest'able version of our test app. """
-    from tests.test_tracer import get_dummy_tracer
-    tracer = get_dummy_tracer()
-    app = _get_app(service=service, tracer=tracer)
-    return webtest.TestApp(app), tracer
+class TestPyramid(PyramidBase):
+    def setUp(self):
+        from tests.test_tracer import get_dummy_tracer
+        self.tracer = get_dummy_tracer()
+
+        settings = {
+            'datadog_trace_service': 'foobar',
+            'datadog_tracer': self.tracer
+        }
+        config = Configurator(settings=settings)
+        trace_pyramid(config)
+
+        app = get_app(config)
+        self.app = webtest.TestApp(app)
+
+def get_app(config):
+    """ return a pyramid wsgi app with various urls. """
+
+    def index(request):
+        return Response('idx')
+
+    def error(request):
+        raise HTTPInternalServerError("oh no")
+
+    def exception(request):
+        1 / 0
+
+    def json(request):
+        return {'a': 1}
+
+    config.add_route('index', '/')
+    config.add_route('error', '/error')
+    config.add_route('exception', '/exception')
+    config.add_route('json', '/json')
+    config.add_view(index, route_name='index')
+    config.add_view(error, route_name='error')
+    config.add_view(exception, route_name='exception')
+    config.add_view(json, route_name='json', renderer='json')
+    return config.make_wsgi_app()
 
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     ddtrace.tracer.debug_logging = True
-    app = _get_app()
+    settings = {
+            'datadog_trace_service': 'foobar',
+            'datadog_tracer': ddtrace.tracer
+            }
+    config = Configurator(settings=settings)
+    trace_pyramid(config)
+    app = get_app(config)
     port = 8080
     server = make_server('0.0.0.0', port, app)
     print('running on %s' % port)
