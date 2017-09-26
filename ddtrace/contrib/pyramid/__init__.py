@@ -14,6 +14,11 @@ config::
 
     # use your config as normal.
     config.add_route('index', '/')
+
+If you use the 'pyramid.tweens' settings value to set the tweens for your
+application, you need to add 'ddtrace.contrib.pyramid:trace_tween_factory'
+explicitely to the list.
+
 """
 
 from ..util import require_modules
