@@ -141,7 +141,7 @@ class TestPyramid(PyramidBase):
 def includeme(config):
     pass
 
-def test_include():
+def test_include_conflicts():
     """ Test that includes do not create conflicts """
     from ...test_tracer import get_dummy_tracer
     from ...util import override_global_tracer
