@@ -22,8 +22,8 @@ from django.test.signals import setting_changed
 
 # List of available settings with their defaults
 DEFAULTS = {
-    'AGENT_HOSTNAME': 'localhost',
-    'AGENT_PORT': 8126,
+    'AGENT_HOSTNAME': os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'),
+    'AGENT_PORT': os.environ.get('DATADOG_TRACE_AGENT_PORT', 8126),
     'AUTO_INSTRUMENT': True,
     'INSTRUMENT_CACHE': True,
     'INSTRUMENT_DATABASE': True,
