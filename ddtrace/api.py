@@ -82,8 +82,8 @@ class API(object):
         response = self._put(self._traces, data, len(traces))
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
-        if response.status in [404, 415] and self._compatibility_mode is False:
-            log.debug('calling the endpoint "%s" but received %s; downgrading the API', self._traces, response.status)
+        if response.status in [404, 415] and self._fallback:
+            log.debug('calling endpoint "%s" but received %s; downgrading API', self._traces, response.status)
             self._downgrade()
             return self.send_traces(traces)
 
@@ -100,8 +100,8 @@ class API(object):
         response = self._put(self._services, data)
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
-        if response.status in [404, 415] and self._compatibility_mode is False:
-            log.debug('calling the endpoint "%s" but received 404; downgrading the API', self._services)
+        if response.status in [404, 415] and self._fallback:
+            log.debug('calling endpoint "%s" but received %s; downgrading API', self._services, response.status)
             self._downgrade()
             return self.send_services(services)
 
