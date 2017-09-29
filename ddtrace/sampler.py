@@ -88,10 +88,16 @@ class RateByServiceSampler(object):
             return self._by_service_samplers[self._default_key].sample(span)
 
     def set_sample_rates_from_json(self, body):
+        log.debug("setting sample rates from JSON '%s'" % repr(body))
         try:
-            log.debug("setting sample rates from JSON '%s'" % repr(body))
             if not isinstance(body, str):
                 body = body.decode('utf-8')
+            if body.startswith('OK'):
+                # This typically happens when using a priority-sampling enabled
+                # library with an outdated agent. It still works, but priority sampling
+                # will probably send too many traces, so the next step is to upgrade agent.
+                log.warning("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                return
             content = loads(body)
         except ValueError as err:
             log.error("unable to load JSON '%s': %s" % (body, err))
