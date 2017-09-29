@@ -22,13 +22,14 @@ log = logging.getLogger(__name__)
 
 class TraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="flask", use_signals=True):
+    def __init__(self, app, tracer, service="flask", use_signals=True, use_distributed_tracing=False):
         self.app = app
         self.app.logger.info("initializing trace middleware")
 
         # save our traces.
         self._tracer = tracer
         self._service = service
+        self._use_distributed_tracing = use_distributed_tracing
 
         self._tracer.set_service_info(
             service=service,
@@ -85,13 +86,15 @@ class TraceMiddleware(object):
 
     # common methods
 
-    def _start_span(self):
+    def _start_span(self, trace_id=None, parent_id=None):
         try:
             g.flask_datadog_span = self._tracer.trace(
                 "flask.request",
                 service=self._service,
                 span_type=http.TYPE,
             )
+            g.flask_datadog_span.trace_id = trace_id
+            g.flask_datadog_span.span_id = parent_id
         except Exception:
             self.app.logger.exception("error tracing request")
 
@@ -137,7 +140,10 @@ class TraceMiddleware(object):
         """ Starts tracing the current request and stores it in the global
             request object.
         """
-        self._start_span()
+        if self._use_distributed_tracing:
+            self._start_span(*_trace_context_from_request())
+        else:
+            self._start_span()
 
     def _after_request(self, response):
         """ handles a successful response. """
@@ -151,7 +157,10 @@ class TraceMiddleware(object):
     # signal handling methods
 
     def _request_started(self, sender):
-        self._start_span()
+        if self._use_distributed_tracing:
+            self._start_span(*_trace_context_from_request())
+        else:
+            self._start_span()
 
     def _request_finished(self, sender, response, **kwargs):
         try:
@@ -167,6 +176,11 @@ class TraceMiddleware(object):
             self._finish_span(exception=exception)
         except Exception:
             self.app.logger.exception("error tracing error")
+
+
+def _trace_context_from_request():
+    return (request.headers.get('x-datadog-trace-id'),
+            request.headers.get('x-datadog-parent-id'))
 
 
 def _patch_render(tracer):
