@@ -42,10 +42,10 @@ def _traced_request_func(func, instance, args, kwargs):
     headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
-        if 'x-datadog-trace-id' not in headers:
-            headers['x-datadog-trace-id'] = span.trace_id
-        if 'x-datadog-parent-id' not in headers:
-            headers['x-datadog-parent-id'] = span.span_id
+        if http.TRACE_ID_HEADER not in headers:
+            headers[http.TRACE_ID_HEADER] = span.trace_id
+        if http.PARENT_ID_HEADER not in headers:
+            headers[http.PARENT_ID_HEADER] = span.span_id
         kwargs['headers'] = headers
 
         resp = None
