@@ -93,8 +93,10 @@ class TraceMiddleware(object):
                 service=self._service,
                 span_type=http.TYPE,
             )
-            g.flask_datadog_span.trace_id = trace_id
-            g.flask_datadog_span.parent_id = parent_id
+            if trace_id:
+                g.flask_datadog_span.trace_id = trace_id
+            if parent_id:
+                g.flask_datadog_span.parent_id = parent_id
         except Exception:
             self.app.logger.exception("error tracing request")
 
