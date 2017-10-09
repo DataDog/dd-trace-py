@@ -3,8 +3,11 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import logging
-import array
-import threading
+
+from json import loads
+from threading import Lock
+
+from .compat import iteritems
 
 log = logging.getLogger(__name__)
 
@@ -18,8 +21,7 @@ class AllSampler(object):
     """Sampler sampling all the traces"""
 
     def sample(self, span):
-        span.sampled = True
-
+        return True
 
 class RateSampler(object):
     """Sampler based on a rate
@@ -28,7 +30,7 @@ class RateSampler(object):
     It samples randomly, its main purpose is to reduce the instrumentation footprint.
     """
 
-    def __init__(self, sample_rate):
+    def __init__(self, sample_rate=1):
         if sample_rate <= 0:
             log.error("sample_rate is negative or null, disable the Sampler")
             sample_rate = 1
@@ -44,59 +46,67 @@ class RateSampler(object):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        span.sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
-        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sample_rate)
+        sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
 
-class ThroughputSampler(object):
-    """ Sampler applying a strict limit over the trace volume.
+        return sampled
 
-        Stop tracing once reached more than `tps` traces per second.
-        Computation is based on a circular buffer over the last
-        `BUFFER_DURATION` with a `BUFFER_SIZE` size.
+class RateByServiceSampler(object):
+    """Sampler based on a rate, by service
 
-        DEPRECATED: Outdated implementation.
+    Keep (100 * `sample_rate`)% of the traces.
+    The sample rate is kept independently for each service/env tuple.
     """
 
-    # Reasonable values
-    BUCKETS_PER_S = 10
-    BUFFER_DURATION = 2
-    BUFFER_SIZE = BUCKETS_PER_S * BUFFER_DURATION
+    def __init__(self, sample_rate=1):
+        self._lock = Lock()
+        self._by_service_samplers = {}
+        self._default_key = self._key(None, None)
+        self._by_service_samplers[self._default_key] = RateSampler(sample_rate)
 
-    def __init__(self, tps):
-        self.buffer_limit = tps * self.BUFFER_DURATION
+    def _key(self, service="", env=""):
+        service = service or ""
+        env = env or ""
+        return "service:" + service + ",env:" + env
 
-        # Circular buffer counting sampled traces over the last `BUFFER_DURATION`
-        self.counter = 0
-        self.counter_buffer = array.array('L', [0] * self.BUFFER_SIZE)
-        self._buffer_lock = threading.Lock()
-        # Last time we sampled a trace, multiplied by `BUCKETS_PER_S`
-        self.last_track_time = 0
+    def _set_sample_rate_by_key(self, sample_rate, key):
+        with self._lock:
+            if key in self._by_service_samplers:
+                self._by_service_samplers[key].set_sample_rate(sample_rate)
+            else:
+                self._by_service_samplers[key] = RateSampler(sample_rate)
 
-        log.info("initialized ThroughputSampler, sample up to %s traces/s", tps)
+    def set_sample_rate(self, sample_rate, service="", env=""):
+        self._set_sample_rate_by_key(sample_rate, self._key(service, env))
 
     def sample(self, span):
-        now = int(span.start * self.BUCKETS_PER_S)
+        tags = span.tracer().tags
+        env = tags['env'] if 'env' in tags else None
+        key = self._key(span.service, env)
+        with self._lock:
+            if key in self._by_service_samplers:
+                return self._by_service_samplers[key].sample(span)
+            return self._by_service_samplers[self._default_key].sample(span)
 
-        with self._buffer_lock:
-            last_track_time = self.last_track_time
-            if now > last_track_time:
-                self.last_track_time = now
-                self.expire_buckets(last_track_time, now)
+    def set_sample_rates_from_json(self, body):
+        log.debug("setting sample rates from JSON '%s'" % repr(body))
+        try:
+            if not isinstance(body, str):
+                body = body.decode('utf-8')
+            if body.startswith('OK'):
+                # This typically happens when using a priority-sampling enabled
+                # library with an outdated agent. It still works, but priority sampling
+                # will probably send too many traces, so the next step is to upgrade agent.
+                log.warning("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                return
+            content = loads(body)
+        except ValueError as err:
+            log.error("unable to load JSON '%s': %s" % (body, err))
+            return
 
-            span.sampled = self.counter < self.buffer_limit
-
-            if span.sampled:
-                self.counter += 1
-                self.counter_buffer[self.key_from_time(now)] += 1
-
-        return span
-
-    def key_from_time(self, t):
-        return t % self.BUFFER_SIZE
-
-    def expire_buckets(self, start, end):
-        period = min(self.BUFFER_SIZE, (end - start))
-        for i in range(period):
-            key = self.key_from_time(start + i + 1)
-            self.counter -= self.counter_buffer[key]
-            self.counter_buffer[key] = 0
+        rate_by_service = content['rate_by_service']
+        for key, sample_rate in iteritems(rate_by_service):
+            self._set_sample_rate_by_key(sample_rate, key)
+        with self._lock:
+            for key in list(self._by_service_samplers):
+                if key not in rate_by_service and key != self._default_key:
+                    del self._by_service_samplers[key]
