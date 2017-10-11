@@ -68,7 +68,12 @@ class Tracer(object):
         This method makes use of a ``ContextProvider`` that is automatically set during the tracer
         initialization, or while using a library instrumentation.
         """
-        return self._context_provider(*args, **kwargs)
+        return self._context_provider.active(*args, **kwargs)
+
+    @property
+    def context_provider(self):
+        """Returns the current Tracer Context Provider"""
+        return self._context_provider
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
                 context_provider=None, wrap_executor=None, settings=None):

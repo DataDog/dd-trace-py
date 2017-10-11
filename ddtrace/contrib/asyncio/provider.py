@@ -14,8 +14,29 @@ class AsyncioContextProvider(DefaultContextProvider):
     execution. It must be used in asynchronous programming that relies
     in the built-in ``asyncio`` library. Framework instrumentation that
     is built on top of the ``asyncio`` library, can use this provider.
+
+    This Context Provider inherits from ``DefaultContextProvider`` because
+    it uses a thread-local storage when the ``Context`` is propagated to
+    a different thread, than the one that is running the async loop.
     """
-    def __call__(self, loop=None):
+    def activate(self, context, loop=None):
+        """Sets the scoped ``Context`` for the current running ``Task``.
+        """
+        try:
+            loop = loop or asyncio.get_event_loop()
+        except RuntimeError:
+            # detects if a loop is available in the current thread;
+            # This happens when a new thread is created from the one that is running
+            # the async loop
+            self._local.set(context)
+            return context
+
+        # the current unit of work (if tasks are used)
+        task = asyncio.Task.current_task(loop=loop)
+        setattr(task, CONTEXT_ATTR, context)
+        return context
+
+    def active(self, loop=None):
         """
         Returns the scoped Context for this execution flow. The ``Context`` uses
         the current task as a carrier so if a single task is used for the entire application,
