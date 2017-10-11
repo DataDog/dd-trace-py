@@ -2,7 +2,7 @@ import ddtrace
 
 from tornado import template
 
-from . import decorators, context_provider
+from . import decorators, TracerStackContext
 from .constants import CONFIG_KEY
 
 from ...ext import AppTypes
@@ -36,7 +36,7 @@ def tracer_config(__init__, app, args, kwargs):
     # global tracer while here we can have a different instance (even if
     # this is not usual).
     tracer.configure(
-        context_provider=context_provider,
+        context_provider=TracerStackContext,
         wrap_executor=decorators.wrap_executor,
         enabled=settings.get('enabled', None),
         hostname=settings.get('agent_hostname', None),
