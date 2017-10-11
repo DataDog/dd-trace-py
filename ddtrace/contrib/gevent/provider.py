@@ -36,13 +36,8 @@ class GeventContextProvider(BaseContextProvider):
             return ctx
 
         # the Greenlet doesn't have a Context so it's created and attached
-        # TODO: previous implementation avoided to add a Context to the main
-        # greenlet because it could have side-effects when switching back
-        # and forth between different executions. This results in issues such
-        # as: https://github.com/DataDog/dd-trace-py/issues/309
-        # and is required for Distributed Tracing when providing a new arbitrary
-        # Context. On the other hand, it's imperative to double check if there
-        # are side effects.
+        # even to the main greenlet. This is required in Distributed Tracing
+        # when a new arbitrary Context is provided.
         if current_g:
             ctx = Context()
             setattr(current_g, CONTEXT_ATTR, ctx)
