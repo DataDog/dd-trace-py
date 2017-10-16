@@ -43,15 +43,11 @@ def traced_init(wrapped, instance, args, kwargs):
     trace_pyramid(instance)
 
 def insert_tween_if_needed(settings):
-    if 'pyramid.tweens' not in settings:
-        return
-    tweens = settings['pyramid.tweens']
+    tweens = settings.get('pyramid.tweens')
     # If the list is empty, pyramid does not consider the tweens have been
-    # set explicitly so we will insert the tween with add_tween.
-    if not tweens.strip():
-        return
-    # If the our tween is already there, nothing to do
-    if DD_TWEEN_NAME in tweens:
+    # set explicitly.
+    # And if our tween is already there, nothing to do
+    if not tweens or not tweens.strip() or DD_TWEEN_NAME in tweens:
         return
     # pyramid.tweens.EXCVIEW is the name of built-in exception view provided by
     # pyramid.  We need our tween to be before it, otherwise unhandled
