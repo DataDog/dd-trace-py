@@ -12,6 +12,7 @@ from ...ext import http, AppTypes
 log = logging.getLogger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
+DD_SPAN = '_datadog_span'
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
@@ -30,7 +31,7 @@ def trace_render(func, instance, args, kwargs):
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)
-    span = getattr(request, '_datadog_span', None)
+    span = getattr(request, DD_SPAN, None)
     if not span:
         log.debug("No span found in request, will not be traced")
         return func(*args, **kwargs)
@@ -57,7 +58,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
-                setattr(request, '_datadog_span', span)  # used to find the tracer in templates
+                setattr(request, 'DD_SPAN', span)  # used to find the tracer in templates
                 response = None
                 try:
                     response = handler(request)
