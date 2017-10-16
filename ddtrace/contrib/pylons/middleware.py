@@ -50,7 +50,7 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except ValueError:
+                except:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
