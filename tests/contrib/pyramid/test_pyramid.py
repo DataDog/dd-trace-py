@@ -7,7 +7,6 @@ from wsgiref.simple_server import make_server
 # 3p
 from pyramid.response import Response
 from pyramid.config import Configurator
-from pyramid.view import view_config
 from pyramid.httpexceptions import HTTPInternalServerError
 import webtest
 from nose.tools import eq_
@@ -44,7 +43,6 @@ class PyramidBase(object):
         }
         eq_(services, expected)
 
-
     def test_404(self):
         self.app.get('/404', status=404)
 
@@ -59,7 +57,6 @@ class PyramidBase(object):
         eq_(s.meta.get('http.method'), 'GET')
         eq_(s.meta.get('http.status_code'), '404')
         eq_(s.meta.get('http.url'), '/404')
-
 
     def test_exception(self):
         try:
@@ -80,7 +77,6 @@ class PyramidBase(object):
         eq_(s.meta.get('http.url'), '/exception')
         eq_(s.meta.get('pyramid.route.name'), 'exception')
 
-
     def test_500(self):
         self.app.get('/error', status=500)
 
@@ -97,7 +93,6 @@ class PyramidBase(object):
         eq_(s.meta.get('http.url'), '/error')
         eq_(s.meta.get('pyramid.route.name'), 'error')
         assert type(s.error) == int
-
 
     def test_json(self):
         res = self.app.get('/json', status=200)
@@ -164,6 +159,7 @@ def test_tween_overriden():
     with override_global_tracer(tracer):
         config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
         trace_pyramid(config)
+
         def json(request):
             return {'a': 1}
         config.add_route('json', '/json')
@@ -191,7 +187,11 @@ def test_insert_tween_if_needed_excview():
 def test_insert_tween_if_needed_excview_and_other():
     settings = {'pyramid.tweens': 'a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n'}
     insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'], 'a.first.tween\nddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory\na.last.tween\n')
+    eq_(settings['pyramid.tweens'],
+        'a.first.tween\n'
+        'ddtrace.contrib.pyramid:trace_tween_factory\n'
+        'pyramid.tweens.excview_tween_factory\n'
+        'a.last.tween\n')
 
 def test_insert_tween_if_needed_others():
     settings = {'pyramid.tweens': 'a.random.tween\nand.another.one'}
@@ -228,9 +228,9 @@ if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     ddtrace.tracer.debug_logging = True
     settings = {
-            'datadog_trace_service': 'foobar',
-            'datadog_tracer': ddtrace.tracer
-            }
+        'datadog_trace_service': 'foobar',
+        'datadog_tracer': ddtrace.tracer
+    }
     config = Configurator(settings=settings)
     trace_pyramid(config)
     app = get_app(config)

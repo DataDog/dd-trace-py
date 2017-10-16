@@ -1,20 +1,15 @@
 # stdlib
-import json
 import logging
 import sys
 import webtest
 from nose.tools import eq_
 from pyramid.config import Configurator
-from pyramid.httpexceptions import HTTPInternalServerError
 
 # 3p
-from pyramid.response import Response
-from pyramid.view import view_config
 from wsgiref.simple_server import make_server
 
 # project
 import ddtrace
-from ddtrace import compat
 from .test_pyramid import PyramidBase, get_app
 
 class TestPyramidAutopatch(PyramidBase):
@@ -63,6 +58,7 @@ def test_include_conflicts():
         spans = tracer.writer.pop()
         assert spans
         eq_(len(spans), 1)
+
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
