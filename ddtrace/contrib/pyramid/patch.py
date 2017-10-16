@@ -53,6 +53,9 @@ def insert_tween_if_needed(settings):
     # If the our tween is already there, nothing to do
     if DD_TWEEN_NAME in tweens:
         return
+    # pyramid.tweens.EXCVIEW is the name of built-in exception view provided by
+    # pyramid.  We need our tween to be before it, otherwise unhandled
+    # exceptions will be caught before they reach our tween.
     idx = tweens.find(pyramid.tweens.EXCVIEW)
     if idx is -1:
         settings['pyramid.tweens'] = tweens + '\n' + DD_TWEEN_NAME
