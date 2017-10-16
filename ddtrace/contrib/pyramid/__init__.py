@@ -17,7 +17,7 @@ config::
 
 If you use the 'pyramid.tweens' settings value to set the tweens for your
 application, you need to add 'ddtrace.contrib.pyramid:trace_tween_factory'
-explicitely to the list.
+explicitly to the list.
 
 """
 

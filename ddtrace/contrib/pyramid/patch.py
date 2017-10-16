@@ -26,7 +26,7 @@ def traced_init(wrapped, instance, args, kwargs):
         'datadog_trace_service' : service,
     }
     settings.update(trace_settings)
-    # If the tweens are explicitely set with 'pyramid.tweens', we need to
+    # If the tweens are explicitly set with 'pyramid.tweens', we need to
     # explicitly set our tween too since `add_tween` will be ignored.
     insert_tween_if_needed(settings)
     kwargs['settings'] = settings
@@ -45,7 +45,7 @@ def insert_tween_if_needed(settings):
         return
     tweens_list = settings['pyramid.tweens']
     # If the list is empty, pyramid does not consider the tweens have been
-    # set explicitely so we will insert the tween with add_tween.
+    # set explicitly so we will insert the tween with add_tween.
     if not tweens_list.strip():
         return
     # If the our tween is already there, nothing to do
