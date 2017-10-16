@@ -1,21 +1,23 @@
 import os
 
 from .trace import trace_pyramid, DD_TWEEN_NAME
+from .constants import SETTINGS_SERVICE
 
 import pyramid.config
 from pyramid.path import caller_package
 
 import wrapt
 
+DD_PATCH = '_datadog_patch'
 
 def patch():
     """
     Patch pyramid.config.Configurator
     """
-    if getattr(pyramid.config, '_datadog_patch', False):
+    if getattr(pyramid.config, DD_PATCH, False):
         return
 
-    setattr(pyramid.config, '_datadog_patch', True)
+    setattr(pyramid.config, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
     _w('pyramid.config', 'Configurator.__init__', traced_init)
 
@@ -23,7 +25,7 @@ def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
     trace_settings = {
-        'datadog_trace_service' : service,
+        SETTINGS_SERVICE : service,
     }
     settings.update(trace_settings)
     # If the tweens are explicitly set with 'pyramid.tweens', we need to

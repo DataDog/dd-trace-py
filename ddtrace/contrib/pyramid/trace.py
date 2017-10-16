@@ -8,6 +8,7 @@ import wrapt
 # project
 import ddtrace
 from ...ext import http, AppTypes
+from .constants import SETTINGS_SERVICE, SETTINGS_TRACE_ENABLED, SETTINGS_TRACER
 
 log = logging.getLogger(__name__)
 
@@ -44,9 +45,9 @@ def trace_render(func, instance, args, kwargs):
 def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
-    service = settings.get('datadog_trace_service') or 'pyramid'
-    tracer = settings.get('datadog_tracer') or ddtrace.tracer
-    enabled = asbool(settings.get('datadog_trace_enabled', tracer.enabled))
+    service = settings.get(SETTINGS_SERVICE) or 'pyramid'
+    tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
+    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
 
     # set the service info
     tracer.set_service_info(
@@ -58,7 +59,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
-                setattr(request, 'DD_SPAN', span)  # used to find the tracer in templates
+                setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
                 try:
                     response = handler(request)
