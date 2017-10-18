@@ -5,7 +5,7 @@ import random
 
 from ddtrace.tracer import Tracer
 from ddtrace.span import Span
-from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
+from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY, _key, _default_key
 from ddtrace.compat import iteritems
 from .test_tracer import DummyWriter
 from .util import patch_time
@@ -62,6 +62,16 @@ class RateSamplerTest(unittest.TestCase):
                 assert sampled == tracer.sampler.sample(other_span), "sampling should give the same result for a given trace_id"
 
 class RateByServiceSamplerTest(unittest.TestCase):
+    def test_default_key(self):
+        assert "service:,env:" == _default_key, "default key should correspond to no service and no env"
+
+    def test_key(self):
+        assert _default_key == _key()
+        assert "service:mcnulty,env:" == _key(service="mcnulty")
+        assert "service:,env:test" == _key(env="test")
+        assert "service:mcnulty,env:test" == _key(service="mcnulty", env="test")
+        assert "service:mcnulty,env:test" == _key("mcnulty", "test")
+
     def test_sample_rate_deviation(self):
         writer = DummyWriter()
 

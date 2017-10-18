@@ -50,6 +50,13 @@ class RateSampler(object):
 
         return sampled
 
+def _key(service=None, env=None):
+    service = service or ""
+    env = env or ""
+    return "service:" + service + ",env:" + env
+
+_default_key = _key()
+
 class RateByServiceSampler(object):
     """Sampler based on a rate, by service
 
@@ -60,13 +67,7 @@ class RateByServiceSampler(object):
     def __init__(self, sample_rate=1):
         self._lock = Lock()
         self._by_service_samplers = {}
-        self._default_key = self._key(None, None)
-        self._by_service_samplers[self._default_key] = RateSampler(sample_rate)
-
-    def _key(self, service="", env=""):
-        service = service or ""
-        env = env or ""
-        return "service:" + service + ",env:" + env
+        self._by_service_samplers[_default_key] = RateSampler(sample_rate)
 
     def _set_sample_rate_by_key(self, sample_rate, key):
         with self._lock:
@@ -76,16 +77,16 @@ class RateByServiceSampler(object):
                 self._by_service_samplers[key] = RateSampler(sample_rate)
 
     def set_sample_rate(self, sample_rate, service="", env=""):
-        self._set_sample_rate_by_key(sample_rate, self._key(service, env))
+        self._set_sample_rate_by_key(sample_rate, _key(service, env))
 
     def sample(self, span):
         tags = span.tracer().tags
         env = tags['env'] if 'env' in tags else None
-        key = self._key(span.service, env)
+        key = _key(span.service, env)
         with self._lock:
             if key in self._by_service_samplers:
                 return self._by_service_samplers[key].sample(span)
-            return self._by_service_samplers[self._default_key].sample(span)
+            return self._by_service_samplers[_default_key].sample(span)
 
     def set_sample_rates_from_json(self, body):
         log.debug("setting sample rates from JSON '%s'" % repr(body))
@@ -108,5 +109,5 @@ class RateByServiceSampler(object):
             self._set_sample_rate_by_key(sample_rate, key)
         with self._lock:
             for key in list(self._by_service_samplers):
-                if key not in rate_by_service and key != self._default_key:
+                if key not in rate_by_service and key != _default_key:
                     del self._by_service_samplers[key]
