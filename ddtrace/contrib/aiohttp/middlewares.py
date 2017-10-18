@@ -1,7 +1,7 @@
 import asyncio
 
 from ..asyncio import context_provider
-from ...ext import AppTypes, http
+from ...ext import AppTypes, http, distributed
 from ...compat import stringify
 from ...context import Context
 
@@ -9,10 +9,6 @@ from ...context import Context
 CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
-
-PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
-PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
-SAMPLING_PRIORITY_HEADER_ID = 'x-datadog-sampling-priority'
 
 
 @asyncio.coroutine
@@ -40,9 +36,9 @@ def trace_middleware(app, handler):
         # [TODO:christian] this is quite generic and applies to any similar library so
         # at some point we should have some shared code which populates context from headers.
         if tracer.enabled and distributed_tracing:
-            trace_id = int(request.headers.get(PARENT_TRACE_HEADER_ID, 0))
-            parent_span_id = int(request.headers.get(PARENT_SPAN_HEADER_ID, 0))
-            sampling_priority = request.headers.get(SAMPLING_PRIORITY_HEADER_ID)
+            trace_id = int(request.headers.get(distributed.HTTP_HEADER_TRACE_ID, 0))
+            parent_span_id = int(request.headers.get(distributed.HTTP_HEADER_PARENT_ID, 0))
+            sampling_priority = request.headers.get(distributed.HTTP_HEADER_SAMPLING_PRIORITY)
             # keep sampling priority as None if not propagated, to support older client versions on the parent side
             if sampling_priority:
                 sampling_priority = int(sampling_priority)
