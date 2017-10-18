@@ -67,7 +67,7 @@ class Context(object):
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
             self._sampled = span.sampled
-            self._sampling_priority = span.get_sampling_priority()
+            self._sampling_priority = span._sampling_priority
         else:
             self._parent_span_id = None
 

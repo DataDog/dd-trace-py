@@ -22,7 +22,7 @@ def test_ids():
 def test_sampled():
     s = Span(tracer=None, name="span.test")
     assert s.sampled
-    assert s.get_sampling_priority() is None
+    assert s._sampling_priority is None
 
 def test_tags():
     s = Span(tracer=None, name="test.span")
@@ -177,19 +177,7 @@ def test_ctx_mgr():
 
 def test_span_priority():
     s = Span(tracer=None, name="test.span", service="s", resource="r")
-    for i in range(10):
-        s.set_sampling_priority(i)
-        eq_(i, s._sampling_priority)
-        eq_(i, s.get_sampling_priority())
-    s.set_sampling_priority('this is not a valid integer')
-    eq_(9, s._sampling_priority)
-    eq_(9, s.get_sampling_priority())
-    s.set_sampling_priority(None)
-    eq_(None, s._sampling_priority)
-    eq_(None, s.get_sampling_priority())
-    s.set_sampling_priority(0.0)
-    eq_(0, s._sampling_priority)
-    eq_(0, s.get_sampling_priority())
+    eq_(None, s._sampling_priority, 'by default, no sampling priority defined')
 
 def test_span_to_dict():
     s = Span(tracer=None, name="test.span", service="s", resource="r")
@@ -243,7 +231,7 @@ def test_span_to_dict_priority():
         s.span_type = "foo"
         s.set_tag("a", "1")
         s.set_meta("b", "2")
-        s.set_sampling_priority(i)
+        s._sampling_priority = i
         s.finish()
 
         d = s.to_dict()

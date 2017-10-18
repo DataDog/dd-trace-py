@@ -82,8 +82,11 @@ class RateByServiceSamplerTest(unittest.TestCase):
             samples = writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
-                if sample.get_sampling_priority() > 0:
-                    samples_with_high_priority += 1
+                if sample._sampling_priority:
+                    if sample._sampling_priority > 0:
+                        samples_with_high_priority += 1
+                else:
+                    assert 0 == sample._sampling_priority, "when priority sampling is on, priority should be 0 when trace is to be dropped"
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None

@@ -165,7 +165,7 @@ class Tracer(object):
         if parent:
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
-            sampling_priority = parent.get_sampling_priority()
+            sampling_priority = parent._sampling_priority
         else:
             trace_id, parent_span_id, sampling_priority = context.get_context_attributes()
 
@@ -185,7 +185,7 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
             )
-            span.set_sampling_priority(sampling_priority)
+            span._sampling_priority = sampling_priority
 
             # Extra attributes when from a local parent
             if parent:
@@ -211,13 +211,13 @@ class Tracer(object):
 
                 if self.priority_sampler:
                     if self.priority_sampler.sample(span):
-                        span.set_sampling_priority(1)
+                        span._sampling_priority = 1
                     else:
-                        span.set_sampling_priority(0)
+                        span._sampling_priority = 0
             else:
                 if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
-                    span.set_sampling_priority(0)
+                    span._sampling_priority = 0
 
         # add common tags
         if self.tags:
