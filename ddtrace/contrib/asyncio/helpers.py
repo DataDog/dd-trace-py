@@ -77,7 +77,7 @@ def _wrap_executor(fn, args, tracer, ctx):
     # the AsyncioContextProvider knows that this is a new thread
     # so it is legit to pass the Context in the thread-local storage;
     # fn() will be executed outside the asyncio loop as a synchronous code
-    tracer._context_provider._local.set(ctx)
+    tracer.context_provider.activate(ctx)
     return fn(*args)
 
 
