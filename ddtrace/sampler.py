@@ -4,7 +4,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import logging
 
-from json import loads
 from threading import Lock
 
 from .compat import iteritems
@@ -22,6 +21,7 @@ class AllSampler(object):
 
     def sample(self, span):
         return True
+
 
 class RateSampler(object):
     """Sampler based on a rate
@@ -50,10 +50,12 @@ class RateSampler(object):
 
         return sampled
 
+
 def _key(service=None, env=None):
     service = service or ""
     env = env or ""
     return "service:" + service + ",env:" + env
+
 
 _default_key = _key()
 
@@ -88,23 +90,23 @@ class RateByServiceSampler(object):
                 return self._by_service_samplers[key].sample(span)
             return self._by_service_samplers[_default_key].sample(span)
 
-    def set_sample_rates_from_json(self, body):
-        log.debug("setting sample rates from JSON '%s'" % repr(body))
-        try:
-            if not isinstance(body, str):
-                body = body.decode('utf-8')
-            if body.startswith('OK'):
-                # This typically happens when using a priority-sampling enabled
-                # library with an outdated agent. It still works, but priority sampling
-                # will probably send too many traces, so the next step is to upgrade agent.
-                log.warning("'OK' is not a valid JSON, please make sure trace-agent is up to date")
-                return
-            content = loads(body)
-        except ValueError as err:
-            log.error("unable to load JSON '%s': %s" % (body, err))
-            return
+    def set_sample_rate_by_service(self, rate_by_service):
+        # log.debug("setting sample rates with '%s'" % repr(rates))
+        # try:
+        #     if not isinstance(body, str):
+        #         body = body.decode('utf-8')
+        #     if body.startswith('OK'):
+        #         # This typically happens when using a priority-sampling enabled
+        #         # library with an outdated agent. It still works, but priority sampling
+        #         # will probably send too many traces, so the next step is to upgrade agent.
+        #         log.warning("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+        #         return
+        #     content = loads(body)
+        # except ValueError as err:
+        #     log.error("unable to load JSON '%s': %s" % (body, err))
+        #     return
 
-        rate_by_service = content['rate_by_service']
+        # rate_by_service = content['rate_by_service']
         for key, sample_rate in iteritems(rate_by_service):
             self._set_sample_rate_by_key(sample_rate, key)
         with self._lock:

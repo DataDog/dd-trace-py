@@ -2,6 +2,7 @@
 import logging
 import time
 import ddtrace
+from json import loads
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -24,6 +25,28 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                      'services': '/v0.2/services',
                       'compatibility_mode': True,
                       'fallback': None}}
+
+def _parse_response_json(response):
+    """
+    Parse the content of a response object, and return the right type,
+    can be a string if the output was plain text, or a dictionnary if
+    the output was a JSON.
+    """
+    if hasattr(response, 'read'):
+        body = response.read()
+        try:
+            if not isinstance(body, str):
+                body = body.decode('utf-8')
+            if body.startswith('OK'):
+                # This typically happens when using a priority-sampling enabled
+                # library with an outdated agent. It still works, but priority sampling
+                # will probably send too many traces, so the next step is to upgrade agent.
+                log.debug("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                return
+            content = loads(body)
+            return content
+        except ValueError as err:
+            log.debug("unable to load JSON '%s': %s" % (body, err))
 
 class API(object):
     """
