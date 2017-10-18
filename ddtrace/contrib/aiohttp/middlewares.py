@@ -38,7 +38,7 @@ def trace_middleware(app, handler):
             parent_span_id = int(request.headers.get(distributed.HTTP_HEADER_PARENT_ID, 0))
             sampling_priority = request.headers.get(distributed.HTTP_HEADER_SAMPLING_PRIORITY)
             # keep sampling priority as None if not propagated, to support older client versions on the parent side
-            if sampling_priority:
+            if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)
 
             context = Context(trace_id=trace_id, span_id=parent_span_id, sampling_priority=sampling_priority)
