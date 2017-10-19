@@ -3,22 +3,19 @@ from __future__ import division
 import unittest
 import random
 
-from ddtrace.tracer import Tracer
 from ddtrace.span import Span
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY, _key, _default_key
 from ddtrace.compat import iteritems
-from .test_tracer import DummyWriter
+from tests.test_tracer import get_dummy_tracer
 from .util import patch_time
 
 
 class RateSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
-        writer = DummyWriter()
-
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = Tracer()
-            tracer.writer = writer
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
 
             tracer.sampler = RateSampler(sample_rate)
 
@@ -41,10 +38,8 @@ class RateSamplerTest(unittest.TestCase):
 
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
-        writer = DummyWriter()
-
-        tracer = Tracer()
-        tracer.writer = writer
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
 
         tracer.sampler = RateSampler(0.5)
 
@@ -73,13 +68,17 @@ class RateByServiceSamplerTest(unittest.TestCase):
         assert "service:mcnulty,env:test" == _key("mcnulty", "test")
 
     def test_sample_rate_deviation(self):
-        writer = DummyWriter()
-
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = Tracer()
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
             tracer.configure(sampler=AllSampler(), priority_sampling=True)
-            tracer.priority_sampler.set_sample_rate(sample_rate)
+            # We need to set the writer because tracer.configure overrides it,
+            # indeed, as we enable priority sampling, we must ensure the writer
+            # is priority sampling aware and pass it a reference on the
+            # priority sampler to send the feedback it gets from the agent
+            assert writer != tracer.writer, "writer should have been updated by configure"
             tracer.writer = writer
+            tracer.priority_sampler.set_sample_rate(sample_rate)
 
             random.seed(1234)
 
@@ -112,12 +111,9 @@ class RateByServiceSamplerTest(unittest.TestCase):
             {"service:,env:":1, "service:mcnulty,env:dev": 0.25, "service:postgres,env:dev": 0.5, "service:redis,env:prod": 0.75}
         ]
 
-        writer = DummyWriter()
-
-        tracer = Tracer()
+        tracer = get_dummy_tracer()
         tracer.configure(sampler=AllSampler(), priority_sampling=True)
         priority_sampler = tracer.priority_sampler
-        tracer.writer = writer
         for case in cases:
             priority_sampler.set_sample_rate_by_service(case)
             rates = {}

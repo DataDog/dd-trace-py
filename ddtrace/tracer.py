@@ -210,6 +210,9 @@ class Tracer(object):
                     span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
 
                 if self.priority_sampler:
+                    # At this stage, it's important to have the service set. If unset,
+                    # priority sampler will use the default sampling rate, which might
+                    # lead to oversampling (that is, dropping too many traces).
                     if self.priority_sampler.sample(span):
                         span._sampling_priority = 1
                     else:
@@ -224,8 +227,6 @@ class Tracer(object):
             span.set_tags(self.tags)
         if not span._parent:
             span.set_tag(system.PID, getpid())
-
-        # TODO: add protection if the service is missing?
 
         # add it to the current context
         context.add_span(span)

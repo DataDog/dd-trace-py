@@ -504,6 +504,11 @@ class TestRateByService(TestCase):
         trace = self.tracer.writer.pop()
         traces = [trace]
 
+        # [TODO:christian] when CI has an agent that is able to process the v0.4
+        # endpoint, add a check to:
+        # - make sure the output is a valid JSON
+        # - make sure the priority sampler (if enabled) is updated
+
         # test JSON encoder
         response = self.api_json.send_traces(traces)
         ok_(response)

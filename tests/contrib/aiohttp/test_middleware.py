@@ -235,7 +235,6 @@ class TestTraceMiddleware(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing_with_sampling_true(self):
-        old_sampler = self.tracer.priority_sampler
         self.tracer.priority_sampler = RateSampler(0.1)
 
         # activate distributed tracing
@@ -260,12 +259,9 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(42, span.parent_id)
         eq_(1, span._sampling_priority)
 
-        self.tracer.priority_sampler = old_sampler
-
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing_with_sampling_false(self):
-        old_sampler = self.tracer.priority_sampler
         self.tracer.priority_sampler = RateSampler(0.9)
 
         # activate distributed tracing
@@ -289,8 +285,6 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(100, span.trace_id)
         eq_(42, span.parent_id)
         eq_(0, span._sampling_priority)
-
-        self.tracer.priority_sampler = old_sampler
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -317,7 +311,6 @@ class TestTraceMiddleware(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing_sub_span(self):
-        old_sampler = self.tracer.priority_sampler
         self.tracer.priority_sampler = RateSampler(1.0)
 
         # activate distributed tracing
@@ -345,5 +338,3 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(100, sub_span.trace_id)
         eq_(span.span_id, sub_span.parent_id)
         eq_(0, span._sampling_priority)
-
-        self.tracer.priority_sampler = old_sampler
