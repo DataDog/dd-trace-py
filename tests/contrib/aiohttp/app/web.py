@@ -56,8 +56,6 @@ def route_wrapped_coroutine(request):
 @asyncio.coroutine
 def route_sub_span(request):
     tracer = get_tracer(request)
-
-    tracer = get_tracer(request)
     with tracer.trace('aiohttp.sub_span') as span:
         span.set_tag('sub_span', 'true')
         return web.Response(text='OK')
