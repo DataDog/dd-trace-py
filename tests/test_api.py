@@ -22,6 +22,7 @@ class APITests(TestCase):
         test_cases = {'OK': {'js': None, 'log': "please make sure trace-agent is up to date"},
                       'OK\n': {'js': None, 'log': "please make sure trace-agent is up to date"},
                       'error:unsupported-endpoint': {'js': None, 'log': "unable to load JSON 'error:unsupported-endpoint'"},
+                      42: {'js': None, 'log': "unable to load JSON '42'"}, # int as key to trigger TypeError
                       '{}': {'js': {}},
                       '[]': {'js': []},
                       '{"rate_by_service": {"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}':

@@ -35,9 +35,9 @@ def _parse_response_json(response):
     if hasattr(response, 'read'):
         body = response.read()
         try:
-            if not isinstance(body, str):
+            if not isinstance(body, str) and hasattr(body, 'decode'):
                 body = body.decode('utf-8')
-            if body.startswith('OK'):
+            if hasattr(body, 'startswith') and body.startswith('OK'):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
@@ -45,7 +45,7 @@ def _parse_response_json(response):
                 return
             content = loads(body)
             return content
-        except ValueError as err:
+        except (ValueError, TypeError) as err:
             log.debug("unable to load JSON '%s': %s" % (body, err))
 
 class API(object):
