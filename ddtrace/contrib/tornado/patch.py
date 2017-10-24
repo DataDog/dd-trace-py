@@ -1,10 +1,9 @@
 import ddtrace
 import tornado
-import concurrent
 
 from wrapt import wrap_function_wrapper as _w
 
-from . import handlers, application, decorators, template, futures, TracerStackContext
+from . import handlers, application, decorators, template, futures, compat, TracerStackContext
 from ...util import unwrap as _u
 
 
@@ -26,7 +25,7 @@ def patch():
     _w('tornado.web', 'RequestHandler.on_finish', handlers.on_finish)
     _w('tornado.web', 'RequestHandler.log_exception', handlers.log_exception)
 
-    # patch Tornado decorators
+    # patch Tornado concurrent modules
     _w('tornado.concurrent', 'run_on_executor', decorators._run_on_executor)
 
     # patch Template system
@@ -36,7 +35,8 @@ def patch():
     # TODO: this may be a generic module and should be moved
     # in a separate contributions when we want to support multi-threading
     # context propagation
-    _w('concurrent.futures', 'ThreadPoolExecutor.submit', futures._wrap_submit)
+    if compat.futures_available:
+        _w('concurrent.futures', 'ThreadPoolExecutor.submit', futures._wrap_submit)
 
     # configure the global tracer
     ddtrace.tracer.configure(
@@ -60,4 +60,6 @@ def unpatch():
     _u(tornado.web.Application, '__init__')
     _u(tornado.concurrent, 'run_on_executor')
     _u(tornado.template.Template, 'generate')
-    _u(concurrent.futures.ThreadPoolExecutor, 'submit')
+
+    if compat.futures_available:
+        _u('concurrent.futures.ThreadPoolExecutor', 'submit')

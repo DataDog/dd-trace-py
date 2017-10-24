@@ -2,6 +2,7 @@ import time
 import unittest
 
 from nose.tools import eq_, ok_
+from ddtrace.contrib.tornado.compat import futures_available
 
 from tornado import version_info
 
@@ -43,6 +44,7 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(0, executor_span.error)
         ok_(executor_span.duration >= 0.05)
 
+    @unittest.skipUnless(futures_available, 'Futures must be available to test direct submit')
     def test_on_executor_submit(self):
         # it should propagate the context when a handler uses directly the `executor.submit()`
         response = self.fetch('/executor_submit_handler/')
