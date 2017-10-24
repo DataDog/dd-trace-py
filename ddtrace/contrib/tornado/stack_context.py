@@ -1,3 +1,4 @@
+from tornado.ioloop import IOLoop
 from tornado.stack_context import StackContextInconsistentError, _state
 
 from ...context import Context
@@ -59,20 +60,39 @@ class TracerStackContext(object):
         """
         Return the ``Context`` from the current execution flow. This method can be
         used inside a Tornado coroutine to retrieve and use the current tracing context.
+        If used in a separated Thread, the `_state` thread-local storage is used to
+        propagate the current Active context from the `MainThread`.
         """
-        for ctx in reversed(_state.contexts[0]):
-            if isinstance(ctx, cls) and ctx.active:
-                return ctx.context
+        io_loop = getattr(IOLoop._current, 'instance', None)
+        if io_loop is None:
+            # if a Tornado loop is not available, it means that this method
+            # has been called from a synchronous code, so we can rely in a
+            # thread-local storage
+            return getattr(_state, '__datadog_context', None)
+        else:
+            # we're inside a Tornado loop so the TracerStackContext is used
+            for ctx in reversed(_state.contexts[0]):
+                if isinstance(ctx, cls) and ctx.active:
+                    return ctx.context
 
     @classmethod
     def activate(cls, ctx):
         """
         Set the active ``Context`` for this async execution. If a ``TracerStackContext``
         is not found, the context is discarded.
+        If used in a separated Thread, the `_state` thread-local storage is used to
+        propagate the current Active context from the `MainThread`.
         """
-        for stack_ctx in reversed(_state.contexts[0]):
-            if isinstance(stack_ctx, cls) and stack_ctx.active:
-                stack_ctx.context = ctx
+        io_loop = getattr(IOLoop._current, 'instance', None)
+        if io_loop is None:
+            # because we're outside of an asynchronous execution, we store
+            # the current context in a thread-local storage
+            setattr(_state, '__datadog_context', ctx)
+        else:
+            # we're inside a Tornado loop so the TracerStackContext is used
+            for stack_ctx in reversed(_state.contexts[0]):
+                if isinstance(stack_ctx, cls) and stack_ctx.active:
+                    stack_ctx.context = ctx
 
 
 def run_with_trace_context(func, *args, **kwargs):
