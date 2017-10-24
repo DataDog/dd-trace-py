@@ -12,8 +12,9 @@ def _wrap_submit(func, instance, args, kwargs):
     # TODO: the current implementation doesn't provide the GlobalTracer
     # singleton, so we should rely in our top-level import
     ctx = Context()
-    current_ctx = tracer.get_call_context()
-    ctx._current_span = current_ctx._current_span
+    current_ctx = tracer.context_provider.active()
+    if current_ctx is not None:
+        ctx._current_span = current_ctx._current_span
 
     # extract the target function that must be executed in
     # a new thread and the `target` arguments
