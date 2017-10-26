@@ -1,1 +1,2 @@
 FILTERS_KEY = 'FILTERS'
+SAMPLING_PRIORITY_KEY = '_sampling_priority_v1'

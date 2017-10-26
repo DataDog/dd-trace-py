@@ -1,16 +1,14 @@
 import asyncio
 
 from ..asyncio import context_provider
-from ...ext import AppTypes, http
+from ...ext import AppTypes, http, distributed
 from ...compat import stringify
+from ...context import Context
 
 
 CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
-
-PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
-PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
 
 
 @asyncio.coroutine
@@ -29,23 +27,29 @@ def trace_middleware(app, handler):
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
 
+        context = tracer.context_provider.active()
+
+        # Create a new context based on the propagated information.
+        #
+        # [TODO:christian] this is quite generic and applies to any similar library so
+        # at some point we should have some shared code which populates context from headers.
+        if distributed_tracing:
+            trace_id = int(request.headers.get(distributed.HTTP_HEADER_TRACE_ID, 0))
+            parent_span_id = int(request.headers.get(distributed.HTTP_HEADER_PARENT_ID, 0))
+            sampling_priority = request.headers.get(distributed.HTTP_HEADER_SAMPLING_PRIORITY)
+            # keep sampling priority as None if not propagated, to support older client versions on the parent side
+            if sampling_priority is not None:
+                sampling_priority = int(sampling_priority)
+
+            context = Context(trace_id=trace_id, span_id=parent_span_id, sampling_priority=sampling_priority)
+            tracer.context_provider.activate(context)
+
         # trace the handler
         request_span = tracer.trace(
             'aiohttp.request',
             service=service,
             span_type=http.TYPE,
         )
-
-        if distributed_tracing:
-            # set parent trace/span IDs if present:
-            # http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
-            if parent_trace_id is not None:
-                request_span.trace_id = int(parent_trace_id)
-
-            parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-            if parent_span_id is not None:
-                request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code

@@ -7,6 +7,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .ext import errors
+from .constants import SAMPLING_PRIORITY_KEY
 
 
 log = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '_sampling_priority',
     ]
 
     def __init__(
@@ -90,6 +92,7 @@ class Span(object):
 
         # sampling
         self.sampled = True
+        self._sampling_priority = None
 
         self._tracer = tracer
         self._context = context
@@ -214,6 +217,12 @@ class Span(object):
         if self.span_type:
             d['type'] = self.span_type
 
+        if self._sampling_priority is not None:
+            if d.get('metrics'):
+                d['metrics'][SAMPLING_PRIORITY_KEY] = self._sampling_priority
+            else:
+                d['metrics'] = {SAMPLING_PRIORITY_KEY : self._sampling_priority}
+
         return d
 
     def set_traceback(self, limit=20):
@@ -260,6 +269,7 @@ class Span(object):
             ("start", self.start),
             ("end", "" if not self.duration else self.start + self.duration),
             ("duration", "%fs" % (self.duration or 0)),
+            ("sampling_priority", self._sampling_priority),
             ("error", self.error),
             ("tags", "")
         ]
