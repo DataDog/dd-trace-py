@@ -5,10 +5,10 @@ from os import getpid
 from .ext import system
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, RateSampler, RateByServiceSampler, SAMPLE_RATE_METRIC_KEY
+from .sampler import AllSampler, RateSampler, RateByServiceSampler
 from .writer import AgentWriter
 from .span import Span
-from .constants import FILTERS_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 
 
@@ -165,11 +165,9 @@ class Tracer(object):
         if parent:
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
-            sampling_priority = parent._sampling_priority
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
-            sampling_priority = context.sampling_priority
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -187,7 +185,6 @@ class Tracer(object):
                 resource=resource,
                 span_type=span_type,
             )
-            span._sampling_priority = sampling_priority
 
             # Extra attributes when from a local parent
             if parent:
@@ -216,13 +213,13 @@ class Tracer(object):
                     # priority sampler will use the default sampling rate, which might
                     # lead to oversampling (that is, dropping too many traces).
                     if self.priority_sampler.sample(span):
-                        span._sampling_priority = 1
+                        context.sampling_priority = 1
                     else:
-                        span._sampling_priority = 0
+                        context.sampling_priority = 0
             else:
                 if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
-                    span._sampling_priority = 0
+                    context.sampling_priority = 0
 
         # add common tags
         if self.tags:

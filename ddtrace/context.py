@@ -1,6 +1,8 @@
 import logging
 import threading
 
+from .constants import SAMPLING_PRIORITY_KEY
+
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +57,12 @@ class Context(object):
         with self._lock:
             return self._sampling_priority
 
+    @sampling_priority.setter
+    def sampling_priority(self, value):
+        """Set sampling priority."""
+        with self._lock:
+            self._sampling_priority = value
+
     def get_current_span(self):
         """
         Return the last active span that corresponds to the last inserted
@@ -76,7 +84,6 @@ class Context(object):
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
             self._sampled = span.sampled
-            self._sampling_priority = span._sampling_priority
         else:
             self._parent_span_id = None
 
@@ -140,8 +147,15 @@ class Context(object):
         """
         with self._lock:
             if self._is_finished():
+                # get the trace
                 trace = self._trace
                 sampled = self._sampled
+                sampling_priority = self._sampling_priority
+                # attach the sampling priority to the spans
+                if sampled and sampling_priority is not None:
+                    for span in trace:
+                        span.set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0

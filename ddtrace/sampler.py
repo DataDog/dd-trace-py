@@ -14,7 +14,6 @@ MAX_TRACE_ID = 2 ** 64
 
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
-SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 
 class AllSampler(object):
     """Sampler sampling all the traces"""

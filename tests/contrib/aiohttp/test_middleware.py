@@ -230,7 +230,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
-        eq_(span._sampling_priority, None)
+        eq_(span.context.sampling_priority, None)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -257,7 +257,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(100, span.trace_id)
         eq_(42, span.parent_id)
-        eq_(1, span._sampling_priority)
+        eq_(1, span.context.sampling_priority)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -284,7 +284,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(100, span.trace_id)
         eq_(42, span.parent_id)
-        eq_(0, span._sampling_priority)
+        eq_(0, span.context.sampling_priority)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -333,8 +333,8 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         eq_(100, span.trace_id)
         eq_(42, span.parent_id)
-        eq_(0, span._sampling_priority)
+        eq_(0, span.context.sampling_priority)
         # check parenting is OK with custom sub-span created within server code
         eq_(100, sub_span.trace_id)
         eq_(span.span_id, sub_span.parent_id)
-        eq_(0, span._sampling_priority)
+        eq_(0, span.context.sampling_priority)
