@@ -328,13 +328,15 @@ function that call a `method` and propagate a `rpc_metadata` dictionary over the
     def parent_rpc_call():
         with tracer.trace("parent_span") as span:
             rpc_metadata = {}
-            MyRPCPropagator.ineject(span.context, rpc_metadata)
+            propagator = MyRPCPropagator()
+            propagator.inject(span.context, rpc_metadata)
             method = "<my rpc method>"
             rpc.call(method, metadata)
 
     # On the child side
     def child_rpc_call(method, rpc_metadata):
-        context = MyRPCPropagator.extract(rpc_metadata)
+        propagator = MyRPCPropagator()
+        context = propagator.extract(rpc_metadata)
         tracer.context_provider.activate(context)
 
         with tracer.trace("child_span") as span:
