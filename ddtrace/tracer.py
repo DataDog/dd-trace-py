@@ -167,7 +167,9 @@ class Tracer(object):
             parent_span_id = parent.span_id
             sampling_priority = parent._sampling_priority
         else:
-            trace_id, parent_span_id, sampling_priority = context.get_context_attributes()
+            trace_id = context.trace_id
+            parent_span_id = context.span_id
+            sampling_priority = context.sampling_priority
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context

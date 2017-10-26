@@ -118,10 +118,10 @@ Modifying the Agent hostname and port
 If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
 
     from ddtrace import tracer
-    
+
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
 
-By default, these will be set to localhost and 8126 respectively. 
+By default, these will be set to localhost and 8126 respectively.
 
 Web Frameworks
 --------------
@@ -288,37 +288,60 @@ reduces performance overhead.
 Distributed Tracing
 ~~~~~~~~~~~~~~~~~~~
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`::
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
 
-    def trace_request_on_secondary_host(parent_trace_id, parent_span_id):
-        with tracer.trace("child_span") as span:
-            span.parent_id = parent_span_id
-            span.trace_id = parent_trace_id
+`ddtrace` already provides default propagators but you can also implement your own.
+
+HTTP
+~~~~
+
+The `HTTPPropagator` is already automatically used in our `aiohttp` integration. For the others, you can use
+it manually.
+
+.. autoclass:: ddtrace.propagation.http.HTTPPropagator
+    :members:
+
+Custom
+~~~~~~
+
+You can manually propagate your tracing context over your RPC protocol. Here is an example assuming that you have `rpc.call`
+function that call a `method` and propagate a `rpc_metadata` dictionary over the wire::
 
 
-Users can pass along the parent_trace_id and parent_span_id via whatever method best matches the RPC framework. For example, with HTTP headers (Using Python Flask)::
+    # Implement your own context propagator
+    MyRPCPropagator(object):
+        def inject(self, span_context, rpc_metadata):
+            rpc_metadata.update({
+                'trace_id': span_context.trace_id,
+                'span_id': span_context.span_id,
+                'sampling_priority': span_context.sampling_priority,
+            })
 
+        def extract(self, rpc_metadata):
+            return Context(
+                trace_id=rpc_metadata['trace_id'],
+                span_id=rpc_metadata['span_id'],
+                sampling_priority=rpc_metadata['sampling_priority'],
+            )
+
+    # On the parent side
     def parent_rpc_call():
         with tracer.trace("parent_span") as span:
-            import requests
-            headers = {
-                'x-datadog-trace-id':span.trace_id,
-                'x-datadog-parent-id':span.span_id,
-            }
-            url = "<some RPC endpoint>"
-            r = requests.get(url, headers=headers)
+            rpc_metadata = {}
+            propagator = MyRPCPropagator()
+            propagator.inject(span.context, rpc_metadata)
+            method = "<my rpc method>"
+            rpc.call(method, metadata)
 
+    # On the child side
+    def child_rpc_call(method, rpc_metadata):
+        propagator = MyRPCPropagator()
+        context = propagator.extract(rpc_metadata)
+        tracer.context_provider.activate(context)
 
-    from flask import request
-    parent_trace_id = request.headers.get('x-datadog-trace-id')
-    parent_span_id = request.headers.get('x-datadog-parent-id')
-    child_rpc_call(parent_trace_id, parent_span_id)
-
-
-    def child_rpc_call(parent_trace_id, parent_span_id):
         with tracer.trace("child_span") as span:
-            span.parent_id = int(parent_span_id)
-            span.trace_id = int(parent_trace_id)
+            span.set_meta('my_rpc_method', method)
+
 
 Advanced Usage
 --------------
