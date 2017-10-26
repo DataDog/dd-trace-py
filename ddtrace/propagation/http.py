@@ -11,13 +11,44 @@ class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
     def inject(self, span_context, headers):
-        """Inject SpanContext attributes that have to be propagated as HTTP headers."""
+        """Inject Context attributes that have to be propagated as HTTP headers.
+
+        Here is an example using `requests`::
+
+            import requests
+            from ddtrace.propagation.http import HTTPPropagator
+
+            def parent_call():
+                with tracer.trace("parent_span") as span:
+                    headers = {}
+                    HTTPPropagator.inject(span.context, headers)
+                    url = "<some RPC endpoint>"
+                    r = requests.get(url, headers=headers)
+
+        :param Context span_context: Span context to propagate.
+        :param dict headers: HTTP headers to extend with tracing attributes.
+        """
         headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
         headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
 
     def extract(self, headers):
-        """Extract a SpanContext from HTTP headers."""
+        """Extract a Context from HTTP headers into a new Context.
+
+        Here is an example from a web endpoint::
+
+            from ddtrace.propagation.http import HTTPPropagator
+
+            def child_call(url, headers):
+                context = HTTPPropagator.extract(headers)
+                tracer.context_provider.activate(context)
+
+                with tracer.trace("child_span") as span:
+                    span.set_meta('http.url', url)
+
+        :param dict headers: HTTP headers to extract tracing attributes.
+        :return: New `Context` with propagated attributes.
+        """
         if not headers:
             return Context()
 
