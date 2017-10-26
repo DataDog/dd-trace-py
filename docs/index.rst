@@ -349,7 +349,7 @@ You can also set this the priority manually to either drop an non-interesting tr
 For that, set the `context.sampling_priority` to 0 or 2. It has to be done before any context propagation (fork, RPC calls)
 to be effective::
 
-    context = tracer.get_call_context()
+    context = tracer.context_provider.active()
     # Indicate to not keep the trace
     context.sampling_priority = 0
 
