@@ -37,14 +37,23 @@ class Context(object):
         self._sampled = sampled
         self._sampling_priority = sampling_priority
 
-    def get_context_attributes(self):
-        """
-        Return the context propagatable attributes.
-
-        Useful to propagate context to an external element.
-        """
+    @property
+    def trace_id(self):
+        """Return current context trace_id."""
         with self._lock:
-            return self._parent_trace_id, self._parent_span_id, self._sampling_priority
+            return self._parent_trace_id
+
+    @property
+    def span_id(self):
+        """Return current context span_id."""
+        with self._lock:
+            return self._parent_span_id
+
+    @property
+    def sampling_priority(self):
+        """Return current context sampling priority."""
+        with self._lock:
+            return self._sampling_priority
 
     def get_current_span(self):
         """

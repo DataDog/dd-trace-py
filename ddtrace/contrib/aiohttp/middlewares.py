@@ -4,6 +4,7 @@ from ..asyncio import context_provider
 from ...ext import AppTypes, http, distributed
 from ...compat import stringify
 from ...context import Context
+from ...propagation.http import HTTPPropagator
 
 
 CONFIG_KEY = 'datadog_trace'
@@ -30,19 +31,11 @@ def trace_middleware(app, handler):
         context = tracer.context_provider.active()
 
         # Create a new context based on the propagated information.
-        #
-        # [TODO:christian] this is quite generic and applies to any similar library so
-        # at some point we should have some shared code which populates context from headers.
         if distributed_tracing:
-            trace_id = int(request.headers.get(distributed.HTTP_HEADER_TRACE_ID, 0))
-            parent_span_id = int(request.headers.get(distributed.HTTP_HEADER_PARENT_ID, 0))
-            sampling_priority = request.headers.get(distributed.HTTP_HEADER_SAMPLING_PRIORITY)
-            # keep sampling priority as None if not propagated, to support older client versions on the parent side
-            if sampling_priority is not None:
-                sampling_priority = int(sampling_priority)
-
-            context = Context(trace_id=trace_id, span_id=parent_span_id, sampling_priority=sampling_priority)
-            tracer.context_provider.activate(context)
+            context = HTTPPropagator.extract(request.headers)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                tracer.context_provider.activate(context)
 
         # trace the handler
         request_span = tracer.trace(
