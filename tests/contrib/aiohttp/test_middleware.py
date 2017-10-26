@@ -338,4 +338,4 @@ class TestTraceMiddleware(TraceTestCase):
         # check parenting is OK with custom sub-span created within server code
         eq_(100, sub_span.trace_id)
         eq_(span.span_id, sub_span.parent_id)
-        eq_(0, sub_span.get_metric(SAMPLING_PRIORITY_KEY))
+        eq_(None, sub_span.get_metric(SAMPLING_PRIORITY_KEY))

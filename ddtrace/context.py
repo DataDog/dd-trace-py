@@ -151,10 +151,9 @@ class Context(object):
                 trace = self._trace
                 sampled = self._sampled
                 sampling_priority = self._sampling_priority
-                # attach the sampling priority to the spans
-                if sampled and sampling_priority is not None:
-                    for span in trace:
-                        span.set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                # attach the sampling priority to the context root span
+                if sampled and sampling_priority is not None and trace:
+                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
 
                 # clean the current state
                 self._trace = []
