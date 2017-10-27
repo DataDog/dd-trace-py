@@ -266,27 +266,9 @@ gevent
 
 .. automodule:: ddtrace.contrib.gevent
 
-Tutorials
----------
-
-Sampling
-~~~~~~~~
-
-It is possible to sample traces with `ddtrace`.
-While the Trace Agent already samples traces to reduce the bandwidth usage, this client sampling
-reduces performance overhead.
-
-`RateSampler` samples a ratio of the traces. Its usage is simple::
-
-    from ddtrace.sampler import RateSampler
-
-    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Sample 50% of the traces.
-    sample_rate = 0.5
-    tracer.sampler = RateSampler(sample_rate)
 
 Distributed Tracing
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
 To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
 
@@ -341,6 +323,55 @@ function that call a `method` and propagate a `rpc_metadata` dictionary over the
 
         with tracer.trace("child_span") as span:
             span.set_meta('my_rpc_method', method)
+
+
+Sampling
+--------
+
+Priority sampling
+~~~~~~~~~~~~~~~~~
+
+Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
+for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
+
+- 0: Don't keep the trace.
+- 1: The sampler automatically decided to keep the trace.
+- 2: The user asked the keep the trace.
+
+For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
+To enable the priorty sampling::
+
+    tracer.configure(distributed_sampling=True)
+
+Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
+
+You can also set this the priority manually to either drop an non-interesting trace or to keep an important one.
+For that, set the `context.sampling_priority` to 0 or 2. It has to be done before any context propagation (fork, RPC calls)
+to be effective::
+
+    context = tracer.context_provider.active()
+    # Indicate to not keep the trace
+    context.sampling_priority = 0
+
+    # Indicate to keep the trace
+    span.context.sampling_priority = 2
+
+
+Pre-sampling
+~~~~~~~~~~~~
+
+Pre-sampling will completely disable instrumentation of some transactions and drop the trace at the client level.
+Information will be lost but it allows to control any potential perfomrance impact.
+
+`RateSampler` ramdomly samples a percentage of traces. Its usage is simple::
+
+    from ddtrace.sampler import RateSampler
+
+    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
+    # Keep 20% of the traces.
+    sample_rate = 0.2
+    tracer.sampler = RateSampler(sample_rate)
+
 
 
 Advanced Usage

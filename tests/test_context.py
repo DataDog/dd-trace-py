@@ -29,6 +29,7 @@ class TestTracingContext(TestCase):
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
         ok_(ctx._sampled is True)
+        ok_(ctx.sampling_priority is None)
 
     def test_current_span(self):
         # it should return the current active span
