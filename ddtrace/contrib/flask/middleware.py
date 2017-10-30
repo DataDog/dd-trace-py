@@ -12,7 +12,6 @@ import logging
 from ... import compat
 from ...ext import http, errors, AppTypes
 from ...propagation.http import HTTPPropagator
-from ...context import Context
 
 # 3p
 import flask.templating
