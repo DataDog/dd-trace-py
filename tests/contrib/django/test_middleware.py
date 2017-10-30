@@ -10,7 +10,7 @@ from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django import TraceMiddleware
 
 # testing
-from .utils import DjangoTraceTestCase
+from .utils import DjangoTraceTestCase, override_ddtrace_settings
 
 
 class DjangoMiddlewareTest(DjangoTraceTestCase):
@@ -167,3 +167,27 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.trace_id, 100)
         eq_(sp_request.parent_id, 42)
         eq_(sp_request.get_metric(SAMPLING_PRIORITY_KEY), 2)
+
+    @override_ddtrace_settings(DISTRIBUTED_TRACING=False)
+    def test_middleware_no_propagation(self):
+        # ensures that we properly propagate http context
+        url = reverse('users-list')
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+        response = self.client.get(url, **headers)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+
+        # Check that propagation didn't happen
+        assert sp_request.trace_id != 100
+        assert sp_request.parent_id != 42
+        assert sp_request.get_metric(SAMPLING_PRIORITY_KEY) != 2
