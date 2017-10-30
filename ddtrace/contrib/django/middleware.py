@@ -5,6 +5,7 @@ from .conf import settings
 
 from ...ext import http
 from ...contrib import func_name
+from ...propagation.http import HTTPPropagator
 
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
@@ -80,6 +81,12 @@ class TraceMiddleware(InstrumentationMixin):
     """
     def process_request(self, request):
         tracer = settings.TRACER
+        if settings.DISTRIBUTED_TRACING:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.META)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                tracer.context_provider.activate(context)
         try:
             span = tracer.trace(
                 'django.request',

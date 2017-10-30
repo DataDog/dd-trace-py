@@ -5,6 +5,7 @@ from django.test import modify_settings
 from django.core.urlresolvers import reverse
 
 # project
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django import TraceMiddleware
 
@@ -143,3 +144,26 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         sp_database = spans[2]
         eq_(sp_request.get_tag('http.status_code'), '200')
         eq_(sp_request.get_tag('django.user.is_authenticated'), None)
+
+    def test_middleware_propagation(self):
+        # ensures that we properly propagate http context
+        url = reverse('users-list')
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+        response = self.client.get(url, **headers)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+
+        # Check for proper propagated attributes
+        eq_(sp_request.trace_id, 100)
+        eq_(sp_request.parent_id, 42)
+        eq_(sp_request.get_metric(SAMPLING_PRIORITY_KEY), 2)
