@@ -44,6 +44,11 @@ The available settings are:
   are sent to the trace agent. This setting cannot be changed at runtime
   and a restart is required. By default the tracer is disabled when in ``DEBUG``
   mode, enabled otherwise.
+* ``DISTRIBUTED_TRACING`` (default: ``False``): defines if the tracer should
+  use incoming X-DATADOG-* HTTP headers to extend a trace created remotely. It is
+  required for distributed tracing if this application is called remotely from another
+  instrumented application.
+  We suggest to enable it only for internal services where headers are under your control.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 * ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be

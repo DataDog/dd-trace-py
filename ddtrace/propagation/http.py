@@ -39,11 +39,11 @@ class HTTPPropagator(object):
 
             from ddtrace.propagation.http import HTTPPropagator
 
-            def child_call(url, headers):
+            def my_controller(url, headers):
                 context = HTTPPropagator.extract(headers)
                 tracer.context_provider.activate(context)
 
-                with tracer.trace("child_span") as span:
+                with tracer.trace("my_controller") as span:
                     span.set_meta('http.url', url)
 
         :param dict headers: HTTP headers to extract tracing attributes.

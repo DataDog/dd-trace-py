@@ -272,13 +272,25 @@ Distributed Tracing
 
 To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
 
+- On the server side, it means to read propagated attributes and set them to the active tracing context.
+- On the client side, it means to propagate the attributes, commonly as a header/metadata.
+
 `ddtrace` already provides default propagators but you can also implement your own.
 
-HTTP
-~~~~
+Web frameworks
+~~~~~~~~~~~~~~
 
-The `HTTPPropagator` is already automatically used in our `aiohttp` integration. For the others, you can use
-it manually.
+Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
+For that, refer to the configuration of the given integration.
+Supported web frameworks:
+
+- Django
+
+
+HTTP client/server
+~~~~~~~~~~~~~~~~~~
+
+You can use the `HTTPPropagator` manually when used with an HTTP client or if your web framework isn't supported.
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:
