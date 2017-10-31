@@ -100,6 +100,14 @@ class TraceMiddleware(object):
                 service=self._service,
                 span_type=http.TYPE,
             )
+
+            # Distributed tracing
+            parent_trace_id = request.headers.get('X-Datadog-Trace-Id')
+            parent_span_id = request.headers.get('X-Datadog-Parent-Id')
+           
+            if parent_trace_id and parent_span_id:
+                g.flask_datadog_span.trace_id = int(parent_trace_id)
+                g.flask_datadog_span.parent_id = int(parent_span_id)
         except Exception:
             self.app.logger.exception("error tracing request")
 
