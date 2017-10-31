@@ -14,7 +14,11 @@ def _wrap_submit(func, instance, args, kwargs):
     ctx = Context()
     current_ctx = tracer.context_provider.active()
     if current_ctx is not None:
-        ctx._current_span = current_ctx._current_span
+        ctx._current_span = current_ctx.get_current_span()
+        ctx._parent_trace_id = current_ctx.trace_id
+        ctx._parent_span_id = current_ctx.span_id
+        ctx._sampled = current_ctx.sampled
+        ctx._sampling_priority = current_ctx.sampling_priority
 
     # extract the target function that must be executed in
     # a new thread and the `target` arguments
