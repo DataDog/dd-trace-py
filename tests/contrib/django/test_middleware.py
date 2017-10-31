@@ -145,6 +145,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.status_code'), '200')
         eq_(sp_request.get_tag('django.user.is_authenticated'), None)
 
+    @override_ddtrace_settings(DISTRIBUTED_TRACING=True)
     def test_middleware_propagation(self):
         # ensures that we properly propagate http context
         url = reverse('users-list')
@@ -168,7 +169,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.parent_id, 42)
         eq_(sp_request.get_metric(SAMPLING_PRIORITY_KEY), 2)
 
-    @override_ddtrace_settings(DISTRIBUTED_TRACING=False)
     def test_middleware_no_propagation(self):
         # ensures that we properly propagate http context
         url = reverse('users-list')

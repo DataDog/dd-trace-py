@@ -34,7 +34,7 @@ DEFAULTS = {
     'DEFAULT_DATABASE_PREFIX': '',
     'DEFAULT_SERVICE': 'django',
     'ENABLED': True,
-    'DISTRIBUTED_TRACING': True,
+    'DISTRIBUTED_TRACING': False,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }
