@@ -285,6 +285,7 @@ For that, refer to the configuration of the given integration.
 Supported web frameworks:
 
 - Django
+- Flask
 
 
 HTTP client/server

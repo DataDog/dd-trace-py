@@ -92,7 +92,7 @@ def handle_my_exception(e):
 # work)
 service = "test.flask.service"
 assert not writer.pop()  # should always be empty
-traced_app = TraceMiddleware(app, tracer, service=service, use_distributed_tracing=True)
+traced_app = TraceMiddleware(app, tracer, service=service, distributed_tracing=True)
 
 # make the app testable
 app.config['TESTING'] = True

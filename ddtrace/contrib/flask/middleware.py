@@ -23,14 +23,14 @@ log = logging.getLogger(__name__)
 
 class TraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="flask", use_signals=True, use_distributed_tracing=False):
+    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         self.app.logger.info("initializing trace middleware")
 
         # save our traces.
         self._tracer = tracer
         self._service = service
-        self._use_distributed_tracing = use_distributed_tracing
+        self._use_distributed_tracing = distributed_tracing
 
         self._tracer.set_service_info(
             service=service,
