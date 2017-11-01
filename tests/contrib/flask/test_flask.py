@@ -11,6 +11,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Tracer
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import http, errors
 from ...test_tracer import DummyWriter
@@ -91,7 +92,7 @@ def handle_my_exception(e):
 # work)
 service = "test.flask.service"
 assert not writer.pop()  # should always be empty
-traced_app = TraceMiddleware(app, tracer, service=service)
+traced_app = TraceMiddleware(app, tracer, service=service, distributed_tracing=True)
 
 # make the app testable
 app.config['TESTING'] = True
@@ -341,3 +342,25 @@ class TestFlask(object):
         eq_(s.meta.get(http.STATUS_CODE), '404')
         eq_(s.meta.get(http.METHOD), 'GET')
         eq_(s.meta.get(http.URL), u'http://localhost/404/üŋïĉóđē')
+
+    def test_propagation(self):
+        rv = app.get('/', headers={
+            'x-datadog-trace-id': '1234',
+            'x-datadog-parent-id': '4567',
+            'x-datadog-sampling-priority': '2'
+        })
+
+        # ensure request worked
+        eq_(rv.status_code, 200)
+        eq_(rv.data, b'hello')
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        # ensure the propagation worked well
+        eq_(s.trace_id, 1234)
+        eq_(s.parent_id, 4567)
+        eq_(s.get_metric(SAMPLING_PRIORITY_KEY), 2)

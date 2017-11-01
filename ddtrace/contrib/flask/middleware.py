@@ -11,6 +11,7 @@ import logging
 # project
 from ... import compat
 from ...ext import http, errors, AppTypes
+from ...propagation.http import HTTPPropagator
 
 # 3p
 import flask.templating
@@ -22,13 +23,14 @@ log = logging.getLogger(__name__)
 
 class TraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="flask", use_signals=True):
+    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         self.app.logger.info("initializing trace middleware")
 
         # save our traces.
         self._tracer = tracer
         self._service = service
+        self._use_distributed_tracing = distributed_tracing
 
         self._tracer.set_service_info(
             service=service,
@@ -86,6 +88,12 @@ class TraceMiddleware(object):
     # common methods
 
     def _start_span(self):
+        if self._use_distributed_tracing:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.headers)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                self._tracer.context_provider.activate(context)
         try:
             g.flask_datadog_span = self._tracer.trace(
                 "flask.request",
@@ -167,7 +175,6 @@ class TraceMiddleware(object):
             self._finish_span(exception=exception)
         except Exception:
             self.app.logger.exception("error tracing error")
-
 
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """

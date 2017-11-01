@@ -21,8 +21,9 @@ class PylonsTraceMiddleware(object):
         )
 
     def __call__(self, environ, start_response):
-        with self._tracer.trace("pylons.request") as span:
-            span.service = self._service
+        with self._tracer.trace("pylons.request", service=self._service) as span:
+            # Set the service in tracer.trace() as priority sampling requires it to be
+            # set as early as possible when different services share one single agent.
             span.span_type = http.TYPE
 
             if not span.sampled:
@@ -49,7 +50,7 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except ValueError:
+                except:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1

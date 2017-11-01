@@ -20,7 +20,6 @@ from ddtrace import Pin
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
-
 def setUpModule():
     # skip all the modules if the Cluster is not available
     if not Cluster:
@@ -28,8 +27,13 @@ def setUpModule():
 
     # create the KEYSPACE for this test module
     cluster = Cluster(port=CASSANDRA_CONFIG['port'])
+    cluster.connect().execute('DROP KEYSPACE IF EXISTS test')
     cluster.connect().execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1}")
     cluster.connect().execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
+    cluster.connect().execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
+    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
+    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
 
 def tearDownModule():
     # destroy the KEYSPACE
@@ -51,15 +55,9 @@ class CassandraBase(object):
         # implement me
         pass
 
-    def tearDown(self):
-        self.cluster.connect().execute('TRUNCATE test.person')
-
     def setUp(self):
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
         self.session = self.cluster.connect()
-        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
-        self.session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
 
     def _assert_result_correct(self, result):
         eq_(len(result.current_rows), 1)
@@ -183,7 +181,7 @@ class CassandraBase(object):
     def test_bound_statement(self):
         session, writer = self._traced_session()
 
-        query = 'INSERT INTO test.person (name, age, description) VALUES (?, ?, ?)'
+        query = 'INSERT INTO test.person_write (name, age, description) VALUES (?, ?, ?)'
         prepared = session.prepare(query)
         session.execute(prepared, ('matt', 34, 'can'))
 
@@ -200,8 +198,8 @@ class CassandraBase(object):
         session, writer = self._traced_session()
 
         batch = BatchStatement()
-        batch.add(SimpleStatement('INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)'), ('Joe', 1, 'a'))
-        batch.add(SimpleStatement('INSERT INTO test.person (name, age, description) VALUES (%s, %s, %s)'), ('Jane', 2, 'b'))
+        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Joe', 1, 'a'))
+        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Jane', 2, 'b'))
         session.execute(batch)
 
         spans = writer.pop()
@@ -219,7 +217,6 @@ class TestCassPatchDefault(CassandraBase):
 
     def tearDown(self):
         unpatch()
-        CassandraBase.tearDown(self)
 
     def setUp(self):
         CassandraBase.setUp(self)
@@ -237,7 +234,6 @@ class TestCassPatchAll(TestCassPatchDefault):
 
     def tearDown(self):
         unpatch()
-        CassandraBase.tearDown(self)
 
     def setUp(self):
         CassandraBase.setUp(self)
@@ -259,7 +255,6 @@ class TestCassPatchOne(TestCassPatchDefault):
 
     def tearDown(self):
         unpatch()
-        CassandraBase.tearDown(self)
 
     def setUp(self):
         CassandraBase.setUp(self)

@@ -9,6 +9,7 @@ import time
 
 from ddtrace import api
 
+from .api import _parse_response_json
 
 log = logging.getLogger(__name__)
 
@@ -22,13 +23,15 @@ LOG_ERR_INTERVAL = 60
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=8126, filters=None):
+    def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
         self._pid = None
         self._traces = None
         self._services = None
         self._worker = None
         self._filters = filters
-        self.api = api.API(hostname, port)
+        self._priority_sampler = priority_sampler
+        priority_sampling = priority_sampler is not None
+        self.api = api.API(hostname, port, priority_sampling=priority_sampling)
 
     def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.
@@ -58,18 +61,21 @@ class AgentWriter(object):
                 self._traces,
                 self._services,
                 filters=self._filters,
+                priority_sampler=self._priority_sampler,
             )
 
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT, filters=None):
+    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT,
+                 filters=None, priority_sampler=None):
         self._trace_queue = trace_queue
         self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
         self._filters = filters
+        self._priority_sampler = priority_sampler
         self._last_error_ts = 0
         self.api = api
         self.start()
@@ -150,6 +156,11 @@ class AsyncWorker(object):
             if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
                 return
+
+            if self._priority_sampler:
+                result_traces_json = _parse_response_json(result_traces)
+                if result_traces_json and 'rate_by_service' in result_traces_json:
+                    self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
             self._log_error_status(result_traces, "traces")
             result_traces = None

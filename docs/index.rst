@@ -118,10 +118,10 @@ Modifying the Agent hostname and port
 If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
 
     from ddtrace import tracer
-    
+
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
 
-By default, these will be set to localhost and 8126 respectively. 
+By default, these will be set to localhost and 8126 respectively.
 
 Web Frameworks
 --------------
@@ -266,59 +266,126 @@ gevent
 
 .. automodule:: ddtrace.contrib.gevent
 
-Tutorials
----------
+
+Distributed Tracing
+-------------------
+
+To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
+
+- On the server side, it means to read propagated attributes and set them to the active tracing context.
+- On the client side, it means to propagate the attributes, commonly as a header/metadata.
+
+`ddtrace` already provides default propagators but you can also implement your own.
+
+Web frameworks
+~~~~~~~~~~~~~~
+
+Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
+For that, refer to the configuration of the given integration.
+Supported web frameworks:
+
+- Django
+- Flask
+
+
+HTTP client/server
+~~~~~~~~~~~~~~~~~~
+
+You can use the `HTTPPropagator` manually when used with an HTTP client or if your web framework isn't supported.
+
+.. autoclass:: ddtrace.propagation.http.HTTPPropagator
+    :members:
+
+Custom
+~~~~~~
+
+You can manually propagate your tracing context over your RPC protocol. Here is an example assuming that you have `rpc.call`
+function that call a `method` and propagate a `rpc_metadata` dictionary over the wire::
+
+
+    # Implement your own context propagator
+    MyRPCPropagator(object):
+        def inject(self, span_context, rpc_metadata):
+            rpc_metadata.update({
+                'trace_id': span_context.trace_id,
+                'span_id': span_context.span_id,
+                'sampling_priority': span_context.sampling_priority,
+            })
+
+        def extract(self, rpc_metadata):
+            return Context(
+                trace_id=rpc_metadata['trace_id'],
+                span_id=rpc_metadata['span_id'],
+                sampling_priority=rpc_metadata['sampling_priority'],
+            )
+
+    # On the parent side
+    def parent_rpc_call():
+        with tracer.trace("parent_span") as span:
+            rpc_metadata = {}
+            propagator = MyRPCPropagator()
+            propagator.inject(span.context, rpc_metadata)
+            method = "<my rpc method>"
+            rpc.call(method, metadata)
+
+    # On the child side
+    def child_rpc_call(method, rpc_metadata):
+        propagator = MyRPCPropagator()
+        context = propagator.extract(rpc_metadata)
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("child_span") as span:
+            span.set_meta('my_rpc_method', method)
+
 
 Sampling
-~~~~~~~~
+--------
 
-It is possible to sample traces with `ddtrace`.
-While the Trace Agent already samples traces to reduce the bandwidth usage, this client sampling
-reduces performance overhead.
+Priority sampling
+~~~~~~~~~~~~~~~~~
 
-`RateSampler` samples a ratio of the traces. Its usage is simple::
+Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
+for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
+
+- 0: Don't keep the trace.
+- 1: The sampler automatically decided to keep the trace.
+- 2: The user asked the keep the trace.
+
+For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
+To enable the priorty sampling::
+
+    tracer.configure(distributed_sampling=True)
+
+Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
+
+You can also set this the priority manually to either drop an non-interesting trace or to keep an important one.
+For that, set the `context.sampling_priority` to 0 or 2. It has to be done before any context propagation (fork, RPC calls)
+to be effective::
+
+    context = tracer.context_provider.active()
+    # Indicate to not keep the trace
+    context.sampling_priority = 0
+
+    # Indicate to keep the trace
+    span.context.sampling_priority = 2
+
+
+Pre-sampling
+~~~~~~~~~~~~
+
+Pre-sampling will completely disable instrumentation of some transactions and drop the trace at the client level.
+Information will be lost but it allows to control any potential perfomrance impact.
+
+`RateSampler` ramdomly samples a percentage of traces. Its usage is simple::
 
     from ddtrace.sampler import RateSampler
 
     # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Sample 50% of the traces.
-    sample_rate = 0.5
+    # Keep 20% of the traces.
+    sample_rate = 0.2
     tracer.sampler = RateSampler(sample_rate)
 
-Distributed Tracing
-~~~~~~~~~~~~~~~~~~~
 
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id` and `parent_id`::
-
-    def trace_request_on_secondary_host(parent_trace_id, parent_span_id):
-        with tracer.trace("child_span") as span:
-            span.parent_id = parent_span_id
-            span.trace_id = parent_trace_id
-
-
-Users can pass along the parent_trace_id and parent_span_id via whatever method best matches the RPC framework. For example, with HTTP headers (Using Python Flask)::
-
-    def parent_rpc_call():
-        with tracer.trace("parent_span") as span:
-            import requests
-            headers = {
-                'x-datadog-trace-id':span.trace_id,
-                'x-datadog-parent-id':span.span_id,
-            }
-            url = "<some RPC endpoint>"
-            r = requests.get(url, headers=headers)
-
-
-    from flask import request
-    parent_trace_id = request.headers.get('x-datadog-trace-id')
-    parent_span_id = request.headers.get('x-datadog-parent-id')
-    child_rpc_call(parent_trace_id, parent_span_id)
-
-
-    def child_rpc_call(parent_trace_id, parent_span_id):
-        with tracer.trace("child_span") as span:
-            span.parent_id = int(parent_span_id)
-            span.trace_id = int(parent_trace_id)
 
 Advanced Usage
 --------------

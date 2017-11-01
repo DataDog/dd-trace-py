@@ -2,30 +2,27 @@ from __future__ import division
 
 import unittest
 import random
-import time
-import threading
 
-from ddtrace.tracer import Tracer
-from ddtrace.sampler import RateSampler, ThroughputSampler, SAMPLE_RATE_METRIC_KEY
-from .test_tracer import DummyWriter
+from ddtrace.span import Span
+from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler, _key, _default_key
+from ddtrace.compat import iteritems
+from tests.test_tracer import get_dummy_tracer
 from .util import patch_time
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
 
 
 class RateSamplerTest(unittest.TestCase):
 
     def test_sample_rate_deviation(self):
-        writer = DummyWriter()
-
         for sample_rate in [0.1, 0.25, 0.5, 1]:
-            tracer = Tracer()
-            tracer.writer = writer
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
 
-            sample_rate = 0.5
             tracer.sampler = RateSampler(sample_rate)
 
             random.seed(1234)
 
-            iterations = int(2e4)
+            iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
                 span = tracer.trace(i)
@@ -34,121 +31,102 @@ class RateSamplerTest(unittest.TestCase):
             samples = writer.pop()
 
             # We must have at least 1 sample, check that it has its sample rate properly assigned
-            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == 0.5
+            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
-            # Less than 1% deviation when "enough" iterations (arbitrary, just check if it converges)
+            # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.01, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
+    def test_deterministic_behavior(self):
+        """ Test that for a given trace ID, the result is always the same """
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
 
-class ThroughputSamplerTest(unittest.TestCase):
-    """Test suite for the ThroughputSampler"""
+        tracer.sampler = RateSampler(0.5)
 
-    def test_simple_limit(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+        random.seed(1234)
 
-        with patch_time() as fake_time:
-            tps = 5
-            tracer.sampler = ThroughputSampler(tps)
+        for i in range(10):
+            span = tracer.trace(i)
+            span.finish()
 
-            for _ in range(10):
-                s = tracer.trace("whatever")
-                s.finish()
-            traces = writer.pop()
+            samples = writer.pop()
+            assert len(samples) <= 1, "there should be 0 or 1 spans"
+            sampled = (1 == len(samples))
+            for j in range(10):
+                other_span = Span(tracer, i, trace_id=span.trace_id)
+                assert sampled == tracer.sampler.sample(other_span), "sampling should give the same result for a given trace_id"
 
-            got = len(traces)
-            expected = 10
+class RateByServiceSamplerTest(unittest.TestCase):
+    def test_default_key(self):
+        assert "service:,env:" == _default_key, "default key should correspond to no service and no env"
 
-            assert got == expected, \
-                "Wrong number of traces sampled, %s instead of %s" % (got, expected)
+    def test_key(self):
+        assert _default_key == _key()
+        assert "service:mcnulty,env:" == _key(service="mcnulty")
+        assert "service:,env:test" == _key(env="test")
+        assert "service:mcnulty,env:test" == _key(service="mcnulty", env="test")
+        assert "service:mcnulty,env:test" == _key("mcnulty", "test")
 
-            # Wait enough to reset
-            fake_time.sleep(tracer.sampler.BUFFER_DURATION + 1)
+    def test_sample_rate_deviation(self):
+        for sample_rate in [0.1, 0.25, 0.5, 1]:
+            tracer = get_dummy_tracer()
+            writer = tracer.writer
+            tracer.configure(sampler=AllSampler(), priority_sampling=True)
+            # We need to set the writer because tracer.configure overrides it,
+            # indeed, as we enable priority sampling, we must ensure the writer
+            # is priority sampling aware and pass it a reference on the
+            # priority sampler to send the feedback it gets from the agent
+            assert writer != tracer.writer, "writer should have been updated by configure"
+            tracer.writer = writer
+            tracer.priority_sampler.set_sample_rate(sample_rate)
 
-            for _ in range(100):
-                s = tracer.trace("whatever")
-                s.finish()
-            traces = writer.pop()
+            random.seed(1234)
 
-            got = len(traces)
-            expected = tps * tracer.sampler.BUFFER_DURATION
+            iterations = int(1e4 / sample_rate)
 
-            assert got == expected, \
-                "Wrong number of traces sampled, %s instead of %s" % (got, expected)
+            for i in range(iterations):
+                span = tracer.trace(i)
+                span.finish()
 
-    def test_long_run(self):
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
+            samples = writer.pop()
+            samples_with_high_priority = 0
+            for sample in samples:
+                if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
+                    if sample.get_metric(SAMPLING_PRIORITY_KEY) > 0:
+                        samples_with_high_priority += 1
+                else:
+                    assert 0 == sample.get_metric(SAMPLING_PRIORITY_KEY), "when priority sampling is on, priority should be 0 when trace is to be dropped"
 
-        # Test a big matrix of combinaisons
-        # Ensure to have total_time >> BUFFER_DURATION to reduce edge effects
-        for tps in [10, 23, 15, 31]:
-            for (traces_per_s, total_time) in [(80, 23), (75, 66), (1000, 77)]:
+            # We must have at least 1 sample, check that it has its sample rate properly assigned
+            assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
-                with patch_time() as fake_time:
-                    # We do tons of operations in this test, do not let the time slowly shift
-                    fake_time.set_delta(0)
+            # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
+            deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
+            assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
 
-                    tracer.sampler = ThroughputSampler(tps)
+    def test_set_sample_rate_by_service(self):
+        cases = [
+            {"service:,env:":1},
+            {"service:,env:":1, "service:mcnulty,env:dev":0.33, "service:postgres,env:dev":0.7},
+            {"service:,env:":1, "service:mcnulty,env:dev": 0.25, "service:postgres,env:dev": 0.5, "service:redis,env:prod": 0.75}
+        ]
 
-                    for _ in range(total_time):
-                        for _ in range(traces_per_s):
-                            s = tracer.trace("whatever")
-                            s.finish()
-                        fake_time.sleep(1)
-
-                traces = writer.pop()
-                # The current sampler implementation can introduce an error of up to
-                # `tps * BUFFER_DURATION` traces at initialization (since the sampler starts empty)
-                got = len(traces)
-                expected = tps * total_time
-                error_delta = tps * tracer.sampler.BUFFER_DURATION
-
-                assert abs(got - expected) <= error_delta, \
-                    "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
-
-
-    def test_concurrency(self):
-        # Test that the sampler works well when used in different threads
-        writer = DummyWriter()
-        tracer = Tracer()
-        tracer.writer = writer
-
-        total_time = 3
-        concurrency = 100
-        end_time = time.time() + total_time
-
-        # Let's sample to a multiple of BUFFER_SIZE, so that we can pre-populate the buffer
-        tps = 15 * ThroughputSampler.BUFFER_SIZE
-        tracer.sampler = ThroughputSampler(tps)
-
-        threads = []
-
-        def run_simulation(tracer, end_time):
-            while time.time() < end_time:
-                s = tracer.trace("whatever")
-                s.finish()
-                # ~1000 traces per s per thread
-                time.sleep(0.001)
-
-        for i in range(concurrency):
-            thread = threading.Thread(target=run_simulation, args=(tracer, end_time))
-            threads.append(thread)
-
-        for t in threads:
-            t.start()
-
-        for t in threads:
-            t.join()
-
-        traces = writer.pop()
-
-        got = len(traces)
-        expected = tps * total_time
-        error_delta = tps * ThroughputSampler.BUFFER_DURATION
-
-        assert abs(got - expected) <= error_delta, \
-            "Wrong number of traces sampled, %s instead of %s (error_delta > %s)" % (got, expected, error_delta)
+        tracer = get_dummy_tracer()
+        tracer.configure(sampler=AllSampler(), priority_sampling=True)
+        priority_sampler = tracer.priority_sampler
+        for case in cases:
+            priority_sampler.set_sample_rate_by_service(case)
+            rates = {}
+            for k,v in iteritems(priority_sampler._by_service_samplers):
+                rates[k] = v.sample_rate
+            assert case == rates, "%s != %s" % (case, rates)
+        # It's important to also test in reverse mode for we want to make sure key deletion
+        # works as well as key insertion (and doing this both ways ensures we trigger both cases)
+        cases.reverse()
+        for case in cases:
+            priority_sampler.set_sample_rate_by_service(case)
+            rates = {}
+            for k,v in iteritems(priority_sampler._by_service_samplers):
+                rates[k] = v.sample_rate
+            assert case == rates, "%s != %s" % (case, rates)
