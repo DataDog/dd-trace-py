@@ -39,8 +39,15 @@ def _traced_request_func(func, instance, args, kwargs):
 
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
+    headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
+        if http.TRACE_ID_HEADER not in headers:
+            headers[http.TRACE_ID_HEADER] = str(span.trace_id)
+        if http.PARENT_ID_HEADER not in headers:
+            headers[http.PARENT_ID_HEADER] = str(span.span_id)
+        kwargs['headers'] = headers
+
         resp = None
         try:
             resp = func(*args, **kwargs)

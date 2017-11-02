@@ -18,6 +18,8 @@ STATUS_CODE = "http.status_code"
 # template render span type
 TEMPLATE = 'template'
 
+TRACE_ID_HEADER = 'x-datadog-trace-id'
+PARENT_ID_HEADER = 'x-datadog-parent-id'
 
 def normalize_status_code(code):
     return code.split(' ')[0]
