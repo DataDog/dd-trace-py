@@ -3,11 +3,20 @@ from nose.tools import eq_, ok_
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+
 
 class TestTornadoWeb(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced.
     """
+    def get_settings(self):
+        return {
+            'datadog_trace': {
+                'distributed_tracing': True,
+            }
+        }
+
     def test_success_handler(self):
         # it should trace a handler that returns 200
         response = self.fetch('/success/')
@@ -226,6 +235,69 @@ class TestTornadoWeb(TornadoTestCase):
         eq_('200', request_span.get_tag('http.status_code'))
         eq_('/statics/empty.txt', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
+
+    def test_propagation(self):
+        # it should trace a handler that returns 200 with a propagated context
+        headers = {
+            'x-datadog-trace-id': '1234',
+            'x-datadog-parent-id': '4567',
+            'x-datadog-sampling-priority': '2'
+        }
+        response = self.fetch('/success/', headers=headers)
+        eq_(200, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+
+        # simple sanity check on the span
+        eq_('tornado.request', request_span.name)
+        eq_('200', request_span.get_tag('http.status_code'))
+        eq_('/success/', request_span.get_tag('http.url'))
+        eq_(0, request_span.error)
+
+        # check propagation
+        eq_(1234, request_span.trace_id)
+        eq_(4567, request_span.parent_id)
+        eq_(2, request_span.get_metric(SAMPLING_PRIORITY_KEY))
+
+
+class TestNoPropagationTornadoWeb(TornadoTestCase):
+    """
+    Ensure that Tornado web handlers are properly traced and are ignoring propagated HTTP headers when disabled.
+    """
+    def get_settings(self):
+        # distributed_tracing should be disabled by default
+        return {}
+
+    def test_no_propagation(self):
+        # it should not propagate the HTTP context
+        headers = {
+            'x-datadog-trace-id': '1234',
+            'x-datadog-parent-id': '4567',
+            'x-datadog-sampling-priority': '2'
+        }
+        response = self.fetch('/success/', headers=headers)
+        eq_(200, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        request_span = traces[0][0]
+
+        # simple sanity check on the span
+        eq_('tornado.request', request_span.name)
+        eq_('200', request_span.get_tag('http.status_code'))
+        eq_('/success/', request_span.get_tag('http.url'))
+        eq_(0, request_span.error)
+
+        # check non-propagation
+        assert request_span.trace_id != 1234
+        assert request_span.parent_id != 4567
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
 
 
 class TestCustomTornadoWeb(TornadoTestCase):
