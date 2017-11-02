@@ -286,7 +286,7 @@ Supported web frameworks:
 
 - Django
 - Flask
-
+- Tornado
 
 HTTP client/server
 ~~~~~~~~~~~~~~~~~~
