@@ -288,13 +288,19 @@ Supported web frameworks:
 - Flask
 - Tornado
 
-HTTP client/server
-~~~~~~~~~~~~~~~~~~
-
-You can use the `HTTPPropagator` manually when used with an HTTP client or if your web framework isn't supported.
+For web servers not supported, you can extract the HTTP context from the headers using the `HTTPPropagator`.
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members:
+    :members: extract
+
+HTTP client
+~~~~~~~~~~~
+
+When calling a remote HTTP server part of the distributed trace, you have to propagate the HTTP headers.
+This is not done automatically to prevent your system from leaking tracing information to external services.
+
+.. autoclass:: ddtrace.propagation.http.HTTPPropagator
+    :members: inject
 
 Custom
 ~~~~~~
