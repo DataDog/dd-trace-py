@@ -14,6 +14,7 @@ import wrapt
 # project
 import ddtrace
 from ddtrace.ext import http
+from ...propagation.http import HTTPPropagator
 
 
 log = logging.getLogger(__name__)
@@ -42,10 +43,8 @@ def _traced_request_func(func, instance, args, kwargs):
     headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
-        if http.TRACE_ID_HEADER not in headers:
-            headers[http.TRACE_ID_HEADER] = str(span.trace_id)
-        if http.PARENT_ID_HEADER not in headers:
-            headers[http.PARENT_ID_HEADER] = str(span.span_id)
+        propagator = HTTPPropagator()
+        propagator.inject(span.context, headers)
         kwargs['headers'] = headers
 
         resp = None
