@@ -34,6 +34,8 @@ def _traced_request_func(func, instance, args, kwargs):
     # sessions to have their own (with the standard global fallback)
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
+    distributed_tracing_enabled = getattr(instance, 'distributed_tracing_enabled', None)
+
     # bail on the tracing if not enabled.
     if not tracer.enabled:
         return func(*args, **kwargs)
@@ -43,9 +45,10 @@ def _traced_request_func(func, instance, args, kwargs):
     headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
-        propagator = HTTPPropagator()
-        propagator.inject(span.context, headers)
-        kwargs['headers'] = headers
+        if distributed_tracing_enabled:
+            propagator = HTTPPropagator()
+            propagator.inject(span.context, headers)
+            kwargs['headers'] = headers
 
         resp = None
         try:
