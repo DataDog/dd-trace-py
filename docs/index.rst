@@ -231,7 +231,13 @@ Memcached
 MySQL
 ~~~~~
 
+**mysql-connector**
+
 .. automodule:: ddtrace.contrib.mysql
+
+**mysqlclient / MySQL-python**
+
+.. automodule:: ddtrace.contrib.mysqldb
 
 Postgres
 ~~~~~~~~
@@ -557,6 +563,8 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | mysql-connector | >= 2.1             |
 +-----------------+--------------------+
+| mysqlclient     | >= 1.13.12         |
++-----------------+--------------------+
 | psycopg2        | >= 2.5             |
 +-----------------+--------------------+
 | pylibmc         | >= 1.4             |
@@ -586,6 +594,7 @@ soon as possible in your Python entrypoint.
 
 * sqlite3
 * mysql
+* mysqldb
 * psycopg
 * redis
 * cassandra
