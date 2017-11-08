@@ -30,7 +30,10 @@ class HTTPPropagator(object):
         """
         headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
         headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
-        headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
+        sampling_priority = span_context.sampling_priority
+        # Propagate priority only if defined
+        if sampling_priority is not None:
+            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
