@@ -364,7 +364,7 @@ To enable the priorty sampling::
 
 Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
 
-You can also set this the priority manually to either drop an non-interesting trace or to keep an important one.
+You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
 For that, set the `context.sampling_priority` to 0 or 2. It has to be done before any context propagation (fork, RPC calls)
 to be effective::
 
@@ -380,7 +380,7 @@ Pre-sampling
 ~~~~~~~~~~~~
 
 Pre-sampling will completely disable instrumentation of some transactions and drop the trace at the client level.
-Information will be lost but it allows to control any potential perfomrance impact.
+Information will be lost but it allows to control any potential performance impact.
 
 `RateSampler` ramdomly samples a percentage of traces. Its usage is simple::
 
