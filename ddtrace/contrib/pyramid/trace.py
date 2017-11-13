@@ -1,5 +1,6 @@
 
 # 3p
+import logging
 import pyramid.renderers
 from pyramid.settings import asbool
 import wrapt
@@ -7,39 +8,46 @@ import wrapt
 # project
 import ddtrace
 from ...ext import http, AppTypes
+from .constants import SETTINGS_SERVICE, SETTINGS_TRACE_ENABLED, SETTINGS_TRACER
 
+log = logging.getLogger(__name__)
+
+DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
+DD_SPAN = '_datadog_span'
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
 
 def includeme(config):
-    config.add_tween('ddtrace.contrib.pyramid:trace_tween_factory')
+    # Add our tween just before the default exception handler
+    config.add_tween(DD_TWEEN_NAME, over=pyramid.tweens.EXCVIEW)
     # ensure we only patch the renderer once.
     if not isinstance(pyramid.renderers.RendererHelper.render, wrapt.ObjectProxy):
         wrapt.wrap_function_wrapper('pyramid.renderers', 'RendererHelper.render', trace_render)
 
 
 def trace_render(func, instance, args, kwargs):
-    # get the tracer from the request or fall back to the global version
-    def _tracer(value, system_values, request=None):
-        if request:
-            span = getattr(request, '_datadog_span', None)
-            if span:
-                return span.tracer()
-        return ddtrace.tracer
-
-    t = _tracer(*args, **kwargs)
-    with t.trace('pyramid.render') as span:
-        span.span_type = http.TEMPLATE
+    # If the request is not traced, we do not trace
+    request = kwargs.pop('request', {})
+    if not request:
+        log.debug("No request passed to render, will not be traced")
+        return func(*args, **kwargs)
+    span = getattr(request, DD_SPAN, None)
+    if not span:
+        log.debug("No span found in request, will not be traced")
         return func(*args, **kwargs)
 
+    tracer = span.tracer()
+    with tracer.trace('pyramid.render') as span:
+        span.span_type = http.TEMPLATE
+        return func(*args, **kwargs)
 
 def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
-    service = settings.get('datadog_trace_service') or 'pyramid'
-    tracer = settings.get('datadog_tracer') or ddtrace.tracer
-    enabled = asbool(settings.get('datadog_trace_enabled', tracer.enabled))
+    service = settings.get(SETTINGS_SERVICE) or 'pyramid'
+    tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
+    enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
 
     # set the service info
     tracer.set_service_info(
@@ -51,7 +59,7 @@ def trace_tween_factory(handler, registry):
         # make a request tracing function
         def trace_tween(request):
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
-                setattr(request, '_datadog_span', span)  # used to find the tracer in templates
+                setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
                 try:
                     response = handler(request)

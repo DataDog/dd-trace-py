@@ -3,6 +3,7 @@ from tornado.web import HTTPError
 from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 from ...ext import http
+from ...propagation.http import HTTPPropagator
 
 
 def execute(func, handler, args, kwargs):
@@ -15,10 +16,18 @@ def execute(func, handler, args, kwargs):
     settings = handler.settings[CONFIG_KEY]
     tracer = settings['tracer']
     service = settings['default_service']
+    distributed_tracing = settings['distributed_tracing']
 
     with TracerStackContext():
         # attach the context to the request
         setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.get_call_context())
+
+        # Read and use propagated context from HTTP headers
+        if distributed_tracing:
+            propagator = HTTPPropagator()
+            context = propagator.extract(handler.request.headers)
+            if context.trace_id:
+                tracer.context_provider.activate(context)
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(

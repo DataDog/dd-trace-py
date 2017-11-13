@@ -54,6 +54,13 @@ def route_wrapped_coroutine(request):
 
 
 @asyncio.coroutine
+def route_sub_span(request):
+    tracer = get_tracer(request)
+    with tracer.trace('aiohttp.sub_span') as span:
+        span.set_tag('sub_span', 'true')
+        return web.Response(text='OK')
+
+@asyncio.coroutine
 def coro_2(request):
     tracer = get_tracer(request)
     with tracer.trace('aiohttp.coro_2') as span:
@@ -113,6 +120,7 @@ def setup_app(loop):
     app.router.add_get('/exception', route_exception)
     app.router.add_get('/async_exception', route_async_exception)
     app.router.add_get('/wrapped_coroutine', route_wrapped_coroutine)
+    app.router.add_get('/sub_span', route_sub_span)
     app.router.add_static('/statics', STATIC_DIR)
     # configure templates
     set_memory_loader(app)

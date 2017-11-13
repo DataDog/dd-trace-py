@@ -1,6 +1,7 @@
 import gevent
 import ddtrace
 
+from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch, unpatch
 
 from unittest import TestCase
@@ -24,6 +25,8 @@ class TestGeventTracer(TestCase):
         patch()
 
     def tearDown(self):
+        # clean the active Context
+        self.tracer.context_provider.activate(None)
         # restore the original tracer
         ddtrace.tracer = self._original_tracer
         # untrace gevent
@@ -34,6 +37,14 @@ class TestGeventTracer(TestCase):
         main_greenlet = gevent.getcurrent()
         ctx = getattr(main_greenlet, '__datadog_context', None)
         ok_(ctx is None)
+
+    def test_main_greenlet_context(self):
+        # the main greenlet must have a ``Context`` if called
+        ctx_tracer = self.tracer.get_call_context()
+        main_greenlet = gevent.getcurrent()
+        ctx_greenlet = getattr(main_greenlet, '__datadog_context', None)
+        ok_(ctx_tracer is ctx_greenlet)
+        eq_(len(ctx_tracer._trace), 0)
 
     def test_get_call_context(self):
         # it should return the context attached to the provider
@@ -204,6 +215,25 @@ class TestGeventTracer(TestCase):
         eq_(100, len(traces))
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
+
+    def test_propagation_with_new_context(self):
+        # create multiple futures so that we expect multiple
+        # traces instead of a single one
+        ctx = Context(trace_id=100, span_id=101)
+        self.tracer.context_provider.activate(ctx)
+
+        def greenlet():
+            with self.tracer.trace('greenlet') as span:
+                gevent.sleep(0.01)
+
+        jobs = [gevent.spawn(greenlet) for x in range(1)]
+        gevent.joinall(jobs)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(traces[0][0].trace_id, 100)
+        eq_(traces[0][0].parent_id, 101)
 
     def test_trace_concurrent_spawn_later_calls(self):
         # create multiple futures so that we expect multiple

@@ -55,7 +55,7 @@ class TracerStackContext(object):
         self.active = False
 
     @classmethod
-    def current_context(cls):
+    def active(cls):
         """
         Return the ``Context`` from the current execution flow. This method can be
         used inside a Tornado coroutine to retrieve and use the current tracing context.
@@ -63,6 +63,16 @@ class TracerStackContext(object):
         for ctx in reversed(_state.contexts[0]):
             if isinstance(ctx, cls) and ctx.active:
                 return ctx.context
+
+    @classmethod
+    def activate(cls, ctx):
+        """
+        Set the active ``Context`` for this async execution. If a ``TracerStackContext``
+        is not found, the context is discarded.
+        """
+        for stack_ctx in reversed(_state.contexts[0]):
+            if isinstance(stack_ctx, cls) and stack_ctx.active:
+                stack_ctx.context = ctx
 
 
 def run_with_trace_context(func, *args, **kwargs):

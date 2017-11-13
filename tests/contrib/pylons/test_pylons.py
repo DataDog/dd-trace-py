@@ -9,6 +9,13 @@ from ddtrace.ext import http
 from ...test_tracer import DummyWriter
 
 
+class ExceptionWithCodeMethod(Exception):
+    def __init__(self, message):
+        super(ExceptionWithCodeMethod, self).__init__(message)
+
+    def code():
+        pass
+
 class FakeWSGIApp(object):
 
     code = None
@@ -36,6 +43,9 @@ class FakeWSGIApp(object):
         e = Exception("Custom exception")
         e.code = '512'
         raise e
+
+    def start_response_exception_code_method(self, status, headers):
+        raise ExceptionWithCodeMethod('Exception with code method')
 
 
 def test_pylons():
@@ -114,6 +124,38 @@ def test_pylons_exceptions():
     eq_(int(s.get_tag('http.status_code')), 500)
     ok_('start_response_exception' in s.get_tag('error.stack'))
     ok_('Exception: Some exception' in s.get_tag('error.stack'))
+
+def test_pylons_exception_with_code_method():
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+    app = FakeWSGIApp()
+    traced = PylonsTraceMiddleware(app, tracer, service="p")
+    app.code = '200 OK'
+    app.body = ['woo']
+    app.environ = {
+        'REQUEST_METHOD':'GET',
+        'pylons.routes_dict' : {
+            'controller' : 'foo',
+            'action' : 'bar',
+        }
+    }
+
+    try:
+        out = traced(app.environ,  app.start_response_exception_code_method)
+        assert False
+    except ExceptionWithCodeMethod:
+        pass
+
+
+    spans = writer.pop()
+    ok_(spans, spans)
+    eq_(len(spans), 1)
+    s = spans[0]
+
+    eq_(s.error, 1)
+    eq_(s.get_tag('error.msg'), 'Exception with code method')
+    eq_(int(s.get_tag('http.status_code')), 500)
 
 def test_pylons_string_code():
     writer = DummyWriter()
