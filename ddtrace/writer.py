@@ -144,14 +144,14 @@ class AsyncWorker(object):
                 try:
                     result_traces = self.api.send_traces(traces)
                 except Exception as err:
-                    log.error("cannot send spans: {0}".format(err))
+                    log.error("cannot send spans to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
             services = self._service_queue.pop()
             if services:
                 try:
                     result_services = self.api.send_services(services)
                 except Exception as err:
-                    log.error("cannot send services: {0}".format(err))
+                    log.error("cannot send services to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
             if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
