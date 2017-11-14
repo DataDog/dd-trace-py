@@ -12,25 +12,37 @@ from .conf import settings
 
 log = logging.getLogger(__name__)
 
+CURSOR_ATTR = '_datadog_original_cursor'
+
 
 def patch_db(tracer):
     for c in connections.all():
         patch_conn(tracer, c)
 
+def unpatch_db():
+    for c in connections.all():
+        unpatch_conn(c)
+
 
 def patch_conn(tracer, conn):
-    attr = '_datadog_original_cursor'
-    if hasattr(conn, attr):
+    if hasattr(conn, CURSOR_ATTR):
         log.debug("already patched")
         return
 
-    conn._datadog_original_cursor = conn.cursor
+    setattr(conn, CURSOR_ATTR, conn.cursor)
 
     def cursor():
         return TracedCursor(tracer, conn, conn._datadog_original_cursor())
 
     conn.cursor = cursor
 
+def unpatch_conn(conn):
+    cursor = getattr(conn, CURSOR_ATTR, None)
+    if cursor is None:
+        log.debug('nothing to do, the connection is not patched')
+        return
+    conn.cursor = cursor
+    delattr(conn, CURSOR_ATTR)
 
 class TracedCursor(object):
 

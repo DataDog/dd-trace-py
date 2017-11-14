@@ -31,8 +31,8 @@ def patch():
 
     wrapt.wrap_function_wrapper('boto.connection', 'AWSQueryConnection.make_request', patched_query_request)
     wrapt.wrap_function_wrapper('boto.connection', 'AWSAuthConnection.make_request', patched_auth_request)
-    Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSQueryConnection)
-    Pin(service="aws", app="boto", app_type="web").onto(boto.connection.AWSAuthConnection)
+    Pin(service="aws", app="aws", app_type="web").onto(boto.connection.AWSQueryConnection)
+    Pin(service="aws", app="aws", app_type="web").onto(boto.connection.AWSAuthConnection)
 
 
 def unpatch():

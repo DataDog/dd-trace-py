@@ -6,7 +6,12 @@ Add all monkey-patching that needs to run by default here
 import os
 import logging
 
-logging.basicConfig()
+debug = os.environ.get("DATADOG_TRACE_DEBUG")
+if debug and debug.lower() == "true":
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig()
+
 log = logging.getLogger(__name__)
 
 EXTRA_PATCHED_MODULES = {

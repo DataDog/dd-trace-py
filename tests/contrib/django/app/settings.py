@@ -4,6 +4,7 @@ configuration if you need to change the default behavior of
 Django during tests
 """
 import os
+import django
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -68,28 +69,22 @@ TEMPLATES = [
     },
 ]
 
-# 1.10+ style
-MIDDLEWARE = [
-    # tracer middleware
-    'ddtrace.contrib.django.TraceMiddleware',
+if django.VERSION >= (1, 10):
+    MIDDLEWARE = [
+        'django.contrib.sessions.middleware.SessionMiddleware',
+        'django.middleware.common.CommonMiddleware',
+        'django.middleware.csrf.CsrfViewMiddleware',
+        'django.contrib.auth.middleware.AuthenticationMiddleware',
+        'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
+        'django.contrib.messages.middleware.MessageMiddleware',
+        'django.middleware.clickjacking.XFrameOptionsMiddleware',
+        'django.middleware.security.SecurityMiddleware',
 
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-
-    'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
-]
-
+        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+    ]
+# Always add the legacy conf to make sure we handle it properly
 # Pre 1.10 style
 MIDDLEWARE_CLASSES = [
-    # tracer middleware
-    'ddtrace.contrib.django.TraceMiddleware',
-
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
