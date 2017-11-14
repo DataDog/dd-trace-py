@@ -5,6 +5,7 @@ from .conf import settings
 
 from ...ext import http
 from ...contrib import func_name
+from ...propagation.http import HTTPPropagator
 
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
@@ -18,14 +19,35 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-def insert_exception_middleware():
-    exception_middleware = 'ddtrace.contrib.django.TraceExceptionMiddleware'
-    middleware_attributes = ['MIDDLEWARE', 'MIDDLEWARE_CLASSES']
-    for middleware_attribute in middleware_attributes:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware and exception_middleware not in set(middleware):
-            setattr(django_settings, middleware_attribute, middleware + type(middleware)((exception_middleware,)))
+EXCEPTION_MIDDLEWARE = 'ddtrace.contrib.django.TraceExceptionMiddleware'
+TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'
+MIDDLEWARE_ATTRIBUTES = ['MIDDLEWARE', 'MIDDLEWARE_CLASSES']
 
+def insert_trace_middleware():
+    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
+        middleware = getattr(django_settings, middleware_attribute, None)
+        if middleware is not None and TRACE_MIDDLEWARE not in set(middleware):
+            setattr(django_settings, middleware_attribute, type(middleware)((TRACE_MIDDLEWARE,)) + middleware)
+            break
+
+def remove_trace_middleware():
+    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
+        middleware = getattr(django_settings, middleware_attribute, None)
+        if middleware and TRACE_MIDDLEWARE in set(middleware):
+            middleware.remove(TRACE_MIDDLEWARE)
+
+def insert_exception_middleware():
+    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
+        middleware = getattr(django_settings, middleware_attribute, None)
+        if middleware is not None and EXCEPTION_MIDDLEWARE not in set(middleware):
+            setattr(django_settings, middleware_attribute, middleware + type(middleware)((EXCEPTION_MIDDLEWARE,)))
+            break
+
+def remove_exception_middleware():
+    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
+        middleware = getattr(django_settings, middleware_attribute, None)
+        if middleware and EXCEPTION_MIDDLEWARE in set(middleware):
+            middleware.remove(EXCEPTION_MIDDLEWARE)
 
 class InstrumentationMixin(MiddlewareClass):
     """
@@ -59,6 +81,12 @@ class TraceMiddleware(InstrumentationMixin):
     """
     def process_request(self, request):
         tracer = settings.TRACER
+        if settings.DISTRIBUTED_TRACING:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.META)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                tracer.context_provider.activate(context)
         try:
             span = tracer.trace(
                 'django.request',

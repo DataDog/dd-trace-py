@@ -10,7 +10,7 @@ To install the middleware, add::
 
 and create a `TraceMiddleware` object::
 
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app")
+    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
 
 Here is the end result, in a sample app::
 
@@ -22,12 +22,14 @@ Here is the end result, in a sample app::
 
     app = Flask(__name__)
 
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app")
+    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
 
     @app.route("/")
     def home():
         return "hello world"
 
+Set `distributed_tracing=True` if this is called remotely from an instrumented application.
+We suggest to enable it only for internal services where headers are under your control.
 """
 
 from ..util import require_modules

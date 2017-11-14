@@ -11,6 +11,7 @@ import logging
 # project
 from ... import compat
 from ...ext import http, errors, AppTypes
+from ...propagation.http import HTTPPropagator
 
 # 3p
 import flask.templating
@@ -22,13 +23,14 @@ log = logging.getLogger(__name__)
 
 class TraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="flask", use_signals=True):
+    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         self.app.logger.info("initializing trace middleware")
 
         # save our traces.
         self._tracer = tracer
         self._service = service
+        self._use_distributed_tracing = distributed_tracing
 
         self._tracer.set_service_info(
             service=service,
@@ -59,16 +61,7 @@ class TraceMiddleware(object):
             self.app.before_request(self._before_request)
             self.app.after_request(self._after_request)
 
-        # Instrument template rendering. If it's flask >= 0.11, we can use
-        # signals, Otherwise we have to patch a global method.
-        template_signals = {
-            'before_render_template': self._template_started,  # added in 0.11
-            'template_rendered': self._template_done
-        }
-        if self.use_signals and _signals_exist(template_signals):
-            self._connect(template_signals)
-        else:
-            _patch_render(tracer)
+        _patch_render(tracer)
 
     def _flask_signals_exist(self, names):
         """ Return true if the current version of flask has all of the given
@@ -95,6 +88,12 @@ class TraceMiddleware(object):
     # common methods
 
     def _start_span(self):
+        if self._use_distributed_tracing:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.headers)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                self._tracer.context_provider.activate(context)
         try:
             g.flask_datadog_span = self._tracer.trace(
                 "flask.request",
@@ -176,20 +175,6 @@ class TraceMiddleware(object):
             self._finish_span(exception=exception)
         except Exception:
             self.app.logger.exception("error tracing error")
-
-    def _template_started(self, sender, template, *args, **kwargs):
-        span = self._tracer.trace('flask.template')
-        try:
-            span.span_type = http.TEMPLATE
-            span.set_tag("flask.template", template.name or "string")
-        finally:
-            g.flask_datadog_tmpl_span = span
-
-    def _template_done(self, *arg, **kwargs):
-        span = getattr(g, 'flask_datadog_tmpl_span', None)
-        if span:
-            span.finish()
-
 
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """

@@ -4,14 +4,13 @@ from aiohttp.web import HTTPException
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
+from ...context import Context
+from ...propagation.http import HTTPPropagator
 
 
 CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
-
-PARENT_TRACE_HEADER_ID = 'x-datadog-trace-id'
-PARENT_SPAN_HEADER_ID = 'x-datadog-parent-id'
 
 
 @asyncio.coroutine
@@ -31,23 +30,22 @@ def trace_middleware(app, handler):
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
         min_error = app[CONFIG_KEY]['min_error']
 
+        context = tracer.context_provider.active()
+
+        # Create a new context based on the propagated information.
+        if distributed_tracing:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.headers)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                tracer.context_provider.activate(context)
+
         # trace the handler
         request_span = tracer.trace(
             'aiohttp.request',
             service=service,
             span_type=http.TYPE,
         )
-
-        if distributed_tracing:
-            # set parent trace/span IDs if present:
-            # http://pypi.datadoghq.com/trace/docs/#distributed-tracing
-            parent_trace_id = request.headers.get(PARENT_TRACE_HEADER_ID)
-            if parent_trace_id is not None:
-                request_span.trace_id = int(parent_trace_id)
-
-            parent_span_id = request.headers.get(PARENT_SPAN_HEADER_ID)
-            if parent_span_id is not None:
-                request_span.parent_id = int(parent_span_id)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
