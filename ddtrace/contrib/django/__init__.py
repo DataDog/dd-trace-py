@@ -12,6 +12,13 @@ apps, as follows::
         'ddtrace.contrib.django',
     ]
 
+Add the Datadog middleware to your MIDDLEWARE_CLASSES:
+
+  MIDDLEWARE_CLASSES = [
+      'ddtrace.contrib.django.TraceMiddleware',
+  ]
+
+
 The configuration for this integration is namespaced under the ``DATADOG_TRACE``
 Django setting. For example, your ``settings.py`` may contain::
 
