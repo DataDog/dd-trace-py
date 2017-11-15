@@ -3,7 +3,7 @@ version: 2
 jobs:
   flake8:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -21,7 +21,7 @@ jobs:
 
   tracer:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -39,7 +39,7 @@ jobs:
 
   integration:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
         env:
           TEST_DATADOG_INTEGRATION: 1
       - image: datadog/docker-dd-agent
@@ -65,7 +65,7 @@ jobs:
 
   boto:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -85,7 +85,7 @@ jobs:
 
   ddtracerun:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: redis:3.2
     steps:
       - checkout
@@ -104,7 +104,7 @@ jobs:
 
   asyncio:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -122,7 +122,7 @@ jobs:
 
   pylons:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -140,7 +140,7 @@ jobs:
 
   aiohttp:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -158,7 +158,7 @@ jobs:
 
   tornado:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -180,7 +180,7 @@ jobs:
 
   bottle:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -200,7 +200,7 @@ jobs:
 
   cassandra:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
         env:
           - CASS_DRIVER_NO_EXTENSIONS=1
       - image: cassandra:3.7
@@ -225,7 +225,7 @@ jobs:
 
   celery:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: redis:3.2
     steps:
       - checkout
@@ -244,7 +244,7 @@ jobs:
 
   elasticsearch:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: elasticsearch:2.3
     steps:
       - checkout
@@ -263,7 +263,7 @@ jobs:
 
   falcon:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -283,7 +283,7 @@ jobs:
 
   django:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: redis:3.2
       - image: memcached:1.4
       - image: datadog/docker-dd-agent
@@ -310,7 +310,7 @@ jobs:
 
   flask:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: redis:3.2
       - image: memcached:1.4
     steps:
@@ -340,7 +340,7 @@ jobs:
 
   gevent:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -360,7 +360,7 @@ jobs:
 
   httplib:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -378,7 +378,7 @@ jobs:
 
   mysqlconnector:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: mysql:5.7
         env:
             - MYSQL_ROOT_PASSWORD=admin
@@ -403,7 +403,7 @@ jobs:
 
   pylibmc:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: memcached:1.4
     steps:
       - checkout
@@ -422,7 +422,7 @@ jobs:
 
   pymongo:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: mongo:3.2
     steps:
       - checkout
@@ -441,7 +441,7 @@ jobs:
 
   pyramid:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -461,7 +461,7 @@ jobs:
 
   requests:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -479,7 +479,7 @@ jobs:
 
   sqlalchemy:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: postgres:9.5
         env:
             - POSTGRES_PASSWORD=postgres
@@ -509,7 +509,7 @@ jobs:
 
   psycopg:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: postgres:9.5
         env:
             - POSTGRES_PASSWORD=postgres
@@ -533,7 +533,7 @@ jobs:
 
   aiobotocore:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: palazzem/moto:1.0.1
     steps:
       - checkout
@@ -552,7 +552,7 @@ jobs:
 
   aiopg:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: postgres:9.5
         env:
             - POSTGRES_PASSWORD=postgres
@@ -576,7 +576,7 @@ jobs:
 
   redis:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
       - image: redis:3.2
     steps:
       - checkout
@@ -595,7 +595,7 @@ jobs:
 
   sqlite3:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -613,7 +613,7 @@ jobs:
 
   msgpack:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - checkout
       - restore_cache:
@@ -659,7 +659,7 @@ jobs:
 
   wait_all_tests:
     docker:
-      - image: bemermet/dd-trace-py-ci:1.0.0
+      - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
       - attach_workspace:
           at: /tmp/workspace
