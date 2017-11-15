@@ -28,6 +28,7 @@ PATCH_MODULES = {
     'pylibmc': True,
     'pymongo': True,
     'redis': True,
+    'graphql': True,
     'requests': False,  # Not ready yet
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
