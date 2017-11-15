@@ -2,11 +2,11 @@
 elasticsearch:
     image: elasticsearch:2.3
     ports:
-        - "127.0.0.1:${TEST_ELASTICSEARCH_PORT}:9200"
+        - "127.0.0.1:9200:9200"
 cassandra:
     image: cassandra:3.7
     ports:
-        - "127.0.0.1:${TEST_CASSANDRA_PORT}:9042"
+        - "127.0.0.1:9042:9042"
 postgres:
     image: postgres:9.5
     environment:
@@ -14,7 +14,7 @@ postgres:
         - POSTGRES_USER=$TEST_POSTGRES_USER
         - POSTGRES_DB=$TEST_POSTGRES_DB
     ports:
-        - "127.0.0.1:${TEST_POSTGRES_PORT}:5432"
+        - "127.0.0.1:5432:5432"
 mysql:
     image: mysql:5.7
     environment:
@@ -23,35 +23,34 @@ mysql:
         - MYSQL_USER=$TEST_MYSQL_USER
         - MYSQL_DATABASE=$TEST_MYSQL_DATABASE
     ports:
-        - "127.0.0.1:${TEST_MYSQL_PORT}:3306"
+        - "127.0.0.1:3306:3306"
 redis:
     image: redis:3.2
     ports:
-        - "127.0.0.1:${TEST_REDIS_PORT}:6379"
+        - "127.0.0.1:6379:6379"
 mongo:
     image: mongo:3.2
     ports:
-        - "127.0.0.1:${TEST_MONGO_PORT}:27017"
+        - "127.0.0.1:27017:27017"
 memcached:
     image: memcached:1.4
     ports:
-        - "127.0.0.1:${TEST_MEMCACHED_PORT}:11211"
+        - "127.0.0.1:11211:11211"
 moto:
     # container that executes mocked AWS services; this is a custom
     # build that runs all of them in a single container. It is built
     # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
     image: palazzem/moto:1.0.1
     ports:
-        - "127.0.0.1:${TEST_MOTO_S3}:5000"
-        - "127.0.0.1:${TEST_MOTO_EC2}:5001"
-        - "127.0.0.1:${TEST_MOTO_KMS}:5002"
-        - "127.0.0.1:${TEST_MOTO_SQS}:5003"
-        - "127.0.0.1:${TEST_MOTO_LAMBDA}:5004"
-        - "127.0.0.1:${TEST_MOTO_KINESIS}:5005"
+        - "127.0.0.1:5000:5000"
+        - "127.0.0.1:5001:5001"
+        - "127.0.0.1:5002:5002"
+        - "127.0.0.1:5003:5003"
+        - "127.0.0.1:5004:5004"
+        - "127.0.0.1:5005:5005"
 ddagent:
     image: datadog/docker-dd-agent
     environment:
-        - DD_APM_ENABLED=true
         - DD_BIND_HOST=0.0.0.0
         - DD_API_KEY=invalid_key_but_this_is_fine
     ports:
