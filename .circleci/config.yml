@@ -658,6 +658,7 @@ jobs:
       - run: S3_DIR=trace-dev rake release:wheel
 
   wait_all_tests:
+    # NOTE: this step ensures all `tox` environments are properly executed
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
