@@ -6,7 +6,7 @@ import wrapt
 
 from ddtrace.util import unwrap
 
-from .middlewares import PARENT_TRACE_HEADER_ID, PARENT_SPAN_HEADER_ID
+from ...propagation.http import HTTPPropagator
 from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
@@ -203,6 +203,15 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
         result = func(*args, **kwargs)
         return result
 
+    # Create a new context based on the propagated information.
+    if enable_distributed:
+        headers = kwargs.get('headers', {})
+        propagator = HTTPPropagator()
+        context = propagator.extract(headers)
+        # Only need to active the new context if something was propagated
+        if context.trace_id:
+            pin.tracer.context_provider.activate(context)
+
     # Create a new span and attach to this instance (so we can
     # retrieve/update/close later on the response)
     # Note that we aren't tracing redirects
@@ -211,12 +220,6 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
 
     _set_request_tags(span, url)
     span.set_tag(ext_http.METHOD, method)
-
-    if enable_distributed:
-        headers = kwargs.get('headers', {})
-        headers[PARENT_TRACE_HEADER_ID] = str(span.trace_id)
-        headers[PARENT_SPAN_HEADER_ID] = str(span.span_id)
-        kwargs['headers'] = headers
 
     obj = _WrappedRequestContext(
         func(*args, **kwargs), pin, span, trace_headers, trace_context)
