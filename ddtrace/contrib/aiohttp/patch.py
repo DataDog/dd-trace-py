@@ -198,8 +198,6 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
         result = func(*args, **kwargs)
         return result
 
-    context = pin.tracer.context_provider.active()
-
     # Create a new context based on the propagated information.
     if enable_distributed:
         headers = kwargs.get('headers', {})
