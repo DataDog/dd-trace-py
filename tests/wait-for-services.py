@@ -1,6 +1,5 @@
 import sys
 import time
-import traceback
 
 import mysql.connector
 from psycopg2 import connect, OperationalError
