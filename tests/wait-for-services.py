@@ -1,6 +1,5 @@
 import sys
 import time
-import traceback
 
 import mysql.connector
 from psycopg2 import connect, OperationalError
@@ -60,7 +59,7 @@ if __name__ == '__main__':
         'postgres': check_postgres,
         'mysql': check_mysql
     }
-    if len(sys.argv) > 2:
+    if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
             check_functions[service]()
     else:
