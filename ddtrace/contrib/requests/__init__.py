@@ -22,7 +22,7 @@ which is also instrumented and want to have traces including both client and ser
     from ddtrace.contrib.requests import TracedSession
 
     session = TracedSession()
-    session.distributed_tracing_enabled = True
+    session.distributed_tracing = True
     session.get("http://host.lan/webservice")
 """
 

@@ -31,7 +31,7 @@ class TestRequestsDistributed(object):
         adapter = Adapter()
         tracer, session = get_traced_session()
         session.mount('mock', adapter)
-        session.distributed_tracing_enabled = True
+        session.distributed_tracing = True
 
         with tracer.trace('root') as root:
             def matcher(request):
@@ -52,7 +52,7 @@ class TestRequestsDistributed(object):
         adapter = Adapter()
         tracer, session = get_traced_session()
         session.mount('mock', adapter)
-        session.distributed_tracing_enabled = False
+        session.distributed_tracing = False
 
         with tracer.trace('root'):
             def matcher(request):

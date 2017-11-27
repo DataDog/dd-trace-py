@@ -35,7 +35,7 @@ def _traced_request_func(func, instance, args, kwargs):
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
     # [TODO:christian] replace this with a unified way of handling options (eg, Pin)
-    distributed_tracing_enabled = getattr(instance, 'distributed_tracing_enabled', None)
+    distributed_tracing = getattr(instance, 'distributed_tracing', None)
 
     # bail on the tracing if not enabled.
     if not tracer.enabled:
@@ -46,7 +46,7 @@ def _traced_request_func(func, instance, args, kwargs):
     headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
-        if distributed_tracing_enabled:
+        if distributed_tracing:
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
             kwargs['headers'] = headers
