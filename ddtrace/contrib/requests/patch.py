@@ -34,6 +34,7 @@ def _traced_request_func(func, instance, args, kwargs):
     # sessions to have their own (with the standard global fallback)
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
+    # [TODO:christian] replace this with a unified way of handling options (eg, Pin)
     distributed_tracing_enabled = getattr(instance, 'distributed_tracing_enabled', None)
 
     # bail on the tracing if not enabled.
