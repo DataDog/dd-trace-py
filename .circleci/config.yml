@@ -659,6 +659,7 @@ jobs:
 
   wait_all_tests:
     # NOTE: this step ensures all `tox` environments are properly executed
+    # TODO: we should improve our CI so that this is not required
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
     steps:
