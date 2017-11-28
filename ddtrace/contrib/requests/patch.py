@@ -14,6 +14,7 @@ import wrapt
 # project
 import ddtrace
 from ddtrace.ext import http
+from ...propagation.http import HTTPPropagator
 
 
 log = logging.getLogger(__name__)
@@ -33,14 +34,23 @@ def _traced_request_func(func, instance, args, kwargs):
     # sessions to have their own (with the standard global fallback)
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
+    # [TODO:christian] replace this with a unified way of handling options (eg, Pin)
+    distributed_tracing = getattr(instance, 'distributed_tracing', None)
+
     # bail on the tracing if not enabled.
     if not tracer.enabled:
         return func(*args, **kwargs)
 
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
+    headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
+        if distributed_tracing:
+            propagator = HTTPPropagator()
+            propagator.inject(span.context, headers)
+            kwargs['headers'] = headers
+
         resp = None
         try:
             resp = func(*args, **kwargs)

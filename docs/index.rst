@@ -243,6 +243,11 @@ Redis
 
 .. automodule:: ddtrace.contrib.redis
 
+Requests
+~~~~~
+
+.. automodule:: ddtrace.contrib.requests
+
 SQLAlchemy
 ~~~~~~~~~~
 
