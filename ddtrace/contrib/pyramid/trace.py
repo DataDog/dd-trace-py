@@ -1,7 +1,6 @@
 
 # 3p
 import logging
-import traceback
 import pyramid.renderers
 from pyramid.settings import asbool
 import wrapt
