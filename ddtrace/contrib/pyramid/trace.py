@@ -3,6 +3,7 @@
 import logging
 import pyramid.renderers
 from pyramid.settings import asbool
+from pyramid.httpexceptions import HTTPException
 import wrapt
 
 # project
@@ -63,6 +64,12 @@ def trace_tween_factory(handler, registry):
                 response = None
                 try:
                     response = handler(request)
+                except HTTPException as e:
+                    # If the exception is a pyramid HTTPException,
+                    # that's still valuable information that isn't necessarily
+                    # a 500. For instance, HTTPFound is a 302.
+                    response = e  # Pyramid exceptions are all valid response types
+                    raise
                 except BaseException:
                     span.set_tag(http.STATUS_CODE, 500)
                     raise
