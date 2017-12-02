@@ -8,7 +8,11 @@ from wsgiref.simple_server import make_server
 from pyramid.response import Response
 from pyramid.config import Configurator
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPInternalServerError
+from pyramid.httpexceptions import (
+    HTTPInternalServerError,
+    HTTPFound,
+    HTTPNoContent
+)
 import webtest
 from nose.tools import eq_
 
@@ -58,6 +62,36 @@ class PyramidBase(object):
         eq_(s.meta.get('http.method'), 'GET')
         eq_(s.meta.get('http.status_code'), '404')
         eq_(s.meta.get('http.url'), '/404')
+
+    def test_302(self):
+        self.app.get('/redirect', status=302)
+
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET raise_redirect')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '302')
+        eq_(s.meta.get('http.url'), '/redirect')
+
+    def test_204(self):
+        self.app.get('/nocontent', status=204)
+
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET raise_no_content')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '204')
+        eq_(s.meta.get('http.url'), '/nocontent')
 
     def test_exception(self):
         try:
@@ -241,16 +275,26 @@ def get_app(config):
     def renderer(request):
         return render_to_response('template.pt', {'foo': 'bar'}, request=request)
 
+    def raise_redirect(request):
+        raise HTTPFound
+
+    def raise_no_content(request):
+        raise HTTPNoContent
+
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')
     config.add_route('json', '/json')
     config.add_route('renderer', '/renderer')
+    config.add_route('raise_redirect', '/redirect')
+    config.add_route('raise_no_content', '/nocontent')
     config.add_view(index, route_name='index')
     config.add_view(error, route_name='error')
     config.add_view(exception, route_name='exception')
     config.add_view(json, route_name='json', renderer='json')
     config.add_view(renderer, route_name='renderer', renderer='template.pt')
+    config.add_view(raise_redirect, route_name='raise_redirect')
+    config.add_view(raise_no_content, route_name='raise_no_content')
     return config.make_wsgi_app()
 
 
