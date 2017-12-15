@@ -3,7 +3,7 @@ import tornado
 
 from wrapt import wrap_function_wrapper as _w
 
-from . import handlers, application, decorators, template, futures, compat, TracerStackContext
+from . import handlers, application, decorators, template, futures, compat, context_provider
 from ...util import unwrap as _u
 
 
@@ -40,7 +40,7 @@ def patch():
 
     # configure the global tracer
     ddtrace.tracer.configure(
-        context_provider=TracerStackContext,
+        context_provider=context_provider,
         wrap_executor=decorators.wrap_executor,
     )
 
