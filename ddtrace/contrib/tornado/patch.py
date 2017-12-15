@@ -25,9 +25,6 @@ def patch():
     _w('tornado.web', 'RequestHandler.on_finish', handlers.on_finish)
     _w('tornado.web', 'RequestHandler.log_exception', handlers.log_exception)
 
-    # patch Tornado concurrent modules
-    _w('tornado.concurrent', 'run_on_executor', decorators._run_on_executor)
-
     # patch Template system
     _w('tornado.template', 'Template.generate', template.generate)
 
