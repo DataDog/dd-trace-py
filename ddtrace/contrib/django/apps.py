@@ -1,13 +1,14 @@
 import logging
 
 # 3rd party
-from django.apps import AppConfig
+from django.apps import AppConfig, apps
 
 # project
 from .db import patch_db
 from .conf import settings
 from .cache import patch_cache
 from .templates import patch_template
+from .rest_framework import patch_rest_framework
 from .middleware import insert_exception_middleware, insert_trace_middleware
 
 from ...ext import AppTypes
@@ -68,3 +69,10 @@ class TracerConfig(AppConfig):
                     patch_cache(tracer)
                 except Exception:
                     log.exception('error patching Django cache')
+
+            # Instrument rest_framework app to trace custom exception handling
+            if apps.is_installed('rest_framework'):
+                try:
+                    patch_rest_framework(tracer)
+                except Exception:
+                    log.exception('error patching rest_framework app')
