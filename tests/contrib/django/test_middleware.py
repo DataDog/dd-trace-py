@@ -20,6 +20,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
     def test_middleware_trace_request(self):
         # ensures that the internals are properly traced
         url = reverse('users-list')
+        import pdb; pdb.set_trace()
         response = self.client.get(url)
         eq_(response.status_code, 200)
 
