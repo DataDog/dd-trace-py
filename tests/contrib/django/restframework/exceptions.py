@@ -7,7 +7,7 @@ from rest_framework import status
 def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
-    # Custom 500 error handler
+    # We overwrite the response status code to 500
     if response is not None:
         return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

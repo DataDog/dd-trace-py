@@ -1,10 +1,16 @@
+from django.conf.urls import url, include
 from django.contrib.auth.models import User, Group
 from django.http import HttpResponse
 
-from rest_framework import viewsets
+from rest_framework import viewsets, routers, serializers
 from rest_framework.exceptions import APIException
 
-from .serializers import UserSerializer, GroupSerializer
+
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = User
+        fields = ('url', 'username', 'email', 'groups')
+
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -14,9 +20,12 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
 
 
-class GroupViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows groups to be viewed or edited.
-    """
-    queryset = Group.objects.all()
-    serializer_class = GroupSerializer
+router = routers.DefaultRouter()
+router.register(r'users', UserViewSet)
+
+# Wire up our API using automatic URL routing.
+# Additionally, we include login URLs for the browsable API.
+urlpatterns = [
+    url(r'^', include(router.urls)),
+    url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+]
