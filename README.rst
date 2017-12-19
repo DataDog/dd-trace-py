@@ -70,3 +70,4 @@ most efficient algorithm. To run your benchmark, just:
 
 .. |CircleCI| image:: https://circleci.com/gh/DataDog/dd-trace-py.svg?style=svg&circle-token=f9bf80ce9281bc638c6f7465512d65c96ddc075a
    :target: https://circleci.com/gh/DataDog/dd-trace-py
+
