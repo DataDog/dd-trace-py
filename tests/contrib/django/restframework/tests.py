@@ -3,14 +3,22 @@ from django.apps import apps
 from django.core.urlresolvers import reverse
 
 from nose.tools import ok_, eq_
-from rest_framework.views import APIView
+
+from unittest import skipIf
+
+try:
+    from rest_framework.views import APIView
+except Exception:
+    APIView = None
 
 from ddtrace.contrib.django.rest_framework import ORIGINAL_HANDLE_EXCEPTION, unpatch_rest_framework
 
 from ...django.utils import DjangoTraceTestCase
 
 
+@skipIf(APIView is None, 'requires rest_framework')
 class RestFrameworkTest(DjangoTraceTestCase):
+
     def test_autopatching(self):
         ok_(apps.is_installed('rest_framework'))
         ok_(hasattr(APIView, ORIGINAL_HANDLE_EXCEPTION))
