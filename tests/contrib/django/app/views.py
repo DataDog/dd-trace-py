@@ -1,11 +1,12 @@
 """
 Class based views used for Django tests.
 """
+import django
 
 from functools import partial
 
 from django.http import HttpResponse
-from django.conf.urls import url
+from django.conf.urls import url, include
 
 from django.views.generic import ListView, TemplateView
 from django.views.decorators.cache import cache_page
@@ -70,3 +71,7 @@ urlpatterns = [
     url(r'^lambda-view/$', lambda_view, name='lambda-view'),
     url(r'^error-500/$', error_500, name='error-500'),
 ]
+
+if django.VERSION >= (1, 10):
+    from .restframework import router
+    urlpatterns += url(r'^rest_framework/', include(router.urls, namespace='rest_framework'), name='rest_framework'),

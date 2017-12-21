@@ -97,10 +97,21 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+
+    # Use rest_framework
+    'rest_framework'
 ]
 
 DATADOG_TRACE = {
     # tracer with a DummyWriter
     'TRACER': 'tests.contrib.django.utils.tracer',
     'ENABLED': True,
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAdminUser',
+    ],
+
+    'EXCEPTION_HANDLER': 'app.restframework.custom_exception_handler'
 }

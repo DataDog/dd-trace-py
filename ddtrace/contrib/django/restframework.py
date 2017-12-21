@@ -1,10 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-try:
-    from rest_framework.views import APIView
-except Exception as e:
-    log.exception(e)
+from rest_framework.views import APIView
 
 ORIGINAL_HANDLE_EXCEPTION = '_datadog_original_handle_exception'
 

@@ -1,31 +1,31 @@
-from django.test import TestCase
+import django
 from django.apps import apps
-from django.core.urlresolvers import reverse
-
 from nose.tools import ok_, eq_
-
 from unittest import skipIf
 
-try:
-    from rest_framework.views import APIView
-except Exception:
-    APIView = None
+from .utils import DjangoTraceTestCase
 
-from ddtrace.contrib.django.rest_framework import ORIGINAL_HANDLE_EXCEPTION, unpatch_rest_framework
-
-from ...django.utils import DjangoTraceTestCase
-
-
-@skipIf(APIView is None, 'requires rest_framework')
+@skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
 class RestFrameworkTest(DjangoTraceTestCase):
+    def setUp(self):
+        super(RestFrameworkTest, self).setUp()
 
-    def test_autopatching(self):
+        # We do the imports here because importing rest_framework with an older version of Django 
+        # would raise an exception
+        from rest_framework.views import APIView
+        from ddtrace.contrib.django.restframework import ORIGINAL_HANDLE_EXCEPTION, unpatch_rest_framework
+
+        self.APIView = APIView
+        self.ORIGINAL_HANDLE_EXCEPTION = ORIGINAL_HANDLE_EXCEPTION
+        self.unpatch_rest_framework = unpatch_rest_framework
+
+    def test_setup(self):
         ok_(apps.is_installed('rest_framework'))
-        ok_(hasattr(APIView, ORIGINAL_HANDLE_EXCEPTION))
+        ok_(hasattr(self.APIView, self.ORIGINAL_HANDLE_EXCEPTION))
 
     def test_unpatch(self):
-        unpatch_rest_framework()
-        ok_(not hasattr(APIView, ORIGINAL_HANDLE_EXCEPTION))
+        self.unpatch_rest_framework()
+        ok_(not hasattr(self.APIView, self.ORIGINAL_HANDLE_EXCEPTION))
 
     def test_tracer(self):
         ok_(self.tracer.enabled)
@@ -34,7 +34,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         eq_(self.tracer.tags, {'env': 'test'})
     
     def test_trace_exceptions(self):
-        response = self.client.get('/users/')
+        response = self.client.get('/rest_framework/users/')
 
         # Our custom exception handler is setting the status code to 500
         eq_(response.status_code, 500)
@@ -44,7 +44,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         eq_(len(spans), 1)
         sp = spans[0]
         eq_(sp.name, 'django.request')
-        eq_(sp.resource, 'restframework.views.UserViewSet')
+        eq_(sp.resource, 'tests.contrib.django.app.restframework.UserViewSet')
         eq_(sp.error, 1)
         eq_(sp.span_type, 'http')
         eq_(sp.get_tag('http.method'), 'GET')

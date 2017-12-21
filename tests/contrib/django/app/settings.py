@@ -105,6 +105,9 @@ INSTALLED_APPS = [
 
     # tracer app
     'ddtrace.contrib.django',
+
+    # use rest_framework
+    'rest_framework'
 ]
 
 DATADOG_TRACE = {
@@ -114,4 +117,12 @@ DATADOG_TRACE = {
     'TAGS': {
         'env': 'test',
     },
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAdminUser',
+    ],
+
+    'EXCEPTION_HANDLER': 'app.restframework.custom_exception_handler'
 }
