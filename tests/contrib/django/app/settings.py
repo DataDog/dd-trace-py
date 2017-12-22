@@ -105,10 +105,11 @@ INSTALLED_APPS = [
 
     # tracer app
     'ddtrace.contrib.django',
-
-    # use rest_framework
-    'rest_framework'
 ]
+
+# rest_framework only supports django >= 1.10
+if django.VERSION >= (1, 10):
+    INSTALLED_APPS.append('rest_framework')
 
 DATADOG_TRACE = {
     # tracer with a DummyWriter
