@@ -74,7 +74,7 @@ class TracerConfig(AppConfig):
             # rest_framework only supports django 1.10, 1.11 and 2.0.
             if apps.is_installed('rest_framework') and django.VERSION >= (1, 10):
                 try:
-                    from .restframework import patch_rest_framework
-                    patch_rest_framework(tracer)
+                    from .restframework import patch_restframework
+                    patch_restframework(tracer)
                 except Exception:
                     log.exception('error patching rest_framework app')

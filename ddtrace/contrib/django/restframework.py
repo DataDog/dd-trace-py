@@ -1,13 +1,11 @@
-import logging
+from wrapt import wrap_function_wrapper as wrap
 
 from rest_framework.views import APIView
 
-log = logging.getLogger(__name__)
-
-ORIGINAL_HANDLE_EXCEPTION = '_datadog_original_handle_exception'
+from ddtrace.util import unwrap
 
 
-def patch_rest_framework(tracer):
+def patch_restframework(tracer):
     """ Patches rest_framework app.
 
     To trace exceptions occuring during view processing we currently use a TraceExceptionMiddleware.
@@ -17,15 +15,7 @@ def patch_rest_framework(tracer):
 
     """
 
-    # do not patch if already patched
-    if hasattr(APIView, ORIGINAL_HANDLE_EXCEPTION):
-        log.debug("rest_framework is already patched")
-        return
-
-    # save original handle_exception method to another namespace
-    setattr(APIView, ORIGINAL_HANDLE_EXCEPTION, APIView.handle_exception)
-
-    def traced_handle_exception(self, exc):
+    def _traced_handle_exception(wrapped, instance, args, kwargs):
         """ Sets the error message, error type and exception stack trace to the current span
             before calling the original exception handler.
         """
@@ -33,16 +23,20 @@ def patch_rest_framework(tracer):
         if span is not None:
             span.set_traceback()
 
-        original_handle_exception = getattr(self, ORIGINAL_HANDLE_EXCEPTION)
-        return original_handle_exception(exc)
+        return wrapped(*args, **kwargs)
 
-    # use the traced exception handler
-    setattr(APIView, 'handle_exception', traced_handle_exception)
-
-def unpatch_rest_framework():
-    if hasattr(APIView, ORIGINAL_HANDLE_EXCEPTION):
-        original_handle_exception = getattr(APIView, ORIGINAL_HANDLE_EXCEPTION)
-        setattr(APIView, 'handle_exception', original_handle_exception)
-        delattr(APIView, ORIGINAL_HANDLE_EXCEPTION)
+    # do not patch if already patched
+    if getattr(APIView, '_datadog_patch', False):
+        return
     else:
-        log.debug("rest_framework is not patched")
+        setattr(APIView, '_datadog_patch', True)
+
+    # trace the handle_exception method
+    wrap('rest_framework.views', 'APIView.handle_exception', _traced_handle_exception)
+
+
+def unpatch_restframework():
+    """ Unpatches rest_framework app."""
+    if getattr(APIView, '_datadog_patch', False):
+        setattr(APIView, '_datadog_patch', False)
+        unwrap(APIView, 'handle_exception')

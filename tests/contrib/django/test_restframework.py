@@ -13,19 +13,18 @@ class RestFrameworkTest(DjangoTraceTestCase):
         # We do the imports here because importing rest_framework with an older version of Django 
         # would raise an exception
         from rest_framework.views import APIView
-        from ddtrace.contrib.django.restframework import ORIGINAL_HANDLE_EXCEPTION, unpatch_rest_framework
+        from ddtrace.contrib.django.restframework import unpatch_restframework
 
         self.APIView = APIView
-        self.ORIGINAL_HANDLE_EXCEPTION = ORIGINAL_HANDLE_EXCEPTION
-        self.unpatch_rest_framework = unpatch_rest_framework
+        self.unpatch_restframework = unpatch_restframework
 
     def test_setup(self):
         ok_(apps.is_installed('rest_framework'))
-        ok_(hasattr(self.APIView, self.ORIGINAL_HANDLE_EXCEPTION))
+        ok_(hasattr(self.APIView, '_datadog_patch'))
 
     def test_unpatch(self):
-        self.unpatch_rest_framework()
-        ok_(not hasattr(self.APIView, self.ORIGINAL_HANDLE_EXCEPTION))
+        self.unpatch_restframework()
+        ok_(not getattr(self.APIView, '_datadog_patch'))
 
         response = self.client.get('/rest_framework/users/')
 
