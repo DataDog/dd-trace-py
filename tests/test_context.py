@@ -31,6 +31,20 @@ class TestTracingContext(TestCase):
         ok_(ctx._sampled is True)
         ok_(ctx.sampling_priority is None)
 
+    def test_context_priority(self):
+        # a context is sampled if the spans are sampled
+        ctx = Context()
+        for priority in range(-1, 3):
+            ctx.sampling_priority = priority
+            span = Span(tracer=None, name=('fake_span_%d' % (priority + 2)))
+            ctx.add_span(span)
+            # It's "normal" to have sampled be true even when priority sampling is
+            # set to 0 or -1. It would stay false even even with priority set to 2.
+            # The only criteria to send (or not) the spans to the agent should be
+            # this "sampled" attribute, as it's tightly related to the trace weight.
+            ok_(ctx._sampled is True, 'priority has no impact on sampled status')
+            eq_(priority, ctx.sampling_priority)
+
     def test_current_span(self):
         # it should return the current active span
         ctx = Context()
