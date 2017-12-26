@@ -34,9 +34,9 @@ class TestTracingContext(TestCase):
     def test_context_priority(self):
         # a context is sampled if the spans are sampled
         ctx = Context()
-        for priority in range(-1, 3):
+        for priority in [-1, 0, 1, 2, 999]:
             ctx.sampling_priority = priority
-            span = Span(tracer=None, name=('fake_span_%d' % (priority + 2)))
+            span = Span(tracer=None, name=('fake_span_%d' % priority))
             ctx.add_span(span)
             # It's "normal" to have sampled be true even when priority sampling is
             # set to 0 or -1. It would stay false even even with priority set to 2.
