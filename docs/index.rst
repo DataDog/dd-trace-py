@@ -358,7 +358,8 @@ Priority sampling
 Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
 for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
 
-- 0: Don't keep the trace.
+- -1: The user asked not to keep the trace.
+- 0: The sampler automatically decided not to keep the trace.
 - 1: The sampler automatically decided to keep the trace.
 - 2: The user asked the keep the trace.
 
@@ -370,12 +371,15 @@ To enable the priority sampling::
 Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
 
 You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
-For that, set the `context.sampling_priority` to 0 or 2. It has to be done before any context propagation (fork, RPC calls)
-to be effective::
+For that, set the `context.sampling_priority` to -1 or 2.
+It has to be done before any context propagation (fork, RPC calls) to be effective.
+For example, it is possible to select some traces based on some existing bit of information such as a user or transaction ID.
+But it is generally not possible to select a trace based on its error status,
+as this information typically happens later in the process, when context has already been propagated::
 
     context = tracer.context_provider.active()
     # Indicate to not keep the trace
-    context.sampling_priority = 0
+    context.sampling_priority = -1
 
     # Indicate to keep the trace
     span.context.sampling_priority = 2
@@ -586,4 +590,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
