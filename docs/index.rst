@@ -361,7 +361,7 @@ for distributed traces. Its value gives indication to the Agent and to the backe
 - -1: The user asked not to keep the trace.
 - 0: The sampler automatically decided not to keep the trace.
 - 1: The sampler automatically decided to keep the trace.
-- 2: The user asked the keep the trace.
+- 2: The user asked to keep the trace.
 
 For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
 To enable the priority sampling::
