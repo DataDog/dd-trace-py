@@ -518,3 +518,23 @@ class TestRateByService(TestCase):
         response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestConfigure(TestCase):
+    """
+    Ensures that when calling configure without specifying hostname and port,
+    previous overrides have been kept.
+    """
+    def test_configure_keeps_api_hostname_and_port(self):
+        tracer = Tracer() # use real tracer with real api
+        eq_('localhost', tracer.writer.api.hostname)
+        eq_(8126, tracer.writer.api.port)
+        tracer.configure(hostname='127.0.0.1', port=8127)
+        eq_('127.0.0.1', tracer.writer.api.hostname)
+        eq_(8127, tracer.writer.api.port)
+        tracer.configure(priority_sampling = True)
+        eq_('127.0.0.1', tracer.writer.api.hostname)
+        eq_(8127, tracer.writer.api.port)
