@@ -535,6 +535,6 @@ class TestConfigure(TestCase):
         tracer.configure(hostname='127.0.0.1', port=8127)
         eq_('127.0.0.1', tracer.writer.api.hostname)
         eq_(8127, tracer.writer.api.port)
-        tracer.configure(priority_sampling = True)
+        tracer.configure(priority_sampling=True)
         eq_('127.0.0.1', tracer.writer.api.hostname)
         eq_(8127, tracer.writer.api.port)
