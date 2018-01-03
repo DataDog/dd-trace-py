@@ -7,6 +7,7 @@ from wsgiref.simple_server import make_server
 # 3p
 from pyramid.response import Response
 from pyramid.config import Configurator
+from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPInternalServerError
 import webtest
 from nose.tools import eq_
@@ -118,6 +119,29 @@ class PyramidBase(object):
         eq_(s.error, 0)
         eq_(s.span_type, 'template')
 
+    def test_renderer(self):
+        res = self.app.get('/renderer', status=200)
+        assert self.rend._received['request'] is not None
+        self.rend.assert_(foo='bar')
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        spans_by_name = {s.name: s for s in spans}
+        s = spans_by_name['pyramid.request']
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET renderer')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '200')
+        eq_(s.meta.get('http.url'), '/renderer')
+        eq_(s.meta.get('pyramid.route.name'), 'renderer')
+
+        s = spans_by_name['pyramid.render']
+        eq_(s.service, 'foobar')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'template')
+
 class TestPyramid(PyramidBase):
     def setUp(self):
         from tests.test_tracer import get_dummy_tracer
@@ -128,6 +152,7 @@ class TestPyramid(PyramidBase):
             'datadog_tracer': self.tracer
         }
         config = Configurator(settings=settings)
+        self.rend = config.testing_add_renderer('template.pt')
         trace_pyramid(config)
 
         app = get_app(config)
@@ -213,14 +238,19 @@ def get_app(config):
     def json(request):
         return {'a': 1}
 
+    def renderer(request):
+        return render_to_response('template.pt', {'foo': 'bar'}, request=request)
+
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')
     config.add_route('json', '/json')
+    config.add_route('renderer', '/renderer')
     config.add_view(index, route_name='index')
     config.add_view(error, route_name='error')
     config.add_view(exception, route_name='exception')
     config.add_view(json, route_name='json', renderer='json')
+    config.add_view(renderer, route_name='renderer', renderer='template.pt')
     return config.make_wsgi_app()
 
 
