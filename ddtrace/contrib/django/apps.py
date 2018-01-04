@@ -1,5 +1,4 @@
 import logging
-import django
 
 # 3rd party
 from django.apps import AppConfig, apps
@@ -71,8 +70,7 @@ class TracerConfig(AppConfig):
                     log.exception('error patching Django cache')
 
             # Instrument rest_framework app to trace custom exception handling.
-            # rest_framework only supports django 1.10, 1.11 and 2.0.
-            if apps.is_installed('rest_framework') and django.VERSION >= (1, 10):
+            if apps.is_installed('rest_framework'):
                 try:
                     from .restframework import patch_restframework
                     patch_restframework(tracer)
