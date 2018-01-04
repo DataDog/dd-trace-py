@@ -7,6 +7,7 @@ from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
 
 class TestTracingContext(TestCase):
@@ -34,9 +35,9 @@ class TestTracingContext(TestCase):
     def test_context_priority(self):
         # a context is sampled if the spans are sampled
         ctx = Context()
-        for priority in [-1, 0, 1, 2, 999]:
+        for priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
             ctx.sampling_priority = priority
-            span = Span(tracer=None, name=('fake_span_%d' % priority))
+            span = Span(tracer=None, name=('fake_span_%s' % repr(priority)))
             ctx.add_span(span)
             # It's "normal" to have sampled be true even when priority sampling is
             # set to 0 or -1. It would stay false even even with priority set to 2.
