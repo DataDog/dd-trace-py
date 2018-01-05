@@ -4,7 +4,6 @@ from aiohttp.web import HTTPException
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
-from ...context import Context
 from ...propagation.http import HTTPPropagator
 
 
@@ -28,9 +27,6 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
-        min_error = app[CONFIG_KEY]['min_error']
-
-        context = tracer.context_provider.active()
 
         # Create a new context based on the propagated information.
         if distributed_tracing:
@@ -54,12 +50,6 @@ def trace_middleware(app, handler):
         try:
             response = yield from handler(request)  # noqa: E999
             return response
-        except HTTPException as e:
-            # If one of these special aiohttp exceptions is raised then we only store a traceback if the
-            # status is >= `span_min_error`, and we make sure to re-raise
-            if e.status_code >= min_error:
-                request_span.set_traceback()
-            raise
         except Exception:
             request_span.set_traceback()
             raise
@@ -118,7 +108,6 @@ def trace_app(app, tracer, service='aiohttp-web'):
         'tracer': tracer,
         'service': service,
         'distributed_tracing_enabled': False,
-        'min_error': 400
     }
 
     # the tracer must work with asynchronous Context propagation
