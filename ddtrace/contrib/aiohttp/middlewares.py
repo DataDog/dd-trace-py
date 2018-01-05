@@ -1,5 +1,4 @@
 import asyncio
-from aiohttp.web import HTTPException
 
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
