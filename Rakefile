@@ -6,7 +6,7 @@ task :test do
   ensure
     sh "docker-compose kill"
   end
-  sh "python -m tests.beup -nchmark"
+  sh "python -m tests.benchmark"
 end
 
 desc 'CI dependent task; tests in parallel'

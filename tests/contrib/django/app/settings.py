@@ -23,19 +23,19 @@ CACHES = {
     },
     'redis': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:56379/1',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
     },
     'pylibmc': {
         'BACKEND': 'django.core.cache.backends.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
     },
     'python_memcached': {
         'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
     },
     'django_pylibmc': {
         'BACKEND': 'django_pylibmc.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
         'BINARY': True,
         'OPTIONS': {
             'tcp_nodelay': True,

@@ -19,7 +19,7 @@ class TestPyramidAutopatch(PyramidBase):
         ddtrace.tracer = self.tracer
 
         config = Configurator()
-
+        self.rend = config.testing_add_renderer('template.pt')
         app = get_app(config)
         self.app = webtest.TestApp(app)
 
@@ -30,7 +30,7 @@ class TestPyramidExplicitTweens(PyramidBase):
         ddtrace.tracer = self.tracer
 
         config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n'})
-
+        self.rend = config.testing_add_renderer('template.pt')
         app = get_app(config)
         self.app = webtest.TestApp(app)
 

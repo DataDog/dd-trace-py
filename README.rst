@@ -32,17 +32,30 @@ docker <https://www.docker.com/products/docker>`__ and
 `docker-compose <https://www.docker.com/products/docker-compose>`__
 using the instructions provided by your platform.
 
-The test suite requires also ``tox`` to be ran. You can install it with:
-
-::
+The test suite requires also ``tox`` to be ran. You can install it with::
 
     $ pip install tox
 
-You can launch the test matrix using the following rake command:
-
-::
+You can launch the test matrix using the following rake command::
 
     $ rake test
+
+Or launch single tests manually::
+
+    $ docker-compose up -d
+    $ tox -e '{py36}-redis{210}'
+
+
+Continuous Integration
+~~~~~~~~~~~~~~~~~~~~~~
+
+We rely on CircleCI 2.0 for our tests. If you want to test how the CI behaves
+locally, you can use the CircleCI Command Line Interface as described here:
+https://circleci.com/docs/2.0/local-jobs/
+
+After installing the ``circleci`` CLI, simply::
+
+    $ circleci build --job django
 
 Benchmarks
 ~~~~~~~~~~
