@@ -10,7 +10,6 @@ if __name__ == "__main__":
     # project_root is the path of dd-trace-py (ex: ~/go/src/DataDog/dd-trace-py/)
     # We need to append the project_root path to the PYTHONPATH 
     # in order to specify all our modules import from the project_root.
-    import pdb; pdb.set_trace()
     current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     project_root = os.path.join(current_dir, '..', '..')
     sys.path.append(project_root)
