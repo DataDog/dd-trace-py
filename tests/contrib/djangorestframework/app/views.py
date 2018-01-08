@@ -1,21 +1,10 @@
-from django.conf.urls import url
+from django.conf.urls import url, include
 from django.contrib.auth.models import User, Group
 from django.http import HttpResponse
 
-from rest_framework import viewsets, routers, serializers, status
+from rest_framework import viewsets, routers, serializers
 from rest_framework.exceptions import APIException
-from rest_framework.response import Response
-from rest_framework.views import exception_handler
 
-
-def custom_exception_handler(exc, context):
-    response = exception_handler(exc, context)
-
-    # We overwrite the response status code to 500
-    if response is not None:
-        return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return response
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -33,3 +22,10 @@ class UserViewSet(viewsets.ModelViewSet):
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
+
+# Wire up our API using automatic URL routing.
+# Additionally, we include login URLs for the browsable API.
+urlpatterns = [
+    url(r'^', include(router.urls)),
+    url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+]

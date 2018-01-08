@@ -107,10 +107,6 @@ INSTALLED_APPS = [
     'ddtrace.contrib.django',
 ]
 
-# rest_framework only supports django >= 1.10
-if django.VERSION >= (1, 10):
-    INSTALLED_APPS.append('rest_framework')
-
 DATADOG_TRACE = {
     # tracer with a DummyWriter
     'TRACER': 'tests.contrib.django.utils.tracer',
@@ -118,12 +114,4 @@ DATADOG_TRACE = {
     'TAGS': {
         'env': 'test',
     },
-}
-
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAdminUser',
-    ],
-
-    'EXCEPTION_HANDLER': 'app.restframework.custom_exception_handler'
 }

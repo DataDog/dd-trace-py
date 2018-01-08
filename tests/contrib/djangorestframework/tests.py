@@ -1,22 +1,32 @@
 import django
 from django.apps import apps
+from django.test import TestCase
 from nose.tools import ok_, eq_
 from unittest import skipIf
 
-from .utils import DjangoTraceTestCase
 
 @skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
-class RestFrameworkTest(DjangoTraceTestCase):
+class RestFrameworkTest(TestCase):
     def setUp(self):
-        super(RestFrameworkTest, self).setUp()
+        # assign the default tracer
+        self.tracer = settings.TRACER
 
-        # We do the imports here because importing rest_framework with an older version of Django 
+        # empty the tracer spans from previous operations
+        # such as database creation queries
+        self.tracer.writer.spans = []
+        self.tracer.writer.pop_traces()
+
         # would raise an exception
         from rest_framework.views import APIView
         from ddtrace.contrib.django.restframework import unpatch_restframework
 
         self.APIView = APIView
         self.unpatch_restframework = unpatch_restframework
+
+    def tearDown(self):
+        # empty the tracer spans from test operations
+        self.tracer.writer.spans = []
+        self.tracer.writer.pop_traces()
 
     def test_setup(self):
         ok_(apps.is_installed('rest_framework'))
