@@ -320,6 +320,24 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 0)
 
+    def test_httplib_request_get_request_disabled_and_enabled(self):
+        """
+        When making a GET request via httplib.HTTPConnection.request
+            when the tracer is disabled
+                we do not capture any spans
+        """
+        self.tracer.enabled = False
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            self.tracer.enabled = True
+            resp = conn.getresponse()
+            self.assertEqual(self.to_str(resp.read()), '')
+            self.assertEqual(resp.status, 200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 0)
+
     def test_urllib_request(self):
         """
         When making a request via urllib.request.urlopen

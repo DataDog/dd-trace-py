@@ -114,9 +114,15 @@ class Tracer(object):
 
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
+            # Preserve hostname and port when overriding filters or priority sampling
+            default_hostname = self.DEFAULT_HOSTNAME
+            default_port = self.DEFAULT_PORT
+            if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
+                default_hostname = self.writer.api.hostname
+                default_port = self.writer.api.port
             self.writer = AgentWriter(
-                hostname or self.DEFAULT_HOSTNAME,
-                port or self.DEFAULT_PORT,
+                hostname or default_hostname,
+                port or default_port,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
             )
