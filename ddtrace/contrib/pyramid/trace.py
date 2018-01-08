@@ -28,7 +28,7 @@ def includeme(config):
 
 def trace_render(func, instance, args, kwargs):
     # If the request is not traced, we do not trace
-    request = kwargs.pop('request', {})
+    request = kwargs.get('request', {})
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)

@@ -42,7 +42,7 @@ class MySQLCore(object):
         eq_(span.error, 0)
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'53306',
+            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
             'sql.query': u'SELECT 1',
@@ -129,7 +129,7 @@ class MySQLCore(object):
         eq_(span.error, 0)
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'53306',
+            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
             'sql.query': u'sp_sum',
@@ -194,7 +194,7 @@ class TestMysqlPatch(MySQLCore):
             eq_(span.error, 0)
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'53306',
+                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'SELECT 1',
