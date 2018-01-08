@@ -11,7 +11,7 @@ from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
 import aiohttp.client
-from aiohttp.client import URL
+from yarl import URL
 
 try:
     # instrument external packages only if they're available
@@ -44,7 +44,7 @@ def _set_request_tags(span, url):
     else:
         port = url.port
 
-    url_str = '{scheme}://{host}{port}{path}'.format(
+    url_str = '{scheme}://{host}:{port}{path}'.format(
         scheme=url.scheme, host=url.host, port=port, path=url.path)
     span.set_tag(ext_http.URL, url_str)
     span.resource = url.path
