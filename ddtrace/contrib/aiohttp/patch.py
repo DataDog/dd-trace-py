@@ -10,7 +10,7 @@ from ...propagation.http import HTTPPropagator
 from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
-import aiohttp.client
+import aiohttp
 from yarl import URL
 
 try:
@@ -229,7 +229,7 @@ def _create_wrapped_response(client_session, trace_headers, cls, instance,
 
 
 def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
-    response_class = kwargs.get('response_class', aiohttp.client.ClientResponse)
+    response_class = kwargs.get('response_class', aiohttp.ClientResponse)
     wrapper = functools.partial(_create_wrapped_response, instance,
                                 trace_headers)
     kwargs['response_class'] = wrapt.FunctionWrapper(response_class, wrapper)
@@ -256,10 +256,10 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
         setattr(aiohttp, '__datadog_patch', True)
         pin = Pin(service='aiohttp.client', app='aiohttp',
                   app_type=ext_http.TYPE, tracer=tracer)
-        pin.onto(aiohttp.client.ClientSession)
+        pin.onto(aiohttp.ClientSession)
 
         wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
-        _w('aiohttp.client', 'ClientSession.__init__', wrapper)
+        _w('aiohttp', 'ClientSession.__init__', wrapper)
 
         for method in \
                 {'get', 'options', 'head', 'post', 'put', 'patch', 'delete',
@@ -267,7 +267,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
             wrapper = functools.partial(_create_wrapped_request,
                                         method.upper(), enable_distributed,
                                         trace_headers, trace_context)
-            _w('aiohttp.client', 'ClientSession.{}'.format(method), wrapper)
+            _w('aiohttp', 'ClientSession.{}'.format(method), wrapper)
 
     if _trace_render_template and \
             not getattr(aiohttp_jinja2, '__datadog_patch', False):
@@ -283,8 +283,8 @@ def unpatch():
     Remove tracing from patched modules.
     """
     if getattr(aiohttp, '__datadog_patch', False):
-        unwrap(aiohttp.client.ClientSession, '__init__')
-        unwrap(aiohttp.client.ClientSession, '_request')
+        unwrap(aiohttp.ClientSession, '__init__')
+        unwrap(aiohttp.ClientSession, '_request')
 
     if _trace_render_template and getattr(aiohttp_jinja2, '__datadog_patch',
                                           False):
