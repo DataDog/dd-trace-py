@@ -71,7 +71,3 @@ urlpatterns = [
     url(r'^lambda-view/$', lambda_view, name='lambda-view'),
     url(r'^error-500/$', error_500, name='error-500'),
 ]
-
-if django.VERSION >= (1, 10):
-    from .restframework import router
-    urlpatterns += url(r'^rest_framework/', include(router.urls, namespace='rest_framework'), name='rest_framework'),
