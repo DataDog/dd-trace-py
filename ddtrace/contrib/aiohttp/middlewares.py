@@ -3,7 +3,6 @@ import asyncio
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
-from ...context import Context
 from ...propagation.http import HTTPPropagator
 
 
@@ -27,8 +26,6 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
-
-        context = tracer.context_provider.active()
 
         # Create a new context based on the propagated information.
         if distributed_tracing:

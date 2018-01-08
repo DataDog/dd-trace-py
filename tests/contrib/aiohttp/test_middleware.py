@@ -16,6 +16,10 @@ class TestTraceMiddleware(TraceTestCase):
     Ensures that the trace Middleware creates root spans at
     the beginning of a request.
     """
+    def setUp(self):
+        super().setUp()
+        asyncio.set_event_loop(self.loop)
+
     def enable_tracing(self):
         trace_app(self.app, self.tracer)
 
@@ -153,7 +157,7 @@ class TestTraceMiddleware(TraceTestCase):
         trace_app(app, self.tracer)
         eq_(2, len(app.middlewares))
         # and the middleware is always the first
-        eq_(trace_middleware, app.middlewares[0])
+        eq_(trace_middleware, app.middlewares[0].func)
         eq_(noop_middleware, app.middlewares[1])
 
     @unittest_run_loop
