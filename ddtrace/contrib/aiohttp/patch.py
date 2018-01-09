@@ -198,20 +198,17 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
         result = func(*args, **kwargs)
         return result
 
-    # Create a new context based on the propagated information.
-    if enable_distributed:
-        headers = kwargs.get('headers', {})
-        propagator = HTTPPropagator()
-        context = propagator.extract(headers)
-        # Only need to active the new context if something was propagated
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
-
     # Create a new span and attach to this instance (so we can
     # retrieve/update/close later on the response)
     # Note that we aren't tracing redirects
     span = pin.tracer.trace('ClientSession.request', service=pin.service,
                             span_type=ext_http.TYPE)
+
+    if enable_distributed:
+        headers = kwargs.get('headers', {})
+        propagator = HTTPPropagator()
+        propagator.inject(span.context, headers)
+        kwargs['headers'] = headers
 
     _set_request_tags(span, url)
     span.set_tag(ext_http.METHOD, method)

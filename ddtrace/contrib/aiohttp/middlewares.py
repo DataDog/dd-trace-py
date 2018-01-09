@@ -87,7 +87,7 @@ def on_prepare(request, response):
     request_span.finish()
 
 
-def trace_app(app, tracer, service='aiohttp-web'):
+def trace_app(app, tracer, service='aiohttp-web', distributed_tracing=False):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
@@ -95,6 +95,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     :param app: aiohttp application to trace
     :param tracer: tracer instance to use
     :param service: service name of tracer
+    :param distributed_tracing: set to True to enable distributed tracing
     """
 
     # safe-guard: don't trace an application twice
@@ -106,7 +107,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     app[CONFIG_KEY] = {
         'tracer': tracer,
         'service': service,
-        'distributed_tracing_enabled': False,
+        'distributed_tracing_enabled': distributed_tracing,
     }
 
     # the tracer must work with asynchronous Context propagation
