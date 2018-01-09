@@ -178,6 +178,10 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(instance)
 
+    # bail on the tracing if not enabled.
+    if not pin.tracer.enabled:
+        return func(*args, **kwargs)
+
     if method == 'REQUEST':
         if 'method' in kwargs:
             method = kwargs['method']
@@ -226,6 +230,13 @@ def _create_wrapped_response(client_session, trace_headers, cls, instance,
 
 
 def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
+    # Use any attached tracer if available, otherwise use the global tracer
+    pin = Pin.get_from(instance)
+
+    # bail on the tracing if not enabled.
+    if not pin.tracer.enabled:
+        return func(*args, **kwargs)
+
     response_class = kwargs.get('response_class', aiohttp.ClientResponse)
     wrapper = functools.partial(_create_wrapped_response, instance,
                                 trace_headers)
