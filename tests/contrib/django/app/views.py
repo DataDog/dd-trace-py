@@ -1,12 +1,11 @@
 """
 Class based views used for Django tests.
 """
-import django
 
 from functools import partial
 
 from django.http import HttpResponse
-from django.conf.urls import url, include
+from django.conf.urls import url
 
 from django.views.generic import ListView, TemplateView
 from django.views.decorators.cache import cache_page
