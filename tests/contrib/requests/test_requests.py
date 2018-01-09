@@ -8,25 +8,29 @@ from ddtrace.contrib.requests import TracedSession
 from ddtrace.ext import http, errors
 from tests.test_tracer import get_dummy_tracer
 
+# socket name comes from https://english.stackexchange.com/a/44048
+SOCKET = 'httpbin.org'
+URL_200 = 'http://{}/status/200'.format(SOCKET)
+URL_500 = 'http://{}/status/500'.format(SOCKET)
 
 class TestRequests(object):
 
     @staticmethod
     def test_resource_path():
         tracer, session = get_traced_session()
-        out = session.get('http://httpstat.us/200')
+        out = session.get(URL_200)
         eq_(out.status_code, 200)
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.get_tag("http.url"), "http://httpstat.us/200")
+        eq_(s.get_tag("http.url"), URL_200)
 
     @staticmethod
     def test_tracer_disabled():
         # ensure all valid combinations of args / kwargs work
         tracer, session = get_traced_session()
         tracer.enabled = False
-        out = session.get('http://httpstat.us/200')
+        out = session.get(URL_200)
         eq_(out.status_code, 200)
         spans = tracer.writer.pop()
         eq_(len(spans), 0)
@@ -35,7 +39,7 @@ class TestRequests(object):
     def test_args_kwargs():
         # ensure all valid combinations of args / kwargs work
         tracer, session = get_traced_session()
-        url = 'http://httpstat.us/200'
+        url = URL_200
         method = 'GET'
         inputs = [
                 ([], {'method': method, 'url': url}),
@@ -60,7 +64,7 @@ class TestRequests(object):
     @staticmethod
     def test_200():
         tracer, session = get_traced_session()
-        out = session.get('http://httpstat.us/200')
+        out = session.get(URL_200)
         eq_(out.status_code, 200)
         # validation
         spans = tracer.writer.pop()
@@ -74,7 +78,7 @@ class TestRequests(object):
     @staticmethod
     def test_post_500():
         tracer, session = get_traced_session()
-        out = session.post('http://httpstat.us/500')
+        out = session.post(URL_500)
         # validation
         eq_(out.status_code, 500)
         spans = tracer.writer.pop()
@@ -109,7 +113,7 @@ class TestRequests(object):
     @staticmethod
     def test_500():
         tracer, session = get_traced_session()
-        out = session.get('http://httpstat.us/500')
+        out = session.get(URL_500)
         eq_(out.status_code, 500)
 
         spans = tracer.writer.pop()

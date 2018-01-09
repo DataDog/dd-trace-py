@@ -1,4 +1,4 @@
-"""Instrumeent mysql to report MySQL queries.
+"""Instrument mysql to report MySQL queries.
 
 ``patch_all`` will automatically patch your mysql connection to make it work.
 ::

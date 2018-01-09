@@ -4,17 +4,20 @@ import time
 import msgpack
 import logging
 import mock
+import ddtrace
 
 from unittest import TestCase, skipUnless
 from nose.tools import eq_, ok_
 
 from ddtrace.api import API
+from ddtrace.ext import http
+from ddtrace.filters import FilterRequestsOnUrl
+from ddtrace.constants import FILTERS_KEY
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
-from ddtrace.compat import httplib
+from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from tests.test_tracer import get_dummy_tracer
-
 
 
 class MockedLogHandler(logging.Handler):
@@ -200,6 +203,27 @@ class TestWorkers(TestCase):
         ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
+    def test_worker_filter_request(self):
+        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
+        # spy the send() method
+        self.api = self.tracer.writer.api
+        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
+
+        span = self.tracer.trace('testing.filteredurl')
+        span.set_tag(http.URL, 'http://example.com/health')
+        span.finish()
+        span = self.tracer.trace('testing.nonfilteredurl')
+        span.set_tag(http.URL, 'http://example.com/api/resource')
+        span.finish()
+        self._wait_thread_flush()
+
+        # Only the second trace should have been sent
+        eq_(self.api._put.call_count, 1)
+        # check and retrieve the right call
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
+        eq_(endpoint, '/v0.3/traces')
+        eq_(len(payload), 1)
+        eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
@@ -233,10 +257,19 @@ class TestAPITransport(TestCase):
         eq_(request_call.call_count, 1)
 
         # retrieve the headers from the mocked request call
+        expected_headers = {
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+                'X-Datadog-Trace-Count': '1',
+                'Content-Type': 'application/msgpack'
+        }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
-        ok_('X-Datadog-Trace-Count' in headers.keys())
-        eq_(headers['X-Datadog-Trace-Count'], '1')
+        eq_(len(expected_headers), len(headers))
+        for k, v in expected_headers.items():
+            eq_(v, headers[k])
 
     @mock.patch('ddtrace.api.httplib.HTTPConnection')
     def test_send_presampler_headers_not_in_services(self, mocked_http):
@@ -252,6 +285,20 @@ class TestAPITransport(TestCase):
         response = self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
+
+        # retrieve the headers from the mocked request call
+        expected_headers = {
+                'Datadog-Meta-Lang': 'python',
+                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+                'Content-Type': 'application/msgpack'
+        }
+        params, _ = request_call.call_args_list[0]
+        headers = params[3]
+        eq_(len(expected_headers), len(headers))
+        for k, v in expected_headers.items():
+            eq_(v, headers[k])
 
         # retrieve the headers from the mocked request call
         params, _ = request_call.call_args_list[0]
@@ -433,3 +480,61 @@ class TestAPIDowngrade(TestCase):
         ok_(response)
         eq_(response.status, 200)
         ok_(isinstance(api._encoder, JSONEncoder))
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestRateByService(TestCase):
+    """
+    Check we get feedback from the agent and we're able to process it.
+    """
+    def setUp(self):
+        """
+        Create a tracer without workers, while spying the ``send()`` method
+        """
+        # create a new API object to test the transport using synchronous calls
+        self.tracer = get_dummy_tracer()
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+
+    def test_send_single_trace(self):
+        # register a single trace with a span and send them to the trace agent
+        self.tracer.trace('client.testing').finish()
+        trace = self.tracer.writer.pop()
+        traces = [trace]
+
+        # [TODO:christian] when CI has an agent that is able to process the v0.4
+        # endpoint, add a check to:
+        # - make sure the output is a valid JSON
+        # - make sure the priority sampler (if enabled) is updated
+
+        # test JSON encoder
+        response = self.api_json.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+        # test Msgpack encoder
+        response = self.api_msgpack.send_traces(traces)
+        ok_(response)
+        eq_(response.status, 200)
+
+@skipUnless(
+    os.environ.get('TEST_DATADOG_INTEGRATION', False),
+    'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
+)
+class TestConfigure(TestCase):
+    """
+    Ensures that when calling configure without specifying hostname and port,
+    previous overrides have been kept.
+    """
+    def test_configure_keeps_api_hostname_and_port(self):
+        tracer = Tracer() # use real tracer with real api
+        eq_('localhost', tracer.writer.api.hostname)
+        eq_(8126, tracer.writer.api.port)
+        tracer.configure(hostname='127.0.0.1', port=8127)
+        eq_('127.0.0.1', tracer.writer.api.hostname)
+        eq_(8127, tracer.writer.api.port)
+        tracer.configure(priority_sampling=True)
+        eq_('127.0.0.1', tracer.writer.api.hostname)
+        eq_(8127, tracer.writer.api.port)

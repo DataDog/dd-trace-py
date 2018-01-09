@@ -1,6 +1,8 @@
 import logging
 import threading
 
+from .constants import SAMPLING_PRIORITY_KEY
+
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    def __init__(self, trace_id=None, span_id=None):
+    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -28,17 +30,38 @@ class Context(object):
         :param int span_id: span_id of parent span
         """
         self._trace = []
-        self._sampled = False
         self._finished_spans = 0
         self._current_span = None
         self._lock = threading.Lock()
-        self._parent_span_id = span_id
-        self._parent_trace_id = trace_id
 
-    def _get_parent_span_ids(self):
-        """ Returns tuple of base trace_id, span_id for distributed tracing."""
+        self._parent_trace_id = trace_id
+        self._parent_span_id = span_id
+        self._sampled = sampled
+        self._sampling_priority = sampling_priority
+
+    @property
+    def trace_id(self):
+        """Return current context trace_id."""
         with self._lock:
-            return self._parent_trace_id, self._parent_span_id
+            return self._parent_trace_id
+
+    @property
+    def span_id(self):
+        """Return current context span_id."""
+        with self._lock:
+            return self._parent_span_id
+
+    @property
+    def sampling_priority(self):
+        """Return current context sampling priority."""
+        with self._lock:
+            return self._sampling_priority
+
+    @sampling_priority.setter
+    def sampling_priority(self, value):
+        """Set sampling priority."""
+        with self._lock:
+            self._sampling_priority = value
 
     def get_current_span(self):
         """
@@ -50,13 +73,27 @@ class Context(object):
         with self._lock:
             return self._current_span
 
+    def _set_current_span(self, span):
+        """
+        Set current span internally.
+
+        Non-safe if not used with a lock. For internal Context usage only.
+        """
+        self._current_span = span
+        if span:
+            self._parent_trace_id = span.trace_id
+            self._parent_span_id = span.span_id
+            self._sampled = span.sampled
+        else:
+            self._parent_span_id = None
+
     def add_span(self, span):
         """
         Add a span to the context trace list, keeping it as the last active span.
         """
         with self._lock:
-            self._current_span = span
-            self._sampled = span.sampled
+            self._set_current_span(span)
+
             self._trace.append(span)
             span._context = self
 
@@ -67,7 +104,7 @@ class Context(object):
         """
         with self._lock:
             self._finished_spans += 1
-            self._current_span = span._parent
+            self._set_current_span(span._parent)
 
             # notify if the trace is not closed properly; this check is executed only
             # if the tracer debug_logging is enabled and when the root span is closed
@@ -110,13 +147,21 @@ class Context(object):
         """
         with self._lock:
             if self._is_finished():
+                # get the trace
                 trace = self._trace
                 sampled = self._sampled
+                sampling_priority = self._sampling_priority
+                # attach the sampling priority to the context root span
+                if sampled and sampling_priority is not None and trace:
+                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+
                 # clean the current state
                 self._trace = []
-                self._sampled = False
                 self._finished_spans = 0
-                self._current_span = None
+                self._parent_trace_id = None
+                self._parent_span_id = None
+                self._sampling_priority = None
+                self._sampled = True
                 return trace, sampled
             else:
                 return None, None
@@ -145,9 +190,7 @@ class ThreadLocalContext(object):
     def get(self):
         ctx = getattr(self._locals, 'context', None)
         if not ctx:
-            # create a new Context if it's not available; this action
-            # is done once because the Context has the reset() method
-            # to reuse the same instance
+            # create a new Context if it's not available
             ctx = Context()
             self._locals.context = ctx
 

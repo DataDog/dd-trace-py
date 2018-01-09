@@ -31,6 +31,13 @@ between scheduled coroutines and ``Future`` invoked in separated threads:
       ``loop.run_in_executor`` that attaches the current context to the
       new thread so that the trace can be resumed regardless when
       it's executed
+    * ``create_task(coro)``: creates a new asyncio ``Task`` that inherits
+      the current active ``Context`` so that generated traces in the new task
+      are attached to the main trace
+
+A ``patch(asyncio=True)`` is available if you want to automatically use above
+wrappers without changing your code. In that case, the patch method **must be
+called before** importing stdlib functions.
 """
 from ..util import require_modules
 

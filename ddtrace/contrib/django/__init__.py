@@ -1,9 +1,9 @@
 """
-The Django integration will trace requests, database calls and template
-renders.
+The Django integration will trace users requests, template renderers, database and cache
+calls.
 
-To install the Django tracing middleware, add it to the list of your
-installed apps and in your middleware classes in ``settings.py``::
+To enable the Django integration, add the application to your installed
+apps, as follows::
 
     INSTALLED_APPS = [
         # your Django apps...
@@ -12,24 +12,15 @@ installed apps and in your middleware classes in ``settings.py``::
         'ddtrace.contrib.django',
     ]
 
-    # It might be MIDDLEWARE instead of MIDDLEWARE_CLASSES for Django 1.10+
-    MIDDLEWARE_CLASSES = (
-        # the tracer must be the first middleware
-        'ddtrace.contrib.django.TraceMiddleware',
-
-        # your middlewares...
-    )
-
-The configuration of this integration is all namespaced inside a single
-Django setting, named ``DATADOG_TRACE``. For example, your ``settings.py``
-may contain::
+The configuration for this integration is namespaced under the ``DATADOG_TRACE``
+Django setting. For example, your ``settings.py`` may contain::
 
     DATADOG_TRACE = {
         'DEFAULT_SERVICE': 'my-django-app',
         'TAGS': {'env': 'production'},
     }
 
-If you need to access to the tracing settings, you should::
+If you need to access to Datadog settings, you can::
 
     from ddtrace.contrib.django.conf import settings
 
@@ -39,8 +30,10 @@ If you need to access to the tracing settings, you should::
 
 The available settings are:
 
-* ``DEFAULT_SERVICE`` (default: ``django``): set the service name used by the
+* ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the
   tracer. Usually this configuration must be updated with a meaningful name.
+* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
+  so that your service is listed such as `prefix-defaultdb`.
 * ``TAGS`` (default: ``{}``): set global tags that should be applied to all
   spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
@@ -51,14 +44,26 @@ The available settings are:
   are sent to the trace agent. This setting cannot be changed at runtime
   and a restart is required. By default the tracer is disabled when in ``DEBUG``
   mode, enabled otherwise.
-* ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
-  instrumented, while the tracer may be active for your internal usage. This could
-  be useful if you want to use the Django integration, but you want to trace only
-  particular functions or views. If set to False, the request middleware will be
-  disabled even if present.
+* ``DISTRIBUTED_TRACING`` (default: ``False``): defines if the tracer should
+  use incoming X-DATADOG-* HTTP headers to extend a trace created remotely. It is
+  required for distributed tracing if this application is called remotely from another
+  instrumented application.
+  We suggest to enable it only for internal services where headers are under your control.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
-* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services.
+* ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
+  instrumented (even if ``INSTRUMENT_DATABASE``, ``INSTRUMENT_CACHE`` or
+  ``INSTRUMENT_TEMPLATE`` are set to ``True``), while the tracer may be active
+  for your internal usage. This could be useful if you want to use the Django
+  integration, but you want to trace only particular functions or views. If set
+  to False, the request middleware will be disabled even if present.
+* ``INSTRUMENT_DATABASE`` (default: ``True``): if set to ``False`` database will not
+  be instrumented. Only configurable when ``AUTO_INSTRUMENT`` is set to ``True``.
+* ``INSTRUMENT_CACHE`` (default: ``True``): if set to ``False`` cache will not
+  be instrumented. Only configurable when ``AUTO_INSTRUMENT`` is set to ``True``.
+* ``INSTRUMENT_TEMPLATE`` (default: ``True``): if set to ``False`` template
+  rendering will not be instrumented. Only configurable when ``AUTO_INSTRUMENT``
+  is set to ``True``.
 """
 from ..util import require_modules
 

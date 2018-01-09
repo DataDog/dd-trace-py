@@ -89,7 +89,7 @@ class DdtraceRunTest(unittest.TestCase):
         to the correct host/port for submission
         """
         os.environ["DATADOG_TRACE_AGENT_HOSTNAME"] = "172.10.0.1"
-        os.environ["DATADOG_TRACE_AGENT_PORT"] = "58126"
+        os.environ["DATADOG_TRACE_AGENT_PORT"] = "8126"
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
         )

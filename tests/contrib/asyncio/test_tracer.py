@@ -1,23 +1,22 @@
 import asyncio
+
 from asyncio import BaseEventLoop
 
 from ddtrace.context import Context
-from ddtrace.contrib.asyncio.helpers import set_call_context
-from ddtrace.contrib.asyncio.patch import patch, unpatch
-from ddtrace.contrib.asyncio import context_provider
 from ddtrace.provider import DefaultContextProvider
+from ddtrace.contrib.asyncio.patch import patch, unpatch
+from ddtrace.contrib.asyncio.helpers import set_call_context
 
 from nose.tools import eq_, ok_
-
 from .utils import AsyncioTestCase, mark_asyncio
+
 
 _orig_create_task = BaseEventLoop.create_task
 
 
 class TestAsyncioTracer(AsyncioTestCase):
-    """
-    Ensure that the ``AsyncioTracer`` works for asynchronous execution
-    within the same ``IOLoop``.
+    """Ensure that the tracer works with asynchronous executions within
+    the same ``IOLoop``.
     """
     @mark_asyncio
     def test_get_call_context(self):
@@ -204,92 +203,120 @@ class TestAsyncioTracer(AsyncioTestCase):
         span = spans[0]
         ok_(span.duration > 0.25, msg='span.duration={}'.format(span.duration))
 
-    @mark_asyncio
-    def test_patch_chain(self):
-        patch(self.tracer)
 
-        assert self.tracer._context_provider is context_provider
+class TestAsyncioPropagation(AsyncioTestCase):
+    """Ensure that asyncio context propagation works between different tasks"""
+    def setUp(self):
+        # patch asyncio event loop
+        super(TestAsyncioPropagation, self).setUp()
+        patch()
 
-        with self.tracer.trace('foo'):
-            @self.tracer.wrap('f1')
-            @asyncio.coroutine
-            def f1():
-                yield from asyncio.sleep(0.1)
-
-            @self.tracer.wrap('f2')
-            @asyncio.coroutine
-            def f2():
-                yield from asyncio.ensure_future(f1())
-
-            yield from asyncio.ensure_future(f2())
-
-        traces = list(reversed(self.tracer.writer.pop_traces()))
-        assert len(traces) == 3
-        root_span = traces[0][0]
-        last_span_id = None
-        for trace in traces:
-            assert len(trace) == 1
-            span = trace[0]
-            assert span.trace_id == root_span.trace_id
-            assert span.parent_id == last_span_id
-            last_span_id = span.span_id
+    def tearDown(self):
+        # unpatch asyncio event loop
+        super(TestAsyncioPropagation, self).tearDown()
+        unpatch()
 
     @mark_asyncio
-    def test_patch_parallel(self):
-        patch(self.tracer)
+    def test_tasks_chaining(self):
+        # ensures that the context is propagated between different tasks
+        @self.tracer.wrap('spawn_task')
+        @asyncio.coroutine
+        def coro_2():
+            yield from asyncio.sleep(0.01)
 
-        assert self.tracer._context_provider is context_provider
+        @self.tracer.wrap('main_task')
+        @asyncio.coroutine
+        def coro_1():
+            yield from asyncio.ensure_future(coro_2())
 
-        with self.tracer.trace('foo'):
-            @self.tracer.wrap('f1')
-            @asyncio.coroutine
-            def f1():
-                yield from asyncio.sleep(0.1)
+        yield from coro_1()
 
-            @self.tracer.wrap('f2')
-            @asyncio.coroutine
-            def f2():
-                yield from asyncio.sleep(0.1)
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 2)
+        eq_(len(traces[0]), 1)
+        eq_(len(traces[1]), 1)
+        spawn_task = traces[0][0]
+        main_task = traces[1][0]
+        # check if the context has been correctly propagated
+        eq_(spawn_task.trace_id, main_task.trace_id)
+        eq_(spawn_task.parent_id, main_task.span_id)
 
+    @mark_asyncio
+    def test_concurrent_chaining(self):
+        # ensures that the context is correctly propagated when
+        # concurrent tasks are created from a common tracing block
+        @self.tracer.wrap('f1')
+        @asyncio.coroutine
+        def f1():
+            yield from asyncio.sleep(0.01)
+
+        @self.tracer.wrap('f2')
+        @asyncio.coroutine
+        def f2():
+            yield from asyncio.sleep(0.01)
+
+        with self.tracer.trace('main_task'):
             yield from asyncio.gather(f1(), f2())
 
         traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 3
-        root_span = traces[2][0]
-        for trace in traces[:2]:
-            assert len(trace) == 1
-            span = trace[0]
-            assert span.trace_id == root_span.trace_id
-            assert span.parent_id == root_span.span_id
+        eq_(len(traces), 3)
+        eq_(len(traces[0]), 1)
+        eq_(len(traces[1]), 1)
+        eq_(len(traces[2]), 1)
+        child_1 = traces[0][0]
+        child_2 = traces[1][0]
+        main_task = traces[2][0]
+        # check if the context has been correctly propagated
+        eq_(child_1.trace_id, main_task.trace_id)
+        eq_(child_1.parent_id, main_task.span_id)
+        eq_(child_2.trace_id, main_task.trace_id)
+        eq_(child_2.parent_id, main_task.span_id)
 
     @mark_asyncio
-    def test_distributed(self):
-        patch(self.tracer)
-
+    def test_propagation_with_set_call_context(self):
+        # ensures that if a new Context is attached to the current
+        # running Task via helpers, a previous trace is resumed
         task = asyncio.Task.current_task()
         ctx = Context(trace_id=100, span_id=101)
         set_call_context(task, ctx)
 
-        with self.tracer.trace('foo'):
-            pass
+        with self.tracer.trace('async_task'):
+            yield from asyncio.sleep(0.01)
 
         traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 1
-        trace = traces[0]
-        assert len(trace) == 1
-        span = trace[0]
-
-        assert span.trace_id == ctx._parent_trace_id
-        assert span.parent_id == ctx._parent_span_id
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 101)
 
     @mark_asyncio
-    def test_unpatch(self):
-        patch(self.tracer)
-        unpatch(self.tracer)
+    def test_propagation_with_new_context(self):
+        # ensures that if a new Context is activated, a trace
+        # with the Context arguments is created
+        task = asyncio.Task.current_task()
+        ctx = Context(trace_id=100, span_id=101)
+        self.tracer.context_provider.activate(ctx)
 
-        assert isinstance(self.tracer._context_provider, DefaultContextProvider)
-        assert BaseEventLoop.create_task == _orig_create_task
+        with self.tracer.trace('async_task'):
+            yield from asyncio.sleep(0.01)
 
-    def test_double_patch(self):
-        patch(self.tracer)
-        self.test_patch_chain()
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 101)
+
+    @mark_asyncio
+    def test_event_loop_unpatch(self):
+        # ensures that the event loop can be unpatched
+        unpatch()
+        ok_(isinstance(self.tracer._context_provider, DefaultContextProvider))
+        ok_(BaseEventLoop.create_task == _orig_create_task)
+
+    def test_event_loop_double_patch(self):
+        # ensures that double patching will not double instrument
+        # the event loop
+        patch()
+        self.test_tasks_chaining()

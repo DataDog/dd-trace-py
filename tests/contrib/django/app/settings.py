@@ -4,6 +4,7 @@ configuration if you need to change the default behavior of
 Django during tests
 """
 import os
+import django
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,19 +23,19 @@ CACHES = {
     },
     'redis': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:56379/1',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
     },
     'pylibmc': {
         'BACKEND': 'django.core.cache.backends.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
     },
     'python_memcached': {
         'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
     },
     'django_pylibmc': {
         'BACKEND': 'django_pylibmc.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:51211',
+        'LOCATION': '127.0.0.1:11211',
         'BINARY': True,
         'OPTIONS': {
             'tcp_nodelay': True,
@@ -68,28 +69,22 @@ TEMPLATES = [
     },
 ]
 
-# 1.10+ style
-MIDDLEWARE = [
-    # tracer middleware
-    'ddtrace.contrib.django.TraceMiddleware',
+if django.VERSION >= (1, 10):
+    MIDDLEWARE = [
+        'django.contrib.sessions.middleware.SessionMiddleware',
+        'django.middleware.common.CommonMiddleware',
+        'django.middleware.csrf.CsrfViewMiddleware',
+        'django.contrib.auth.middleware.AuthenticationMiddleware',
+        'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
+        'django.contrib.messages.middleware.MessageMiddleware',
+        'django.middleware.clickjacking.XFrameOptionsMiddleware',
+        'django.middleware.security.SecurityMiddleware',
 
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-
-    'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
-]
-
+        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+    ]
+# Always add the legacy conf to make sure we handle it properly
 # Pre 1.10 style
 MIDDLEWARE_CLASSES = [
-    # tracer middleware
-    'ddtrace.contrib.django.TraceMiddleware',
-
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
