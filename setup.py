@@ -93,7 +93,7 @@ install_requires = [
     "enum34; python_version<'3.4'",
     "funcsigs>=1.0.0;python_version=='2.7'",
     "msgpack>=0.5.0",
-    "pkg_resources"
+    "setuptools",  # for pkg_resources.parse_version
 ]
 
 
