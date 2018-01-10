@@ -99,4 +99,10 @@ _psycopg2_extensions = [
     (psycopg2.extensions.register_type,
      psycopg2.extensions, 'register_type',
      _extensions_register_type),
+    (psycopg2._psycopg.register_type,
+     psycopg2._psycopg, 'register_type',
+     _extensions_register_type),
+    (psycopg2._json.register_type,
+     psycopg2._json, 'register_type',
+     _extensions_register_type),
 ]

@@ -115,6 +115,11 @@ class PsycopgCore(object):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
 
+        # NOTE: this will crash if it doesn't work.
+        #   _ext.register_default_json(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        extras.register_default_json(conn)
+
     def test_connect_factory(self):
         tracer = get_dummy_tracer()
 
