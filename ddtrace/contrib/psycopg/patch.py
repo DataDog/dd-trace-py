@@ -6,9 +6,7 @@ from ddtrace.vendor import wrapt
 from ddtrace import Pin, config
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
-
-# Original connect method
-_connect = psycopg2.connect
+from ...util import unwrap as _u
 
 # psycopg2 versions can end in `-betaN` where `N` is a number
 # in such cases we simply skip version specific patching
@@ -38,7 +36,7 @@ def patch():
 def unpatch():
     if getattr(psycopg2, '_datadog_patch', False):
         setattr(psycopg2, '_datadog_patch', False)
-        psycopg2.connect = _connect
+        _u(psycopg2, 'connect')
 
 
 class Psycopg2TracedCursor(dbapi.TracedCursor):
