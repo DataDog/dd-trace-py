@@ -39,6 +39,10 @@ def _fetchrow_rowcount(span, result):
     span.set_metric("db.rowcount", 1 if result is not None else 0)
 
 
+def _execute_rowcount(span, result):
+    span.set_metric("db.rowcount", len(result[0]))
+
+
 def _forward_rowcount(span, result):
     span.set_metric("db.rowcount", result)
 
@@ -92,7 +96,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
     @asyncio.coroutine
     def execute(self, state, portal_name, limit, return_extra, timeout):
         result = yield from self._trace_method(
-            self.__wrapped__.execute, state.query, None, {},
+            self.__wrapped__.execute, state.query, _execute_rowcount, {},
             state, portal_name, limit, return_extra, timeout)  # noqa: E999
         return result
 

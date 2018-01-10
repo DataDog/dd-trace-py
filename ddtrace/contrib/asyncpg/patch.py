@@ -1,4 +1,5 @@
 # 3p
+from asyncpg.protocol import Protocol as orig_Protocol
 import asyncpg.protocol
 import wrapt
 
@@ -22,17 +23,18 @@ def protocol_factory(protocol_cls, *args, **kwargs):
         }
 
         pin = Pin(
-            service="postgres",
+            service=kwargs['service'],
             app="postgres",
             app_type="db",
-            tags=tags)
+            tags=tags,
+            tracer=kwargs['tracer'])
 
         return AIOTracedProtocol(proto, pin)
 
     return unwrapped
 
 
-def patch():
+def patch(*, service="postgres", tracer=None):
     """ Patch monkey patches asyncpg's Protocol class
         so that the requests are traced
     """
@@ -40,10 +42,12 @@ def patch():
         return
     setattr(asyncpg, '_datadog_patch', True)
 
-    wrapt.wrap_object(asyncpg.protocol, 'Protocol', protocol_factory)
+    wrapt.wrap_object(asyncpg.protocol, 'Protocol', protocol_factory, kwargs=dict(service=service, tracer=tracer))
 
 
 def unpatch():
     if getattr(asyncpg, '_datadog_patch', False):
         setattr(asyncpg, '_datadog_patch', False)
-        _u(asyncpg.protocol, 'Protocol')
+        # we can't use unwrap because wrapt does a simple attribute replacement
+        asyncpg.protocol.Protocol = orig_Protocol
+
