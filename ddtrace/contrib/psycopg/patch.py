@@ -1,6 +1,7 @@
 # 3p
 import psycopg2
 import wrapt
+import pkg_resources
 
 # project
 from ddtrace import Pin
@@ -13,6 +14,10 @@ def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
+    # needed for psycopg2.extensions.parse_dsn support
+    assert pkg_resources.parse_version(psycopg2.__version__) >= \
+           pkg_resources.parse_version("2.7.0")
+
     if getattr(psycopg2, '_datadog_patch', False):
         return
     setattr(psycopg2, '_datadog_patch', True)
