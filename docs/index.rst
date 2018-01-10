@@ -171,6 +171,11 @@ aiopg
 
 .. automodule:: ddtrace.contrib.aiopg
 
+asyncpg
+~~~~~
+
+.. automodule:: ddtrace.contrib.asyncpg
+
 Tornado
 ~~~~~~~
 
@@ -514,6 +519,8 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | aiopg           | >= 0.12.0          |
 +-----------------+--------------------+
+| asyncpg         | >= 0.14.0          |
++-----------------+--------------------+
 | boto            | >= 2.29.0          |
 +-----------------+--------------------+
 | botocore        | >= 1.4.51          |
@@ -578,6 +585,7 @@ soon as possible in your Python entrypoint.
 * pylibmc
 * celery
 * aiopg
+* asyncpg
 * aiohttp (only third-party modules such as ``aiohttp_jinja2``)
 
 Indices and tables

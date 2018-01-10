@@ -22,6 +22,7 @@ def deprecated(message='', version=None):
         return wrapper
     return decorator
 
+
 def deep_getattr(obj, attr_string, default=None):
     """
     Returns the attribute of `obj` at the dotted path given by `attr_string`

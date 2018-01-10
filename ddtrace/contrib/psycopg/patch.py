@@ -6,9 +6,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
-
-# Original connect method
-_connect = psycopg2.connect
+from ...util import unwrap as _u
 
 
 def patch():
@@ -26,7 +24,7 @@ def patch():
 def unpatch():
     if getattr(psycopg2, '_datadog_patch', False):
         setattr(psycopg2, '_datadog_patch', False)
-        psycopg2.connect = _connect
+        _u(psycopg2, 'connect')
 
 
 def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
@@ -44,7 +42,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
-        "db.application" : dsn.get("application_name"),
+        "db.application": dsn.get("application_name"),
     }
 
     Pin(
