@@ -28,7 +28,7 @@ def patch():
     """
     # needed for psycopg2.extensions.parse_dsn support
     assert pkg_resources.parse_version(psycopg2.__version__) >= \
-           pkg_resources.parse_version("2.7.0")
+           pkg_resources.SetuptoolsLegacyVersion("2.7.0")
 
     if getattr(psycopg2, '_datadog_patch', False):
         return
