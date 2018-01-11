@@ -94,6 +94,28 @@ def _extensions_register_type(func, _, args, kwargs):
     return func(obj, scope) if scope else func(obj)
 
 
+def _extensions_adapt(func, _, args, kwargs):
+    adapt = func(*args, **kwargs)
+    if hasattr(adapt, 'prepare'):
+        return AdapterWrapper(adapt)
+    return adapt
+
+
+class AdapterWrapper(wrapt.ObjectProxy):
+    def prepare(self, *args, **kwargs):
+        func = self.__wrapped__.prepare
+        if not args:
+            return func(*args, **kwargs)
+        conn = args[0]
+
+        # prepare performs a c-level check of the object type so
+        # we must be sure to pass in the actual db connection
+        if isinstance(conn, wrapt.ObjectProxy):
+            conn = conn.__wrapped__
+
+        return func(conn, *args[1:], **kwargs)
+
+
 # extension hooks
 _psycopg2_extensions = [
     (psycopg2.extensions.register_type,
@@ -105,4 +127,7 @@ _psycopg2_extensions = [
     (psycopg2._json.register_type,
      psycopg2._json, 'register_type',
      _extensions_register_type),
+    (psycopg2.extensions.adapt,
+     psycopg2.extensions, 'adapt',
+     _extensions_adapt),
 ]
