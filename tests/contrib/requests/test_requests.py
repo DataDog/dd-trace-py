@@ -1,9 +1,9 @@
 # 3p
 from nose.tools import eq_
 from requests import Session
+import sys
+
 import wrapt
-
-
 # project
 from ddtrace.contrib.requests import TracedSession, patch, unpatch
 from ddtrace.contrib.requests.patch import _traced_request_func
@@ -17,26 +17,36 @@ URL_500 = 'http://{}/status/500'.format(SOCKET)
 
 
 _orig_request = Session.request
+_orig_request_id = id(Session.request)
+
+
+def _test_patch_equality(lhs, rhs):
+    if sys.version_info.major > 2:
+        return id(lhs) == id(rhs)
+    else:
+        assert not isinstance(lhs, wrapt.ObjectProxy) and \
+               not isinstance(rhs, wrapt.ObjectProxy)
+        return lhs == rhs
 
 
 class TestRequests(object):
     @staticmethod
     def test_double_patch():
-        assert id(Session.request) == id(_orig_request)
+        assert _test_patch_equality(Session.request, _orig_request)
 
         patch()
 
-        assert id(Session.request.__wrapped__) == id(_orig_request)
+        assert _test_patch_equality(Session.request.__wrapped__, _orig_request)
 
         patch()
 
-        assert id(Session.request.__wrapped__) == id(_orig_request)
+        assert _test_patch_equality(Session.request.__wrapped__, _orig_request)
 
     @staticmethod
     def test_unpatch():
         patch()
         unpatch()
-        assert id(Session.request) == id(_orig_request)
+        assert _test_patch_equality(Session.request, _orig_request)
 
     @staticmethod
     def test_resource_path():
