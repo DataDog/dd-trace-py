@@ -22,7 +22,10 @@ log = logging.getLogger(__name__)
 
 def patch():
     """ Monkeypatch the requests library to trace http calls. """
-    wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+
+    if not getattr(requests, '__datadog_patch', False):
+        wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+        setattr(requests, '__datadog_patch', True)
 
 
 def _traced_request_func(func, instance, args, kwargs):
