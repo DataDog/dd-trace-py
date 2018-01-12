@@ -15,14 +15,25 @@ import wrapt
 import ddtrace
 from ddtrace.ext import http
 from ...propagation.http import HTTPPropagator
-
+from ddtrace.util import unwrap
 
 log = logging.getLogger(__name__)
 
 
 def patch():
     """ Monkeypatch the requests library to trace http calls. """
-    wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+
+    if not getattr(requests, '__datadog_patch', False):
+        wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+        setattr(requests, '__datadog_patch', True)
+
+
+def unpatch():
+    """ remove monkeypatches to the requests library"""
+
+    if getattr(requests, '__datadog_patch', True):
+        unwrap(requests.Session, 'request')
+        setattr(requests, '__datadog_patch', False)
 
 
 def _traced_request_func(func, instance, args, kwargs):

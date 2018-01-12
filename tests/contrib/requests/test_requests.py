@@ -1,10 +1,12 @@
-
 # 3p
-from nose.tools import eq_, assert_raises
+from nose.tools import eq_
 from requests import Session
+import wrapt
+
 
 # project
-from ddtrace.contrib.requests import TracedSession
+from ddtrace.contrib.requests import TracedSession, patch, unpatch
+from ddtrace.contrib.requests.patch import _traced_request_func
 from ddtrace.ext import http, errors
 from tests.test_tracer import get_dummy_tracer
 
@@ -13,7 +15,28 @@ SOCKET = 'httpbin.org'
 URL_200 = 'http://{}/status/200'.format(SOCKET)
 URL_500 = 'http://{}/status/500'.format(SOCKET)
 
+
+_orig_request = Session.request
+
+
 class TestRequests(object):
+    @staticmethod
+    def test_double_patch():
+        assert id(Session.request) == id(_orig_request)
+
+        patch()
+
+        assert id(Session.request.__wrapped__) == id(_orig_request)
+
+        patch()
+
+        assert id(Session.request.__wrapped__) == id(_orig_request)
+
+    @staticmethod
+    def test_unpatch():
+        patch()
+        unpatch()
+        assert id(Session.request) == id(_orig_request)
 
     @staticmethod
     def test_resource_path():
@@ -59,7 +82,6 @@ class TestRequests(object):
             s = spans[0]
             eq_(s.get_tag(http.METHOD), 'GET')
             eq_(s.get_tag(http.STATUS_CODE), '200')
-
 
     @staticmethod
     def test_200():
@@ -108,7 +130,6 @@ class TestRequests(object):
         assert "Failed to establish a new connection" in s.get_tag(errors.STACK)
         assert "Traceback (most recent call last)" in s.get_tag(errors.STACK)
         assert "requests.exception" in s.get_tag(errors.TYPE)
-
 
     @staticmethod
     def test_500():
