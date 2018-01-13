@@ -11,9 +11,6 @@ from .provider import CONTEXT_ATTR
 from ...context import Context
 
 
-_orig_create_task = BaseEventLoop.create_task
-
-
 def set_call_context(task, ctx):
     """
     Updates the ``Context`` for the given Task. Useful when you need to
