@@ -65,10 +65,22 @@ class TestPsycopgPatch(AsyncioTestCase):
         assert rows
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
+
+        # execute
         span = spans[0]
         eq_(span.name, 'postgres.query')
-        eq_(span.resource, q)
+        eq_(span.resource, 'execute')
+        eq_(span.service, service)
+        eq_(span.meta['sql.query'], q)
+        eq_(span.error, 0)
+        eq_(span.span_type, 'sql')
+        assert start <= span.start <= end
+        assert span.duration <= end - start
+
+        span = spans[1]
+        eq_(span.name, 'postgres.query')
+        eq_(span.resource, 'fetchall')
         eq_(span.service, service)
         eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
@@ -90,7 +102,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.name, 'postgres.query')
-        eq_(span.resource, q)
+        eq_(span.resource, 'execute')
         eq_(span.service, service)
         eq_(span.meta['sql.query'], q)
         eq_(span.error, 1)
@@ -103,7 +115,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
         # these calls were crashing with a previous version of the code.
-        yield from (yield from conn.cursor()).execute(query='select \'blah\'')
+        yield from (yield from conn.cursor()).execute(operation='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         assert not tracer.writer.pop()
 

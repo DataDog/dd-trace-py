@@ -19,7 +19,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         self._datadog_name = '%s.query' % name
 
     @asyncio.coroutine
-    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, query, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             result = yield from method(*args, **kwargs)  # noqa: E999
@@ -27,9 +27,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service,
-                              resource=resource) as s:
+                              resource=method.__name__) as s:
             s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, resource)
+            s.set_tag(sql.QUERY, query or self.query.decode('utf-8'))
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -40,24 +40,68 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 s.set_metric("db.rowcount", self.rowcount)
 
     @asyncio.coroutine
-    def executemany(self, query, *args, **kwargs):
+    def executemany(self, operation, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         result = yield from self._trace_method(
-            self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)  # noqa: E999
+            self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
+            operation, *args, **kwargs)  # noqa: E999
         return result
 
     @asyncio.coroutine
-    def execute(self, query, *args, **kwargs):
+    def execute(self, operation, *args, **kwargs):
         result = yield from self._trace_method(
-            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+            self.__wrapped__.execute, operation, {}, operation, *args, **kwargs)
         return result
 
     @asyncio.coroutine
-    def callproc(self, proc, args):
+    def callproc(self, procname, args):
         result = yield from self._trace_method(
-            self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
+            self.__wrapped__.callproc, procname, {}, procname, args)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def mogrify(self, operation, parameters=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.mogrify, operation, {}, operation, parameters)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def fetchone(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchone, None, {})  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def fetchmany(self, size=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchmany, None, {}, size)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def fetchall(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchall, None, {})  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def scroll(self, value, mode="relative"):
+        result = yield from self._trace_method(
+            self.__wrapped__.scroll, None, {}, value, mode)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def nextset(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.nextset, None, {})  # noqa: E999
+        return result
+
+    def __aiter__(self):
+        return self.__wrapped__.__aiter__()
+
+    @asyncio.coroutine
+    def __anext__(self):
+        result = yield from self.__wrapped__.__anext__()
         return result
 
 
