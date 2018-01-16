@@ -67,11 +67,24 @@ class AiopgTestCase(AsyncioTestCase):
         assert rows
         spans = writer.pop()
         assert spans
-        assert len(spans) == 1
+        assert len(spans) == 2
+
+        # execute
         span = spans[0]
         assert_is_measured(span)
         assert span.name == 'postgres.query'
-        assert span.resource == q
+        assert span.resource == 'execute'
+        assert span.service == service
+        assert span.meta['sql.query'] == q
+        assert span.error == 0
+        assert span.span_type == 'sql'
+        assert start <= span.start <= end
+        assert span.duration <= end - start
+
+        span = spans[1]
+        assert_is_measured(span)
+        assert span.name == 'postgres.query'
+        assert span.resource == 'fetchall'
         assert span.service == service
         assert span.meta['sql.query'] == q
         assert span.error == 0
@@ -115,7 +128,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.name == 'postgres.query'
-        assert span.resource == q
+        assert span.resource == 'execute'
         assert span.service == service
         assert span.meta['sql.query'] == q
         assert span.error == 1
@@ -128,7 +141,7 @@ class AiopgTestCase(AsyncioTestCase):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
         # these calls were crashing with a previous version of the code.
-        yield from (yield from conn.cursor()).execute(query='select \'blah\'')
+        yield from (yield from conn.cursor()).execute(operation='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         assert not tracer.writer.pop()
 

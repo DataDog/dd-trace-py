@@ -46,13 +46,13 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         async with conn.cursor() as cur:
             assert t == type(cur), '%s != %s' % (t, type(cur))
-            await cur.execute(query='select \'blah\'')
+            await cur.execute(operation='select \'blah\'')
             rows = await cur.fetchall()
             assert len(rows) == 1
             assert rows[0][0] == 'blah'
 
         spans = tracer.writer.pop()
-        assert len(spans) == 1
+        assert len(spans) == 2
         span = spans[0]
         assert span.name == 'postgres.query'
 
