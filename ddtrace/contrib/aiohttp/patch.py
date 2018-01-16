@@ -113,6 +113,17 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         return result
 
+    if PY_35:
+        @asyncio.coroutine
+        def __aenter__(self):
+            result = yield from self.__wrapped__.__aenter__()
+            return result
+
+        @asyncio.coroutine
+        def __aexit__(self, exc_type, exc_val, exc_tb):
+            result = yield from self.__wrapped__.__aexit__()
+            return result
+
 
 class _WrappedRequestContext(wrapt.ObjectProxy):
     def __init__(self, obj, pin, span, trace_headers, trace_context):
