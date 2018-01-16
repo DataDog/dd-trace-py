@@ -121,7 +121,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         @asyncio.coroutine
         def __aexit__(self, exc_type, exc_val, exc_tb):
-            result = yield from self.__wrapped__.__aexit__()
+            result = yield from self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
             return result
 
 
