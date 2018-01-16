@@ -28,7 +28,7 @@ def patch():
     """
     # needed for psycopg2.extensions.parse_dsn support
     assert pkg_resources.parse_version(psycopg2.__version__) >= \
-           pkg_resources.SetuptoolsLegacyVersion("2.7.0")
+           pkg_resources.SetuptoolsLegacyVersion("2.7.0")  # noqa: E127
 
     if getattr(psycopg2, '_datadog_patch', False):
         return
@@ -101,7 +101,8 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or \
+                isinstance(getattr(module, func), wrapt.ObjectProxy):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
@@ -125,6 +126,7 @@ def patched_connect(connect_func, _, args, kwargs):
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
+
     obj, scope = _unroll_args(*args, **kwargs)
 
     # register_type performs a c-level check of the object
