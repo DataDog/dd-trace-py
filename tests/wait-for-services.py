@@ -45,6 +45,7 @@ def check_cassandra():
     with Cluster(**CASSANDRA_CONFIG).connect() as conn:
         conn.execute("SELECT now() FROM system.local")
 
+
 @try_until_timeout(Exception)
 def check_mysql():
     conn = mysql.connector.connect(**MYSQL_CONFIG)
@@ -52,6 +53,7 @@ def check_mysql():
         conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
+
 
 if __name__ == '__main__':
     check_functions = {
