@@ -114,7 +114,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
 
     @asyncio.coroutine
     def copy_in(self, copy_stmt, reader, data,
-                      records, record_stmt, timeout):
+                records, record_stmt, timeout):
         result = yield from self._trace_method(
             self.__wrapped__.copy_in, copy_stmt, None, {},
             copy_stmt, reader, data, records, record_stmt, timeout

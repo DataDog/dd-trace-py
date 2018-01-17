@@ -18,7 +18,7 @@ from ...ext import sql
 
 def protocol_factory(protocol_cls, *args, **kwargs):
     def unwrapped(addr, connected_fut, con_params, loop):
-        proto = protocol_cls(addr, connected_fut, con_params, loop)  # noqa: E999
+        proto = protocol_cls(addr, connected_fut, con_params, loop)
 
         tags = {
             net.TARGET_HOST: addr[0],
@@ -61,7 +61,7 @@ def _patched_connect(connect_func, _, args, kwargs, tracer, service):
         tracer=tracer)
 
     if not pin.tracer.enabled:
-        conn = yield from connect_func(*args, **kwargs)
+        conn = yield from connect_func(*args, **kwargs)  # noqa: E999
         return conn
 
     with pin.tracer.trace((pin.app or 'sql') + '.connect',
