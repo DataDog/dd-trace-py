@@ -1,7 +1,5 @@
 import asyncio
 import wrapt
-
-from .. import dbapi
 from ...ext import sql
 
 from ddtrace import Pin
@@ -105,4 +103,34 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         result = yield from self._trace_method(
             self.__wrapped__.query, query, None, {},
             query, timeout)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def copy_out(self, copy_stmt, sink, timeout):
+        result = yield from self._trace_method(
+            self.__wrapped__.copy_out, copy_stmt, None, {},
+            sink, timeout)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def copy_in(self, copy_stmt, reader, data,
+                      records, record_stmt, timeout):
+        result = yield from self._trace_method(
+            self.__wrapped__.copy_in, copy_stmt, None, {},
+            copy_stmt, reader, data, records, record_stmt, timeout
+        )  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def close_statement(self, state, timeout):
+        result = yield from self._trace_method(
+            self.__wrapped__.close_statement, state.query, None, {},
+            state, timeout)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def close(self, timeout):
+        result = yield from self._trace_method(
+            self.__wrapped__.close, '', None, {},
+            timeout)  # noqa: E999
         return result
