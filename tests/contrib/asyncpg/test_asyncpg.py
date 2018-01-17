@@ -115,8 +115,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     @mark_sync
     async def test_disabled_execute(self):
+        self.tracer.enabled = False
         conn, tracer = await self._get_conn_and_tracer()
-        tracer.enabled = False
         # these calls were crashing with a previous version of the code.
         await conn.execute('select \'blah\'')
         await conn.execute('select \'blah\'')
@@ -161,7 +161,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 3)
 
         # Test unpatch
         unpatch()
@@ -184,4 +184,4 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 3)
