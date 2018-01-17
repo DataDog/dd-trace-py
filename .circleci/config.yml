@@ -832,6 +832,7 @@ workflows:
             - aiobotocore
             - aiohttp
             - aiopg
+            - asyncpg
             - asyncio
             - algoliasearch
             - benchmarks
