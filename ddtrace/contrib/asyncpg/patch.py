@@ -7,7 +7,6 @@ import wrapt
 from ddtrace.ext import net, db
 from ddtrace.pin import Pin
 from .connection import AIOTracedProtocol
-from ...util import unwrap as _u
 
 
 def protocol_factory(protocol_cls, *args, **kwargs):
