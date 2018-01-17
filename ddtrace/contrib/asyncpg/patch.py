@@ -34,7 +34,7 @@ def protocol_factory(protocol_cls, *args, **kwargs):
     return unwrapped
 
 
-def patch(*, service="postgres", tracer=None):
+def patch(service="postgres", tracer=None):
     """ Patch monkey patches asyncpg's Protocol class
         so that the requests are traced
     """
