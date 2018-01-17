@@ -1,14 +1,12 @@
 # stdlib
 import time
-import asyncio
 
 # 3p
-import asyncpg
+import asyncpg.pool
 from nose.tools import eq_
 
 # project
 from ddtrace.contrib.asyncpg.patch import patch, unpatch
-from ddtrace import Pin
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
@@ -112,6 +110,23 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.meta['out.host'], 'localhost')
         eq_(span.meta['out.port'], TEST_PORT)
         eq_(span.span_type, 'sql')
+
+    @mark_sync
+    async def test_pool(self):
+        async with asyncpg.create_pool(**POSTGRES_CONFIG,
+                                       min_size=1, max_size=1) as pool:
+            async with pool.acquire() as conn:
+                await conn.execute('select 1;')
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 6)
+
+        eq_(spans[0].name, "postgres.connect")
+        eq_(spans[1].name, "postgres.pool.acquire")
+        eq_(spans[2].name, "postgres.query")
+        eq_(spans[3].name, "postgres.query")
+        eq_(spans[4].name, "postgres.pool.release")
+        eq_(spans[5].name, "postgres.close")
 
     @mark_sync
     async def test_disabled_execute(self):
