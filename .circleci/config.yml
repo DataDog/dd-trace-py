@@ -731,6 +731,7 @@ workflows:
       - psycopg
       - aiobotocore
       - aiopg
+      - asyncpg
       - redis
       - sqlite3
       - msgpack
