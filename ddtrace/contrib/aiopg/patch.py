@@ -35,7 +35,7 @@ def _create_pin(tags):
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs_param):
     @asyncio.coroutine
-    def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,
+    def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,  # noqa: E999
                enable_json=True, enable_hstore=True, enable_uuid=True,
                echo=False, **kwargs):
 
