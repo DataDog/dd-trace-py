@@ -30,9 +30,8 @@ def connection_factory(tracer, service="postgres"):
         app_type=AppTypes.db,
     )
 
-    return functools.partial(TracedConnection,
-        datadog_tracer=tracer,
-        datadog_service=service)
+    return functools.partial(TracedConnection, datadog_tracer=tracer,
+                             datadog_service=service)
 
 
 class TracedCursor(cursor):

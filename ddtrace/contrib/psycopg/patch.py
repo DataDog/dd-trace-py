@@ -1,5 +1,5 @@
 # 3p
-import psycopg2
+import psycopg2.extensions
 import wrapt
 import pkg_resources
 
