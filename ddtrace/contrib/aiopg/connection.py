@@ -106,10 +106,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pin):
         super(AIOTracedConnection, self).__init__(conn)
-        name = dbapi._get_vendor(conn)
-        Pin(service=name, app=name).onto(self)
+        pin.onto(self)
 
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
