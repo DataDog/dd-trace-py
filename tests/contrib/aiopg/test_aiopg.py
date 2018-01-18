@@ -38,8 +38,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
+        Pin(None, tracer=get_dummy_tracer()).onto(aiopg)
         conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
 
@@ -69,8 +69,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         # execute
         span = spans[0]
-        eq_(span.name, 'postgres.query')
-        eq_(span.resource, 'execute')
+        eq_(span.name, 'postgres.execute')
         eq_(span.service, service)
         eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
@@ -79,8 +78,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         assert span.duration <= end - start
 
         span = spans[1]
-        eq_(span.name, 'postgres.query')
-        eq_(span.resource, 'fetchall')
+        eq_(span.name, 'postgres.fetchall')
         eq_(span.service, service)
         eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
@@ -101,8 +99,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, 'postgres.query')
-        eq_(span.resource, 'execute')
+        eq_(span.name, 'postgres.execute')
         eq_(span.service, service)
         eq_(span.meta['sql.query'], q)
         eq_(span.error, 1)
