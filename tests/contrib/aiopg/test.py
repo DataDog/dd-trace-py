@@ -40,8 +40,8 @@ class AiopgTestCase(AsyncioTestCase):
 
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
+        Pin(None, tracer=get_dummy_tracer()).onto(aiopg)
         conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
 
@@ -72,8 +72,7 @@ class AiopgTestCase(AsyncioTestCase):
         # execute
         span = spans[0]
         assert_is_measured(span)
-        assert span.name == 'postgres.query'
-        assert span.resource == 'execute'
+        assert span.name == 'postgres.execute'
         assert span.service == service
         assert span.meta['sql.query'] == q
         assert span.error == 0
@@ -83,8 +82,7 @@ class AiopgTestCase(AsyncioTestCase):
 
         span = spans[1]
         assert_is_measured(span)
-        assert span.name == 'postgres.query'
-        assert span.resource == 'fetchall'
+        assert span.name == 'postgres.fetchall'
         assert span.service == service
         assert span.meta['sql.query'] == q
         assert span.error == 0
@@ -127,8 +125,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == 'postgres.query'
-        assert span.resource == 'execute'
+        assert span.name == 'postgres.execute'
         assert span.service == service
         assert span.meta['sql.query'] == q
         assert span.error == 1

@@ -1,44 +1,84 @@
-# 3p
 import asyncio
 
+# 3p
 import aiopg.connection
+import aiopg.pool
 import psycopg2.extensions
 from ddtrace.vendor import wrapt
 
+# ddtrace
 from .connection import AIOTracedConnection
 from ..psycopg.patch import _patch_extensions, \
-    _unpatch_extensions, patch_conn as psycopg_patch_conn
+    _unpatch_extensions
 from ...utils.wrappers import unwrap as _u
+from ddtrace.ext import sql, net, db
+from ddtrace import Pin
 
 
-def patch():
-    """ Patch monkey patches psycopg's connection function
-        so that the connection's functions are traced.
-    """
-    if getattr(aiopg, '_datadog_patch', False):
-        return
-    setattr(aiopg, '_datadog_patch', True)
+def _create_pin(tags):
+    # Will propagate info from global pin
+    pin = Pin.get_from(aiopg)
+    service = pin.service if pin and pin.service else "postgres"
+    app = pin.app if pin and pin.app else "postgres"
+    app_type = pin.app_type if pin and pin.app_type else "db"
+    tracer = pin.tracer if pin else None
 
-    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', patched_connect)
-    _patch_extensions(_aiopg_extensions)  # do this early just in case
+    if pin and pin.tags:
+        tags = {**tags, **pin.tags}
 
-
-def unpatch():
-    if getattr(aiopg, '_datadog_patch', False):
-        setattr(aiopg, '_datadog_patch', False)
-        _u(aiopg.connection, '_connect')
-        _unpatch_extensions(_aiopg_extensions)
+    return Pin(service=service, app=app, app_type=app_type, tags=tags,
+               tracer=tracer)
 
 
 @asyncio.coroutine
-def patched_connect(connect_func, _, args, kwargs):
-    conn = yield from connect_func(*args, **kwargs)
-    return psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
+def _patched_connect(connect_func, _, args, kwargs_param):
+    @asyncio.coroutine
+    def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,
+               enable_json=True, enable_hstore=True, enable_uuid=True,
+               echo=False, **kwargs):
+
+        parsed_dsn = psycopg2.extensions.make_dsn(dsn, **kwargs)
+
+        # fetch tags from the dsn
+        parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+        tags = {
+            net.TARGET_HOST: parsed_dsn.get("host"),
+            net.TARGET_PORT: parsed_dsn.get("port"),
+            db.NAME: parsed_dsn.get("dbname"),
+            db.USER: parsed_dsn.get("user"),
+            "db.application": parsed_dsn.get("application_name"),
+        }
+
+        pin = _create_pin(tags)
+
+        if pin.enabled():
+            name = (pin.app or 'sql') + ".connect"
+            with pin.tracer.trace(name, service=pin.service) as s:
+                s.span_type = sql.TYPE
+                s.set_tags(pin.tags)
+                conn = yield from connect_func(
+                    dsn, timeout=timeout, loop=loop, enable_json=enable_json,
+                    enable_hstore=enable_hstore, enable_uuid=enable_uuid,
+                    echo=echo, **kwargs)  # noqa: E999
+
+            conn = AIOTracedConnection(conn)
+            pin.onto(conn)
+        else:
+            conn = yield from connect_func(
+                dsn, timeout=timeout, loop=loop, enable_json=enable_json,
+                enable_hstore=enable_hstore, enable_uuid=enable_uuid, echo=echo,
+                kwargs=kwargs)
+
+        return conn
+
+    result = yield from unwrap(*args, **kwargs_param)
+    return result
 
 
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
+
     obj, scope = _unroll_args(*args, **kwargs)
 
     # register_type performs a c-level check of the object
@@ -55,3 +95,95 @@ _aiopg_extensions = [
      psycopg2.extensions, 'register_type',
      _extensions_register_type),
 ]
+
+
+@asyncio.coroutine
+def _patched_acquire(acquire_func, instance, args, kwargs):
+    parsed_dsn = psycopg2.extensions.make_dsn(instance._dsn,
+                                              **instance._conn_kwargs)
+
+    # fetch tags from the dsn
+    parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+
+    tags = {
+        net.TARGET_HOST: parsed_dsn.get("host"),
+        net.TARGET_PORT: parsed_dsn.get("port"),
+        db.NAME: parsed_dsn.get("dbname"),
+        db.USER: parsed_dsn.get("user"),
+        "db.application": parsed_dsn.get("application_name"),
+    }
+
+    pin = _create_pin(tags)
+
+    if not pin.tracer.enabled:
+        conn = yield from acquire_func(*args, **kwargs)
+        return conn
+
+    with pin.tracer.trace((pin.app or 'sql') + '.pool.acquire',
+                          service=pin.service) as s:
+        s.span_type = sql.TYPE
+        s.set_tags(pin.tags)
+
+        conn = yield from acquire_func(*args, **kwargs)
+
+    return conn
+
+
+@asyncio.coroutine
+def _patched_release(release_func, instance, args, kwargs):
+    parsed_dsn = psycopg2.extensions.make_dsn(instance._dsn, **instance._conn_kwargs)
+
+    # fetch tags from the dsn
+    parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+
+    tags = {
+        net.TARGET_HOST: parsed_dsn.get("host"),
+        net.TARGET_PORT: parsed_dsn.get("port"),
+        db.NAME: parsed_dsn.get("dbname"),
+        db.USER: parsed_dsn.get("user"),
+        "db.application": parsed_dsn.get("application_name"),
+    }
+
+    pin = _create_pin(tags)
+
+    if not pin.tracer.enabled:
+        conn = yield from release_func(*args, **kwargs)
+        return conn
+
+    with pin.tracer.trace((pin.app or 'sql') + '.pool.release',
+                          service=pin.service) as s:
+        s.span_type = sql.TYPE
+        s.set_tags(pin.tags)
+
+        conn = yield from release_func(*args, **kwargs)
+
+    return conn
+
+
+def patch():
+    """ Patch monkey patches psycopg's connection function
+        so that the connection's functions are traced.
+    """
+    if getattr(aiopg, '_datadog_patch', False):
+        return
+
+    setattr(aiopg, '_datadog_patch', True)
+
+    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', _patched_connect)
+
+    # tracing acquire since it may block waiting for a connection from the pool
+    wrapt.wrap_function_wrapper(aiopg.pool.Pool, '_acquire', _patched_acquire)
+
+    # tracing release to match acquire
+    wrapt.wrap_function_wrapper(aiopg.pool.Pool, 'release', _patched_release)
+
+    _patch_extensions(_aiopg_extensions)  # do this early just in case
+
+
+def unpatch():
+    if getattr(aiopg, '_datadog_patch', False):
+        setattr(aiopg, '_datadog_patch', False)
+        _u(aiopg.connection, '_connect')
+        _u(aiopg.pool.Pool, '_acquire')
+        _u(aiopg.pool.Pool, 'release')
+        _unpatch_extensions(_aiopg_extensions)

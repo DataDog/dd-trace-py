@@ -7,6 +7,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace.contrib.asyncpg.patch import patch, unpatch
+from ddtrace import Pin
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
@@ -28,7 +29,7 @@ class TestPsycopgPatch(AsyncioTestCase):
     def setUp(self):
         super().setUp()
         self._conn = None
-        patch(tracer=self.tracer)
+        patch()
 
     def tearDown(self):
         if self._conn and not self._conn.is_closed():
@@ -37,7 +38,8 @@ class TestPsycopgPatch(AsyncioTestCase):
         super().tearDown()
         unpatch()
 
-    async def _get_conn_and_tracer(self):
+    async def _get_conn_and_tracer(self, service=None, tracer=None):
+        Pin(service, tracer=tracer or self.tracer).onto(asyncpg)
         conn = self._conn = await asyncpg.connect(**POSTGRES_CONFIG)
         return conn, self.tracer
 
@@ -113,6 +115,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     @mark_sync
     async def test_pool(self):
+        Pin(None, tracer=self.tracer).onto(asyncpg)
+
         async with asyncpg.create_pool(**POSTGRES_CONFIG,
                                        min_size=1, max_size=1) as pool:
             async with pool.acquire() as conn:
@@ -143,9 +147,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         services = ['db', 'another']
         for service in services:
-            unpatch()
-            patch(service=service, tracer=tracer)
-            conn, _ = await self._get_conn_and_tracer()
+            conn, _ = await self._get_conn_and_tracer(service, tracer)
             await self.assert_conn_is_traced(tracer, conn, service)
             await conn.close()
 
@@ -163,12 +165,11 @@ class TestPsycopgPatch(AsyncioTestCase):
         writer = tracer.writer
 
         # Test patch idempotence
-        patch(tracer=tracer)
-        patch(tracer=tracer)
+        patch()
+        patch()
 
         service = 'fo'
-        unpatch()
-        patch(service=service, tracer=tracer)
+        Pin(service, tracer=tracer).onto(asyncpg)
 
         conn = await asyncpg.connect(**POSTGRES_CONFIG)
         await conn.execute('select \'blah\'')
@@ -190,9 +191,6 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         # Test patch again
         patch()
-
-        unpatch()
-        patch(service=service, tracer=tracer)
         conn = await asyncpg.connect(**POSTGRES_CONFIG)
         await conn.execute('select \'blah\'')
         await conn.close()
