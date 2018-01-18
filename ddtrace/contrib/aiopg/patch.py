@@ -9,7 +9,7 @@ import wrapt
 # ddtrace
 from .connection import AIOTracedConnection
 from ..psycopg.patch import _patch_extensions, \
-    _unpatch_extensions, patch_conn as psycppg_patch_conn
+    _unpatch_extensions
 from ...util import unwrap as _u
 from ddtrace.ext import sql, net, db
 from ddtrace import Pin
@@ -24,7 +24,9 @@ def _create_pin(tags):
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
-        tags = {**tags, **pin.tags}
+        # when we drop 3.4 we can switch to: {**tags, **pin.tags}
+        tags = dict(tags)
+        tags.update(pin.tags)
 
     return Pin(service=service, app=app, app_type=app_type, tags=tags,
                tracer=tracer)
@@ -36,7 +38,7 @@ def _patched_connect(connect_func, _, args, kwargs_param):
     def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,
                enable_json=True, enable_hstore=True, enable_uuid=True,
                echo=False, **kwargs):
-        
+
         parsed_dsn = psycopg2.extensions.make_dsn(dsn, **kwargs)
 
         # fetch tags from the dsn
@@ -70,7 +72,7 @@ def _patched_connect(connect_func, _, args, kwargs_param):
                 kwargs=kwargs)
 
         return conn
-    
+
     result = yield from unwrap(*args, **kwargs_param)
     return result
 
