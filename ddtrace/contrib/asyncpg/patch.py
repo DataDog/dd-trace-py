@@ -25,7 +25,7 @@ def _create_pin(tags):
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
-        tags = {**tags, **pin.tags}
+        tags = {**tags, **pin.tags}  # noqa: E999
 
     return Pin(service=service, app=app, app_type=app_type, tags=tags,
                tracer=tracer)

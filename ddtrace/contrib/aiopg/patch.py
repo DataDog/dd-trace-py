@@ -24,7 +24,9 @@ def _create_pin(tags):
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
-        tags = {**tags, **pin.tags}
+        # when we drop 3.4 we can switch to: {**tags, **pin.tags}
+        tags = dict(tags)
+        tags.update(pin.tags)
 
     return Pin(service=service, app=app, app_type=app_type, tags=tags,
                tracer=tracer)
