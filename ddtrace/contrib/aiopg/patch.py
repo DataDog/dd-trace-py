@@ -130,7 +130,6 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
     return conn
 
 
-@asyncio.coroutine
 def _patched_release(release_func, instance, args, kwargs):
     parsed_dsn = psycopg2.extensions.make_dsn(instance._dsn, **instance._conn_kwargs)
 
@@ -148,7 +147,7 @@ def _patched_release(release_func, instance, args, kwargs):
     pin = _create_pin(tags)
 
     if not pin.tracer.enabled:
-        conn = yield from release_func(*args, **kwargs)
+        conn = release_func(*args, **kwargs)
         return conn
 
     with pin.tracer.trace((pin.app or 'sql') + '.pool.release',
@@ -156,7 +155,7 @@ def _patched_release(release_func, instance, args, kwargs):
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
-        conn = yield from release_func(*args, **kwargs)
+        conn = release_func(*args, **kwargs)
 
     return conn
 
