@@ -111,7 +111,9 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
         new_ctx = Context(
             trace_id=ctx.trace_id,
             span_id=ctx.span_id,
+            sampled=ctx.sampled,
             sampling_priority=ctx.sampling_priority,
+            service=ctx.service
         )
         set_call_context(new_task, new_ctx)
 

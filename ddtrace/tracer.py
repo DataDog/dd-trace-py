@@ -171,16 +171,20 @@ class Tracer(object):
         if parent:
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
+            parent_service = parent.service
+            parent_sampled = parent.sampled
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
+            parent_service = context.service
+            parent_sampled = context.sampled
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
 
             # when not provided, inherit from parent's service
             if parent:
-                service = service or parent.service
+                service = service or parent_service
 
             span = Span(
                 self,
@@ -193,8 +197,8 @@ class Tracer(object):
             )
 
             # Extra attributes when from a local parent
+            span.sampled = parent_sampled
             if parent:
-                span.sampled = parent.sampled
                 span._parent = parent
 
         else:
