@@ -22,7 +22,7 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
+    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None, service=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -36,6 +36,7 @@ class Context(object):
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
+        self._parent_service = service
         self._sampled = sampled
         self._sampling_priority = sampling_priority
 
@@ -50,6 +51,18 @@ class Context(object):
         """Return current context span_id."""
         with self._lock:
             return self._parent_span_id
+
+    @property
+    def sampled(self):
+        """Return sampling status."""
+        with self._lock:
+            return self._sampled
+
+    @property
+    def service(self):
+        """Return current service."""
+        with self._lock:
+            return self._parent_service
 
     @property
     def sampling_priority(self):
@@ -84,6 +97,7 @@ class Context(object):
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
             self._sampled = span.sampled
+            self._parent_service = span.service
         else:
             self._parent_span_id = None
 
