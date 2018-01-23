@@ -184,8 +184,7 @@ class Tracer(object):
             # child_of a non-empty context, so either a local child span or from a remote context
 
             # when not provided, inherit from parent's service
-            if parent:
-                service = service or parent_service
+            service = service or parent_service
 
             span = Span(
                 self,
