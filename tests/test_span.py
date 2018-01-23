@@ -216,23 +216,22 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
-def test_span_to_dict_priority():
-    for i in range(10):
-        s = Span(tracer=None, name="test.span", service="s", resource="r")
-        s.span_type = "foo"
-        s.set_tag("a", "1")
-        s.set_meta("b", "2")
-        s.finish()
+def test_span_to_dict():
+    s = Span(tracer=None, name="test.span", service="s", resource="r")
+    s.span_type = "foo"
+    s.set_tag("a", "1")
+    s.set_meta("b", "2")
+    s.finish()
 
-        d = s.to_dict()
-        assert d
-        eq_(d["span_id"], s.span_id)
-        eq_(d["trace_id"], s.trace_id)
-        eq_(d["parent_id"], s.parent_id)
-        eq_(d["meta"], {"a": "1", "b": "2"})
-        eq_(d["type"], "foo")
-        eq_(d["error"], 0)
-        eq_(type(d["error"]), int)
+    d = s.to_dict()
+    assert d
+    eq_(d["span_id"], s.span_id)
+    eq_(d["trace_id"], s.trace_id)
+    eq_(d["parent_id"], s.parent_id)
+    eq_(d["meta"], {"a": "1", "b": "2"})
+    eq_(d["type"], "foo")
+    eq_(d["error"], 0)
+    eq_(type(d["error"]), int)
 
 class DummyTracer(object):
     def __init__(self):
