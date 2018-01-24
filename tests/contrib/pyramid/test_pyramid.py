@@ -1,8 +1,5 @@
 # stdlib
-import logging
 import json
-import sys
-from wsgiref.simple_server import make_server
 
 # 3p
 from pyramid.response import Response
@@ -19,7 +16,6 @@ import webtest
 from nose.tools import eq_, assert_raises
 
 # project
-import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.pyramid import trace_pyramid
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
@@ -160,8 +156,9 @@ class PyramidBase(object):
         eq_(s.span_type, 'template')
 
     def test_renderer(self):
-        res = self.app.get('/renderer', status=200)
+        self.app.get('/renderer', status=200)
         assert self.rend._received['request'] is not None
+
         self.rend.assert_(foo='bar')
         writer = self.tracer.writer
         spans = writer.pop()
