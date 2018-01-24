@@ -10,7 +10,7 @@ from wsgiref.simple_server import make_server
 
 # project
 import ddtrace
-from .test_pyramid import PyramidBase, get_app
+from .test_pyramid import PyramidBase, get_app, custom_exception_view
 
 class TestPyramidAutopatch(PyramidBase):
     def setUp(self):
@@ -20,6 +20,8 @@ class TestPyramidAutopatch(PyramidBase):
 
         config = Configurator()
         self.rend = config.testing_add_renderer('template.pt')
+        # required to reproduce a regression test
+        config.add_notfound_view(custom_exception_view)
         app = get_app(config)
         self.app = webtest.TestApp(app)
 
@@ -31,6 +33,8 @@ class TestPyramidExplicitTweens(PyramidBase):
 
         config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n'})
         self.rend = config.testing_add_renderer('template.pt')
+        # required to reproduce a regression test
+        config.add_notfound_view(custom_exception_view)
         app = get_app(config)
         self.app = webtest.TestApp(app)
 

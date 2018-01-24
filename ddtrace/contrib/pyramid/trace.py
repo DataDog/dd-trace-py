@@ -68,7 +68,9 @@ def trace_tween_factory(handler, registry):
                     # If the exception is a pyramid HTTPException,
                     # that's still valuable information that isn't necessarily
                     # a 500. For instance, HTTPFound is a 302.
-                    response = e  # Pyramid exceptions are all valid response types
+                    # As described in docs, Pyramid exceptions are all valid
+                    # response types
+                    response = e
                     raise
                 except BaseException:
                     span.set_tag(http.STATUS_CODE, 500)
