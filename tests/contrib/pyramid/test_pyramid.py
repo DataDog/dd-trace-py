@@ -1,24 +1,42 @@
-# stdlib
-import logging
 import json
-import sys
-from wsgiref.simple_server import make_server
-
-# 3p
-from pyramid.response import Response
-from pyramid.config import Configurator
-from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPInternalServerError
 import webtest
-from nose.tools import eq_
+
+from nose.tools import eq_, assert_raises
 
 # project
-import ddtrace
 from ddtrace import compat
-from ddtrace.contrib.pyramid import trace_pyramid
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 
+from pyramid.httpexceptions import HTTPException
+
+from .app import create_app
+
+from ...test_tracer import get_dummy_tracer
+from ...util import override_global_tracer
+
+
 class PyramidBase(object):
+    instrument = False
+
+    def setUp(self):
+        self.tracer = get_dummy_tracer()
+        self.create_app()
+
+    def create_app(self, settings=None):
+        # get default settings or use what is provided
+        settings = settings or self.get_settings()
+        # always set the dummy tracer as a default tracer
+        settings.update({'datadog_tracer': self.tracer})
+
+        app, renderer = create_app(settings, self.instrument)
+        self.app = webtest.TestApp(app)
+        self.renderer = renderer
+
+    def get_settings(self):
+        return {}
+
+    def override_settings(self, settings):
+        self.create_app(settings)
 
     def test_200(self):
         res = self.app.get('/', status=200)
@@ -58,6 +76,36 @@ class PyramidBase(object):
         eq_(s.meta.get('http.method'), 'GET')
         eq_(s.meta.get('http.status_code'), '404')
         eq_(s.meta.get('http.url'), '/404')
+
+    def test_302(self):
+        self.app.get('/redirect', status=302)
+
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET raise_redirect')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '302')
+        eq_(s.meta.get('http.url'), '/redirect')
+
+    def test_204(self):
+        self.app.get('/nocontent', status=204)
+
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, 'GET raise_no_content')
+        eq_(s.error, 0)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '204')
+        eq_(s.meta.get('http.url'), '/nocontent')
 
     def test_exception(self):
         try:
@@ -120,9 +168,10 @@ class PyramidBase(object):
         eq_(s.span_type, 'template')
 
     def test_renderer(self):
-        res = self.app.get('/renderer', status=200)
-        assert self.rend._received['request'] is not None
-        self.rend.assert_(foo='bar')
+        self.app.get('/renderer', status=200)
+        assert self.renderer._received['request'] is not None
+
+        self.renderer.assert_(foo='bar')
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 2)
@@ -142,129 +191,75 @@ class PyramidBase(object):
         eq_(s.error, 0)
         eq_(s.span_type, 'template')
 
-class TestPyramid(PyramidBase):
-    def setUp(self):
-        from tests.test_tracer import get_dummy_tracer
-        self.tracer = get_dummy_tracer()
+    def test_http_exception_response(self):
+        with assert_raises(HTTPException):
+            self.app.get('/404/raise_exception', status=404)
 
-        settings = {
-            'datadog_trace_service': 'foobar',
-            'datadog_tracer': self.tracer
-        }
-        config = Configurator(settings=settings)
-        self.rend = config.testing_add_renderer('template.pt')
-        trace_pyramid(config)
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, 'foobar')
+        eq_(s.resource, '404')
+        eq_(s.error, 1)
+        eq_(s.span_type, 'http')
+        eq_(s.meta.get('http.method'), 'GET')
+        eq_(s.meta.get('http.status_code'), '404')
+        eq_(s.meta.get('http.url'), '/404/raise_exception')
 
-        app = get_app(config)
-        self.app = webtest.TestApp(app)
+    def test_insert_tween_if_needed_already_set(self):
+        settings = {'pyramid.tweens': 'ddtrace.contrib.pyramid:trace_tween_factory'}
+        insert_tween_if_needed(settings)
+        eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory')
+
+    def test_insert_tween_if_needed_none(self):
+        settings = {'pyramid.tweens': ''}
+        insert_tween_if_needed(settings)
+        eq_(settings['pyramid.tweens'], '')
+
+    def test_insert_tween_if_needed_excview(self):
+        settings = {'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'}
+        insert_tween_if_needed(settings)
+        eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory')
+
+    def test_insert_tween_if_needed_excview_and_other(self):
+        settings = {'pyramid.tweens': 'a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n'}
+        insert_tween_if_needed(settings)
+        eq_(settings['pyramid.tweens'],
+            'a.first.tween\n'
+            'ddtrace.contrib.pyramid:trace_tween_factory\n'
+            'pyramid.tweens.excview_tween_factory\n'
+            'a.last.tween\n')
+
+    def test_insert_tween_if_needed_others(self):
+        settings = {'pyramid.tweens': 'a.random.tween\nand.another.one'}
+        insert_tween_if_needed(settings)
+        eq_(settings['pyramid.tweens'], 'a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory')
+
+    def test_include_conflicts(self):
+        # test that includes do not create conflicts
+        self.override_settings({'pyramid.includes': 'tests.contrib.pyramid.test_pyramid'})
+        self.app.get('/404', status=404)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
 
 def includeme(config):
     pass
 
-def test_include_conflicts():
-    """ Test that includes do not create conflicts """
-    from ...test_tracer import get_dummy_tracer
-    from ...util import override_global_tracer
-    tracer = get_dummy_tracer()
-    with override_global_tracer(tracer):
-        config = Configurator(settings={'pyramid.includes': 'tests.contrib.pyramid.test_pyramid'})
-        trace_pyramid(config)
-        app = webtest.TestApp(config.make_wsgi_app())
-        app.get('/', status=404)
-        spans = tracer.writer.pop()
-        assert spans
-        eq_(len(spans), 1)
 
-def test_tween_overriden():
-    """ In case our tween is overriden by the user config we should not log
-    rendering """
-    from ...test_tracer import get_dummy_tracer
-    from ...util import override_global_tracer
-    tracer = get_dummy_tracer()
-    with override_global_tracer(tracer):
-        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
-        trace_pyramid(config)
+class TestPyramid(PyramidBase):
+    instrument = True
 
-        def json(request):
-            return {'a': 1}
-        config.add_route('json', '/json')
-        config.add_view(json, route_name='json', renderer='json')
-        app = webtest.TestApp(config.make_wsgi_app())
-        app.get('/json', status=200)
-        spans = tracer.writer.pop()
-        assert not spans
+    def get_settings(self):
+        return {
+            'datadog_trace_service': 'foobar',
+        }
 
-def test_insert_tween_if_needed_already_set():
-    settings = {'pyramid.tweens': 'ddtrace.contrib.pyramid:trace_tween_factory'}
-    insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory')
-
-def test_insert_tween_if_needed_none():
-    settings = {'pyramid.tweens': ''}
-    insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'], '')
-
-def test_insert_tween_if_needed_excview():
-    settings = {'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'}
-    insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory')
-
-def test_insert_tween_if_needed_excview_and_other():
-    settings = {'pyramid.tweens': 'a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n'}
-    insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'],
-        'a.first.tween\n'
-        'ddtrace.contrib.pyramid:trace_tween_factory\n'
-        'pyramid.tweens.excview_tween_factory\n'
-        'a.last.tween\n')
-
-def test_insert_tween_if_needed_others():
-    settings = {'pyramid.tweens': 'a.random.tween\nand.another.one'}
-    insert_tween_if_needed(settings)
-    eq_(settings['pyramid.tweens'], 'a.random.tween\nand.another.one\nddtrace.contrib.pyramid:trace_tween_factory')
-
-def get_app(config):
-    """ return a pyramid wsgi app with various urls. """
-
-    def index(request):
-        return Response('idx')
-
-    def error(request):
-        raise HTTPInternalServerError("oh no")
-
-    def exception(request):
-        1 / 0
-
-    def json(request):
-        return {'a': 1}
-
-    def renderer(request):
-        return render_to_response('template.pt', {'foo': 'bar'}, request=request)
-
-    config.add_route('index', '/')
-    config.add_route('error', '/error')
-    config.add_route('exception', '/exception')
-    config.add_route('json', '/json')
-    config.add_route('renderer', '/renderer')
-    config.add_view(index, route_name='index')
-    config.add_view(error, route_name='error')
-    config.add_view(exception, route_name='exception')
-    config.add_view(json, route_name='json', renderer='json')
-    config.add_view(renderer, route_name='renderer', renderer='template.pt')
-    return config.make_wsgi_app()
-
-
-if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-    ddtrace.tracer.debug_logging = True
-    settings = {
-        'datadog_trace_service': 'foobar',
-        'datadog_tracer': ddtrace.tracer
-    }
-    config = Configurator(settings=settings)
-    trace_pyramid(config)
-    app = get_app(config)
-    port = 8080
-    server = make_server('0.0.0.0', port, app)
-    print('running on %s' % port)
-    server.serve_forever()
+    def test_tween_overridden(self):
+        # in case our tween is overriden by the user config we should
+        # not log rendering
+        self.override_settings({'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
+        self.app.get('/json', status=200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)

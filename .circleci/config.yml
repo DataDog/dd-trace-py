@@ -449,8 +449,8 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-pyramid-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18}-webtest' --result-json /tmp/pyramid.1.results
-      - run: tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18}-webtest' --result-json /tmp/pyramid.2.results
+      - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.1.results
+      - run: tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
