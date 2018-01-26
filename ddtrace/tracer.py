@@ -173,12 +173,12 @@ class Tracer(object):
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
             parent_service = parent.service
-            parent_sampled = parent.sampled
+            parent_sampled = parent.issampled
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
             parent_service = context.service
-            parent_sampled = context.sampled
+            parent_sampled = context.is_sampled()
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
