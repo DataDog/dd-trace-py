@@ -53,12 +53,6 @@ class Context(object):
             return self._parent_span_id
 
     @property
-    def sampled(self):
-        """Return sampling status."""
-        with self._lock:
-            return self._sampled
-
-    @property
     def service(self):
         """Return current service."""
         with self._lock:
