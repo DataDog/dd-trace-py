@@ -10,6 +10,7 @@ from .writer import AgentWriter
 from .span import Span
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
+from .ext.priority import AUTO_REJECT, AUTO_KEEP
 
 
 log = logging.getLogger(__name__)
@@ -222,9 +223,9 @@ class Tracer(object):
                     # priority sampler will use the default sampling rate, which might
                     # lead to oversampling (that is, dropping too many traces).
                     if self.priority_sampler.sample(span):
-                        context.sampling_priority = 1
+                        context.sampling_priority = AUTO_KEEP
                     else:
-                        context.sampling_priority = 0
+                        context.sampling_priority = AUTO_REJECT
             else:
                 if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
