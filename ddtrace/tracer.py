@@ -173,7 +173,7 @@ class Tracer(object):
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
             parent_service = parent.service
-            parent_sampled = parent.issampled
+            parent_sampled = parent.sampled
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
