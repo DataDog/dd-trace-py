@@ -3,6 +3,8 @@ import time
 
 # 3p
 import psycopg2
+from psycopg2 import _psycopg
+from psycopg2 import extensions
 from psycopg2 import extras
 from nose.tools import eq_
 
@@ -114,6 +116,28 @@ class PsycopgCore(object):
         #   _ext.register_type(_ext.UUID, conn_or_curs)
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
+
+        # NOTE: this will crash if it doesn't work.
+        #   _ext.register_default_json(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        extras.register_default_json(conn)
+
+
+    def test_manual_wrap_extension_adapt(self):
+        conn, _ = self._get_conn_and_tracer()
+        # NOTE: this will crash if it doesn't work.
+        #   items = _ext.adapt([1, 2, 3])
+        #   items.prepare(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        items = extensions.adapt([1, 2, 3])
+        items.prepare(conn)
+
+        # NOTE: this will crash if it doesn't work.
+        #   binary = _ext.adapt(b'12345)
+        #   binary.prepare(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        binary = extensions.adapt(b'12345')
+        binary.prepare(conn)
 
     def test_connect_factory(self):
         tracer = get_dummy_tracer()
