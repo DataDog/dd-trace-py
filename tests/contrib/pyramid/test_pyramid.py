@@ -16,6 +16,7 @@ from ...util import override_global_tracer
 
 
 class PyramidBase(object):
+    """Base Pyramid test application"""
     instrument = False
 
     def setUp(self):
@@ -37,6 +38,9 @@ class PyramidBase(object):
 
     def override_settings(self, settings):
         self.create_app(settings)
+
+class PyramidTestCase(PyramidBase):
+    """Pyramid TestCase that includes tests for automatic instrumentation"""
 
     def test_200(self):
         res = self.app.get('/', status=200)
@@ -248,7 +252,7 @@ def includeme(config):
     pass
 
 
-class TestPyramid(PyramidBase):
+class TestPyramid(PyramidTestCase):
     instrument = True
 
     def get_settings(self):
