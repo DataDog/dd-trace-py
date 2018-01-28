@@ -3,7 +3,6 @@ import webtest
 
 from nose.tools import eq_, assert_raises
 
-# project
 from ddtrace import compat
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 
@@ -267,3 +266,30 @@ class TestPyramid(PyramidTestCase):
         self.app.get('/json', status=200)
         spans = self.tracer.writer.pop()
         eq_(len(spans), 0)
+
+
+class TestPyramidDistributedTracing(PyramidBase):
+    instrument = True
+
+    def get_settings(self):
+        return {
+            'datadog_distributed_tracing': True,
+        }
+
+    def test_distributed_tracing(self):
+        # ensure the Context is properly created
+        # if distributed tracing is enabled
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+        res = self.app.get('/', headers=headers, status=200)
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        # check the propagated Context
+        span = spans[0]
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.get_metric('_sampling_priority_v1'), 2)
