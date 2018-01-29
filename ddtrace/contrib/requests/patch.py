@@ -1,3 +1,4 @@
+import os
 import logging
 
 import wrapt
@@ -7,7 +8,7 @@ import ddtrace
 
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...util import unwrap as _u
+from ...util import asbool, unwrap as _u
 
 
 log = logging.getLogger(__name__)
@@ -36,6 +37,10 @@ def unpatch():
 def _session_initializer(func, instance, args, kwargs):
     """Define settings when requests client is initialized"""
     func(*args, **kwargs)
+
+    # set tracer settings
+    distributed_tracing = asbool(os.environ.get('DATADOG_REQUESTS_DISTRIBUTED_TRACING')) or False
+    setattr(instance, 'distributed_tracing', distributed_tracing)
 
 
 def _traced_request_func(func, instance, args, kwargs):
