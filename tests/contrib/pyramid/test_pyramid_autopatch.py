@@ -13,15 +13,14 @@ from wsgiref.simple_server import make_server
 from ...test_tracer import get_dummy_tracer
 from ...util import override_global_tracer
 
-#from .test_pyramid import PyramidBase, get_app, custom_exception_view
-from .test_pyramid import PyramidBase
+from .test_pyramid import PyramidTestCase
 
 
-class TestPyramidAutopatch(PyramidBase):
+class TestPyramidAutopatch(PyramidTestCase):
     instrument = False
 
 
-class TestPyramidExplicitTweens(PyramidBase):
+class TestPyramidExplicitTweens(PyramidTestCase):
     instrument = False
 
     def get_settings(self):
