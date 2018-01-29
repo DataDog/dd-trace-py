@@ -1,28 +1,41 @@
-"""
-Tracing for the requests library.
-
-https://github.com/kennethreitz/requests
-"""
-
-# stdlib
 import logging
 
-# 3p
-import requests
 import wrapt
+import requests
 
-# project
 import ddtrace
-from ddtrace.ext import http
+
+from ...ext import http
 from ...propagation.http import HTTPPropagator
+from ...util import unwrap as _u
 
 
 log = logging.getLogger(__name__)
 
 
 def patch():
-    """ Monkeypatch the requests library to trace http calls. """
+    """Activate http calls tracing"""
+    if getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', True)
+
+    wrapt.wrap_function_wrapper('requests', 'Session.__init__', _session_initializer)
     wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+
+
+def unpatch():
+    """Disable traced sessions"""
+    if not getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', False)
+
+    _u(requests.Session, '__init__')
+    _u(requests.Session, 'request')
+
+
+def _session_initializer(func, instance, args, kwargs):
+    """Define settings when requests client is initialized"""
+    func(*args, **kwargs)
 
 
 def _traced_request_func(func, instance, args, kwargs):
