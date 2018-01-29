@@ -1,13 +1,10 @@
-
-# 3p
-from nose.tools import eq_, assert_in, assert_not_in
 from requests_mock import Adapter
+from nose.tools import eq_, assert_in, assert_not_in
 
-# project
-from .test_requests import get_traced_session
+from .test_requests import BaseRequestTestCase
 
-class TestRequestsDistributed(object):
 
+class TestRequestsDistributed(BaseRequestTestCase):
     def headers_here(self, tracer, request, root_span):
         # Use an additional matcher to query the request headers.
         # This is because the parent_id can only been known within such a callback,
@@ -29,19 +26,18 @@ class TestRequestsDistributed(object):
 
     def test_propagation_true(self):
         adapter = Adapter()
-        tracer, session = get_traced_session()
-        session.mount('mock', adapter)
-        session.distributed_tracing = True
+        self.session.mount('mock', adapter)
+        self.session.distributed_tracing = True
 
-        with tracer.trace('root') as root:
+        with self.tracer.trace('root') as root:
             def matcher(request):
-                return self.headers_here(tracer, request, root)
+                return self.headers_here(self.tracer, request, root)
             adapter.register_uri('GET', 'mock://datadog/foo', additional_matcher=matcher, text='bar')
-            resp = session.get('mock://datadog/foo')
+            resp = self.session.get('mock://datadog/foo')
             eq_(200, resp.status_code)
             eq_('bar', resp.text)
 
-        spans = tracer.writer.spans
+        spans = self.tracer.writer.spans
         root, req = spans
         eq_('root', root.name)
         eq_('requests.request', req.name)
@@ -50,14 +46,13 @@ class TestRequestsDistributed(object):
 
     def test_propagation_false(self):
         adapter = Adapter()
-        tracer, session = get_traced_session()
-        session.mount('mock', adapter)
-        session.distributed_tracing = False
+        self.session.mount('mock', adapter)
+        self.session.distributed_tracing = False
 
-        with tracer.trace('root'):
+        with self.tracer.trace('root'):
             def matcher(request):
-                return self.headers_not_here(tracer, request)
+                return self.headers_not_here(self.tracer, request)
             adapter.register_uri('GET', 'mock://datadog/foo', additional_matcher=matcher, text='bar')
-            resp = session.get('mock://datadog/foo')
+            resp = self.session.get('mock://datadog/foo')
             eq_(200, resp.status_code)
             eq_('bar', resp.text)
