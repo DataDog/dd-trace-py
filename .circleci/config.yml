@@ -639,6 +639,7 @@ jobs:
       - checkout
       - run: pip install mkwheelhouse sphinx
       - run: S3_DIR=trace-dev rake release:wheel
+      - run: S3_DIR=trace-dev rake release:docs
 
   deploy_experimental:
     # build the develop branch releasing development docs
@@ -650,14 +651,14 @@ jobs:
       - run: S3_DIR=trace-dev rake release:wheel
       - run: S3_DIR=trace-dev rake release:docs
 
-  deploy_unstable:
-    # nullify VERSION_SUFFIX to deploy the package with its public version
+  deploy_docs:
+    # deploy official documentation
     docker:
       - image: circleci/python:3.6
     steps:
       - checkout
       - run: pip install mkwheelhouse sphinx
-      - run: S3_DIR=trace-dev rake release:wheel
+      - run: S3_DIR=trace rake release:docs
 
   wait_all_tests:
     # this step ensures all `tox` environments are properly executed
@@ -744,21 +745,22 @@ workflows:
             - redis
             - sqlite3
             - msgpack
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*/
       - deploy_dev:
           requires:
             - wait_all_tests
-          type: approval
           filters:
             branches:
               only: /(master)/
       - deploy_experimental:
           requires:
             - wait_all_tests
-          type: approval
           filters:
             branches:
               only: /(develop)/
-      - deploy_unstable:
+      - deploy_docs:
           requires:
             - wait_all_tests
           type: approval
