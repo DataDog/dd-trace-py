@@ -9,6 +9,7 @@ import re
 from flask import Flask, render_template
 from nose.tools import eq_
 
+
 # project
 from ddtrace import Tracer
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -25,8 +26,8 @@ tracer = Tracer()
 tracer.writer = writer
 
 
-class TestError(Exception):
-    pass
+class TestError(Exception): pass
+class HandleMe(Exception): pass
 
 
 # define a toy flask app.
@@ -45,6 +46,9 @@ def index():
 def error():
     raise TestError()
 
+@app.route('/handleme')
+def handle_me():
+    raise HandleMe()
 
 @app.route('/fatal')
 def fatal():
@@ -86,6 +90,11 @@ app.add_url_rule(
 def handle_my_exception(e):
     assert isinstance(e, TestError)
     return 'error', 500
+
+@app.errorhandler(HandleMe)
+def err_to_202(e):
+    assert isinstance(e, HandleMe)
+    return 'handled', 202
 
 
 # add tracing to the app (we use a global app to help ensure multiple requests
@@ -195,6 +204,28 @@ class TestFlask(object):
         eq_(t.trace_id, s.trace_id)
         assert s.start < t.start < t.start + t.duration < end
 
+    def test_handleme(self):
+        start = time.time()
+        rv = app.get('/handleme')
+        end = time.time()
+
+        # ensure request worked
+        eq_(rv.status_code, 202)
+        eq_(rv.data, b'handled')
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, service)
+        eq_(s.resource, "handle_me")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), '202')
+        eq_(s.meta.get(http.METHOD), 'GET')
+
     def test_template_err(self):
         start = time.time()
         try:
@@ -294,7 +325,7 @@ class TestFlask(object):
         assert s.duration <= end - start
         eq_(s.meta.get(http.STATUS_CODE), '500')
         eq_(s.meta.get(http.METHOD), 'GET')
-        assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE)
+        assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE), s.meta
         assert "by zero" in s.meta.get(errors.ERROR_MSG)
         assert re.search('File ".*/contrib/flask/test_flask.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
 
