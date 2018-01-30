@@ -682,9 +682,6 @@ jobs:
 workflows:
   version: 2
   test:
-    filters:
-      tags:
-        only: /v[0-9]+(\.[0-9]+)*/
     jobs:
       - flake8
       - tracer
@@ -748,6 +745,9 @@ workflows:
             - redis
             - sqlite3
             - msgpack
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*/
       - deploy_dev:
           requires:
             - wait_all_tests
