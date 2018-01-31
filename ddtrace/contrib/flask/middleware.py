@@ -21,6 +21,9 @@ from flask import g, request, signals
 log = logging.getLogger(__name__)
 
 
+SPAN_NAME = 'flask.request'
+
+
 class TraceMiddleware(object):
 
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
@@ -112,7 +115,7 @@ class TraceMiddleware(object):
                 self._tracer.context_provider.activate(context)
         try:
             g.flask_datadog_span = self._tracer.trace(
-                "flask.request",
+                SPAN_NAME,
                 service=self._service,
                 span_type=http.TYPE,
             )
@@ -161,8 +164,12 @@ class TraceMiddleware(object):
             endpoint = request.endpoint or code
             url = request.base_url or ''
 
-        resource = endpoint or code
-        span.resource = compat.to_unicode(resource).lower()
+        # Let users specify their own resource in middleware if they so desire.
+        # See case https://github.com/DataDog/dd-trace-py/issues/353
+        if span.resource == SPAN_NAME:
+            resource = endpoint or code
+            span.resource = compat.to_unicode(resource).lower()
+
         span.set_tag(http.URL, compat.to_unicode(url))
         span.set_tag(http.STATUS_CODE, code)
         span.set_tag(http.METHOD, method)

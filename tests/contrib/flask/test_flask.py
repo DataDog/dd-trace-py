@@ -74,6 +74,13 @@ def child():
         span.set_tag('a', 'b')
         return 'child'
 
+@app.route("/custom_span")
+def custom_span():
+    span = tracer.current_span()
+    assert span
+    span.resource = "overridden"
+    return 'hiya'
+
 
 def unicode_view():
     return u'üŋïĉóđē'
@@ -395,3 +402,20 @@ class TestFlask(object):
         eq_(s.trace_id, 1234)
         eq_(s.parent_id, 4567)
         eq_(s.get_metric(SAMPLING_PRIORITY_KEY), 2)
+
+    def test_custom_span(self):
+        rv = app.get('/custom_span')
+        eq_(rv.status_code, 200)
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.service, service)
+        eq_(s.resource, "overridden")
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.METHOD), 'GET')
+
+
+
