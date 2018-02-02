@@ -17,9 +17,9 @@ config::
 
 Available settings are:
 
-* `datadog_trace_service`: change the `pyramid` service name
-* `datadog_trace_enabled`: sets if the Tracer is enabled or not
-* `datadog_distributed_tracing`: set it to `True` to enable Distributed Tracing
+* ``datadog_trace_service``: change the `pyramid` service name
+* ``datadog_trace_enabled``: sets if the Tracer is enabled or not
+* ``datadog_distributed_tracing``: set it to ``True`` to enable Distributed Tracing
 
 If you use the 'pyramid.tweens' settings value to set the tweens for your
 application, you need to add 'ddtrace.contrib.pyramid:trace_tween_factory'
@@ -27,7 +27,7 @@ explicitly to the list. For example::
 
     settings = {
         'datadog_trace_service' : 'my-web-app-name',
-        'pyramid.tweens', 'your_tween_no_1\nyour_tween_no_2\nddtrace.contrib.pyramid:trace_tween_factory',
+        'pyramid.tweens', 'your_tween_no_1\\nyour_tween_no_2\\nddtrace.contrib.pyramid:trace_tween_factory',
     }
 
     config = Configurator(settings=settings)
