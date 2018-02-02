@@ -358,23 +358,23 @@ Priority sampling
 Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
 for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
 
-The sampler can set the priority to the following values::
+The sampler can set the priority to the following values:
 
-- `AUTO_REJECT`: the sampler automatically decided to reject the trace
-- `AUTO_KEEP`: the sampler automatically decided to keep the trace
+- ``AUTO_REJECT``: the sampler automatically decided to reject the trace
+- ``AUTO_KEEP``: the sampler automatically decided to keep the trace
 
 For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
 To enable the priority sampling::
 
     tracer.configure(priority_sampling=True)
 
-Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
+Once enabled, the sampler will automatically assign a priority to your traces, depending on their service and volume.
 
 You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
-For that, set the `context.sampling_priority` to -1 or 2.
+For that, set the ``context.sampling_priority`` to one of the following:
 
-- `USER_REJECT`: the user asked to reject the trace
-- `USER_KEEP`: the user asked to keep the trace
+- ``USER_REJECT``: the user asked to reject the trace
+- ``USER_KEEP``: the user asked to keep the trace
 
 When not using distributed tracing, you may change the priority at any time,
 as long as the trace is not finished yet.
@@ -383,16 +383,16 @@ Changing the priority after context has been propagated causes different parts o
 to use different priorities. Some parts might be kept, some parts might be rejected,
 and this can cause the trace to be partially stored and remain incomplete.
 
-If you change the priority, we recommend you do it as soon as possible, when the root span has just been created.
-
+If you change the priority, we recommend you do it as soon as possible, when the root span has just been created::
 
     from ddtrace.ext.priority import USER_REJECT, USER_KEEP
 
     context = tracer.context_provider.active()
-    # Indicate to not keep the trace
+
+    # indicate to not keep the trace
     context.sampling_priority = USER_REJECT
 
-    # Indicate to keep the trace
+    # indicate to keep the trace
     span.context.sampling_priority = USER_KEEP
 
 
