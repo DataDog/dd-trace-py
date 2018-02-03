@@ -10,7 +10,6 @@ from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...util import asbool, unwrap as _u
 
-
 log = logging.getLogger(__name__)
 
 
