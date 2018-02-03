@@ -1,7 +1,8 @@
 import os
 
 from .trace import trace_pyramid, DD_TWEEN_NAME
-from .constants import SETTINGS_SERVICE
+from .constants import SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING
+from ...util import asbool
 
 import pyramid.config
 from pyramid.path import caller_package
@@ -24,8 +25,10 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
+    distributed_tracing = asbool(os.environ.get('DATADOG_PYRAMID_DISTRIBUTED_TRACING')) or False
     trace_settings = {
-        SETTINGS_SERVICE : service,
+        SETTINGS_SERVICE: service,
+        SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,
     }
     settings.update(trace_settings)
     # If the tweens are explicitly set with 'pyramid.tweens', we need to

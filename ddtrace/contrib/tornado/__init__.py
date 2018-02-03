@@ -3,7 +3,7 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library. The following is an example::
 
-    # patch before importing tornado
+    # patch before importing tornado and concurrent.futures
     from ddtrace import tracer, patch
     patch(tornado=True)
 
@@ -83,10 +83,10 @@ required_modules = ['tornado']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .stack_context import run_with_trace_context, TracerStackContext
-        from .patch import patch, unpatch
 
-        # alias for API compatibility
-        context_provider = TracerStackContext
+        context_provider = TracerStackContext()
+
+        from .patch import patch, unpatch
 
         __all__ = [
             'patch',

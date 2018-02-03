@@ -146,7 +146,7 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-aiohttp-{{ checksum "tox.ini" }}
-      - run: tox -e '{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}' --result-json /tmp/aiohttp.results
+      - run: tox -e '{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl' --result-json /tmp/aiohttp.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -449,8 +449,8 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-pyramid-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18}-webtest' --result-json /tmp/pyramid.1.results
-      - run: tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18}-webtest' --result-json /tmp/pyramid.2.results
+      - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.1.results
+      - run: tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -637,8 +637,10 @@ jobs:
       - image: circleci/python:3.6
     steps:
       - checkout
-      - run: pip install mkwheelhouse sphinx
+      - run: sudo apt-get -y install rake
+      - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:wheel
+      - run: S3_DIR=trace-dev rake release:docs
 
   deploy_experimental:
     # build the develop branch releasing development docs
@@ -646,18 +648,19 @@ jobs:
       - image: circleci/python:3.6
     steps:
       - checkout
-      - run: pip install mkwheelhouse sphinx
+      - run: sudo apt-get -y install rake
+      - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:wheel
-      - run: S3_DIR=trace-dev rake release:docs
 
-  deploy_unstable:
-    # nullify VERSION_SUFFIX to deploy the package with its public version
+  deploy_docs:
+    # deploy official documentation
     docker:
       - image: circleci/python:3.6
     steps:
       - checkout
-      - run: pip install mkwheelhouse sphinx
-      - run: S3_DIR=trace-dev rake release:wheel
+      - run: sudo apt-get -y install rake
+      - run: sudo pip install mkwheelhouse sphinx awscli
+      - run: S3_DIR=trace rake release:docs
 
   wait_all_tests:
     # this step ensures all `tox` environments are properly executed
@@ -747,25 +750,23 @@ workflows:
       - deploy_dev:
           requires:
             - wait_all_tests
-          type: approval
           filters:
             branches:
               only: /(master)/
       - deploy_experimental:
           requires:
             - wait_all_tests
-          type: approval
           filters:
             branches:
               only: /(develop)/
-      - deploy_unstable:
+      - deploy_docs:
           requires:
             - wait_all_tests
-          type: approval
           filters:
-            tags:
-              only: /v[0-9]+(\.[0-9]+)*/
-            # By default the job is run for all branches so we need to
-            # explicitely ignore all branches
+            # By default the job is available for a `release-vX.X.X`
+            # version without manual approval. This simplifies a bit
+            # the docs building.
+            # NOTE: we may update this step so that a tag push with a
+            # manual approval can trigger the documents building.
             branches:
-              ignore: /.*/
+              only: /release-v[0-9]+(\.[0-9]+)*/
