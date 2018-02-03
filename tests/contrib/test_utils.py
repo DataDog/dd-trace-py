@@ -1,6 +1,7 @@
 from nose.tools import eq_
 
 from ddtrace.contrib.util import func_name
+from ddtrace.util import asbool
 from functools import partial
 
 class SomethingCallable(object):

@@ -101,6 +101,18 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
 
 
+def asbool(value):
+    """Convert the given String to a boolean object. Accepted
+    values are `True` and `1`."""
+    if value is None:
+        return False
+
+    if isinstance(value, bool):
+        return value
+
+    return value.lower() in ("true", "1")
+
+
 def unwrap(obj, attr):
     f = getattr(obj, attr, None)
     if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):

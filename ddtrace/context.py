@@ -58,6 +58,11 @@ class Context(object):
         with self._lock:
             return self._parent_service
 
+    def sampled(self):
+        """Return current context sampled flag."""
+        with self._lock:
+            return self._sampled
+
     @property
     def sampling_priority(self):
         """Return current context sampling priority."""
