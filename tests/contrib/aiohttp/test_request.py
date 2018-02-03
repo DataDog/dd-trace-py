@@ -45,7 +45,7 @@ class TestRequestTracing(TraceTestCase):
         eq_(3, len(traces))
 
         # client request span
-        eq_(2, len(traces[1]))
+        eq_(4, len(traces[1]))
         client_request_span = traces[1][0]
         root_span_id = client_request_span.span_id
         root_trace_id = client_request_span.trace_id
@@ -54,8 +54,24 @@ class TestRequestTracing(TraceTestCase):
         eq_('ClientSession.request', client_request_span.name)
         eq_('/', client_request_span.resource)
 
+        # TCPConnector.connect
+        connector_connect_span = traces[1][1]
+        eq_(root_span_id, connector_connect_span.parent_id)
+        eq_(root_trace_id, connector_connect_span.trace_id)
+        eq_('aiohttp.client', connector_connect_span.service)
+        eq_('TCPConnector.connect', connector_connect_span.name)
+        eq_('/', connector_connect_span.resource)
+
+        # TCPConnector._create_connection
+        connector_create_connection_span = traces[1][2]
+        eq_(connector_connect_span.span_id, connector_create_connection_span.parent_id)
+        eq_(connector_connect_span.trace_id, connector_create_connection_span.trace_id)
+        eq_('aiohttp.client', connector_create_connection_span.service)
+        eq_('TCPConnector._create_connection', connector_create_connection_span.name)
+        eq_('/', connector_create_connection_span.resource)
+
         # client start span
-        client_start_span = traces[1][1]
+        client_start_span = traces[1][3]
         eq_(root_span_id, client_start_span.parent_id)
         eq_(root_trace_id, client_start_span.trace_id)
         eq_('aiohttp.client', client_start_span.service)
