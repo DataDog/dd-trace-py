@@ -5,13 +5,9 @@ Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
 import ddtrace
-from asyncio.base_events import BaseEventLoop
 
 from .provider import CONTEXT_ATTR
 from ...context import Context
-
-
-_orig_create_task = BaseEventLoop.create_task
 
 
 def set_call_context(task, ctx):
