@@ -2,8 +2,7 @@ from tornado.testing import AsyncHTTPTestCase
 
 from ddtrace.contrib.tornado import patch, unpatch
 
-from .web import app
-from .web.compat import reload_module
+from .web import app, compat
 from ...test_tracer import get_dummy_tracer
 
 
@@ -16,7 +15,8 @@ class TornadoTestCase(AsyncHTTPTestCase):
     def get_app(self):
         # patch Tornado and reload module app
         patch()
-        reload_module(app)
+        compat.reload_module(compat)
+        compat.reload_module(app)
         # create a dummy tracer and a Tornado web application
         self.tracer = get_dummy_tracer()
         settings = self.get_settings()
@@ -34,4 +34,5 @@ class TornadoTestCase(AsyncHTTPTestCase):
         super(TornadoTestCase, self).tearDown()
         # unpatch Tornado
         unpatch()
-        reload_module(app)
+        compat.reload_module(compat)
+        compat.reload_module(app)

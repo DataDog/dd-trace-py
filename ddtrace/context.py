@@ -52,6 +52,12 @@ class Context(object):
             return self._parent_span_id
 
     @property
+    def sampled(self):
+        """Return current context sampled flag."""
+        with self._lock:
+            return self._sampled
+
+    @property
     def sampling_priority(self):
         """Return current context sampling priority."""
         with self._lock:

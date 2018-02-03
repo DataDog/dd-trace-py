@@ -1,6 +1,6 @@
 # 3rd party
 from django.apps import apps
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 # project
 from ddtrace.tracer import Tracer
@@ -12,23 +12,25 @@ from ...test_tracer import DummyWriter
 
 class DjangoTracingDisabledTest(TestCase):
     def setUp(self):
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
-        self.tracer = tracer
-        # Backup the old conf
-        self.backupTracer = settings.TRACER
+        # backup previous conf
         self.backupEnabled = settings.ENABLED
-        # Disable tracing
+        self.backupTracer = settings.TRACER
+
+        # Use a new tracer to be sure that a new service
+        # would be sent to the the writer
+        self.tracer = Tracer()
+        self.tracer.writer = DummyWriter()
+
+        # Restart app with tracing disabled
         settings.ENABLED = False
-        settings.TRACER = tracer
-        # Restart the app
-        app = apps.get_app_config('datadog_django')
-        app.ready()
+        self.app = apps.get_app_config('datadog_django')
+        self.app.ready()
 
     def tearDown(self):
         # Reset the original settings
         settings.ENABLED = self.backupEnabled
         settings.TRACER = self.backupTracer
+        self.app.ready()
 
     def test_no_service_info_is_written(self):
         services = self.tracer.writer.pop_services()
