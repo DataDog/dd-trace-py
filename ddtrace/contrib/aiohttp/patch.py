@@ -50,6 +50,34 @@ def _set_request_tags(span, url):
     span.resource = url.path
 
 
+class _WrappedConnectorClass(wrapt.ObjectProxy):
+    def __init__(self, obj, pin):
+        super().__init__(obj)
+        pin.onto(self)
+
+    @asyncio.coroutine
+    def connect(self, req):
+        pin = Pin.get_from(self)
+        with pin.tracer.trace('{}.connect'.format(self.__class__.__name__),
+                              span_type=ext_http.TYPE,
+                              service=pin.service) as span:
+            _set_request_tags(span, _get_url_obj(req))
+            # We call this way so "self" will not get sliced and call
+            # _create_connection on us first
+            result = yield from self.__wrapped__.__class__.connect(self, req)
+            return result
+
+    @asyncio.coroutine
+    def _create_connection(self, req):
+        pin = Pin.get_from(self)
+        with pin.tracer.trace('{}._create_connection'.format(self.__class__.__name__),
+                              span_type=ext_http.TYPE,
+                              service=pin.service) as span:
+            _set_request_tags(span, _get_url_obj(req))
+            result = yield from self.__wrapped__._create_connection(req)
+            return result
+
+
 class _WrappedResponseClass(wrapt.ObjectProxy):
     def __init__(self, obj, pin, trace_headers):
         super().__init__(obj)
@@ -250,6 +278,17 @@ def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     response_class = kwargs.get('response_class', aiohttp.ClientResponse)
+
+    loop = kwargs.get('loop')
+    if not loop:
+        loop = asyncio.get_event_loop()
+
+    connector = kwargs.get('connector')
+    if not connector:
+        connector = aiohttp.TCPConnector(loop=loop)
+
+    kwargs['connector'] = _WrappedConnectorClass(connector, pin)
+
     wrapper = functools.partial(_create_wrapped_response, instance,
                                 trace_headers)
     kwargs['response_class'] = wrapt.FunctionWrapper(response_class, wrapper)
