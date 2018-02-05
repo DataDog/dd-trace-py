@@ -639,8 +639,8 @@ jobs:
       - checkout
       - run: sudo apt-get -y install rake
       - run: sudo pip install mkwheelhouse sphinx awscli
-      - run: S3_DIR=trace-dev rake release:wheel
       - run: S3_DIR=trace-dev rake release:docs
+      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   deploy_experimental:
     # build the develop branch releasing development docs
@@ -650,7 +650,7 @@ jobs:
       - checkout
       - run: sudo apt-get -y install rake
       - run: sudo pip install mkwheelhouse sphinx awscli
-      - run: S3_DIR=trace-dev rake release:wheel
+      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   deploy_docs:
     # deploy official documentation
