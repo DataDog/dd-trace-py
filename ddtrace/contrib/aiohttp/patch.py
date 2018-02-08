@@ -42,9 +42,9 @@ def _set_request_tags(span, url):
             (url.scheme == 'https' and url.port == 443):
         port = ''
     else:
-        port = url.port
+        port = ':{}'.format(url.port)
 
-    url_str = '{scheme}://{host}:{port}{path}'.format(
+    url_str = '{scheme}://{host}{port}{path}'.format(
         scheme=url.scheme, host=url.host, port=port, path=url.path)
     span.set_tag(ext_http.URL, url_str)
     span.resource = url.path
