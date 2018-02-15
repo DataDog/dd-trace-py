@@ -22,9 +22,10 @@ required_modules = ['pylons.wsgiapp']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import PylonsTraceMiddleware
-        from .patch import patch
+        from .patch import patch, unpatch
 
         __all__ = [
             'patch',
+            'unpatch',
             'PylonsTraceMiddleware',
         ]

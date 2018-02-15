@@ -1,26 +1,40 @@
 import os
-
-from .middleware import PylonsTraceMiddleware
-
-from ddtrace import tracer, Pin
-
 import wrapt
 
 import pylons.wsgiapp
 
+from ddtrace import tracer, Pin
+
+from .middleware import PylonsTraceMiddleware
+from ...util import unwrap as _u
+
+
 def patch():
-    """Patch the instrumented Flask object
-    """
+    """Instrument Pylons applications"""
     if getattr(pylons.wsgiapp, '_datadog_patch', False):
         return
 
     setattr(pylons.wsgiapp, '_datadog_patch', True)
-
     wrapt.wrap_function_wrapper('pylons.wsgiapp', 'PylonsApp.__init__', traced_init)
+
+
+def unpatch():
+    """Disable Pylons tracing"""
+    if not getattr(pylons.wsgiapp, '__datadog_patch', False):
+        return
+    setattr(pylons.wsgiapp, '__datadog_patch', False)
+
+    _u(pylons.wsgiapp.PylonsApp, '__init__')
+
 
 def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
-    service = os.environ.get("DATADOG_SERVICE_NAME") or "pylons"
+    # set tracing options and create the TraceMiddleware
+    service = os.environ.get('DATADOG_SERVICE_NAME') or 'pylons'
     Pin(service=service, tracer=tracer).onto(instance)
-    PylonsTraceMiddleware(instance, tracer, service=service)
+    traced_app = PylonsTraceMiddleware(instance, tracer, service=service)
+
+    # re-order the middleware stack so that the first middleware is ours
+    traced_app.app = instance.app
+    instance.app = traced_app
