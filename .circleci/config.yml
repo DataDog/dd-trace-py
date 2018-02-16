@@ -128,7 +128,7 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-pylons-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27}-pylons' --result-json /tmp/pylons.results
+      - run: tox -e '{py27}-pylons{096,097,010,10}' --result-json /tmp/pylons.results
       - persist_to_workspace:
           root: /tmp
           paths:
