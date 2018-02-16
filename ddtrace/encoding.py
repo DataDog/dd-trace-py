@@ -14,6 +14,8 @@ try:
     MSGPACK_PARAMS = { 'use_bin_type': True } if version >= (0, 4, 0) else {}
     MSGPACK_ENCODING = True
 except ImportError:
+    # fallback to JSON
+    MSGPACK_PARAMS = {}
     MSGPACK_ENCODING = False
 
 log = logging.getLogger(__name__)
