@@ -1,22 +1,25 @@
-# 3p
 import MySQLdb
-from nose.tools import eq_
 
-# project
 from ddtrace import Pin
 from ddtrace.contrib.mysqldb.patch import patch, unpatch
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.config import MYSQL_CONFIG
+
+from nose.tools import eq_
+
+from ..config import MYSQL_CONFIG
 from ...util import assert_dict_issuperset
+from ...test_tracer import get_dummy_tracer
 
 
 class MySQLCore(object):
-
-    # Reuse the connection across tests
+    """Base test case for MySQL drivers"""
     conn = None
     TEST_SERVICE = 'test-mysql'
 
+    def setUp(self):
+        patch()
+
     def tearDown(self):
+        # Reuse the connection across tests
         if self.conn:
             try:
                 self.conn.ping()
@@ -47,12 +50,11 @@ class MySQLCore(object):
         eq_(span.error, 0)
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'53306',
+            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
             'sql.query': u'SELECT 1',
         })
-        # eq_(span.get_metric('sql.rows'), -1)
 
     def test_simple_query_with_positional_args(self):
         conn, tracer = self._get_conn_tracer_with_positional_args()
@@ -71,12 +73,11 @@ class MySQLCore(object):
         eq_(span.error, 0)
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'53306',
+            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
             'sql.query': u'SELECT 1',
         })
-        # eq_(span.get_metric('sql.rows'), -1)
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
@@ -90,7 +91,6 @@ class MySQLCore(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.get_tag('sql.query'), query)
-        # eq_(span.get_tag('sql.rows'), 3)
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -106,8 +106,10 @@ class MySQLCore(object):
         tracer.enabled = True
 
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
-        data = [("foo","this is foo"),
-                ("bar","this is bar")]
+        data = [
+            ("foo","this is foo"),
+            ("bar","this is bar"),
+        ]
         cursor.executemany(stmt, data)
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)
@@ -161,22 +163,15 @@ class MySQLCore(object):
         eq_(span.error, 0)
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'53306',
+            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
             'sql.query': u'sp_sum',
         })
-        # eq_(span.get_metric('sql.rows'), 1)
 
 
 class TestMysqlPatch(MySQLCore):
-
-    def setUp(self):
-        patch()
-
-    def tearDown(self):
-        unpatch()
-        MySQLCore.tearDown(self)
+    """Ensures MysqlDB is properly patched"""
 
     def _connect_with_kwargs(self):
         return MySQLdb.Connect(**{
@@ -184,7 +179,8 @@ class TestMysqlPatch(MySQLCore):
             'user': MYSQL_CONFIG['user'],
             'passwd': MYSQL_CONFIG['password'],
             'db': MYSQL_CONFIG['database'],
-            'port': MYSQL_CONFIG['port']})
+            'port': MYSQL_CONFIG['port'],
+        })
 
     def _get_conn_tracer(self):
         if not self.conn:
@@ -197,19 +193,20 @@ class TestMysqlPatch(MySQLCore):
             assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
 
             return self.conn, tracer
 
     def _get_conn_tracer_with_positional_args(self):
         if not self.conn:
             tracer = get_dummy_tracer()
-            self.conn = MySQLdb.Connect(MYSQL_CONFIG['host'],
-                                        MYSQL_CONFIG['user'],
-                                        MYSQL_CONFIG['password'],
-                                        MYSQL_CONFIG['database'],
-                                        MYSQL_CONFIG['port'])
+            self.conn = MySQLdb.Connect(
+                MYSQL_CONFIG['host'],
+                MYSQL_CONFIG['user'],
+                MYSQL_CONFIG['password'],
+                MYSQL_CONFIG['database'],
+                MYSQL_CONFIG['port'],
+            )
             self.conn.ping()
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
@@ -217,8 +214,7 @@ class TestMysqlPatch(MySQLCore):
             assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
 
             return self.conn, tracer
 
@@ -236,8 +232,7 @@ class TestMysqlPatch(MySQLCore):
             conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(conn)
             conn.ping()
 
             cursor = conn.cursor()
@@ -254,7 +249,7 @@ class TestMysqlPatch(MySQLCore):
             eq_(span.error, 0)
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'53306',
+                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
                 'sql.query': u'SELECT 1',
