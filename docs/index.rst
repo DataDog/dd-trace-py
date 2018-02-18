@@ -235,7 +235,7 @@ MySQL
 
 .. automodule:: ddtrace.contrib.mysql
 
-**mysqlclient / MySQL-python**
+**mysqlclient and MySQL-python**
 
 .. automodule:: ddtrace.contrib.mysqldb
 
@@ -563,7 +563,9 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | mysql-connector | >= 2.1             |
 +-----------------+--------------------+
-| mysqlclient     | >= 1.13.12         |
+| MySQL-python    | >= 1.2.3           |
++-----------------+--------------------+
+| mysqlclient     | >= 1.3             |
 +-----------------+--------------------+
 | psycopg2        | >= 2.5             |
 +-----------------+--------------------+
