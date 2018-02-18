@@ -403,6 +403,56 @@ jobs:
           paths:
             - .tox
 
+  mysqlpython:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mysql:5.7
+        env:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-mysqlpython-{{ checksum "tox.ini" }}
+      - run: tox -e 'wait' mysql
+      - run: tox -e '{py27,py34,py35,py36}-mysqlclient{13}' --result-json /tmp/mysqlpython.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mysqlpython.results
+      - save_cache:
+          key: tox-cache-mysqlpython-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
+  mysqldb:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mysql:5.7
+        env:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-mysqldb-{{ checksum "tox.ini" }}
+      - run: tox -e 'wait' mysql
+      - run: tox -e '{py27}-mysqldb{12}' --result-json /tmp/mysqldb.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mysqldb.results
+      - save_cache:
+          key: tox-cache-mysqldb-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pylibmc:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -704,6 +754,8 @@ workflows:
       - gevent
       - httplib
       - mysqlconnector
+      - mysqlpython
+      - mysqldb
       - pylibmc
       - pymongo
       - pyramid
@@ -736,6 +788,8 @@ workflows:
             - gevent
             - httplib
             - mysqlconnector
+            - mysqlpython
+            - mysqldb
             - pylibmc
             - pymongo
             - pyramid
