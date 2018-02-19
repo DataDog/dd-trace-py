@@ -15,4 +15,6 @@ def create_routes():
     routes.connect('/raise_wrong_code', controller='root', action='raise_wrong_code')
     routes.connect('/raise_custom_code', controller='root', action='raise_custom_code')
     routes.connect('/raise_code_method', controller='root', action='raise_code_method')
+    routes.connect('/render', controller='root', action='render')
+    routes.connect('/render_exception', controller='root', action='render_exception')
     return routes
