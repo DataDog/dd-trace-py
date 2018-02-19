@@ -41,6 +41,48 @@ class PylonsTestCase(TestCase):
         eq_(span.meta.get(http.STATUS_CODE), '200')
         eq_(span.error, 0)
 
+    def test_template_render(self):
+        res = self.app.get(url_for(controller='root', action='render'))
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 2)
+        request = spans[0]
+        template = spans[1]
+
+        eq_(request.service, 'web')
+        eq_(request.resource, 'root.render')
+        eq_(request.meta.get(http.STATUS_CODE), '200')
+        eq_(request.error, 0)
+
+        eq_(template.service, 'web')
+        eq_(template.resource, 'pylons.render')
+        eq_(template.meta.get('template.name'), '/template.mako')
+        eq_(template.error, 0)
+
+    def test_template_render_exception(self):
+        with assert_raises(Exception):
+            self.app.get(url_for(controller='root', action='render_exception'))
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 2)
+        request = spans[0]
+        template = spans[1]
+
+        eq_(request.service, 'web')
+        eq_(request.resource, 'root.render_exception')
+        eq_(request.meta.get(http.STATUS_CODE), '500')
+        eq_(request.error, 1)
+
+        eq_(template.service, 'web')
+        eq_(template.resource, 'pylons.render')
+        eq_(template.meta.get('template.name'), '/exception.mako')
+        eq_(template.error, 1)
+        eq_(template.get_tag('error.msg'), 'integer division or modulo by zero')
+        ok_('ZeroDivisionError: integer division or modulo by zero' in template.get_tag('error.stack'))
+
     def test_failure_500(self):
         with assert_raises(Exception):
             self.app.get(url_for(controller='root', action='raise_exception'))

@@ -1,6 +1,6 @@
 from pylons.controllers import WSGIController
 
-from ..lib.helpers import ExceptionWithCodeMethod
+from ..lib.helpers import ExceptionWithCodeMethod, get_render_fn
 
 
 class BaseController(WSGIController):
@@ -34,3 +34,11 @@ class RootController(BaseController):
         e = Exception('Ouch!')
         e.code = '512'
         raise e
+
+    def render(self):
+        render = get_render_fn()
+        return render('/template.mako')
+
+    def render_exception(self):
+        render = get_render_fn()
+        return render('/exception.mako')

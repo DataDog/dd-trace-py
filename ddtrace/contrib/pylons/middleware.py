@@ -1,6 +1,11 @@
 import logging
 import sys
 
+from pylons import config
+
+from .renderer import trace_rendering
+from .constants import CONFIG_MIDDLEWARE
+
 from ...ext import http
 from ...ext import AppTypes
 
@@ -13,6 +18,12 @@ class PylonsTraceMiddleware(object):
         self.app = app
         self._service = service
         self._tracer = tracer
+
+        # register middleware reference
+        config[CONFIG_MIDDLEWARE] = self
+
+        # add template tracing
+        trace_rendering()
 
         self._tracer.set_service_info(
             service=service,
