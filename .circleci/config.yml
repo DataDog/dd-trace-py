@@ -299,12 +299,18 @@ jobs:
       - run: tox -e '{py27,py34,py35,py36}-django{18,19,110,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
       - run: tox -e '{py27,py34,py35,py36}-django-autopatch{18,19,110,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
       - run: tox -e '{py27,py34,py35,py36}-django-drf{110,111}-djangorestframework{34,35,36,37}' --result-json /tmp/django.3.results
+      - run: tox -e '{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
+      - run: tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
+      - run: tox -e '{py34,py35,py36}-django-drf{200}-djangorestframework{37}' --result-json /tmp/django.6.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - django.1.results
             - django.2.results
             - django.3.results
+            - django.4.results
+            - django.5.results
+            - django.6.results
       - save_cache:
           key: tox-cache-django-{{ checksum "tox.ini" }}
           paths:
