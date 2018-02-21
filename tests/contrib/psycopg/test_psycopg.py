@@ -6,7 +6,7 @@ import psycopg2
 from psycopg2 import _psycopg
 from psycopg2 import extensions
 from psycopg2 import extras
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 # project
 from ddtrace.contrib.psycopg import connection_factory
@@ -56,7 +56,7 @@ class PsycopgCore(object):
         eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta["sql.query"], q)
+        ok_(span.get_tag("sql.query") is None)
         eq_(span.error, 0)
         eq_(span.span_type, "sql")
         assert start <= span.start <= end
@@ -78,7 +78,7 @@ class PsycopgCore(object):
         eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta["sql.query"], q)
+        ok_(span.get_tag("sql.query") is None)
         eq_(span.error, 1)
         eq_(span.meta["out.host"], "localhost")
         eq_(span.meta["out.port"], TEST_PORT)
