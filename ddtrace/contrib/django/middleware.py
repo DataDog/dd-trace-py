@@ -2,6 +2,7 @@ import logging
 
 # project
 from .conf import settings
+from .compat import user_is_authenticated
 
 from ...ext import http
 from ...contrib import func_name
@@ -134,7 +135,7 @@ def _set_auth_tags(span, request):
         return span
 
     if hasattr(user, 'is_authenticated'):
-        span.set_tag('django.user.is_authenticated', user.is_authenticated())
+        span.set_tag('django.user.is_authenticated', user_is_authenticated(user))
 
     uid = getattr(user, 'pk', None)
     if uid:
