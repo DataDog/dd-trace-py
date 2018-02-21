@@ -3,7 +3,7 @@ import MySQLdb
 from ddtrace import Pin
 from ddtrace.contrib.mysqldb.patch import patch, unpatch
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 from ..config import MYSQL_CONFIG
 from ...util import assert_dict_issuperset
@@ -53,7 +53,6 @@ class MySQLCore(object):
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
-            'sql.query': u'SELECT 1',
         })
 
     def test_simple_query_with_positional_args(self):
@@ -76,7 +75,6 @@ class MySQLCore(object):
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
-            'sql.query': u'SELECT 1',
         })
 
     def test_query_with_several_rows(self):
@@ -90,7 +88,7 @@ class MySQLCore(object):
         spans = writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.get_tag('sql.query'), query)
+        ok_(span.get_tag('sql.query') is None)
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -123,7 +121,7 @@ class MySQLCore(object):
         spans = writer.pop()
         eq_(len(spans), 2)
         span = spans[-1]
-        eq_(span.get_tag('sql.query'), query)
+        ok_(span.get_tag('sql.query') is None)
         cursor.execute("drop table if exists dummy")
 
     def test_query_proc(self):
@@ -166,8 +164,8 @@ class MySQLCore(object):
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
-            'sql.query': u'sp_sum',
         })
+        ok_(span.get_tag('sql.query') is None)
 
 
 class TestMysqlPatch(MySQLCore):
@@ -252,8 +250,8 @@ class TestMysqlPatch(MySQLCore):
                 'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
-                'sql.query': u'SELECT 1',
             })
+            ok_(span.get_tag('sql.query') is None)
 
         finally:
             unpatch()
