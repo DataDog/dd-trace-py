@@ -6,6 +6,8 @@ import psycopg2
 from psycopg2 import _psycopg
 from psycopg2 import extensions
 from psycopg2 import extras
+
+from unittest import skipIf
 from nose.tools import eq_, ok_
 
 # project
@@ -18,6 +20,7 @@ from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 
 
+PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
@@ -84,10 +87,10 @@ class PsycopgCore(object):
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
+    @skipIf(PSYCOPG_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
-
         conn, tracer = self._get_conn_and_tracer()
         t = type(conn.cursor())
         with conn.cursor() as cur:
@@ -110,6 +113,7 @@ class PsycopgCore(object):
         conn.cursor().execute("select 'blah'")
         assert not tracer.writer.pop()
 
+    @skipIf(PSYCOPG_VERSION < (2, 5), '_json is not available in psycopg2==2.4')
     def test_manual_wrap_extension_types(self):
         conn, _ = self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
