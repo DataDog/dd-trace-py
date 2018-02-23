@@ -124,10 +124,15 @@ _psycopg2_extensions = [
     (psycopg2._psycopg.register_type,
      psycopg2._psycopg, 'register_type',
      _extensions_register_type),
-    (psycopg2._json.register_type,
-     psycopg2._json, 'register_type',
-     _extensions_register_type),
     (psycopg2.extensions.adapt,
      psycopg2.extensions, 'adapt',
      _extensions_adapt),
 ]
+
+# `_json` attribute is only available for psycopg >= 2.5
+if getattr(psycopg2, '_json', None):
+    _psycopg2_extensions += [
+        (psycopg2._json.register_type,
+         psycopg2._json, 'register_type',
+         _extensions_register_type),
+    ]

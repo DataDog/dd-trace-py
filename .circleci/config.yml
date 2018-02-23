@@ -579,7 +579,7 @@ jobs:
           keys:
               - tox-cache-pycopg-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' postgres
-      - run: tox -e '{py27,py34,py35,py36}-psycopg2{25,26,27}' --result-json /tmp/psycopg.results
+      - run: tox -e '{py27,py34,py35,py36}-psycopg2{24,25,26,27}' --result-json /tmp/psycopg.results
       - persist_to_workspace:
           root: /tmp
           paths:
