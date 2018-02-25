@@ -6,6 +6,9 @@ Add all monkey-patching that needs to run by default here
 import os
 import logging
 
+from ddtrace.util import asbool
+
+
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
 if debug and debug.lower() == "true":
     logging.basicConfig(level=logging.DEBUG)
@@ -46,6 +49,7 @@ try:
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
     hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
+    priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
 
     opts = {}
 
@@ -56,6 +60,8 @@ try:
         opts["hostname"] = hostname
     if port:
         opts["port"] = int(port)
+    if priority_sampling:
+        opts["priority_sampling"] = asbool(priority_sampling)
 
     if opts:
         tracer.configure(**opts)

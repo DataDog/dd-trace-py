@@ -41,12 +41,13 @@ The available environment variables for `ddtrace-run` are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
-* ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
+* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
 * ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false`` : override the modules patched for this execution of the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost`` : override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126`` : override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false``: override the modules patched for this execution of the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
