@@ -10,9 +10,12 @@ the following::
 
     app = PylonsApp(...)
 
-    traced_app = PylonsTraceMiddleware(app, tracer, service="my-pylons-app")
+    traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app')
 
-Then you can define your routes and views as usual.
+Then you can define your routes and views as usual. To enable distributed tracing,
+set the following keyword argument::
+
+    traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app', distributed_tracing=True)
 """
 
 from ..util import require_modules

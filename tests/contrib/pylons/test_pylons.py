@@ -8,6 +8,7 @@ from paste import fixture
 from paste.deploy import loadapp
 
 from ddtrace.ext import http
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from ...test_tracer import get_dummy_tracer
@@ -145,3 +146,44 @@ class PylonsTestCase(TestCase):
         eq_(span.error, 1)
         eq_(span.get_tag('http.status_code'), '500')
         eq_(span.get_tag('error.msg'), 'Ouch!')
+
+    def test_distributed_tracing_default(self):
+        # ensure by default, distributed tracing is not enabled
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+        res = self.app.get(url_for(controller='root', action='index'), headers=headers)
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        ok_(span.trace_id != 100)
+        ok_(span.parent_id != 42)
+        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) is None)
+
+    def test_distributed_tracing_enabled(self):
+        # ensure distributed tracing propagator is working
+        middleware = self.app.app
+        middleware._distributed_tracing = True
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+
+        res = self.app.get(url_for(controller='root', action='index'), headers=headers)
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
