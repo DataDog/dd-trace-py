@@ -1,22 +1,24 @@
 import logging
 import sys
 
+from webob import Request
 from pylons import config
 
 from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
-from ...ext import http
-from ...ext import AppTypes
+from ...ext import http, AppTypes
+from ...propagation.http import HTTPPropagator
 
 log = logging.getLogger(__name__)
 
 
 class PylonsTraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="pylons"):
+    def __init__(self, app, tracer, service='pylons', distributed_tracing=False):
         self.app = app
         self._service = service
+        self._distributed_tracing = distributed_tracing
         self._tracer = tracer
 
         # register middleware reference
@@ -32,6 +34,15 @@ class PylonsTraceMiddleware(object):
         )
 
     def __call__(self, environ, start_response):
+        if self._distributed_tracing:
+            # retrieve distributed tracing headers
+            request = Request(environ)
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.headers)
+            # only need to active the new context if something was propagated
+            if context.trace_id:
+                self._tracer.context_provider.activate(context)
+
         with self._tracer.trace("pylons.request", service=self._service) as span:
             # Set the service in tracer.trace() as priority sampling requires it to be
             # set as early as possible when different services share one single agent.
