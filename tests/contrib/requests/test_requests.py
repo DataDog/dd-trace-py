@@ -139,3 +139,69 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.get_tag(http.STATUS_CODE), '500')
         eq_(s.error, 1)
+
+    def test_default_service_name(self):
+        # ensure a default service name is set
+        out = self.session.get(URL_200)
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'requests')
+
+    def test_user_set_service_name(self):
+        # ensure a service name set by the user has precedence
+        self.session.service_name = 'clients'
+        out = self.session.get(URL_200)
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'clients')
+
+    def test_parent_service_name_precedence(self):
+        # ensure the parent service name has precedence if the value
+        # is not set by the user
+        with self.tracer.trace('parent.span', service='web'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'web')
+
+    def test_parent_without_service_name(self):
+        # ensure the default value is used if the parent
+        # doesn't have a service
+        with self.tracer.trace('parent.span'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'requests')
+
+    def test_user_service_name_precedence(self):
+        # ensure the user service name takes precedence over
+        # the parent Span
+        with self.tracer.trace('parent.span', service='web'):
+            self.session.service_name = 'clients'
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'clients')
