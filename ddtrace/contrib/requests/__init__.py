@@ -32,5 +32,11 @@ required_modules = ['requests']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import TracedSession, patch, unpatch
-        __all__ = ['TracedSession', 'patch', 'unpatch']
+        from .patch import patch, unpatch
+        from .session import TracedSession
+
+        __all__ = [
+            'patch',
+            'unpatch',
+            'TracedSession',
+        ]
