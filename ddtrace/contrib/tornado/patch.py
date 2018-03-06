@@ -4,7 +4,6 @@ import tornado
 from wrapt import wrap_function_wrapper as _w
 
 from . import handlers, application, decorators, template, compat, context_provider
-from ..futures.threading import _wrap_submit
 from ...util import unwrap as _u
 
 
@@ -29,9 +28,8 @@ def patch():
     # patch Template system
     _w('tornado.template', 'Template.generate', template.generate)
 
-    # patch Python Futures when an Executor pool is used
-    if compat.futures_available:
-        _w('concurrent.futures', 'ThreadPoolExecutor.submit', _wrap_submit)
+    # patch Python Futures if available when an Executor pool is used
+    compat.wrap_futures()
 
     # configure the global tracer
     ddtrace.tracer.configure(
@@ -56,7 +54,5 @@ def unpatch():
     _u(tornado.concurrent, 'run_on_executor')
     _u(tornado.template.Template, 'generate')
 
-    if compat.futures_available:
-        from concurrent import futures
-
-        _u(futures.ThreadPoolExecutor, 'submit')
+    # unpatch `futures`
+    compat.unwrap_futures()

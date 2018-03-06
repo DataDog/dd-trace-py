@@ -1,4 +1,3 @@
-import time
 import unittest
 
 from nose.tools import eq_, ok_
@@ -163,3 +162,14 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(1, request_span.error)
         eq_('cannot combine positional and keyword args', request_span.get_tag('error.msg'))
         ok_('ValueError' in request_span.get_tag('error.stack'))
+
+    @unittest.skipUnless(futures_available, 'Futures must be available to test direct submit')
+    def test_futures_double_instrumentation(self):
+        # it should not double wrap `ThreadpPoolExecutor.submit` method if
+        # `futures` is already instrumented
+        from ddtrace import patch; patch(futures=True)
+        from concurrent.futures import ThreadPoolExecutor
+        from wrapt import BoundFunctionWrapper
+
+        fn_wrapper = getattr(ThreadPoolExecutor.submit, '__wrapped__', None)
+        ok_(not isinstance(fn_wrapper, BoundFunctionWrapper))
