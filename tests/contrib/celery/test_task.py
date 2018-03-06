@@ -116,8 +116,12 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.run')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.error, 0)
+
+        # Assert metadata is correct
+        assert_list_issuperset(span.meta.keys(), ['celery.action'])
+        self.assertEqual(span.meta['celery.action'], 'run')
 
     def test_task___call__(self):
         """
@@ -147,8 +151,12 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.run')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.error, 0)
+
+        # Assert metadata is correct
+        assert_list_issuperset(span.meta.keys(), ['celery.action'])
+        self.assertEqual(span.meta['celery.action'], 'run')
 
     def test_task_apply_async(self):
         """
@@ -178,7 +186,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply')
+        self.assertEqual(span.name, 'celery.process')
         self.assertIsNone(span.parent_id)
         self.assertEqual(span.error, 0)
 
@@ -189,13 +197,14 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         assert_list_issuperset(meta.keys(), ['id', 'state'])
         self.assertEqual(meta['state'], 'SUCCESS')
+        self.assertEqual(meta['celery.action'], 'apply')
 
         # Assert the celery service span for calling `run`
         span = spans[1]
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.run')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.parent_id, parent_span_id)
         self.assertEqual(span.error, 0)
 
@@ -203,8 +212,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         assert_list_issuperset(
             meta.keys(),
-            ['celery.delivery_info', 'celery.id']
+            ['celery.delivery_info', 'celery.id', 'celery.action']
         )
+        self.assertEqual(meta['celery.action'], 'run')
         self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
@@ -239,13 +249,14 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply_async')
+        self.assertEqual(span.name, 'celery.process')
         self.assertIsNone(span.parent_id)
         self.assertEqual(span.error, 0)
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
+        self.assertEqual(meta['celery.action'], 'apply_async')
 
     def test_task_apply_eager(self):
         """
@@ -278,7 +289,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply_async')
+        self.assertEqual(span.name, 'celery.process')
         self.assertIsNone(span.parent_id)
         self.assertEqual(span.error, 0)
 
@@ -287,13 +298,14 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
+        self.assertEqual(meta['celery.action'], 'apply_async')
 
         span = spans[1]
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.parent_id, parent_span_id)
         self.assertEqual(span.error, 0)
 
@@ -302,15 +314,16 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id', 'state'])
+        assert_list_issuperset(meta.keys(), ['id', 'state', 'celery.action'])
         self.assertEqual(meta['state'], 'SUCCESS')
+        self.assertEqual(meta['celery.action'], 'apply')
 
         # The last span emitted
         span = spans[2]
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.run')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.parent_id, parent_span_id)
         self.assertEqual(span.error, 0)
 
@@ -318,9 +331,10 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         assert_list_issuperset(
             meta.keys(),
-            ['celery.delivery_info', 'celery.id']
+            ['celery.delivery_info', 'celery.id', 'celery.action']
         )
         self.assertNotEqual(meta['celery.id'], 'None')
+        self.assertEqual(meta['celery.action'], 'run')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
@@ -354,13 +368,14 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply_async')
+        self.assertEqual(span.name, 'celery.process')
         self.assertIsNone(span.parent_id)
         self.assertEqual(span.error, 0)
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
+        self.assertEqual(meta['celery.action'], 'apply_async')
 
     def test_task_delay_eager(self):
         """
@@ -393,7 +408,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply_async')
+        self.assertEqual(span.name, 'celery.process')
         self.assertIsNone(span.parent_id)
         self.assertEqual(span.error, 0)
 
@@ -402,13 +417,14 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id'])
+        assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
+        self.assertEqual(meta['celery.action'], 'apply_async')
 
         span = spans[1]
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.apply')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.parent_id, parent_span_id)
         self.assertEqual(span.error, 0)
 
@@ -417,15 +433,16 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        assert_list_issuperset(meta.keys(), ['id', 'state'])
+        assert_list_issuperset(meta.keys(), ['id', 'state', 'celery.action'])
         self.assertEqual(meta['state'], 'SUCCESS')
+        self.assertEqual(meta['celery.action'], 'apply')
 
         # The last span emitted
         span = spans[2]
         self.assert_items_equal(span.to_dict().keys(), EXPECTED_KEYS)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
-        self.assertEqual(span.name, 'celery.task.run')
+        self.assertEqual(span.name, 'celery.process')
         self.assertEqual(span.parent_id, parent_span_id)
         self.assertEqual(span.error, 0)
 
@@ -433,9 +450,10 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         assert_list_issuperset(
             meta.keys(),
-            ['celery.delivery_info', 'celery.id']
+            ['celery.delivery_info', 'celery.id', 'celery.action']
         )
         self.assertNotEqual(meta['celery.id'], 'None')
+        self.assertEqual(meta['celery.action'], 'run')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))

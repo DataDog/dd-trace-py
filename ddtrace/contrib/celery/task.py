@@ -9,7 +9,7 @@ from .util import APP, SERVICE, meta_from_context, require_pin
 
 ROOT_SPAN_NAME = 'celery.process'
 # Task operations
-TASK_TAG_KEY = 'celery_action'
+TASK_TAG_KEY = 'celery.action'
 TASK_APPLY = 'apply'
 TASK_APPLY_ASYNC = 'apply_async'
 TASK_RUN = 'run'
