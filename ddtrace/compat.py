@@ -26,9 +26,9 @@ else:
     from io import StringIO
 
 try:
-    import urlparse
+    import urlparse as parse
 except ImportError:
-    from urllib import parse as urlparse
+    from urllib import parse
 
 try:
     from asyncio import iscoroutinefunction
@@ -88,5 +88,5 @@ __all__ = [
     'stringify',
     'StringIO',
     'urlencode',
-    'urlparse',
+    'parse',
 ]

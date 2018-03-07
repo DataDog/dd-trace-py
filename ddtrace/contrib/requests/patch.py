@@ -16,6 +16,7 @@ from .connection import _wrap_request
 config._add('requests',{
     'service_name': get_env('requests', 'service_name', DEFAULT_SERVICE),
     'distributed_tracing': asbool(get_env('requests', 'distributed_tracing', False)),
+    'split_by_domain': asbool(get_env('requests', 'split_by_domain', False)),
 })
 
 
