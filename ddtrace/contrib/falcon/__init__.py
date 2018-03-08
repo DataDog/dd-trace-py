@@ -5,8 +5,20 @@ To trace the falcon web framework, install the trace middleware::
     from ddtrace import tracer
     from ddtrace.contrib.falcon import TraceMiddleware
 
-    mw = TraceMiddleware(tracer, 'my-falcon-app')
+    mw = TraceMiddleware(tracer, 'my-falcon-app', distributed_tracing=True)
     falcon.API(middleware=[mw])
+
+You can also use the autopatching functionality:
+
+    import falcon
+    from ddtrace import tracer, patch
+
+    patch(falcon=True)
+
+    app = falcon.API()
+
+To enable distributed tracing when using autopatching, set the
+DATADOG_FALCON_DISTRIBUTED_TRACING environment variable to true.
 """
 from ..util import require_modules
 

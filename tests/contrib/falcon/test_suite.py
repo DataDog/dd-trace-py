@@ -29,6 +29,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'GET 404')
         eq_(span.get_tag(httpx.STATUS_CODE), '404')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/fake_endpoint')
+        eq_(span.parent_id, None)
 
     def test_exception(self):
         try:
@@ -47,6 +48,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'GET tests.contrib.falcon.app.resources.ResourceException')
         eq_(span.get_tag(httpx.STATUS_CODE), '500')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/exception')
+        eq_(span.parent_id, None)
 
     def test_200(self):
         out = self.simulate_get('/200')
@@ -62,6 +64,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
         eq_(span.get_tag(httpx.STATUS_CODE), '200')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/200')
+        eq_(span.parent_id, None)
 
     def test_201(self):
         out = self.simulate_post('/201')
@@ -77,6 +80,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'POST tests.contrib.falcon.app.resources.Resource201')
         eq_(span.get_tag(httpx.STATUS_CODE), '201')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/201')
+        eq_(span.parent_id, None)
 
     def test_500(self):
         out = self.simulate_get('/500')
@@ -92,6 +96,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'GET tests.contrib.falcon.app.resources.Resource500')
         eq_(span.get_tag(httpx.STATUS_CODE), '500')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/500')
+        eq_(span.parent_id, None)
 
     def test_404_exception(self):
         out = self.simulate_get('/not_found')
@@ -106,6 +111,7 @@ class FalconTestCase(object):
         eq_(span.resource, 'GET tests.contrib.falcon.app.resources.ResourceNotFound')
         eq_(span.get_tag(httpx.STATUS_CODE), '404')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/not_found')
+        eq_(span.parent_id, None)
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
@@ -120,3 +126,4 @@ class FalconTestCase(object):
         eq_(span.service, self._service)
         eq_(span.get_tag(httpx.STATUS_CODE), '404')
         ok_(span.get_tag(errx.ERROR_TYPE) is None)
+        eq_(span.parent_id, None)
