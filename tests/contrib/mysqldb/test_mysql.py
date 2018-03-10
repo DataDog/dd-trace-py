@@ -1,19 +1,22 @@
-# 3p
-import mysql
+import MySQLdb
+
+from ddtrace import Pin
+from ddtrace.contrib.mysqldb.patch import patch, unpatch
+
 from nose.tools import eq_, ok_
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.mysql.patch import patch, unpatch
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.config import MYSQL_CONFIG
+from ..config import MYSQL_CONFIG
 from ...util import assert_dict_issuperset
+from ...test_tracer import get_dummy_tracer
 
 
 class MySQLCore(object):
     """Base test case for MySQL drivers"""
     conn = None
     TEST_SERVICE = 'test-mysql'
+
+    def setUp(self):
+        patch()
 
     def tearDown(self):
         # Reuse the connection across tests
@@ -32,6 +35,28 @@ class MySQLCore(object):
 
     def test_simple_query(self):
         conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        eq_(len(rows), 1)
+        spans = writer.pop()
+        eq_(len(spans), 1)
+
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'mysql.query')
+        eq_(span.span_type, 'sql')
+        eq_(span.error, 0)
+        assert_dict_issuperset(span.meta, {
+            'out.host': u'127.0.0.1',
+            'out.port': u'3306',
+            'db.name': u'test',
+            'db.user': u'test',
+        })
+
+    def test_simple_query_with_positional_args(self):
+        conn, tracer = self._get_conn_tracer_with_positional_args()
         writer = tracer.writer
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
@@ -79,8 +104,10 @@ class MySQLCore(object):
         tracer.enabled = True
 
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
-        data = [("foo","this is foo"),
-                ("bar","this is bar")]
+        data = [
+            ("foo","this is foo"),
+            ("bar","this is bar"),
+        ]
         cursor.executemany(stmt, data)
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)
@@ -116,15 +143,18 @@ class MySQLCore(object):
         data = (40, 2, None)
         output = cursor.callproc(proc, data)
         eq_(len(output), 3)
-        eq_(output[2], 42)
+        # resulted p3 isn't stored on output[2], we need to fetch it with select
+        # http://mysqlclient.readthedocs.io/user_guide.html#cursor-objects
+        cursor.execute("SELECT @_sp_sum_2;")
+        eq_(cursor.fetchone()[0], 42)
 
         spans = writer.pop()
         assert spans, spans
 
         # number of spans depends on MySQL implementation details,
         # typically, internal calls to execute, but at least we
-        # can expect the last closed span to be our proc.
-        span = spans[len(spans) - 1]
+        # can expect the next to the last closed span to be our proc.
+        span = spans[-2]
         eq_(span.service, self.TEST_SERVICE)
         eq_(span.name, 'mysql.query')
         eq_(span.span_type, 'sql')
@@ -139,34 +169,57 @@ class MySQLCore(object):
 
 
 class TestMysqlPatch(MySQLCore):
+    """Ensures MysqlDB is properly patched"""
 
-    def setUp(self):
-        patch()
-
-    def tearDown(self):
-        unpatch()
-        MySQLCore.tearDown(self)
+    def _connect_with_kwargs(self):
+        return MySQLdb.Connect(**{
+            'host': MYSQL_CONFIG['host'],
+            'user': MYSQL_CONFIG['user'],
+            'passwd': MYSQL_CONFIG['password'],
+            'db': MYSQL_CONFIG['database'],
+            'port': MYSQL_CONFIG['port'],
+        })
 
     def _get_conn_tracer(self):
         if not self.conn:
             tracer = get_dummy_tracer()
-            self.conn = mysql.connector.connect(**MYSQL_CONFIG)
-            assert self.conn.is_connected()
+            self.conn = self._connect_with_kwargs()
+            self.conn.ping()
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
             assert pin.service == 'mysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
+
+            return self.conn, tracer
+
+    def _get_conn_tracer_with_positional_args(self):
+        if not self.conn:
+            tracer = get_dummy_tracer()
+            self.conn = MySQLdb.Connect(
+                MYSQL_CONFIG['host'],
+                MYSQL_CONFIG['user'],
+                MYSQL_CONFIG['password'],
+                MYSQL_CONFIG['database'],
+                MYSQL_CONFIG['port'],
+            )
+            self.conn.ping()
+            # Ensure that the default pin is there, with its default value
+            pin = Pin.get_from(self.conn)
+            assert pin
+            assert pin.service == 'mysql'
+            # Customize the service
+            # we have to apply it on the existing one since new one won't inherit `app`
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
 
             return self.conn, tracer
 
     def test_patch_unpatch(self):
         unpatch()
         # assert we start unpatched
-        conn = mysql.connector.connect(**MYSQL_CONFIG)
+        conn = self._connect_with_kwargs()
         assert not Pin.get_from(conn)
         conn.close()
 
@@ -174,12 +227,11 @@ class TestMysqlPatch(MySQLCore):
         try:
             tracer = get_dummy_tracer()
             writer = tracer.writer
-            conn = mysql.connector.connect(**MYSQL_CONFIG)
+            conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(conn)
-            assert conn.is_connected()
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(conn)
+            conn.ping()
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
@@ -205,7 +257,7 @@ class TestMysqlPatch(MySQLCore):
             unpatch()
 
             # assert we finish unpatched
-            conn = mysql.connector.connect(**MYSQL_CONFIG)
+            conn = self._connect_with_kwargs()
             assert not Pin.get_from(conn)
             conn.close()
 

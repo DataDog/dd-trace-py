@@ -3,7 +3,7 @@ import sqlite3
 import time
 
 # 3p
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 # project
 import ddtrace
@@ -78,7 +78,7 @@ class TestSQLite(object):
             eq_(span.span_type, "sql")
             eq_(span.resource, q)
             eq_(span.service, service)
-            eq_(span.meta["sql.query"], q)
+            ok_(span.get_tag("sql.query") is None)
             eq_(span.error, 0)
             assert start <= span.start <= end
             assert span.duration <= end - start
@@ -98,7 +98,7 @@ class TestSQLite(object):
             eq_(span.name, "sqlite.query")
             eq_(span.resource, q)
             eq_(span.service, service)
-            eq_(span.meta["sql.query"], q)
+            ok_(span.get_tag("sql.query") is None)
             eq_(span.error, 1)
             eq_(span.span_type, "sql")
             assert span.get_tag(errors.ERROR_STACK)
