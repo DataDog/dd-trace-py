@@ -9,12 +9,20 @@ import wrapt
 # project
 import ddtrace
 from ...ext import http, AppTypes
-from .constants import SETTINGS_SERVICE, SETTINGS_TRACE_ENABLED, SETTINGS_TRACER
+from ...propagation.http import HTTPPropagator
+from .constants import (
+    SETTINGS_TRACER,
+    SETTINGS_SERVICE,
+    SETTINGS_TRACE_ENABLED,
+    SETTINGS_DISTRIBUTED_TRACING,
+)
+
 
 log = logging.getLogger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 DD_SPAN = '_datadog_span'
+
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
@@ -49,6 +57,7 @@ def trace_tween_factory(handler, registry):
     service = settings.get(SETTINGS_SERVICE) or 'pyramid'
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
+    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
 
     # set the service info
     tracer.set_service_info(
@@ -59,6 +68,12 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
+            if distributed_tracing:
+                propagator = HTTPPropagator()
+                context = propagator.extract(request.headers)
+                # only need to active the new context if something was propagated
+                if context.trace_id:
+                    tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None

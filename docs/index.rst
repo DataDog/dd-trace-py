@@ -41,12 +41,13 @@ The available environment variables for `ddtrace-run` are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
-* ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
+* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
 * ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false`` : override the modules patched for this execution of the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost`` : override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126`` : override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false``: override the modules patched for this execution of the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -231,7 +232,13 @@ Memcached
 MySQL
 ~~~~~
 
+**mysql-connector**
+
 .. automodule:: ddtrace.contrib.mysql
+
+**mysqlclient and MySQL-python**
+
+.. automodule:: ddtrace.contrib.mysqldb
 
 Postgres
 ~~~~~~~~
@@ -358,23 +365,23 @@ Priority sampling
 Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
 for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
 
-The sampler can set the priority to the following values::
+The sampler can set the priority to the following values:
 
-- `AUTO_REJECT`: the sampler automatically decided to reject the trace
-- `AUTO_KEEP`: the sampler automatically decided to keep the trace
+- ``AUTO_REJECT``: the sampler automatically decided to reject the trace
+- ``AUTO_KEEP``: the sampler automatically decided to keep the trace
 
 For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
 To enable the priority sampling::
 
     tracer.configure(priority_sampling=True)
 
-Once enabled, the sampler will automatically assign a priority of 0 or 1 to traces, depending on their service and volume.
+Once enabled, the sampler will automatically assign a priority to your traces, depending on their service and volume.
 
 You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
-For that, set the `context.sampling_priority` to -1 or 2.
+For that, set the ``context.sampling_priority`` to one of the following:
 
-- `USER_REJECT`: the user asked to reject the trace
-- `USER_KEEP`: the user asked to keep the trace
+- ``USER_REJECT``: the user asked to reject the trace
+- ``USER_KEEP``: the user asked to keep the trace
 
 When not using distributed tracing, you may change the priority at any time,
 as long as the trace is not finished yet.
@@ -383,16 +390,16 @@ Changing the priority after context has been propagated causes different parts o
 to use different priorities. Some parts might be kept, some parts might be rejected,
 and this can cause the trace to be partially stored and remain incomplete.
 
-If you change the priority, we recommend you do it as soon as possible, when the root span has just been created.
-
+If you change the priority, we recommend you do it as soon as possible, when the root span has just been created::
 
     from ddtrace.ext.priority import USER_REJECT, USER_KEEP
 
     context = tracer.context_provider.active()
-    # Indicate to not keep the trace
+
+    # indicate to not keep the trace
     context.sampling_priority = USER_REJECT
 
-    # Indicate to keep the trace
+    # indicate to keep the trace
     span.context.sampling_priority = USER_KEEP
 
 
@@ -557,11 +564,15 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | mysql-connector | >= 2.1             |
 +-----------------+--------------------+
-| psycopg2        | >= 2.5             |
+| MySQL-python    | >= 1.2.3           |
++-----------------+--------------------+
+| mysqlclient     | >= 1.3             |
++-----------------+--------------------+
+| psycopg2        | >= 2.4             |
 +-----------------+--------------------+
 | pylibmc         | >= 1.4             |
 +-----------------+--------------------+
-| pylons          | >= 1.0             |
+| pylons          | >= 0.9.6           |
 +-----------------+--------------------+
 | pymongo         | >= 3.0             |
 +-----------------+--------------------+
@@ -586,6 +597,7 @@ soon as possible in your Python entrypoint.
 
 * sqlite3
 * mysql
+* mysqldb
 * psycopg
 * redis
 * cassandra

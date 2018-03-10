@@ -33,7 +33,6 @@ class TracedCursor(wrapt.ObjectProxy):
 
         with pin.tracer.trace(self._self_datadog_name, service=service, resource=resource) as s:
             s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

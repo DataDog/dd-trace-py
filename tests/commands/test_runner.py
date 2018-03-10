@@ -95,6 +95,16 @@ class DdtraceRunTest(unittest.TestCase):
         )
         assert out.startswith(b"Test success")
 
+    def test_priority_sampling_from_env(self):
+        """
+        DATADOG_PRIORITY_SAMPLING enables Distributed Sampling
+        """
+        os.environ["DATADOG_PRIORITY_SAMPLING"] = "True"
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_priority_sampling.py']
+        )
+        assert out.startswith(b"Test success")
+
     def test_patch_modules_from_env(self):
         """
         DATADOG_PATCH_MODULES overrides the defaults for patch_all()
