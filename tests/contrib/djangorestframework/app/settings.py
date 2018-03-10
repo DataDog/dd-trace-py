@@ -55,6 +55,20 @@ if django.VERSION >= (1, 10):
         'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
     ]
 
+# Django 2.0 has different defaults
+if django.VERSION >= (2, 0):
+    MIDDLEWARE = [
+        'django.contrib.sessions.middleware.SessionMiddleware',
+        'django.middleware.common.CommonMiddleware',
+        'django.middleware.csrf.CsrfViewMiddleware',
+        'django.contrib.auth.middleware.AuthenticationMiddleware',
+        'django.contrib.messages.middleware.MessageMiddleware',
+        'django.middleware.clickjacking.XFrameOptionsMiddleware',
+        'django.middleware.security.SecurityMiddleware',
+
+        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+    ]
+
 # Always add the legacy conf to make sure we handle it properly
 # Pre 1.10 style
 MIDDLEWARE_CLASSES = [

@@ -1,6 +1,6 @@
 # 3p
 import mysql
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 # project
 from ddtrace import Pin
@@ -11,14 +11,19 @@ from ...util import assert_dict_issuperset
 
 
 class MySQLCore(object):
-
-    # Reuse the connection across tests
+    """Base test case for MySQL drivers"""
     conn = None
     TEST_SERVICE = 'test-mysql'
 
     def tearDown(self):
-        if self.conn and self.conn.is_connected():
-            self.conn.close()
+        # Reuse the connection across tests
+        if self.conn:
+            try:
+                self.conn.ping()
+            except MySQLdb.InterfaceError:
+                pass
+            else:
+                self.conn.close()
         unpatch()
 
     def _get_conn_tracer(self):
@@ -45,9 +50,7 @@ class MySQLCore(object):
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
-            'sql.query': u'SELECT 1',
         })
-        # eq_(span.get_metric('sql.rows'), -1)
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
@@ -60,8 +63,7 @@ class MySQLCore(object):
         spans = writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.get_tag('sql.query'), query)
-        # eq_(span.get_tag('sql.rows'), 3)
+        ok_(span.get_tag('sql.query') is None)
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -92,7 +94,7 @@ class MySQLCore(object):
         spans = writer.pop()
         eq_(len(spans), 2)
         span = spans[-1]
-        eq_(span.get_tag('sql.query'), query)
+        ok_(span.get_tag('sql.query') is None)
         cursor.execute("drop table if exists dummy")
 
     def test_query_proc(self):
@@ -132,9 +134,8 @@ class MySQLCore(object):
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
-            'sql.query': u'sp_sum',
         })
-        # eq_(span.get_metric('sql.rows'), 1)
+        ok_(span.get_tag('sql.query') is None)
 
 
 class TestMysqlPatch(MySQLCore):
@@ -197,8 +198,8 @@ class TestMysqlPatch(MySQLCore):
                 'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
-                'sql.query': u'SELECT 1',
             })
+            ok_(span.get_tag('sql.query') is None)
 
         finally:
             unpatch()
