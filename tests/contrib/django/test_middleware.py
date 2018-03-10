@@ -2,7 +2,6 @@
 from nose.tools import eq_
 
 from django.test import modify_settings
-from django.core.urlresolvers import reverse
 
 # project
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -10,6 +9,7 @@ from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django import TraceMiddleware
 
 # testing
+from .compat import reverse
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
 
 

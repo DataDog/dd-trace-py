@@ -41,12 +41,13 @@ The available environment variables for `ddtrace-run` are:
 
 * ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
   will not generate any traces.
-* ``DATADOG_ENV``  (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
+* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
 * ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false`` : override the modules patched for this execution of the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost`` : override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126`` : override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false``: override the modules patched for this execution of the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -231,7 +232,13 @@ Memcached
 MySQL
 ~~~~~
 
+**mysql-connector**
+
 .. automodule:: ddtrace.contrib.mysql
+
+**mysqlclient and MySQL-python**
+
+.. automodule:: ddtrace.contrib.mysqldb
 
 Postgres
 ~~~~~~~~
@@ -557,11 +564,15 @@ We officially support Python 2.7, 3.4 and above.
 +-----------------+--------------------+
 | mysql-connector | >= 2.1             |
 +-----------------+--------------------+
-| psycopg2        | >= 2.5             |
+| MySQL-python    | >= 1.2.3           |
++-----------------+--------------------+
+| mysqlclient     | >= 1.3             |
++-----------------+--------------------+
+| psycopg2        | >= 2.4             |
 +-----------------+--------------------+
 | pylibmc         | >= 1.4             |
 +-----------------+--------------------+
-| pylons          | >= 1.0             |
+| pylons          | >= 0.9.6           |
 +-----------------+--------------------+
 | pymongo         | >= 3.0             |
 +-----------------+--------------------+
@@ -586,6 +597,7 @@ soon as possible in your Python entrypoint.
 
 * sqlite3
 * mysql
+* mysqldb
 * psycopg
 * redis
 * cassandra
