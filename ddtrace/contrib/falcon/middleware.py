@@ -3,6 +3,7 @@ import sys
 from ddtrace import tracer
 from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
+from ...compat import iteritems
 from ...ext import AppTypes
 
 
@@ -24,7 +25,7 @@ class TraceMiddleware(object):
     def process_request(self, req, resp):
         if self._distributed_tracing:
             # Falcon uppercases all header names.
-            headers = dict((k.lower(), v) for k, v in req.headers.items())
+            headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
             self.tracer.context_provider.activate(context)
