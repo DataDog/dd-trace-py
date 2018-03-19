@@ -1,6 +1,5 @@
 import sys
 
-from ddtrace import tracer
 from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
 from ...compat import iteritems
