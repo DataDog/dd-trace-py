@@ -3,16 +3,15 @@ import re
 from .ext import http
 
 class FilterRequestsOnUrl(object):
-    """Filter out traces from incoming http requests based on the request's url
-
+    """Filter out traces from incoming http requests based on the request's url.
     This class takes as argument a list of regular expression patterns
     representing the urls to be excluded from tracing. A trace will be excluded
-    if its root span contains a http.url tag and if this tag matches any of
+    if its root span contains a ``http.url`` tag and if this tag matches any of
     the provided regular expression using the standard python regexp match
     semantic (https://docs.python.org/2/library/re.html#re.match).
 
-    :param list regexps: the  list of regular expressions (as strings) defining
-    the urls that should be filtered out. (a single string is also accepted)
+    :param list regexps: a list of regular expressions (or a single string) defining
+                         the urls that should be filtered out.
 
     Examples:
 
@@ -27,8 +26,6 @@ class FilterRequestsOnUrl(object):
     To filter out calls to both http://test.example.com and http://example.com/healthcheck::
 
         FilterRequestOnUrl([r'http://test\.example\.com', r'http://example\.com/healthcheck'])
-
-
     """
     def __init__(self, regexps):
         if isinstance(regexps, str):
