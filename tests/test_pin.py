@@ -54,6 +54,7 @@ class PinTestCase(TestCase):
         eq_(p2.app, 'flask')
         # but it's a copy
         ok_(p1.tags is not p2.tags)
+        ok_(p1._config is not p2._config)
         # of almost everything
         ok_(p1.tracer is p2.tracer)
 
@@ -93,3 +94,68 @@ class PinTestCase(TestCase):
 
         b = A()
         ok_(Pin.get_from(b) is None)
+
+    def test_pin_config(self):
+        # ensure `Pin` has a configuration object that can be modified
+        obj = self.Obj()
+        Pin.override(obj, service='metrics')
+        pin = Pin.get_from(obj)
+        ok_(pin._config is not None)
+        pin._config['distributed_tracing'] = True
+        ok_(pin._config['distributed_tracing'] is True)
+
+    def test_pin_config_is_a_copy(self):
+        # ensure that when a `Pin` is cloned, the config is a copy
+        obj = self.Obj()
+        Pin.override(obj, service='metrics')
+        p1 = Pin.get_from(obj)
+        ok_(p1._config is not None)
+        p1._config['distributed_tracing'] = True
+
+        Pin.override(obj, service='intake')
+        p2 = Pin.get_from(obj)
+        ok_(p2._config is not None)
+        p2._config['distributed_tracing'] = False
+
+        ok_(p1._config['distributed_tracing'] is True)
+        ok_(p2._config['distributed_tracing'] is False)
+
+    def test_pin_does_not_override_global(self):
+        # ensure that when a `Pin` is created from a class, the specific
+        # instance doesn't override the global one
+        class A(object):
+            pass
+
+        Pin.override(A, service='metrics')
+        global_pin = Pin.get_from(A)
+        global_pin._config['distributed_tracing'] = True
+
+        a = A()
+        pin = Pin.get_from(a)
+        ok_(pin is not None)
+        ok_(pin._config['distributed_tracing'] is True)
+        pin._config['distributed_tracing'] = False
+
+        ok_(global_pin._config['distributed_tracing'] is True)
+        ok_(pin._config['distributed_tracing'] is False)
+
+    def test_pin_does_not_override_global_with_new_instance(self):
+        # ensure that when a `Pin` is created from a class, the specific
+        # instance doesn't override the global one, even if only the
+        # `onto()` API has been used
+        class A(object):
+            pass
+
+        pin = Pin(service='metrics')
+        pin.onto(A)
+        global_pin = Pin.get_from(A)
+        global_pin._config['distributed_tracing'] = True
+
+        a = A()
+        pin = Pin.get_from(a)
+        ok_(pin is not None)
+        ok_(pin._config['distributed_tracing'] is True)
+        pin._config['distributed_tracing'] = False
+
+        ok_(global_pin._config['distributed_tracing'] is True)
+        ok_(pin._config['distributed_tracing'] is False)
