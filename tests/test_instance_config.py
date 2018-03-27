@@ -24,6 +24,14 @@ class InstanceConfigTestCase(TestCase):
         cfg = config.get_from(self.Klass)
         ok_(isinstance(cfg, dict))
 
+    def test_configuration_get_from_twice(self):
+        # ensure the configuration is the same if `get_from` is used
+        # in the same instance
+        instance = self.Klass()
+        cfg1 = config.get_from(instance)
+        cfg2 = config.get_from(instance)
+        ok_(cfg1 is cfg2)
+
     def test_configuration_set(self):
         # ensure the configuration can be updated in the Pin
         instance = self.Klass()

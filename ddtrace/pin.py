@@ -71,7 +71,7 @@ class Pin(object):
         pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
         pin = getattr(obj, pin_name, None)
         # detect if the PIN has been inherited from a class
-        if pin is not None and pin._target is not obj:
+        if pin is not None and pin._target != id(obj):
             pin = pin.clone()
             pin.onto(obj)
         return pin
