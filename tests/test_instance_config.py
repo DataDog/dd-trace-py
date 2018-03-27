@@ -68,7 +68,7 @@ class InstanceConfigTestCase(TestCase):
         eq_(cfg['service_name'], 'service')
 
     def test_configuration_copy(self):
-        # ensure when a Pin is created, it copies the given configuration
+        # ensure when a Pin is used, the given configuration is copied
         global_config = {
             'service_name': 'service',
         }
@@ -77,3 +77,18 @@ class InstanceConfigTestCase(TestCase):
         cfg = config.get_from(instance)
         cfg['service_name'] = 'metrics'
         eq_(global_config['service_name'], 'service')
+
+    def test_configuration_copy_upside_down(self):
+        # ensure when a Pin is created, it does not copy the given configuration
+        # until it's used for at least once
+        global_config = {
+            'service_name': 'service',
+        }
+        Pin(service='service', _config=global_config).onto(self.Klass)
+        # override the global config: users do that before using the integration
+        global_config['service_name'] = 'metrics'
+        # use the Pin via `get_from`
+        instance = self.Klass()
+        cfg = config.get_from(instance)
+        # it should have users updated value
+        eq_(cfg['service_name'], 'metrics')
