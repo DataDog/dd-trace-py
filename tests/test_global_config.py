@@ -3,10 +3,10 @@ from unittest import TestCase
 from nose.tools import eq_, ok_, assert_raises
 
 from ddtrace import config as global_config
-from ddtrace.configuration import Config, ConfigException
+from ddtrace.settings import Config, ConfigException
 
 
-class ConfigTestCase(TestCase):
+class GlobalConfigTestCase(TestCase):
     """Test the `Configuration` class that stores integration settings"""
     def setUp(self):
         self.config = Config()

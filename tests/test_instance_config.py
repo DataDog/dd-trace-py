@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace.pin import Pin
 
 
-class ConfigTestCase(TestCase):
+class InstanceConfigTestCase(TestCase):
     """TestCase for the Configuration API that is used to define
     global settings and for each `Pin` instance.
     """
