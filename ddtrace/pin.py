@@ -119,7 +119,7 @@ class Pin(object):
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
 
             # set the target reference; any get_from, clones and retarget the new PIN
-            self._target = obj
+            self._target = id(obj)
             return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
@@ -130,6 +130,12 @@ class Pin(object):
         if not tags and self.tags:
             tags = self.tags.copy()
 
+        # we use a copy instead of a deepcopy because we expect configurations
+        # to have only a root level dictionary without nested objects. Using
+        # deepcopy introduces a big overhead:
+        #
+        # copy: 0.00654911994934082
+        # deepcopy: 0.2787208557128906
         config = self._config.copy()
 
         return Pin(
