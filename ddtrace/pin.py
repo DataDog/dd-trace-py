@@ -24,11 +24,10 @@ class Pin(object):
         >>> pin = Pin.override(conn, service="user-db")
         >>> conn = sqlite.connect("/tmp/image.db")
     """
-    __slots__ = ['app', 'app_type', 'service', 'tags', 'tracer', '_target', '_config', '_initialized']
+    __slots__ = ['app', 'app_type', 'tags', 'tracer', '_target', '_config', '_initialized']
 
     def __init__(self, service, app=None, app_type=None, tags=None, tracer=None, _config=None):
         tracer = tracer or ddtrace.tracer
-        self.service = service
         self.app = app
         self.app_type = app_type
         self.tags = tags
@@ -37,7 +36,16 @@ class Pin(object):
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
         self._config = _config or {}
+        # [Backward compatibility]: service argument updates the `Pin` config
+        self._config['service_name'] = service
         self._initialized = True
+
+    @property
+    def service(self):
+        """Backward compatibility: accessing to `pin.service` returns the underlying
+        configuration value.
+        """
+        return self._config['service_name']
 
     def __setattr__(self, name, value):
         if getattr(self, '_initialized', False) and name is not '_target':
