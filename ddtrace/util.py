@@ -1,11 +1,9 @@
-"""
-Generic utilities for tracers
-"""
-
-from functools import wraps
+import os
 import inspect
 import logging
 import wrapt
+
+from functools import wraps
 
 
 def deprecated(message='', version=None):
@@ -21,6 +19,7 @@ def deprecated(message='', version=None):
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
 
 def deep_getattr(obj, attr_string, default=None):
     """
@@ -66,7 +65,6 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
       the original unpatched method we wish to trace.
 
     """
-
     def _get_original_method(thing, key):
         orig = None
         if hasattr(thing, '_dogtraced'):
@@ -110,6 +108,27 @@ def asbool(value):
         return value
 
     return value.lower() in ("true", "1")
+
+
+def get_env(integration, variable, default=None):
+    """Retrieves environment variables value for the given integration. It must be used
+    for consistency between integrations. The implementation is backward compatible
+    with legacy nomenclature:
+        * `DATADOG_` is a legacy prefix with lower priority
+        * `DD_` environment variables have the highest priority
+        * the environment variable is built concatenating `integration` and `variable`
+          arguments
+        * return `default` otherwise
+    """
+    key = '{}_{}'.format(integration, variable).upper()
+    legacy_env = 'DATADOG_{}'.format(key)
+    env = 'DD_{}'.format(key)
+
+    # [Backward compatibility]: `DATADOG_` variables should be supported;
+    # add a deprecation warning later if it's used, so that we can drop the key
+    # in newer releases.
+    value = os.getenv(env) or os.getenv(legacy_env)
+    return value if value else default
 
 
 def unwrap(obj, attr):
