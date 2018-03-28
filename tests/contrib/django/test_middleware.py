@@ -2,10 +2,12 @@
 from nose.tools import eq_
 
 from django.test import modify_settings
+from django.db import connections
 
 # project
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.conf import settings
+from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.contrib.django import TraceMiddleware
 
 # testing
@@ -35,6 +37,26 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
+
+    def test_database_patch(self):
+        # We want to test that a connection-recreation event causes connections
+        # to get repatched. However since django tests are a atomic transaction
+        # we can't change the connection. Instead we test that the connection
+        # does get repatched if it's not patched.
+        for conn in connections.all():
+            unpatch_conn(conn)
+        # ensures that the internals are properly traced
+        url = reverse('users-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # We would be missing span #3, the database span, if the connection
+        # wasn't patched.
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        eq_(spans[0].name, 'django.request')
+        eq_(spans[1].name, 'django.template')
+        eq_(spans[2].name, 'sqlite.query')
 
     def test_middleware_trace_errors(self):
         # ensures that the internals are properly traced
