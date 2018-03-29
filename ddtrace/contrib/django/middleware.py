@@ -11,6 +11,7 @@ from ...propagation.http import HTTPPropagator
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
 from django.conf import settings as django_settings
+import django
 
 try:
     from django.utils.deprecation import MiddlewareMixin
@@ -22,33 +23,37 @@ log = logging.getLogger(__name__)
 
 EXCEPTION_MIDDLEWARE = 'ddtrace.contrib.django.TraceExceptionMiddleware'
 TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'
-MIDDLEWARE_ATTRIBUTES = ['MIDDLEWARE', 'MIDDLEWARE_CLASSES']
+MIDDLEWARE = 'MIDDLEWARE'
+MIDDLEWARE_CLASSES = 'MIDDLEWARE_CLASSES'
+
+def get_middleware_insertion_point():
+    """Returns the attribute name and collection object for the Django middleware.
+    If middleware cannot be found, returns None for the middleware collection."""
+    middleware = getattr(django_settings, MIDDLEWARE, None)
+    # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
+    if middleware and django.VERSION >= (1, 10):
+        return MIDDLEWARE, middleware
+    return MIDDLEWARE_CLASSES, getattr(django_settings, MIDDLEWARE_CLASSES, None)
 
 def insert_trace_middleware():
-    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware is not None and TRACE_MIDDLEWARE not in set(middleware):
-            setattr(django_settings, middleware_attribute, type(middleware)((TRACE_MIDDLEWARE,)) + middleware)
-            break
+    middleware_attribute, middleware = get_middleware_insertion_point()
+    if middleware is not None and TRACE_MIDDLEWARE not in set(middleware):
+        setattr(django_settings, middleware_attribute, type(middleware)((TRACE_MIDDLEWARE,)) + middleware)
 
 def remove_trace_middleware():
-    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware and TRACE_MIDDLEWARE in set(middleware):
-            middleware.remove(TRACE_MIDDLEWARE)
+    _, middleware = get_middleware_insertion_point()
+    if middleware and TRACE_MIDDLEWARE in set(middleware):
+        middleware.remove(TRACE_MIDDLEWARE)
 
 def insert_exception_middleware():
-    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware is not None and EXCEPTION_MIDDLEWARE not in set(middleware):
-            setattr(django_settings, middleware_attribute, middleware + type(middleware)((EXCEPTION_MIDDLEWARE,)))
-            break
+    middleware_attribute, middleware = get_middleware_insertion_point()
+    if middleware is not None and EXCEPTION_MIDDLEWARE not in set(middleware):
+        setattr(django_settings, middleware_attribute, middleware + type(middleware)((EXCEPTION_MIDDLEWARE,)))
 
 def remove_exception_middleware():
-    for middleware_attribute in MIDDLEWARE_ATTRIBUTES:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware and EXCEPTION_MIDDLEWARE in set(middleware):
-            middleware.remove(EXCEPTION_MIDDLEWARE)
+    _, middleware = get_middleware_insertion_point()
+    if middleware and EXCEPTION_MIDDLEWARE in set(middleware):
+        middleware.remove(EXCEPTION_MIDDLEWARE)
 
 class InstrumentationMixin(MiddlewareClass):
     """
