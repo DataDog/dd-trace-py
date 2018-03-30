@@ -3,7 +3,7 @@ from .pin import Pin
 from .span import Span
 from .tracer import Tracer
 
-__version__ = '0.11.0'
+__version__ = '0.11.1'
 
 # a global tracer instance
 tracer = Tracer()
