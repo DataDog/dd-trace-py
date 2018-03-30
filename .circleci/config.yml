@@ -477,6 +477,31 @@ jobs:
           paths:
             - .tox
 
+  pymysql:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mysql:5.7
+        env:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-pymysql-{{ checksum "tox.ini" }}
+      - run: tox -e 'wait' mysql
+      - run: tox -e '{py27,py34,py35,py36}-pymysql{07,08}' --result-json /tmp/pymysql.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - pymysql.results
+      - save_cache:
+          key: tox-cache-pymysql-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pylibmc:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -781,6 +806,7 @@ workflows:
       - mysqlconnector
       - mysqlpython
       - mysqldb
+      - pymysql
       - pylibmc
       - pymongo
       - pyramid
@@ -816,6 +842,7 @@ workflows:
             - mysqlconnector
             - mysqlpython
             - mysqldb
+            - pymysql
             - pylibmc
             - pymongo
             - pyramid
