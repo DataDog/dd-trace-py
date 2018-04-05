@@ -32,7 +32,7 @@ class ViewTraceMixin(object):
                 view_name = self.__class__.__name__
                 action = handler.__name__
                 span.resource = "{}.{}.{}".format(module, view_name, action)
-        return super(TraceMixin, self).dispatch(request, *args, **kwargs)
+        return super(ViewTraceMixin, self).dispatch(request, *args, **kwargs)
 
 
 class ViewSetTraceMixin(object):
@@ -57,4 +57,4 @@ class ViewSetTraceMixin(object):
             view_name = self.__class__.__name__
             action = self.action
             span.resource = "{}.{}.{}".format(module, view_name, action)
-        return super().initialize_request(request, *args, **kwargs)
+        return super(ViewSetTraceMixin, self).initialize_request(request, *args, **kwargs)
