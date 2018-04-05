@@ -23,7 +23,7 @@ class ViewTraceMixin(object):
         :param args: positional request arguments.
         :param kwargs: keyword request arguments.
         """
-        span = _get_req_span()
+        span = _get_req_span(request)
         if span is not None:
             method = request.method.lower()
             handler = getattr(self, method, None)
@@ -51,7 +51,7 @@ class ViewSetTraceMixin(object):
         :param args: positional request arguments.
         :param kwargs: keyword request arguments.
         """
-        span = _get_req_span()
+        span = _get_req_span(request)
         if span is not None:
             module = self.__module__
             view_name = self.__class__.__name__
