@@ -40,8 +40,7 @@ class TestRequestsDistributed(BaseRequestTestCase):
             eq_('bar', resp.text)
 
     def test_propagation_true(self):
-        # [Backward compatibility]: ensure users can switch the distributed
-        # tracing flag using the `Session` attribute
+        # ensure distributed tracing can be enabled
         cfg = config.get_from(self.session)
         cfg['distributed_tracing'] = True
         adapter = Adapter()
@@ -63,8 +62,7 @@ class TestRequestsDistributed(BaseRequestTestCase):
         eq_(root.span_id, req.parent_id)
 
     def test_propagation_false(self):
-        # [Backward compatibility]: ensure users can switch the distributed
-        # tracing flag using the `Session` attribute
+        # ensure distributed tracing can be disabled
         cfg = config.get_from(self.session)
         cfg['distributed_tracing'] = False
         adapter = Adapter()

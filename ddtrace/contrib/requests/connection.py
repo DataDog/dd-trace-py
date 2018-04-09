@@ -53,7 +53,7 @@ def _wrap_request(func, instance, args, kwargs):
         span.service = _extract_service_name(instance, span)
 
         # propagate distributed tracing headers
-        if config.get_from(instance)['distributed_tracing']:
+        if config.get_from(instance).get('distributed_tracing'):
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
             kwargs['headers'] = headers
@@ -64,11 +64,11 @@ def _wrap_request(func, instance, args, kwargs):
             return response
         finally:
             try:
-                span.set_tag(http.METHOD, method)
+                span.set_tag(http.METHOD, method.upper())
                 span.set_tag(http.URL, url)
                 if response is not None:
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer
                     span.error = int(500 <= response.status_code)
             except Exception:
-                log.debug("error patching tags", exc_info=True)
+                log.debug("requests: error adding tags", exc_info=True)
