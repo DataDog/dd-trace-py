@@ -1,26 +1,15 @@
-import os
 import logging
 import ddtrace
+
+from ddtrace import config
 
 from .constants import DEFAULT_SERVICE
 
 from ...ext import http
-from ...util import asbool
 from ...propagation.http import HTTPPropagator
 
 
 log = logging.getLogger(__name__)
-
-
-def _wrap_session_init(func, instance, args, kwargs):
-    """Configure tracing settings when the `Session` is initialized"""
-    func(*args, **kwargs)
-
-    # set tracer settings
-    distributed_tracing = asbool(os.environ.get('DATADOG_REQUESTS_DISTRIBUTED_TRACING')) or False
-    service_name = os.environ.get('DATADOG_REQUESTS_SERVICE_NAME') or DEFAULT_SERVICE
-    setattr(instance, 'distributed_tracing', distributed_tracing)
-    setattr(instance, 'service_name', service_name)
 
 
 def _extract_service_name(session, span):
@@ -35,7 +24,7 @@ def _extract_service_name(session, span):
     The priority can be represented as:
     Updated service name > parent service name > default to `requests`.
     """
-    service_name = getattr(session, 'service_name', DEFAULT_SERVICE)
+    service_name = config.get_from(session)['service_name']
     if (service_name == DEFAULT_SERVICE and
             span._parent is not None and
             span._parent.service is not None):
@@ -45,10 +34,11 @@ def _extract_service_name(session, span):
 
 def _wrap_request(func, instance, args, kwargs):
     """Trace the `Session.request` instance method"""
+    # TODO[manu]: we already offer a way to provide the Global Tracer
+    # and is ddtrace.tracer; it's used only inside our tests and can
+    # be easily changed by providing a TracingTestCase that sets common
+    # tracing functionalities.
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-
-    # [TODO:christian] replace this with a unified way of handling options (eg, Pin)
-    distributed_tracing = getattr(instance, 'distributed_tracing', None)
 
     # skip if tracing is not enabled
     if not tracer.enabled:
@@ -62,7 +52,8 @@ def _wrap_request(func, instance, args, kwargs):
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span)
 
-        if distributed_tracing:
+        # propagate distributed tracing headers
+        if config.get_from(instance)['distributed_tracing']:
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
             kwargs['headers'] = headers

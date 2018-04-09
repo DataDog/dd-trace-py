@@ -2,7 +2,7 @@ import requests
 
 from wrapt import wrap_function_wrapper as _w
 
-from .connection import _wrap_session_init, _wrap_request
+from .connection import _wrap_request
 
 
 class TracedSession(requests.Session):
@@ -14,5 +14,4 @@ class TracedSession(requests.Session):
 
 
 # always patch our `TracedSession` when imported
-_w(TracedSession, 'request', _wrap_session_init)
 _w(TracedSession, 'request', _wrap_request)

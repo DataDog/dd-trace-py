@@ -1,8 +1,9 @@
 import unittest
 
 from requests import Session
-from nose.tools import eq_, assert_raises
+from nose.tools import eq_
 
+from ddtrace import config
 from ddtrace.ext import http, errors
 from ddtrace.contrib.requests import patch, unpatch
 
@@ -153,7 +154,8 @@ class TestRequests(BaseRequestTestCase):
 
     def test_user_set_service_name(self):
         # ensure a service name set by the user has precedence
-        self.session.service_name = 'clients'
+        cfg = config.get_from(self.session)
+        cfg['service_name'] = 'clients'
         out = self.session.get(URL_200)
         eq_(out.status_code, 200)
 
@@ -194,8 +196,9 @@ class TestRequests(BaseRequestTestCase):
     def test_user_service_name_precedence(self):
         # ensure the user service name takes precedence over
         # the parent Span
+        cfg = config.get_from(self.session)
+        cfg['service_name'] = 'clients'
         with self.tracer.trace('parent.span', service='web'):
-            self.session.service_name = 'clients'
             out = self.session.get(URL_200)
             eq_(out.status_code, 200)
 

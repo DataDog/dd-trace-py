@@ -1,6 +1,8 @@
 from requests_mock import Adapter
 from nose.tools import eq_, assert_in, assert_not_in
 
+from ddtrace import config
+
 from .test_requests import BaseRequestTestCase
 
 
@@ -24,7 +26,61 @@ class TestRequestsDistributed(BaseRequestTestCase):
         assert_not_in('x-datadog-parent-id', headers)
         return True
 
+    def test_propagation_default(self):
+        # ensure by default, distributed tracing is disabled
+        adapter = Adapter()
+        self.session.mount('mock', adapter)
+
+        with self.tracer.trace('root'):
+            def matcher(request):
+                return self.headers_not_here(self.tracer, request)
+            adapter.register_uri('GET', 'mock://datadog/foo', additional_matcher=matcher, text='bar')
+            resp = self.session.get('mock://datadog/foo')
+            eq_(200, resp.status_code)
+            eq_('bar', resp.text)
+
     def test_propagation_true(self):
+        # [Backward compatibility]: ensure users can switch the distributed
+        # tracing flag using the `Session` attribute
+        cfg = config.get_from(self.session)
+        cfg['distributed_tracing'] = True
+        adapter = Adapter()
+        self.session.mount('mock', adapter)
+
+        with self.tracer.trace('root') as root:
+            def matcher(request):
+                return self.headers_here(self.tracer, request, root)
+            adapter.register_uri('GET', 'mock://datadog/foo', additional_matcher=matcher, text='bar')
+            resp = self.session.get('mock://datadog/foo')
+            eq_(200, resp.status_code)
+            eq_('bar', resp.text)
+
+        spans = self.tracer.writer.spans
+        root, req = spans
+        eq_('root', root.name)
+        eq_('requests.request', req.name)
+        eq_(root.trace_id, req.trace_id)
+        eq_(root.span_id, req.parent_id)
+
+    def test_propagation_false(self):
+        # [Backward compatibility]: ensure users can switch the distributed
+        # tracing flag using the `Session` attribute
+        cfg = config.get_from(self.session)
+        cfg['distributed_tracing'] = False
+        adapter = Adapter()
+        self.session.mount('mock', adapter)
+
+        with self.tracer.trace('root'):
+            def matcher(request):
+                return self.headers_not_here(self.tracer, request)
+            adapter.register_uri('GET', 'mock://datadog/foo', additional_matcher=matcher, text='bar')
+            resp = self.session.get('mock://datadog/foo')
+            eq_(200, resp.status_code)
+            eq_('bar', resp.text)
+
+    def test_propagation_true_legacy(self):
+        # [Backward compatibility]: ensure users can switch the distributed
+        # tracing flag using the `Session` attribute
         adapter = Adapter()
         self.session.mount('mock', adapter)
         self.session.distributed_tracing = True
@@ -44,7 +100,9 @@ class TestRequestsDistributed(BaseRequestTestCase):
         eq_(root.trace_id, req.trace_id)
         eq_(root.span_id, req.parent_id)
 
-    def test_propagation_false(self):
+    def test_propagation_false_legacy(self):
+        # [Backward compatibility]: ensure users can switch the distributed
+        # tracing flag using the `Session` attribute
         adapter = Adapter()
         self.session.mount('mock', adapter)
         self.session.distributed_tracing = False
