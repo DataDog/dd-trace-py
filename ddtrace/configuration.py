@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 class ConfigException(Exception):
     """Configuration exception when an integration that is not available
     is called in the `Config` object.
@@ -33,4 +36,4 @@ class Config(object):
             since it contains integration defaults.
         """
 
-        self._config[integration] = settings.copy()
+        self._config[integration] = deepcopy(settings)
