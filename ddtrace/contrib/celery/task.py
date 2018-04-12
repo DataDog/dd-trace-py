@@ -21,7 +21,8 @@ def patch_task(task, pin=None):
         ('__init__', _task_init),
         ('run', _task_run),
         ('apply', _task_apply),
-        ('apply_async', _task_apply_async),
+        # this causes some weird cls/self confusion in the way we do 1.0 style tasks
+        # ('apply_async', _task_apply_async),
     ]
     for method_name, wrapper in patch_methods:
         # Get original method
