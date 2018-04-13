@@ -3,7 +3,7 @@ import unittest
 
 from nose.tools import eq_, ok_
 
-from ddtrace.util import asbool, get_env
+from ddtrace.utils.formats import asbool, get_env
 
 
 class TestUtilities(unittest.TestCase):
@@ -46,3 +46,7 @@ class TestUtilities(unittest.TestCase):
         os.environ['DATADOG_REQUESTS_DISTRIBUTED_TRACING'] = 'lowest'
         value = get_env('requests', 'distributed_tracing')
         eq_(value, 'highest')
+
+    def test_deprecation_formatter(self):
+        # ensure the formatter returns the proper message
+        pass

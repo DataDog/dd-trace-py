@@ -11,8 +11,8 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.compat import stringify
 
+from ...utils.formats import deep_getattr
 from ...utils.deprecation import deprecated
-from ...util import deep_getattr
 from ...ext import net, cassandra as cassx, errors
 
 log = logging.getLogger(__name__)

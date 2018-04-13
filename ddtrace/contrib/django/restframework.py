@@ -2,7 +2,7 @@ from wrapt import wrap_function_wrapper as wrap
 
 from rest_framework.views import APIView
 
-from ddtrace.util import unwrap
+from ...utils.wrappers import unwrap
 
 
 def patch_restframework(tracer):

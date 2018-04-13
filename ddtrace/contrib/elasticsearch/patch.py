@@ -5,7 +5,7 @@ from elasticsearch.exceptions import TransportError
 from . import metadata
 from .quantize import quantize
 
-from ddtrace.util import unwrap
+from ...utils.wrappers import unwrap
 from ...compat import urlencode
 from ...pin import Pin
 from ...ext import http

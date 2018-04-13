@@ -4,7 +4,7 @@ import tornado
 from wrapt import wrap_function_wrapper as _w
 
 from . import handlers, application, decorators, template, compat, context_provider
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 def patch():

@@ -20,7 +20,7 @@ You can also use the autopatching functionality:
 To enable distributed tracing when using autopatching, set the
 DATADOG_FALCON_DISTRIBUTED_TRACING environment variable to true.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['falcon']
 

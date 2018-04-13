@@ -25,9 +25,8 @@ which is also instrumented and want to have traces including both client and ser
     session.distributed_tracing = True
     session.get("http://host.lan/webservice")
 """
+from ...utils.importlib import require_modules
 
-
-from ..util import require_modules
 
 required_modules = ['requests']
 
