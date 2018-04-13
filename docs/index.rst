@@ -421,6 +421,22 @@ Information will be lost but it allows to control any potential performance impa
     tracer.sampler = RateSampler(sample_rate)
 
 
+Resolving deprecation warnings
+------------------------------
+Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
+These warnings must be fixed before upgrading, otherwise ``ddtrace`` library will not work
+as expected. Our deprecation messages include the version where the behavior is altered or
+removed.
+
+In Python, deprecation warnings are silenced by default, and to turn them on you may add the
+following flag or environment variable::
+
+    $ python -Wall app.py
+
+    # or
+
+    $ PYTHONWARNINGS=all python app.py
+
 
 Advanced Usage
 --------------
