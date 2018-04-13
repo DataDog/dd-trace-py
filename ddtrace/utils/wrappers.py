@@ -1,6 +1,8 @@
 import wrapt
 import inspect
 
+from .deprecation import deprecated
+
 
 def unwrap(obj, attr):
     f = getattr(obj, attr, None)
@@ -8,6 +10,7 @@ def unwrap(obj, attr):
         setattr(obj, attr, f.__wrapped__)
 
 
+@deprecated('`wrapt` library is used instead', version='1.0.0')
 def safe_patch(patchable, key, patch_func, service, meta, tracer):
     """ takes patch_func (signature: takes the orig_method that is
     wrapped in the monkey patch == UNBOUND + service and meta) and
