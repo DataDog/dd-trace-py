@@ -1,24 +1,6 @@
 import os
-import inspect
-import logging
 import wrapt
-
-from functools import wraps
-
-
-def deprecated(message='', version=None):
-    """Function decorator to report a deprecated function"""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger = logging.getLogger(func.__module__)
-            logger.warning("%s is deprecated and will be remove in future versions%s. %s",
-                           func.__name__,
-                           ' (%s)' % version if version else '',
-                           message)
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
+import inspect
 
 
 def deep_getattr(obj, attr_string, default=None):

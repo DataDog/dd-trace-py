@@ -10,7 +10,9 @@ import wrapt
 # project
 from ddtrace import Pin
 from ddtrace.compat import stringify
-from ...util import deep_getattr, deprecated
+
+from ...utils.deprecation import deprecated
+from ...util import deep_getattr
 from ...ext import net, cassandra as cassx, errors
 
 log = logging.getLogger(__name__)
@@ -257,7 +259,7 @@ def _sanitize_query(span, query):
 # DEPRECATED
 #
 
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def get_traced_cassandra(*args, **kwargs):
     return _get_traced_cluster(*args, **kwargs)
 
