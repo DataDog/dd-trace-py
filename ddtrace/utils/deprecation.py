@@ -3,6 +3,10 @@ import warnings
 from functools import wraps
 
 
+class RemovedInDDTrace10Warning(DeprecationWarning):
+    pass
+
+
 def format_message(name, message, version):
     """Message formatter to create `DeprecationWarning` messages
     such as:
@@ -18,7 +22,7 @@ def format_message(name, message, version):
 
 def warn(message, stacklevel=2):
     """Helper function used as a ``DeprecationWarning``."""
-    warnings.warn(message, DeprecationWarning, stacklevel=stacklevel)
+    warnings.warn(message, RemovedInDDTrace10Warning, stacklevel=stacklevel)
 
 
 def deprecation(name='', message='', version=None):
