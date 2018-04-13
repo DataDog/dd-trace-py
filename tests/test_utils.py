@@ -1,8 +1,10 @@
 import os
 import unittest
+import warnings
 
 from nose.tools import eq_, ok_
 
+from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env
 
 
@@ -49,4 +51,36 @@ class TestUtilities(unittest.TestCase):
 
     def test_deprecation_formatter(self):
         # ensure the formatter returns the proper message
-        pass
+        msg = format_message(
+            'deprecated_function',
+            'use something else instead',
+            '1.0.0',
+        )
+        expected = "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). use something else instead"
+        eq_(msg, expected)
+
+    def test_deprecation(self):
+        # ensure `deprecation` properly raise a DeprecationWarning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            deprecation(
+                name='fn',
+                message='message',
+                version='1.0.0'
+            )
+            ok_(len(w) == 1)
+            ok_(issubclass(w[-1].category, DeprecationWarning))
+            ok_('message' in str(w[-1].message))
+
+    def test_deprecated_decorator(self):
+        # ensure `deprecated` decorator properly raise a DeprecationWarning
+        @deprecated('decorator', version='1.0.0')
+        def fxn():
+            pass
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            fxn()
+            ok_(len(w) == 1)
+            ok_(issubclass(w[-1].category, DeprecationWarning))
+            ok_('decorator' in str(w[-1].message))
