@@ -37,10 +37,15 @@ class TestUtilities(unittest.TestCase):
 
     def test_get_env_found_legacy(self):
         # ensure `get_env` returns a value if legacy environment variables
-        # are used
-        os.environ['DATADOG_REQUESTS_DISTRIBUTED_TRACING'] = '1'
-        value = get_env('requests', 'distributed_tracing')
-        eq_(value, '1')
+        # are used, raising a Deprecation warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            os.environ['DATADOG_REQUESTS_DISTRIBUTED_TRACING'] = '1'
+            value = get_env('requests', 'distributed_tracing')
+            eq_(value, '1')
+            ok_(len(w) == 1)
+            ok_(issubclass(w[-1].category, DeprecationWarning))
+            ok_('Use `DD_` prefix instead' in str(w[-1].message))
 
     def test_get_env_key_priority(self):
         # ensure `get_env` use `DD_` with highest priority

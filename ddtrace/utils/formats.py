@@ -1,5 +1,7 @@
 import os
 
+from .deprecation import deprecation
+
 
 def get_env(integration, variable, default=None):
     """Retrieves environment variables value for the given integration. It must be used
@@ -15,9 +17,12 @@ def get_env(integration, variable, default=None):
     legacy_env = 'DATADOG_{}'.format(key)
     env = 'DD_{}'.format(key)
 
-    # [Backward compatibility]: `DATADOG_` variables should be supported;
-    # add a deprecation warning later if it's used, so that we can drop the key
-    # in newer releases.
+    # [Backward compatibility]: `DATADOG_` variables are deprecated
+    deprecation(
+        name='DATADOG_',
+        message='Use `DD_` prefix instead',
+        version='1.0.0',
+    )
     value = os.getenv(env) or os.getenv(legacy_env)
     return value if value else default
 
