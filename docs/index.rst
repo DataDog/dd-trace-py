@@ -73,7 +73,10 @@ Instrumentation
 Web
 ~~~
 
-We support many :ref:`web-frameworks`. Install the middleware for yours.
+We support many `web frameworks`. Install the middleware for yours.
+
+.. _web frameworks: #web-frameworks
+
 
 Databases
 ~~~~~~~~~
