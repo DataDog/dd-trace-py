@@ -6,7 +6,7 @@ Add all monkey-patching that needs to run by default here
 import os
 import logging
 
-from ddtrace.util import asbool
+from ddtrace.utils.formats import asbool
 
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")

@@ -17,7 +17,7 @@ This integration ignores autopatching, it can be enabled via
     ec2.get_all_instances()
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['boto.connection']
 

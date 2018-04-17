@@ -2,13 +2,13 @@ import os
 import logging
 
 import wrapt
-import requests
-
 import ddtrace
+import requests
 
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...util import asbool, unwrap as _u
+from ...utils.formats import asbool
+from ...utils.wrappers import unwrap as _u
 
 
 log = logging.getLogger(__name__)

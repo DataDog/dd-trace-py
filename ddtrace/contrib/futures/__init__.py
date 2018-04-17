@@ -15,11 +15,10 @@ as follows:
     # or, when instrumenting all libraries
     patch_all(futures=True)
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['concurrent.futures']
-
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

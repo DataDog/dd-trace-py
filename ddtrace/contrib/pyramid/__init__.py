@@ -38,7 +38,8 @@ explicitly to the list. For example::
 
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['pyramid']
 

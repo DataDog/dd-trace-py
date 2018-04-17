@@ -5,8 +5,7 @@ from aiopg.utils import _ContextManager
 
 from .. import dbapi
 from ...ext import sql
-
-from ddtrace import Pin
+from ...pin import Pin
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):

@@ -75,7 +75,7 @@ The available settings are:
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['tornado']

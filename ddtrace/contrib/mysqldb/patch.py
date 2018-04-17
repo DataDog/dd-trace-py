@@ -8,7 +8,7 @@ from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 
 from ...ext import net, db
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 KWPOS_BY_TAG = {
