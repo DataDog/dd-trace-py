@@ -17,13 +17,17 @@ def get_env(integration, variable, default=None):
     legacy_env = 'DATADOG_{}'.format(key)
     env = 'DD_{}'.format(key)
 
-    # [Backward compatibility]: `DATADOG_` variables are deprecated
-    deprecation(
-        name='DATADOG_',
-        message='Use `DD_` prefix instead',
-        version='1.0.0',
-    )
-    value = os.getenv(env) or os.getenv(legacy_env)
+    value = os.getenv(env)
+    legacy = os.getenv(legacy_env)
+    if legacy:
+        # Deprecation: `DATADOG_` variables are deprecated
+        deprecation(
+            name='DATADOG_',
+            message='Use `DD_` prefix instead',
+            version='1.0.0',
+        )
+
+    value = value or legacy
     return value if value else default
 
 
