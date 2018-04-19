@@ -3,9 +3,10 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.pin import Pin
 
-from ...util import asbool, get_env, unwrap as _u
+from ...pin import Pin
+from ...utils.formats import asbool, get_env
+from ...utils.wrappers import unwrap as _u
 from .legacy import _distributed_tracing, _distributed_tracing_setter
 from .constants import DEFAULT_SERVICE
 from .connection import _wrap_request
