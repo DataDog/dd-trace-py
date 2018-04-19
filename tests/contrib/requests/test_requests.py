@@ -1,11 +1,14 @@
 import unittest
+import requests
 
 from requests import Session
-from nose.tools import eq_, assert_raises
+from nose.tools import eq_
 
+from ddtrace import config
 from ddtrace.ext import http, errors
 from ddtrace.contrib.requests import patch, unpatch
 
+from ...util import override_global_tracer
 from ...test_tracer import get_dummy_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
@@ -50,9 +53,9 @@ class TestRequests(BaseRequestTestCase):
         url = URL_200
         method = 'GET'
         inputs = [
-                ([], {'method': method, 'url': url}),
-                ([method], {'url': url}),
-                ([method, url], {}),
+            ([], {'method': method, 'url': url}),
+            ([method], {'url': url}),
+            ([method, url], {}),
         ]
 
         for args, kwargs in inputs:
@@ -100,6 +103,21 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.error, 0)
         eq_(s.span_type, http.TYPE)
 
+    def test_requests_module_200(self):
+        # ensure the requests API is instrumented even without
+        # using a `Session` directly
+        with override_global_tracer(self.tracer):
+            out = requests.get(URL_200)
+            eq_(out.status_code, 200)
+            # validation
+            spans = self.tracer.writer.pop()
+            eq_(len(spans), 1)
+            s = spans[0]
+            eq_(s.get_tag(http.METHOD), 'GET')
+            eq_(s.get_tag(http.STATUS_CODE), '200')
+            eq_(s.error, 0)
+            eq_(s.span_type, http.TYPE)
+
     def test_post_500(self):
         out = self.session.post(URL_500)
         # validation
@@ -139,3 +157,71 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.get_tag(http.STATUS_CODE), '500')
         eq_(s.error, 1)
+
+    def test_default_service_name(self):
+        # ensure a default service name is set
+        out = self.session.get(URL_200)
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'requests')
+
+    def test_user_set_service_name(self):
+        # ensure a service name set by the user has precedence
+        cfg = config.get_from(self.session)
+        cfg['service_name'] = 'clients'
+        out = self.session.get(URL_200)
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'clients')
+
+    def test_parent_service_name_precedence(self):
+        # ensure the parent service name has precedence if the value
+        # is not set by the user
+        with self.tracer.trace('parent.span', service='web'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'web')
+
+    def test_parent_without_service_name(self):
+        # ensure the default value is used if the parent
+        # doesn't have a service
+        with self.tracer.trace('parent.span'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'requests')
+
+    def test_user_service_name_precedence(self):
+        # ensure the user service name takes precedence over
+        # the parent Span
+        cfg = config.get_from(self.session)
+        cfg['service_name'] = 'clients'
+        with self.tracer.trace('parent.span', service='web'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+
+        eq_(s.name, 'requests.request')
+        eq_(s.service, 'clients')
