@@ -2,7 +2,7 @@ from .monkey import patch, patch_all
 from .pin import Pin
 from .span import Span
 from .tracer import Tracer
-from .configuration import Config
+from .settings import Config
 
 __version__ = '0.11.1'
 

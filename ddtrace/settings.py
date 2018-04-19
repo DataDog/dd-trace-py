@@ -1,4 +1,11 @@
+import logging
+
 from copy import deepcopy
+
+from .pin import Pin
+
+
+log = logging.getLogger(__name__)
 
 
 class ConfigException(Exception):
@@ -25,6 +32,19 @@ class Config(object):
             raise ConfigException(
                 'Integration "{}" is not registered in this configuration'.format(e.message)
             )
+
+    def get_from(self, obj):
+        """Retrieves the configuration for the given object.
+        Any object that has an attached `Pin` must have a configuration
+        and if a wrong object is given, an empty `dict` is returned
+        for safety reasons.
+        """
+        pin = Pin.get_from(obj)
+        if pin is None:
+            log.debug('No configuration found for %s', obj)
+            return {}
+
+        return pin._config
 
     def _add(self, integration, settings):
         """Internal API that registers an integration with given default
