@@ -1,19 +1,9 @@
-"""
-Datadog tracing code for flask.
-
-Installing the blinker library will allow the tracing middleware to collect
-more exception info.
-"""
-
-# stdlib
 import logging
 
-# project
 from ... import compat
 from ...ext import http, errors, AppTypes
 from ...propagation.http import HTTPPropagator
 
-# 3p
 import flask.templating
 from flask import g, request, signals
 
@@ -28,7 +18,7 @@ class TraceMiddleware(object):
 
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
-        self.app.logger.info("initializing trace middleware")
+        log.debug('flask: initializing trace middleware')
 
         self._tracer = tracer
         self._service = service
@@ -50,7 +40,7 @@ class TraceMiddleware(object):
         # are caught and handled in custom user code.
         # See https://github.com/DataDog/dd-trace-py/issues/390
         if use_signals and not signals.signals_available:
-            self.app.logger.info(_blinker_not_installed_msg)
+            log.debug(_blinker_not_installed_msg)
         self.use_signals = use_signals and signals.signals_available
         timing_signals = {
             'got_request_exception': self._request_exception,
@@ -88,7 +78,7 @@ class TraceMiddleware(object):
         try:
             self._process_response(response)
         except Exception:
-            self.app.logger.exception("error tracing response")
+            log.debug('flask: error tracing response', exc_info=True)
         return response
 
     def _teardown_request(self, exception):
@@ -104,7 +94,7 @@ class TraceMiddleware(object):
         try:
             self._finish_span(span, exception=exception)
         except Exception:
-            self.app.logger.exception("error finishing span")
+            log.debug('flask: error finishing span', exc_info=True)
 
     def _start_span(self):
         if self._use_distributed_tracing:
@@ -120,7 +110,7 @@ class TraceMiddleware(object):
                 span_type=http.TYPE,
             )
         except Exception:
-            self.app.logger.exception("error tracing request")
+            log.debug('flask: error tracing request', exc_info=True)
 
     def _process_response(self, response):
         span = getattr(g, 'flask_datadog_span', None)
