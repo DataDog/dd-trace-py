@@ -34,6 +34,7 @@ class TracedGreenlet(gevent.Greenlet):
                 trace_id=ctx._parent_trace_id,
                 span_id=ctx._parent_span_id,
                 sampled=ctx._sampled,
+                sampling_priority=ctx._sampling_priority,
             )
             new_ctx._current_span = ctx._current_span
             setattr(self, CONTEXT_ATTR, new_ctx)
