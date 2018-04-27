@@ -31,10 +31,10 @@ class TracedGreenlet(gevent.Greenlet):
             # create a new context that inherits the current active span
             # TODO: a better API for Context, should get the tuple at once
             new_ctx = Context(
-                trace_id=ctx._parent_trace_id,
-                span_id=ctx._parent_span_id,
-                sampled=ctx._sampled,
-                sampling_priority=ctx._sampling_priority,
+                trace_id=ctx.trace_id,
+                span_id=ctx.span_id,
+                sampled=ctx.sampled,
+                sampling_priority=ctx.sampling_priority,
             )
             new_ctx._current_span = ctx._current_span
             setattr(self, CONTEXT_ATTR, new_ctx)
