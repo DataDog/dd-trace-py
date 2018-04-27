@@ -39,6 +39,21 @@ class Context(object):
         self._sampled = sampled
         self._sampling_priority = sampling_priority
 
+    @classmethod
+    def from_context(cls, ctx):
+        """
+        Create a new context that inherits the current span from the previous context.
+        """
+        with ctx._lock:
+            new_ctx = cls(
+                trace_id=ctx._parent_trace_id,
+                span_id=ctx._parent_span_id,
+                sampled=ctx._sampled,
+                sampling_priority=ctx._sampling_priority,
+            )
+            new_ctx._current_span = ctx._current_span
+            return new_ctx
+
     @property
     def trace_id(self):
         """Return current context trace_id."""
