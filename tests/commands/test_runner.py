@@ -147,3 +147,25 @@ class DdtraceRunTest(unittest.TestCase):
         update_patched_modules()
         assert EXTRA_PATCHED_MODULES["boto"] == True
         assert EXTRA_PATCHED_MODULES["django"] == False
+
+    def test_sitecustomize_run(self):
+        # [Regression test]: ensure users `sitecustomize.py` is properly loaded,
+        # so that our `bootstrap/sitecustomize.py` doesn't override the one
+        # defined in users' PYTHONPATH.
+        #
+        # Copy the current environment and replace the PYTHONPATH. This is
+        # required otherwise `ddtrace-run` is not found: when `env` kwarg is
+        # passed, the environment is entirely replaced
+        env = os.environ.copy()
+        sitecustomize = os.path.join(os.path.dirname(__file__), 'bootstrap')
+
+        # Add `boostrap` module so that `sitecustomize.py` is at the bottom
+        # of the PYTHONPATH
+        python_path = list(sys.path) + [sitecustomize]
+        env['PYTHONPATH'] = ':'.join(python_path)[1:]
+
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")
