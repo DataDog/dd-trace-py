@@ -1,7 +1,9 @@
 import os
+import sys
 import mock
 import ddtrace
 
+from ddtrace import __file__ as root_file
 from nose.tools import ok_
 from contextlib import contextmanager
 
@@ -75,3 +77,26 @@ def set_env(**environ):
     finally:
         os.environ.clear()
         os.environ.update(old_environ)
+
+
+def inject_sitecustomize(path):
+    """Creates a new environment, injecting a ``sitecustomize.py`` module in
+    the current PYTHONPATH.
+
+    :param path: package path containing ``sitecustomize.py`` module, starting
+                 from the ddtrace root folder
+    :returns: a cloned environment that includes an altered PYTHONPATH with
+              the given `sitecustomize.py`
+    """
+    root_folder = os.path.dirname(root_file)
+    # Copy the current environment and replace the PYTHONPATH. This is
+    # required otherwise `ddtrace` scripts are not found when `env` kwarg is
+    # passed
+    env = os.environ.copy()
+    sitecustomize = os.path.join(root_folder, '..', path)
+
+    # Add `boostrap` module so that `sitecustomize.py` is at the bottom
+    # of the PYTHONPATH
+    python_path = list(sys.path) + [sitecustomize]
+    env['PYTHONPATH'] = ':'.join(python_path)[1:]
+    return env

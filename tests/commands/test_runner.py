@@ -5,6 +5,8 @@ import sys
 import subprocess
 import unittest
 
+from ..util import inject_sitecustomize
+
 
 class DdtraceRunTest(unittest.TestCase):
     def tearDown(self):
@@ -147,3 +149,23 @@ class DdtraceRunTest(unittest.TestCase):
         update_patched_modules()
         assert EXTRA_PATCHED_MODULES["boto"] == True
         assert EXTRA_PATCHED_MODULES["django"] == False
+
+    def test_sitecustomize_run(self):
+        # [Regression test]: ensure users `sitecustomize.py` is properly loaded,
+        # so that our `bootstrap/sitecustomize.py` doesn't override the one
+        # defined in users' PYTHONPATH.
+        env = inject_sitecustomize('tests/commands/bootstrap')
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")
+
+    def test_sitecustomize_run_suppressed(self):
+        # ensure `sitecustomize.py` is not loaded if `-S` is used
+        env = inject_sitecustomize('tests/commands/bootstrap')
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py', '-S'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")

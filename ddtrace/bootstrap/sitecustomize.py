@@ -4,6 +4,8 @@ Add all monkey-patching that needs to run by default here
 """
 
 import os
+import imp
+import sys
 import logging
 
 from ddtrace.utils.formats import asbool
@@ -46,6 +48,8 @@ try:
     patch = True
 
     # Respect DATADOG_* environment variables in global tracer configuration
+    # TODO: these variables are deprecated; use utils method and update our documentation
+    # correct prefix should be DD_*
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
     hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
@@ -76,5 +80,24 @@ try:
 
     if 'DATADOG_ENV' in os.environ:
         tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
+
+    # Ensure sitecustomize.py is properly called if available in application directories:
+    # * exclude `bootstrap_dir` from the search
+    # * find a user `sitecustomize.py` module
+    # * import that module via `imp`
+    bootstrap_dir = os.path.dirname(__file__)
+    path = list(sys.path)
+    path.remove(bootstrap_dir)
+
+    try:
+        (f, path, description) = imp.find_module('sitecustomize', path)
+    except ImportError:
+        pass
+    else:
+        # `sitecustomize.py` found, load it
+        log.debug('sitecustomize from user found in: %s', path)
+        imp.load_module('sitecustomize', f, path, description)
+
+
 except Exception as e:
     log.warn("error configuring Datadog tracing", exc_info=True)
