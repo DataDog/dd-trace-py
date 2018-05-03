@@ -5,7 +5,7 @@ import pylons.wsgiapp
 from ddtrace import tracer, Pin
 
 from .middleware import PylonsTraceMiddleware
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 def patch():

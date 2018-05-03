@@ -63,6 +63,26 @@ jobs:
           paths:
             - .tox
 
+  futures:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-futures-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27}-threading-futures{30,31,32}' --result-json /tmp/futures.1.results
+      - run: tox -e '{py34,py35,py36}-threading' --result-json /tmp/futures.2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - futures.1.results
+            - futures.2.results
+      - save_cache:
+          key: tox-cache-futures-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   boto:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -164,15 +184,13 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-tornado-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27}-tornado{40,41,42,43,44}' --result-json /tmp/tornado.1.results
-      - run: tox -e '{py27}-tornado{40,41,42,43,44}-futures' --result-json /tmp/tornado.2.results
-      - run: tox -e '{py34,py35,py36}-tornado{40,41,42,43,44}' --result-json /tmp/tornado.3.results
+      - run: tox -e '{py27,py34,py35,py36}-tornado{40,41,42,43,44}' --result-json /tmp/tornado.1.results
+      - run: tox -e '{py27}-tornado{40,41,42,43,44}-futures{30,31,32}' --result-json /tmp/tornado.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - tornado.1.results
             - tornado.2.results
-            - tornado.3.results
       - save_cache:
           key: tox-cache-tornado-{{ checksum "tox.ini" }}
           paths:
@@ -456,6 +474,31 @@ jobs:
             - mysqldb.results
       - save_cache:
           key: tox-cache-mysqldb-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
+  pymysql:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mysql:5.7
+        env:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-pymysql-{{ checksum "tox.ini" }}
+      - run: tox -e 'wait' mysql
+      - run: tox -e '{py27,py34,py35,py36}-pymysql{07,08}' --result-json /tmp/pymysql.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - pymysql.results
+      - save_cache:
+          key: tox-cache-pymysql-{{ checksum "tox.ini" }}
           paths:
             - .tox
 
@@ -744,6 +787,7 @@ workflows:
       - flake8
       - tracer
       - integration
+      - futures
       - boto
       - ddtracerun
       - asyncio
@@ -762,6 +806,7 @@ workflows:
       - mysqlconnector
       - mysqlpython
       - mysqldb
+      - pymysql
       - pylibmc
       - pymongo
       - pyramid
@@ -778,6 +823,7 @@ workflows:
             - flake8
             - tracer
             - integration
+            - futures
             - boto
             - ddtracerun
             - asyncio
@@ -796,6 +842,7 @@ workflows:
             - mysqlconnector
             - mysqlpython
             - mysqldb
+            - pymysql
             - pylibmc
             - pymongo
             - pyramid

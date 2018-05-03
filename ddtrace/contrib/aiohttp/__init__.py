@@ -44,7 +44,7 @@ to the ``request`` object, so that it can be used in the application code::
         ctx = request['datadog_context']
         # do something with the tracing Context
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['aiohttp']
 

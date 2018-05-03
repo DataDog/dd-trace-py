@@ -39,7 +39,7 @@ A ``patch(asyncio=True)`` is available if you want to automatically use above
 wrappers without changing your code. In that case, the patch method **must be
 called before** importing stdlib functions.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['asyncio']
