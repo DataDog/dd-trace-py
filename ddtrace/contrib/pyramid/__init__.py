@@ -21,8 +21,8 @@ Available settings are:
 * ``datadog_trace_enabled``: sets if the Tracer is enabled or not
 * ``datadog_distributed_tracing``: set it to ``True`` to enable Distributed Tracing
 
-If you use the 'pyramid.tweens' settings value to set the tweens for your
-application, you need to add 'ddtrace.contrib.pyramid:trace_tween_factory'
+If you use the ``pyramid.tweens`` settings value to set the tweens for your
+application, you need to add ``ddtrace.contrib.pyramid:trace_tween_factory``
 explicitly to the list. For example::
 
     settings = {
