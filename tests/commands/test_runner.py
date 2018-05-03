@@ -5,6 +5,8 @@ import sys
 import subprocess
 import unittest
 
+from ..util import inject_sitecustomize
+
 
 class DdtraceRunTest(unittest.TestCase):
     def tearDown(self):
@@ -152,20 +154,18 @@ class DdtraceRunTest(unittest.TestCase):
         # [Regression test]: ensure users `sitecustomize.py` is properly loaded,
         # so that our `bootstrap/sitecustomize.py` doesn't override the one
         # defined in users' PYTHONPATH.
-        #
-        # Copy the current environment and replace the PYTHONPATH. This is
-        # required otherwise `ddtrace-run` is not found: when `env` kwarg is
-        # passed, the environment is entirely replaced
-        env = os.environ.copy()
-        sitecustomize = os.path.join(os.path.dirname(__file__), 'bootstrap')
-
-        # Add `boostrap` module so that `sitecustomize.py` is at the bottom
-        # of the PYTHONPATH
-        python_path = list(sys.path) + [sitecustomize]
-        env['PYTHONPATH'] = ':'.join(python_path)[1:]
-
+        env = inject_sitecustomize('tests/commands/bootstrap')
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")
+
+    def test_sitecustomize_run_suppressed(self):
+        # ensure `sitecustomize.py` is not loaded if `-S` is used
+        env = inject_sitecustomize('tests/commands/bootstrap')
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py', '-S'],
             env=env,
         )
         assert out.startswith(b"Test success")
