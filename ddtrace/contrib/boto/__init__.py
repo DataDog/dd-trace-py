@@ -1,9 +1,6 @@
 """
-Boto integration will trace all aws calls made via boto2
-
-This integration ignores autopatching, it can be enabled via
-`patch_all(boto=True)`
-::
+Boto integration will trace all AWS calls made via boto2.
+This integration is automatically patched when using ``patch_all()``::
 
     import boto.ec2
     from ddtrace import patch

@@ -186,6 +186,11 @@ Tornado
 Other Libraries
 ---------------
 
+Futures
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.futures
+
 Boto2
 ~~~~~~~~~
 
@@ -244,6 +249,10 @@ MySQL
 **mysqlclient and MySQL-python**
 
 .. automodule:: ddtrace.contrib.mysqldb
+
+**pymysql**
+
+.. automodule:: ddtrace.contrib.pymysql
 
 Postgres
 ~~~~~~~~
@@ -619,6 +628,7 @@ soon as possible in your Python entrypoint.
 * sqlite3
 * mysql
 * mysqldb
+* pymysql
 * psycopg
 * redis
 * cassandra
@@ -627,6 +637,8 @@ soon as possible in your Python entrypoint.
 * elasticsearch
 * pylibmc
 * celery
+* boto
+* botocore
 * aiopg
 * aiohttp (only third-party modules such as ``aiohttp_jinja2``)
 
