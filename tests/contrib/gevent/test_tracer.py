@@ -155,19 +155,9 @@ class TestGeventTracer(TestCase):
         parent_span = traces[2][0]
         worker_1 = traces[0][0]
         worker_2 = traces[1][0]
-        # check spans data and hierarchy
-        eq_(parent_span.name, 'greenlet.main')
-        eq_(parent_span.resource, 'base')
+        # check sampling priority
         eq_(parent_span.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
-        eq_(worker_1.get_tag('worker_id'), '1')
-        eq_(worker_1.name, 'greenlet.worker')
-        eq_(worker_1.resource, 'greenlet.worker')
-        eq_(worker_1.parent_id, parent_span.span_id)
         eq_(worker_1.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
-        eq_(worker_2.get_tag('worker_id'), '2')
-        eq_(worker_2.name, 'greenlet.worker')
-        eq_(worker_2.resource, 'greenlet.worker')
-        eq_(worker_2.parent_id, parent_span.span_id)
         eq_(worker_2.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
 
     def test_trace_spawn_multiple_greenlets_multiple_traces(self):

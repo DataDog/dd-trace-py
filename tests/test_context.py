@@ -191,6 +191,24 @@ class TestTracingContext(TestCase):
 
         eq_(100, len(ctx._trace))
 
+    def test_clone(self):
+        ctx = Context()
+        ctx.sampling_priority = 2
+        # manually create a root-child trace
+        root = Span(tracer=None, name='root')
+        child = Span(tracer=None, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child)
+        cloned_ctx = ctx.clone()
+        eq_(cloned_ctx._parent_trace_id, ctx._parent_trace_id)
+        eq_(cloned_ctx._parent_span_id, ctx._parent_span_id)
+        eq_(cloned_ctx._sampled, ctx._sampled)
+        eq_(cloned_ctx._sampling_priority, ctx._sampling_priority)
+        eq_(cloned_ctx._current_span, ctx._current_span)
+        eq_(cloned_ctx._trace, [])
+        eq_(cloned_ctx._finished_spans, 0)
+
 
 class TestThreadContext(TestCase):
     """
