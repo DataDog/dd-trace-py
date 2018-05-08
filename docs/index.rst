@@ -612,6 +612,8 @@ We officially support Python 2.7, 3.4 and above.
 +---------------------+--------------------+
 | sqlalchemy          | >= 1.0             |
 +---------------------+--------------------+
+| tornado             | >= 4.0             |
++---------------------+--------------------+
 
 
 These are the fully tested versions but `ddtrace` can be compatible with lower versions.
