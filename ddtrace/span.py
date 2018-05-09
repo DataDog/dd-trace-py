@@ -132,6 +132,10 @@ class Span(object):
         except Exception:
             log.debug("error setting tag %s, ignoring it", key, exc_info=True)
 
+    def remove_tag(self, key):
+        if key in self.meta:
+            del self.meta[key]
+
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist.
         """
@@ -228,6 +232,12 @@ class Span(object):
             tb = ''.join(traceback.format_stack(limit=limit + 1)[:-1])
             self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace "error.stack" tag with "python.stack"
 
+    def remove_traceback(self):
+        """ Remove any traceback and error the span may have.
+        """
+        self.remove_tag(errors.ERROR_STACK)
+        self.remove_exc_info()
+
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
@@ -246,6 +256,14 @@ class Span(object):
         self.set_tag(errors.ERROR_MSG, exc_val)
         self.set_tag(errors.ERROR_TYPE, exc_type_str)
         self.set_tag(errors.ERROR_STACK, tb)
+
+    def remove_exc_info(self):
+        """ Remove all exception related information from the span.
+        """
+        self.error = 0
+        self.remove_tag(errors.ERROR_MSG)
+        self.remove_tag(errors.ERROR_TYPE)
+        self.remove_tag(errors.ERROR_STACK)
 
     def pprint(self):
         """ Return a human readable version of the span. """
