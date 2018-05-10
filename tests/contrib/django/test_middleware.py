@@ -9,6 +9,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.contrib.django import TraceMiddleware
+from ddtrace.ext import errors
 
 # testing
 from .compat import reverse
@@ -96,6 +97,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
+        eq_(span.error, 1)
         eq_(span.get_tag('http.status_code'), '500')
         eq_(span.get_tag('http.url'), '/error-500/')
         eq_(span.resource, 'tests.contrib.django.app.views.error_500')
@@ -213,3 +215,29 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.trace_id != 100
         assert sp_request.parent_id != 42
         assert sp_request.get_metric(SAMPLING_PRIORITY_KEY) != 2
+
+    @modify_settings(
+        MIDDLEWARE={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddleware',
+        },
+        MIDDLEWARE_CLASSES={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddleware',
+        },
+    )
+    def test_middleware_handled_view_exception(self):
+        """ Test the case that when an exception is raised in a view and then
+            handled, that the resulting span does not possess error properties.
+        """
+        url = reverse('error-500')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        sp_request = spans[0]
+
+        eq_(sp_request.error, 0)
+        assert sp_request.get_tag(errors.ERROR_STACK) is None
+        assert sp_request.get_tag(errors.ERROR_MSG) is None
+        assert sp_request.get_tag(errors.ERROR_TYPE) is None
