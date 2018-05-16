@@ -59,6 +59,7 @@ setup(
     install_requires=[
         "wrapt",
         "msgpack-python",
+        "opentracing",
     ],
     # plugin tox
     tests_require=['tox', 'flake8'],
