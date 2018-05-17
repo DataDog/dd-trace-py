@@ -2,6 +2,8 @@
 import wrapt
 import inspect
 import celery
+
+# Project
 from ddtrace import Pin
 from ddtrace.ext import AppTypes
 from ...ext import errors
@@ -15,12 +17,6 @@ TASK_APPLY = 'apply'
 TASK_APPLY_ASYNC = 'apply_async'
 TASK_RUN = 'run'
 
-def patch_task_old(pin=None):
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        patch_task(wrapped, pin)
-        return wrapped(*args, **kwargs)
-    return wrapper
 
 def patch_task(task, pin=None):
     """ patch_task will add tracing to a celery task """
@@ -46,6 +42,7 @@ def patch_task(task, pin=None):
         if isinstance(method, wrapt.ObjectProxy):
             continue
 
+        # If the function as been applied as a decorator for v1 Celery tasks, then a different patching is needed
         if inspect.isclass(task) and issubclass(task, celery.task.Task):
             wrapped = wrapt.FunctionWrapper(method, wrapper)
             setattr(task, method_name, wrapped)
@@ -58,6 +55,13 @@ def patch_task(task, pin=None):
     pin.onto(task)
     return task
 
+def patch_task_with_pin(pin=None):
+    """ patch_task_with_pin can be used as a decorator for v1 Celery tasks when specifying a pin is needed"""
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        patch_task(wrapped, pin)
+        return wrapped(*args, **kwargs)
+    return wrapper
 
 def unpatch_task(task):
     """ unpatch_task will remove tracing from a celery task """
@@ -76,7 +80,7 @@ def unpatch_task(task):
         # Only unpatch if wrapper is an `ObjectProxy`
         if not isinstance(wrapper, wrapt.ObjectProxy):
             continue
-        
+
         # Restore original method
         setattr(task, method_name, wrapper.__wrapped__)
 
@@ -94,12 +98,8 @@ def _task_init(func, task, args, kwargs):
 
 @require_pin
 def _task_run(pin, func, task, args, kwargs):
-    print('run has been called')
     with pin.tracer.trace(WORKER_ROOT_SPAN, service=WORKER_SERVICE, resource=task.name) as span:
         # Set meta data from task request
-        # print(id(pin))
-        # print(pin)
-        # print('run_span_id', span.span_id)
         span.set_metas(meta_from_context(task.request))
         span.set_meta(TASK_TAG_KEY, TASK_RUN)
 
@@ -109,7 +109,6 @@ def _task_run(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply(pin, func, task, args, kwargs):
-    print('apply has been called')
     with pin.tracer.trace(PRODUCER_ROOT_SPAN, service=PRODUCER_SERVICE, resource=task.name) as span:
         # Call the original `apply` function
         res = func(*args, **kwargs)
@@ -126,7 +125,6 @@ def _task_apply(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply_async(pin, func, task, args, kwargs):
-    print('apply async has been called')
     with pin.tracer.trace(PRODUCER_ROOT_SPAN, service=PRODUCER_SERVICE, resource=task.name) as span:
         # Extract meta data from `kwargs`
         meta_keys = (

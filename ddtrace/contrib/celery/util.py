@@ -1,6 +1,6 @@
 # stdlib
 import os
-import inspect 
+
 # Project
 from ddtrace import Pin
 
@@ -43,7 +43,6 @@ def require_pin(decorated):
     """ decorator for extracting the `Pin` from a wrapped method """
     def wrapper(wrapped, instance, args, kwargs):
         pin = Pin.get_from(instance)
-        print('pin found is ', pin, 'for function ', wrapped)
         # Execute the original method if pin is not enabled
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)

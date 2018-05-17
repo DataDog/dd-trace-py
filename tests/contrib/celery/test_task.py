@@ -7,7 +7,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery.app import patch_app, unpatch_app
-from ddtrace.contrib.celery.task import patch_task, unpatch_task, patch_task_old
+from ddtrace.contrib.celery.task import patch_task, unpatch_task, patch_task_with_pin
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
@@ -28,7 +28,6 @@ class CeleryTaskTest(unittest.TestCase):
         self.broker_url = 'redis://127.0.0.1:{port}/0'.format(port=REDIS_CONFIG['port'])
         self.tracer = get_dummy_tracer()
         self.pin = Pin(service='celery-ignored', tracer=self.tracer)
-        print('pin test is', self.pin)
         patch_app(celery.Celery, pin=self.pin)
         patch_task(celery.Task, pin=self.pin)
 
@@ -473,25 +472,19 @@ class CeleryTaskTest(unittest.TestCase):
             
             @classmethod
             def apply_async(cls, args=None, kwargs=None, **kwargs_):
-                print('right before async 2')
-                print(super(CelerySuperClass, cls).apply_async)
                 return super(CelerySuperClass, cls).apply_async(args=args, kwargs=kwargs, **kwargs_)
 
             def run(self, *args, **kwargs):
                 if 'stop' in kwargs:
                     # avoid call loop
                     return
-                print('right before async 1')
-                print(CelerySubClass.apply_async)
                 CelerySubClass.apply_async(args=[], kwargs={"stop": True})
 
-        @patch_task
-        @patch_task_old(pin=self.pin)
+        @patch_task_with_pin(pin=self.pin)
         class CelerySubClass(CelerySuperClass):
             pass
 
         t = CelerySubClass()
         t.run()
         spans = self.tracer.writer.pop()
-        print(spans)
-        self.assertEqual(len(spans), 2)
+        self.assertEqual(len(spans), 4)
