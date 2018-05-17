@@ -8,13 +8,13 @@ from .tracer import Tracer
 
 
 class Config(object):
-    """ A configuration object used to configure your application for use with
+    """A configuration object used to configure your application for use with
     the OpenTracing Datadog python tracer.
     """
 
     __slots__ = ['_pin', '_config', '_service_name']
 
-    def __init__(self, config, service_name=None, app=None,
+    def __init__(self, config={}, service_name=None, app=None,
                  app_type=AppTypes.worker):
 
         self._config = config
