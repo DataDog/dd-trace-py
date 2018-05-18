@@ -25,16 +25,16 @@ class PylonsTestCase(TestCase):
         # initialize a real traced Pylons app
         self.tracer = get_dummy_tracer()
         wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        self._wsgiapp = wsgiapp
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
-        self._preapp = app
         self.app = fixture.TestApp(app)
 
     def test_exc_success(self):
         from .app.middleware import ExceptionToSuccessMiddleware
-        app = ExceptionToSuccessMiddleware(self._preapp)
+        wsgiapp = ExceptionToSuccessMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
         app = fixture.TestApp(app)
 
-        # app = self.app
         app.get(url_for(controller='root', action='raise_exception'))
 
         spans = self.tracer.writer.pop()
@@ -53,11 +53,11 @@ class PylonsTestCase(TestCase):
 
     def test_exc_client_failure(self):
         from .app.middleware import ExceptionToClientErrorMiddleware
-        app = ExceptionToClientErrorMiddleware(self._preapp)
+        wsgiapp = ExceptionToClientErrorMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
         app = fixture.TestApp(app)
 
-        # app = self.app
-        app.get(url_for(controller='root', action='raise_exception'))
+        app.get(url_for(controller='root', action='raise_exception'), status=404)
 
         spans = self.tracer.writer.pop()
         print(spans)
