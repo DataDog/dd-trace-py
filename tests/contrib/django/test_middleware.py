@@ -218,19 +218,45 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
     @modify_settings(
         MIDDLEWARE={
-            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddleware',
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareSuccess',
         },
         MIDDLEWARE_CLASSES={
-            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddleware',
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareSuccess',
         },
     )
-    def test_middleware_handled_view_exception(self):
+    def test_middleware_handled_view_exception_success(self):
+        """ Test when an exception is raised in a view and then handled, that
+            the resulting span does not possess error properties.
+        """
+        url = reverse('error-500')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        sp_request = spans[0]
+
+        eq_(sp_request.error, 0)
+        assert sp_request.get_tag(errors.ERROR_STACK) is None
+        assert sp_request.get_tag(errors.ERROR_MSG) is None
+        assert sp_request.get_tag(errors.ERROR_TYPE) is None
+
+    @modify_settings(
+        MIDDLEWARE={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareClientError',
+        },
+        MIDDLEWARE_CLASSES={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareClientError',
+        },
+    )
+    def test_middleware_handled_view_exception_client_error(self):
         """ Test the case that when an exception is raised in a view and then
             handled, that the resulting span does not possess error properties.
         """
         url = reverse('error-500')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        eq_(response.status_code, 404)
 
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)

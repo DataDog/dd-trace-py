@@ -116,10 +116,10 @@ class TraceMiddleware(InstrumentationMixin):
         try:
             span = _get_req_span(request)
             if span:
-                if response.status_code < 400:
+                if response.status_code < 500 and span.error:
                     # remove any existing stack trace since it must have been
                     # handled appropriately
-                    span.remove_traceback()
+                    span._remove_exc_info()
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
