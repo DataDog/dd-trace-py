@@ -7,7 +7,7 @@ from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
 
-from ddtrace.ext import http
+from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
@@ -26,7 +26,52 @@ class PylonsTestCase(TestCase):
         self.tracer = get_dummy_tracer()
         wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        self._preapp = app
         self.app = fixture.TestApp(app)
+
+    def test_exc_success(self):
+        from .app.middleware import ExceptionToSuccessMiddleware
+        app = ExceptionToSuccessMiddleware(self._preapp)
+        app = fixture.TestApp(app)
+
+        # app = self.app
+        app.get(url_for(controller='root', action='raise_exception'))
+
+        spans = self.tracer.writer.pop()
+        print(spans)
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'root.raise_exception')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
+
+    def test_exc_client_failure(self):
+        from .app.middleware import ExceptionToClientErrorMiddleware
+        app = ExceptionToClientErrorMiddleware(self._preapp)
+        app = fixture.TestApp(app)
+
+        # app = self.app
+        app.get(url_for(controller='root', action='raise_exception'))
+
+        spans = self.tracer.writer.pop()
+        print(spans)
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'root.raise_exception')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '404')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
 
     def test_success_200(self):
         res = self.app.get(url_for(controller='root', action='index'))
