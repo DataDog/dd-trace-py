@@ -55,14 +55,6 @@ def patch_task(task, pin=None):
     pin.onto(task)
     return task
 
-def patch_task_with_pin(pin=None):
-    """ patch_task_with_pin can be used as a decorator for v1 Celery tasks when specifying a pin is needed"""
-    @wrapt.decorator
-    def wrapper(wrapped, instance, args, kwargs):
-        patch_task(wrapped, pin)
-        return wrapped(*args, **kwargs)
-    return wrapper
-
 def unpatch_task(task):
     """ unpatch_task will remove tracing from a celery task """
     patched_methods = [

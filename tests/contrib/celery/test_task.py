@@ -7,7 +7,8 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery.app import patch_app, unpatch_app
-from ddtrace.contrib.celery.task import patch_task, unpatch_task, patch_task_with_pin
+from ddtrace.contrib.celery.task import patch_task, unpatch_task
+from .utils import patch_task_with_pin
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
@@ -466,10 +467,9 @@ class CeleryTaskTest(unittest.TestCase):
         app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
         app.conf['CELERY_ALWAYS_EAGER'] = True
 
-        
         class CelerySuperClass(celery.task.Task):
             abstract = True
-            
+
             @classmethod
             def apply_async(cls, args=None, kwargs=None, **kwargs_):
                 return super(CelerySuperClass, cls).apply_async(args=args, kwargs=kwargs, **kwargs_)
