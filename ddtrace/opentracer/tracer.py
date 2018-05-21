@@ -4,6 +4,8 @@ import opentracing
 class Tracer(opentracing.Tracer):
     """"""
 
+    __slots__ = []
+
     def __init__(self, scope_manager=None):
         pass
 
