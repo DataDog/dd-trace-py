@@ -29,6 +29,29 @@ class PylonsTestCase(TestCase):
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
         self.app = fixture.TestApp(app)
 
+    def test_mw_exc_success(self):
+        from .app.middleware import ExceptionMiddleware, ExceptionToSuccessMiddleware
+        wsgiapp = ExceptionMiddleware(self._wsgiapp)
+        wsgiapp = ExceptionToSuccessMiddleware(wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        app = fixture.TestApp(app)
+
+        app.get(url_for(controller='root', action='index'))
+
+        spans = self.tracer.writer.pop()
+
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'None.None')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
+
     def test_exc_success(self):
         from .app.middleware import ExceptionToSuccessMiddleware
         wsgiapp = ExceptionToSuccessMiddleware(self._wsgiapp)
@@ -38,7 +61,6 @@ class PylonsTestCase(TestCase):
         app.get(url_for(controller='root', action='raise_exception'))
 
         spans = self.tracer.writer.pop()
-        print(spans)
         ok_(spans, spans)
         eq_(len(spans), 1)
         span = spans[0]

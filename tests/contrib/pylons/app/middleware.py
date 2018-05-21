@@ -1,5 +1,14 @@
 from webob import Request, Response
 
+class ExceptionMiddleware(object):
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        # req = Request(environ)
+        # req.get_response(self.app)
+        raise Exception('Middleware exception')
+
 class ExceptionToSuccessMiddleware(object):
     def __init__(self, app):
         self.app = app
