@@ -69,10 +69,13 @@ class TracedCursor(wrapt.ObjectProxy):
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pin=None):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        Pin(service=name, app=name).onto(self)
+        if pin and pin.enabled():
+            pin.onto(self)
+        else:
+            Pin(service=name, app=name, app_type="db").onto(self)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
