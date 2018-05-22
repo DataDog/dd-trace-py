@@ -27,23 +27,6 @@ DEFAULT_CONFIG = {
     },
 }
 
-from ddtrace.settings import ConfigException
-from ddtrace.ext import AppTypes
-
-from .util import merge_dicts
-
-
-DEFAULT_CONFIG = {
-    'agent_hostname': 'localhost',
-    'agent_port': 8126,
-    'debug': False,
-    'enabled': True,
-    'global_tags': {},
-    'service_name': None,
-    'sample_rate': 1,
-    'app_type': AppTypes.worker,
-}
-
 
 class Tracer(opentracing.Tracer):
     """A wrapper providing an OpenTracing API for the Datadog tracer."""
