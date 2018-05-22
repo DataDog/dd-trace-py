@@ -4,24 +4,26 @@ import logging
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.ext import AppTypes
-from ddtrace.sampler import AllSampler
 from ddtrace.settings import ConfigException
 
-from .constants import *
+from .constants import ConfigKeys as keys
+
 from .util import merge_dicts
 
 log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    AGENT_HOSTNAME_KEY: 'localhost',
-    AGENT_PORT_KEY: 8126,
-    DEBUG_KEY: False,
-    ENABLED_KEY: True,
-    GLOBAL_TAGS_KEY: {},
-    SERVICE_NAME_KEY: None,
-    SAMPLER_KEY: AllSampler(),
-    APP_TYPE_KEY: AppTypes.worker,
-    SETTINGS_KEY: {
+    keys.AGENT_HOSTNAME_KEY: 'localhost',
+    keys.AGENT_PORT_KEY: 8126,
+    keys.DEBUG_KEY: False,
+    keys.ENABLED_KEY: True,
+    keys.GLOBAL_TAGS_KEY: {},
+    keys.SERVICE_NAME_KEY: None,
+    keys.SAMPLER_KEY: None,
+    keys.APP_TYPE_KEY: AppTypes.worker,
+    keys.CONTEXT_PROVIDER_KEY: None,
+    keys.PRIORITY_SAMPLING_KEY: None,
+    keys.SETTINGS_KEY: {
         FILTERS_KEY: [],
     },
 }
@@ -37,9 +39,9 @@ class Tracer(opentracing.Tracer):
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = self._config.get(SERVICE_NAME_KEY, None) or service_name
-        self._enabled = self._config.get(ENABLED_KEY)
-        self._debug = self._config.get(DEBUG_KEY)
+        self._service_name = self._config.get(keys.SERVICE_NAME_KEY, None) or service_name
+        self._enabled = self._config.get(keys.ENABLED_KEY)
+        self._debug = self._config.get(keys.DEBUG_KEY)
 
         if not self._service_name:
             raise ConfigException('a service_name is required')
@@ -47,13 +49,12 @@ class Tracer(opentracing.Tracer):
         self._tracer = DatadogTracer()
 
         self._tracer.configure(enabled=self._enabled,
-                               hostname=self._config.get(AGENT_HOSTNAME_KEY),
-                               port=self._config.get(AGENT_PORT_KEY),
-                               sampler=self._config.get(SAMPLER_KEY),
-                               settings=self._config.get(SETTINGS_KEY),
-                               context_provider=None,  # TODO
-                               wrap_executor=None,     # TODO?
-                               priority_sampling=None, # TODO
+                               hostname=self._config.get(keys.AGENT_HOSTNAME_KEY),
+                               port=self._config.get(keys.AGENT_PORT_KEY),
+                               sampler=self._config.get(keys.SAMPLER_KEY),
+                               settings=self._config.get(keys.SETTINGS_KEY),
+                               context_provider=self._config.get(keys.CONTEXT_PROVIDER_KEY),
+                               priority_sampling=self._config.get(keys.PRIORITY_SAMPLING_KEY),
                                )
 
     @property
