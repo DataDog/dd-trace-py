@@ -1,5 +1,7 @@
 # Third party
 import wrapt
+import inspect
+import celery
 
 # Project
 from ddtrace import Pin
@@ -40,6 +42,11 @@ def patch_task(task, pin=None):
         if isinstance(method, wrapt.ObjectProxy):
             continue
 
+        # If the function as been applied as a decorator for v1 Celery tasks, then a different patching is needed
+        if inspect.isclass(task) and issubclass(task, celery.task.Task):
+            wrapped = wrapt.FunctionWrapper(method, wrapper)
+            setattr(task, method_name, wrapped)
+            continue
         # Patch method
         # DEV: Using `BoundFunctionWrapper` ensures our `task` wrapper parameter is properly set
         setattr(task, method_name, wrapt.BoundFunctionWrapper(method, task, wrapper))
@@ -47,7 +54,6 @@ def patch_task(task, pin=None):
     # Attach our pin to the app
     pin.onto(task)
     return task
-
 
 def unpatch_task(task):
     """ unpatch_task will remove tracing from a celery task """
