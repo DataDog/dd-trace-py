@@ -37,6 +37,24 @@ jobs:
           paths:
             - .tox
 
+  opentracer:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-opentracer-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-opentracer' --result-json /tmp/opentracer.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - opentracer.results
+      - save_cache:
+          key: tox-cache-opentracer-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   integration:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
