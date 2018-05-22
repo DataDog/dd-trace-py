@@ -12,6 +12,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.ext import sql
 
+from ...ext import AppTypes
 
 log = logging.getLogger(__name__)
 
@@ -72,10 +73,8 @@ class TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin=None):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        if pin and pin.enabled():
-            pin.onto(self)
-        else:
-            Pin(service=name, app=name, app_type="db").onto(self)
+        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin.onto(self)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
