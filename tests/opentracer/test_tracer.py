@@ -12,13 +12,11 @@ class TestTracerConfig(object):
         }
         tracer = Tracer(config=config)
 
-        # assert tracer.service_name == 'myservice'
-        assert tracer is not None
+        assert tracer._service_name == 'myservice'
+        assert tracer._enabled is True
 
     def test_no_service_name(self):
-        """Test that a config created without a service_name raises an
-        exception.
-        """
+        """Config without a service_name should raise an exception."""
         from ddtrace.settings import ConfigException
 
         with pytest.raises(ConfigException):
