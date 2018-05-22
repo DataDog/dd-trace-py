@@ -60,6 +60,11 @@ setup(
         "wrapt",
         "msgpack-python",
     ],
+    extra_requires={
+        # users can include opentracing by having:
+        # install_requires=["ddtrace[opentracing]", ...]
+        "opentracing": ["opentracing"],
+    },
     # plugin tox
     tests_require=['tox', 'flake8'],
     cmdclass={'test': Tox},
