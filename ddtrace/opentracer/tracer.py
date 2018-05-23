@@ -6,8 +6,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
 
-from .constants import ConfigKeys as keys
-from .settings import config_invalid_keys
+from .settings import ConfigKeys as keys, config_invalid_keys
 
 from .util import merge_dicts
 
@@ -45,10 +44,11 @@ class Tracer(opentracing.Tracer):
         self._debug = self._config.get(keys.DEBUG)
 
         if self._debug:
-            # ensure there are no typos in any of the keys
+            # Ensure there are no typos in any of the keys
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
-                raise ConfigException('invalid keys given (%s)' % ','.join(invalid_keys))
+                str_invalid_keys = ','.join(invalid_keys)
+                raise ConfigException('invalid keys given (%s)'.format(str_invalid_keys))
 
         if not self._service_name:
             raise ConfigException('a service_name is required')

@@ -1,8 +1,41 @@
-from .constants import ConfigKeys
+from collections import namedtuple
 
-# Precompute the list of keys
-KEYS = [key for key in dir(ConfigKeys) if not key.startswith('__')]
+
+CONFIG_KEY_NAMES = [
+    'AGENT_HOSTNAME',
+    'AGENT_PORT',
+    'DEBUG',
+    'ENABLED',
+    'GLOBAL_TAGS',
+    'SERVICE_NAME',
+    'CONTEXT_PROVIDER',
+    'SAMPLER',
+    'PRIORITY_SAMPLING',
+    'APP_TYPE',
+    'SETTINGS',
+]
+
+# Keys used for the configuration dict
+ConfigKeyNames = namedtuple('ConfigKeyNames', CONFIG_KEY_NAMES)
+
+ConfigKeys = ConfigKeyNames(
+    AGENT_HOSTNAME='agent_hostname',
+    AGENT_PORT='agent_port',
+    DEBUG='debug',
+    ENABLED='enabled',
+    GLOBAL_TAGS='global_tags',
+    SERVICE_NAME='service_name',
+    CONTEXT_PROVIDER='context_provider',
+    SAMPLER='sampler',
+    PRIORITY_SAMPLING='priority_sampling',
+    APP_TYPE='app_type',
+    SETTINGS='settings',
+)
+
+
+KEYS = ConfigKeys._asdict().values()
+
 
 def config_invalid_keys(config):
-    """Returns a list of keys that exist in *config* and not in *keys*."""
-    return [key for key in KEYS if key not in config]
+    """Returns a list of keys that exist in *config* and not in KEYS."""
+    return [key for key in config.keys() if key not in KEYS]

@@ -49,12 +49,19 @@ class TestTracerConfig(object):
 
         # No debug flag should not raise an error
         tracer = Tracer(config=config)
-        assert tracer is not None
 
         # With debug flag should raise an error
         config['debug'] = True
-        with pytest.raises(ConfigException):
+        with pytest.raises(ConfigException) as ce_info:
             tracer = Tracer(config=config)
+            assert 'enabeld' in str(ce_info)
+            assert tracer is not None
+
+        # Test with multiple incorrect keys
+        config['setttings'] = {}
+        with pytest.raises(ConfigException) as ce_info:
+            tracer = Tracer(config=config)
+            assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
 
 
