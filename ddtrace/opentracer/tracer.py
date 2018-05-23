@@ -10,6 +10,7 @@ from .settings import ConfigKeys as keys, config_invalid_keys
 
 from .util import merge_dicts
 
+
 log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
