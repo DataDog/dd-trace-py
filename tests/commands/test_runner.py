@@ -169,3 +169,9 @@ class DdtraceRunTest(unittest.TestCase):
             env=env,
         )
         assert out.startswith(b"Test success")
+
+    def test_argv_passed(self):
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_argv.py', 'foo', 'bar']
+        )
+        assert out.startswith(b"Test success")

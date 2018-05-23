@@ -6,4 +6,5 @@ from nose.tools import ok_
 
 if __name__ == '__main__':
     ok_('redis' in monkey.get_patched_modules())
+    ok_('celery' in monkey.get_patched_modules())
     print("Test success")
