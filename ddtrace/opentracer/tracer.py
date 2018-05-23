@@ -7,23 +7,24 @@ from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
 
 from .constants import ConfigKeys as keys
+from .settings import config_invalid_keys
 
 from .util import merge_dicts
 
 log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME_KEY: 'localhost',
-    keys.AGENT_PORT_KEY: 8126,
-    keys.DEBUG_KEY: False,
-    keys.ENABLED_KEY: True,
-    keys.GLOBAL_TAGS_KEY: {},
-    keys.SERVICE_NAME_KEY: None,
-    keys.SAMPLER_KEY: None,
-    keys.APP_TYPE_KEY: AppTypes.worker,
-    keys.CONTEXT_PROVIDER_KEY: None,
-    keys.PRIORITY_SAMPLING_KEY: None,
-    keys.SETTINGS_KEY: {
+    keys.AGENT_HOSTNAME: 'localhost',
+    keys.AGENT_PORT: 8126,
+    keys.DEBUG: False,
+    keys.ENABLED: True,
+    keys.GLOBAL_TAGS: {},
+    keys.SERVICE_NAME: None,
+    keys.SAMPLER: None,
+    keys.APP_TYPE: AppTypes.worker,
+    keys.CONTEXT_PROVIDER: None,
+    keys.PRIORITY_SAMPLING: None,
+    keys.SETTINGS: {
         FILTERS_KEY: [],
     },
 }
@@ -39,9 +40,15 @@ class Tracer(opentracing.Tracer):
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = self._config.get(keys.SERVICE_NAME_KEY, None) or service_name
-        self._enabled = self._config.get(keys.ENABLED_KEY)
-        self._debug = self._config.get(keys.DEBUG_KEY)
+        self._service_name = self._config.get(keys.SERVICE_NAME, None) or service_name
+        self._enabled = self._config.get(keys.ENABLED)
+        self._debug = self._config.get(keys.DEBUG)
+
+        if self._debug:
+            # ensure there are no typos in any of the keys
+            invalid_keys = config_invalid_keys(self._config)
+            if invalid_keys:
+                raise ConfigException('invalid keys given (%s)' % ','.join(invalid_keys))
 
         if not self._service_name:
             raise ConfigException('a service_name is required')
@@ -49,12 +56,12 @@ class Tracer(opentracing.Tracer):
         self._tracer = DatadogTracer()
 
         self._tracer.configure(enabled=self._enabled,
-                               hostname=self._config.get(keys.AGENT_HOSTNAME_KEY),
-                               port=self._config.get(keys.AGENT_PORT_KEY),
-                               sampler=self._config.get(keys.SAMPLER_KEY),
-                               settings=self._config.get(keys.SETTINGS_KEY),
-                               context_provider=self._config.get(keys.CONTEXT_PROVIDER_KEY),
-                               priority_sampling=self._config.get(keys.PRIORITY_SAMPLING_KEY),
+                               hostname=self._config.get(keys.AGENT_HOSTNAME),
+                               port=self._config.get(keys.AGENT_PORT),
+                               sampler=self._config.get(keys.SAMPLER),
+                               settings=self._config.get(keys.SETTINGS),
+                               context_provider=self._config.get(keys.CONTEXT_PROVIDER),
+                               priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
                                )
 
     @property
