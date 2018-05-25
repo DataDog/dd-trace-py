@@ -8,21 +8,29 @@ class SpanContext(OpenTracingSpanContext):
     TODO: the span context should be immutable
     """
 
-    __slots__ = ['_context']
+    __slots__ = ['_context', '_baggage']
 
     def __init__(self, trace_id=None, span_id=None, sampled=True,
-                 sampling_priority=None, baggage=None):
-        self._context = Context(
-            trace_id=trace_id,
-            span_id=span_id,
-            sampled=sampled,
-            sampling_priority=sampling_priority,
-        )
+                 sampling_priority=None, baggage=None, context=None):
+        if context:
+            self._context = context
+        else:
+            self._context = Context(
+                trace_id=trace_id,
+                span_id=span_id,
+                sampled=sampled,
+                sampling_priority=sampling_priority,
+            )
+
+        self._baggage = baggage
 
     @property
     def baggage(self):
-        """"""
-        pass
+        return self._baggage
+
+    def _get_dd_context(self):
+        """Return the Datadog context."""
+        return self._context
 
     def __getattr__(self, name):
         """Pass through attrs that don't exist on here to _context."""
