@@ -6,8 +6,9 @@ from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
-from ddtrace.propagation.http import HTTPPropagator
+# from ddtrace.propagation.http import HTTPPropagator
 
+from .propagation import HTTPPropagator
 from .scope_manager import ScopeManager
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
@@ -95,7 +96,14 @@ class Tracer(opentracing.Tracer):
         pass
 
     def inject(self, span_context, format, carrier):
-        """"""
+        """Injects a span context into a carrier.
+
+        :param span_context:
+
+        :param format:
+
+        :param carrier:
+        """
         if not isinstance(carrier, dict):
             raise opentracing.InvalidCarrierException('carrier is not a dict')
 
@@ -106,9 +114,18 @@ class Tracer(opentracing.Tracer):
 
         propagator.inject(span_context, carrier)
 
-    def extract(self, span_context, format, carrier):
-        """"""
-        pass
+    def extract(self, format, carrier):
+        """Extracts a span context from a carrier.
+
+        """
+        if not isinstance(carrier, dict):
+            raise opentracing.InvalidCarrierException('carrier is not a dict')
+
+        propagator = self._propagators.get(format, None)
+        if propagator is None:
+            raise opentracing.UnsupportedFormatException
+
+        return propagator.extract(carrier)
 
 def set_global_tracer(tracer):
     """Sets the global opentracer to the given tracer."""
