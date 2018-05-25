@@ -14,13 +14,31 @@ HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)
 
 
 class HTTPPropagator(Propagator):
+    """OpenTracing compatible HTTP_HEADER propagator.
+
+    `HTTPPropagator` provides compatibility by using existing OpenTracing
+    compatible methods from the ddtracer along with new logic supporting the
+    outstanding OpenTracing-defined functionality.
+    """
+
     slots = ['_dd_propagator']
 
     def __init__(self):
         self._dd_propagator = DDHTTPPropagator()
 
     def inject(self, span_context, carrier):
-        """ """
+        """Inject a span context into a carrier.
+
+        *span_context* is injected into the carrier by first using an
+        :class:`ddtrace.propagation.http.HTTPPropagator` to inject the ddtracer
+        specific fields.
+
+        Then the baggage is injected into *carrier*.
+
+        :param span_context: span context to inject.
+
+        :param carrier: carrier to inject into
+        """
         self._dd_propagator.inject(span_context._get_dd_context(), carrier)
 
         # Add the baggage
@@ -29,12 +47,24 @@ class HTTPPropagator(Propagator):
                 carrier[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
     def extract(self, carrier):
+        """Extract a span context from a carrier.
+
+        :class:`ddtrace.propagation.http.HTTPPropagator` is used to extract
+        ddtracer supported fields into a `ddtrace.Context` context which is
+        combined with new logic to extract the baggage which is returned in an
+        OpenTracing compatible span context.
+
+        :param carrier: carrier to extract from.
+
+        :return: extracted span context.
+        """
         ddspan_ctx = self._dd_propagator.extract(carrier)
 
         baggage = {}
         for key in carrier:
             if key.startswith(HTTP_BAGGAGE_PREFIX):
                 baggage[key[HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
+            # TODO: error checking
             # elif key is not in [HTTP_HEADER..., ]
             # raise SpanContextCorruptedException
 

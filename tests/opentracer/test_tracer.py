@@ -102,13 +102,32 @@ class TestTracerInjectExtract(object):
         with pytest.raises(InvalidCarrierException):
             nop_tracer.extract(Format.HTTP_HEADERS, None)
 
-    def test_http_headers(self, nop_tracer):
+    def test_http_headers_base(self, nop_tracer):
         """extract should undo inject for http headers"""
         from opentracing import Format
         from ddtrace.opentracer.span_context import SpanContext
 
-        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={'test': 4})
+        span_ctx = SpanContext(trace_id=123, span_id=456,)
         carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
+        assert len(carrier.keys()) > 0
+
+        ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
+        assert ext_span_ctx._context.trace_id == 123
+        assert ext_span_ctx._context.span_id == 456
+
+    def test_http_headers_baggage(self, nop_tracer):
+        """extract should undo inject for http headers"""
+        from opentracing import Format
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
         nop_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
         assert len(carrier.keys()) > 0
 
@@ -117,3 +136,31 @@ class TestTracerInjectExtract(object):
         assert ext_span_ctx._context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
+<<<<<<< HEAD
+=======
+    def test_text(self, nop_tracer):
+        """extract should undo inject for http headers"""
+        from opentracing import Format
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
+        assert len(carrier.keys()) > 0
+
+        ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
+        assert ext_span_ctx._context.trace_id == 123
+        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx.baggage == span_ctx.baggage
+
+
+class TestTracer(object):
+    def test_init(self):
+        """Very basic test for skeleton code"""
+        tracer = Tracer(service_name='myservice')
+        assert tracer is not None
+>>>>>>> [opentracer] add tests and docs for HTTPPropagator

@@ -5,7 +5,6 @@ from opentracing import Format
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
-# from ddtrace.propagation.http import HTTPPropagator
 
 from .propagation import HTTPPropagator
 from .scope_manager import ScopeManager
@@ -71,6 +70,7 @@ class Tracer(opentracing.Tracer):
                                )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator(),
+            Format.TEXT_MAP: HTTPPropagator(),
         }
 
     @property
