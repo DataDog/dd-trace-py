@@ -64,3 +64,39 @@ class TestTracerConfig(object):
             tracer = Tracer(service_name='mysvc', config=config)
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
+
+@pytest.fixture
+def nop_tracer():
+    return Tracer(config={'service_name': 'mysvc'})
+
+
+@pytest.fixture
+def nop_span_ctx():
+    from ddtrace.opentracer.span_context import SpanContext
+    return SpanContext(None, None, None, None)
+
+
+class TestTracerInjectExtract(object):
+    """Test the injection and extration of a span context from a tracer"""
+    def test_invalid_format(self, nop_tracer, nop_span_ctx):
+        """An invalid format should raise an UnsupportedFormatException."""
+        from opentracing import UnsupportedFormatException
+        with pytest.raises(UnsupportedFormatException):
+            nop_tracer.inject(nop_span_ctx, None, {})
+
+    def test_invalid_carrier(self, nop_tracer, nop_span_ctx):
+        """Only dicts should be supported as a carrier."""
+        from opentracing import InvalidCarrierException
+        from opentracing import Format
+
+        with pytest.raises(InvalidCarrierException):
+            nop_tracer.inject(nop_span_ctx, Format.HTTP_HEADERS, None)
+
+    def test_http_headers(self, nop_tracer):
+        """extract should undo inject for http headers"""
+        from ddtrace.opentracer.span_context import SpanContext
+        from opentracing import Format
+        span_ctx = SpanContext('traceid', 'spanid', 'parentid')
+
+        carrier = {}
+        nop_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)

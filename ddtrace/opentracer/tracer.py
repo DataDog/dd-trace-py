@@ -1,10 +1,12 @@
-import opentracing
 import logging
+import opentracing
+from opentracing import Format
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
+from ddtrace.propagation.http import HTTPPropagator
 
 from .scope_manager import ScopeManager
 from .settings import ConfigKeys as keys, config_invalid_keys
@@ -67,6 +69,9 @@ class Tracer(opentracing.Tracer):
                                context_provider=self._config.get(keys.CONTEXT_PROVIDER),
                                priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
                                )
+        self._propagators = {
+            Format.HTTP_HEADERS: HTTPPropagator(),
+        }
 
     @property
     def scope_manager(self):
@@ -91,7 +96,15 @@ class Tracer(opentracing.Tracer):
 
     def inject(self, span_context, format, carrier):
         """"""
-        pass
+        if not isinstance(carrier, dict):
+            raise opentracing.InvalidCarrierException('carrier is not a dict')
+
+        propagator = self._propagators.get(format, None)
+
+        if propagator is None:
+            raise opentracing.UnsupportedFormatException
+
+        propagator.inject(span_context, carrier)
 
     def extract(self, span_context, format, carrier):
         """"""
