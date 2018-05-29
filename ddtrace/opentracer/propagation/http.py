@@ -14,7 +14,7 @@ HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)
 
 
 class HTTPPropagator(Propagator):
-    """OpenTracing compatible HTTP_HEADER propagator.
+    """OpenTracing compatible HTTP_HEADER and TEXT_MAP format propagator.
 
     `HTTPPropagator` provides compatibility by using existing OpenTracing
     compatible methods from the ddtracer along with new logic supporting the

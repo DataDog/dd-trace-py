@@ -31,7 +31,3 @@ class SpanContext(OpenTracingSpanContext):
     def _get_dd_context(self):
         """Return the Datadog context."""
         return self._context
-
-    def __getattr__(self, name):
-        """Pass through attrs that don't exist on here to _context."""
-        return object.__getattribute__(self._context, name)

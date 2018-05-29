@@ -98,11 +98,11 @@ class Tracer(opentracing.Tracer):
     def inject(self, span_context, format, carrier):
         """Injects a span context into a carrier.
 
-        :param span_context:
+        :param span_context: span context to inject.
 
-        :param format:
+        :param format: format to encode the span context with.
 
-        :param carrier:
+        :param carrier: the carrier of the encoded span context.
         """
         if not isinstance(carrier, dict):
             raise opentracing.InvalidCarrierException('carrier is not a dict')
@@ -117,6 +117,9 @@ class Tracer(opentracing.Tracer):
     def extract(self, format, carrier):
         """Extracts a span context from a carrier.
 
+        :param format: format that the carrier is encoded with.
+
+        :param carrier: the carrier to extract from.
         """
         if not isinstance(carrier, dict):
             raise opentracing.InvalidCarrierException('carrier is not a dict')
