@@ -30,7 +30,7 @@ class HTTPPropagator(Propagator):
     outstanding OpenTracing-defined functionality.
     """
 
-    slots = ['_dd_propagator']
+    __slots__ = ['_dd_propagator']
 
     def __init__(self):
         self._dd_propagator = DDHTTPPropagator()
