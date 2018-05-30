@@ -47,6 +47,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         "db.application" : dsn.get("application_name"),
     }
 
+    # why does this exist if the pin can be passed??
     Pin(
         service="postgres",
         app="postgres",
