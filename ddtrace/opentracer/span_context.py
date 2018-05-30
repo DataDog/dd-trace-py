@@ -4,9 +4,7 @@ from ddtrace.context import Context
 
 
 class SpanContext(OpenTracingSpanContext):
-    """
-    TODO: the span context should be immutable
-    """
+    """Implementation of the opentracing span context."""
 
     __slots__ = ['_context', '_baggage']
 

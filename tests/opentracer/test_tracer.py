@@ -77,8 +77,8 @@ def nop_span_ctx():
     return SpanContext(sampling_priority=AUTO_KEEP, sampled=True)
 
 
-class TestTracerInjectExtract(object):
-    """Test the injection and extration of a span context from a tracer"""
+class TestTracerSpanContextPropagation(object):
+    """Test the injection and extration of a span context from a tracer."""
 
     def test_invalid_format(self, nop_tracer, nop_span_ctx):
         """An invalid format should raise an UnsupportedFormatException."""
@@ -103,7 +103,7 @@ class TestTracerInjectExtract(object):
             nop_tracer.extract(Format.HTTP_HEADERS, None)
 
     def test_http_headers_base(self, nop_tracer):
-        """extract should undo inject for http headers"""
+        """extract should undo inject for http headers."""
         from opentracing import Format
         from ddtrace.opentracer.span_context import SpanContext
 
@@ -118,7 +118,7 @@ class TestTracerInjectExtract(object):
         assert ext_span_ctx._context.span_id == 456
 
     def test_http_headers_baggage(self, nop_tracer):
-        """extract should undo inject for http headers"""
+        """extract should undo inject for http headers."""
         from opentracing import Format
         from ddtrace.opentracer.span_context import SpanContext
 
@@ -156,6 +156,29 @@ class TestTracerInjectExtract(object):
         assert ext_span_ctx._context.trace_id == 123
         assert ext_span_ctx._context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
+
+    def test_invalid_baggage_key(self, nop_tracer):
+        """An exception should be thrown when an invalid baggage key is found."""
+        from opentracing import Format, SpanContextCorruptedException
+        from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
+        assert len(carrier.keys()) > 0
+
+        # manually alter a key in the carrier baggage
+        del carrier[HTTP_HEADER_TRACE_ID]
+        corrupted_key = HTTP_HEADER_TRACE_ID[2:]
+        carrier[corrupted_key] = 123
+
+        with pytest.raises(SpanContextCorruptedException):
+            nop_tracer.extract(Format.TEXT_MAP, carrier)
 
 
 class TestTracer(object):
