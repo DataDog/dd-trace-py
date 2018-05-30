@@ -35,8 +35,6 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
-    c = traced_conn_cls(conn)
-
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
     tags = {
@@ -46,13 +44,14 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         db.USER: dsn.get("user"),
         "db.application" : dsn.get("application_name"),
     }
-
-    # why does this exist if the pin can be passed??
-    Pin(
+    pin = Pin(
         service="postgres",
         app="postgres",
         app_type="db",
-        tags=tags).onto(c)
+        tags=tags,
+    )
+
+    c = traced_conn_cls(conn, pin)
 
     return c
 
@@ -102,6 +101,19 @@ def _extensions_adapt(func, _, args, kwargs):
     return adapt
 
 
+def _extensions_quote_ident(func, _, args, kwargs):
+    def _unroll_args(obj, scope=None):
+        return obj, scope
+    obj, scope = _unroll_args(*args, **kwargs)
+
+    # register_type performs a c-level check of the object
+    # type so we must be sure to pass in the actual db connection
+    if scope and isinstance(scope, wrapt.ObjectProxy):
+        scope = scope.__wrapped__
+
+    return func(obj, scope) if scope else func(obj)
+
+
 class AdapterWrapper(wrapt.ObjectProxy):
     def prepare(self, *args, **kwargs):
         func = self.__wrapped__.prepare
@@ -128,6 +140,9 @@ _psycopg2_extensions = [
     (psycopg2.extensions.adapt,
      psycopg2.extensions, 'adapt',
      _extensions_adapt),
+    (psycopg2.extensions.quote_ident,
+     psycopg2.extensions, 'quote_ident',
+     _extensions_quote_ident),
 ]
 
 # `_json` attribute is only available for psycopg >= 2.5

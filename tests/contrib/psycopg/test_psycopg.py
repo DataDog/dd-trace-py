@@ -22,7 +22,6 @@ from tests.test_tracer import get_dummy_tracer
 
 PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
 TEST_PORT = str(POSTGRES_CONFIG['port'])
-
 class PsycopgCore(object):
 
     # default service
@@ -125,7 +124,6 @@ class PsycopgCore(object):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_default_json(conn)
 
-
     def test_manual_wrap_extension_adapt(self):
         conn, _ = self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
@@ -141,6 +139,16 @@ class PsycopgCore(object):
         #   TypeError: argument 2 must be a connection, cursor or None
         binary = extensions.adapt(b'12345')
         binary.prepare(conn)
+
+    def test_manual_wrap_extension_quote_ident(self):
+        from ddtrace import patch_all
+        from psycopg2.extensions import quote_ident
+        patch_all()
+
+        # NOTE: this will crash if it doesn't work.
+        #   TypeError: argument 2 must be a connection or a cursor
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        quote_ident('foo', conn)
 
     def test_connect_factory(self):
         tracer = get_dummy_tracer()
@@ -221,15 +229,3 @@ def test_backwards_compatibilty_v3():
     conn.cursor().execute("select 'blah'")
 
 
-def test_connection():
-    from ddtrace import patch_all
-    import psycopg2
-    from psycopg2.extensions import quote_ident
-
-    patch_all()
-
-    conn = psycopg2.connect(**POSTGRES_CONFIG)
-
-    print(type(conn))
-
-    quote_ident('foo', conn)
