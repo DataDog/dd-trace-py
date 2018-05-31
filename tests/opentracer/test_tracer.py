@@ -63,11 +63,3 @@ class TestTracerConfig(object):
             tracer = Tracer(config=config)
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
-
-
-class TestTracer(object):
-    def test_init(self):
-        """Very basic test for skeleton code"""
-        tracer = Tracer(service_name='myservice')
-        assert tracer is not None
-

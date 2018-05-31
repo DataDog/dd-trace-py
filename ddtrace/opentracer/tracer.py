@@ -35,12 +35,12 @@ class Tracer(opentracing.Tracer):
 
     __slots__ = ['_enabled', '_debug', '_service_name', '_tracer']
 
-    def __init__(self, config={}, service_name=None, scope_manager=None):
+    def __init__(self, config={}, scope_manager=None):
         # Merge the given config with the default into a new dict
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = self._config.get(keys.SERVICE_NAME, None) or service_name
+        self._service_name = self._config.get(keys.SERVICE_NAME, None)
         self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
