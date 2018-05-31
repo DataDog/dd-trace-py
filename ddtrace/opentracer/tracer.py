@@ -1,6 +1,5 @@
 import logging
 import opentracing
-from opentracing import Format
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY

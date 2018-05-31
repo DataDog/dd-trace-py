@@ -17,3 +17,16 @@ class TestSpanContext(object):
         span_ctx = SpanContext(baggage=baggage)
 
         assert span_ctx.baggage is baggage
+
+    def test_with_baggage_item(self):
+        """Should allow immutable extension of new span contexts."""
+        baggage = {
+            '1': 1,
+        }
+
+        first_ctx = SpanContext(baggage=baggage)
+
+        second_ctx = first_ctx.with_baggage_item('2', 2)
+
+        assert '2' not in first_ctx.baggage
+        assert second_ctx.baggage is not first_ctx.baggage

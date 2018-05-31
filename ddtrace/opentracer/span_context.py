@@ -1,5 +1,6 @@
 from opentracing import SpanContext as OpenTracingSpanContext
 
+
 from ddtrace.context import Context
 
 
@@ -7,7 +8,8 @@ class SpanContext(OpenTracingSpanContext):
     """Implementation of the OpenTracing span context."""
 
     def __init__(self, trace_id=None, span_id=None, sampled=True,
-                 sampling_priority=None, baggage=None, context=None):
+                 sampling_priority=None,
+                 baggage=OpenTracingSpanContext.EMPTY_BAGGAGE, context=None):
         if context:
             self._context = context
         else:
@@ -24,6 +26,12 @@ class SpanContext(OpenTracingSpanContext):
     def baggage(self):
         return self._baggage
 
-    def _get_dd_context(self):
-        """Return the Datadog context."""
-        return self._context
+    def with_baggage_item(self, key, value):
+        """Creates a copy of this span with a new baggage item.
+
+        This method helps to preserve immutability of the span context.
+        """
+
+        baggage = dict(self._baggage)
+        baggage[key] = value
+        return SpanContext(context=self._context, baggage=baggage)
