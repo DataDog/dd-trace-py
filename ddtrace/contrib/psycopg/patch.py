@@ -101,19 +101,6 @@ def _extensions_adapt(func, _, args, kwargs):
     return adapt
 
 
-def _extensions_quote_ident(func, _, args, kwargs):
-    def _unroll_args(obj, scope=None):
-        return obj, scope
-    obj, scope = _unroll_args(*args, **kwargs)
-
-    # register_type performs a c-level check of the object
-    # type so we must be sure to pass in the actual db connection
-    if scope and isinstance(scope, wrapt.ObjectProxy):
-        scope = scope.__wrapped__
-
-    return func(obj, scope) if scope else func(obj)
-
-
 class AdapterWrapper(wrapt.ObjectProxy):
     def prepare(self, *args, **kwargs):
         func = self.__wrapped__.prepare
@@ -140,9 +127,6 @@ _psycopg2_extensions = [
     (psycopg2.extensions.adapt,
      psycopg2.extensions, 'adapt',
      _extensions_adapt),
-    (psycopg2.extensions.quote_ident,
-     psycopg2.extensions, 'quote_ident',
-     _extensions_quote_ident),
 ]
 
 # `_json` attribute is only available for psycopg >= 2.5
@@ -151,4 +135,12 @@ if getattr(psycopg2, '_json', None):
         (psycopg2._json.register_type,
          psycopg2._json, 'register_type',
          _extensions_register_type),
+    ]
+
+# `quote_ident` attribute is only available for psycopg >= 2.7
+if getattr(psycopg2, 'extensions', None) and getattr(psycopg2.extensions,
+                                                     'quote_ident', None):
+    _psycopg2_extensions += [(psycopg2.extensions.quote_ident,
+     psycopg2.extensions, 'quote_ident',
+     _extensions_register_type),
     ]
