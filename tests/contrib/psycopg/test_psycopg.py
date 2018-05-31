@@ -140,6 +140,7 @@ class PsycopgCore(object):
         binary = extensions.adapt(b'12345')
         binary.prepare(conn)
 
+    @skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
     def test_manual_wrap_extension_quote_ident(self):
         from ddtrace import patch_all
         from psycopg2.extensions import quote_ident
