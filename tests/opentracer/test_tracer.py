@@ -8,9 +8,8 @@ class TestTracerConfig(object):
         """Test the configuration of the tracer"""
         config = {
             'enabled': True,
-            'service_name': 'myservice'
         }
-        tracer = Tracer(config=config)
+        tracer = Tracer(service_name='myservice', config=config)
 
         assert tracer._service_name == 'myservice'
         assert tracer._enabled is True
@@ -26,29 +25,31 @@ class TestTracerConfig(object):
     def test_multiple_tracer_configs(self):
         """Ensure that a tracer config is a copy of the passed config."""
         config = {
-            'service_name': 'serv1',
+            'enabled': True
         }
 
-        tracer1 = Tracer(config=config)
+        tracer1 = Tracer(service_name='serv1', config=config)
         assert tracer1._service_name == 'serv1'
 
-        config['service_name'] = 'serv2'
-        tracer2 = Tracer(config=config)
+        config['enabled'] = False
+        tracer2 = Tracer(service_name='serv2', config=config)
 
         # Ensure tracer1's config was not mutated
         assert tracer1._service_name == 'serv1'
+        assert tracer1._enabled is True
+
         assert tracer2._service_name == 'serv2'
+        assert tracer2._enabled is False
 
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
         from ddtrace.settings import ConfigException
         config = {
-            'service_name': 'myservice',
             'enabeld': False,
         }
 
         # No debug flag should not raise an error
-        tracer = Tracer(config=config)
+        tracer = Tracer(service_name='mysvc', config=config)
 
         # With debug flag should raise an error
         config['debug'] = True
@@ -60,6 +61,6 @@ class TestTracerConfig(object):
         # Test with multiple incorrect keys
         config['setttings'] = {}
         with pytest.raises(ConfigException) as ce_info:
-            tracer = Tracer(config=config)
+            tracer = Tracer(service_name='mysvc', config=config)
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
