@@ -49,8 +49,10 @@ class Tracer(opentracing.Tracer):
             invalid_keys = config_invalid_keys(self._config)
             if invalid_keys:
                 str_invalid_keys = ','.join(invalid_keys)
-                raise ConfigException('invalid keys given (%s)'.format(str_invalid_keys))
+                raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
 
+        # TODO: we should set a default reasonable `service_name` (__name__) or
+        # similar.
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
