@@ -3,7 +3,6 @@ import logging
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
 
 from .settings import ConfigKeys as keys, config_invalid_keys
