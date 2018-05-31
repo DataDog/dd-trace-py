@@ -67,7 +67,7 @@ class TestTracerConfig(object):
 
 @pytest.fixture
 def nop_tracer():
-    return Tracer(config={'service_name': 'mysvc'})
+    return Tracer(service_name='mysvc', config={})
 
 
 @pytest.fixture
@@ -136,8 +136,6 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx._context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
-<<<<<<< HEAD
-=======
     def test_text(self, nop_tracer):
         """extract should undo inject for http headers"""
         from opentracing import Format
@@ -186,4 +184,3 @@ class TestTracer(object):
         """Very basic test for skeleton code"""
         tracer = Tracer(service_name='myservice')
         assert tracer is not None
->>>>>>> [opentracer] add tests and docs for HTTPPropagator
