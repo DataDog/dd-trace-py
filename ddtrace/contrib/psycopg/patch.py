@@ -35,6 +35,8 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
+    c = traced_conn_cls(conn)
+
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
     tags = {
@@ -44,14 +46,12 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         db.USER: dsn.get("user"),
         "db.application" : dsn.get("application_name"),
     }
-    pin = Pin(
+
+    Pin(
         service="postgres",
         app="postgres",
         app_type="db",
-        tags=tags,
-    )
-
-    c = traced_conn_cls(conn, pin)
+        tags=tags).onto(c)
 
     return c
 
