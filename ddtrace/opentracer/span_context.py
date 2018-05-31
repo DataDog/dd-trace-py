@@ -4,7 +4,7 @@ from ddtrace.context import Context
 
 
 class SpanContext(OpenTracingSpanContext):
-    """Implementation of the opentracing span context."""
+    """Implementation of the OpenTracing span context."""
 
     def __init__(self, trace_id=None, span_id=None, sampled=True,
                  sampling_priority=None, baggage=None, context=None):
