@@ -143,8 +143,8 @@ class PsycopgCore(object):
     @skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
     def test_manual_wrap_extension_quote_ident(self):
         from ddtrace import patch_all
-        from psycopg2.extensions import quote_ident
         patch_all()
+        from psycopg2.extensions import quote_ident
 
         # NOTE: this will crash if it doesn't work.
         #   TypeError: argument 2 must be a connection or a cursor
@@ -230,3 +230,13 @@ def test_backwards_compatibilty_v3():
     conn.cursor().execute("select 'blah'")
 
 
+@skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
+def test_manual_wrap_extension_quote_ident_standalone():
+    from ddtrace import patch_all
+    patch_all()
+    from psycopg2.extensions import quote_ident
+
+    # NOTE: this will crash if it doesn't work.
+    #   TypeError: argument 2 must be a connection or a cursor
+    conn = psycopg2.connect(**POSTGRES_CONFIG)
+    quote_ident('foo', conn)
