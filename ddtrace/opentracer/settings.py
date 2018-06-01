@@ -10,7 +10,6 @@ CONFIG_KEY_NAMES = [
     'CONTEXT_PROVIDER',
     'SAMPLER',
     'PRIORITY_SAMPLING',
-    'APP_TYPE',
     'SETTINGS',
 ]
 
@@ -26,7 +25,6 @@ ConfigKeys = ConfigKeyNames(
     CONTEXT_PROVIDER='context_provider',
     SAMPLER='sampler',
     PRIORITY_SAMPLING='priority_sampling',
-    APP_TYPE='app_type',
     SETTINGS='settings',
 )
 

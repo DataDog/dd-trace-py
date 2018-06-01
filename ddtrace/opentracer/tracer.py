@@ -20,7 +20,6 @@ DEFAULT_CONFIG = {
     keys.ENABLED: True,
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
-    keys.APP_TYPE: AppTypes.worker,
     keys.CONTEXT_PROVIDER: None,
     keys.PRIORITY_SAMPLING: None,
     keys.SETTINGS: {
@@ -34,8 +33,9 @@ class Tracer(opentracing.Tracer):
 
     __slots__ = ['_enabled', '_debug', '_service_name', '_tracer']
 
-    def __init__(self, service_name=None, config={}, scope_manager=None):
+    def __init__(self, service_name=None, config=None, scope_manager=None):
         # Merge the given config with the default into a new dict
+        config = config or {}
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
