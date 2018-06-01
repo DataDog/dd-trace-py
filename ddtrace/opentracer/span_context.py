@@ -8,8 +8,10 @@ class SpanContext(OpenTracingSpanContext):
     """Implementation of the OpenTracing span context."""
 
     def __init__(self, trace_id=None, span_id=None, sampled=True,
-                 sampling_priority=None,
-                 baggage=OpenTracingSpanContext.EMPTY_BAGGAGE, context=None):
+                 sampling_priority=None, baggage=None, context=None):
+
+        baggage = baggage or OpenTracingSpanContext.EMPTY_BAGGAGE
+
         if context:
             self._context = context
         else:
