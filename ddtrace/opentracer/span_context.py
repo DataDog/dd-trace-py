@@ -1,5 +1,7 @@
 from opentracing import SpanContext as OpenTracingSpanContext
 
+from ddtrace.context import Context
+
 
 from ddtrace.context import Context
 
