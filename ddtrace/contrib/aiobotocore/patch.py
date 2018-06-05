@@ -3,6 +3,7 @@ import wrapt
 import aiobotocore.client
 
 from aiobotocore.endpoint import ClientResponseContentProxy
+from ddtrace import tracer
 
 from ...pin import Pin
 from ...ext import http, aws
@@ -21,7 +22,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(aiobotocore.client.AioBaseClient)
+    Pin(service='aws', app='aws', tracer=tracer, app_type='web').onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
