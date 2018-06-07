@@ -10,7 +10,11 @@ class SpanContext(OpenTracingSpanContext):
     def __init__(self, trace_id=None, span_id=None, sampled=True,
                  sampling_priority=None, baggage=None, context=None):
 
-        baggage = baggage or OpenTracingSpanContext.EMPTY_BAGGAGE
+        # create a new dict for the baggage if it is not provided
+        # NOTE: it would be preferable to use opentracing.SpanContext.EMPTY_BAGGAGE
+        #       but it is mutable.
+        # see: opentracing-python/blob/8775c7bfc57fd66e1c8bcf9a54d3e434d37544f9/opentracing/span.py#L30
+        baggage = baggage or {}
 
         if context:
             self._context = context
