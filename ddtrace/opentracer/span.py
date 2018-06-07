@@ -4,8 +4,6 @@ from opentracing import Span as OpenTracingSpan
 class Span(OpenTracingSpan):
     """Datadog implementation of :class:`opentracing.Span`"""
 
-    __slots__ = []
-
     def __init__(self, context, tracer, operation_name, tags=None,
                  start_time=None):
         pass

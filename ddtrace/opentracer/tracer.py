@@ -1,13 +1,12 @@
-import opentracing
 import logging
+import opentracing
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
 
+from .scope_manager import ScopeManager
 from .settings import ConfigKeys as keys, config_invalid_keys
-
 from .util import merge_dicts
 
 
@@ -31,8 +30,6 @@ DEFAULT_CONFIG = {
 class Tracer(opentracing.Tracer):
     """A wrapper providing an OpenTracing API for the Datadog tracer."""
 
-    __slots__ = ['_enabled', '_debug', '_service_name', '_tracer']
-
     def __init__(self, service_name=None, config=None, scope_manager=None):
         # Merge the given config with the default into a new dict
         config = config or {}
@@ -55,8 +52,9 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
-        self._tracer = DatadogTracer()
+        self._scope_manager = ScopeManager()
 
+        self._tracer = DatadogTracer()
         self._tracer.configure(enabled=self._enabled,
                                hostname=self._config.get(keys.AGENT_HOSTNAME),
                                port=self._config.get(keys.AGENT_PORT),
@@ -69,7 +67,7 @@ class Tracer(opentracing.Tracer):
     @property
     def scope_manager(self):
         """"""
-        pass
+        return self._scope_manager
 
     @property
     def active_span(self):
@@ -87,13 +85,6 @@ class Tracer(opentracing.Tracer):
         """"""
         pass
 
-    def inject(self, span_context, format, carrier):
-        """"""
-        pass
-
-    def extract(self, span_context, format, carrier):
-        """"""
-        pass
 
 def set_global_tracer(tracer):
     """Sets the global opentracer to the given tracer."""
