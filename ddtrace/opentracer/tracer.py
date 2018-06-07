@@ -4,39 +4,12 @@ from opentracing import Format
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.ext import AppTypes
 from ddtrace.settings import ConfigException
 
 from .propagation import HTTPPropagator
 from .scope_manager import ScopeManager
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
-
-
-log = logging.getLogger(__name__)
-
-DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME: 'localhost',
-    keys.AGENT_PORT: 8126,
-    keys.DEBUG: False,
-    keys.ENABLED: True,
-    keys.GLOBAL_TAGS: {},
-    keys.SAMPLER: None,
-    keys.CONTEXT_PROVIDER: None,
-    keys.PRIORITY_SAMPLING: None,
-    keys.SETTINGS: {
-        FILTERS_KEY: [],
-    },
-}
-
-from ddtrace import Tracer as DatadogTracer
-from ddtrace.constants import FILTERS_KEY
-from ddtrace.settings import ConfigException
-
-from .scope_manager import ScopeManager
-from .settings import ConfigKeys as keys, config_invalid_keys
-from .util import merge_dicts
-
 
 log = logging.getLogger(__name__)
 
