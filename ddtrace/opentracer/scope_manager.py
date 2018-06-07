@@ -1,7 +1,7 @@
-from opentracing import ScopeManager as OpenTracingScopeManager
+import opentracing
 
 
-class ScopeManager(OpenTracingScopeManager):
+class ScopeManager(opentracing.ScopeManager):
     """"""
 
     def __init__(self):
