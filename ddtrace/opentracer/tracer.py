@@ -126,8 +126,6 @@ class Tracer(opentracing.Tracer):
 
         :param carrier: the carrier of the encoded span context.
         """
-        if not isinstance(carrier, dict):
-            raise opentracing.InvalidCarrierException('carrier is not a dict')
 
         propagator = self._propagators.get(format, None)
 
@@ -143,8 +141,6 @@ class Tracer(opentracing.Tracer):
 
         :param carrier: the carrier to extract from.
         """
-        if not isinstance(carrier, dict):
-            raise opentracing.InvalidCarrierException('carrier is not a dict')
 
         propagator = self._propagators.get(format, None)
         if propagator is None:

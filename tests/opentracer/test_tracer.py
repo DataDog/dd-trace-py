@@ -83,8 +83,14 @@ class TestTracerSpanContextPropagation(object):
     def test_invalid_format(self, nop_tracer, nop_span_ctx):
         """An invalid format should raise an UnsupportedFormatException."""
         from opentracing import UnsupportedFormatException
+
+        # test inject
         with pytest.raises(UnsupportedFormatException):
             nop_tracer.inject(nop_span_ctx, None, {})
+
+        # test extract
+        with pytest.raises(UnsupportedFormatException):
+            nop_tracer.extract(None, {})
 
     def test_inject_invalid_carrier(self, nop_tracer, nop_span_ctx):
         """Only dicts should be supported as a carrier."""

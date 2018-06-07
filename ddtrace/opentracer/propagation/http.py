@@ -1,6 +1,6 @@
 import logging
 
-from opentracing import SpanContextCorruptedException
+from opentracing import InvalidCarrierException, SpanContextCorruptedException
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 
@@ -48,6 +48,9 @@ class HTTPPropagator(Propagator):
 
         :param carrier: carrier to inject into.
         """
+        if not isinstance(carrier, dict):
+            raise InvalidCarrierException('propagator expects carrier to be a dict')
+
         self._dd_propagator.inject(span_context._context, carrier)
 
         # Add the baggage
@@ -67,6 +70,9 @@ class HTTPPropagator(Propagator):
 
         :return: extracted span context.
         """
+        if not isinstance(carrier, dict):
+            raise InvalidCarrierException('propagator expects carrier to be a dict')
+
         ddspan_ctx = self._dd_propagator.extract(carrier)
 
         baggage = {}
