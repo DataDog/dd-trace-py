@@ -1,6 +1,5 @@
 from opentracing import SpanContext as OpenTracingSpanContext
 
-
 from ddtrace.context import Context
 
 
@@ -9,7 +8,6 @@ class SpanContext(OpenTracingSpanContext):
 
     def __init__(self, trace_id=None, span_id=None, sampled=True,
                  sampling_priority=None, baggage=None, context=None):
-
         # create a new dict for the baggage if it is not provided
         # NOTE: it would be preferable to use opentracing.SpanContext.EMPTY_BAGGAGE
         #       but it is mutable.

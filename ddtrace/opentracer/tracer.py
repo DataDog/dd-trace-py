@@ -1,14 +1,15 @@
 import logging
 import opentracing
+from opentracing import Format
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
 
+from .propagation import HTTPPropagator
 from .scope_manager import ScopeManager
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
-
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,10 @@ class Tracer(opentracing.Tracer):
                                context_provider=self._config.get(keys.CONTEXT_PROVIDER),
                                priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
                                )
+        self._propagators = {
+            Format.HTTP_HEADERS: HTTPPropagator(),
+            Format.TEXT_MAP: HTTPPropagator(),
+        }
 
     @property
     def scope_manager(self):
@@ -85,6 +90,36 @@ class Tracer(opentracing.Tracer):
         """"""
         pass
 
+    def inject(self, span_context, format, carrier):
+        """Injects a span context into a carrier.
+
+        :param span_context: span context to inject.
+
+        :param format: format to encode the span context with.
+
+        :param carrier: the carrier of the encoded span context.
+        """
+
+        propagator = self._propagators.get(format, None)
+
+        if propagator is None:
+            raise opentracing.UnsupportedFormatException
+
+        propagator.inject(span_context, carrier)
+
+    def extract(self, format, carrier):
+        """Extracts a span context from a carrier.
+
+        :param format: format that the carrier is encoded with.
+
+        :param carrier: the carrier to extract from.
+        """
+
+        propagator = self._propagators.get(format, None)
+        if propagator is None:
+            raise opentracing.UnsupportedFormatException
+
+        return propagator.extract(carrier)
 
 def set_global_tracer(tracer):
     """Sets the global opentracer to the given tracer."""
