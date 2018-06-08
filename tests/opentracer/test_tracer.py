@@ -162,8 +162,8 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_invalid_baggage_key(self, nop_tracer):
-        """An exception should be thrown when an invalid baggage key is found."""
-        from opentracing import Format, SpanContextCorruptedException
+        """Invaid baggage keys should be ignored."""
+        from opentracing import Format
         from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
         from ddtrace.opentracer.span_context import SpanContext
 
@@ -181,8 +181,8 @@ class TestTracerSpanContextPropagation(object):
         corrupted_key = HTTP_HEADER_TRACE_ID[2:]
         carrier[corrupted_key] = 123
 
-        with pytest.raises(SpanContextCorruptedException):
-            nop_tracer.extract(Format.TEXT_MAP, carrier)
+        ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
+        assert ext_span_ctx.baggage == span_ctx.baggage
 
 
 class TestTracer(object):

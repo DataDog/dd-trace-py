@@ -2,7 +2,6 @@ import logging
 
 from opentracing import InvalidCarrierException, SpanContextCorruptedException
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 
 from ..span_context import SpanContext
 
@@ -13,13 +12,6 @@ log = logging.getLogger(__name__)
 
 HTTP_BAGGAGE_PREFIX = 'ot-baggage-'
 HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)
-
-# valid baggage keys to check span validity
-VALID_BAGGAGE_KEYS = {
-    HTTP_HEADER_TRACE_ID: True,
-    HTTP_HEADER_PARENT_ID: True,
-    HTTP_HEADER_SAMPLING_PRIORITY: True,
-}
 
 
 class HTTPPropagator(Propagator):
@@ -79,7 +71,5 @@ class HTTPPropagator(Propagator):
         for key in carrier:
             if key.startswith(HTTP_BAGGAGE_PREFIX):
                 baggage[key[HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
-            elif key not in VALID_BAGGAGE_KEYS:
-                raise SpanContextCorruptedException('invalid key in span context')
 
         return SpanContext(context=ddspan_ctx, baggage=baggage)
