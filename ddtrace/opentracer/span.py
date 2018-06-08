@@ -1,6 +1,7 @@
 import time
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
+from ddtrace.ext import errors
 
 
 class SpanLogRecord(object):
@@ -44,10 +45,19 @@ class Span(OpenTracingSpan):
 
         self.log = SpanLog()
 
+        self.finished = False
+
     def finish(self, finish_time=None):
-        """"""
+        """Finish the span.
+
+        This calls finish on the ddspan.
+        """
+        if self.finished:
+            return
+
         # finish the datadog span
         self._span.finish()
+        self.finished = True
 
     def set_baggage_item(self, key, value):
         """Sets a baggage item in the span context of this span.
@@ -84,6 +94,8 @@ class Span(OpenTracingSpan):
     def log_kv(self, key_values, timestamp=None):
         """Add a log record to this span.
 
+        Passes on relevant opentracing key values onto the datadog span.
+
         :param key_values: a dict of string keys and values of any type
         :type key_values: dict
 
@@ -93,7 +105,29 @@ class Span(OpenTracingSpan):
         :return: the span itself, for call chaining
         :rtype: Span
         """
+
+        # add the record to the log
+        # TODO: there really isn't any functionality provided in ddtrace
+        #       (or even opentracing) for logging
         self.log.add_record(key_values, timestamp)
+
+        # match opentracing defined keys to datadog functionality
+        # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
+        for key in key_values:
+            val = key_values[key]
+            if key == 'event' and val == 'error':
+                # TODO: not sure if it's actually necessary to set the error manually
+                self._span.error = 1
+                self.set_tag('error', 1)
+            elif key == 'error' or key == 'error.object':
+                self.set_tag(errors.ERROR_TYPE, val)
+            elif key == 'message':
+                self.set_tag(errors.ERROR_MSG, val)
+            elif key == 'stack':
+                self.set_tag(errors.ERROR_STACK, val)
+            else:
+                pass
+
         return self
 
     def set_tag(self, key, value):

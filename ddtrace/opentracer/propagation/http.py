@@ -1,6 +1,6 @@
 import logging
 
-from opentracing import InvalidCarrierException, SpanContextCorruptedException
+from opentracing import InvalidCarrierException
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
 
 from ..span_context import SpanContext

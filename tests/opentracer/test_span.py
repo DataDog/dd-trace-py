@@ -27,7 +27,8 @@ class TestSpan(object):
 
     def test_init(self, nop_tracer, nop_span_ctx):
         """Very basic test for skeleton code"""
-        Span(nop_tracer, nop_span_ctx, 'my_op_name')
+        span = Span(nop_tracer, nop_span_ctx, 'my_op_name')
+        assert not span.finished
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
@@ -58,18 +59,50 @@ class TestSpan(object):
         """Ensure logging values doesn't break anything."""
         # just log a bunch of values
         nop_span.log_kv({'myval': 2})
-        nop_span.log_kv({'myval': 3})
-        nop_span.log_kv({'myval': 5})
+        nop_span.log_kv({'myval2': 3})
+        nop_span.log_kv({'myval3': 5})
+        nop_span.log_kv({'myval': 2})
+
+    def test_log_dd_kv(self, nop_span):
+        """Ensure keys that can be handled by our impl. are indeed handled. """
+        import traceback
+        from ddtrace.ext import errors
+
+        stack_trace = str(traceback.format_stack())
+        nop_span.log_kv({
+            'event': 'error',
+            'error': 3,
+            'message': 'my error message',
+            'stack': stack_trace,
+        })
+
+        # Ensure error flag is set...
+        assert nop_span._span.error
+        # ...and that error tags are set with the correct key
+        assert nop_span.get_tag(errors.ERROR_STACK) == stack_trace
+        assert nop_span.get_tag(errors.ERROR_MSG) == 'my error message'
+        assert nop_span.get_tag(errors.ERROR_TYPE) == '3'
+
+    def test_operation_name(self, nop_span):
+        """Sanity check for setting the operation name."""
+        # just try setting the operation name
+        nop_span.set_operation_name('new_op_name')
+        assert nop_span._span.name == 'new_op_name'
 
     def test_context_manager(self, nop_span):
         """Test the span context manager."""
         import time
 
-        # should run the context manager but since the span has not been
-        # added to the span context, we will not get any traces
+        assert not nop_span.finished
+        # run the context manager but since the span has not been added
+        # to the span context, we will not get any traces
         with nop_span:
             time.sleep(0.005)
 
+        # span should be finished when the context manager exits
+        assert nop_span.finished
+
+        # there should be no traces (see above comment)
         spans = nop_span.tracer._tracer.writer.pop()
         assert len(spans) == 0
 
