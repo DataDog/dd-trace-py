@@ -64,3 +64,129 @@ class TestTracerConfig(object):
             tracer = Tracer(service_name='mysvc', config=config)
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
+
+@pytest.fixture
+def nop_tracer():
+    return Tracer(service_name='mysvc', config={})
+
+
+@pytest.fixture
+def nop_span_ctx():
+    from ddtrace.ext.priority import AUTO_KEEP
+    from ddtrace.opentracer.span_context import SpanContext
+    return SpanContext(sampling_priority=AUTO_KEEP, sampled=True)
+
+
+class TestTracerSpanContextPropagation(object):
+    """Test the injection and extration of a span context from a tracer."""
+
+    def test_invalid_format(self, nop_tracer, nop_span_ctx):
+        """An invalid format should raise an UnsupportedFormatException."""
+        from opentracing import UnsupportedFormatException
+
+        # test inject
+        with pytest.raises(UnsupportedFormatException):
+            nop_tracer.inject(nop_span_ctx, None, {})
+
+        # test extract
+        with pytest.raises(UnsupportedFormatException):
+            nop_tracer.extract(None, {})
+
+    def test_inject_invalid_carrier(self, nop_tracer, nop_span_ctx):
+        """Only dicts should be supported as a carrier."""
+        from opentracing import InvalidCarrierException
+        from opentracing import Format
+
+        with pytest.raises(InvalidCarrierException):
+            nop_tracer.inject(nop_span_ctx, Format.HTTP_HEADERS, None)
+
+    def test_extract_invalid_carrier(self, nop_tracer):
+        """Only dicts should be supported as a carrier."""
+        from opentracing import InvalidCarrierException
+        from opentracing import Format
+
+        with pytest.raises(InvalidCarrierException):
+            nop_tracer.extract(Format.HTTP_HEADERS, None)
+
+    def test_http_headers_base(self, nop_tracer):
+        """extract should undo inject for http headers."""
+        from opentracing import Format
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456,)
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
+        assert len(carrier.keys()) > 0
+
+        ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
+        assert ext_span_ctx._context.trace_id == 123
+        assert ext_span_ctx._context.span_id == 456
+
+    def test_http_headers_baggage(self, nop_tracer):
+        """extract should undo inject for http headers."""
+        from opentracing import Format
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
+        assert len(carrier.keys()) > 0
+
+        ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
+        assert ext_span_ctx._context.trace_id == 123
+        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx.baggage == span_ctx.baggage
+
+    def test_text(self, nop_tracer):
+        """extract should undo inject for http headers"""
+        from opentracing import Format
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
+        assert len(carrier.keys()) > 0
+
+        ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
+        assert ext_span_ctx._context.trace_id == 123
+        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx.baggage == span_ctx.baggage
+
+    def test_invalid_baggage_key(self, nop_tracer):
+        """Invaid baggage keys should be ignored."""
+        from opentracing import Format
+        from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+        from ddtrace.opentracer.span_context import SpanContext
+
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={
+            'test': 4,
+            'test2': 'string',
+        })
+        carrier = {}
+
+        nop_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
+        assert len(carrier.keys()) > 0
+
+        # manually alter a key in the carrier baggage
+        del carrier[HTTP_HEADER_TRACE_ID]
+        corrupted_key = HTTP_HEADER_TRACE_ID[2:]
+        carrier[corrupted_key] = 123
+
+        ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
+        assert ext_span_ctx.baggage == span_ctx.baggage
+
+
+class TestTracer(object):
+    def test_init(self):
+        """Very basic test for skeleton code"""
+        tracer = Tracer(service_name='myservice')
+        assert tracer is not None
