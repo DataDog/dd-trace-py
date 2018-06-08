@@ -1,11 +1,15 @@
 import pytest
 from ddtrace.opentracer.span import Span, SpanLog
+from ..test_tracer import get_dummy_tracer
 
 
 @pytest.fixture
 def nop_tracer():
     from ddtrace.opentracer import Tracer
-    return Tracer(service_name='mysvc', config={})
+    tracer = Tracer(service_name='mysvc', config={})
+    # use the same test tracer used by the primary tests
+    tracer._tracer = get_dummy_tracer()
+    return tracer
 
 @pytest.fixture
 def nop_span_ctx():
@@ -21,10 +25,9 @@ def nop_span(nop_tracer, nop_span_ctx):
 class TestSpan(object):
     """Test the Datadog OpenTracing Span implementation."""
 
-    def test_init(self, nop_tracer):
+    def test_init(self, nop_tracer, nop_span_ctx):
         """Very basic test for skeleton code"""
-        span = Span(nop_tracer, None, None)
-        assert span is not None
+        Span(nop_tracer, nop_span_ctx, 'my_op_name')
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
@@ -52,11 +55,23 @@ class TestSpan(object):
         assert int(nop_span.get_baggage_item('2')) == 2
 
     def test_log_kv(self, nop_span):
-        """Ensure logging values doesn't break anything"""
+        """Ensure logging values doesn't break anything."""
         # just log a bunch of values
         nop_span.log_kv({'myval': 2})
         nop_span.log_kv({'myval': 3})
         nop_span.log_kv({'myval': 5})
+
+    def test_context_manager(self, nop_span):
+        """Test the span context manager."""
+        import time
+
+        # should run the context manager but since the span has not been
+        # added to the span context, we will not get any traces
+        with nop_span:
+            time.sleep(0.005)
+
+        spans = nop_span.tracer._tracer.writer.pop()
+        assert len(spans) == 0
 
 
 class TestSpanLog():
