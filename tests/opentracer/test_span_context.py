@@ -37,4 +37,3 @@ class TestSpanContext(object):
         ctx1._baggage['test'] = 3
         ctx2 = SpanContext()
         assert 'test' not in ctx2._baggage
-
