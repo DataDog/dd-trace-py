@@ -77,7 +77,7 @@ class TestSpan(object):
         })
 
         # Ensure error flag is set...
-        assert nop_span._span.error
+        assert nop_span._dd_span.error
         # ...and that error tags are set with the correct key
         assert nop_span.get_tag(errors.ERROR_STACK) == stack_trace
         assert nop_span.get_tag(errors.ERROR_MSG) == 'my error message'
@@ -87,7 +87,7 @@ class TestSpan(object):
         """Sanity check for setting the operation name."""
         # just try setting the operation name
         nop_span.set_operation_name('new_op_name')
-        assert nop_span._span.name == 'new_op_name'
+        assert nop_span._dd_span.name == 'new_op_name'
 
     def test_context_manager(self, nop_span):
         """Test the span context manager."""

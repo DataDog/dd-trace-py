@@ -41,7 +41,7 @@ class Span(OpenTracingSpan):
         super(Span, self).__init__(tracer, context)
 
         # use a datadog span
-        self._span = DatadogSpan(tracer._tracer, operation_name, context=context._context)
+        self._dd_span = DatadogSpan(tracer._tracer, operation_name, context=context._context)
 
         self.log = SpanLog()
 
@@ -51,12 +51,16 @@ class Span(OpenTracingSpan):
         """Finish the span.
 
         This calls finish on the ddspan.
+
+        :param finish_time: specify a custom finish time with a unix timestamp
+            per time.time()
+        :type timestamp: float
         """
         if self.finished:
             return
 
         # finish the datadog span
-        self._span.finish()
+        self._dd_span.finish()
         self.finished = True
 
     def set_baggage_item(self, key, value):
@@ -89,7 +93,7 @@ class Span(OpenTracingSpan):
 
     def set_operation_name(self, operation_name):
         """Set the operation name."""
-        self._span.name = operation_name
+        self._dd_span.name = operation_name
 
     def log_kv(self, key_values, timestamp=None):
         """Add a log record to this span.
@@ -113,11 +117,10 @@ class Span(OpenTracingSpan):
 
         # match opentracing defined keys to datadog functionality
         # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
-        for key in key_values:
-            val = key_values[key]
+        for key, val in key_values.items():
             if key == 'event' and val == 'error':
                 # TODO: not sure if it's actually necessary to set the error manually
-                self._span.error = 1
+                self._dd_span.error = 1
                 self.set_tag('error', 1)
             elif key == 'error' or key == 'error.object':
                 self.set_tag(errors.ERROR_TYPE, val)
@@ -135,23 +138,24 @@ class Span(OpenTracingSpan):
 
         This sets the tag on the underlying datadog span.
         """
-        return self._span.set_tag(key, value)
+        return self._dd_span.set_tag(key, value)
 
     def get_tag(self, key):
         """Gets a tag from the span.
 
         This retrieves the tag from the underlying datadog span.
         """
-        return self._span.get_tag(key)
+        return self._dd_span.get_tag(key)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            self._span.set_exc_info(exc_type, exc_val, exc_tb)
+            self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
 
-        self._span.__exit__(exc_type, exc_val, exc_tb)
+        self._dd_span.__exit__(exc_type, exc_val, exc_tb)
 
-        # note: self.finish AND _span.__exit__ will call _span.finish() but it is idempotent
+        # note: self.finish() AND _span.__exit__ will call _span.finish() but
+        # it is idempotent
         self.finish()
