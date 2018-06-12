@@ -488,3 +488,19 @@ class CeleryTaskTest(unittest.TestCase):
         t.run()
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 4)
+
+    def test_celery_shared_task(self):
+        @celery.shared_task
+        def add(x ,y):
+            return x + y
+
+        res = add.run(2, 2)
+        self.assertEqual(res, 4)
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, 'celery-worker')
+        self.assertEqual(span.resource, 'tests.contrib.celery.test_task.add')
+        self.assertEqual(span.name, 'celery.run')
+        self.assertIsNone(span.parent_id)
+        self.assertEqual(span.error, 0)

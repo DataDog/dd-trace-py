@@ -79,6 +79,14 @@ def unpatch_task(task):
     return task
 
 
+def _wrap_shared_task(decorator, instance, args, kwargs):
+    """Wrapper for Django-Celery shared tasks. `shared_task` is a decorator
+    that returns a `Task` from the given function.
+    """
+    task = decorator(*args, **kwargs)
+    return patch_task(task)
+
+
 def _task_init(func, task, args, kwargs):
     func(*args, **kwargs)
 
