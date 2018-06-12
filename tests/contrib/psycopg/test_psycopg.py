@@ -22,8 +22,6 @@ from tests.test_tracer import get_dummy_tracer
 
 PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
 TEST_PORT = str(POSTGRES_CONFIG['port'])
-
-
 class PsycopgCore(object):
 
     # default service
@@ -126,7 +124,6 @@ class PsycopgCore(object):
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_default_json(conn)
 
-
     def test_manual_wrap_extension_adapt(self):
         conn, _ = self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
@@ -142,6 +139,17 @@ class PsycopgCore(object):
         #   TypeError: argument 2 must be a connection, cursor or None
         binary = extensions.adapt(b'12345')
         binary.prepare(conn)
+
+    @skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
+    def test_manual_wrap_extension_quote_ident(self):
+        from ddtrace import patch_all
+        patch_all()
+        from psycopg2.extensions import quote_ident
+
+        # NOTE: this will crash if it doesn't work.
+        #   TypeError: argument 2 must be a connection or a cursor
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        quote_ident('foo', conn)
 
     def test_connect_factory(self):
         tracer = get_dummy_tracer()
@@ -214,9 +222,21 @@ class TestPsycopgPatch(PsycopgCore):
         assert spans, spans
         eq_(len(spans), 1)
 
+
 def test_backwards_compatibilty_v3():
     tracer = get_dummy_tracer()
     factory = connection_factory(tracer, service="my-postgres-db")
     conn = psycopg2.connect(connection_factory=factory, **POSTGRES_CONFIG)
     conn.cursor().execute("select 'blah'")
 
+
+@skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
+def test_manual_wrap_extension_quote_ident_standalone():
+    from ddtrace import patch_all
+    patch_all()
+    from psycopg2.extensions import quote_ident
+
+    # NOTE: this will crash if it doesn't work.
+    #   TypeError: argument 2 must be a connection or a cursor
+    conn = psycopg2.connect(**POSTGRES_CONFIG)
+    quote_ident('foo', conn)
