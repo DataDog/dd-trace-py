@@ -1,6 +1,6 @@
 from opentracing import SpanContext as OpenTracingSpanContext
 
-from ddtrace.context import Context
+from ddtrace.context import Context as DatadogContext
 
 
 class SpanContext(OpenTracingSpanContext):
@@ -15,9 +15,9 @@ class SpanContext(OpenTracingSpanContext):
         baggage = baggage or {}
 
         if context:
-            self._context = context
+            self._dd_context = context
         else:
-            self._context = Context(
+            self._dd_context = DatadogContext(
                 trace_id=trace_id,
                 span_id=span_id,
                 sampled=sampled,
@@ -45,7 +45,7 @@ class SpanContext(OpenTracingSpanContext):
 
         baggage = dict(self._baggage)
         baggage[key] = value
-        return SpanContext(context=self._context, baggage=baggage)
+        return SpanContext(context=self._dd_context, baggage=baggage)
 
     def get_baggage_item(self, key):
         """Gets a baggage item in this span context."""

@@ -2,6 +2,13 @@ import pytest
 
 from ddtrace.opentracer import Tracer
 
+@pytest.fixture
+def nop_tracer():
+    from ..test_tracer import get_dummy_tracer
+    tracer = Tracer(service_name='mysvc', config={})
+    tracer._tracer = get_dummy_tracer()
+    return tracer
+
 
 class TestTracerConfig(object):
     def test_config(self):
@@ -65,9 +72,33 @@ class TestTracerConfig(object):
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
 
-@pytest.fixture
-def nop_tracer():
-    return Tracer(service_name='mysvc', config={})
+    def test_start_span(self, nop_tracer):
+        """Start and finish a span."""
+        import time
+        with nop_tracer.start_span('myop') as span:
+            time.sleep(0.005)
+
+        # span should be finished when the context manager exits
+        assert span.finished
+
+        # there should be no traces (see above comment)
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) == 1
+
+    def test_start_span_multi(self, nop_tracer):
+        """Start and finish a span."""
+        import time
+        with nop_tracer.start_span('myfirstop') as span:
+            time.sleep(0.005)
+            with nop_tracer.start_span('mysecondop') as span:
+                time.sleep(0.005)
+
+        # span should be finished when the context manager exits
+        assert span.finished
+
+        # there should be no traces (see above comment)
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) == 2
 
 
 @pytest.fixture
@@ -120,8 +151,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
 
     def test_http_headers_baggage(self, nop_tracer):
         """extract should undo inject for http headers."""
@@ -138,8 +169,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_text(self, nop_tracer):
@@ -157,8 +188,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_invalid_baggage_key(self, nop_tracer):

@@ -1,13 +1,16 @@
 import logging
 import opentracing
 from opentracing import Format
+from opentracing.ext.scope_manager import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
 
 from .propagation import HTTPPropagator
-from .scope_manager import ScopeManager
+# from .scope_manager import ScopeManager
+from .span import Span
+from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
 
@@ -53,7 +56,7 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
-        self._scope_manager = ScopeManager()
+        self._scope_manager = ThreadLocalScopeManager()
 
         self._tracer = DatadogTracer()
         self._tracer.configure(enabled=self._enabled,
@@ -87,8 +90,20 @@ class Tracer(opentracing.Tracer):
 
     def start_span(self, operation_name=None, child_of=None, references=None,
                    tags=None, start_time=None, ignore_active_span=False):
-        """"""
-        pass
+        """Starts and returns a new span."""
+
+        # attempt to get the parent span from the scope manager
+        if child_of is None and not ignore_active_span:
+            child_of = self._scope_manager.active
+
+        # pull out the context if child_of is a span
+        if isinstance(child_of, Span):
+            child_of = child_of.context
+
+        ddspan = self._tracer.start_span(name=operation_name, child_of=child_of)
+        span = Span(self, child_of, operation_name)
+        span._dd_span = ddspan
+        return span
 
     def inject(self, span_context, format, carrier):
         """Injects a span context into a carrier.

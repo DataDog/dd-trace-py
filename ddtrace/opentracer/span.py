@@ -40,8 +40,11 @@ class Span(OpenTracingSpan):
     def __init__(self, tracer, context, operation_name):
         super(Span, self).__init__(tracer, context)
 
+        dd_context = None if context is None else context._dd_context
+
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._tracer, operation_name, context=context._context)
+        self._dd_span = DatadogSpan(tracer._tracer, operation_name,
+                                    context=dd_context)
 
         self.log = SpanLog()
 
@@ -77,7 +80,7 @@ class Span(OpenTracingSpan):
         :rtype: Span
         :return: itself for chaining calls
         """
-        self._context.set_baggage_item(key, value)
+        self.context.set_baggage_item(key, value)
         return self
 
     def get_baggage_item(self, key):
@@ -89,7 +92,7 @@ class Span(OpenTracingSpan):
         :rtype: str
         :return: the baggage value for the given key or ``None``.
         """
-        return self._context.get_baggage_item(key)
+        return self.context.get_baggage_item(key)
 
     def set_operation_name(self, operation_name):
         """Set the operation name."""
