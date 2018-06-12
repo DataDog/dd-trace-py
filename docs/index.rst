@@ -61,10 +61,18 @@ Pass along command-line arguments as your program would normally expect them::
 
     ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
 
-`For most users, this should be sufficient to see your application traces in Datadog.`
+*As long as your application isn't running in* ``DEBUG`` *mode, this should be enough to see your application traces in Datadog.*
 
-`Please read on if you are curious about further configuration, or
-would rather set up Datadog Tracing explicitly in code.`
+If you're running in a Kubernetes cluster, and still don't see your traces, make sure your application has a route to the tracing Agent. An easy way to test this is with a::
+
+
+$ pip install ipython
+$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+
+Because iPython uses SQLite, it will be automatically instrumented, and your traces should be sent off. If there's an error, you'll see the message in the console, and can make changes as needed.
+
+Please read on if you are curious about further configuration, or
+would rather set up Datadog Tracing explicitly in code.
 
 
 Instrumentation
