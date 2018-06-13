@@ -13,20 +13,36 @@ from .conf import settings
 log = logging.getLogger(__name__)
 
 CURSOR_ATTR = '_datadog_original_cursor'
+ALL_CONNS_ATTR = '_datadog_original_connections_all'
 
 
 def patch_db(tracer):
-    for c in connections.all():
-        patch_conn(tracer, c)
+    if hasattr(connections, ALL_CONNS_ATTR):
+        log.debug('db already patched')
+        return
+    setattr(connections, ALL_CONNS_ATTR, connections.all)
+
+    def all_connections(self):
+        conns = getattr(self, ALL_CONNS_ATTR)()
+        for conn in conns:
+            patch_conn(tracer, conn)
+        return conns
+
+    connections.all = all_connections.__get__(connections, type(connections))
 
 def unpatch_db():
     for c in connections.all():
         unpatch_conn(c)
 
+    all_connections = getattr(connections, ALL_CONNS_ATTR, None)
+    if all_connections is None:
+        log.debug('nothing to do, the db is not patched')
+        return
+    connections.all = all_connections
+    delattr(connections, ALL_CONNS_ATTR)
 
 def patch_conn(tracer, conn):
     if hasattr(conn, CURSOR_ATTR):
-        log.debug("already patched")
         return
 
     setattr(conn, CURSOR_ATTR, conn.cursor)

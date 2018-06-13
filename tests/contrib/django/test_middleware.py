@@ -2,11 +2,14 @@
 from nose.tools import eq_
 
 from django.test import modify_settings
+from django.db import connections
 
 # project
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.conf import settings
+from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.contrib.django import TraceMiddleware
+from ddtrace.ext import errors
 
 # testing
 from .compat import reverse
@@ -35,6 +38,26 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
+
+    def test_database_patch(self):
+        # We want to test that a connection-recreation event causes connections
+        # to get repatched. However since django tests are a atomic transaction
+        # we can't change the connection. Instead we test that the connection
+        # does get repatched if it's not patched.
+        for conn in connections.all():
+            unpatch_conn(conn)
+        # ensures that the internals are properly traced
+        url = reverse('users-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # We would be missing span #3, the database span, if the connection
+        # wasn't patched.
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        eq_(spans[0].name, 'django.request')
+        eq_(spans[1].name, 'django.template')
+        eq_(spans[2].name, 'sqlite.query')
 
     def test_middleware_trace_errors(self):
         # ensures that the internals are properly traced
@@ -74,6 +97,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
+        eq_(span.error, 1)
         eq_(span.get_tag('http.status_code'), '500')
         eq_(span.get_tag('http.url'), '/error-500/')
         eq_(span.resource, 'tests.contrib.django.app.views.error_500')
@@ -191,3 +215,55 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.trace_id != 100
         assert sp_request.parent_id != 42
         assert sp_request.get_metric(SAMPLING_PRIORITY_KEY) != 2
+
+    @modify_settings(
+        MIDDLEWARE={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareSuccess',
+        },
+        MIDDLEWARE_CLASSES={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareSuccess',
+        },
+    )
+    def test_middleware_handled_view_exception_success(self):
+        """ Test when an exception is raised in a view and then handled, that
+            the resulting span does not possess error properties.
+        """
+        url = reverse('error-500')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        sp_request = spans[0]
+
+        eq_(sp_request.error, 0)
+        assert sp_request.get_tag(errors.ERROR_STACK) is None
+        assert sp_request.get_tag(errors.ERROR_MSG) is None
+        assert sp_request.get_tag(errors.ERROR_TYPE) is None
+
+    @modify_settings(
+        MIDDLEWARE={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareClientError',
+        },
+        MIDDLEWARE_CLASSES={
+            'append': 'tests.contrib.django.app.middlewares.HandleErrorMiddlewareClientError',
+        },
+    )
+    def test_middleware_handled_view_exception_client_error(self):
+        """ Test the case that when an exception is raised in a view and then
+            handled, that the resulting span does not possess error properties.
+        """
+        url = reverse('error-500')
+        response = self.client.get(url)
+        eq_(response.status_code, 404)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        sp_request = spans[0]
+
+        eq_(sp_request.error, 0)
+        assert sp_request.get_tag(errors.ERROR_STACK) is None
+        assert sp_request.get_tag(errors.ERROR_MSG) is None
+        assert sp_request.get_tag(errors.ERROR_TYPE) is None

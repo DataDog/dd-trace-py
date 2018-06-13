@@ -10,7 +10,7 @@ import wrapt
 from .connection import AIOTracedConnection
 from ..psycopg.patch import _patch_extensions, \
     _unpatch_extensions
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 from ddtrace.ext import sql, net, db
 from ddtrace import Pin
 

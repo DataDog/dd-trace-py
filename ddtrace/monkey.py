@@ -16,15 +16,17 @@ log = logging.getLogger(__name__)
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     'asyncio': False,
-    'boto': False,
-    'botocore': False,
+    'boto': True,
+    'botocore': True,
     'bottle': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
+    'futures': False,  # experimental propagation
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
+    'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
     'pymongo': True,

@@ -9,11 +9,11 @@ from wrapt import ObjectProxy
 
 # project
 import ddtrace
+from ...utils.deprecation import deprecated
 from ...compat import iteritems
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
-from ...util import deprecated
 from .parse import parse_spec, parse_query, parse_msg
 
 # Original Client class
@@ -22,7 +22,7 @@ _MongoClient = pymongo.MongoClient
 log = logging.getLogger(__name__)
 
 
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def trace_mongo_client(client, tracer, service=mongox.TYPE):
     tracer.set_service_info(
         service=service,

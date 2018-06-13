@@ -1,17 +1,15 @@
 """
 Trace queries to aws api done via botocore client
 """
-
-# project
-from ddtrace import Pin
-from ddtrace.util import deep_getattr, unwrap
-
 # 3p
 import wrapt
 import botocore.client
 
-from ...ext import http
-from ...ext import aws
+# project
+from ...pin import Pin
+from ...ext import http, aws
+from ...utils.formats import deep_getattr
+from ...utils.wrappers import unwrap
 
 
 # Original botocore client class

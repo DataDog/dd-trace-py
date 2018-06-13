@@ -132,6 +132,10 @@ class Span(object):
         except Exception:
             log.debug("error setting tag %s, ignoring it", key, exc_info=True)
 
+    def _remove_tag(self, key):
+        if key in self.meta:
+            del self.meta[key]
+
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist.
         """
@@ -246,6 +250,13 @@ class Span(object):
         self.set_tag(errors.ERROR_MSG, exc_val)
         self.set_tag(errors.ERROR_TYPE, exc_type_str)
         self.set_tag(errors.ERROR_STACK, tb)
+
+    def _remove_exc_info(self):
+        """ Remove all exception related information from the span. """
+        self.error = 0
+        self._remove_tag(errors.ERROR_MSG)
+        self._remove_tag(errors.ERROR_TYPE)
+        self._remove_tag(errors.ERROR_STACK)
 
     def pprint(self):
         """ Return a human readable version of the span. """

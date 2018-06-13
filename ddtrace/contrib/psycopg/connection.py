@@ -9,13 +9,13 @@ from ...ext import db
 from ...ext import net
 from ...ext import sql
 from ...ext import AppTypes
-from ...util import deprecated
+from ...utils.deprecation import deprecated
 
 # 3p
 from psycopg2.extensions import connection, cursor
 
 
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def connection_factory(tracer, service="postgres"):
     """ Return a connection factory class that will can be used to trace
         postgres queries.

@@ -2,12 +2,10 @@ import boto.connection
 import wrapt
 import inspect
 
-from ddtrace import Pin
-from ddtrace.util import unwrap
+from ...pin import Pin
+from ...ext import http, aws
+from ...utils.wrappers import unwrap
 
-
-from ...ext import http
-from ...ext import aws
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection

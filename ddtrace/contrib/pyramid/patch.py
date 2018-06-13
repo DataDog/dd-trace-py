@@ -2,7 +2,7 @@ import os
 
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING
-from ...util import asbool
+from ...utils.formats import asbool
 
 import pyramid.config
 from pyramid.path import caller_package

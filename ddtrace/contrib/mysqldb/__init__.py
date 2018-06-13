@@ -24,7 +24,7 @@ provided by _mysql, is not supported yet.
 Help on mysqlclient can be found on:
 https://mysqlclient.readthedocs.io/
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['MySQLdb']
 
