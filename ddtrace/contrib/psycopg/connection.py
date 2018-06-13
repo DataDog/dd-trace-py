@@ -9,13 +9,13 @@ from ...ext import db
 from ...ext import net
 from ...ext import sql
 from ...ext import AppTypes
-from ...util import deprecated
+from ...utils.deprecation import deprecated
 
 # 3p
 from psycopg2.extensions import connection, cursor
 
 
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def connection_factory(tracer, service="postgres"):
     """ Return a connection factory class that will can be used to trace
         postgres queries.
@@ -49,12 +49,11 @@ class TracedCursor(cursor):
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
 
-        with self._datadog_tracer.trace("postgres.query") as s:
+        with self._datadog_tracer.trace("postgres.query", service=self._datadog_service) as s:
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)
 
             s.resource = query
-            s.service = self._datadog_service
             s.span_type = sql.TYPE
             s.set_tags(self._datadog_tags)
             try:

@@ -15,12 +15,19 @@ class GeventContextProvider(BaseContextProvider):
     in the ``gevent`` library. Framework instrumentation that uses the
     gevent WSGI server (or gevent in general), can use this provider.
     """
-    def __call__(self):
+    def activate(self, context):
+        """Sets the scoped ``Context`` for the current running ``Greenlet``.
+        """
+        current_g = gevent.getcurrent()
+        if current_g is not None:
+            setattr(current_g, CONTEXT_ATTR, context)
+            return context
+
+    def active(self):
         """
         Returns the scoped ``Context`` for this execution flow. The ``Context``
         uses the ``Greenlet`` class as a carrier, and everytime a greenlet
-        is created it receives the "parent" context. The main greenlet
-        will never have an attached ``Context``.
+        is created it receives the "parent" context.
         """
         current_g = gevent.getcurrent()
         ctx = getattr(current_g, CONTEXT_ATTR, None)
@@ -29,9 +36,9 @@ class GeventContextProvider(BaseContextProvider):
             return ctx
 
         # the Greenlet doesn't have a Context so it's created and attached
-        # unless it's the main greenlet; in that case we must be sure
-        # that no Context is generated
-        if current_g.parent:
+        # even to the main greenlet. This is required in Distributed Tracing
+        # when a new arbitrary Context is provided.
+        if current_g:
             ctx = Context()
             setattr(current_g, CONTEXT_ATTR, ctx)
             return ctx

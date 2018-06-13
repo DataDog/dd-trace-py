@@ -14,20 +14,25 @@ from __future__ import unicode_literals
 
 import os
 import importlib
+import logging
 
 from django.conf import settings as django_settings
 
-from django.test.signals import setting_changed
 
+log = logging.getLogger(__name__)
 
 # List of available settings with their defaults
 DEFAULTS = {
     'AGENT_HOSTNAME': 'localhost',
     'AGENT_PORT': 8126,
     'AUTO_INSTRUMENT': True,
+    'INSTRUMENT_CACHE': True,
+    'INSTRUMENT_DATABASE': True,
+    'INSTRUMENT_TEMPLATE': True,
     'DEFAULT_DATABASE_PREFIX': '',
     'DEFAULT_SERVICE': 'django',
     'ENABLED': True,
+    'DISTRIBUTED_TRACING': False,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }
@@ -81,6 +86,17 @@ class DatadogSettings(object):
             self.defaults['TAGS'].update({'env': os.environ.get('DATADOG_ENV')})
         if os.environ.get('DATADOG_SERVICE_NAME'):
             self.defaults['DEFAULT_SERVICE'] = os.environ.get('DATADOG_SERVICE_NAME')
+        if os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'):
+            self.defaults['AGENT_HOSTNAME'] = os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME')
+        if os.environ.get('DATADOG_TRACE_AGENT_PORT'):
+            # if the agent port is a string, the underlying library that creates the socket
+            # stops working
+            try:
+                port = int(os.environ.get('DATADOG_TRACE_AGENT_PORT'))
+            except ValueError:
+                log.warning('DATADOG_TRACE_AGENT_PORT is not an integer value; default to 8126')
+            else:
+                self.defaults['AGENT_PORT'] = port
 
         self.import_strings = import_strings or IMPORT_STRINGS
 
@@ -134,6 +150,3 @@ def reload_settings(*args, **kwargs):
     setting, value = kwargs['setting'], kwargs['value']
     if setting == 'DATADOG_TRACE':
         settings = DatadogSettings(value, DEFAULTS, IMPORT_STRINGS)
-
-
-setting_changed.connect(reload_settings)

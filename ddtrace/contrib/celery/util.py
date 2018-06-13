@@ -1,9 +1,13 @@
+# stdlib
+import os
+
 # Project
 from ddtrace import Pin
 
 # Service info
 APP = 'celery'
-SERVICE = 'celery'
+PRODUCER_SERVICE = os.environ.get('DATADOG_SERVICE_NAME') or 'celery-producer'
+WORKER_SERVICE = os.environ.get('DATADOG_SERVICE_NAME') or 'celery-worker'
 
 
 def meta_from_context(context):

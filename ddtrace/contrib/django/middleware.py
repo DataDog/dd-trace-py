@@ -2,13 +2,16 @@ import logging
 
 # project
 from .conf import settings
+from .compat import user_is_authenticated
 
 from ...ext import http
 from ...contrib import func_name
+from ...propagation.http import HTTPPropagator
 
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
 from django.conf import settings as django_settings
+import django
 
 try:
     from django.utils.deprecation import MiddlewareMixin
@@ -18,14 +21,39 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-def insert_exception_middleware():
-    exception_middleware = 'ddtrace.contrib.django.TraceExceptionMiddleware'
-    middleware_attributes = ['MIDDLEWARE', 'MIDDLEWARE_CLASSES']
-    for middleware_attribute in middleware_attributes:
-        middleware = getattr(django_settings, middleware_attribute, None)
-        if middleware and exception_middleware not in set(middleware):
-            setattr(django_settings, middleware_attribute, middleware + type(middleware)((exception_middleware,)))
+EXCEPTION_MIDDLEWARE = 'ddtrace.contrib.django.TraceExceptionMiddleware'
+TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'
+MIDDLEWARE = 'MIDDLEWARE'
+MIDDLEWARE_CLASSES = 'MIDDLEWARE_CLASSES'
 
+def get_middleware_insertion_point():
+    """Returns the attribute name and collection object for the Django middleware.
+    If middleware cannot be found, returns None for the middleware collection."""
+    middleware = getattr(django_settings, MIDDLEWARE, None)
+    # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
+    if middleware and django.VERSION >= (1, 10):
+        return MIDDLEWARE, middleware
+    return MIDDLEWARE_CLASSES, getattr(django_settings, MIDDLEWARE_CLASSES, None)
+
+def insert_trace_middleware():
+    middleware_attribute, middleware = get_middleware_insertion_point()
+    if middleware is not None and TRACE_MIDDLEWARE not in set(middleware):
+        setattr(django_settings, middleware_attribute, type(middleware)((TRACE_MIDDLEWARE,)) + middleware)
+
+def remove_trace_middleware():
+    _, middleware = get_middleware_insertion_point()
+    if middleware and TRACE_MIDDLEWARE in set(middleware):
+        middleware.remove(TRACE_MIDDLEWARE)
+
+def insert_exception_middleware():
+    middleware_attribute, middleware = get_middleware_insertion_point()
+    if middleware is not None and EXCEPTION_MIDDLEWARE not in set(middleware):
+        setattr(django_settings, middleware_attribute, middleware + type(middleware)((EXCEPTION_MIDDLEWARE,)))
+
+def remove_exception_middleware():
+    _, middleware = get_middleware_insertion_point()
+    if middleware and EXCEPTION_MIDDLEWARE in set(middleware):
+        middleware.remove(EXCEPTION_MIDDLEWARE)
 
 class InstrumentationMixin(MiddlewareClass):
     """
@@ -59,6 +87,12 @@ class TraceMiddleware(InstrumentationMixin):
     """
     def process_request(self, request):
         tracer = settings.TRACER
+        if settings.DISTRIBUTED_TRACING:
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.META)
+            # Only need to active the new context if something was propagated
+            if context.trace_id:
+                tracer.context_provider.activate(context)
         try:
             span = tracer.trace(
                 'django.request',
@@ -82,6 +116,11 @@ class TraceMiddleware(InstrumentationMixin):
         try:
             span = _get_req_span(request)
             if span:
+                if response.status_code < 500 and span.error:
+                    # remove any existing stack trace since it must have been
+                    # handled appropriately
+                    span._remove_exc_info()
+
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
@@ -106,7 +145,7 @@ def _set_auth_tags(span, request):
         return span
 
     if hasattr(user, 'is_authenticated'):
-        span.set_tag('django.user.is_authenticated', user.is_authenticated())
+        span.set_tag('django.user.is_authenticated', user_is_authenticated(user))
 
     uid = getattr(user, 'pk', None)
     if uid:

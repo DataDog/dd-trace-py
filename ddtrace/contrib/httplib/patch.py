@@ -8,7 +8,7 @@ import wrapt
 from ...compat import httplib, PY2
 from ...ext import http as ext_http
 from ...pin import Pin
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
@@ -35,15 +35,13 @@ def _wrap_getresponse(func, instance, args, kwargs):
         try:
             # Get the span attached to this instance, if available
             span = getattr(instance, '_datadog_span', None)
-            if not span:
-                return
+            if span:
+                if resp:
+                    span.set_tag(ext_http.STATUS_CODE, resp.status)
+                    span.error = int(500 <= resp.status)
 
-            if resp:
-                span.set_tag(ext_http.STATUS_CODE, resp.status)
-                span.error = int(500 <= resp.status)
-
-            span.finish()
-            delattr(instance, '_datadog_span')
+                span.finish()
+                delattr(instance, '_datadog_span')
         except Exception:
             log.debug('error applying request tags', exc_info=True)
 

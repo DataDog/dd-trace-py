@@ -159,6 +159,22 @@ class ExecutorHandler(tornado.web.RequestHandler):
         self.write('OK')
 
 
+class ExecutorSubmitHandler(tornado.web.RequestHandler):
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    def query(self):
+        tracer = self.settings['datadog_trace']['tracer']
+        with tracer.trace('tornado.executor.query'):
+            time.sleep(0.05)
+
+    @tornado.gen.coroutine
+    def get(self):
+        # run the query in another Executor, without using
+        # Tornado decorators
+        yield self.executor.submit(self.query)
+        self.write('OK')
+
+
 class ExecutorDelayedHandler(tornado.web.RequestHandler):
     # used automatically by the @run_on_executor decorator
     executor = ThreadPoolExecutor(max_workers=3)
@@ -296,6 +312,7 @@ def make_app(settings={}):
         (r'/template_exception/', TemplateExceptionHandler),
         # handlers that spawn new threads
         (r'/executor_handler/', ExecutorHandler),
+        (r'/executor_submit_handler/', ExecutorSubmitHandler),
         (r'/executor_delayed_handler/', ExecutorDelayedHandler),
         (r'/executor_custom_handler/', ExecutorCustomHandler),
         (r'/executor_custom_args_handler/', ExecutorCustomArgsHandler),

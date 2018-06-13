@@ -1,4 +1,4 @@
-"""Instrumeent mysql to report MySQL queries.
+"""Instrument mysql to report MySQL queries.
 
 ``patch_all`` will automatically patch your mysql connection to make it work.
 ::
@@ -24,20 +24,7 @@ provided by _mysql_connector, is not supported yet.
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
 """
-import logging
-
-from ..util import require_modules
-
-
-log = logging.getLogger(__name__)
-
-# check `MySQL-python` availability
-required_modules = ['_mysql']
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        # MySQL-python package is not supported at the moment
-        log.debug('failed to patch mysql-python: integration not available')
+from ...utils.importlib import require_modules
 
 # check `mysql-connector` availability
 required_modules = ['mysql.connector']

@@ -3,7 +3,7 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library. The following is an example::
 
-    # patch before importing tornado
+    # patch before importing tornado and concurrent.futures
     from ddtrace import tracer, patch
     patch(tornado=True)
 
@@ -54,6 +54,7 @@ Tornado settings can be used to change some tracing configuration, like::
         'datadog_trace': {
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
+            'distributed_tracing': True,
         },
     }
 
@@ -66,23 +67,26 @@ The available settings are:
 * ``default_service`` (default: `tornado-web`): set the service name used by the tracer. Usually
   this configuration must be updated with a meaningful name.
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
-* ``enabled`` (default: `true`): define if the tracer is enabled or not. If set to `false`, the
+* ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
+* ``distributed_tracing`` (default: `False`): enable distributed tracing if this is called
+  remotely from an instrumented application.
+  We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['tornado']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
         from .stack_context import run_with_trace_context, TracerStackContext
 
-        # alias for API compatibility
-        context_provider = TracerStackContext.current_context
+        context_provider = TracerStackContext()
+
+        from .patch import patch, unpatch
 
         __all__ = [
             'patch',

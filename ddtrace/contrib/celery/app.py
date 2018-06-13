@@ -8,12 +8,12 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.ext import AppTypes
 from .task import patch_task, unpatch_task
-from .util import APP, SERVICE, require_pin
+from .util import APP, WORKER_SERVICE, require_pin
 
 
 def patch_app(app, pin=None):
     """ patch_app will add tracing to a celery app """
-    pin = pin or Pin(service=SERVICE, app=APP, app_type=AppTypes.worker)
+    pin = pin or Pin(service=WORKER_SERVICE, app=APP, app_type=AppTypes.worker)
     patch_methods = [
         ('task', _app_task),
     ]

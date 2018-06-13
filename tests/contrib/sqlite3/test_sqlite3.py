@@ -3,9 +3,10 @@ import sqlite3
 import time
 
 # 3p
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 
 # project
+import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.sqlite3 import connection_factory
 from ddtrace.contrib.sqlite3.patch import patch, unpatch
@@ -30,6 +31,22 @@ class TestSQLite(object):
 
     def tearDown(self):
         unpatch()
+
+    def test_service_info(self):
+        tracer = get_dummy_tracer()
+        backup_tracer = ddtrace.tracer
+        ddtrace.tracer = tracer
+
+        db = sqlite3.connect(":memory:")
+
+        services = tracer.writer.pop_services()
+        eq_(len(services), 1)
+        expected = {
+            'sqlite': {'app': 'sqlite', 'app_type': 'db'}
+        }
+        eq_(expected, services)
+
+        ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):
         tracer = get_dummy_tracer()
@@ -61,7 +78,7 @@ class TestSQLite(object):
             eq_(span.span_type, "sql")
             eq_(span.resource, q)
             eq_(span.service, service)
-            eq_(span.meta["sql.query"], q)
+            ok_(span.get_tag("sql.query") is None)
             eq_(span.error, 0)
             assert start <= span.start <= end
             assert span.duration <= end - start
@@ -81,7 +98,7 @@ class TestSQLite(object):
             eq_(span.name, "sqlite.query")
             eq_(span.resource, q)
             eq_(span.service, service)
-            eq_(span.meta["sql.query"], q)
+            ok_(span.get_tag("sql.query") is None)
             eq_(span.error, 1)
             eq_(span.span_type, "sql")
             assert span.get_tag(errors.ERROR_STACK)

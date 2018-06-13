@@ -3,9 +3,8 @@ import time
 # 3rd party
 from nose.tools import eq_, ok_
 
-from django.core.urlresolvers import reverse
-
 # testing
+from .compat import reverse
 from .utils import DjangoTraceTestCase
 
 

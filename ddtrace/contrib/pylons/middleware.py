@@ -1,17 +1,32 @@
 import logging
+import sys
 
-from ...ext import http
-from ...ext import AppTypes
+from webob import Request
+from pylons import config
+
+from .renderer import trace_rendering
+from .constants import CONFIG_MIDDLEWARE
+
+from ...compat import reraise
+from ...ext import http, AppTypes
+from ...propagation.http import HTTPPropagator
 
 log = logging.getLogger(__name__)
 
 
 class PylonsTraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="pylons"):
+    def __init__(self, app, tracer, service='pylons', distributed_tracing=False):
         self.app = app
         self._service = service
+        self._distributed_tracing = distributed_tracing
         self._tracer = tracer
+
+        # register middleware reference
+        config[CONFIG_MIDDLEWARE] = self
+
+        # add template tracing
+        trace_rendering()
 
         self._tracer.set_service_info(
             service=service,
@@ -20,8 +35,18 @@ class PylonsTraceMiddleware(object):
         )
 
     def __call__(self, environ, start_response):
-        with self._tracer.trace("pylons.request") as span:
-            span.service = self._service
+        if self._distributed_tracing:
+            # retrieve distributed tracing headers
+            request = Request(environ)
+            propagator = HTTPPropagator()
+            context = propagator.extract(request.headers)
+            # only need to active the new context if something was propagated
+            if context.trace_id:
+                self._tracer.context_provider.activate(context)
+
+        with self._tracer.trace("pylons.request", service=self._service) as span:
+            # Set the service in tracer.trace() as priority sampling requires it to be
+            # set as early as possible when different services share one single agent.
             span.span_type = http.TYPE
 
             if not span.sampled:
@@ -39,8 +64,8 @@ class PylonsTraceMiddleware(object):
             try:
                 return self.app(environ, _start_response)
             except Exception as e:
-                # "unexpected errors"
-                # exc_info set by __exit__ on current tracer
+                # store current exceptions info so we can re-raise it later
+                (typ, val, tb) = sys.exc_info()
 
                 # e.code can either be a string or an int
                 code = getattr(e, 'code', 500)
@@ -48,11 +73,13 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except ValueError:
+                except:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
-                raise e
+
+                # re-raise the original exception with its original traceback
+                reraise(typ, val, tb=tb)
             except SystemExit:
                 span.set_tag(http.STATUS_CODE, 500)
                 span.error = 1

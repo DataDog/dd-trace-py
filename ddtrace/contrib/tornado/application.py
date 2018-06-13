@@ -2,9 +2,8 @@ import ddtrace
 
 from tornado import template
 
-from . import decorators
+from . import decorators, context_provider
 from .constants import CONFIG_KEY
-from .stack_context import TracerStackContext
 
 from ...ext import AppTypes
 
@@ -21,6 +20,7 @@ def tracer_config(__init__, app, args, kwargs):
     settings = {
         'tracer': ddtrace.tracer,
         'default_service': 'tornado-web',
+        'distributed_tracing': False,
     }
 
     # update defaults with users settings
@@ -37,7 +37,7 @@ def tracer_config(__init__, app, args, kwargs):
     # global tracer while here we can have a different instance (even if
     # this is not usual).
     tracer.configure(
-        context_provider=TracerStackContext.current_context,
+        context_provider=context_provider,
         wrap_executor=decorators.wrap_executor,
         enabled=settings.get('enabled', None),
         hostname=settings.get('agent_hostname', None),

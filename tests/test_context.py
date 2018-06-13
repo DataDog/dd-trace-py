@@ -7,6 +7,7 @@ from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
 
 class TestTracingContext(TestCase):
@@ -29,6 +30,21 @@ class TestTracingContext(TestCase):
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
         ok_(ctx._sampled is True)
+        ok_(ctx.sampling_priority is None)
+
+    def test_context_priority(self):
+        # a context is sampled if the spans are sampled
+        ctx = Context()
+        for priority in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
+            ctx.sampling_priority = priority
+            span = Span(tracer=None, name=('fake_span_%s' % repr(priority)))
+            ctx.add_span(span)
+            # It's "normal" to have sampled be true even when priority sampling is
+            # set to 0 or -1. It would stay false even even with priority set to 2.
+            # The only criteria to send (or not) the spans to the agent should be
+            # this "sampled" attribute, as it's tightly related to the trace weight.
+            ok_(ctx._sampled is True, 'priority has no impact on sampled status')
+            eq_(priority, ctx.sampling_priority)
 
     def test_current_span(self):
         # it should return the current active span
@@ -62,7 +78,7 @@ class TestTracingContext(TestCase):
         eq_(0, len(ctx._trace))
         eq_(0, ctx._finished_spans)
         ok_(ctx._current_span is None)
-        ok_(ctx._sampled is False)
+        ok_(ctx._sampled is True)
 
     def test_get_trace_empty(self):
         # it should return None if the Context is not finished
@@ -174,6 +190,24 @@ class TestTracingContext(TestCase):
             t.join()
 
         eq_(100, len(ctx._trace))
+
+    def test_clone(self):
+        ctx = Context()
+        ctx.sampling_priority = 2
+        # manually create a root-child trace
+        root = Span(tracer=None, name='root')
+        child = Span(tracer=None, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+        child._parent = root
+        ctx.add_span(root)
+        ctx.add_span(child)
+        cloned_ctx = ctx.clone()
+        eq_(cloned_ctx._parent_trace_id, ctx._parent_trace_id)
+        eq_(cloned_ctx._parent_span_id, ctx._parent_span_id)
+        eq_(cloned_ctx._sampled, ctx._sampled)
+        eq_(cloned_ctx._sampling_priority, ctx._sampling_priority)
+        eq_(cloned_ctx._current_span, ctx._current_span)
+        eq_(cloned_ctx._trace, [])
+        eq_(cloned_ctx._finished_spans, 0)
 
 
 class TestThreadContext(TestCase):

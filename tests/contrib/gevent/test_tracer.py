@@ -1,7 +1,10 @@
 import gevent
 import ddtrace
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
@@ -24,6 +27,8 @@ class TestGeventTracer(TestCase):
         patch()
 
     def tearDown(self):
+        # clean the active Context
+        self.tracer.context_provider.activate(None)
         # restore the original tracer
         ddtrace.tracer = self._original_tracer
         # untrace gevent
@@ -34,6 +39,14 @@ class TestGeventTracer(TestCase):
         main_greenlet = gevent.getcurrent()
         ctx = getattr(main_greenlet, '__datadog_context', None)
         ok_(ctx is None)
+
+    def test_main_greenlet_context(self):
+        # the main greenlet must have a ``Context`` if called
+        ctx_tracer = self.tracer.get_call_context()
+        main_greenlet = gevent.getcurrent()
+        ctx_greenlet = getattr(main_greenlet, '__datadog_context', None)
+        ok_(ctx_tracer is ctx_greenlet)
+        eq_(len(ctx_tracer._trace), 0)
 
     def test_get_call_context(self):
         # it should return the context attached to the provider
@@ -115,6 +128,37 @@ class TestGeventTracer(TestCase):
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
         eq_('base', traces[0][0].resource)
+
+    def test_trace_sampling_priority_spawn_multiple_greenlets_multiple_traces(self):
+        # multiple greenlets must be part of the same trace
+        def entrypoint():
+            with self.tracer.trace('greenlet.main') as span:
+                span.context.sampling_priority = USER_KEEP
+                span.resource = 'base'
+                jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
+                gevent.joinall(jobs)
+
+        def green_1():
+            with self.tracer.trace('greenlet.worker') as span:
+                span.set_tag('worker_id', '1')
+                gevent.sleep(0.01)
+
+        def green_2():
+            with self.tracer.trace('greenlet.worker') as span:
+                span.set_tag('worker_id', '2')
+                gevent.sleep(0.01)
+
+        gevent.spawn(entrypoint).join()
+        traces = self.tracer.writer.pop_traces()
+        eq_(3, len(traces))
+        eq_(1, len(traces[0]))
+        parent_span = traces[2][0]
+        worker_1 = traces[0][0]
+        worker_2 = traces[1][0]
+        # check sampling priority
+        eq_(parent_span.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
+        eq_(worker_1.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
+        eq_(worker_2.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
 
     def test_trace_spawn_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace
@@ -204,6 +248,25 @@ class TestGeventTracer(TestCase):
         eq_(100, len(traces))
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
+
+    def test_propagation_with_new_context(self):
+        # create multiple futures so that we expect multiple
+        # traces instead of a single one
+        ctx = Context(trace_id=100, span_id=101)
+        self.tracer.context_provider.activate(ctx)
+
+        def greenlet():
+            with self.tracer.trace('greenlet') as span:
+                gevent.sleep(0.01)
+
+        jobs = [gevent.spawn(greenlet) for x in range(1)]
+        gevent.joinall(jobs)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(traces[0][0].trace_id, 100)
+        eq_(traces[0][0].parent_id, 101)
 
     def test_trace_concurrent_spawn_later_calls(self):
         # create multiple futures so that we expect multiple

@@ -1,73 +1,51 @@
-"""
-Tracing for the requests library.
-
-https://github.com/kennethreitz/requests
-"""
-
-# stdlib
-import logging
-
-# 3p
 import requests
-import wrapt
 
-# project
-import ddtrace
-from ddtrace.ext import http
+from wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config
 
-log = logging.getLogger(__name__)
+from ...pin import Pin
+from ...utils.formats import asbool, get_env
+from ...utils.wrappers import unwrap as _u
+from .legacy import _distributed_tracing, _distributed_tracing_setter
+from .constants import DEFAULT_SERVICE
+from .connection import _wrap_request
+from ...ext import AppTypes
+
+# requests default settings
+config._add('requests',{
+    'service_name': get_env('requests', 'service_name', DEFAULT_SERVICE),
+    'distributed_tracing': asbool(get_env('requests', 'distributed_tracing', False)),
+    'split_by_domain': asbool(get_env('requests', 'split_by_domain', False)),
+})
 
 
 def patch():
-    """ Monkeypatch the requests library to trace http calls. """
-    wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+    """Activate http calls tracing"""
+    if getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', True)
+
+    _w('requests', 'Session.request', _wrap_request)
+    Pin(
+        service=config.requests['service_name'],
+        app='requests',
+        app_type=AppTypes.web,
+        _config=config.requests,
+    ).onto(requests.Session)
+
+    # [Backward compatibility]: `session.distributed_tracing` should point and
+    # update the `Pin` configuration instead. This block adds a property so that
+    # old implementations work as expected
+    fn = property(_distributed_tracing)
+    fn = fn.setter(_distributed_tracing_setter)
+    requests.Session.distributed_tracing = fn
 
 
-def _traced_request_func(func, instance, args, kwargs):
-    """ traced_request is a tracing wrapper for requests' Session.request
-        instance method.
-    """
+def unpatch():
+    """Disable traced sessions"""
+    if not getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', False)
 
-    # perhaps a global tracer isn't what we want, so permit individual requests
-    # sessions to have their own (with the standard global fallback)
-    tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-
-    # bail on the tracing if not enabled.
-    if not tracer.enabled:
-        return func(*args, **kwargs)
-
-    method = kwargs.get('method') or args[0]
-    url = kwargs.get('url') or args[1]
-
-    with tracer.trace("requests.request", span_type=http.TYPE) as span:
-        resp = None
-        try:
-            resp = func(*args, **kwargs)
-            return resp
-        finally:
-            try:
-                _apply_tags(span, method, url, resp)
-            except Exception:
-                log.debug("error patching tags", exc_info=True)
-
-
-def _apply_tags(span, method, url, response):
-    """ apply_tags will patch the given span with tags about the given request. """
-    span.set_tag(http.METHOD, method)
-    span.set_tag(http.URL, url)
-    if response is not None:
-        span.set_tag(http.STATUS_CODE, response.status_code)
-        # `span.error` must be an integer
-        span.error = int(500 <= response.status_code)
-
-
-class TracedSession(requests.Session):
-    """ TracedSession is a requests' Session that is already patched.
-    """
-    pass
-
-
-# Always patch our traced session with the traced method (cheesy way of sharing
-# code)
-wrapt.wrap_function_wrapper(TracedSession, 'request', _traced_request_func)
+    _u(requests.Session, 'request')

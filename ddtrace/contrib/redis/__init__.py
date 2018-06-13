@@ -17,7 +17,7 @@
     Pin.override(client, service='redis-queue')
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['redis', 'redis.client']
 

@@ -1,12 +1,11 @@
-
 # 3p
 import redis
 import wrapt
 
 # project
-from ddtrace import Pin
-from ddtrace.ext import redis as redisx
-from ddtrace.util import unwrap
+from ...pin import Pin
+from ...ext import redis as redisx
+from ...utils.wrappers import unwrap
 from .util import format_command_args, _extract_conn_tags
 
 

@@ -1,4 +1,3 @@
-
 # 3p
 from bottle import response, request
 
@@ -6,19 +5,22 @@ from bottle import response, request
 import ddtrace
 from ddtrace.ext import http, AppTypes
 
+# project
+from ...propagation.http import HTTPPropagator
 
 class TracePlugin(object):
-
     name = 'trace'
     api = 2
 
-    def __init__(self, service="bottle", tracer=None):
+    def __init__(self, service='bottle', tracer=None, distributed_tracing=None):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
+        self.distributed_tracing = distributed_tracing
         self.tracer.set_service_info(
             service=service,
-            app="bottle",
-            app_type=AppTypes.web)
+            app='bottle',
+            app_type=AppTypes.web,
+        )
 
     def apply(self, callback, route):
 
@@ -26,9 +28,16 @@ class TracePlugin(object):
             if not self.tracer or not self.tracer.enabled:
                 return callback(*args, **kwargs)
 
-            resource = "%s %s" % (request.method, request.route.rule)
+            resource = '{} {}'.format(request.method, route.rule)
 
-            with self.tracer.trace("bottle.request", service=self.service, resource=resource) as s:
+            # Propagate headers such as x-datadog-trace-id.
+            if self.distributed_tracing:
+                propagator = HTTPPropagator()
+                context = propagator.extract(request.headers)
+                if context.trace_id:
+                    self.tracer.context_provider.activate(context)
+
+            with self.tracer.trace('bottle.request', service=self.service, resource=resource) as s:
                 code = 0
                 try:
                     return callback(*args, **kwargs)
@@ -43,5 +52,3 @@ class TracePlugin(object):
                     s.set_tag(http.METHOD, request.method)
 
         return wrapped
-
-
