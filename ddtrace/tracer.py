@@ -177,7 +177,7 @@ class Tracer(object):
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
-            parent_service = context.service
+            parent_service = context._service
             parent_sampled = context.is_sampled()
 
         if trace_id:
