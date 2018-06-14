@@ -2,6 +2,7 @@ import time
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
+from ddtrace.opentracer.span_context import SpanContext
 
 
 class SpanLogRecord(object):
@@ -38,13 +39,17 @@ class Span(OpenTracingSpan):
     """Datadog implementation of :class:`opentracing.Span`"""
 
     def __init__(self, tracer, context, operation_name):
-        super(Span, self).__init__(tracer, context)
+        if context is not None:
+            context = SpanContext(ddcontext=context._dd_context,
+                                  baggage=context.baggage)
+        else:
+            context = SpanContext()
 
-        dd_context = None if context is None else context._dd_context
+        super(Span, self).__init__(tracer, context)
 
         # use a datadog span
         self._dd_span = DatadogSpan(tracer._tracer, operation_name,
-                                    context=dd_context)
+                                    context=context._dd_context)
 
         self.log = SpanLog()
 
@@ -162,3 +167,13 @@ class Span(OpenTracingSpan):
         # note: self.finish() AND _span.__exit__ will call _span.finish() but
         # it is idempotent
         self.finish()
+
+    def _add_dd_span(self, ddspan):
+        """Associates a datadog span with this span."""
+        # get the datadog span context
+        self._dd_span = ddspan
+        self.context._dd_context = ddspan.context
+
+    @property
+    def _dd_context(self):
+        return self._dd_span.context

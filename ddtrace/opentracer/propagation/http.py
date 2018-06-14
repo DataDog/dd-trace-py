@@ -72,4 +72,4 @@ class HTTPPropagator(Propagator):
             if key.startswith(HTTP_BAGGAGE_PREFIX):
                 baggage[key[HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
 
-        return SpanContext(context=ddspan_ctx, baggage=baggage)
+        return SpanContext(ddcontext=ddspan_ctx, baggage=baggage)

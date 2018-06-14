@@ -94,15 +94,23 @@ class Tracer(opentracing.Tracer):
 
         # attempt to get the parent span from the scope manager
         if child_of is None and not ignore_active_span:
-            child_of = self._scope_manager.active
+            scope = self._scope_manager.active
+            if scope is not None:
+                child_of = scope.span
 
         # pull out the context if child_of is a span
         if isinstance(child_of, Span):
             child_of = child_of.context
 
-        ddspan = self._tracer.start_span(name=operation_name, child_of=child_of)
+        ddcontext = child_of._dd_context if child_of is not None else None
+
         span = Span(self, child_of, operation_name)
-        span._dd_span = ddspan
+        ddspan = self._tracer.start_span(name=operation_name, child_of=ddcontext)
+
+        # associate the dd span with the ot span
+        span._add_dd_span(ddspan)
+
+        self._scope_manager.activate(span, False)
         return span
 
     def inject(self, span_context, format, carrier):
