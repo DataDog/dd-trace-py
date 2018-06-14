@@ -74,7 +74,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert_is_measured(span)
         assert span.name == 'postgres.execute'
         assert span.service == service
-        assert span.meta['sql.query'] == q
         assert span.error == 0
         assert span.span_type == 'sql'
         assert start <= span.start <= end
@@ -84,7 +83,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert_is_measured(span)
         assert span.name == 'postgres.fetchall'
         assert span.service == service
-        assert span.meta['sql.query'] == q
         assert span.error == 0
         assert span.span_type == 'sql'
         assert start <= span.start <= end
@@ -127,7 +125,6 @@ class AiopgTestCase(AsyncioTestCase):
         span = spans[0]
         assert span.name == 'postgres.execute'
         assert span.service == service
-        assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
         assert span.metrics['out.port'] == TEST_PORT
