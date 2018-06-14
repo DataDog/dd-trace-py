@@ -219,14 +219,23 @@ class TestAsyncioPropagation(AsyncioTestCase):
     @mark_asyncio
     def test_tasks_chaining(self):
         # ensures that the context is propagated between different tasks
+        service_name = 'foobar'
+        ctx = Context(_service=service_name)
+        task = asyncio.Task.current_task()
+        set_call_context(task, ctx)
+
         @self.tracer.wrap('spawn_task')
         @asyncio.coroutine
         def coro_2():
+            ctx = self.tracer.get_call_context()
+            eq_(ctx._service, service_name)
             yield from asyncio.sleep(0.01)
 
         @self.tracer.wrap('main_task')
         @asyncio.coroutine
         def coro_1():
+            ctx = self.tracer.get_call_context()
+            eq_(ctx._service, service_name)
             yield from asyncio.ensure_future(coro_2())
 
         yield from coro_1()
@@ -294,7 +303,6 @@ class TestAsyncioPropagation(AsyncioTestCase):
     def test_propagation_with_new_context(self):
         # ensures that if a new Context is activated, a trace
         # with the Context arguments is created
-        task = asyncio.Task.current_task()
         ctx = Context(trace_id=100, span_id=101)
         self.tracer.context_provider.activate(ctx)
 
