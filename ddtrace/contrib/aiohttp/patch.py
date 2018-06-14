@@ -68,13 +68,13 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             return result
 
     @asyncio.coroutine
-    def _create_connection(self, req):
+    def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace('{}._create_connection'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE,
                               service=pin.service) as span:
             _set_request_tags(span, _get_url_obj(req))
-            result = yield from self.__wrapped__._create_connection(req)
+            result = yield from self.__wrapped__._create_connection(req, *args, **kwargs)
             return result
 
 
