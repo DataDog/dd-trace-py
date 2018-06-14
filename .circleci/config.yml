@@ -563,28 +563,14 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   asyncpg:
+    executor: ddtrace_dev
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
-        env:
-            - POSTGRES_PASSWORD=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_DB=postgres
+      - image: *ddtrace_dev_image
+      - *postgres_server
     steps:
-      - checkout
-      - restore_cache:
-          keys:
-              - tox-cache-asyncpg-{{ checksum "tox.ini" }}
-      - run: tox -e 'wait' postgres
-      - run: tox -e '{py35,py36}-asyncpg{014}' --result-json /tmp/asyncpg.results
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - asyncpg.results
-      - save_cache:
-          key: tox-cache-asyncpg-{{ checksum "tox.ini" }}
-          paths:
-            - .tox
+      - run_tox_scenario:
+          wait: postgres
+          pattern: '^asyncpg_contrib-'
 
   redis:
     executor: ddtrace_dev
@@ -772,6 +758,7 @@ workflows:
       - aiobotocore: *requires_pre_test
       - aiohttp: *requires_pre_test
       - aiopg: *requires_pre_test
+      - asyncpg: *requires_pre_test
       - asyncio: *requires_pre_test
       - algoliasearch: *requires_pre_test
       - benchmarks: *requires_pre_test
