@@ -111,7 +111,7 @@ class Context(object):
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
             self._sampled = span.sampled
-            self._parent_service = span._service
+            self._parent_service = span.service
         else:
             self._parent_span_id = None
 
