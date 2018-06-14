@@ -180,11 +180,11 @@ class Tracer(object):
             parent_service = context._service
             parent_sampled = context.is_sampled()
 
+        # when not provided, inherit from parent's service
+        service = service or parent_service
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
-
-            # when not provided, inherit from parent's service
-            service = service or parent_service
 
             span = Span(
                 self,
