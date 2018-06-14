@@ -1,7 +1,6 @@
 # 3p
 import psycopg2.extensions
 import wrapt
-import pkg_resources
 
 # project
 from ddtrace import Pin
@@ -14,10 +13,6 @@ def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    # needed for psycopg2.extensions.parse_dsn support
-    assert pkg_resources.parse_version(psycopg2.__version__) >= \
-           pkg_resources.SetuptoolsLegacyVersion("2.7.0")  # noqa: E127
-
     if getattr(psycopg2, '_datadog_patch', False):
         return
     setattr(psycopg2, '_datadog_patch', True)
@@ -98,6 +93,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
     return func(obj, scope) if scope else func(obj)
 
+
 def _extensions_quote_ident(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
@@ -109,6 +105,7 @@ def _extensions_quote_ident(func, _, args, kwargs):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
+
 
 def _extensions_adapt(func, _, args, kwargs):
     adapt = func(*args, **kwargs)

@@ -59,7 +59,6 @@ setup(
     install_requires=[
         "wrapt",
         "msgpack-python",
-        "setuptools",  # for pkg_resources.parse_version
     ],
     # plugin tox
     tests_require=['tox', 'flake8'],
