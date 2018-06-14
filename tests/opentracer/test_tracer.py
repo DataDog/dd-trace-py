@@ -85,21 +85,72 @@ class TestTracerConfig(object):
         spans = nop_tracer._tracer.writer.pop()
         assert len(spans) == 1
 
-    def test_start_span_multi(self, nop_tracer):
-        """Start and finish a span."""
+    def test_start_span_multi_child(self, nop_tracer):
+        """Start and finish multiple child spans.
+        This should ensure that child spans can be created 2 levels deep.
+        """
         import time
-        with nop_tracer.start_span('myfirstop') as span:
-            time.sleep(0.005)
-            with nop_tracer.start_span('mysecondop') as span:
+        with nop_tracer.start_span('myfirstop') as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('mysecondop') as span2:
+                time.sleep(0.007)
+                with nop_tracer.start_span('mythirdop') as span3:
+                    time.sleep(0.005)
+
+        # spans should be finished when the context manager exits
+        assert span1.finished
+        assert span2.finished
+        assert span3.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # check spans are captured in the trace
+        assert span1._dd_span is spans[0]
+        assert span2._dd_span is spans[1]
+        assert span3._dd_span is spans[2]
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[1].span_id
+
+        # sanity check a lower bound on the durations
+        assert spans[0].duration >= 0.009 + 0.007 + 0.005
+        assert spans[1].duration >= 0.007 + 0.005
+        assert spans[2].duration >= 0.005
+
+    def test_start_span_multi_child_same_level(self, nop_tracer):
+        """Start and finish mulitple span at the same level.
+        This should test to ensure a parent can have multiple child spans at the
+        same level.
+        """
+        import time
+        with nop_tracer.start_span('myfirstop') as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('mysecondop') as span2:
+                time.sleep(0.007)
+            with nop_tracer.start_span('mythirdop') as span3:
                 time.sleep(0.005)
 
-        # span should be finished when the context manager exits
-        assert span.finished
+        # spans should be finished when the context manager exits
+        assert span1.finished
+        assert span2.finished
+        assert span3.finished
 
-        # there should be no traces (see above comment)
         spans = nop_tracer._tracer.writer.pop()
-        assert len(spans) == 2
 
+        # check spans are captured in the trace
+        assert span1._dd_span is spans[0]
+        assert span2._dd_span is spans[1]
+        assert span3._dd_span is spans[2]
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[0].span_id
+
+        # sanity check a lower bound on the durations
+        assert spans[0].duration >= 0.009 + 0.007 + 0.005
+        assert spans[1].duration >= 0.007
+        assert spans[2].duration >= 0.005
 
 @pytest.fixture
 def nop_span_ctx():

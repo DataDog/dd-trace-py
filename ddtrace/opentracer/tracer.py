@@ -56,6 +56,8 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
+        # default to using a threadlocal scope manager
+        # TODO: should this be some kind of configuration?
         self._scope_manager = ThreadLocalScopeManager()
 
         self._tracer = DatadogTracer()
