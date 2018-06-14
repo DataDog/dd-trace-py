@@ -4,12 +4,12 @@ import logging
 import sys
 import wrapt
 
-from ddtrace.util import unwrap
-
+from ...utils.wrappers import unwrap
 from ...propagation.http import HTTPPropagator
 from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
+
 import aiohttp
 from yarl import URL
 

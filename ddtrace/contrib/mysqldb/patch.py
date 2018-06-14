@@ -7,8 +7,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 
-from ...ext import net, db
-from ...util import unwrap as _u
+from ...ext import net, db, AppTypes
+from ...utils.wrappers import unwrap as _u
 
 
 KWPOS_BY_TAG = {
@@ -55,9 +55,9 @@ def patch_conn(conn, *args, **kwargs):
             for t, (k, p) in KWPOS_BY_TAG.items()
             if k in kwargs or len(args) > p}
     tags[net.TARGET_PORT] = conn.port
-    pin = Pin(service="mysql", app="mysql", app_type="db", tags=tags)
+    pin = Pin(service="mysql", app="mysql", app_type=AppTypes.db, tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn)
+    wrapped = TracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped

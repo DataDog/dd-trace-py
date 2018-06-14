@@ -29,7 +29,7 @@ patch ``gevent`` **before importing** the library::
             with tracer.trace("greenlet.child_call") as child:
                 ...
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['gevent']

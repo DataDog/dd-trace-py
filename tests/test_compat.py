@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 # Define source file encoding to support raw unicode characters in Python 2
+import sys
 
 # Third party
-from nose.tools import eq_
+from nose.tools import eq_, assert_raises
 
 # Project
-from ddtrace.compat import to_unicode, PY2
+from ddtrace.compat import to_unicode, PY2, reraise
 
 
 # Use different test suites for each Python version, this allows us to test the expected
@@ -92,3 +93,26 @@ else:
             eq_(to_unicode(True), 'True')
             eq_(to_unicode(None), 'None')
             eq_(to_unicode(dict(key='value')), '{\'key\': \'value\'}')
+
+
+class TestPy2Py3Compat(object):
+    """Common tests to ensure functions are both Python 2 and
+    Python 3 compatible.
+    """
+    def test_reraise(self):
+        # ensure the `raise` function is Python 2/3 compatible
+        with assert_raises(Exception) as ex:
+            try:
+                raise Exception('Ouch!')
+            except Exception as e:
+                # original exception we want to re-raise
+                (typ, val, tb) = sys.exc_info()
+                try:
+                    # this exception doesn't allow a re-raise, and we need
+                    # to use the previous one collected via `exc_info()`
+                    raise Exception('Obfuscate!')
+                except Exception:
+                    pass
+                # this call must be Python 2 and 3 compatible
+                raise reraise(typ, val, tb)
+        eq_(ex.exception.args[0], 'Ouch!')

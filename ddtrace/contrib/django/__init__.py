@@ -65,7 +65,7 @@ The available settings are:
   rendering will not be instrumented. Only configurable when ``AUTO_INSTRUMENT``
   is set to ``True``.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['django']
