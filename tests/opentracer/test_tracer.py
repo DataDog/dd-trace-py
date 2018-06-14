@@ -119,7 +119,7 @@ class TestTracerConfig(object):
         assert spans[2].duration >= 0.005
 
     def test_start_span_multi_child_same_level(self, nop_tracer):
-        """Start and finish mulitple span at the same level.
+        """Start and finish multiple span at the same level.
         This should test to ensure a parent can have multiple child spans at the
         same level.
         """
@@ -151,6 +151,130 @@ class TestTracerConfig(object):
         assert spans[0].duration >= 0.009 + 0.007 + 0.005
         assert spans[1].duration >= 0.007
         assert spans[2].duration >= 0.005
+
+    def test_start_span_manual_child_of(self, nop_tracer):
+        """Start spans without using a scope manager.
+        Spans should be created without parents since there will be no call
+        for the active span.
+        """
+        import time
+
+        root = nop_tracer.start_span('zero')
+
+        with nop_tracer.start_span('one', child_of=root) as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('two', child_of=root) as span2:
+                time.sleep(0.007)
+                with nop_tracer.start_span('three', child_of=root) as span3:
+                    time.sleep(0.005)
+        root.finish()
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        assert spans[0].parent_id is None
+        # ensure each child span is a child of root
+        assert spans[1].parent_id is root._dd_span.span_id
+        assert spans[2].parent_id is root._dd_span.span_id
+        assert spans[3].parent_id is root._dd_span.span_id
+
+    def test_start_span_no_active_span(self, nop_tracer):
+        """Start spans without using a scope manager.
+        Spans should be created without parents since there will be no call
+        for the active span.
+        """
+        import time
+        with nop_tracer.start_span('one', ignore_active_span=True) as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('two', ignore_active_span=True) as span2:
+                time.sleep(0.007)
+            with nop_tracer.start_span('three', ignore_active_span=True) as span3:
+                time.sleep(0.005)
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # ensure each span does not have a parent
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is None
+        assert spans[2].parent_id is None
+
+    def test_start_span_child_finish_after_parent(self, nop_tracer):
+        """Start a child span and finish it after its parent."""
+        import time
+
+        span1 = nop_tracer.start_span('one')
+        span2 = nop_tracer.start_span('two')
+        span1.finish()
+        time.sleep(0.005)
+        span2.finish()
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) is 2
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is span1._dd_span.span_id
+        assert spans[1].duration > spans[0].duration
+
+    def test_start_span_multi_intertwined(self, nop_tracer):
+        """Start multiple spans at the top level intertwined.
+        Alternate calling between two traces.
+        """
+        import threading
+        import time
+
+        def trace_one():
+            id = 11
+            with nop_tracer.start_span(str(id)):
+                id += 1
+                time.sleep(0.009)
+                with nop_tracer.start_span(str(id)):
+                    id += 1
+                    time.sleep(0.001)
+                    with nop_tracer.start_span(str(id)):
+                        pass
+
+        def trace_two():
+            id = 21
+            with nop_tracer.start_span(str(id)):
+                id += 1
+                time.sleep(0.006)
+                with nop_tracer.start_span(str(id)):
+                    id += 1
+                    time.sleep(0.009)
+                with nop_tracer.start_span(str(id)):
+                    pass
+
+        # the ordering should be
+        # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
+        t1 = threading.Thread(target=trace_one)
+        t1.daemon = True
+        t2 = threading.Thread(target=trace_two)
+        t2.daemon = True
+
+        t1.start()
+        t2.start()
+        # wait for threads to finish
+        time.sleep(0.018)
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # trace_one will finish before trace_two so its spans should be written
+        # before the spans from trace_two, let's confirm this
+        assert spans[0].name == '11'
+        assert spans[1].name == '12'
+        assert spans[2].name == '13'
+        assert spans[3].name == '21'
+        assert spans[4].name == '22'
+        assert spans[5].name == '23'
+
+        # next let's ensure that each span has the correct parent
+        # trace_one
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[1].span_id
+        # trace_two
+        assert spans[3].parent_id is None
+        assert spans[4].parent_id is spans[3].span_id
+        assert spans[5].parent_id is spans[3].span_id
+
 
 @pytest.fixture
 def nop_span_ctx():

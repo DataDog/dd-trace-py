@@ -8,9 +8,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
 
 from .propagation import HTTPPropagator
-# from .scope_manager import ScopeManager
 from .span import Span
-from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
 
@@ -76,13 +74,16 @@ class Tracer(opentracing.Tracer):
 
     @property
     def scope_manager(self):
-        """"""
+        """Returns the scope manager being used by this tracer."""
         return self._scope_manager
 
     @property
     def active_span(self):
-        """"""
-        pass
+        """Gets the active span from the scope manager or none if it does not exist."""
+        scope = self._scope_manager.active
+        if scope is not None:
+            return scope.span
+        return None
 
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
@@ -94,22 +95,34 @@ class Tracer(opentracing.Tracer):
                    tags=None, start_time=None, ignore_active_span=False):
         """Starts and returns a new span."""
 
-        # attempt to get the parent span from the scope manager
+        dd_child_of = None  # the child_of to pass to the datadog tracer
+        parent_context = None # the parent span's context
+
+        # Okay so here's the deal for ddtracer.start_span:
+        # 1) when child_of is a ddcontext it will return a span added to the
+        #    ddcontext (trace), the parent of this span will be the 'active'
+        #    span from the ddcontext;
+        # 2) when child_of is a ddspan it will return a child of of the ddspan
+        #    and create a new context for the span
+
         if child_of is None and not ignore_active_span:
+            # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
-            if scope is not None:
-                child_of = scope.span
+            parent_span = getattr(scope, 'span', None)
+            parent_context = getattr(parent_span, 'context', None)
+            dd_child_of = getattr(parent_context, '_dd_context', None)
+            # dd_child_of = getattr(parent_span, '_dd_span', None)
+        elif child_of is not None and isinstance(child_of, Span):
+            parent_context = child_of.context
+            dd_child_of = child_of._dd_span
+        elif child_of is None:
+            pass
+        else:
+            raise TypeError('')
 
-        # pull out the context if child_of is a span
-        if isinstance(child_of, Span):
-            child_of = child_of.context
-
-        ddcontext = child_of._dd_context if child_of is not None else None
-
-        span = Span(self, child_of, operation_name)
-        ddspan = self._tracer.start_span(name=operation_name, child_of=ddcontext)
-
-        # associate the dd span with the ot span
+        # create a new ot span and dd span using the dd tracer and associate it with the ot span
+        span = Span(self, parent_context, operation_name)
+        ddspan = self._tracer.start_span(name=operation_name, child_of=dd_child_of)
         span._add_dd_span(ddspan)
 
         self._scope_manager.activate(span, False)
