@@ -32,6 +32,19 @@ def _create_pin(tags):
                tracer=tracer)
 
 
+def _make_dsn(dsn, **kwargs):
+    try:
+        parsed_dsn = psycopg2.extensions.make_dsn(dsn, **kwargs)
+
+        # fetch tags from the dsn
+        parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+        return parsed_dsn
+    except ImportError:
+        # pre make_dsn you could only have a dsn or kwargs
+        # https://github.com/psycopg/psycopg2/commit/1c4523f0ac685632381a0f4371e93031928326b1
+        return sql.parse_pg_dsn(dsn) if dsn else kwargs
+
+
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs_param):
     @asyncio.coroutine
@@ -39,10 +52,8 @@ def _patched_connect(connect_func, _, args, kwargs_param):
                enable_json=True, enable_hstore=True, enable_uuid=True,
                echo=False, **kwargs):
 
-        parsed_dsn = psycopg2.extensions.make_dsn(dsn, **kwargs)
+        parsed_dsn = _make_dsn(dsn, **kwargs)
 
-        # fetch tags from the dsn
-        parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
         tags = {
             net.TARGET_HOST: parsed_dsn.get("host"),
             net.TARGET_PORT: parsed_dsn.get("port"),
@@ -100,11 +111,7 @@ _aiopg_extensions = [
 
 @asyncio.coroutine
 def _patched_acquire(acquire_func, instance, args, kwargs):
-    parsed_dsn = psycopg2.extensions.make_dsn(instance._dsn,
-                                              **instance._conn_kwargs)
-
-    # fetch tags from the dsn
-    parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+    parsed_dsn = _make_dsn(instance._dsn, **instance._conn_kwargs)
 
     tags = {
         net.TARGET_HOST: parsed_dsn.get("host"),
@@ -131,10 +138,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
 
 
 def _patched_release(release_func, instance, args, kwargs):
-    parsed_dsn = psycopg2.extensions.make_dsn(instance._dsn, **instance._conn_kwargs)
-
-    # fetch tags from the dsn
-    parsed_dsn = sql.parse_pg_dsn(parsed_dsn)
+    parsed_dsn = _make_dsn(instance._dsn, **instance._conn_kwargs)
 
     tags = {
         net.TARGET_HOST: parsed_dsn.get("host"),
