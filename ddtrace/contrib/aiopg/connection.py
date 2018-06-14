@@ -27,9 +27,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         name = (pin.app or 'sql') + "." + method.__name__
         with pin.tracer.trace(name, service=service,
-                              resource=self.query.decode('utf-8'),
+                              resource=query or self.query.decode('utf-8'),
                               span_type=SpanTypes.SQL) as s:
-            s.set_tag(SPAN_MEASURED_KEY)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
