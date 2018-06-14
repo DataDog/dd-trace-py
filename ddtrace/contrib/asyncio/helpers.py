@@ -113,7 +113,7 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
             span_id=ctx.span_id,
             sampled=ctx.is_sampled(),
             sampling_priority=ctx.sampling_priority,
-            service=ctx.service
+            _service=ctx._service
         )
         set_call_context(new_task, new_ctx)
 
