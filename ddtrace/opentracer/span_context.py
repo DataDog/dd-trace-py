@@ -30,12 +30,23 @@ class SpanContext(OpenTracingSpanContext):
     def baggage(self):
         return self._baggage
 
-    def with_baggage_item(self, key, value):
-        """Creates a copy of this span with a new baggage item.
+    def set_baggage_item(self, key, value):
+        """Sets a baggage item in this span context.
 
-        This method helps to preserve immutability of the span context.
+        Note that this operation mutates the baggage of this span context
+        """
+        self.baggage[key] = value
+
+    def with_baggage_item(self, key, value):
+        """Returns a copy of this span with a new baggage item.
+
+        Useful for instantiating new child span contexts.
         """
 
         baggage = dict(self._baggage)
         baggage[key] = value
         return SpanContext(context=self._context, baggage=baggage)
+
+    def get_baggage_item(self, key):
+        """Gets a baggage item in this span context."""
+        return self.baggage.get(key, None)
