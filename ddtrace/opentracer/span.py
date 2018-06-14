@@ -29,9 +29,10 @@ class SpanLog(object):
         return len(self.records)
 
     def __getitem__(self, key):
-        if type(key) is int and key < len(self):
+        if type(key) is int:
             return self.records[key]
-        return None
+        else:
+            raise TypeError('only indexing by int is currently supported')
 
 
 class Span(OpenTracingSpan):
