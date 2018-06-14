@@ -71,7 +71,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         span = spans[0]
         eq_(span.name, 'postgres.execute')
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         assert start <= span.start <= end
@@ -80,7 +79,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         span = spans[1]
         eq_(span.name, 'postgres.fetchall')
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         assert start <= span.start <= end
@@ -101,7 +99,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         span = spans[0]
         eq_(span.name, 'postgres.execute')
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 1)
         eq_(span.meta['out.host'], 'localhost')
         eq_(span.meta['out.port'], TEST_PORT)
