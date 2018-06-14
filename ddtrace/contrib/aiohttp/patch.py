@@ -56,7 +56,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin.onto(self)
 
     @asyncio.coroutine
-    def connect(self, req):
+    def connect(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace('{}.connect'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE,
@@ -64,7 +64,7 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             _set_request_tags(span, _get_url_obj(req))
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
-            result = yield from self.__wrapped__.__class__.connect(self, req)
+            result = yield from self.__wrapped__.__class__.connect(self, req, *args, **kwargs)
             return result
 
     @asyncio.coroutine
