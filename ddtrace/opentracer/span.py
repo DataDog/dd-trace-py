@@ -2,7 +2,8 @@ import time
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
-from ddtrace.opentracer.span_context import SpanContext
+
+from .span_context import SpanContext
 
 
 class SpanLogRecord(object):
@@ -30,9 +31,10 @@ class SpanLog(object):
         return len(self.records)
 
     def __getitem__(self, key):
-        if type(key) is int and key < len(self):
+        if type(key) is int:
             return self.records[key]
-        return None
+        else:
+            raise TypeError('only indexing by int is currently supported')
 
 
 class Span(OpenTracingSpan):
@@ -117,7 +119,6 @@ class Span(OpenTracingSpan):
         :return: the span itself, for call chaining
         :rtype: Span
         """
-
         # add the record to the log
         # TODO: there really isn't any functionality provided in ddtrace
         #       (or even opentracing) for logging
