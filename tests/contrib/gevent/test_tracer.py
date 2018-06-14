@@ -1,8 +1,10 @@
 import gevent
 import ddtrace
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
@@ -126,6 +128,37 @@ class TestGeventTracer(TestCase):
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
         eq_('base', traces[0][0].resource)
+
+    def test_trace_sampling_priority_spawn_multiple_greenlets_multiple_traces(self):
+        # multiple greenlets must be part of the same trace
+        def entrypoint():
+            with self.tracer.trace('greenlet.main') as span:
+                span.context.sampling_priority = USER_KEEP
+                span.resource = 'base'
+                jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
+                gevent.joinall(jobs)
+
+        def green_1():
+            with self.tracer.trace('greenlet.worker') as span:
+                span.set_tag('worker_id', '1')
+                gevent.sleep(0.01)
+
+        def green_2():
+            with self.tracer.trace('greenlet.worker') as span:
+                span.set_tag('worker_id', '2')
+                gevent.sleep(0.01)
+
+        gevent.spawn(entrypoint).join()
+        traces = self.tracer.writer.pop_traces()
+        eq_(3, len(traces))
+        eq_(1, len(traces[0]))
+        parent_span = traces[2][0]
+        worker_1 = traces[0][0]
+        worker_2 = traces[1][0]
+        # check sampling priority
+        eq_(parent_span.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
+        eq_(worker_1.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
+        eq_(worker_2.get_metric(SAMPLING_PRIORITY_KEY), USER_KEEP)
 
     def test_trace_spawn_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace

@@ -2,8 +2,6 @@ import gevent
 
 from .provider import CONTEXT_ATTR
 
-from ...context import Context
-
 
 class TracedGreenlet(gevent.Greenlet):
     """
@@ -29,11 +27,5 @@ class TracedGreenlet(gevent.Greenlet):
         # the context is always available made exception of the main greenlet
         if ctx:
             # create a new context that inherits the current active span
-            # TODO: a better API for Context, should get the tuple at once
-            new_ctx = Context(
-                trace_id=ctx._parent_trace_id,
-                span_id=ctx._parent_span_id,
-                sampled=ctx._sampled,
-            )
-            new_ctx._current_span = ctx._current_span
+            new_ctx = ctx.clone()
             setattr(self, CONTEXT_ATTR, new_ctx)

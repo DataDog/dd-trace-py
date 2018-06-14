@@ -8,7 +8,7 @@ import wrapt
 from ...compat import httplib, PY2
 from ...ext import http as ext_http
 from ...pin import Pin
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'

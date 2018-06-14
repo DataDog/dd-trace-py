@@ -5,7 +5,7 @@ import mysql.connector
 # project
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
-from ...ext import net, db
+from ...ext import net, db, AppTypes
 
 
 CONN_ATTR_BY_TAG = {
@@ -34,9 +34,9 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
 
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, '') != ''}
-    pin = Pin(service="mysql", app="mysql", app_type="db", tags=tags)
+    pin = Pin(service="mysql", app="mysql", app_type=AppTypes.db, tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn)
+    wrapped = TracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped
