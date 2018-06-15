@@ -113,16 +113,18 @@ class Tracer(opentracing.Tracer):
     def start_span(self, operation_name=None, child_of=None, references=None,
                    tags=None, start_time=None, ignore_active_span=False):
         """Starts and returns a new Span representing a unit of work.
-                Starting a root Span (a Span with no causal references)::
-                    tracer.start_span('...')
-                Starting a child Span (see also start_child_span())::
-                    tracer.start_span(
-                        '...',
-                        child_of=parent_span)
-                Starting a child Span in a more verbose way::
-                    tracer.start_span(
-                        '...',
-                        references=[opentracing.child_of(parent_span)])
+
+        Starting a root Span (a Span with no causal references)::
+            tracer.start_span('...')
+
+        Starting a child Span (see also start_child_span())::
+            tracer.start_span(
+                '...',
+                child_of=parent_span)
+        Starting a child Span in a more verbose way::
+            tracer.start_span(
+                '...',
+                references=[opentracing.child_of(parent_span)])
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -177,6 +179,7 @@ class Tracer(opentracing.Tracer):
         # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._tracer.start_span(name=operation_name, child_of=dd_parent)
+        ddspan.start = start_time or ddspan.start  # set the start time if one is specified
         otspan._add_dd_span(ddspan)
 
         # activate this new span

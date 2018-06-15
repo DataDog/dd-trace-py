@@ -84,6 +84,18 @@ class TestTracerConfig(object):
         spans = nop_tracer._tracer.writer.pop()
         assert len(spans) == 1
 
+    def test_start_span_custom_start_time(self, nop_tracer):
+        """Start a span with a custom start time."""
+        import time
+        t = time.time() + 0.002
+        with nop_tracer.start_span('myop', start_time=t) as span:
+            time.sleep(0.005)
+
+        # it should be certain that the span duration is strictly less than
+        # the amount of time we sleep for
+        assert span._dd_span.duration < 0.005
+
+
     def test_start_span_with_spancontext(self, nop_tracer):
         """Start and finish a span using a span context as the child_of
         reference.
