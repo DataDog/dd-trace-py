@@ -81,9 +81,28 @@ class TestTracerConfig(object):
         # span should be finished when the context manager exits
         assert span.finished
 
-        # there should be no traces (see above comment)
         spans = nop_tracer._tracer.writer.pop()
         assert len(spans) == 1
+
+    def test_start_span_with_spancontext(self, nop_tracer):
+        """Start and finish a span using a span context as the child_of
+        reference.
+        """
+        import time
+        with nop_tracer.start_span('myop') as span:
+            time.sleep(0.005)
+            with nop_tracer.start_span('myop', child_of=span.context) as span2:
+                time.sleep(0.008)
+
+        # span should be finished when the context manager exits
+        assert span.finished
+        assert span2.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) == 2
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
 
     def test_start_span_multi_child(self, nop_tracer):
         """Start and finish multiple child spans.
@@ -118,7 +137,7 @@ class TestTracerConfig(object):
         assert spans[1].duration >= 0.007 + 0.005
         assert spans[2].duration >= 0.005
 
-    def test_start_span_multi_child_same_level(self, nop_tracer):
+    def test_start_span_multi_child_siblings(self, nop_tracer):
         """Start and finish multiple span at the same level.
         This should test to ensure a parent can have multiple child spans at the
         same level.
@@ -265,7 +284,7 @@ class TestTracerConfig(object):
         assert spans[4].name == '22'
         assert spans[5].name == '23'
 
-        # next let's ensure that each span has the correct parent
+        # next let's ensure that each span has the correct parent:
         # trace_one
         assert spans[0].parent_id is None
         assert spans[1].parent_id is spans[0].span_id
