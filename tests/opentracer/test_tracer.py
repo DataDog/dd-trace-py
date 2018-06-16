@@ -95,7 +95,6 @@ class TestTracerConfig(object):
         # the amount of time we sleep for
         assert span._dd_span.duration < 0.005
 
-
     def test_start_span_with_spancontext(self, nop_tracer):
         """Start and finish a span using a span context as the child_of
         reference.
@@ -115,6 +114,18 @@ class TestTracerConfig(object):
 
         # ensure proper parenting
         assert spans[1].parent_id is spans[0].span_id
+
+    def test_start_span_with_tags(self, nop_tracer):
+        """Create a span with initial tags."""
+        tags = {
+            'key': 'value',
+            'key2': 'value2',
+        }
+        with nop_tracer.start_span('myop', tags=tags) as span:
+            pass
+
+        assert span._dd_span.get_tag('key') == 'value'
+        assert span._dd_span.get_tag('key2') == 'value2'
 
     def test_start_span_multi_child(self, nop_tracer):
         """Start and finish multiple child spans.

@@ -180,6 +180,8 @@ class Tracer(opentracing.Tracer):
         otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._tracer.start_span(name=operation_name, child_of=dd_parent)
         ddspan.start = start_time or ddspan.start  # set the start time if one is specified
+        if tags is not None:
+            ddspan.set_tags(tags)
         otspan._add_dd_span(ddspan)
 
         # activate this new span
