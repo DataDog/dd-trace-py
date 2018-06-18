@@ -16,7 +16,7 @@ class TestSpanContext(object):
 
         span_ctx = SpanContext(baggage=baggage)
 
-        assert span_ctx.baggage is baggage
+        assert span_ctx.baggage == baggage
 
     def test_with_baggage_item(self):
         """Should allow immutable extension of new span contexts."""
