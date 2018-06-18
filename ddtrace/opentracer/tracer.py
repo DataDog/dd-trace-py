@@ -156,7 +156,6 @@ class Tracer(opentracing.Tracer):
             # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
             parent_span = getattr(scope, 'span', None)
-            # print(parent_span._dd_span.name if parent_span is not None else None)
             ot_parent_context = getattr(parent_span, 'context', None)
             # we want the ddcontext of the active span in order to maintain the
             # ddspan hierarchy
@@ -190,9 +189,7 @@ class Tracer(opentracing.Tracer):
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
-
         :param format: format to encode the span context with.
-
         :param carrier: the carrier of the encoded span context.
         """
         propagator = self._propagators.get(format, None)
@@ -206,7 +203,6 @@ class Tracer(opentracing.Tracer):
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.
-
         :param carrier: the carrier to extract from.
         """
         propagator = self._propagators.get(format, None)
