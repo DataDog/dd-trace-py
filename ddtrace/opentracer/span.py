@@ -3,6 +3,8 @@ from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
 
+from .span_context import SpanContext
+
 
 class SpanLogRecord(object):
     """A representation of a log record."""
@@ -39,10 +41,17 @@ class Span(OpenTracingSpan):
     """Datadog implementation of :class:`opentracing.Span`"""
 
     def __init__(self, tracer, context, operation_name):
+        if context is not None:
+            context = SpanContext(ddcontext=context._dd_context,
+                                  baggage=context.baggage)
+        else:
+            context = SpanContext()
+
         super(Span, self).__init__(tracer, context)
 
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._tracer, operation_name, context=context._context)
+        self._dd_span = DatadogSpan(tracer._tracer, operation_name,
+                                    context=context._dd_context)
 
         self.log = SpanLog()
 
@@ -78,7 +87,7 @@ class Span(OpenTracingSpan):
         :rtype: Span
         :return: itself for chaining calls
         """
-        self._context.set_baggage_item(key, value)
+        self.context.set_baggage_item(key, value)
         return self
 
     def get_baggage_item(self, key):
@@ -90,7 +99,7 @@ class Span(OpenTracingSpan):
         :rtype: str
         :return: the baggage value for the given key or ``None``.
         """
-        return self._context.get_baggage_item(key)
+        return self.context.get_baggage_item(key)
 
     def set_operation_name(self, operation_name):
         """Set the operation name."""
@@ -110,7 +119,6 @@ class Span(OpenTracingSpan):
         :return: the span itself, for call chaining
         :rtype: Span
         """
-
         # add the record to the log
         # TODO: there really isn't any functionality provided in ddtrace
         #       (or even opentracing) for logging
@@ -160,3 +168,13 @@ class Span(OpenTracingSpan):
         # note: self.finish() AND _span.__exit__ will call _span.finish() but
         # it is idempotent
         self.finish()
+
+    def _add_dd_span(self, ddspan):
+        """Associates a datadog span with this span."""
+        # get the datadog span context
+        self._dd_span = ddspan
+        self.context._dd_context = ddspan.context
+
+    @property
+    def _dd_context(self):
+        return self._dd_span.context

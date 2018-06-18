@@ -2,6 +2,13 @@ import pytest
 
 from ddtrace.opentracer import Tracer
 
+@pytest.fixture
+def nop_tracer():
+    from ..test_tracer import get_dummy_tracer
+    tracer = Tracer(service_name='mysvc', config={})
+    tracer._tracer = get_dummy_tracer()
+    return tracer
+
 
 class TestTracerConfig(object):
     def test_config(self):
@@ -65,9 +72,250 @@ class TestTracerConfig(object):
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
 
-@pytest.fixture
-def nop_tracer():
-    return Tracer(service_name='mysvc', config={})
+    def test_start_span(self, nop_tracer):
+        """Start and finish a span."""
+        import time
+        with nop_tracer.start_span('myop') as span:
+            time.sleep(0.005)
+
+        # span should be finished when the context manager exits
+        assert span.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) == 1
+
+    def test_start_span_custom_start_time(self, nop_tracer):
+        """Start a span with a custom start time."""
+        import time
+        t = time.time() + 0.002
+        with nop_tracer.start_span('myop', start_time=t) as span:
+            time.sleep(0.005)
+
+        # it should be certain that the span duration is strictly less than
+        # the amount of time we sleep for
+        assert span._dd_span.duration < 0.005
+
+    def test_start_span_with_spancontext(self, nop_tracer):
+        """Start and finish a span using a span context as the child_of
+        reference.
+        """
+        import time
+        with nop_tracer.start_span('myop') as span:
+            time.sleep(0.005)
+            with nop_tracer.start_span('myop', child_of=span.context) as span2:
+                time.sleep(0.008)
+
+        # span should be finished when the context manager exits
+        assert span.finished
+        assert span2.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) == 2
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
+
+    def test_start_span_with_tags(self, nop_tracer):
+        """Create a span with initial tags."""
+        tags = {
+            'key': 'value',
+            'key2': 'value2',
+        }
+        with nop_tracer.start_span('myop', tags=tags) as span:
+            pass
+
+        assert span._dd_span.get_tag('key') == 'value'
+        assert span._dd_span.get_tag('key2') == 'value2'
+
+    def test_start_span_multi_child(self, nop_tracer):
+        """Start and finish multiple child spans.
+        This should ensure that child spans can be created 2 levels deep.
+        """
+        import time
+        with nop_tracer.start_span('myfirstop') as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('mysecondop') as span2:
+                time.sleep(0.007)
+                with nop_tracer.start_span('mythirdop') as span3:
+                    time.sleep(0.005)
+
+        # spans should be finished when the context manager exits
+        assert span1.finished
+        assert span2.finished
+        assert span3.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # check spans are captured in the trace
+        assert span1._dd_span is spans[0]
+        assert span2._dd_span is spans[1]
+        assert span3._dd_span is spans[2]
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[1].span_id
+
+        # sanity check a lower bound on the durations
+        assert spans[0].duration >= 0.009 + 0.007 + 0.005
+        assert spans[1].duration >= 0.007 + 0.005
+        assert spans[2].duration >= 0.005
+
+    def test_start_span_multi_child_siblings(self, nop_tracer):
+        """Start and finish multiple span at the same level.
+        This should test to ensure a parent can have multiple child spans at the
+        same level.
+        """
+        import time
+        with nop_tracer.start_span('myfirstop') as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('mysecondop') as span2:
+                time.sleep(0.007)
+            with nop_tracer.start_span('mythirdop') as span3:
+                time.sleep(0.005)
+
+        # spans should be finished when the context manager exits
+        assert span1.finished
+        assert span2.finished
+        assert span3.finished
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # check spans are captured in the trace
+        assert span1._dd_span is spans[0]
+        assert span2._dd_span is spans[1]
+        assert span3._dd_span is spans[2]
+
+        # ensure proper parenting
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[0].span_id
+
+        # sanity check a lower bound on the durations
+        assert spans[0].duration >= 0.009 + 0.007 + 0.005
+        assert spans[1].duration >= 0.007
+        assert spans[2].duration >= 0.005
+
+    def test_start_span_manual_child_of(self, nop_tracer):
+        """Start spans without using a scope manager.
+        Spans should be created without parents since there will be no call
+        for the active span.
+        """
+        import time
+
+        root = nop_tracer.start_span('zero')
+
+        with nop_tracer.start_span('one', child_of=root) as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('two', child_of=root) as span2:
+                time.sleep(0.007)
+                with nop_tracer.start_span('three', child_of=root) as span3:
+                    time.sleep(0.005)
+        root.finish()
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        assert spans[0].parent_id is None
+        # ensure each child span is a child of root
+        assert spans[1].parent_id is root._dd_span.span_id
+        assert spans[2].parent_id is root._dd_span.span_id
+        assert spans[3].parent_id is root._dd_span.span_id
+
+    def test_start_span_no_active_span(self, nop_tracer):
+        """Start spans without using a scope manager.
+        Spans should be created without parents since there will be no call
+        for the active span.
+        """
+        import time
+        with nop_tracer.start_span('one', ignore_active_span=True) as span1:
+            time.sleep(0.009)
+            with nop_tracer.start_span('two', ignore_active_span=True) as span2:
+                time.sleep(0.007)
+            with nop_tracer.start_span('three', ignore_active_span=True) as span3:
+                time.sleep(0.005)
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # ensure each span does not have a parent
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is None
+        assert spans[2].parent_id is None
+
+    def test_start_span_child_finish_after_parent(self, nop_tracer):
+        """Start a child span and finish it after its parent."""
+        import time
+
+        span1 = nop_tracer.start_span('one')
+        span2 = nop_tracer.start_span('two')
+        span1.finish()
+        time.sleep(0.005)
+        span2.finish()
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert len(spans) is 2
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is span1._dd_span.span_id
+        assert spans[1].duration > spans[0].duration
+
+    def test_start_span_multi_intertwined(self, nop_tracer):
+        """Start multiple spans at the top level intertwined.
+        Alternate calling between two traces.
+        """
+        import threading
+        import time
+
+        def trace_one():
+            id = 11
+            with nop_tracer.start_span(str(id)):
+                id += 1
+                time.sleep(0.009)
+                with nop_tracer.start_span(str(id)):
+                    id += 1
+                    time.sleep(0.001)
+                    with nop_tracer.start_span(str(id)):
+                        pass
+
+        def trace_two():
+            id = 21
+            with nop_tracer.start_span(str(id)):
+                id += 1
+                time.sleep(0.006)
+                with nop_tracer.start_span(str(id)):
+                    id += 1
+                    time.sleep(0.009)
+                with nop_tracer.start_span(str(id)):
+                    pass
+
+        # the ordering should be
+        # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
+        t1 = threading.Thread(target=trace_one)
+        t1.daemon = True
+        t2 = threading.Thread(target=trace_two)
+        t2.daemon = True
+
+        t1.start()
+        t2.start()
+        # wait for threads to finish
+        time.sleep(0.018)
+
+        spans = nop_tracer._tracer.writer.pop()
+
+        # trace_one will finish before trace_two so its spans should be written
+        # before the spans from trace_two, let's confirm this
+        assert spans[0].name == '11'
+        assert spans[1].name == '12'
+        assert spans[2].name == '13'
+        assert spans[3].name == '21'
+        assert spans[4].name == '22'
+        assert spans[5].name == '23'
+
+        # next let's ensure that each span has the correct parent:
+        # trace_one
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[1].span_id
+        # trace_two
+        assert spans[3].parent_id is None
+        assert spans[4].parent_id is spans[3].span_id
+        assert spans[5].parent_id is spans[3].span_id
 
 
 @pytest.fixture
@@ -120,8 +368,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
 
     def test_http_headers_baggage(self, nop_tracer):
         """extract should undo inject for http headers."""
@@ -138,8 +386,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.HTTP_HEADERS, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_text(self, nop_tracer):
@@ -157,8 +405,8 @@ class TestTracerSpanContextPropagation(object):
         assert len(carrier.keys()) > 0
 
         ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
-        assert ext_span_ctx._context.trace_id == 123
-        assert ext_span_ctx._context.span_id == 456
+        assert ext_span_ctx._dd_context.trace_id == 123
+        assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_invalid_baggage_key(self, nop_tracer):
