@@ -1,13 +1,15 @@
 import logging
 import opentracing
 from opentracing import Format
+from opentracing.ext.scope_manager import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
 
 from .propagation import HTTPPropagator
-from .scope_manager import ScopeManager
+from .span import Span
+from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .util import merge_dicts
 
@@ -53,7 +55,9 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
-        self._scope_manager = ScopeManager()
+        # default to using a threadlocal scope manager
+        # TODO: should this be some kind of configuration option?
+        self._scope_manager = ThreadLocalScopeManager()
 
         self._tracer = DatadogTracer()
         self._tracer.configure(enabled=self._enabled,
@@ -71,35 +75,123 @@ class Tracer(opentracing.Tracer):
 
     @property
     def scope_manager(self):
-        """"""
+        """Returns the scope manager being used by this tracer."""
         return self._scope_manager
 
     @property
     def active_span(self):
-        """"""
-        pass
+        """Gets the active span from the scope manager or none if it does not exist."""
+        scope = self._scope_manager.active
+        return scope.span if scope else None
 
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
                           finish_on_close=True):
-        """"""
+        """Starts a new span.
+
+        :param operation_name: name of the operation represented by the new
+            span from the perspective of the current service.
+        :param child_of: (optional) a Span or SpanContext instance representing
+            the parent in a REFERENCE_CHILD_OF Reference. If specified, the
+            `references` parameter must be omitted.
+        :param references: (optional) a list of Reference objects that identify
+            one or more parent SpanContexts. (See the Reference documentation
+            for detail)
+        :param tags: an optional dictionary of Span Tags. The caller gives up
+            ownership of that dictionary, because the Tracer may use it as-is
+            to avoid extra data copying.
+        :param start_time: an explicit Span start time as a unix timestamp per
+            time.time()
+        :param ignore_active_span: an explicit flag that ignores the current
+            active `Scope` and creates a root `Span`.
+        :return: an already-started Span instance.
+        """
         pass
 
     def start_span(self, operation_name=None, child_of=None, references=None,
                    tags=None, start_time=None, ignore_active_span=False):
-        """"""
-        pass
+        """Starts and returns a new Span representing a unit of work.
+
+        Starting a root Span (a Span with no causal references)::
+            tracer.start_span('...')
+
+        Starting a child Span (see also start_child_span())::
+            tracer.start_span(
+                '...',
+                child_of=parent_span)
+        Starting a child Span in a more verbose way::
+            tracer.start_span(
+                '...',
+                references=[opentracing.child_of(parent_span)])
+        :param operation_name: name of the operation represented by the new
+            span from the perspective of the current service.
+        :param child_of: (optional) a Span or SpanContext instance representing
+            the parent in a REFERENCE_CHILD_OF Reference. If specified, the
+            `references` parameter must be omitted.
+        :param references: (optional) a list of Reference objects that identify
+            one or more parent SpanContexts. (See the Reference documentation
+            for detail)
+        :param tags: an optional dictionary of Span Tags. The caller gives up
+            ownership of that dictionary, because the Tracer may use it as-is
+            to avoid extra data copying.
+        :param start_time: an explicit Span start time as a unix timestamp per
+            time.time()
+        :param ignore_active_span: an explicit flag that ignores the current
+            active `Scope` and creates a root `Span`.
+        :return: an already-started Span instance.
+        """
+        ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
+        ot_parent_context = None  # the parent span's context
+        dd_parent = None          # the child_of to pass to the ddtracer
+
+        # Okay so here's the deal for ddtracer.start_span:
+        #  - whenever child_of is not None ddspans with parent-child relationships
+        #    will share a ddcontext which maintains a hierarchy of ddspans for
+        #    the execution flow
+        #  - when child_of is a ddspan then the ddtracer uses this ddspan to create
+        #    the child ddspan
+        #  - when child_of is a ddcontext then the ddtracer uses the ddcontext to
+        #    get_current_span() for the parent
+        if ot_parent is None and not ignore_active_span:
+            # attempt to get the parent span from the scope manager
+            scope = self._scope_manager.active
+            parent_span = getattr(scope, 'span', None)
+            ot_parent_context = getattr(parent_span, 'context', None)
+            # we want the ddcontext of the active span in order to maintain the
+            # ddspan hierarchy
+            dd_parent = getattr(ot_parent_context, '_dd_context', None)
+        elif ot_parent is not None and isinstance(ot_parent, Span):
+            # a span is given to use as a parent
+            ot_parent_context = ot_parent.context
+            dd_parent = ot_parent._dd_span
+        elif ot_parent is not None and isinstance(ot_parent, SpanContext):
+            # a span context is given to use to find the parent ddspan
+            dd_parent = ot_parent._dd_context
+        elif ot_parent is None:
+            # user wants to create a new parent span we don't have to do anything
+            pass
+        else:
+            raise TypeError('invalid span configuration given')
+
+        # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
+        otspan = Span(self, ot_parent_context, operation_name)
+        ddspan = self._tracer.start_span(name=operation_name, child_of=dd_parent)
+        ddspan.start = start_time or ddspan.start  # set the start time if one is specified
+        if tags is not None:
+            ddspan.set_tags(tags)
+        otspan._add_dd_span(ddspan)
+
+        # activate this new span
+        self._scope_manager.activate(otspan, False)
+        return otspan
 
     def inject(self, span_context, format, carrier):
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
-
         :param format: format to encode the span context with.
-
         :param carrier: the carrier of the encoded span context.
         """
-
         propagator = self._propagators.get(format, None)
 
         if propagator is None:
@@ -111,15 +203,15 @@ class Tracer(opentracing.Tracer):
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.
-
         :param carrier: the carrier to extract from.
         """
-
         propagator = self._propagators.get(format, None)
+
         if propagator is None:
             raise opentracing.UnsupportedFormatException
 
         return propagator.extract(carrier)
+
 
 def set_global_tracer(tracer):
     """Sets the global opentracer to the given tracer."""

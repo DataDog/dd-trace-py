@@ -43,7 +43,7 @@ class HTTPPropagator(Propagator):
         if not isinstance(carrier, dict):
             raise InvalidCarrierException('propagator expects carrier to be a dict')
 
-        self._dd_propagator.inject(span_context._context, carrier)
+        self._dd_propagator.inject(span_context._dd_context, carrier)
 
         # Add the baggage
         if span_context.baggage is not None:
@@ -72,4 +72,4 @@ class HTTPPropagator(Propagator):
             if key.startswith(HTTP_BAGGAGE_PREFIX):
                 baggage[key[HTTP_BAGGAGE_PREFIX_LEN:]] = carrier[key]
 
-        return SpanContext(context=ddspan_ctx, baggage=baggage)
+        return SpanContext(ddcontext=ddspan_ctx, baggage=baggage)
