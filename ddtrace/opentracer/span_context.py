@@ -24,8 +24,7 @@ class SpanContext(OpenTracingSpanContext):
                 sampling_priority=sampling_priority,
             )
 
-        # TODO: this should be a deep copy
-        self._baggage = baggage
+        self._baggage = dict(baggage)
 
     @property
     def baggage(self):

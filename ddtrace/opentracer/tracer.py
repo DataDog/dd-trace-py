@@ -82,9 +82,7 @@ class Tracer(opentracing.Tracer):
     def active_span(self):
         """Gets the active span from the scope manager or none if it does not exist."""
         scope = self._scope_manager.active
-        if scope is not None:
-            return scope.span
-        return None
+        return scope.span if scope else None
 
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
