@@ -87,8 +87,21 @@ class Tracer(opentracing.Tracer):
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
                           finish_on_close=True):
-        """Starts a new span.
-
+        """Returns a newly started and activated `Scope`.
+        The returned `Scope` supports with-statement contexts. For example:
+            with tracer.start_active_span('...') as scope:
+                scope.span.set_tag('http.method', 'GET')
+                do_some_work()
+            # Span.finish() is called as part of Scope deactivation through
+            # the with statement.
+        It's also possible to not finish the `Span` when the `Scope` context
+        expires:
+            with tracer.start_active_span('...',
+                                          finish_on_close=False) as scope:
+                scope.span.set_tag('http.method', 'GET')
+                do_some_work()
+            # Span.finish() is not called as part of Scope deactivation as
+            # `finish_on_close` is `False`.
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -96,17 +109,28 @@ class Tracer(opentracing.Tracer):
             `references` parameter must be omitted.
         :param references: (optional) a list of Reference objects that identify
             one or more parent SpanContexts. (See the Reference documentation
-            for detail)
+            for detail).
         :param tags: an optional dictionary of Span Tags. The caller gives up
             ownership of that dictionary, because the Tracer may use it as-is
             to avoid extra data copying.
         :param start_time: an explicit Span start time as a unix timestamp per
-            time.time()
-        :param ignore_active_span: an explicit flag that ignores the current
-            active `Scope` and creates a root `Span`.
-        :return: an already-started Span instance.
+            time.time().
+        :param ignore_active_span: (optional) an explicit flag that ignores
+            the current active `Scope` and creates a root `Span`.
+        :param finish_on_close: whether span should automatically be finished
+            when `Scope.close()` is called.
+         :return: a `Scope`, already registered via the `ScopeManager`.
         """
-        pass
+        span = self.start_span(
+            operation_name=operation_name,
+            child_of=child_of,
+            references=references,
+            tags=tags,
+            start_time=start_time,
+            ignore_active_span=ignore_active_span,
+        )
+        scope = self._scope_manager.activate(span, finish_on_close)
+        return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
                    tags=None, start_time=None, ignore_active_span=False):

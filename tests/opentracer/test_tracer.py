@@ -317,6 +317,23 @@ class TestTracerConfig(object):
         assert spans[4].parent_id is spans[3].span_id
         assert spans[5].parent_id is spans[3].span_id
 
+    def test_start_active_span(self, nop_tracer):
+        with nop_tracer.start_active_span('one') as scope:
+            pass
+
+        assert scope.span._dd_span.name == 'one'
+        assert scope.span.finished
+        spans = nop_tracer._tracer.writer.pop()
+        assert spans
+
+    def test_start_active_span_finish_on_close(self, nop_tracer):
+        with nop_tracer.start_active_span('one', finish_on_close=False) as scope:
+            pass
+
+        assert scope.span._dd_span.name == 'one'
+        assert not scope.span.finished
+        spans = nop_tracer._tracer.writer.pop()
+        assert not spans
 
 @pytest.fixture
 def nop_span_ctx():

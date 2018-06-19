@@ -70,7 +70,7 @@ class Span(OpenTracingSpan):
             return
 
         # finish the datadog span
-        self._dd_span.finish()
+        self._dd_span.finish(finish_time)
         self.finished = True
 
     def set_baggage_item(self, key, value):
