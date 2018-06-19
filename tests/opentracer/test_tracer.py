@@ -84,6 +84,26 @@ class TestTracerConfig(object):
         spans = nop_tracer._tracer.writer.pop()
         assert len(spans) == 1
 
+    def test_start_span_references(self, nop_tracer):
+        """Start a span using references."""
+        from opentracing import child_of
+
+        with nop_tracer.start_span('one', references=[child_of()]):
+            pass
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert spans[0].parent_id is None
+
+        root = nop_tracer.start_span('root')
+        # create a child using a parent reference that is not the context parent
+        with nop_tracer.start_span('one'):
+            with nop_tracer.start_span('two', references=[child_of(root)]):
+                pass
+        root.finish()
+
+        spans = nop_tracer._tracer.writer.pop()
+        assert spans[2].parent_id is spans[0].span_id
+
     def test_start_span_custom_start_time(self, nop_tracer):
         """Start a span with a custom start time."""
         import time

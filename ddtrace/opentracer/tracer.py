@@ -168,6 +168,10 @@ class Tracer(opentracing.Tracer):
         ot_parent_context = None  # the parent span's context
         dd_parent = None          # the child_of to pass to the ddtracer
 
+        if references and isinstance(references, list):
+            # we currently only support child_of relations to one span
+            ot_parent = references[0].referenced_context
+
         # Okay so here's the deal for ddtracer.start_span:
         #  - whenever child_of is not None ddspans with parent-child relationships
         #    will share a ddcontext which maintains a hierarchy of ddspans for
