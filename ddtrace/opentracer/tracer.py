@@ -57,17 +57,17 @@ class Tracer(opentracing.Tracer):
 
         # default to using a threadlocal scope manager
         # TODO: should this be some kind of configuration option?
-        self._scope_manager = ThreadLocalScopeManager()
+        self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
-        self._tracer = DatadogTracer()
-        self._tracer.configure(enabled=self._enabled,
-                               hostname=self._config.get(keys.AGENT_HOSTNAME),
-                               port=self._config.get(keys.AGENT_PORT),
-                               sampler=self._config.get(keys.SAMPLER),
-                               settings=self._config.get(keys.SETTINGS),
-                               context_provider=self._config.get(keys.CONTEXT_PROVIDER),
-                               priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
-                               )
+        self._dd_tracer = DatadogTracer()
+        self._dd_tracer.configure(enabled=self._enabled,
+                                  hostname=self._config.get(keys.AGENT_HOSTNAME),
+                                  port=self._config.get(keys.AGENT_PORT),
+                                  sampler=self._config.get(keys.SAMPLER),
+                                  settings=self._config.get(keys.SETTINGS),
+                                  context_provider=self._config.get(keys.CONTEXT_PROVIDER),
+                                  priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator(),
             Format.TEXT_MAP: HTTPPropagator(),
@@ -203,7 +203,7 @@ class Tracer(opentracing.Tracer):
 
         # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
-        ddspan = self._tracer.start_span(name=operation_name, child_of=dd_parent)
+        ddspan = self._dd_tracer.start_span(name=operation_name, child_of=dd_parent)
         ddspan.start = start_time or ddspan.start  # set the start time if one is specified
         if tags is not None:
             ddspan.set_tags(tags)

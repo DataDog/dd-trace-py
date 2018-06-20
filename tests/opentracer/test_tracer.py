@@ -2,12 +2,22 @@ import pytest
 
 from ddtrace.opentracer import Tracer
 
+
+def get_dummy_ot_tracer(service_name='', config={}, scope_manager=None):
+    from ..test_tracer import get_dummy_tracer
+    tracer = Tracer(service_name=service_name, config=config, scope_manager=scope_manager)
+    tracer._dd_tracer = get_dummy_tracer()
+    return tracer
+
+
 @pytest.fixture
 def nop_tracer():
-    from ..test_tracer import get_dummy_tracer
-    tracer = Tracer(service_name='mysvc', config={})
-    tracer._tracer = get_dummy_tracer()
-    return tracer
+    return get_dummy_ot_tracer(service_name='mysvc')
+
+
+# helper to get the spans from a nop_tracer
+def get_spans(tracer):
+    return tracer._dd_tracer.writer.pop()
 
 
 class TestTracerConfig(object):
@@ -81,7 +91,7 @@ class TestTracerConfig(object):
         # span should be finished when the context manager exits
         assert span.finished
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert len(spans) == 1
 
     def test_start_span_references(self, nop_tracer):
@@ -91,7 +101,7 @@ class TestTracerConfig(object):
         with nop_tracer.start_span('one', references=[child_of()]):
             pass
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert spans[0].parent_id is None
 
         root = nop_tracer.start_span('root')
@@ -101,7 +111,7 @@ class TestTracerConfig(object):
                 pass
         root.finish()
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert spans[2].parent_id is spans[0].span_id
 
     def test_start_span_custom_start_time(self, nop_tracer):
@@ -129,7 +139,7 @@ class TestTracerConfig(object):
         assert span.finished
         assert span2.finished
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert len(spans) == 2
 
         # ensure proper parenting
@@ -164,7 +174,7 @@ class TestTracerConfig(object):
         assert span2.finished
         assert span3.finished
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
 
         # check spans are captured in the trace
         assert span1._dd_span is spans[0]
@@ -198,7 +208,7 @@ class TestTracerConfig(object):
         assert span2.finished
         assert span3.finished
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
 
         # check spans are captured in the trace
         assert span1._dd_span is spans[0]
@@ -223,21 +233,23 @@ class TestTracerConfig(object):
 
         root = nop_tracer.start_span('zero')
 
-        with nop_tracer.start_span('one', child_of=root) as span1:
+        with nop_tracer.start_span('one', child_of=root):
             time.sleep(0.009)
-            with nop_tracer.start_span('two', child_of=root) as span2:
+            with nop_tracer.start_span('two', child_of=root):
                 time.sleep(0.007)
-                with nop_tracer.start_span('three', child_of=root) as span3:
+                with nop_tracer.start_span('three', child_of=root):
                     time.sleep(0.005)
         root.finish()
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
 
         assert spans[0].parent_id is None
         # ensure each child span is a child of root
         assert spans[1].parent_id is root._dd_span.span_id
         assert spans[2].parent_id is root._dd_span.span_id
         assert spans[3].parent_id is root._dd_span.span_id
+        assert spans[0].trace_id == spans[1].trace_id and \
+            spans[1].trace_id == spans[2].trace_id
 
     def test_start_span_no_active_span(self, nop_tracer):
         """Start spans without using a scope manager.
@@ -252,12 +264,16 @@ class TestTracerConfig(object):
             with nop_tracer.start_span('three', ignore_active_span=True) as span3:
                 time.sleep(0.005)
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
 
         # ensure each span does not have a parent
         assert spans[0].parent_id is None
         assert spans[1].parent_id is None
         assert spans[2].parent_id is None
+        # and that each span is a new trace
+        assert spans[0].trace_id != spans[1].trace_id and \
+               spans[1].trace_id != spans[2].trace_id and \
+               spans[0].trace_id != spans[2].trace_id
 
     def test_start_span_child_finish_after_parent(self, nop_tracer):
         """Start a child span and finish it after its parent."""
@@ -269,7 +285,7 @@ class TestTracerConfig(object):
         time.sleep(0.005)
         span2.finish()
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert len(spans) is 2
         assert spans[0].parent_id is None
         assert spans[1].parent_id is span1._dd_span.span_id
@@ -316,7 +332,7 @@ class TestTracerConfig(object):
         # wait for threads to finish
         time.sleep(0.018)
 
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
 
         # trace_one will finish before trace_two so its spans should be written
         # before the spans from trace_two, let's confirm this
@@ -337,13 +353,23 @@ class TestTracerConfig(object):
         assert spans[4].parent_id is spans[3].span_id
         assert spans[5].parent_id is spans[3].span_id
 
+        # finally we should ensure that the trace_ids are reasonable
+        # trace_one
+        assert spans[0].trace_id == spans[1].trace_id and \
+            spans[1].trace_id == spans[2].trace_id
+        # traces should be independent
+        assert spans[2].trace_id != spans[3].trace_id
+        # trace_two
+        assert spans[3].trace_id == spans[4].trace_id and \
+            spans[4].trace_id == spans[5].trace_id
+
     def test_start_active_span(self, nop_tracer):
         with nop_tracer.start_active_span('one') as scope:
             pass
 
         assert scope.span._dd_span.name == 'one'
         assert scope.span.finished
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert spans
 
     def test_start_active_span_finish_on_close(self, nop_tracer):
@@ -352,7 +378,7 @@ class TestTracerConfig(object):
 
         assert scope.span._dd_span.name == 'one'
         assert not scope.span.finished
-        spans = nop_tracer._tracer.writer.pop()
+        spans = get_spans(nop_tracer)
         assert not spans
 
 @pytest.fixture

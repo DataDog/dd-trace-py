@@ -50,7 +50,7 @@ class Span(OpenTracingSpan):
         super(Span, self).__init__(tracer, context)
 
         # use a datadog span
-        self._dd_span = DatadogSpan(tracer._tracer, operation_name,
+        self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
                                     context=context._dd_context)
 
         self.log = SpanLog()
