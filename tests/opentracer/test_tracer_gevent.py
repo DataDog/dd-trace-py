@@ -46,7 +46,7 @@ class TestTracerGevent(object):
 from unittest import TestCase
 from nose.tools import eq_, ok_
 
-class TestTracerGevent(TestCase):
+class TestTracerGeventCompat(TestCase):
     """Converted Gevent tests for the regular tracer.
 
     Ensures that greenlets are properly traced when using
