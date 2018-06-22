@@ -33,11 +33,8 @@ class TestTracerConfig(object):
 
     def test_no_service_name(self):
         """Config without a service_name should raise an exception."""
-        from ddtrace.settings import ConfigException
-
-        with pytest.raises(ConfigException):
-            tracer = Tracer()
-            assert tracer is not None
+        tracer = Tracer()
+        assert tracer._service_name
 
     def test_multiple_tracer_configs(self):
         """Ensure that a tracer config is a copy of the passed config."""
@@ -576,4 +573,3 @@ class TestTracerCompatibility(object):
         tracer = Tracer('service')
         with tracer.start_span('my_span') as span:
             assert span._dd_span.service
-
