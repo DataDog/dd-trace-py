@@ -57,17 +57,17 @@ class Tracer(opentracing.Tracer):
 
         # default to using a threadlocal scope manager
         # TODO: should this be some kind of configuration option?
-        self._scope_manager = ThreadLocalScopeManager()
+        self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
-        self._tracer = DatadogTracer()
-        self._tracer.configure(enabled=self._enabled,
-                               hostname=self._config.get(keys.AGENT_HOSTNAME),
-                               port=self._config.get(keys.AGENT_PORT),
-                               sampler=self._config.get(keys.SAMPLER),
-                               settings=self._config.get(keys.SETTINGS),
-                               context_provider=self._config.get(keys.CONTEXT_PROVIDER),
-                               priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
-                               )
+        self._dd_tracer = DatadogTracer()
+        self._dd_tracer.configure(enabled=self._enabled,
+                                  hostname=self._config.get(keys.AGENT_HOSTNAME),
+                                  port=self._config.get(keys.AGENT_PORT),
+                                  sampler=self._config.get(keys.SAMPLER),
+                                  settings=self._config.get(keys.SETTINGS),
+                                  context_provider=self._config.get(keys.CONTEXT_PROVIDER),
+                                  priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator(),
             Format.TEXT_MAP: HTTPPropagator(),
@@ -87,8 +87,21 @@ class Tracer(opentracing.Tracer):
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
                           finish_on_close=True):
-        """Starts a new span.
-
+        """Returns a newly started and activated `Scope`.
+        The returned `Scope` supports with-statement contexts. For example:
+            with tracer.start_active_span('...') as scope:
+                scope.span.set_tag('http.method', 'GET')
+                do_some_work()
+            # Span.finish() is called as part of Scope deactivation through
+            # the with statement.
+        It's also possible to not finish the `Span` when the `Scope` context
+        expires:
+            with tracer.start_active_span('...',
+                                          finish_on_close=False) as scope:
+                scope.span.set_tag('http.method', 'GET')
+                do_some_work()
+            # Span.finish() is not called as part of Scope deactivation as
+            # `finish_on_close` is `False`.
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -96,17 +109,28 @@ class Tracer(opentracing.Tracer):
             `references` parameter must be omitted.
         :param references: (optional) a list of Reference objects that identify
             one or more parent SpanContexts. (See the Reference documentation
-            for detail)
+            for detail).
         :param tags: an optional dictionary of Span Tags. The caller gives up
             ownership of that dictionary, because the Tracer may use it as-is
             to avoid extra data copying.
         :param start_time: an explicit Span start time as a unix timestamp per
-            time.time()
-        :param ignore_active_span: an explicit flag that ignores the current
-            active `Scope` and creates a root `Span`.
-        :return: an already-started Span instance.
+            time.time().
+        :param ignore_active_span: (optional) an explicit flag that ignores
+            the current active `Scope` and creates a root `Span`.
+        :param finish_on_close: whether span should automatically be finished
+            when `Scope.close()` is called.
+         :return: a `Scope`, already registered via the `ScopeManager`.
         """
-        pass
+        span = self.start_span(
+            operation_name=operation_name,
+            child_of=child_of,
+            references=references,
+            tags=tags,
+            start_time=start_time,
+            ignore_active_span=ignore_active_span,
+        )
+        scope = self._scope_manager.activate(span, finish_on_close)
+        return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
                    tags=None, start_time=None, ignore_active_span=False):
@@ -144,6 +168,10 @@ class Tracer(opentracing.Tracer):
         ot_parent_context = None  # the parent span's context
         dd_parent = None          # the child_of to pass to the ddtracer
 
+        if references and isinstance(references, list):
+            # we currently only support child_of relations to one span
+            ot_parent = references[0].referenced_context
+
         # Okay so here's the deal for ddtracer.start_span:
         #  - whenever child_of is not None ddspans with parent-child relationships
         #    will share a ddcontext which maintains a hierarchy of ddspans for
@@ -175,7 +203,7 @@ class Tracer(opentracing.Tracer):
 
         # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
-        ddspan = self._tracer.start_span(name=operation_name, child_of=dd_parent)
+        ddspan = self._dd_tracer.start_span(name=operation_name, child_of=dd_parent)
         ddspan.start = start_time or ddspan.start  # set the start time if one is specified
         if tags is not None:
             ddspan.set_tags(tags)
