@@ -106,8 +106,16 @@ class TestSpan(object):
         spans = nop_span.tracer._tracer.writer.pop()
         assert len(spans) == 0
 
+    def test_immutable_span_context(self, nop_span):
+        """Ensure span contexts are immutable."""
+        before_ctx = nop_span._context
+        nop_span.set_baggage_item('key', 'value')
+        after_ctx = nop_span._context
+        # should be different contexts
+        assert before_ctx is not after_ctx
 
-class TestSpanLog():
+
+class TestSpanLog(object):
     def test_init(self):
         log = SpanLog()
         assert len(log) == 0
@@ -126,3 +134,11 @@ class TestSpanLog():
         assert len(log) == 2
         assert log[0].record == record
         assert log[0].timestamp <= log[1].timestamp
+
+
+class TestSpanCompatibility(object):
+    """Ensure our opentracer spans features correspond to datadog span features.
+    """
+    def test_set_tag(self, nop_span):
+        nop_span.set_tag('test', 2)
+        assert nop_span._dd_span.get_tag('test') == str(2)

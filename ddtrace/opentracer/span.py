@@ -1,4 +1,6 @@
 import time
+import threading
+
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
@@ -49,13 +51,12 @@ class Span(OpenTracingSpan):
 
         super(Span, self).__init__(tracer, context)
 
+        self.log = SpanLog()
+        self.finished = False
+        self.lock = threading.Lock()
         # use a datadog span
         self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
                                     context=context._dd_context)
-
-        self.log = SpanLog()
-
-        self.finished = False
 
     def finish(self, finish_time=None):
         """Finish the span.
@@ -87,7 +88,10 @@ class Span(OpenTracingSpan):
         :rtype: Span
         :return: itself for chaining calls
         """
-        self.context.set_baggage_item(key, value)
+        new_ctx = self.context.with_baggage_item(key, value)
+        self.set_tag(key, value)
+        with self.lock:
+            self._context = new_ctx
         return self
 
     def get_baggage_item(self, key):
@@ -152,7 +156,7 @@ class Span(OpenTracingSpan):
     def _get_tag(self, key):
         """Gets a tag from the span.
 
-        This retrieves the tag from the underlying datadog span.
+        This method retrieves the tag from the underlying datadog span.
         """
         return self._dd_span.get_tag(key)
 
@@ -163,10 +167,9 @@ class Span(OpenTracingSpan):
         if exc_type:
             self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
 
-        self._dd_span.__exit__(exc_type, exc_val, exc_tb)
-
-        # note: self.finish() AND _span.__exit__ will call _span.finish() but
+        # note: self.finish() AND _dd_span.__exit__ will call _span.finish() but
         # it is idempotent
+        self._dd_span.__exit__(exc_type, exc_val, exc_tb)
         self.finish()
 
     def _add_dd_span(self, ddspan):
@@ -174,6 +177,9 @@ class Span(OpenTracingSpan):
         # get the datadog span context
         self._dd_span = ddspan
         self.context._dd_context = ddspan.context
+        # set any baggage tags in the ddspan
+        for key, val in self.context.baggage.items():
+            self.set_tag(key, val)
 
     @property
     def _dd_context(self):

@@ -82,6 +82,8 @@ class TestTracerConfig(object):
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
 
+
+class TestTracer(object):
     def test_start_span(self, nop_tracer):
         """Start and finish a span."""
         import time
@@ -381,6 +383,7 @@ class TestTracerConfig(object):
         spans = get_spans(nop_tracer)
         assert not spans
 
+
 @pytest.fixture
 def nop_span_ctx():
     from ddtrace.ext.priority import AUTO_KEEP
@@ -495,9 +498,71 @@ class TestTracerSpanContextPropagation(object):
         ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
         assert ext_span_ctx.baggage == span_ctx.baggage
 
+    def test_immutable_span_context(self, nop_tracer):
+        """Span contexts should be immutable."""
+        with nop_tracer.start_span('root') as root:
+            ctx_before = root.context
+            root.set_baggage_item('test', 2)
+            assert ctx_before is not root.context
+            with nop_tracer.start_span('child') as level1:
+                with nop_tracer.start_span('child') as level2:
+                    pass
+        assert root.context is not level1.context
+        assert level2.context is not level1.context
+        assert level2.context is not root.context
 
-class TestTracer(object):
-    def test_init(self):
-        """Very basic test for skeleton code"""
-        tracer = Tracer(service_name='myservice')
-        assert tracer is not None
+    def test_inherited_baggage(self, nop_tracer):
+        """Baggage should be inherited by child spans."""
+        with nop_tracer.start_span('root') as root:
+            # this should be passed down to the child
+            root.set_baggage_item('root', 1)
+            root.set_baggage_item('root2', 1)
+            with nop_tracer.start_span('child') as level1:
+                level1.set_baggage_item('level1', 1)
+                with nop_tracer.start_span('child') as level2:
+                    level2.set_baggage_item('level2', 1)
+        # ensure immutability
+        assert level1.context is not root.context
+        assert level2.context is not level1.context
+
+        # level1 should have inherited the baggage of root
+        assert level1.get_baggage_item('root')
+        assert level1.get_baggage_item('root2')
+
+        # level2 should have inherited the baggage of both level1 and level2
+        assert level2.get_baggage_item('root')
+        assert level2.get_baggage_item('root2')
+        assert level2.get_baggage_item('level1')
+        assert level2.get_baggage_item('level2')
+
+
+class TestTracerCompatibility(object):
+    """Ensure that our opentracer produces results in the underlying datadog tracer."""
+
+    def test_required_dd_fields(self):
+        """Ensure required fields needed for successful tracing are possessed
+        by the underlying datadog tracer.
+        """
+        tracer = Tracer()
+        with tracer.start_span('my_span') as span:
+            assert span._dd_span.service
+
+    def test_baggage_tags(self, nop_tracer):
+        """Ensure setting baggage tags results in corresponding datadog span tags."""
+        with nop_tracer.start_span('my_span') as span:
+            span.set_baggage_item('tag', 'value')
+        assert span._dd_span.get_tag('tag')
+
+    def test_baggage_tags_propagated(self, nop_tracer):
+        """Ensure baggage tags are propagated to child spans and result in
+        corresponding datadog tags.
+        """
+        with nop_tracer.start_span('root') as root:
+            # this should be passed down to the child
+            root.set_baggage_item('root_tag', 1)
+            with nop_tracer.start_span('child') as child:
+                child.set_baggage_item('child_tag', 1)
+
+        # child should have tags from both the parent and itself
+        assert child._dd_span.get_tag('child_tag')
+        assert child._dd_span.get_tag('root_tag')
