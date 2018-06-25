@@ -42,6 +42,7 @@ def tracer_config(__init__, app, args, kwargs):
         enabled=settings.get('enabled', None),
         hostname=settings.get('agent_hostname', None),
         port=settings.get('agent_port', None),
+        settings=settings
     )
 
     # set global tags if any
