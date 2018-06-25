@@ -55,13 +55,13 @@ try:
     path.remove(bootstrap_dir)
 
     try:
-        (f, path, description) = imp.find_module('sitecustomize', path)
+        (f, path, description) = imp.find_module("sitecustomize", path)
     except ImportError:
         pass
     else:
         # `sitecustomize.py` found, load it
-        log.debug('sitecustomize from user found in: %s', path)
-        imp.load_module('sitecustomize', f, path, description)
+        log.debug("sitecustomize from user found in: %s", path)
+        imp.load_module("sitecustomize", f, path, description)
 
 
 except Exception as e:
