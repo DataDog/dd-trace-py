@@ -43,9 +43,6 @@ try:
     if priority_sampling:
         config[ConfigKeys.PRIORITY_SAMPLING] = asbool(priority_sampling)
 
-    # if 'DATADOG_ENV' in os.environ:
-    #     tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
-
     tracer = Tracer(service_name=service_name, config=config)
     set_global_tracer(tracer)
 
