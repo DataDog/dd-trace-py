@@ -383,7 +383,36 @@ class TestTracer(object):
         spans = get_spans(nop_tracer)
         assert not spans
 
+    def test_start_active_span_nested(self, nop_tracer):
+        """Test the active span of multiple nested calls of start_active_span."""
+        with nop_tracer.start_active_span('one') as outer_scope:
+            assert nop_tracer.active_span == outer_scope.span
+            with nop_tracer.start_active_span('two') as inner_scope:
+                assert nop_tracer.active_span == inner_scope.span
+                with nop_tracer.start_active_span('three') as innest_scope: # why isn't it innest? innermost so verbose
+                    assert nop_tracer.active_span == innest_scope.span
+            with nop_tracer.start_active_span('two') as inner_scope:
+                assert nop_tracer.active_span == inner_scope.span
+            assert nop_tracer.active_span == outer_scope.span
+        assert nop_tracer.active_span is None
 
+    def test_start_active_span_trace(self, nop_tracer):
+        """Test the active span of multiple nested calls of start_active_span."""
+        with nop_tracer.start_active_span('one') as outer_scope:
+            outer_scope.span.set_tag('outer', 2)
+            with nop_tracer.start_active_span('two') as inner_scope:
+                inner_scope.span.set_tag('inner', 3)
+            with nop_tracer.start_active_span('two') as inner_scope:
+                inner_scope.span.set_tag('inner', 3)
+                with nop_tracer.start_active_span('three') as innest_scope:
+                    innest_scope.span.set_tag('innerest', 4)
+
+        spans = get_spans(nop_tracer)
+
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[0].span_id
+        assert spans[3].parent_id is spans[2].span_id
 @pytest.fixture
 def nop_span_ctx():
     from ddtrace.ext.priority import AUTO_KEEP
