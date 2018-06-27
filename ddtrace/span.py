@@ -233,15 +233,17 @@ class Span(object):
         if not (exc_type and exc_val and exc_tb):
             return # nothing to do
 
-        self.error = 1
+        # readable version of type (e.g. exceptions.ZeroDivisionError)
+        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
+
+        # do not treat celery.exceptions.Retry as an error, as it is expected behavior
+        if exc_type_str != 'celery.exceptions.Retry':
+            self.error = 1
 
         # get the traceback
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
         tb = buff.getvalue()
-
-        # readable version of type (e.g. exceptions.ZeroDivisionError)
-        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
         self.set_tag(errors.ERROR_MSG, exc_val)
         self.set_tag(errors.ERROR_TYPE, exc_type_str)
