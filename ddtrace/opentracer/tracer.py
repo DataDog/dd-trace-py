@@ -55,8 +55,6 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
-        # default to using a threadlocal scope manager
-        # TODO: should this be some kind of configuration option?
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
         self._dd_tracer = DatadogTracer()
@@ -77,12 +75,6 @@ class Tracer(opentracing.Tracer):
     def scope_manager(self):
         """Returns the scope manager being used by this tracer."""
         return self._scope_manager
-
-    @property
-    def active_span(self):
-        """Gets the active span from the scope manager or none if it does not exist."""
-        scope = self._scope_manager.active
-        return scope.span if scope else None
 
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
@@ -147,6 +139,8 @@ class Tracer(opentracing.Tracer):
             tracer.start_span(
                 '...',
                 references=[opentracing.child_of(parent_span)])
+
+
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -172,14 +166,13 @@ class Tracer(opentracing.Tracer):
             # we currently only support child_of relations to one span
             ot_parent = references[0].referenced_context
 
-        # Okay so here's the deal for ddtracer.start_span:
-        #  - whenever child_of is not None ddspans with parent-child relationships
-        #    will share a ddcontext which maintains a hierarchy of ddspans for
-        #    the execution flow
-        #  - when child_of is a ddspan then the ddtracer uses this ddspan to create
-        #    the child ddspan
-        #  - when child_of is a ddcontext then the ddtracer uses the ddcontext to
-        #    get_current_span() for the parent
+        # - whenever child_of is not None ddspans with parent-child
+        #   relationships will share a ddcontext which maintains a hierarchy of
+        #   ddspans for the execution flow
+        # - when child_of is a ddspan then the ddtracer uses this ddspan to
+        #   create the child ddspan
+        # - when child_of is a ddcontext then the ddtracer uses the ddcontext to
+        #   get_current_span() for the parent
         if ot_parent is None and not ignore_active_span:
             # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
@@ -196,15 +189,18 @@ class Tracer(opentracing.Tracer):
             # a span context is given to use to find the parent ddspan
             dd_parent = ot_parent._dd_context
         elif ot_parent is None:
-            # user wants to create a new parent span we don't have to do anything
+            # user wants to create a new parent span we don't have to do
+            # anything
             pass
         else:
             raise TypeError('invalid span configuration given')
 
-        # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
+        # create a new otspan and ddspan using the ddtracer and associate it
+        # with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._dd_tracer.start_span(name=operation_name, child_of=dd_parent)
-        ddspan.start = start_time or ddspan.start  # set the start time if one is specified
+        # set the start time if one is specified
+        ddspan.start = start_time or ddspan.start
         if tags is not None:
             ddspan.set_tags(tags)
         otspan._add_dd_span(ddspan)
