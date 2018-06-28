@@ -4,6 +4,7 @@ import threading
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
+from .tags import OTTags
 
 from .span_context import SpanContext
 
@@ -151,7 +152,13 @@ class Span(OpenTracingSpan):
 
         This sets the tag on the underlying datadog span.
         """
-        return self._dd_span.set_tag(key, value)
+        if key == OTTags.SPAN_TYPE:
+            self._dd_span.span_type = value
+        elif key == OTTags.HTTP_URL or key == OTTags.DB_STATEMENT:
+            # TODO: there may be cardinality issues with this?
+            self._dd_span.resource = value
+        else:
+            self._dd_span.set_tag(key, value)
 
     def _get_tag(self, key):
         """Gets a tag from the span.
