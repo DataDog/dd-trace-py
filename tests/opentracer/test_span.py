@@ -33,7 +33,7 @@ class TestSpan(object):
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
         nop_span.set_tag('test', 23)
-        assert int(nop_span.get_tag('test')) == 23
+        assert int(nop_span._get_tag('test')) == 23
 
     def test_set_baggage(self, nop_span):
         """Test setting baggage."""
@@ -79,9 +79,9 @@ class TestSpan(object):
         # Ensure error flag is set...
         assert nop_span._dd_span.error
         # ...and that error tags are set with the correct key
-        assert nop_span.get_tag(errors.ERROR_STACK) == stack_trace
-        assert nop_span.get_tag(errors.ERROR_MSG) == 'my error message'
-        assert nop_span.get_tag(errors.ERROR_TYPE) == '3'
+        assert nop_span._get_tag(errors.ERROR_STACK) == stack_trace
+        assert nop_span._get_tag(errors.ERROR_MSG) == 'my error message'
+        assert nop_span._get_tag(errors.ERROR_TYPE) == '3'
 
     def test_operation_name(self, nop_span):
         """Sanity check for setting the operation name."""
