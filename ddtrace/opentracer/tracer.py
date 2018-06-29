@@ -113,7 +113,7 @@ class Tracer(opentracing.Tracer):
             when `Scope.close()` is called.
          :return: a `Scope`, already registered via the `ScopeManager`.
         """
-        otspan = self._start_span(
+        otspan = self.start_span(
             operation_name=operation_name,
             child_of=child_of,
             references=references,
@@ -127,7 +127,7 @@ class Tracer(opentracing.Tracer):
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
-                   tags=None, start_time=None, ignore_active_span=False):
+                    tags=None, start_time=None, ignore_active_span=False):
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
@@ -141,6 +141,16 @@ class Tracer(opentracing.Tracer):
             tracer.start_span(
                 '...',
                 references=[opentracing.child_of(parent_span)])
+
+        Note: the precedence when defining a relationship is the following:
+        (highest)
+            1. *child_of*
+            2. *references*
+            3. `scope_manager.active` (unless *ignore_active_span* is True)
+            4. None
+        (lowest)
+
+        Currently Datadog only supports `child_of` references.
 
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
@@ -158,19 +168,17 @@ class Tracer(opentracing.Tracer):
         :param ignore_active_span: an explicit flag that ignores the current
             active `Scope` and creates a root `Span`.
         :return: an already-started Span instance.
-        """
-        return self._start_span(
-            operation_name=operation_name,
-            child_of=child_of,
-            references=references,
-            tags=tags,
-            start_time=start_time,
-            ignore_active_span=ignore_active_span
-        )
 
-    def _start_span(self, operation_name=None, child_of=None, references=None,
-                    tags=None, start_time=None, ignore_active_span=False, finish_on_close=False):
-        """Start a new span using the underlying DD tracer.
+        """
+        ot_parent = None          # 'ot_parent' is more readable than 'child_of'
+        ot_parent_context = None  # the parent span's context
+        dd_parent = None          # the child_of to pass to the ddtracer
+
+        if child_of is not None:
+            ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
+        elif references and isinstance(references, list):
+            # we currently only support child_of relations to one span
+            ot_parent = references[0].referenced_context
 
         # - whenever child_of is not None ddspans with parent-child
         #   relationships will share a ddcontext which maintains a hierarchy of
@@ -179,15 +187,6 @@ class Tracer(opentracing.Tracer):
         #   create the child ddspan
         # - when child_of is a ddcontext then the ddtracer uses the ddcontext to
         #   get_current_span() for the parent
-        """
-        ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
-        ot_parent_context = None  # the parent span's context
-        dd_parent = None          # the child_of to pass to the ddtracer
-
-        if references and isinstance(references, list):
-            # we currently only support child_of relations to one span
-            ot_parent = references[0].referenced_context
-
         if ot_parent is None and not ignore_active_span:
             # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
