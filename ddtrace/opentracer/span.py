@@ -4,7 +4,7 @@ import threading
 from opentracing import Span as OpenTracingSpan
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
-from .tags import OTTags
+from .tags import Tags
 
 from .span_context import SpanContext
 
@@ -116,11 +116,18 @@ class Span(OpenTracingSpan):
 
         This sets the tag on the underlying datadog span.
         """
-        if key == OTTags.SPAN_TYPE:
+        if key == Tags.SPAN_TYPE:
             self._dd_span.span_type = value
-        elif key == OTTags.HTTP_URL or key == OTTags.DB_STATEMENT:
-            # TODO: there may be cardinality issues with this?
+        elif key == Tags.SERVICE_NAME:
+            self._dd_span.service = value
+        elif key == Tags.RESOURCE_NAME or key == Tags.DB_STATEMENT:
             self._dd_span.resource = value
+        elif key == Tags.PEER_HOSTNAME:
+            self._dd_span.set_tag(Tags.TARGET_HOST, value)
+        elif key == Tags.PEER_PORT:
+            self._dd_span.set_tag(Tags.TARGET_PORT, value)
+        elif key == Tags.SAMPLING_PRIORITY:
+            self._dd_span.context.sampling_priority = value
         else:
             self._dd_span.set_tag(key, value)
 

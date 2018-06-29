@@ -1,6 +1,7 @@
 from collections import namedtuple
 
-OT_TAG_NAMES = [
+TAG_NAMES = [
+    # OpenTracing tags
     'COMPONENT',
     'DB_INSTANCE',
     'DB_STATEMENT',
@@ -18,12 +19,19 @@ OT_TAG_NAMES = [
     'PEER_PORT',
     'PEER_SERVICE',
     'SAMPLING_PRIORITY',
+    'SPAN_KIND',
+    # Datadog tags
+    'RESOURCE_NAME',
+    'SERVICE_NAME',
     'SPAN_TYPE',
+    'TARGET_HOST',
+    'TARGET_PORT',
 ]
 
-OTTagNames = namedtuple('OTTagNames', OT_TAG_NAMES)
+TagNames = namedtuple('TagNames', TAG_NAMES)
 
-OTTags = OTTagNames(
+Tags = TagNames(
+    # OpenTracing tags
     COMPONENT='component',
     DB_INSTANCE='db.instance',
     DB_STATEMENT='db.statement',
@@ -41,5 +49,11 @@ OTTags = OTTagNames(
     PEER_PORT='peer.port',
     PEER_SERVICE='peer.service',
     SAMPLING_PRIORITY='sampling.priority',
-    SPAN_TYPE='span.kind',
+    SPAN_KIND='span.kind',
+    # Datadog tags
+    RESOURCE_NAME='resource.name',
+    SERVICE_NAME='service.name',
+    TARGET_HOST='out.host',
+    TARGET_PORT='out.port',
+    SPAN_TYPE='span.type',
 )

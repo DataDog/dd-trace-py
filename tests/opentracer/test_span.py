@@ -121,3 +121,31 @@ class TestSpanCompatibility(object):
     def test_set_tag(self, nop_span):
         nop_span.set_tag('test', 2)
         assert nop_span._dd_span.get_tag('test') == str(2)
+
+    def test_tag_resource_name(self, nop_span):
+        nop_span.set_tag('resource.name', 'myresource')
+        assert nop_span._dd_span.resource == 'myresource'
+
+    def test_tag_span_type(self, nop_span):
+        nop_span.set_tag('span.type', 'db')
+        assert nop_span._dd_span.span_type == 'db'
+
+    def test_tag_service_name(self, nop_span):
+        nop_span.set_tag('service.name', 'mysvc234')
+        assert nop_span._dd_span.service == 'mysvc234'
+
+    def test_tag_db_statement(self, nop_span):
+        nop_span.set_tag('db.statement', 'SELECT * FROM USERS')
+        assert nop_span._dd_span.resource == 'SELECT * FROM USERS'
+
+    def test_tag_peer_hostname(self, nop_span):
+        nop_span.set_tag('peer.hostname', 'peername')
+        assert nop_span._dd_span.get_tag('out.host') == 'peername'
+
+    def test_tag_peer_port(self, nop_span):
+        nop_span.set_tag('peer.port', '55555')
+        assert nop_span._dd_span.get_tag('out.port') == '55555'
+
+    def test_tag_sampling_priority(self, nop_span):
+        nop_span.set_tag('sampling.priority', '2')
+        assert nop_span._dd_span.context._sampling_priority == '2'
