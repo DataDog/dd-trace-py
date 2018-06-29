@@ -214,7 +214,6 @@ class Tracer(opentracing.Tracer):
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
-
         )
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
