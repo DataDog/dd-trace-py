@@ -804,6 +804,7 @@ workflows:
     jobs:
       - flake8
       - tracer
+      - opentracer
       - integration
       - futures
       - boto
