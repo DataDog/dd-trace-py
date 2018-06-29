@@ -576,22 +576,3 @@ class TestTracerCompatibility(object):
         with tracer.start_span('my_span') as span:
             assert span._dd_span.service
 
-    def test_baggage_tags(self, nop_tracer):
-        """Ensure setting baggage tags results in corresponding datadog span tags."""
-        with nop_tracer.start_span('my_span') as span:
-            span.set_baggage_item('tag', 'value')
-        assert span._dd_span.get_tag('tag')
-
-    def test_baggage_tags_propagated(self, nop_tracer):
-        """Ensure baggage tags are propagated to child spans and result in
-        corresponding datadog tags.
-        """
-        with nop_tracer.start_span('root') as root:
-            # this should be passed down to the child
-            root.set_baggage_item('root_tag', 1)
-            with nop_tracer.start_span('child') as child:
-                child.set_baggage_item('child_tag', 1)
-
-        # child should have tags from both the parent and itself
-        assert child._dd_span.get_tag('child_tag')
-        assert child._dd_span.get_tag('root_tag')

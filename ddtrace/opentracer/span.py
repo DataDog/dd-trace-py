@@ -59,7 +59,6 @@ class Span(OpenTracingSpan):
         :return: itself for chaining calls
         """
         new_ctx = self.context.with_baggage_item(key, value)
-        self.set_tag(key, value)
         with self._lock:
             self._context = new_ctx
         return self
@@ -149,9 +148,6 @@ class Span(OpenTracingSpan):
         # get the datadog span context
         self._dd_span = ddspan
         self.context._dd_context = ddspan.context
-        # set any baggage tags in the ddspan
-        for key, val in self.context.baggage.items():
-            self.set_tag(key, val)
 
     @property
     def _dd_context(self):
