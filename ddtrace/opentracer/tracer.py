@@ -54,8 +54,6 @@ class Tracer(opentracing.Tracer):
         if not self._service_name:
             raise ConfigException('a service_name is required')
 
-        # default to using a threadlocal scope manager
-        # TODO: should this be some kind of configuration option?
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
         self._dd_tracer = DatadogTracer()
@@ -75,12 +73,6 @@ class Tracer(opentracing.Tracer):
     def scope_manager(self):
         """Returns the scope manager being used by this tracer."""
         return self._scope_manager
-
-    @property
-    def active_span(self):
-        """Gets the active span from the scope manager or none if it does not exist."""
-        scope = self._scope_manager.active
-        return scope.span if scope else None
 
     def start_active_span(self, operation_name, child_of=None, references=None,
                           tags=None, start_time=None, ignore_active_span=False,
@@ -119,7 +111,7 @@ class Tracer(opentracing.Tracer):
             when `Scope.close()` is called.
          :return: a `Scope`, already registered via the `ScopeManager`.
         """
-        span = self.start_span(
+        otspan = self.start_span(
             operation_name=operation_name,
             child_of=child_of,
             references=references,
@@ -127,11 +119,13 @@ class Tracer(opentracing.Tracer):
             start_time=start_time,
             ignore_active_span=ignore_active_span,
         )
-        scope = self._scope_manager.activate(span, finish_on_close)
+
+        # activate this new span
+        scope = self._scope_manager.activate(otspan, finish_on_close)
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
-                   tags=None, start_time=None, ignore_active_span=False):
+                    tags=None, start_time=None, ignore_active_span=False):
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
@@ -145,6 +139,17 @@ class Tracer(opentracing.Tracer):
             tracer.start_span(
                 '...',
                 references=[opentracing.child_of(parent_span)])
+
+        Note: the precedence when defining a relationship is the following:
+        (highest)
+            1. *child_of*
+            2. *references*
+            3. `scope_manager.active` (unless *ignore_active_span* is True)
+            4. None
+        (lowest)
+
+        Currently Datadog only supports `child_of` references.
+
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -161,23 +166,25 @@ class Tracer(opentracing.Tracer):
         :param ignore_active_span: an explicit flag that ignores the current
             active `Scope` and creates a root `Span`.
         :return: an already-started Span instance.
+
         """
-        ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
+        ot_parent = None          # 'ot_parent' is more readable than 'child_of'
         ot_parent_context = None  # the parent span's context
         dd_parent = None          # the child_of to pass to the ddtracer
 
-        if references and isinstance(references, list):
+        if child_of is not None:
+            ot_parent = child_of      # 'ot_parent' is more readable than 'child_of'
+        elif references and isinstance(references, list):
             # we currently only support child_of relations to one span
             ot_parent = references[0].referenced_context
 
-        # Okay so here's the deal for ddtracer.start_span:
-        #  - whenever child_of is not None ddspans with parent-child relationships
-        #    will share a ddcontext which maintains a hierarchy of ddspans for
-        #    the execution flow
-        #  - when child_of is a ddspan then the ddtracer uses this ddspan to create
-        #    the child ddspan
-        #  - when child_of is a ddcontext then the ddtracer uses the ddcontext to
-        #    get_current_span() for the parent
+        # - whenever child_of is not None ddspans with parent-child
+        #   relationships will share a ddcontext which maintains a hierarchy of
+        #   ddspans for the execution flow
+        # - when child_of is a ddspan then the ddtracer uses this ddspan to
+        #   create the child ddspan
+        # - when child_of is a ddcontext then the ddtracer uses the ddcontext to
+        #   get_current_span() for the parent
         if ot_parent is None and not ignore_active_span:
             # attempt to get the parent span from the scope manager
             scope = self._scope_manager.active
@@ -194,21 +201,22 @@ class Tracer(opentracing.Tracer):
             # a span context is given to use to find the parent ddspan
             dd_parent = ot_parent._dd_context
         elif ot_parent is None:
-            # user wants to create a new parent span we don't have to do anything
+            # user wants to create a new parent span we don't have to do
+            # anything
             pass
         else:
             raise TypeError('invalid span configuration given')
 
-        # create a new otspan and ddspan using the ddtracer and associate it with the new otspan
+        # create a new otspan and ddspan using the ddtracer and associate it
+        # with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._dd_tracer.start_span(name=operation_name, child_of=dd_parent)
-        ddspan.start = start_time or ddspan.start  # set the start time if one is specified
+        # set the start time if one is specified
+        ddspan.start = start_time or ddspan.start
         if tags is not None:
             ddspan.set_tags(tags)
         otspan._add_dd_span(ddspan)
 
-        # activate this new span
-        self._scope_manager.activate(otspan, False)
         return otspan
 
     def inject(self, span_context, format, carrier):
