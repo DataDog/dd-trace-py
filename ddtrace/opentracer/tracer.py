@@ -210,7 +210,12 @@ class Tracer(opentracing.Tracer):
         # create a new otspan and ddspan using the ddtracer and associate it
         # with the new otspan
         otspan = Span(self, ot_parent_context, operation_name)
-        ddspan = self._dd_tracer.start_span(name=operation_name, child_of=dd_parent)
+        ddspan = self._dd_tracer.start_span(
+            name=operation_name,
+            child_of=dd_parent,
+            service=self._service_name,
+
+        )
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
         if tags is not None:
