@@ -572,7 +572,8 @@ class TestTracerCompatibility(object):
         """Ensure required fields needed for successful tracing are possessed
         by the underlying datadog tracer.
         """
-        tracer = Tracer()
+        # a service name is required
+        tracer = Tracer('service')
         with tracer.start_span('my_span') as span:
             assert span._dd_span.service
 
