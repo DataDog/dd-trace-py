@@ -1,5 +1,5 @@
 import pytest
-from ddtrace.opentracer.span import Span, SpanLog
+from ddtrace.opentracer.span import Span
 from ..test_tracer import get_dummy_tracer
 
 
@@ -113,27 +113,6 @@ class TestSpan(object):
         after_ctx = nop_span._context
         # should be different contexts
         assert before_ctx is not after_ctx
-
-
-class TestSpanLog(object):
-    def test_init(self):
-        log = SpanLog()
-        assert len(log) == 0
-
-    def test_add_record(self):
-        """Add new records to a log."""
-        import time
-        log = SpanLog()
-        # add a record without a timestamp
-        record = {'event': 'now'}
-        log.add_record(record)
-
-        # add a record with a timestamp
-        log.add_record({'event2': 'later'}, time.time())
-
-        assert len(log) == 2
-        assert log[0].record == record
-        assert log[0].timestamp <= log[1].timestamp
 
 
 class TestSpanCompatibility(object):

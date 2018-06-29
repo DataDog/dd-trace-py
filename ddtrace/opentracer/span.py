@@ -9,36 +9,6 @@ from .tags import OTTags
 from .span_context import SpanContext
 
 
-class SpanLogRecord(object):
-    """A representation of a log record."""
-
-    slots = ['record', 'timestamp']
-
-    def __init__(self, key_values, timestamp=None):
-        self.timestamp = timestamp or time.time()
-        self.record = key_values
-
-
-class SpanLog(object):
-    """A collection of log records."""
-
-    slots = ['records']
-
-    def __init__(self):
-        self.records = []
-
-    def add_record(self, key_values, timestamp=None):
-        self.records.append(SpanLogRecord(key_values, timestamp))
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, key):
-        if type(key) is int:
-            return self.records[key]
-        else:
-            raise TypeError('only indexing by int is currently supported')
-
 
 class Span(OpenTracingSpan):
     """Datadog implementation of :class:`opentracing.Span`"""
@@ -52,7 +22,6 @@ class Span(OpenTracingSpan):
 
         super(Span, self).__init__(tracer, context)
 
-        self.log = SpanLog()
         self.finished = False
         self.lock = threading.Lock()
         # use a datadog span
@@ -124,10 +93,6 @@ class Span(OpenTracingSpan):
         :return: the span itself, for call chaining
         :rtype: Span
         """
-        # add the record to the log
-        # TODO: there really isn't any functionality provided in ddtrace
-        #       (or even opentracing) for logging
-        self.log.add_record(key_values, timestamp)
 
         # match opentracing defined keys to datadog functionality
         # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
