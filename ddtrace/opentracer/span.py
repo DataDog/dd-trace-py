@@ -2,6 +2,7 @@ import time
 import threading
 
 from opentracing import Span as OpenTracingSpan
+from opentracing.ext import tags as OTTags
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
 from .tags import Tags
@@ -120,11 +121,11 @@ class Span(OpenTracingSpan):
             self._dd_span.span_type = value
         elif key == Tags.SERVICE_NAME:
             self._dd_span.service = value
-        elif key == Tags.RESOURCE_NAME or key == Tags.DB_STATEMENT:
+        elif key == Tags.RESOURCE_NAME or key == OTTags.DATABASE_STATEMENT:
             self._dd_span.resource = value
-        elif key == Tags.PEER_HOSTNAME:
+        elif key == OTTags.PEER_HOSTNAME:
             self._dd_span.set_tag(Tags.TARGET_HOST, value)
-        elif key == Tags.PEER_PORT:
+        elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:
             self._dd_span.context.sampling_priority = value
