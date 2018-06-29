@@ -28,7 +28,7 @@ class TestSpan(object):
     def test_init(self, nop_tracer, nop_span_ctx):
         """Very basic test for skeleton code"""
         span = Span(nop_tracer, nop_span_ctx, 'my_op_name')
-        assert not span.finished
+        assert not span._finished
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
@@ -93,14 +93,14 @@ class TestSpan(object):
         """Test the span context manager."""
         import time
 
-        assert not nop_span.finished
+        assert not nop_span._finished
         # run the context manager but since the span has not been added
         # to the span context, we will not get any traces
         with nop_span:
             time.sleep(0.005)
 
         # span should be finished when the context manager exits
-        assert nop_span.finished
+        assert nop_span._finished
 
         # there should be no traces (see above comment)
         spans = nop_span.tracer._tracer.writer.pop()

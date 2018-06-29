@@ -91,7 +91,7 @@ class TestTracer(object):
             time.sleep(0.005)
 
         # span should be finished when the context manager exits
-        assert span.finished
+        assert span._finished
 
         spans = get_spans(nop_tracer)
         assert len(spans) == 1
@@ -138,8 +138,8 @@ class TestTracer(object):
                 time.sleep(0.008)
 
         # span should be finished when the context manager exits
-        assert span.finished
-        assert span2.finished
+        assert span._finished
+        assert span2._finished
 
         spans = get_spans(nop_tracer)
         assert len(spans) == 2
@@ -172,9 +172,9 @@ class TestTracer(object):
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span.finished
-        assert scope2.span.finished
-        assert scope3.span.finished
+        assert span1._finished
+        assert span2._finished
+        assert span3._finished
 
         spans = get_spans(nop_tracer)
 
@@ -206,9 +206,9 @@ class TestTracer(object):
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span.finished
-        assert scope2.span.finished
-        assert scope3.span.finished
+        assert span1._finished
+        assert span2._finished
+        assert span3._finished
 
         spans = get_spans(nop_tracer)
 
@@ -370,7 +370,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert scope.span.finished
+        assert scope.span._finished
         spans = get_spans(nop_tracer)
         assert spans
 
@@ -379,7 +379,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert not scope.span.finished
+        assert not scope.span._finished
         spans = get_spans(nop_tracer)
         assert not spans
 
