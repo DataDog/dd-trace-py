@@ -149,7 +149,7 @@ class Span(OpenTracingSpan):
         """
         return self._dd_span.set_tag(key, value)
 
-    def get_tag(self, key):
+    def _get_tag(self, key):
         """Gets a tag from the span.
 
         This retrieves the tag from the underlying datadog span.
