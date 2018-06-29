@@ -104,12 +104,12 @@ class TestTracerConfig(object):
         spans = get_spans(nop_tracer)
         assert spans[0].parent_id is None
 
-        root = nop_tracer.start_span('root')
+        root = nop_tracer.start_active_span('root')
         # create a child using a parent reference that is not the context parent
-        with nop_tracer.start_span('one'):
-            with nop_tracer.start_span('two', references=[child_of(root)]):
+        with nop_tracer.start_active_span('one'):
+            with nop_tracer.start_active_span('two', references=[child_of(root.span)]):
                 pass
-        root.finish()
+        root.close()
 
         spans = get_spans(nop_tracer)
         assert spans[2].parent_id is spans[0].span_id
@@ -157,29 +157,29 @@ class TestTracerConfig(object):
         assert span._dd_span.get_tag('key') == 'value'
         assert span._dd_span.get_tag('key2') == 'value2'
 
-    def test_start_span_multi_child(self, nop_tracer):
+    def test_start_active_span_multi_child(self, nop_tracer):
         """Start and finish multiple child spans.
         This should ensure that child spans can be created 2 levels deep.
         """
         import time
-        with nop_tracer.start_span('myfirstop') as span1:
+        with nop_tracer.start_active_span('myfirstop') as scope1:
             time.sleep(0.009)
-            with nop_tracer.start_span('mysecondop') as span2:
+            with nop_tracer.start_active_span('mysecondop') as scope2:
                 time.sleep(0.007)
-                with nop_tracer.start_span('mythirdop') as span3:
+                with nop_tracer.start_active_span('mythirdop') as scope3:
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert span1.finished
-        assert span2.finished
-        assert span3.finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = get_spans(nop_tracer)
 
         # check spans are captured in the trace
-        assert span1._dd_span is spans[0]
-        assert span2._dd_span is spans[1]
-        assert span3._dd_span is spans[2]
+        assert scope1.span._dd_span is spans[0]
+        assert scope2.span._dd_span is spans[1]
+        assert scope3.span._dd_span is spans[2]
 
         # ensure proper parenting
         assert spans[1].parent_id is spans[0].span_id
@@ -190,30 +190,30 @@ class TestTracerConfig(object):
         assert spans[1].duration >= 0.007 + 0.005
         assert spans[2].duration >= 0.005
 
-    def test_start_span_multi_child_siblings(self, nop_tracer):
+    def test_start_active_span_multi_child_siblings(self, nop_tracer):
         """Start and finish multiple span at the same level.
         This should test to ensure a parent can have multiple child spans at the
         same level.
         """
         import time
-        with nop_tracer.start_span('myfirstop') as span1:
+        with nop_tracer.start_active_span('myfirstop') as scope1:
             time.sleep(0.009)
-            with nop_tracer.start_span('mysecondop') as span2:
+            with nop_tracer.start_active_span('mysecondop') as scope2:
                 time.sleep(0.007)
-            with nop_tracer.start_span('mythirdop') as span3:
+            with nop_tracer.start_active_span('mythirdop') as scope3:
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert span1.finished
-        assert span2.finished
-        assert span3.finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = get_spans(nop_tracer)
 
         # check spans are captured in the trace
-        assert span1._dd_span is spans[0]
-        assert span2._dd_span is spans[1]
-        assert span3._dd_span is spans[2]
+        assert scope1.span._dd_span is spans[0]
+        assert scope2.span._dd_span is spans[1]
+        assert scope3.span._dd_span is spans[2]
 
         # ensure proper parenting
         assert spans[1].parent_id is spans[0].span_id
@@ -275,12 +275,12 @@ class TestTracerConfig(object):
                spans[1].trace_id != spans[2].trace_id and \
                spans[0].trace_id != spans[2].trace_id
 
-    def test_start_span_child_finish_after_parent(self, nop_tracer):
+    def test_start_active_span_child_finish_after_parent(self, nop_tracer):
         """Start a child span and finish it after its parent."""
         import time
 
-        span1 = nop_tracer.start_span('one')
-        span2 = nop_tracer.start_span('two')
+        span1 = nop_tracer.start_active_span('one').span
+        span2 = nop_tracer.start_active_span('two').span
         span1.finish()
         time.sleep(0.005)
         span2.finish()
@@ -300,24 +300,24 @@ class TestTracerConfig(object):
 
         def trace_one():
             id = 11
-            with nop_tracer.start_span(str(id)):
+            with nop_tracer.start_active_span(str(id)):
                 id += 1
                 time.sleep(0.009)
-                with nop_tracer.start_span(str(id)):
+                with nop_tracer.start_active_span(str(id)):
                     id += 1
                     time.sleep(0.001)
-                    with nop_tracer.start_span(str(id)):
+                    with nop_tracer.start_active_span(str(id)):
                         pass
 
         def trace_two():
             id = 21
-            with nop_tracer.start_span(str(id)):
+            with nop_tracer.start_active_span(str(id)):
                 id += 1
                 time.sleep(0.006)
-                with nop_tracer.start_span(str(id)):
+                with nop_tracer.start_active_span(str(id)):
                     id += 1
                     time.sleep(0.009)
-                with nop_tracer.start_span(str(id)):
+                with nop_tracer.start_active_span(str(id)):
                     pass
 
         # the ordering should be
