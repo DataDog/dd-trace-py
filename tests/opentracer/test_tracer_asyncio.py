@@ -98,38 +98,3 @@ class TestTracerAsyncio(AsyncioTestCase):
         eq_(1, len(traces[0]))
         eq_('coroutine', traces[0][0].name)
 
-    @mark_asyncio
-    def test_concurrent_chaining(self):
-        """TODO: this test does not work for opentracing.
-        It is unclear as to what the behaviour should be when crossing thread
-        boundaries.
-        """
-        # ensures that the context is correctly propagated when
-        # concurrent tasks are created from a common tracing block
-        @asyncio.coroutine
-        def f1():
-            with self.tracer.start_span('f1'):
-                yield from asyncio.sleep(0.01)
-
-        @asyncio.coroutine
-        def f2():
-            with self.tracer.start_span('f2'):
-                yield from asyncio.sleep(0.01)
-
-        with self.tracer.start_span('main_task'):
-            yield from asyncio.gather(f1(), f2())
-
-        traces = self.tracer._dd_tracer.writer.pop_traces()
-        eq_(len(traces), 3)
-        eq_(len(traces[0]), 1)
-        eq_(len(traces[1]), 1)
-        eq_(len(traces[2]), 1)
-        child_1 = traces[0][0]
-        child_2 = traces[1][0]
-        main_task = traces[2][0]
-        # check if the context has been correctly propagated
-        # see above TODO
-        # eq_(child_1.trace_id, main_task.trace_id)
-        # eq_(child_1.parent_id, main_task.span_id)
-        # eq_(child_2.trace_id, main_task.trace_id)
-        # eq_(child_2.parent_id, main_task.span_id)
