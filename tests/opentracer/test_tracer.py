@@ -172,9 +172,9 @@ class TestTracer(object):
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert span1._finished
-        assert span2._finished
-        assert span3._finished
+        assert scope1.span._finished
+        assert scope2.span._finished
+        assert scope3.span._finished
 
         spans = get_spans(nop_tracer)
 
@@ -206,9 +206,9 @@ class TestTracer(object):
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert span1._finished
-        assert span2._finished
-        assert span3._finished
+        assert scope1.span._finished
+        assert scope2.span._finished
+        assert scope3.span._finished
 
         spans = get_spans(nop_tracer)
 
