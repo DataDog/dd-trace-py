@@ -23,7 +23,7 @@ class Span(OpenTracingSpan):
         super(Span, self).__init__(tracer, context)
 
         self.finished = False
-        self.lock = threading.Lock()
+        self._lock = threading.Lock()
         # use a datadog span
         self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
                                     context=context._dd_context)
@@ -60,7 +60,7 @@ class Span(OpenTracingSpan):
         """
         new_ctx = self.context.with_baggage_item(key, value)
         self.set_tag(key, value)
-        with self.lock:
+        with self._lock:
             self._context = new_ctx
         return self
 
