@@ -22,7 +22,6 @@ DEFAULT_CONFIG = {
     keys.ENABLED: True,
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
-    keys.CONTEXT_PROVIDER: None,
     keys.PRIORITY_SAMPLING: None,
     keys.SETTINGS: {
         FILTERS_KEY: [],
@@ -65,7 +64,6 @@ class Tracer(opentracing.Tracer):
                                   port=self._config.get(keys.AGENT_PORT),
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
-                                  context_provider=self._config.get(keys.CONTEXT_PROVIDER),
                                   priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
                                   )
         self._propagators = {
