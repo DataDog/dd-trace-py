@@ -542,27 +542,27 @@ class TestTracerSpanContextPropagation(object):
 
     def test_inherited_baggage(self, nop_tracer):
         """Baggage should be inherited by child spans."""
-        with nop_tracer.start_span('root') as root:
+        with nop_tracer.start_active_span('root') as root:
             # this should be passed down to the child
-            root.set_baggage_item('root', 1)
-            root.set_baggage_item('root2', 1)
-            with nop_tracer.start_span('child') as level1:
-                level1.set_baggage_item('level1', 1)
-                with nop_tracer.start_span('child') as level2:
-                    level2.set_baggage_item('level2', 1)
+            root.span.set_baggage_item('root', 1)
+            root.span.set_baggage_item('root2', 1)
+            with nop_tracer.start_active_span('child') as level1:
+                level1.span.set_baggage_item('level1', 1)
+                with nop_tracer.start_active_span('child') as level2:
+                    level2.span.set_baggage_item('level2', 1)
         # ensure immutability
-        assert level1.context is not root.context
-        assert level2.context is not level1.context
+        assert level1.span.context is not root.span.context
+        assert level2.span.context is not level1.span.context
 
         # level1 should have inherited the baggage of root
-        assert level1.get_baggage_item('root')
-        assert level1.get_baggage_item('root2')
+        assert level1.span.get_baggage_item('root')
+        assert level1.span.get_baggage_item('root2')
 
         # level2 should have inherited the baggage of both level1 and level2
-        assert level2.get_baggage_item('root')
-        assert level2.get_baggage_item('root2')
-        assert level2.get_baggage_item('level1')
-        assert level2.get_baggage_item('level2')
+        assert level2.span.get_baggage_item('root')
+        assert level2.span.get_baggage_item('root2')
+        assert level2.span.get_baggage_item('level1')
+        assert level2.span.get_baggage_item('level2')
 
 
 class TestTracerCompatibility(object):
