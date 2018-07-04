@@ -4,8 +4,8 @@ import wrapt
 from aiopg.utils import _ContextManager
 
 from .. import dbapi
-from ...ext import sql
 from ...pin import Pin
+from ...ext import sql, AppTypes
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -63,10 +63,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pin=None):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
-        Pin(service=name, app=name).onto(self)
+        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin.onto(self)
 
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
