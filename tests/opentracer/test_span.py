@@ -1,5 +1,5 @@
 import pytest
-from ddtrace.opentracer.span import Span, SpanLog
+from ddtrace.opentracer.span import Span
 from ..test_tracer import get_dummy_tracer
 
 
@@ -28,7 +28,7 @@ class TestSpan(object):
     def test_init(self, nop_tracer, nop_span_ctx):
         """Very basic test for skeleton code"""
         span = Span(nop_tracer, nop_span_ctx, 'my_op_name')
-        assert not span.finished
+        assert not span._finished
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
@@ -93,36 +93,59 @@ class TestSpan(object):
         """Test the span context manager."""
         import time
 
-        assert not nop_span.finished
+        assert not nop_span._finished
         # run the context manager but since the span has not been added
         # to the span context, we will not get any traces
         with nop_span:
             time.sleep(0.005)
 
         # span should be finished when the context manager exits
-        assert nop_span.finished
+        assert nop_span._finished
 
         # there should be no traces (see above comment)
         spans = nop_span.tracer._tracer.writer.pop()
         assert len(spans) == 0
 
+    def test_immutable_span_context(self, nop_span):
+        """Ensure span contexts are immutable."""
+        before_ctx = nop_span._context
+        nop_span.set_baggage_item('key', 'value')
+        after_ctx = nop_span._context
+        # should be different contexts
+        assert before_ctx is not after_ctx
 
-class TestSpanLog():
-    def test_init(self):
-        log = SpanLog()
-        assert len(log) == 0
 
-    def test_add_record(self):
-        """Add new records to a log."""
-        import time
-        log = SpanLog()
-        # add a record without a timestamp
-        record = {'event': 'now'}
-        log.add_record(record)
+class TestSpanCompatibility(object):
+    """Ensure our opentracer spans features correspond to datadog span features.
+    """
+    def test_set_tag(self, nop_span):
+        nop_span.set_tag('test', 2)
+        assert nop_span._dd_span.get_tag('test') == str(2)
 
-        # add a record with a timestamp
-        log.add_record({'event2': 'later'}, time.time())
+    def test_tag_resource_name(self, nop_span):
+        nop_span.set_tag('resource.name', 'myresource')
+        assert nop_span._dd_span.resource == 'myresource'
 
-        assert len(log) == 2
-        assert log[0].record == record
-        assert log[0].timestamp <= log[1].timestamp
+    def test_tag_span_type(self, nop_span):
+        nop_span.set_tag('span.type', 'db')
+        assert nop_span._dd_span.span_type == 'db'
+
+    def test_tag_service_name(self, nop_span):
+        nop_span.set_tag('service.name', 'mysvc234')
+        assert nop_span._dd_span.service == 'mysvc234'
+
+    def test_tag_db_statement(self, nop_span):
+        nop_span.set_tag('db.statement', 'SELECT * FROM USERS')
+        assert nop_span._dd_span.resource == 'SELECT * FROM USERS'
+
+    def test_tag_peer_hostname(self, nop_span):
+        nop_span.set_tag('peer.hostname', 'peername')
+        assert nop_span._dd_span.get_tag('out.host') == 'peername'
+
+    def test_tag_peer_port(self, nop_span):
+        nop_span.set_tag('peer.port', '55555')
+        assert nop_span._dd_span.get_tag('out.port') == '55555'
+
+    def test_tag_sampling_priority(self, nop_span):
+        nop_span.set_tag('sampling.priority', '2')
+        assert nop_span._dd_span.context._sampling_priority == '2'

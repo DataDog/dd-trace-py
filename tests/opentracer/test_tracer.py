@@ -82,6 +82,8 @@ class TestTracerConfig(object):
             assert ['enabeld', 'setttings'] in str(ce_info)
             assert tracer is not None
 
+
+class TestTracer(object):
     def test_start_span(self, nop_tracer):
         """Start and finish a span."""
         import time
@@ -89,7 +91,7 @@ class TestTracerConfig(object):
             time.sleep(0.005)
 
         # span should be finished when the context manager exits
-        assert span.finished
+        assert span._finished
 
         spans = get_spans(nop_tracer)
         assert len(spans) == 1
@@ -136,8 +138,8 @@ class TestTracerConfig(object):
                 time.sleep(0.008)
 
         # span should be finished when the context manager exits
-        assert span.finished
-        assert span2.finished
+        assert span._finished
+        assert span2._finished
 
         spans = get_spans(nop_tracer)
         assert len(spans) == 2
@@ -170,9 +172,9 @@ class TestTracerConfig(object):
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span.finished
-        assert scope2.span.finished
-        assert scope3.span.finished
+        assert scope1.span._finished
+        assert scope2.span._finished
+        assert scope3.span._finished
 
         spans = get_spans(nop_tracer)
 
@@ -204,9 +206,9 @@ class TestTracerConfig(object):
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span.finished
-        assert scope2.span.finished
-        assert scope3.span.finished
+        assert scope1.span._finished
+        assert scope2.span._finished
+        assert scope3.span._finished
 
         spans = get_spans(nop_tracer)
 
@@ -368,7 +370,7 @@ class TestTracerConfig(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert scope.span.finished
+        assert scope.span._finished
         spans = get_spans(nop_tracer)
         assert spans
 
@@ -377,10 +379,40 @@ class TestTracerConfig(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert not scope.span.finished
+        assert not scope.span._finished
         spans = get_spans(nop_tracer)
         assert not spans
 
+    def test_start_active_span_nested(self, nop_tracer):
+        """Test the active span of multiple nested calls of start_active_span."""
+        with nop_tracer.start_active_span('one') as outer_scope:
+            assert nop_tracer.active_span == outer_scope.span
+            with nop_tracer.start_active_span('two') as inner_scope:
+                assert nop_tracer.active_span == inner_scope.span
+                with nop_tracer.start_active_span('three') as innest_scope: # why isn't it innest? innermost so verbose
+                    assert nop_tracer.active_span == innest_scope.span
+            with nop_tracer.start_active_span('two') as inner_scope:
+                assert nop_tracer.active_span == inner_scope.span
+            assert nop_tracer.active_span == outer_scope.span
+        assert nop_tracer.active_span is None
+
+    def test_start_active_span_trace(self, nop_tracer):
+        """Test the active span of multiple nested calls of start_active_span."""
+        with nop_tracer.start_active_span('one') as outer_scope:
+            outer_scope.span.set_tag('outer', 2)
+            with nop_tracer.start_active_span('two') as inner_scope:
+                inner_scope.span.set_tag('inner', 3)
+            with nop_tracer.start_active_span('two') as inner_scope:
+                inner_scope.span.set_tag('inner', 3)
+                with nop_tracer.start_active_span('three') as innest_scope:
+                    innest_scope.span.set_tag('innerest', 4)
+
+        spans = get_spans(nop_tracer)
+
+        assert spans[0].parent_id is None
+        assert spans[1].parent_id is spans[0].span_id
+        assert spans[2].parent_id is spans[0].span_id
+        assert spans[3].parent_id is spans[2].span_id
 @pytest.fixture
 def nop_span_ctx():
     from ddtrace.ext.priority import AUTO_KEEP
@@ -495,9 +527,53 @@ class TestTracerSpanContextPropagation(object):
         ext_span_ctx = nop_tracer.extract(Format.TEXT_MAP, carrier)
         assert ext_span_ctx.baggage == span_ctx.baggage
 
+    def test_immutable_span_context(self, nop_tracer):
+        """Span contexts should be immutable."""
+        with nop_tracer.start_span('root') as root:
+            ctx_before = root.context
+            root.set_baggage_item('test', 2)
+            assert ctx_before is not root.context
+            with nop_tracer.start_span('child') as level1:
+                with nop_tracer.start_span('child') as level2:
+                    pass
+        assert root.context is not level1.context
+        assert level2.context is not level1.context
+        assert level2.context is not root.context
 
-class TestTracer(object):
-    def test_init(self):
-        """Very basic test for skeleton code"""
-        tracer = Tracer(service_name='myservice')
-        assert tracer is not None
+    def test_inherited_baggage(self, nop_tracer):
+        """Baggage should be inherited by child spans."""
+        with nop_tracer.start_active_span('root') as root:
+            # this should be passed down to the child
+            root.span.set_baggage_item('root', 1)
+            root.span.set_baggage_item('root2', 1)
+            with nop_tracer.start_active_span('child') as level1:
+                level1.span.set_baggage_item('level1', 1)
+                with nop_tracer.start_active_span('child') as level2:
+                    level2.span.set_baggage_item('level2', 1)
+        # ensure immutability
+        assert level1.span.context is not root.span.context
+        assert level2.span.context is not level1.span.context
+
+        # level1 should have inherited the baggage of root
+        assert level1.span.get_baggage_item('root')
+        assert level1.span.get_baggage_item('root2')
+
+        # level2 should have inherited the baggage of both level1 and level2
+        assert level2.span.get_baggage_item('root')
+        assert level2.span.get_baggage_item('root2')
+        assert level2.span.get_baggage_item('level1')
+        assert level2.span.get_baggage_item('level2')
+
+
+class TestTracerCompatibility(object):
+    """Ensure that our opentracer produces results in the underlying datadog tracer."""
+
+    def test_required_dd_fields(self):
+        """Ensure required fields needed for successful tracing are possessed
+        by the underlying datadog tracer.
+        """
+        # a service name is required
+        tracer = Tracer('service')
+        with tracer.start_span('my_span') as span:
+            assert span._dd_span.service
+
