@@ -1,6 +1,4 @@
 import asyncio
-import opentracing
-import pytest
 from nose.tools import eq_, ok_
 
 from opentracing.ext.scope_manager.asyncio import AsyncioScopeManager
@@ -10,10 +8,6 @@ from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 def get_dummy_asyncio_tracer():
     return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager())
-
-
-def nop_tracer():
-    return get_dummy_asyncio_tracer()
 
 
 class TestTracerAsyncio(AsyncioTestCase):
