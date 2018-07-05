@@ -46,10 +46,17 @@ jobs:
           keys:
               - tox-cache-opentracer-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-opentracer' --result-json /tmp/opentracer.results
+      - run: tox -e '{py34,py35,py36}-opentracer_asyncio' --result-json /tmp/opentracer-asyncio.results
+      - run: tox -e '{py34,py35,py36}-opentracer_tornado-tornado{40,41,42,43,44}' --result-json /tmp/opentracer-tornado.results
+      - run: tox -e '{py27}-opentracer_gevent-gevent{10}' --result-json /tmp/opentracer-gevent.1.results
+      - run: tox -e '{py27,py34,py35,py36}-opentracer_gevent-gevent{11,12}' --result-json /tmp/opentracer-gevent.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - opentracer.results
+            - opentracer-gevent.results
+            - opentracer-asyncio.results
+            - opentracer-tornado.results
       - save_cache:
           key: tox-cache-opentracer-{{ checksum "tox.ini" }}
           paths:
@@ -804,6 +811,7 @@ workflows:
     jobs:
       - flake8
       - tracer
+      - opentracer
       - integration
       - futures
       - boto
