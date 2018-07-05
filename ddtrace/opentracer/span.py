@@ -1,40 +1,14 @@
 import time
+import threading
+
 from opentracing import Span as OpenTracingSpan
+from opentracing.ext import tags as OTTags
 from ddtrace.span import Span as DatadogSpan
 from ddtrace.ext import errors
+from .tags import Tags
 
 from .span_context import SpanContext
 
-
-class SpanLogRecord(object):
-    """A representation of a log record."""
-
-    slots = ['record', 'timestamp']
-
-    def __init__(self, key_values, timestamp=None):
-        self.timestamp = timestamp or time.time()
-        self.record = key_values
-
-
-class SpanLog(object):
-    """A collection of log records."""
-
-    slots = ['records']
-
-    def __init__(self):
-        self.records = []
-
-    def add_record(self, key_values, timestamp=None):
-        self.records.append(SpanLogRecord(key_values, timestamp))
-
-    def __len__(self):
-        return len(self.records)
-
-    def __getitem__(self, key):
-        if type(key) is int:
-            return self.records[key]
-        else:
-            raise TypeError('only indexing by int is currently supported')
 
 
 class Span(OpenTracingSpan):
@@ -49,13 +23,11 @@ class Span(OpenTracingSpan):
 
         super(Span, self).__init__(tracer, context)
 
+        self._finished = False
+        self._lock = threading.Lock()
         # use a datadog span
         self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
                                     context=context._dd_context)
-
-        self.log = SpanLog()
-
-        self.finished = False
 
     def finish(self, finish_time=None):
         """Finish the span.
@@ -66,12 +38,12 @@ class Span(OpenTracingSpan):
             per time.time()
         :type timestamp: float
         """
-        if self.finished:
+        if self._finished:
             return
 
         # finish the datadog span
         self._dd_span.finish(finish_time)
-        self.finished = True
+        self._finished = True
 
     def set_baggage_item(self, key, value):
         """Sets a baggage item in the span context of this span.
@@ -87,7 +59,9 @@ class Span(OpenTracingSpan):
         :rtype: Span
         :return: itself for chaining calls
         """
-        self.context.set_baggage_item(key, value)
+        new_ctx = self.context.with_baggage_item(key, value)
+        with self._lock:
+            self._context = new_ctx
         return self
 
     def get_baggage_item(self, key):
@@ -119,10 +93,6 @@ class Span(OpenTracingSpan):
         :return: the span itself, for call chaining
         :rtype: Span
         """
-        # add the record to the log
-        # TODO: there really isn't any functionality provided in ddtrace
-        #       (or even opentracing) for logging
-        self.log.add_record(key_values, timestamp)
 
         # match opentracing defined keys to datadog functionality
         # opentracing/specification/blob/1be630515dafd4d2a468d083300900f89f28e24d/semantic_conventions.md#log-fields-table
@@ -147,12 +117,25 @@ class Span(OpenTracingSpan):
 
         This sets the tag on the underlying datadog span.
         """
-        return self._dd_span.set_tag(key, value)
+        if key == Tags.SPAN_TYPE:
+            self._dd_span.span_type = value
+        elif key == Tags.SERVICE_NAME:
+            self._dd_span.service = value
+        elif key == Tags.RESOURCE_NAME or key == OTTags.DATABASE_STATEMENT:
+            self._dd_span.resource = value
+        elif key == OTTags.PEER_HOSTNAME:
+            self._dd_span.set_tag(Tags.TARGET_HOST, value)
+        elif key == OTTags.PEER_PORT:
+            self._dd_span.set_tag(Tags.TARGET_PORT, value)
+        elif key == Tags.SAMPLING_PRIORITY:
+            self._dd_span.context.sampling_priority = value
+        else:
+            self._dd_span.set_tag(key, value)
 
     def _get_tag(self, key):
         """Gets a tag from the span.
 
-        This retrieves the tag from the underlying datadog span.
+        This method retrieves the tag from the underlying datadog span.
         """
         return self._dd_span.get_tag(key)
 
@@ -163,10 +146,9 @@ class Span(OpenTracingSpan):
         if exc_type:
             self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
 
-        self._dd_span.__exit__(exc_type, exc_val, exc_tb)
-
-        # note: self.finish() AND _span.__exit__ will call _span.finish() but
+        # note: self.finish() AND _dd_span.__exit__ will call _span.finish() but
         # it is idempotent
+        self._dd_span.__exit__(exc_type, exc_val, exc_tb)
         self.finish()
 
     def _add_dd_span(self, ddspan):
