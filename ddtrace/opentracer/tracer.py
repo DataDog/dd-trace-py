@@ -125,7 +125,7 @@ class Tracer(opentracing.Tracer):
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
-                    tags=None, start_time=None, ignore_active_span=False):
+                   tags=None, start_time=None, ignore_active_span=False):
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
