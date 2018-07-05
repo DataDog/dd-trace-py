@@ -42,10 +42,10 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_span('coroutine_2'):
+            with self.tracer.start_active_span('coroutine_2'):
                 return 42
 
-        with self.tracer.start_span('coroutine_1'):
+        with self.tracer.start_active_span('coroutine_1'):
             value = yield from coro()
 
         # the coroutine has been called correctly
