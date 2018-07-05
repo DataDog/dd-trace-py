@@ -34,6 +34,6 @@ class TestSpanContext(object):
     def test_span_context_immutable_baggage(self):
         """Ensure that two different span contexts do not share baggage."""
         ctx1 = SpanContext()
-        ctx1._baggage['test'] = 3
+        ctx1.set_baggage_item('test', 3)
         ctx2 = SpanContext()
         assert 'test' not in ctx2._baggage
