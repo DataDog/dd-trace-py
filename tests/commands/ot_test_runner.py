@@ -11,9 +11,9 @@ class OTInstalledDDTraceRunTest(unittest.TestCase):
         """
         Clear DATADOG_* env vars between tests
         """
-        for k in ('DATADOG_ENV', 'DATADOG_TRACE_ENABLED', 'DATADOG_SERVICE_NAME', 'DATADOG_TRACE_DEBUG'):
-            if k in os.environ:
-                del os.environ[k]
+        keys = [k for k in os.environ if 'DD_' in k or 'DATADOG_' in k]
+        for k in keys:
+            del os.environ[k]
 
     def test_patch(self):
         """Since OpenTracing should be installed, the Datadog opentracer should

@@ -70,8 +70,7 @@ setup(
     cmdclass={'test': Tox},
     entry_points={
         'console_scripts': [
-            'ddtrace-run = ddtrace.commands.ddtrace_run:main',
-            'ddopentrace-run = ddtrace.opentracer.commands.ddopentrace_run:main',
+            'ddtrace-run = ddtrace.commands.ddtrace_run:main'
         ]
     },
     classifiers=[

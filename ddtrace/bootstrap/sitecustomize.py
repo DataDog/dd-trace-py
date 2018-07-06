@@ -42,11 +42,16 @@ def update_patched_modules():
 
         EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == 'true'})
 
-def opentracing_patch():
+
+def instrument_opentracing():
     try:
         import opentracing
         from ddtrace.opentracer import Tracer, set_global_tracer
         from ddtrace.opentracer.settings import ConfigKeys
+
+        # Respect DATADOG_* environment variables in global tracer configuration
+        # TODO: these variables are deprecated; use utils method and update our documentation
+        # correct prefix should be DD_*
         enabled = os.environ.get("DATADOG_TRACE_ENABLED")
         hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
         port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
@@ -69,12 +74,16 @@ def opentracing_patch():
 
         tracer = Tracer(service_name=service_name, config=config)
         set_global_tracer(tracer)
+
+        # TODO: there currently is no patching support for OpenTracing
+        # once there is it should go here
         return True
-    except ImportError:
-        log.info("opentracing patching failed", exc_info=True)
+    except Exception:
+        log.debug("opentracing patching failed", exc_info=True)
         return False
 
-def datadog_patch():
+
+def instrument_datadog():
     try:
         from ddtrace import tracer
         patch = True
@@ -113,6 +122,17 @@ def datadog_patch():
         if 'DATADOG_ENV' in os.environ:
             tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
 
+    except Exception as e:
+        log.warn("error configuring Datadog tracing", exc_info=True)
+
+
+def instrument():
+    try:
+        # first try to patch if OpenTracing is installed
+        if not instrument_opentracing():
+            # if this fails then do our usual patching
+            instrument_datadog()
+
         # Ensure sitecustomize.py is properly called if available in application directories:
         # * exclude `bootstrap_dir` from the search
         # * find a user `sitecustomize.py` module
@@ -134,7 +154,4 @@ def datadog_patch():
         log.warn("error configuring Datadog tracing", exc_info=True)
 
 
-# first try to patch if OpenTracing is installed
-if not opentracing_patch():
-    # if this fails then do our usual patching
-    datadog_patch()
+instrument()
