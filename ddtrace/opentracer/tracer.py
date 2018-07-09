@@ -6,12 +6,13 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
+from ddtrace.utils import merge_dicts
+from ddtrace.utils.config import get_application_name
 
 from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
-from .util import merge_dicts, get_reasonable_service_name
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class Tracer(opentracing.Tracer):
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = service_name or get_reasonable_service_name()
+        self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 

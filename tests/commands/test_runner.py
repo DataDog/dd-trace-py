@@ -169,3 +169,13 @@ class DdtraceRunTest(unittest.TestCase):
             env=env,
         )
         assert out.startswith(b"Test success")
+
+    def test_got_app_name(self):
+        """
+        apps run with ddtrace-run have a proper app name
+        """
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_app_name.py']
+        )
+        assert out.startswith(b"Test success")
+
