@@ -23,7 +23,7 @@ else:
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
-SOCKET = 'httpbin.org'
+SOCKET = 'httpbin-org.herokuapp.com'
 URL_200 = 'https://{}/status/200'.format(SOCKET)
 URL_500 = 'https://{}/status/500'.format(SOCKET)
 URL_404 = 'https://{}/status/404'.format(SOCKET)
