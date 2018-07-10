@@ -24,9 +24,9 @@ else:
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin-org.herokuapp.com'
-URL_200 = 'https://{}/status/200'.format(SOCKET)
-URL_500 = 'https://{}/status/500'.format(SOCKET)
-URL_404 = 'https://{}/status/404'.format(SOCKET)
+URL_200 = 'http://{}/status/200'.format(SOCKET)
+URL_500 = 'http://{}/status/500'.format(SOCKET)
+URL_404 = 'http://{}/status/404'.format(SOCKET)
 
 
 # Base test mixin for shared tests between Py2 and Py3
@@ -107,25 +107,25 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         """
         # Enabled Pin and non-internal request
         self.tracer.enabled = True
-        request = self.get_https_connection(SOCKET)
+        request = self.get_http_connection(SOCKET)
         pin = Pin.get_from(request)
         self.assertFalse(should_skip_request(pin, request))
 
         # Disabled Pin and non-internal request
         self.tracer.enabled = False
-        request = self.get_https_connection(SOCKET)
+        request = self.get_http_connection(SOCKET)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        request = self.get_https_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
-        request = self.get_https_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
@@ -135,7 +135,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             we return the original response
             we capture a span for the request
         """
-        conn = self.get_https_connection(SOCKET)
+        conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
             conn.request('GET', '/status/200')
             resp = conn.getresponse()
@@ -165,7 +165,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we return the original response
                 we capture a span for the request
         """
-        conn = self.get_https_connection('httpbin.org')
+        conn = self.get_https_connection('httpbin-org.herokuapp.com')
         with contextlib.closing(conn):
             conn.request('GET', '/status/200')
             resp = conn.getresponse()
@@ -184,7 +184,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             {
                 'http.method': 'GET',
                 'http.status_code': '200',
-                'http.url': 'https://httpbin.org/status/200',
+                'http.url': 'https://httpbin-org.herokuapp.com/status/200',
             }
         )
 
@@ -194,7 +194,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             we return the original response
             we capture a span for the request
         """
-        conn = self.get_https_connection(SOCKET)
+        conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
             conn.request('POST', '/status/200', body='key=value')
             resp = conn.getresponse()
@@ -222,7 +222,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         When making a GET request with a query string via httplib.HTTPConnection.request
             we capture a the entire url in the span
         """
-        conn = self.get_https_connection(SOCKET)
+        conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
             conn.request('GET', '/status/200?key=value&key2=value2')
             resp = conn.getresponse()
@@ -254,7 +254,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we capture the correct span tags
         """
         try:
-            conn = self.get_https_connection(SOCKET)
+            conn = self.get_http_connection(SOCKET)
             with contextlib.closing(conn):
                 conn.request('GET', '/status/500')
                 conn.getresponse()
@@ -283,7 +283,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we capture the correct span tags
         """
         try:
-            conn = self.get_https_connection(SOCKET)
+            conn = self.get_http_connection(SOCKET)
             with contextlib.closing(conn):
                 conn.request('GET', '/status/404')
                 conn.getresponse()
@@ -310,7 +310,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we do not capture any spans
         """
         self.tracer.enabled = False
-        conn = self.get_https_connection(SOCKET)
+        conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
             conn.request('GET', '/status/200')
             resp = conn.getresponse()
@@ -327,7 +327,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we do not capture any spans
         """
         self.tracer.enabled = False
-        conn = self.get_https_connection(SOCKET)
+        conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
             conn.request('GET', '/status/200')
             self.tracer.enabled = True
@@ -369,7 +369,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                we capture a span for the request
         """
         with override_global_tracer(self.tracer):
-            resp = urlopen('https://httpbin.org/status/200')
+            resp = urlopen('https://httpbin-org.herokuapp.com/status/200')
 
         self.assertEqual(self.to_str(resp.read()), '')
         self.assertEqual(resp.getcode(), 200)
@@ -383,7 +383,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.status_code'), '200')
-        self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')
+        self.assertEqual(span.get_tag('http.url'), 'https://httpbin-org.herokuapp.com/status/200')
 
     def test_urllib_request_object(self):
         """
@@ -471,7 +471,7 @@ if PY2:
                    we capture a span for the request
             """
             with override_global_tracer(self.tracer):
-                resp = urllib.urlopen('https://httpbin.org/status/200')
+                resp = urllib.urlopen('https://httpbin-org.herokuapp.com/status/200')
 
             self.assertEqual(resp.read(), '')
             self.assertEqual(resp.getcode(), 200)
@@ -485,4 +485,4 @@ if PY2:
             self.assertEqual(span.error, 0)
             self.assertEqual(span.get_tag('http.method'), 'GET')
             self.assertEqual(span.get_tag('http.status_code'), '200')
-            self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')
+            self.assertEqual(span.get_tag('http.url'), 'https://httpbin-org.herokuapp.com/status/200')
