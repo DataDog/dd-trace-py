@@ -689,6 +689,21 @@ jobs:
             - vertica.results
       - *save_cache_step
 
+  kombu:
+    docker:
+    - *test_runner
+    - image: rabbitmq:3.7-alpine
+    steps:
+    - checkout
+    - *restore_cache_step
+    - run: tox -e wait rabbitmq
+    - run: tox -e 'kombu_contrib-{py27,py34,py35,py36}-kombu{40,41,42}' --result-json /tmp/kombu.results
+    - persist_to_workspace:
+        root: /tmp
+        paths:
+        - kombu.results
+    - *save_cache_step
+
   sqlite3:
     docker:
       - *test_runner
@@ -854,6 +869,7 @@ workflows:
       - aiopg
       - redis
       - rediscluster
+      - kombu
       - sqlite3
       - msgpack
       - vertica
@@ -900,6 +916,7 @@ workflows:
             - aiopg
             - redis
             - rediscluster
+            - kombu
             - sqlite3
             - msgpack
             - vertica

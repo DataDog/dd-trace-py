@@ -52,6 +52,8 @@ PATCH_MODULES = {
     'falcon': True,
     'pyramid': True,
     'pylons': True,
+    'kombu': False,
+
     # Ignore some web framework integrations that might be configured explicitly in code
     "flask": False,
 }
