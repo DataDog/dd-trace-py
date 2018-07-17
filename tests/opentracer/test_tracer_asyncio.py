@@ -1,7 +1,7 @@
 import asyncio
 from nose.tools import eq_, ok_
 
-from opentracing.scope_managers import AsyncioScopeManager
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 

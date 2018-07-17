@@ -1,7 +1,7 @@
 import pytest
 import gevent
 
-from opentracing.scope_managers import GeventScopeManager
+from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
