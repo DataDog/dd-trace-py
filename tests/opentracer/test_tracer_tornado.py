@@ -1,7 +1,7 @@
 import pytest
 from nose.tools import eq_
 
-from opentracing.ext.scope_manager.tornado import TornadoScopeManager
+from opentracing.scope_managers import TornadoScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
