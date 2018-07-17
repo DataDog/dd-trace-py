@@ -1,21 +1,20 @@
-
 # 3p
 from pymemcache.client.base import Client
 import wrapt
 
 # project
 from ddtrace import Pin
+from ddtrace.ext import memcached as memcachedx
 
 
 # keep a reference to the original unpatched client
 _Client = Client
 
 
-class TracedClient(wrapt.ObjectProxy):
-
+class WrappedClient(wrapt.ObjectProxy):
     def __init__(self, *args, **kwargs):
         c = _Client(*args, **kwargs)
-        super(TracedClient, self).__init__(c)
+        super(WrappedClient, self).__init__(c)
 
     def set(self, *args, **kwargs):
         return self._cmd("set", *args, **kwargs)
@@ -77,26 +76,25 @@ class TracedClient(wrapt.ObjectProxy):
     def quit(self, *args, **kwargs):
         return self._cmd("quit", *args, **kwargs)
 
-
     def _cmd(self, method_name, *args, **kwargs):
         """ Run and trace the given command. """
         method = getattr(self.__wrapped__, method_name)
-        with self._span(method_name) as span:
+        with self._span(method_name):
             return method(*args, **kwargs)
 
     def _span(self, cmd_name):
-        """ Return a newly created span for the give command. """
+        """ Return a newly created span for the given command. """
         p = self._get_pin()
-        return p.tracer.trace( 'memcached.cmd',
-            service=p.service,
+        return p.tracer.trace(
+            memcachedx.CMD,
+            service=memcachedx.SERVICE,
             resource=cmd_name,
-            span_type='cache')
+            span_type=memcachedx.TYPE,
+        )
 
     def _get_pin(self):
         p = Pin.get_from(self)
         if not p:
-            p = Pin(service='memcached')
+            p = Pin(service=memcachedx.SERVICE, app_type=memcachedx.TYPE)
             p.onto(self)
         return p
-
-
