@@ -1,7 +1,7 @@
 import logging
 import opentracing
 from opentracing import Format
-from opentracing.ext.scope_manager import ThreadLocalScopeManager
+from opentracing.scope_managers import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
