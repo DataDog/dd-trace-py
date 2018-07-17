@@ -1,5 +1,5 @@
 import pytest
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 
 from opentracing.ext.scope_manager.tornado import TornadoScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
@@ -15,6 +15,10 @@ def nop_tracer():
 
 
 class TestTracerTornado():
+    """
+    Since the ScopeManager is provided by OpenTracing we should simply test
+    whether it exists and works for a very simple use-case.
+    """
 
     def test_sanity(self, nop_tracer):
         with nop_tracer.start_active_span('one'):
