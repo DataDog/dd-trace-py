@@ -1,14 +1,24 @@
 # 3p
-from pymemcache.client.base import Client
 import wrapt
+import six
+import sys
+from pymemcache.client.base import Client
+from pymemcache.client.hash import HashClient
+from pymemcache.exceptions import (
+    MemcacheClientError,
+    MemcacheServerError,
+    MemcacheUnknownCommandError,
+    MemcacheUnknownError,
+    MemcacheIllegalInputError,
+)
 
 # project
 from ddtrace import Pin
 from ddtrace.ext import memcached as memcachedx
 
-
-# keep a reference to the original unpatched client
+# keep a reference to the original unpatched clients
 _Client = Client
+_HashClient = HashClient
 
 
 class WrappedClient(wrapt.ObjectProxy):
@@ -77,10 +87,36 @@ class WrappedClient(wrapt.ObjectProxy):
         return self._cmd("quit", *args, **kwargs)
 
     def _cmd(self, method_name, *args, **kwargs):
-        """ Run and trace the given command. """
+        """Run and trace the given command.
+
+        Any pymemcache exception is caught and span error information is
+        set. The exception is then reraised for the application to handle
+        appropriately.
+        """
         method = getattr(self.__wrapped__, method_name)
-        with self._span(method_name):
-            return method(*args, **kwargs)
+        with self._span(method_name) as span:
+            try:
+                return method(*args, **kwargs)
+            except MemcacheClientError:
+                (typ, val, tb) = sys.exc_info()
+                span.set_exc_info(typ, val, tb)
+                six.reraise(typ, val, tb)
+            except MemcacheServerError:
+                (typ, val, tb) = sys.exc_info()
+                span.set_exc_info(typ, val, tb)
+                six.reraise(typ, val, tb)
+            except MemcacheUnknownCommandError:
+                (typ, val, tb) = sys.exc_info()
+                span.set_exc_info(typ, val, tb)
+                six.reraise(typ, val, tb)
+            except MemcacheUnknownError:
+                (typ, val, tb) = sys.exc_info()
+                span.set_exc_info(typ, val, tb)
+                six.reraise(typ, val, tb)
+            except MemcacheIllegalInputError:
+                (typ, val, tb) = sys.exc_info()
+                span.set_exc_info(typ, val, tb)
+                six.reraise(typ, val, tb)
 
     def _span(self, cmd_name):
         """ Return a newly created span for the given command. """
