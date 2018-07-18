@@ -204,3 +204,55 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         assert result == {b"fake_stats": 1}
 
         self.check_spans(1, ["stats"])
+
+
+class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
+    """ Tests for a patched pymemcache.client.hash.HashClient. """
+
+    def get_spans(self):
+        spans = []
+        for _, client in self.client.clients.items():
+            pin = Pin.get_from(client)
+            tracer = pin.tracer
+            spans.extend(tracer.writer.pop())
+        return spans
+
+    def make_client_pool(self, hostname, mock_socket_values, serializer=None, **kwargs):
+        mock_client = pymemcache.client.base.Client(
+            hostname, serializer=serializer, **kwargs
+        )
+        tracer = get_dummy_tracer()
+        Pin.override(mock_client, tracer=tracer)
+
+        mock_client.sock = MockSocket(mock_socket_values)
+        client = pymemcache.client.base.PooledClient(hostname, serializer=serializer)
+        client.client_pool = pymemcache.pool.ObjectPool(lambda: mock_client)
+        return mock_client
+
+    def make_client(self, *mock_socket_values, **kwargs):
+        current_port = 11012
+        self.client = pymemcache.client.hash.HashClient([], **kwargs)
+        ip = "127.0.0.1"
+
+        for vals in mock_socket_values:
+            s = "%s:%s" % (ip, current_port)
+            c = self.make_client_pool((ip, current_port), vals, **kwargs)
+            self.client.clients[s] = c
+            self.client.hasher.add_node(s)
+            current_port += 1
+        return self.client
+
+    def test_delete_many_found(self):
+        """
+        delete_many internally calls client.delete so we should expect to get
+        delete for our span resource.
+
+        for base.Clients self.delete() is called which by-passes our tracing
+        on delete()
+        """
+        client = self.make_client([b"STORED\r", b"\n", b"DELETED\r\n"])
+        result = client.add(b"key", b"value", noreply=False)
+        result = client.delete_many([b"key"], noreply=False)
+        assert result is True
+
+        self.check_spans(2, ["add", "delete"])
