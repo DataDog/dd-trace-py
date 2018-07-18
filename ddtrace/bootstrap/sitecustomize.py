@@ -90,7 +90,9 @@ try:
     # * import that module via `imp`
     bootstrap_dir = os.path.dirname(__file__)
     path = list(sys.path)
-    path.remove(bootstrap_dir)
+
+    if bootstrap_dir in path:
+        path.remove(bootstrap_dir)
 
     try:
         (f, path, description) = imp.find_module('sitecustomize', path)
