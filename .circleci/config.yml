@@ -54,9 +54,10 @@ jobs:
           root: /tmp
           paths:
             - opentracer.results
-            - opentracer-gevent.results
             - opentracer-asyncio.results
             - opentracer-tornado.results
+            - opentracer-gevent.1.results
+            - opentracer-gevent.2.results
       - save_cache:
           key: tox-cache-opentracer-{{ checksum "tox.ini" }}
           paths:
