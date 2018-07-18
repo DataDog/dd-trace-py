@@ -86,6 +86,14 @@ class WrappedClient(wrapt.ObjectProxy):
     def quit(self, *args, **kwargs):
         return self._cmd("quit", *args, **kwargs)
 
+    def set_multi(self, *args, **kwargs):
+        """set_multi is an alias for set_many"""
+        return self._cmd("set_many", *args, **kwargs)
+
+    def get_multi(self, *args, **kwargs):
+        """set_multi is an alias for set_many"""
+        return self._cmd("get_many", *args, **kwargs)
+
     def _cmd(self, method_name, *args, **kwargs):
         """Run and trace the given command.
 

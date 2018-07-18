@@ -1,5 +1,4 @@
 # 3p
-import unittest
 import wrapt
 from nose.tools import assert_raises
 import pymemcache
@@ -13,8 +12,9 @@ from pymemcache.exceptions import (
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch, unpatch
-from .utils import MockSocket, _str, get_spans, assert_spans
+from ddtrace.contrib.pymemcache.patch import unpatch
+from .utils import MockSocket, _str
+from .test_client_mixin import PymemcacheClientTestCaseMixin
 
 from tests.test_tracer import get_dummy_tracer
 
@@ -22,21 +22,8 @@ from tests.test_tracer import get_dummy_tracer
 _Client = pymemcache.client.base.Client
 
 
-class PymemcacheClientTestCase(unittest.TestCase):
+class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
     """ Tests for a patched pymemcache.client.base.Client. """
-
-    def make_client(self, mock_socket_values, **kwargs):
-        client = pymemcache.client.base.Client(None, **kwargs)
-        client.sock = MockSocket(list(mock_socket_values))
-        tracer = get_dummy_tracer()
-        Pin.override(client, tracer=tracer)
-        return client
-
-    def setUp(self):
-        patch()
-
-    def tearDown(self):
-        unpatch()
 
     def test_patch(self):
         assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
@@ -55,77 +42,42 @@ class PymemcacheClientTestCase(unittest.TestCase):
         result = client.get(b"key")
         assert _str(result) == "value"
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 2)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "set")
-        self.assertEqual(spans[1].resource, "get")
+        self.check_spans(2, ["set", "get"])
 
     def test_append_stored(self):
         client = self.make_client([b"STORED\r\n"])
         result = client.append(b"key", b"value", noreply=False)
         assert result is True
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "append")
+        self.check_spans(1, ["append"])
 
     def test_prepend_stored(self):
         client = self.make_client([b"STORED\r\n"])
         result = client.prepend(b"key", b"value", noreply=False)
         assert result is True
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "prepend")
+        self.check_spans(1, ["prepend"])
 
     def test_cas_stored(self):
         client = self.make_client([b"STORED\r\n"])
         result = client.cas(b"key", b"value", b"cas", noreply=False)
         assert result is True
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "cas")
+        self.check_spans(1, ["cas"])
 
     def test_cas_exists(self):
         client = self.make_client([b"EXISTS\r\n"])
         result = client.cas(b"key", b"value", b"cas", noreply=False)
         assert result is False
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "cas")
+        self.check_spans(1, ["cas"])
 
     def test_cas_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])
         result = client.cas(b"key", b"value", b"cas", noreply=False)
         assert result is None
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "cas")
-
-    def test_cr_nl_boundaries(self):
-        client = self.make_client(
-            [
-                b"VALUE key1 0 6\r",
-                b"\nvalue1\r\n" b"VALUE key2 0 6\r\n",
-                b"value2\r\n" b"END\r\n",
-            ]
-        )
-        result = client.get_many([b"key1", b"key2"])
-        assert result == {b"key1": b"value1", b"key2": b"value2"}
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "get_many")
+        self.check_spans(1, ["cas"])
 
     def test_delete_exception(self):
         client = self.make_client([Exception("fail")])
@@ -135,10 +87,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(Exception, _delete)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "delete")
+        spans = self.check_spans(1, ["delete"])
         self.assertEqual(spans[0].error, 1)
 
     def test_flush_all(self):
@@ -146,22 +95,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
         result = client.flush_all(noreply=False)
         assert result is True
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "flush_all")
-
-    def test_incr_found(self):
-        client = self.make_client([b"STORED\r\n", b"1\r\n"])
-        client.set(b"key", 0, noreply=False)
-        result = client.incr(b"key", 1, noreply=False)
-        assert result == 1
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 2)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "set")
-        self.assertEqual(spans[1].resource, "incr")
+        self.check_spans(1, ["flush_all"])
 
     def test_incr_exception(self):
         client = self.make_client([Exception("fail")])
@@ -171,10 +105,8 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(Exception, _incr)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "incr")
+        spans = self.check_spans(1, ["incr"])
+        self.assertEqual(spans[0].error, 1)
 
     def test_get_error(self):
         client = self.make_client([b"ERROR\r\n"])
@@ -184,10 +116,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(MemcacheUnknownCommandError, _get)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "get")
+        spans = self.check_spans(1, ["get"])
         self.assertEqual(spans[0].error, 1)
 
     def test_get_unknown_error(self):
@@ -198,50 +127,21 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(MemcacheUnknownError, _get)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "get")
+        self.check_spans(1, ["get"])
 
     def test_gets_found(self):
         client = self.make_client([b"VALUE key 0 5 10\r\nvalue\r\nEND\r\n"])
         result = client.gets(b"key")
         assert result == (b"value", b"10")
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "gets")
-
-    def test_gets_not_found_defaults(self):
-        client = self.make_client([b"END\r\n"])
-        result = client.gets(b"key", default="foo", cas_default="bar")
-        assert result == ("foo", "bar")
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "gets")
-
-    def test_gets_found(self):
-        client = self.make_client([b"VALUE key 0 5 10\r\nvalue\r\nEND\r\n"])
-        result = client.gets(b"key")
-        assert result == (b"value", b"10")
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "gets")
+        self.check_spans(1, ["gets"])
 
     def test_touch_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])
         result = client.touch(b"key", noreply=False)
         assert result is False
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "touch")
+        self.check_spans(1, ["touch"])
 
     def test_set_client_error(self):
         client = self.make_client([b"CLIENT_ERROR some message\r\n"])
@@ -251,9 +151,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(MemcacheClientError, _set)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
+        spans = self.check_spans(1, ["set"])
         self.assertEqual(spans[0].error, 1)
 
     def test_set_server_error(self):
@@ -264,9 +162,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(MemcacheServerError, _set)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
+        spans = self.check_spans(1, ["set"])
         self.assertEqual(spans[0].error, 1)
 
     def test_set_key_with_space(self):
@@ -277,9 +173,7 @@ class PymemcacheClientTestCase(unittest.TestCase):
 
         assert_raises(MemcacheIllegalInputError, _set)
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
+        spans = self.check_spans(1, ["set"])
         self.assertEqual(spans[0].error, 1)
 
     def test_quit(self):
@@ -287,30 +181,21 @@ class PymemcacheClientTestCase(unittest.TestCase):
         result = client.quit()
         assert result is None
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "quit")
+        self.check_spans(1, ["quit"])
 
     def test_replace_not_stored(self):
         client = self.make_client([b"NOT_STORED\r\n"])
         result = client.replace(b"key", b"value", noreply=False)
         assert result is False
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "replace")
+        self.check_spans(1, ["replace"])
 
     def test_version_success(self):
         client = self.make_client([b"VERSION 1.2.3\r\n"], default_noreply=False)
         result = client.version()
         assert result == b"1.2.3"
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "version")
+        self.check_spans(1, ["version"])
 
     def test_stats(self):
         client = self.make_client([b"STAT fake_stats 1\r\n", b"END\r\n"])
@@ -318,51 +203,4 @@ class PymemcacheClientTestCase(unittest.TestCase):
         assert client.sock.send_bufs == [b"stats \r\n"]
         assert result == {b"fake_stats": 1}
 
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "stats")
-
-    def test_decr_found(self):
-        client = self.make_client([b"STORED\r\n", b"1\r\n"])
-        client.set(b"key", 2, noreply=False)
-        result = client.decr(b"key", 1, noreply=False)
-        assert result == 1
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 2)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "set")
-        self.assertEqual(spans[1].resource, "decr")
-
-    def test_add_stored(self):
-        client = self.make_client([b"STORED\r", b"\n"])
-        result = client.add(b"key", b"value", noreply=False)
-        assert result is True
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "add")
-
-    def test_delete_many_found(self):
-        client = self.make_client([b"STORED\r", b"\n", b"DELETED\r\n"])
-        result = client.add(b"key", b"value", noreply=False)
-        result = client.delete_many([b"key"], noreply=False)
-        assert result is True
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 2)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "add")
-        self.assertEqual(spans[1].resource, "delete_many")
-
-    def test_set_many_success(self):
-        client = self.make_client([b"STORED\r\n"])
-        result = client.set_many({b"key": b"value"}, noreply=False)
-        assert result is True
-
-        spans = get_spans(client)
-        self.assertEqual(len(spans), 1)
-        assert_spans(spans)
-        self.assertEqual(spans[0].resource, "set_many")
+        self.check_spans(1, ["stats"])

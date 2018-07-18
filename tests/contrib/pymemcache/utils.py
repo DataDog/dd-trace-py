@@ -2,7 +2,6 @@ import collections
 import socket
 
 from ddtrace import Pin
-from ddtrace.ext import memcached as memcachedx
 
 
 class MockSocket(object):
@@ -63,13 +62,6 @@ def _str(s):
         return str(s)
 
 
-def get_spans(client):
-    pin = Pin.get_from(client)
-    tracer = pin.tracer
-    spans = tracer.writer.pop()
-    return spans
-
-
 def check_spans(client):
     pin = Pin.get_from(client)
     tracer = pin.tracer
@@ -77,10 +69,3 @@ def check_spans(client):
     for span in spans:
         assert span.service_name is memcachedx.CMD
     return spans
-
-
-def assert_spans(spans):
-    for span in spans:
-        assert span.name == memcachedx.CMD
-        assert span.span_type == memcachedx.TYPE
-        assert span.service == memcachedx.SERVICE
