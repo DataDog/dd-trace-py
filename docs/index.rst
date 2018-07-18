@@ -483,7 +483,7 @@ Typically this method looks something like::
     from opentracing.scope_managers import ThreadLocalScopeManager
     from ddtracer.opentracer import Tracer
 
-    def init_tracer(service):
+    def init_tracer(service_name):
         config = {
           'agent_hostname': 'localhost',
           'agent_port': 8126,
@@ -491,28 +491,28 @@ Typically this method looks something like::
           'enabled': True,
           'global_tags': {},
         }
-        return Tracer(service, config=config, scope_manager=ThreadLocalScopeManager)
+        return Tracer(service_name, config=config, scope_manager=ThreadLocalScopeManager)
 
 
-+---------------------+---------------------------------------------------------+
-| Configuration Key   |  Description                                            |
-+=====================+=========================================================+
-| `enabled`           | enable or disable the tracer                            |
-+---------------------+---------------------------------------------------------+
-| `debug`             | enable debug logging                                    |
-+---------------------+---------------------------------------------------------+
-| `agent_hostname`    | hostname of the Datadog agent to use                    |
-+---------------------+---------------------------------------------------------+
-| `agent_port`        | port the Datadog agent is listening on                  |
-+---------------------+---------------------------------------------------------+
-| `global_tags`       | tags that will be applied to each span                  |
-+---------------------+---------------------------------------------------------+
-| `sampler`           | see `Sampling`_                                         |
-+---------------------+---------------------------------------------------------+
-| `priority_sampling` | see `Priority sampling`_                                |
-+---------------------+---------------------------------------------------------+
-| `settings`          | the same `settings` `dict` passed to the Datadog tracer |
-+---------------------+---------------------------------------------------------+
++---------------------+---------------------------------------------------------+---------------+
+| Configuration Key   |  Description                                            | Default Value |
++=====================+=========================================================+===============+
+| `enabled`           | enable or disable the tracer                            | `True`        |
++---------------------+---------------------------------------------------------+---------------+
+| `debug`             | enable debug logging                                    | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_hostname`    | hostname of the Datadog agent to use                    | `localhost`   |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_port`        | port the Datadog agent is listening on                  | `8126`        |
++---------------------+---------------------------------------------------------+---------------+
+| `global_tags`       | tags that will be applied to each span                  | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
+| `sampler`           | see `Sampling`_                                         | `AllSampler`  |
++---------------------+---------------------------------------------------------+---------------+
+| `priority_sampling` | see `Priority Sampling`_                                | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `settings`          | see `Advanced Usage`_                                   | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
 
 Usage
 ~~~~~
