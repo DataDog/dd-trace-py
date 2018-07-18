@@ -1,19 +1,13 @@
 import asyncio
-import opentracing
-import pytest
 from nose.tools import eq_, ok_
 
-from opentracing.ext.scope_manager.asyncio import AsyncioScopeManager
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 def get_dummy_asyncio_tracer():
     return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager())
-
-
-def nop_tracer():
-    return get_dummy_asyncio_tracer()
 
 
 class TestTracerAsyncio(AsyncioTestCase):
@@ -42,10 +36,10 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_span('coroutine_2'):
+            with self.tracer.start_active_span('coroutine_2'):
                 return 42
 
-        with self.tracer.start_span('coroutine_1'):
+        with self.tracer.start_active_span('coroutine_1'):
             value = yield from coro()
 
         # the coroutine has been called correctly

@@ -1,8 +1,7 @@
 import pytest
 import gevent
-import opentracing
 
-from opentracing.ext.scope_manager.gevent import GeventScopeManager
+from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
@@ -20,7 +19,7 @@ class TestTracerGevent(object):
         with nop_tracer.start_span('span') as span:
             span.set_tag('tag', 'value')
 
-        assert span.finished
+        assert span._finished
 
     def test_greenlets(self, nop_tracer):
         def f():

@@ -1,4 +1,3 @@
-import time
 import threading
 
 from opentracing import Span as OpenTracingSpan
@@ -8,7 +7,6 @@ from ddtrace.ext import errors
 from .tags import Tags
 
 from .span_context import SpanContext
-
 
 
 class Span(OpenTracingSpan):
