@@ -103,6 +103,10 @@ try:
         log.debug('sitecustomize from user found in: %s', path)
         imp.load_module('sitecustomize', f, path, description)
 
-
+    # Loading status used in tests to detect if the `sitecustomize` has been
+    # properly loaded without exceptions. This must be the last action in the module
+    # when the execution ends with a success.
+    loaded = True
 except Exception as e:
+    loaded = False
     log.warn("error configuring Datadog tracing", exc_info=True)
