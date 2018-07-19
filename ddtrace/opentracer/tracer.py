@@ -51,7 +51,10 @@ class Tracer(opentracing.Tracer):
                 raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
 
         if not self._service_name:
-            raise ConfigException('a service_name is required')
+            raise ConfigException(""" Cannot detect the \'service_name\'.
+                                      Please set the \'service_name=\'
+                                      keyword argument.
+                                  """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 

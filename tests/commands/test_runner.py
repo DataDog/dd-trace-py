@@ -177,5 +177,5 @@ class DdtraceRunTest(unittest.TestCase):
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_app_name.py']
         )
-        assert out.startswith(b"Test success")
+        assert out.startswith(b"ddtrace_run_app_name.py")
 
