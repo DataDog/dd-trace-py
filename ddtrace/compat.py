@@ -15,6 +15,14 @@ if PY2:
     import httplib
     stringify = unicode
     from Queue import Queue
+
+    # TODO!!! absolutely terrible hack
+    # see:
+    # https://stackoverflow.com/questions/3828723/why-should-we-not-use-sys-setdefaultencodingutf-8-in-a-py-script/34378962#34378962
+    # http://www.ianbicking.org/illusive-setdefaultencoding.html
+    import sys
+    reload(sys)
+    sys.setdefaultencoding('utf8')
     try:
         from cStringIO import StringIO
     except ImportError:
