@@ -71,6 +71,9 @@ if PY2:
             mock = MockConn()
             get_connection_response(mock)
 
+        def test_error(self):
+            unicode('€')
+            unicode('\xc3\xbf')
 else:
     class TestCompatPY3(object):
         def test_to_unicode_string(self):
