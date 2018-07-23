@@ -6,12 +6,13 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
+from ddtrace.utils import merge_dicts
+from ddtrace.utils.config import get_application_name
 
 from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
-from .util import merge_dicts
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class Tracer(opentracing.Tracer):
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = service_name
+        self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
@@ -49,10 +50,11 @@ class Tracer(opentracing.Tracer):
                 str_invalid_keys = ','.join(invalid_keys)
                 raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
 
-        # TODO: we should set a default reasonable `service_name` (__name__) or
-        # similar.
         if not self._service_name:
-            raise ConfigException('a service_name is required')
+            raise ConfigException(""" Cannot detect the \'service_name\'.
+                                      Please set the \'service_name=\'
+                                      keyword argument.
+                                  """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
