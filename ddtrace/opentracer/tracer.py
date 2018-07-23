@@ -249,8 +249,3 @@ class Tracer(opentracing.Tracer):
             raise opentracing.UnsupportedFormatException
 
         return propagator.extract(carrier)
-
-
-def set_global_tracer(tracer):
-    """Sets the global opentracer to the given tracer."""
-    opentracing.tracer = tracer

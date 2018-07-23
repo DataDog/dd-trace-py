@@ -583,7 +583,7 @@ def test_set_global_tracer():
     import opentracing
     from ddtrace.opentracer import set_global_tracer
 
-    my_tracer = Tracer('test_tracer')
+    my_tracer = Tracer('service')
 
     set_global_tracer(my_tracer)
     assert opentracing.tracer is my_tracer
