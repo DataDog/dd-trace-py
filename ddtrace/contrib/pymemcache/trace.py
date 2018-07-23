@@ -3,7 +3,6 @@ import wrapt
 import six
 import sys
 from pymemcache.client.base import Client
-from pymemcache.client.hash import HashClient
 from pymemcache.exceptions import (
     MemcacheClientError,
     MemcacheServerError,
@@ -18,7 +17,6 @@ from ddtrace.ext import memcached as memcachedx
 
 # keep a reference to the original unpatched clients
 _Client = Client
-_HashClient = HashClient
 
 
 class WrappedClient(wrapt.ObjectProxy):
@@ -33,7 +31,6 @@ class WrappedClient(wrapt.ObjectProxy):
         return self._cmd("set_many", *args, **kwargs)
 
     def add(self, *args, **kwargs):
-        print('add')
         return self._cmd("add", *args, **kwargs)
 
     def replace(self, *args, **kwargs):
@@ -61,11 +58,9 @@ class WrappedClient(wrapt.ObjectProxy):
         return self._cmd("gets_many", *args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        print('delete')
         return self._cmd("delete", *args, **kwargs)
 
     def delete_many(self, *args, **kwargs):
-        print('deletemany')
         return self._cmd("delete_many", *args, **kwargs)
 
     def incr(self, *args, **kwargs):
@@ -132,7 +127,6 @@ class WrappedClient(wrapt.ObjectProxy):
     def _span(self, cmd_name):
         """ Return a newly created span for the given command. """
         p = self._get_pin()
-        print('newspan')
         return p.tracer.trace(
             memcachedx.CMD,
             service=memcachedx.SERVICE,

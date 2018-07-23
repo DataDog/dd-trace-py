@@ -231,7 +231,8 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
 
     def make_client(self, *mock_socket_values, **kwargs):
         current_port = 11012
-        self.client = pymemcache.client.hash.HashClient([], **kwargs)
+        from pymemcache.client.hash import HashClient
+        self.client = HashClient([], **kwargs)
         ip = "127.0.0.1"
 
         for vals in mock_socket_values:
