@@ -449,6 +449,147 @@ following flag or environment variable::
 
     $ PYTHONWARNINGS=all python app.py
 
+.. _opentracing:
+
+OpenTracing
+-----------
+
+Datadog OpenTracing Tracer
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Datadog opentracer provides an OpenTracing-compatible API to the Datadog
+tracer so that you can use the Datadog tracer in your OpenTracing-compatible
+applications.
+
+Installation
+~~~~~~~~~~~~
+
+To include OpenTracing dependencies in your project with `ddtrace`, ensure you
+have the following in `setup.py`::
+
+    install_requires=[
+        "ddtrace[opentracing]",
+    ],
+
+Configuration
+~~~~~~~~~~~~~
+
+The OpenTracing convention for initializing a tracer is to define an
+initiliazation method that will configure and instantiate a new tracer and
+overwrite the global `opentracing.tracer` reference.
+
+Typically this method looks something like::
+
+    from ddtrace.opentracer import Tracer, set_global_tracer
+
+    def init_tracer(service_name):
+        """
+        Initialize a new Datadog opentracer and set it as the
+        global tracer.
+
+        This overwrites the opentracing.tracer reference.
+        """
+        config = {
+          'agent_hostname': 'localhost',
+          'agent_port': 8126,
+        }
+        tracer = Tracer(service_name, config=config)
+        set_global_tracer(tracer)
+        return tracer
+
+**Opentracer API**
+
+.. autoclass:: ddtrace.opentracer.Tracer
+    :members:
+    :special-members: __init__
+
+
+The Datadog opentracer can be configured via the `config` dictionary parameter
+which accepts the following described fields.
+
++---------------------+---------------------------------------------------------+---------------+
+| Configuration Key   |  Description                                            | Default Value |
++=====================+=========================================================+===============+
+| `enabled`           | enable or disable the tracer                            | `True`        |
++---------------------+---------------------------------------------------------+---------------+
+| `debug`             | enable debug logging                                    | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_hostname`    | hostname of the Datadog agent to use                    | `localhost`   |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_port`        | port the Datadog agent is listening on                  | `8126`        |
++---------------------+---------------------------------------------------------+---------------+
+| `global_tags`       | tags that will be applied to each span                  | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
+| `sampler`           | see `Sampling`_                                         | `AllSampler`  |
++---------------------+---------------------------------------------------------+---------------+
+| `priority_sampling` | see `Priority Sampling`_                                | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `settings`          | see `Advanced Usage`_                                   | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
+
+
+Usage
+~~~~~
+
+**Manual tracing**
+
+To explicitly trace::
+
+  import time
+  import opentracing
+  from ddtrace.opentracer import Tracer, set_global_tracer
+
+  def init_tracer(service_name):
+      config = {
+        'agent_hostname': 'localhost',
+        'agent_port': 8126,
+      }
+      tracer = Tracer(service_name, config=config)
+      set_global_tracer(tracer)
+      return tracer
+
+  def my_operation():
+    span = opentracing.tracer.start_span('my_operation_name')
+    span.set_tag('my_interesting_tag', 'my_interesting_value')
+    time.sleep(0.05)
+    span.finish()
+
+  init_tracer('my_service_name')
+  my_operation()
+
+**Context Manager Tracing**
+
+To trace a function using the span context manager::
+
+  import time
+  import opentracing
+  from ddtrace.opentracer import Tracer, set_global_tracer
+
+  def init_tracer(service_name):
+      config = {
+        'agent_hostname': 'localhost',
+        'agent_port': 8126,
+      }
+      tracer = Tracer(service_name, config=config)
+      set_global_tracer(tracer)
+      return tracer
+
+  def my_operation():
+    with opentracing.tracer.start_span('my_operation_name') as span:
+      span.set_tag('my_interesting_tag', 'my_interesting_value')
+      time.sleep(0.05)
+
+  init_tracer('my_service_name')
+  my_operation()
+
+See our tracing trace-examples_ repository for concrete, runnable examples of
+the Datadog opentracer.
+
+.. _trace-examples: https://github.com/DataDog/trace-examples/tree/master/python
+
+See also the `Python OpenTracing`_ repository for usage of the tracer.
+
+.. _Python OpenTracing: https://github.com/opentracing/opentracing-python
 
 Advanced Usage
 --------------
