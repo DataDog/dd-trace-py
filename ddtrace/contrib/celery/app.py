@@ -30,9 +30,6 @@ def patch_app(app, pin=None):
         # Patch method
         setattr(app, method_name, wrapt.FunctionWrapper(method, wrapper))
 
-    # patch the Task class if available
-    setattr(app, 'Task', patch_task(app.Task))
-
     # Attach our pin to the app
     pin.onto(app)
     return app

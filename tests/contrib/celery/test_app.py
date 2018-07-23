@@ -1,44 +1,23 @@
-import unittest
-
 import celery
 import wrapt
 
-from ddtrace.contrib.celery.app import patch_app, unpatch_app
+from ddtrace.contrib.celery import unpatch_app
+
+from .base import CeleryBaseTestCase
 
 
-class CeleryAppTest(unittest.TestCase):
-    def setUp(self):
-        patch_app(celery.Celery)
-
-    def tearDown(self):
-        unpatch_app(celery.Celery)
+class CeleryAppTest(CeleryBaseTestCase):
+    """Ensures the default application is properly instrumented"""
 
     def test_patch_app(self):
-        """
-        When celery.App is patched
-            the task() method will return a patched task
-        """
-        # Assert the base class has the wrapped function
-        self.assertIsInstance(celery.Celery.task, wrapt.BoundFunctionWrapper)
-        self.assertIsInstance(celery.Celery.Task.__init__, wrapt.BoundFunctionWrapper)
-
-        # Create an instance of `celery.Celery`
+        # When celery.App is patched the task() method will return a patched task
         app = celery.Celery()
-
-        # Assert the instance method is the wrapped function
+        self.assertIsInstance(celery.Celery.task, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(app.task, wrapt.BoundFunctionWrapper)
 
     def test_unpatch_app(self):
-        """
-        When unpatch_app is called on a patched app
-            we unpatch the `task()` method
-        """
-        # Assert it is patched before we start
-        self.assertIsInstance(celery.Celery.task, wrapt.BoundFunctionWrapper)
-
-        # Unpatch the app
+        # When unpatch_app is called on a patched app we unpatch the `task()` method
         unpatch_app(celery.Celery)
-
-        # Assert the method is not patched
+        app = celery.Celery()
         self.assertFalse(isinstance(celery.Celery.task, wrapt.BoundFunctionWrapper))
-        self.assertFalse(isinstance(celery.Celery.Task.__init__, wrapt.BoundFunctionWrapper))
+        self.assertFalse(isinstance(app.task, wrapt.BoundFunctionWrapper))

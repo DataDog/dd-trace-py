@@ -1,11 +1,10 @@
 from nose.tools import eq_, ok_
 
-from .utils import CeleryTestCase
+from .base import CeleryBaseTestCase
 
 
-class CeleryIntegrationTask(CeleryTestCase):
-    """
-    Ensures that the tracer works properly with a real Celery application
+class CeleryIntegrationTask(CeleryBaseTestCase):
+    """Ensures that the tracer works properly with a real Celery application
     without breaking the Application or Task APIs.
     """
     def test_concurrent_delays(self):

@@ -12,9 +12,6 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         # are used even in newer versions. This should extend support to
         # previous versions of Celery.
         # Regression test: https://github.com/DataDog/dd-trace-py/pull/449
-        app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
-
         class CelerySuperClass(celery.task.Task):
             abstract = True
 
@@ -35,4 +32,4 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         t = CelerySubClass()
         t.run()
         spans = self.tracer.writer.pop()
-        self.assertEqual(len(spans), 4)
+        self.assertEqual(len(spans), 2)

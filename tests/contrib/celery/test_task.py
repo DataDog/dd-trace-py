@@ -2,6 +2,7 @@ import celery
 import mock
 import wrapt
 
+from ddtrace import Pin
 from ddtrace.contrib.celery.task import unpatch_task
 
 from .base import CeleryBaseTestCase
@@ -74,13 +75,9 @@ class CeleryTaskTest(CeleryBaseTestCase):
             calls the original run() method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: No broker url is needed, we this task is run directly
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the run method
         patched_task.run()
@@ -109,13 +106,9 @@ class CeleryTaskTest(CeleryBaseTestCase):
             calls the original method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: No broker url is needed, we this task is run directly
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the task
         patched_task()
@@ -144,12 +137,9 @@ class CeleryTaskTest(CeleryBaseTestCase):
             calls the original run() method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the apply method
         patched_task.apply()
@@ -206,13 +196,9 @@ class CeleryTaskTest(CeleryBaseTestCase):
             we do not call the original task method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_apply', broker=self.broker_url)
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -245,14 +231,11 @@ class CeleryTaskTest(CeleryBaseTestCase):
                 we do call the original task method
                 creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_apply_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
+        self.app.conf['CELERY_ALWAYS_EAGER'] = True
 
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -325,13 +308,9 @@ class CeleryTaskTest(CeleryBaseTestCase):
             we do not call the original task method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_delay', broker=self.broker_url)
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -364,14 +343,11 @@ class CeleryTaskTest(CeleryBaseTestCase):
                 we do call the original task method
                 creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
+        self.app.conf['CELERY_ALWAYS_EAGER'] = True
 
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -443,6 +419,13 @@ class CeleryTaskTest(CeleryBaseTestCase):
         @celery.shared_task
         def add(x ,y):
             return x + y
+
+        # TODO[manu]: this should not happen. We're not propagating the `Pin`
+        # from the main app and so it's difficult to change globally (or per `Task`)
+        # our tracing configurations. After solving the Pin propagation, remove
+        # this `Pin.override`.
+        # Probably related to: https://github.com/DataDog/dd-trace-py/issues/510
+        Pin.override(add, tracer=self.tracer)
 
         res = add.run(2, 2)
         self.assertEqual(res, 4)
