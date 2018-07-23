@@ -1,19 +1,13 @@
 import asyncio
-import opentracing
-import pytest
 from nose.tools import eq_, ok_
 
-from opentracing.ext.scope_manager.asyncio import AsyncioScopeManager
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 def get_dummy_asyncio_tracer():
     return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager())
-
-
-def nop_tracer():
-    return get_dummy_asyncio_tracer()
 
 
 class TestTracerAsyncio(AsyncioTestCase):
@@ -42,10 +36,10 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_span('coroutine_2'):
+            with self.tracer.start_active_span('coroutine_2'):
                 return 42
 
-        with self.tracer.start_span('coroutine_1'):
+        with self.tracer.start_active_span('coroutine_1'):
             value = yield from coro()
 
         # the coroutine has been called correctly
@@ -98,38 +92,3 @@ class TestTracerAsyncio(AsyncioTestCase):
         eq_(1, len(traces[0]))
         eq_('coroutine', traces[0][0].name)
 
-    @mark_asyncio
-    def test_concurrent_chaining(self):
-        """TODO: this test does not work for opentracing.
-        It is unclear as to what the behaviour should be when crossing thread
-        boundaries.
-        """
-        # ensures that the context is correctly propagated when
-        # concurrent tasks are created from a common tracing block
-        @asyncio.coroutine
-        def f1():
-            with self.tracer.start_span('f1'):
-                yield from asyncio.sleep(0.01)
-
-        @asyncio.coroutine
-        def f2():
-            with self.tracer.start_span('f2'):
-                yield from asyncio.sleep(0.01)
-
-        with self.tracer.start_span('main_task'):
-            yield from asyncio.gather(f1(), f2())
-
-        traces = self.tracer._dd_tracer.writer.pop_traces()
-        eq_(len(traces), 3)
-        eq_(len(traces[0]), 1)
-        eq_(len(traces[1]), 1)
-        eq_(len(traces[2]), 1)
-        child_1 = traces[0][0]
-        child_2 = traces[1][0]
-        main_task = traces[2][0]
-        # check if the context has been correctly propagated
-        # see above TODO
-        # eq_(child_1.trace_id, main_task.trace_id)
-        # eq_(child_1.parent_id, main_task.span_id)
-        # eq_(child_2.trace_id, main_task.trace_id)
-        # eq_(child_2.parent_id, main_task.span_id)

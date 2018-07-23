@@ -42,7 +42,6 @@ class SpanContext(OpenTracingSpanContext):
 
         Useful for instantiating new child span contexts.
         """
-
         baggage = dict(self._baggage)
         baggage[key] = value
         return SpanContext(ddcontext=self._dd_context, baggage=baggage)
