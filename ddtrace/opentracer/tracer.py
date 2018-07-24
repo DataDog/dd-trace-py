@@ -5,7 +5,6 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.context import Context
 from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
