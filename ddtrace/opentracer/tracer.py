@@ -252,7 +252,7 @@ class Tracer(opentracing.Tracer):
 
         otspan = Span(self, ot_parent_context, operation_name)
         # sync up the OT span with the DD span
-        otspan._add_dd_span(ddspan)
+        otspan._associate_dd_span(ddspan)
 
         return otspan
 
