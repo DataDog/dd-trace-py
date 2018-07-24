@@ -5,6 +5,7 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
+from ddtrace.context import Context
 from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
@@ -217,6 +218,11 @@ class Tracer(opentracing.Tracer):
             # we want the ddcontext of the active span in order to maintain the
             # ddspan hierarchy
             dd_parent = getattr(ot_parent_context, '_dd_context', None)
+
+            # if we cannot get the context then try getting it from the DD tracer
+            # this emulates the behaviour of tracer.trace()
+            if dd_parent is None:
+                dd_parent = self._dd_tracer.get_call_context()
         elif ot_parent is not None and isinstance(ot_parent, Span):
             # a span is given to use as a parent
             ot_parent_context = ot_parent.context
@@ -233,16 +239,19 @@ class Tracer(opentracing.Tracer):
 
         # create a new otspan and ddspan using the ddtracer and associate it
         # with the new otspan
-        otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._dd_tracer.start_span(
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
         )
+
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
         if tags is not None:
             ddspan.set_tags(tags)
+
+        otspan = Span(self, ot_parent_context, operation_name)
+        # sync up the OT span with the DD span
         otspan._add_dd_span(ddspan)
 
         return otspan
