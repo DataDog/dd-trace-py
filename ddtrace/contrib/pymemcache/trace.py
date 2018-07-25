@@ -1,6 +1,5 @@
 # 3p
 import wrapt
-import six
 import sys
 from pymemcache.client.base import Client
 from pymemcache.exceptions import (
@@ -13,6 +12,7 @@ from pymemcache.exceptions import (
 
 # project
 from ddtrace import Pin
+from ddtrace.compat import reraise
 from ddtrace.ext import memcached as memcachedx
 
 # keep a reference to the original unpatched clients
@@ -103,26 +103,16 @@ class WrappedClient(wrapt.ObjectProxy):
         with self._span(method_name) as span:
             try:
                 return method(*args, **kwargs)
-            except MemcacheClientError:
+            except (
+                MemcacheClientError,
+                MemcacheServerError,
+                MemcacheUnknownCommandError,
+                MemcacheUnknownError,
+                MemcacheIllegalInputError,
+            ):
                 (typ, val, tb) = sys.exc_info()
                 span.set_exc_info(typ, val, tb)
-                six.reraise(typ, val, tb)
-            except MemcacheServerError:
-                (typ, val, tb) = sys.exc_info()
-                span.set_exc_info(typ, val, tb)
-                six.reraise(typ, val, tb)
-            except MemcacheUnknownCommandError:
-                (typ, val, tb) = sys.exc_info()
-                span.set_exc_info(typ, val, tb)
-                six.reraise(typ, val, tb)
-            except MemcacheUnknownError:
-                (typ, val, tb) = sys.exc_info()
-                span.set_exc_info(typ, val, tb)
-                six.reraise(typ, val, tb)
-            except MemcacheIllegalInputError:
-                (typ, val, tb) = sys.exc_info()
-                span.set_exc_info(typ, val, tb)
-                six.reraise(typ, val, tb)
+                reraise(typ, val, tb)
 
     def _span(self, cmd_name):
         """ Return a newly created span for the given command. """
