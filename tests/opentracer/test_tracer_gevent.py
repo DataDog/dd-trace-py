@@ -6,7 +6,9 @@ from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
 def get_dummy_gevent_tracer():
-    return get_dummy_ot_tracer('gevent', {}, GeventScopeManager())
+    from ddtrace.contrib.gevent import context_provider
+
+    return get_dummy_ot_tracer("gevent", {}, GeventScopeManager(), context_provider)
 
 
 @pytest.fixture()

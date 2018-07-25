@@ -6,7 +6,11 @@ from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
 def get_dummy_tornado_tracer():
-    return get_dummy_ot_tracer('tornado_svc', {}, TornadoScopeManager())
+    from ddtrace.contrib.tornado import context_provider
+
+    return get_dummy_ot_tracer(
+        "tornado_svc", {}, TornadoScopeManager(), context_provider
+    )
 
 
 @pytest.fixture()

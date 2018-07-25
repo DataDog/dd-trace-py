@@ -7,7 +7,9 @@ from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 def get_dummy_asyncio_tracer():
-    return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager())
+    from ddtrace.contrib.asyncio import context_provider
+    return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager(),
+                               context_provider)
 
 
 class TestTracerAsyncio(AsyncioTestCase):

@@ -5,6 +5,7 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
+from ddtrace.provider import DefaultContextProvider
 from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
@@ -72,6 +73,20 @@ class Tracer(opentracing.Tracer):
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
+        # avoid having to import scope managers which may not be compatible
+        # with the version of python being used
+        if type(self._scope_manager).__name__ == 'AsyncioScopeManager':
+            from ddtrace.contrib.asyncio import context_provider
+            dd_context_provider = context_provider
+        elif type(self._scope_manager).__name__ == 'GeventScopeManager':
+            from ddtrace.contrib.gevent import context_provider
+            dd_context_provider = context_provider
+        elif type(self._scope_manager).__name__ == 'TornadoScopeManager':
+            from ddtrace.contrib.tornado import context_provider
+            dd_context_provider = context_provider
+        else:
+            dd_context_provider = DefaultContextProvider()
+
         self._dd_tracer = DatadogTracer()
         self._dd_tracer.configure(enabled=self._enabled,
                                   hostname=self._config.get(keys.AGENT_HOSTNAME),
@@ -79,6 +94,7 @@ class Tracer(opentracing.Tracer):
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
                                   priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  context_provider=dd_context_provider,
                                   )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator(),
@@ -142,6 +158,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
+
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
