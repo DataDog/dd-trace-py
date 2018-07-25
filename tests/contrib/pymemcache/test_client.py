@@ -232,11 +232,12 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
     def make_client(self, *mock_socket_values, **kwargs):
         current_port = 11012
         from pymemcache.client.hash import HashClient
+
         self.client = HashClient([], **kwargs)
         ip = "127.0.0.1"
 
         for vals in mock_socket_values:
-            s = "%s:%s" % (ip, current_port)
+            s = "{}:{}".format(ip, current_port)
             c = self.make_client_pool((ip, current_port), vals, **kwargs)
             self.client.clients[s] = c
             self.client.hasher.add_node(s)
