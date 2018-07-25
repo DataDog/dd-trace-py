@@ -6,12 +6,13 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
+from ddtrace.utils import merge_dicts
+from ddtrace.utils.config import get_application_name
 
 from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
-from .util import merge_dicts
 
 log = logging.getLogger(__name__)
 
@@ -33,12 +34,26 @@ class Tracer(opentracing.Tracer):
     """A wrapper providing an OpenTracing API for the Datadog tracer."""
 
     def __init__(self, service_name=None, config=None, scope_manager=None):
+        """Initialize a new Datadog opentracer.
+
+        :param service_name: (optional) the name of the service that this
+            tracer will be used with. Note if not provided, a service name will
+            try to be determined based off of ``sys.argv``. If this fails a
+            :class:`ddtrace.settings.ConfigException` will be raised.
+        :param config: (optional) a configuration object to specify additional
+            options. See the documentation for further information.
+        :param scope_manager: (optional) the scope manager for this tracer to
+            use. The available managers are listed in the Python OpenTracing repo
+            here: https://github.com/opentracing/opentracing-python#scope-managers.
+            If ``None`` is provided, defaults to
+            :class:`opentracing.scope_managers.ThreadLocalScopeManager`.
+        """
         # Merge the given config with the default into a new dict
         config = config or {}
         self._config = merge_dicts(DEFAULT_CONFIG, config)
 
         # Pull out commonly used properties for performance
-        self._service_name = service_name
+        self._service_name = service_name or get_application_name()
         self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
@@ -49,10 +64,11 @@ class Tracer(opentracing.Tracer):
                 str_invalid_keys = ','.join(invalid_keys)
                 raise ConfigException('invalid key(s) given (%s)'.format(str_invalid_keys))
 
-        # TODO: we should set a default reasonable `service_name` (__name__) or
-        # similar.
         if not self._service_name:
-            raise ConfigException('a service_name is required')
+            raise ConfigException(""" Cannot detect the \'service_name\'.
+                                      Please set the \'service_name=\'
+                                      keyword argument.
+                                  """)
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
@@ -78,20 +94,24 @@ class Tracer(opentracing.Tracer):
                           tags=None, start_time=None, ignore_active_span=False,
                           finish_on_close=True):
         """Returns a newly started and activated `Scope`.
-        The returned `Scope` supports with-statement contexts. For example:
+        The returned `Scope` supports with-statement contexts. For example::
+
             with tracer.start_active_span('...') as scope:
                 scope.span.set_tag('http.method', 'GET')
                 do_some_work()
             # Span.finish() is called as part of Scope deactivation through
             # the with statement.
+
         It's also possible to not finish the `Span` when the `Scope` context
-        expires:
+        expires::
+
             with tracer.start_active_span('...',
                                           finish_on_close=False) as scope:
                 scope.span.set_tag('http.method', 'GET')
                 do_some_work()
             # Span.finish() is not called as part of Scope deactivation as
             # `finish_on_close` is `False`.
+
         :param operation_name: name of the operation represented by the new
             span from the perspective of the current service.
         :param child_of: (optional) a Span or SpanContext instance representing
@@ -109,7 +129,7 @@ class Tracer(opentracing.Tracer):
             the current active `Scope` and creates a root `Span`.
         :param finish_on_close: whether span should automatically be finished
             when `Scope.close()` is called.
-         :return: a `Scope`, already registered via the `ScopeManager`.
+        :return: a `Scope`, already registered via the `ScopeManager`.
         """
         otspan = self.start_span(
             operation_name=operation_name,
@@ -129,13 +149,17 @@ class Tracer(opentracing.Tracer):
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
+
             tracer.start_span('...')
 
         Starting a child Span (see also start_child_span())::
+
             tracer.start_span(
                 '...',
                 child_of=parent_span)
+
         Starting a child Span in a more verbose way::
+
             tracer.start_span(
                 '...',
                 references=[opentracing.child_of(parent_span)])
