@@ -574,3 +574,16 @@ class TestTracerCompatibility(object):
         tracer = Tracer('service')
         with tracer.start_span('my_span') as span:
             assert span._dd_span.service
+
+
+def test_set_global_tracer():
+    """Sanity check for set_global_tracer"""
+    import opentracing
+    import ddtrace
+    from ddtrace.opentracer import set_global_tracer
+
+    my_tracer = Tracer('service')
+    set_global_tracer(my_tracer)
+
+    assert opentracing.tracer is my_tracer
+    assert ddtrace.tracer is my_tracer._dd_tracer
