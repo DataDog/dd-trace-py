@@ -15,11 +15,9 @@ class TestTracerCompatibility(object):
         """Ensure intertwined usage of the opentracer and ddtracer."""
         ot_tracer, dd_tracer = opentracer_init()
 
-
         writer = dd_tracer.writer
 
         with opentracing.tracer.start_span("my_ot_span"):
-            print(opentracing.tracer._dd_tracer.context_provider)
             with dd_tracer.trace("my_dd_span"):
                 pass
         spans = writer.pop()
@@ -29,14 +27,13 @@ class TestTracerCompatibility(object):
         assert spans[0].parent_id is None
         assert spans[1].parent_id == spans[0].span_id
 
-
     def test_dd_ot_nested_trace(self):
         """Ensure intertwined usage of the opentracer and ddtracer."""
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with dd_tracer.trace('my_dd_span'):
-            with opentracing.tracer.start_span('my_ot_span'):
+        with dd_tracer.trace("my_dd_span"):
+            with opentracing.tracer.start_span("my_ot_span"):
                 pass
         spans = writer.pop()
         assert len(spans) == 2
@@ -50,10 +47,10 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_span('my_ot_span'):
-            with dd_tracer.trace('my_dd_span'):
-                with opentracing.tracer.start_span('my_ot_span'):
-                    with dd_tracer.trace('my_dd_span'):
+        with opentracing.tracer.start_span("my_ot_span"):
+            with dd_tracer.trace("my_dd_span"):
+                with opentracing.tracer.start_span("my_ot_span"):
+                    with dd_tracer.trace("my_dd_span"):
                         pass
 
         spans = writer.pop()
@@ -70,11 +67,11 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_active_span('my_ot_span'):
-            with opentracing.tracer.start_active_span('my_ot_span'):
-                with dd_tracer.trace('my_dd_span'):
-                    with opentracing.tracer.start_active_span('my_ot_span'):
-                        with dd_tracer.trace('my_dd_span'):
+        with opentracing.tracer.start_active_span("my_ot_span"):
+            with opentracing.tracer.start_active_span("my_ot_span"):
+                with dd_tracer.trace("my_dd_span"):
+                    with opentracing.tracer.start_active_span("my_ot_span"):
+                        with dd_tracer.trace("my_dd_span"):
                             pass
 
         spans = writer.pop()
