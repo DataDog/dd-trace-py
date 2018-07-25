@@ -247,6 +247,11 @@ Memcached
 
 .. automodule:: ddtrace.contrib.pylibmc
 
+**pymemcache**
+
+.. automodule:: ddtrace.contrib.pymemcache
+
+
 MySQL
 ~~~~~
 
