@@ -11,6 +11,7 @@ from ddtrace.propagation.http import (
     HTTP_HEADER_PARENT_ID,
     HTTP_HEADER_SAMPLING_PRIORITY,
 )
+from ddtrace.propagation.utils import get_wsgi_header
 
 class TestHttpPropagation(TestCase):
     """
@@ -37,6 +38,25 @@ class TestHttpPropagation(TestCase):
             HTTP_HEADER_TRACE_ID: '1234',
             HTTP_HEADER_PARENT_ID: '5678',
             HTTP_HEADER_SAMPLING_PRIORITY: '1',
+        }
+
+        propagator = HTTPPropagator()
+        context = propagator.extract(headers)
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            eq_(span.trace_id, 1234)
+            eq_(span.parent_id, 5678)
+            # TODO: do it for priority too
+
+    def test_WSGI_extract(self):
+        """Ensure we support the WSGI formatted headers as well."""
+        tracer = get_dummy_tracer()
+
+        headers = {
+            get_wsgi_header(HTTP_HEADER_TRACE_ID): '1234',
+            get_wsgi_header(HTTP_HEADER_PARENT_ID): '5678',
+            get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): '1',
         }
 
         propagator = HTTPPropagator()
