@@ -1,7 +1,10 @@
 import pytest
 import gevent
-
 from opentracing.scope_managers.gevent import GeventScopeManager
+
+import ddtrace
+from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
+
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
 
@@ -114,3 +117,18 @@ class TestTracerGeventCompat(TestCase):
         eq_(100, len(traces))
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
+
+
+class TestUtilsGevent(object):
+    """Test the util routines of the opentracer with gevent specific
+    configuration.
+    """
+    def test_get_context_provider_for_scope_manager_asyncio(self):
+        scope_manager = GeventScopeManager()
+        ctx_prov = get_context_provider_for_scope_manager(scope_manager)
+        assert isinstance(ctx_prov, ddtrace.contrib.gevent.provider.GeventContextProvider)
+
+    def test_tracer_context_provider_config(self):
+        tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=GeventScopeManager())
+        assert isinstance(tracer._dd_tracer.context_provider,
+                          ddtrace.contrib.gevent.provider.GeventContextProvider)

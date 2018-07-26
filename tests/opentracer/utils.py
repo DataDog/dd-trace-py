@@ -5,7 +5,6 @@ def opentracer_init(service_name="ot_svc", dummy_tracer=None):
     """A function similar to one OpenTracing users would write to initialize
     their OpenTracing tracer.
     """
-    import opentracing
     from ddtrace.opentracer import Tracer, set_global_tracer
 
     dummy_tracer = dummy_tracer or get_dummy_tracer()

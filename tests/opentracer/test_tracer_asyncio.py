@@ -1,7 +1,10 @@
 import asyncio
 from nose.tools import eq_, ok_
-
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
+
+import ddtrace
+from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
+
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
@@ -94,3 +97,16 @@ class TestTracerAsyncio(AsyncioTestCase):
         eq_(1, len(traces[0]))
         eq_('coroutine', traces[0][0].name)
 
+
+class TestUtilsAsyncio(object):
+    """Test the util routines of the opentracer with asyncio specific
+    configuration.
+    """
+    def test_get_context_provider_for_scope_manager_asyncio(self):
+        scope_manager = AsyncioScopeManager()
+        ctx_prov = get_context_provider_for_scope_manager(scope_manager)
+        assert isinstance(ctx_prov, ddtrace.contrib.asyncio.provider.AsyncioContextProvider)
+
+    def test_tracer_context_provider_config(self):
+        tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=AsyncioScopeManager())
+        assert isinstance(tracer._dd_tracer.context_provider, ddtrace.contrib.asyncio.provider.AsyncioContextProvider)

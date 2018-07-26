@@ -5,7 +5,6 @@ from opentracing.scope_managers import ThreadLocalScopeManager
 
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.provider import DefaultContextProvider
 from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
@@ -14,6 +13,7 @@ from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
+from .utils import get_context_provider_for_scope_manager
 
 log = logging.getLogger(__name__)
 
@@ -73,19 +73,7 @@ class Tracer(opentracing.Tracer):
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
-        # avoid having to import scope managers which may not be compatible
-        # with the version of python being used
-        if type(self._scope_manager).__name__ == 'AsyncioScopeManager':
-            from ddtrace.contrib.asyncio import context_provider
-            dd_context_provider = context_provider
-        elif type(self._scope_manager).__name__ == 'GeventScopeManager':
-            from ddtrace.contrib.gevent import context_provider
-            dd_context_provider = context_provider
-        elif type(self._scope_manager).__name__ == 'TornadoScopeManager':
-            from ddtrace.contrib.tornado import context_provider
-            dd_context_provider = context_provider
-        else:
-            dd_context_provider = DefaultContextProvider()
+        dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = DatadogTracer()
         self._dd_tracer.configure(enabled=self._enabled,
