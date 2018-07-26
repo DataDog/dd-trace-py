@@ -9,7 +9,6 @@ from ddtrace.propagation.http import (
     HTTP_HEADER_SAMPLING_PRIORITY,
 )
 
-from ddtrace.propagation.utils import get_wsgi_header
 
 class TestHttpPropagation(TestCase):
     """
@@ -52,9 +51,9 @@ class TestHttpPropagation(TestCase):
         tracer = get_dummy_tracer()
 
         headers = {
-            get_wsgi_header(HTTP_HEADER_TRACE_ID): '1234',
-            get_wsgi_header(HTTP_HEADER_PARENT_ID): '5678',
-            get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): '1',
+            'HTTP_X_DATADOG_TRACE_ID': '1234',
+            'HTTP_X_DATADOG_PARENT_ID': '5678',
+            'HTTP_X_DATADOG_SAMPLING_PRIORITY': '1',
         }
 
         propagator = HTTPPropagator()
