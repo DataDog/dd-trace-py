@@ -20,11 +20,15 @@ class TestTracerCompatibility(object):
 
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_span("my_ot_span"):
-            with dd_tracer.trace("my_dd_span"):
+        with opentracing.tracer.start_span("my_ot_span") as otspan:
+            with dd_tracer.trace("my_dd_span") as ddspan:
                 pass
         spans = writer.pop()
         assert len(spans) == 2
+
+        # confirm the ordering
+        assert spans[0] is otspan._dd_span
+        assert spans[1] is ddspan
 
         # check the parenting
         assert spans[0].parent_id is None
@@ -35,11 +39,15 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with dd_tracer.trace("my_dd_span"):
-            with opentracing.tracer.start_span("my_ot_span"):
+        with dd_tracer.trace("my_dd_span") as ddspan:
+            with opentracing.tracer.start_span("my_ot_span") as otspan:
                 pass
         spans = writer.pop()
         assert len(spans) == 2
+
+        # confirm the ordering
+        assert spans[0] is ddspan
+        assert spans[1] is otspan._dd_span
 
         # check the parenting
         assert spans[0].parent_id is None
@@ -50,14 +58,20 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_span("my_ot_span"):
-            with dd_tracer.trace("my_dd_span"):
-                with opentracing.tracer.start_span("my_ot_span"):
-                    with dd_tracer.trace("my_dd_span"):
+        with opentracing.tracer.start_span("my_ot_span") as otspan:
+            with dd_tracer.trace("my_dd_span") as ddspan:
+                with opentracing.tracer.start_span("my_ot_span") as otspan2:
+                    with dd_tracer.trace("my_dd_span") as ddspan2:
                         pass
 
         spans = writer.pop()
         assert len(spans) == 4
+
+        # confirm the ordering
+        assert spans[0] is otspan._dd_span
+        assert spans[1] is ddspan
+        assert spans[2] is otspan2._dd_span
+        assert spans[3] is ddspan2
 
         # check the parenting
         assert spans[0].parent_id is None
@@ -70,15 +84,22 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_active_span("my_ot_span"):
-            with opentracing.tracer.start_active_span("my_ot_span"):
-                with dd_tracer.trace("my_dd_span"):
-                    with opentracing.tracer.start_active_span("my_ot_span"):
-                        with dd_tracer.trace("my_dd_span"):
+        with opentracing.tracer.start_active_span("my_ot_span") as otscope:
+            with opentracing.tracer.start_active_span("my_ot_span") as otscope2:
+                with dd_tracer.trace("my_dd_span") as ddspan:
+                    with opentracing.tracer.start_active_span("my_ot_span") as otscope3:
+                        with dd_tracer.trace("my_dd_span") as ddspan2:
                             pass
 
         spans = writer.pop()
         assert len(spans) == 5
+
+        # confirm the ordering
+        assert spans[0] is otscope.span._dd_span
+        assert spans[1] is otscope2.span._dd_span
+        assert spans[2] is ddspan
+        assert spans[3] is otscope3.span._dd_span
+        assert spans[4] is ddspan2
 
         # check the parenting
         assert spans[0].parent_id is None
@@ -92,21 +113,28 @@ class TestTracerCompatibility(object):
         ot_tracer, dd_tracer = opentracer_init()
         writer = dd_tracer.writer
 
-        with opentracing.tracer.start_active_span("my_ot_span"):
+        with opentracing.tracer.start_active_span("my_ot_span") as otscope:
             pass
 
-        with ddtrace.tracer.trace("my_dd_span"):
+        with ddtrace.tracer.trace("my_dd_span") as ddspan:
             pass
 
-        with opentracing.tracer.start_active_span("my_ot_span"):
+        with opentracing.tracer.start_active_span("my_ot_span") as otscope2:
             pass
 
-        with ddtrace.tracer.trace("my_dd_span"):
+        with ddtrace.tracer.trace("my_dd_span") as ddspan2:
             pass
 
         spans = writer.pop()
         assert len(spans) == 4
 
+        # confirm the ordering
+        assert spans[0] is otscope.span._dd_span
+        assert spans[1] is ddspan
+        assert spans[2] is otscope2.span._dd_span
+        assert spans[3] is ddspan2
+
+        # check the parenting
         assert spans[0].parent_id is None
         assert spans[1].parent_id is None
         assert spans[2].parent_id is None
@@ -119,14 +147,21 @@ class TestTracerCompatibility(object):
 
         @ddtrace.tracer.wrap()
         def fn():
-            with opentracing.tracer.start_span("ot_span"):
+            with opentracing.tracer.start_span("ot_span_inner"):
                 pass
 
-        with opentracing.tracer.start_active_span("ot_span"):
+        with opentracing.tracer.start_active_span("ot_span_outer"):
             fn()
 
         spans = writer.pop()
         assert len(spans) == 3
+
+        # confirm the ordering
+        assert spans[0].name == "ot_span_outer"
+        assert spans[1].name == "tests.opentracer.test_dd_compatibility.fn"
+        assert spans[2].name == "ot_span_inner"
+
+        # check the parenting
         assert spans[0].parent_id is None
         assert spans[1].parent_id is spans[0].span_id
         assert spans[2].parent_id is spans[1].span_id
