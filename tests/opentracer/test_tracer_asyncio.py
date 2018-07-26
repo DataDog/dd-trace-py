@@ -102,7 +102,7 @@ class TestTracerAsyncio(AsyncioTestCase):
 
 
 class TestTracerAsyncioCompatibility(AsyncioTestCase):
-    """Ensure the opentracer plays well with the ddtracer and asyncio"""
+    """Ensure the opentracer works in tandem with the ddtracer and asyncio."""
 
     def setUp(self):
         super(TestTracerAsyncioCompatibility, self).setUp()
