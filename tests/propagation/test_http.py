@@ -1,9 +1,6 @@
 from unittest import TestCase
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from tests.test_tracer import get_dummy_tracer
-
-from ddtrace.span import Span
-from ddtrace.context import Context, ThreadLocalContext
 
 from ddtrace.propagation.http import (
     HTTPPropagator,
@@ -11,6 +8,7 @@ from ddtrace.propagation.http import (
     HTTP_HEADER_PARENT_ID,
     HTTP_HEADER_SAMPLING_PRIORITY,
 )
+
 from ddtrace.propagation.utils import get_wsgi_header
 
 class TestHttpPropagation(TestCase):
@@ -22,14 +20,14 @@ class TestHttpPropagation(TestCase):
         tracer = get_dummy_tracer()
 
         with tracer.trace("global_root_span") as span:
+            span.context.sampling_priority = 2
             headers = {}
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
 
             eq_(int(headers[HTTP_HEADER_TRACE_ID]), span.trace_id)
             eq_(int(headers[HTTP_HEADER_PARENT_ID]), span.span_id)
-            # TODO: do it for priority too
-
+            eq_(int(headers[HTTP_HEADER_SAMPLING_PRIORITY]), span.context.sampling_priority)
 
     def test_extract(self):
         tracer = get_dummy_tracer()
@@ -47,7 +45,7 @@ class TestHttpPropagation(TestCase):
         with tracer.trace("local_root_span") as span:
             eq_(span.trace_id, 1234)
             eq_(span.parent_id, 5678)
-            # TODO: do it for priority too
+            eq_(span.context.sampling_priority, 1)
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
@@ -66,4 +64,4 @@ class TestHttpPropagation(TestCase):
         with tracer.trace("local_root_span") as span:
             eq_(span.trace_id, 1234)
             eq_(span.parent_id, 5678)
-            # TODO: do it for priority too
+            eq_(span.context.sampling_priority, 1)
