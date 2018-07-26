@@ -84,6 +84,11 @@ def _task_init(func, task, args, kwargs):
 
 @require_pin
 def _task_run(pin, func, task, args, kwargs):
+    try:
+        global WORKER_SERVICE
+        WORKER_SERVICE = 'celery_{}'.format(task.request.hostname.split('@')[0])
+    except AttributeError:
+        pass
     with pin.tracer.trace(WORKER_ROOT_SPAN, service=WORKER_SERVICE, resource=task.name) as span:
         # Set meta data from task request
         span.set_metas(meta_from_context(task.request))
@@ -95,6 +100,11 @@ def _task_run(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply(pin, func, task, args, kwargs):
+    try:
+        global PRODUCER_SERVICE
+        PRODUCER_SERVICE = 'celery_{}'.format(task.request.hostname.split('@')[0])
+    except AttributeError:
+        pass
     with pin.tracer.trace(PRODUCER_ROOT_SPAN, service=PRODUCER_SERVICE, resource=task.name) as span:
         # Call the original `apply` function
         res = func(*args, **kwargs)
@@ -111,6 +121,11 @@ def _task_apply(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply_async(pin, func, task, args, kwargs):
+    try:
+        global PRODUCER_SERVICE
+        PRODUCER_SERVICE = 'celery_{}'.format(task.request.hostname.split('@')[0])
+    except AttributeError:
+        pass
     with pin.tracer.trace(PRODUCER_ROOT_SPAN, service=PRODUCER_SERVICE, resource=task.name) as span:
         # Extract meta data from `kwargs`
         meta_keys = (
