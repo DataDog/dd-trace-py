@@ -8,25 +8,22 @@ log = logging.getLogger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
-HTTP_HEADER_TRACE_ID = 'x-datadog-trace-id'
-HTTP_HEADER_PARENT_ID = 'x-datadog-parent-id'
-HTTP_HEADER_SAMPLING_PRIORITY = 'x-datadog-sampling-priority'
+HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
+HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
+HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
 
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
 # versions of these headers
-POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset([
-    HTTP_HEADER_TRACE_ID,
-    get_wsgi_header(HTTP_HEADER_TRACE_ID),
-])
-POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset([
-    HTTP_HEADER_PARENT_ID,
-    get_wsgi_header(HTTP_HEADER_PARENT_ID),
-])
-POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset([
-    HTTP_HEADER_SAMPLING_PRIORITY,
-    get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY),
-])
+POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset(
+    [HTTP_HEADER_TRACE_ID, get_wsgi_header(HTTP_HEADER_TRACE_ID)]
+)
+POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset(
+    [HTTP_HEADER_PARENT_ID, get_wsgi_header(HTTP_HEADER_PARENT_ID)]
+)
+POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
+    [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)]
+)
 
 
 class HTTPPropagator(object):

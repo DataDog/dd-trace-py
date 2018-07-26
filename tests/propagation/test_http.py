@@ -15,6 +15,7 @@ class TestHttpPropagation(TestCase):
     Tests related to the ``Context`` class that hosts the trace for the
     current execution flow.
     """
+
     def test_inject(self):
         tracer = get_dummy_tracer()
 
@@ -26,15 +27,18 @@ class TestHttpPropagation(TestCase):
 
             eq_(int(headers[HTTP_HEADER_TRACE_ID]), span.trace_id)
             eq_(int(headers[HTTP_HEADER_PARENT_ID]), span.span_id)
-            eq_(int(headers[HTTP_HEADER_SAMPLING_PRIORITY]), span.context.sampling_priority)
+            eq_(
+                int(headers[HTTP_HEADER_SAMPLING_PRIORITY]),
+                span.context.sampling_priority,
+            )
 
     def test_extract(self):
         tracer = get_dummy_tracer()
 
         headers = {
-            HTTP_HEADER_TRACE_ID: '1234',
-            HTTP_HEADER_PARENT_ID: '5678',
-            HTTP_HEADER_SAMPLING_PRIORITY: '1',
+            HTTP_HEADER_TRACE_ID: "1234",
+            HTTP_HEADER_PARENT_ID: "5678",
+            HTTP_HEADER_SAMPLING_PRIORITY: "1",
         }
 
         propagator = HTTPPropagator()
@@ -51,9 +55,9 @@ class TestHttpPropagation(TestCase):
         tracer = get_dummy_tracer()
 
         headers = {
-            'HTTP_X_DATADOG_TRACE_ID': '1234',
-            'HTTP_X_DATADOG_PARENT_ID': '5678',
-            'HTTP_X_DATADOG_SAMPLING_PRIORITY': '1',
+            "HTTP_X_DATADOG_TRACE_ID": "1234",
+            "HTTP_X_DATADOG_PARENT_ID": "5678",
+            "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
         }
 
         propagator = HTTPPropagator()
