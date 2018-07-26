@@ -5,8 +5,10 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
-from tests.opentracer.test_tracer import get_dummy_ot_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from tests.opentracer.test_tracer import get_dummy_ot_tracer
+from tests.opentracer.utils import opentracer_init
+from tests.test_tracer import get_dummy_tracer
 
 
 def get_dummy_asyncio_tracer():
@@ -96,6 +98,74 @@ class TestTracerAsyncio(AsyncioTestCase):
         eq_(10, len(traces))
         eq_(1, len(traces[0]))
         eq_('coroutine', traces[0][0].name)
+
+
+
+class TestTracerAsyncioCompatibility(AsyncioTestCase):
+    """Ensure the opentracer plays well with the ddtracer and asyncio"""
+
+    def setUp(self):
+        super(TestTracerAsyncioCompatibility, self).setUp()
+        self.ot_tracer, self.dd_tracer = opentracer_init(set_global=False)
+        self.writer = self.dd_tracer.writer
+
+    @mark_asyncio
+    def test_trace_multiple_coroutines_ot_dd(self):
+        """
+        Ensure we can trace from opentracer to ddtracer across asyncio
+        context switches.
+        """
+        # if multiple coroutines have nested tracing, they must belong
+        # to the same trace
+        @asyncio.coroutine
+        def coro():
+            # another traced coroutine
+            with self.dd_tracer.trace('coroutine_2'):
+                return 42
+
+        with self.ot_tracer.start_active_span('coroutine_1'):
+            value = yield from coro()
+
+        # the coroutine has been called correctly
+        eq_(42, value)
+        # a single trace has been properly reported
+        traces = self.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        eq_('coroutine_1', traces[0][0].name)
+        eq_('coroutine_2', traces[0][1].name)
+        # the parenting is correct
+        eq_(traces[0][0], traces[0][1]._parent)
+        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+
+    @mark_asyncio
+    def test_trace_multiple_coroutines_dd_ot(self):
+        """
+        Ensure we can trace from ddtracer to opentracer across asyncio
+        context switches.
+        """
+        # if multiple coroutines have nested tracing, they must belong
+        # to the same trace
+        @asyncio.coroutine
+        def coro():
+            # another traced coroutine
+            with self.ot_tracer.start_span('coroutine_2'):
+                return 42
+
+        with self.dd_tracer.trace('coroutine_1'):
+            value = yield from coro()
+
+        # the coroutine has been called correctly
+        eq_(42, value)
+        # a single trace has been properly reported
+        traces = self.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        eq_('coroutine_1', traces[0][0].name)
+        eq_('coroutine_2', traces[0][1].name)
+        # the parenting is correct
+        eq_(traces[0][0], traces[0][1]._parent)
+        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
 
 
 class TestUtilsAsyncio(object):
