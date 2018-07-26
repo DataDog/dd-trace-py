@@ -7,7 +7,6 @@ from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from tests.opentracer.test_tracer import get_dummy_ot_tracer
-from tests.opentracer.utils import opentracer_init
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -106,7 +105,8 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
 
     def setUp(self):
         super(TestTracerAsyncioCompatibility, self).setUp()
-        self.ot_tracer, self.dd_tracer = opentracer_init(set_global=False)
+        self.ot_tracer = get_dummy_asyncio_tracer()
+        self.dd_tracer = self.ot_tracer._dd_tracer
         self.writer = self.dd_tracer.writer
 
     @mark_asyncio

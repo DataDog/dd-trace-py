@@ -1,22 +1,7 @@
 import pytest
 
 from ddtrace.opentracer import Tracer
-
-
-def get_dummy_ot_tracer(service_name='', config=None, scope_manager=None, context_provider=None):
-    from ..test_tracer import get_dummy_tracer
-    config = config or {}
-    tracer = Tracer(service_name=service_name, config=config, scope_manager=scope_manager)
-
-    # similar to how we test the ddtracer, use a dummy tracer
-    dd_tracer = get_dummy_tracer()
-    if context_provider:
-        dd_tracer.configure(context_provider=context_provider)
-
-    # attach the dummy tracer to the opentracer
-    tracer._dd_tracer = dd_tracer
-    return tracer
-
+from .utils import get_dummy_ot_tracer
 
 @pytest.fixture
 def nop_tracer():
