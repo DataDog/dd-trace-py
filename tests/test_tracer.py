@@ -4,7 +4,9 @@ tests for Tracer and utilities.
 
 import time
 from os import getpid
+import sys
 
+import mock
 from nose.tools import assert_raises, eq_, ok_
 from unittest.case import SkipTest
 
@@ -517,3 +519,16 @@ def get_dummy_tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
     return tracer
+
+
+def test_default_hostname_from_env():
+    # it should use default hostname from DATADOG_TRACE_AGENT_HOSTNAME if available
+    try:
+        with mock.patch.dict('os.environ', {'DATADOG_TRACE_AGENT_HOSTNAME': 'customhost'}):
+            del sys.modules['ddtrace.tracer']  # force reload of module
+            from ddtrace.tracer import Tracer
+            eq_('customhost', Tracer.DEFAULT_HOSTNAME)
+    finally:
+        del sys.modules['ddtrace.tracer']  # clean up our test module
+        from ddtrace.tracer import Tracer
+        eq_('localhost', Tracer.DEFAULT_HOSTNAME)
