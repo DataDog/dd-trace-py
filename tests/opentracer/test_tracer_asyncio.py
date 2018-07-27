@@ -1,39 +1,43 @@
 import asyncio
-from nose.tools import eq_, ok_
+import pytest
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 
 import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
-from tests.opentracer.test_tracer import get_dummy_ot_tracer
-from tests.test_tracer import get_dummy_tracer
+from .utils import ot_tracer_factory, dd_tracer, writer
 
 
-def get_dummy_asyncio_tracer():
-    from ddtrace.contrib.asyncio import context_provider
-    return get_dummy_ot_tracer('asyncio_svc', {}, AsyncioScopeManager(),
-                               context_provider)
+@pytest.fixture()
+def ot_tracer(ot_tracer_factory):
+    return ot_tracer_factory(
+        "asyncio_svc",
+        config={},
+        scope_manager=AsyncioScopeManager(),
+        context_provider=ddtrace.contrib.asyncio.context_provider,
+    )
 
 
 class TestTracerAsyncio(AsyncioTestCase):
-
     def setUp(self):
         super(TestTracerAsyncio, self).setUp()
+
         # use the dummy asyncio ot tracer
-        self.tracer = get_dummy_asyncio_tracer()
+        self.tracer = ot_tracer(ot_tracer_factory())
+        self.writer = writer(self.tracer)
 
     @mark_asyncio
     def test_trace_coroutine(self):
         # it should use the task context when invoked in a coroutine
-        with self.tracer.start_span('coroutine'):
+        with self.tracer.start_span("coroutine"):
             pass
 
-        traces = self.tracer._dd_tracer.writer.pop_traces()
+        traces = self.writer.pop_traces()
 
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
-        eq_('coroutine', traces[0][0].name)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "coroutine"
 
     @mark_asyncio
     def test_trace_multiple_coroutines(self):
@@ -42,42 +46,42 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_active_span('coroutine_2'):
+            with self.tracer.start_active_span("coroutine_2"):
                 return 42
 
-        with self.tracer.start_active_span('coroutine_1'):
+        with self.tracer.start_active_span("coroutine_1"):
             value = yield from coro()
 
         # the coroutine has been called correctly
-        eq_(42, value)
+        assert value == 42
         # a single trace has been properly reported
-        traces = self.tracer._dd_tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('coroutine_1', traces[0][0].name)
-        eq_('coroutine_2', traces[0][1].name)
+        traces = self.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
+        assert traces[0][0].name == "coroutine_1"
+        assert traces[0][1].name == "coroutine_2"
         # the parenting is correct
-        eq_(traces[0][0], traces[0][1]._parent)
-        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+        assert traces[0][0] == traces[0][1]._parent
+        assert traces[0][0].trace_id == traces[0][1].trace_id
 
     @mark_asyncio
     def test_exception(self):
         @asyncio.coroutine
         def f1():
-            with self.tracer.start_span('f1'):
-                raise Exception('f1 error')
+            with self.tracer.start_span("f1"):
+                raise Exception("f1 error")
 
-        with self.assertRaises(Exception):
+        with pytest.raises(Exception):
             yield from f1()
 
-        traces = self.tracer._dd_tracer.writer.pop_traces()
-        eq_(1, len(traces))
+        traces = self.writer.pop_traces()
+        assert len(traces) == 1
         spans = traces[0]
-        eq_(1, len(spans))
+        assert len(spans) == 1
         span = spans[0]
-        eq_(1, span.error)
-        eq_('f1 error', span.get_tag('error.msg'))
-        ok_('Exception: f1 error' in span.get_tag('error.stack'))
+        assert span.error == 1
+        assert span.get_tag("error.msg") == "f1 error"
+        assert "Exception: f1 error" in span.get_tag("error.stack")
 
     @mark_asyncio
     def test_trace_multiple_calls(self):
@@ -86,18 +90,18 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_span('coroutine'):
+            with self.tracer.start_span("coroutine"):
                 yield from asyncio.sleep(0.01)
 
         futures = [asyncio.ensure_future(coro()) for x in range(10)]
         for future in futures:
             yield from future
 
-        traces = self.tracer._dd_tracer.writer.pop_traces()
-        eq_(10, len(traces))
-        eq_(1, len(traces[0]))
-        eq_('coroutine', traces[0][0].name)
+        traces = self.writer.pop_traces()
 
+        assert len(traces) == 10
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "coroutine"
 
 
 class TestTracerAsyncioCompatibility(AsyncioTestCase):
@@ -105,9 +109,9 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
 
     def setUp(self):
         super(TestTracerAsyncioCompatibility, self).setUp()
-        self.ot_tracer = get_dummy_asyncio_tracer()
-        self.dd_tracer = self.ot_tracer._dd_tracer
-        self.writer = self.dd_tracer.writer
+        self.ot_tracer = ot_tracer(ot_tracer_factory())
+        self.dd_tracer = dd_tracer(self.ot_tracer)
+        self.writer = writer(self.ot_tracer)
 
     @mark_asyncio
     def test_trace_multiple_coroutines_ot_dd(self):
@@ -120,23 +124,23 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.dd_tracer.trace('coroutine_2'):
+            with self.dd_tracer.trace("coroutine_2"):
                 return 42
 
-        with self.ot_tracer.start_active_span('coroutine_1'):
+        with self.ot_tracer.start_active_span("coroutine_1"):
             value = yield from coro()
 
         # the coroutine has been called correctly
-        eq_(42, value)
+        assert value == 42
         # a single trace has been properly reported
-        traces = self.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('coroutine_1', traces[0][0].name)
-        eq_('coroutine_2', traces[0][1].name)
+        traces = self.ot_tracer._dd_tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
+        assert traces[0][0].name == "coroutine_1"
+        assert traces[0][1].name == "coroutine_2"
         # the parenting is correct
-        eq_(traces[0][0], traces[0][1]._parent)
-        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+        assert traces[0][0] == traces[0][1]._parent
+        assert traces[0][0].trace_id == traces[0][1].trace_id
 
     @mark_asyncio
     def test_trace_multiple_coroutines_dd_ot(self):
@@ -149,34 +153,40 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.ot_tracer.start_span('coroutine_2'):
+            with self.ot_tracer.start_span("coroutine_2"):
                 return 42
 
-        with self.dd_tracer.trace('coroutine_1'):
+        with self.dd_tracer.trace("coroutine_1"):
             value = yield from coro()
 
         # the coroutine has been called correctly
-        eq_(42, value)
+        assert value == 42
         # a single trace has been properly reported
-        traces = self.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('coroutine_1', traces[0][0].name)
-        eq_('coroutine_2', traces[0][1].name)
+        traces = self.ot_tracer._dd_tracer.writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
+        assert traces[0][0].name == "coroutine_1"
+        assert traces[0][1].name == "coroutine_2"
         # the parenting is correct
-        eq_(traces[0][0], traces[0][1]._parent)
-        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+        assert traces[0][0] == traces[0][1]._parent
+        assert traces[0][0].trace_id == traces[0][1].trace_id
 
 
 class TestUtilsAsyncio(object):
     """Test the util routines of the opentracer with asyncio specific
     configuration.
     """
+
     def test_get_context_provider_for_scope_manager_asyncio(self):
         scope_manager = AsyncioScopeManager()
         ctx_prov = get_context_provider_for_scope_manager(scope_manager)
-        assert isinstance(ctx_prov, ddtrace.contrib.asyncio.provider.AsyncioContextProvider)
+        assert isinstance(
+            ctx_prov, ddtrace.contrib.asyncio.provider.AsyncioContextProvider
+        )
 
     def test_tracer_context_provider_config(self):
         tracer = ddtrace.opentracer.Tracer("mysvc", scope_manager=AsyncioScopeManager())
-        assert isinstance(tracer._dd_tracer.context_provider, ddtrace.contrib.asyncio.provider.AsyncioContextProvider)
+        assert isinstance(
+            tracer._dd_tracer.context_provider,
+            ddtrace.contrib.asyncio.provider.AsyncioContextProvider,
+        )
