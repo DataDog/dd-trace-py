@@ -9,6 +9,7 @@ from ddtrace.ext import AppTypes
 from ...ext import errors
 from .util import APP, PRODUCER_SERVICE, WORKER_SERVICE, meta_from_context, require_pin
 
+
 PRODUCER_ROOT_SPAN = 'celery.apply'
 WORKER_ROOT_SPAN = 'celery.run'
 # Task operations

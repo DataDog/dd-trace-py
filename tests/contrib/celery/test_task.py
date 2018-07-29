@@ -1,41 +1,21 @@
-import unittest
-
 import celery
 import mock
 import wrapt
 
 from ddtrace import Pin
-from ddtrace.compat import PY2
-from ddtrace.contrib.celery.app import patch_app, unpatch_app
-from ddtrace.contrib.celery.task import patch_task, unpatch_task
-from .utils import patch_task_with_pin
+from ddtrace.contrib.celery.task import unpatch_task
 
-from ..config import REDIS_CONFIG
-from ...test_tracer import get_dummy_tracer
+from .base import CeleryBaseTestCase
 from ...util import assert_list_issuperset
+
 
 EXPECTED_KEYS = ['service', 'resource', 'meta', 'name',
                  'parent_id', 'trace_id', 'span_id',
                  'duration', 'error', 'start',
 ]
 
-class CeleryTaskTest(unittest.TestCase):
-    def assert_items_equal(self, a, b):
-        if PY2:
-            return self.assertItemsEqual(a, b)
-        return self.assertCountEqual(a, b)
 
-    def setUp(self):
-        self.broker_url = 'redis://127.0.0.1:{port}/0'.format(port=REDIS_CONFIG['port'])
-        self.tracer = get_dummy_tracer()
-        self.pin = Pin(service='celery-ignored', tracer=self.tracer)
-        patch_app(celery.Celery, pin=self.pin)
-        patch_task(celery.Task, pin=self.pin)
-
-    def tearDown(self):
-        unpatch_app(celery.Celery)
-        unpatch_task(celery.Task)
-
+class CeleryTaskTest(CeleryBaseTestCase):
     def test_patch_task(self):
         """
         When celery.Task is patched
@@ -95,13 +75,9 @@ class CeleryTaskTest(unittest.TestCase):
             calls the original run() method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: No broker url is needed, we this task is run directly
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the run method
         patched_task.run()
@@ -130,13 +106,9 @@ class CeleryTaskTest(unittest.TestCase):
             calls the original method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: No broker url is needed, we this task is run directly
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the task
         patched_task()
@@ -165,12 +137,9 @@ class CeleryTaskTest(unittest.TestCase):
             calls the original run() method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        app = celery.Celery()
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
 
         # Call the apply method
         patched_task.apply()
@@ -227,13 +196,9 @@ class CeleryTaskTest(unittest.TestCase):
             we do not call the original task method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_apply', broker=self.broker_url)
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -266,14 +231,11 @@ class CeleryTaskTest(unittest.TestCase):
                 we do call the original task method
                 creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_apply_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
+        self.app.conf['CELERY_ALWAYS_EAGER'] = True
 
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -346,13 +308,9 @@ class CeleryTaskTest(unittest.TestCase):
             we do not call the original task method
             creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_delay', broker=self.broker_url)
-
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -385,14 +343,11 @@ class CeleryTaskTest(unittest.TestCase):
                 we do call the original task method
                 creates a span for the call
         """
-        # Create an instance of our patched app
-        # DEV: We need a broker now since we are publishing a task
-        app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
+        self.app.conf['CELERY_ALWAYS_EAGER'] = True
 
         # Create our test task
         task_spy = mock.Mock(__name__='patched_task')
-        patched_task = app.task(task_spy)
+        patched_task = self.app.task(task_spy)
         patched_task.__header__ = mock.Mock()
 
         # Call the apply method
@@ -459,40 +414,18 @@ class CeleryTaskTest(unittest.TestCase):
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
 
-    def test_apply_async_previous_style_tasks(self):
-        # ensures apply_async is properly patched if Celery 1.0 style tasks
-        # are used even in newer versions. This should extend support to
-        # previous versions of Celery.
-        # Regression test: https://github.com/DataDog/dd-trace-py/pull/449
-        app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
-        app.conf['CELERY_ALWAYS_EAGER'] = True
-
-        class CelerySuperClass(celery.task.Task):
-            abstract = True
-
-            @classmethod
-            def apply_async(cls, args=None, kwargs=None, **kwargs_):
-                return super(CelerySuperClass, cls).apply_async(args=args, kwargs=kwargs, **kwargs_)
-
-            def run(self, *args, **kwargs):
-                if 'stop' in kwargs:
-                    # avoid call loop
-                    return
-                CelerySubClass.apply_async(args=[], kwargs={"stop": True})
-
-        @patch_task_with_pin(pin=self.pin)
-        class CelerySubClass(CelerySuperClass):
-            pass
-
-        t = CelerySubClass()
-        t.run()
-        spans = self.tracer.writer.pop()
-        self.assertEqual(len(spans), 4)
-
     def test_celery_shared_task(self):
+        # Ensure Django Shared Task are supported
         @celery.shared_task
         def add(x ,y):
             return x + y
+
+        # TODO[manu]: this should not happen. We're not propagating the `Pin`
+        # from the main app and so it's difficult to change globally (or per `Task`)
+        # our tracing configurations. After solving the Pin propagation, remove
+        # this `Pin.override`.
+        # Probably related to: https://github.com/DataDog/dd-trace-py/issues/510
+        Pin.override(add, tracer=self.tracer)
 
         res = add.run(2, 2)
         self.assertEqual(res, 4)
