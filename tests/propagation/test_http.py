@@ -36,9 +36,9 @@ class TestHttpPropagation(TestCase):
         tracer = get_dummy_tracer()
 
         headers = {
-            HTTP_HEADER_TRACE_ID: "1234",
-            HTTP_HEADER_PARENT_ID: "5678",
-            HTTP_HEADER_SAMPLING_PRIORITY: "1",
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "1",
         }
 
         propagator = HTTPPropagator()
