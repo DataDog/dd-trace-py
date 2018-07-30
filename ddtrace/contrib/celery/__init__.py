@@ -43,7 +43,7 @@ applications or tasks using a fine grain patching method::
     BaseClassTask = patch_task(BaseClassTask)
     fn_task = patch_task(fn_task)
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['celery']

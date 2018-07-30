@@ -24,7 +24,7 @@ provided by _mysql_connector, is not supported yet.
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 # check `mysql-connector` availability
 required_modules = ['mysql.connector']

@@ -1,9 +1,10 @@
 import ddtrace
 
+import wrapt
 from unittest import TestCase
 from celery import Celery
 
-from ddtrace.contrib.celery import patch_app
+from ddtrace.contrib.celery import patch_app, patch_task
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
@@ -27,3 +28,11 @@ class CeleryTestCase(TestCase):
         ddtrace.tracer = self.tracer
         # create and patch a new application
         self.app = patch_app(Celery('celery.test_app', broker=BROKER_URL, backend=BACKEND_URL))
+
+def patch_task_with_pin(pin=None):
+    """ patch_task_with_pin can be used as a decorator for v1 Celery tasks when specifying a pin is needed"""
+    @wrapt.decorator
+    def wrapper(wrapped, instance, args, kwargs):
+        patch_task(wrapped, pin)
+        return wrapped(*args, **kwargs)
+    return wrapper

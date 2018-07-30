@@ -18,7 +18,8 @@ set the following keyword argument::
     traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app', distributed_tracing=True)
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['pylons.wsgiapp']
 

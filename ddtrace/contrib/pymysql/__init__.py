@@ -18,7 +18,8 @@
     Pin.override(conn, service='pymysql-users')
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['pymysql']
 

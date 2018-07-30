@@ -8,6 +8,7 @@ from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery.app import patch_app, unpatch_app
 from ddtrace.contrib.celery.task import patch_task, unpatch_task
+from .utils import patch_task_with_pin
 
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
@@ -457,3 +458,49 @@ class CeleryTaskTest(unittest.TestCase):
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
+
+    def test_apply_async_previous_style_tasks(self):
+        # ensures apply_async is properly patched if Celery 1.0 style tasks
+        # are used even in newer versions. This should extend support to
+        # previous versions of Celery.
+        # Regression test: https://github.com/DataDog/dd-trace-py/pull/449
+        app = celery.Celery('test_task_delay_eager', broker=self.broker_url)
+        app.conf['CELERY_ALWAYS_EAGER'] = True
+
+        class CelerySuperClass(celery.task.Task):
+            abstract = True
+
+            @classmethod
+            def apply_async(cls, args=None, kwargs=None, **kwargs_):
+                return super(CelerySuperClass, cls).apply_async(args=args, kwargs=kwargs, **kwargs_)
+
+            def run(self, *args, **kwargs):
+                if 'stop' in kwargs:
+                    # avoid call loop
+                    return
+                CelerySubClass.apply_async(args=[], kwargs={"stop": True})
+
+        @patch_task_with_pin(pin=self.pin)
+        class CelerySubClass(CelerySuperClass):
+            pass
+
+        t = CelerySubClass()
+        t.run()
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 4)
+
+    def test_celery_shared_task(self):
+        @celery.shared_task
+        def add(x ,y):
+            return x + y
+
+        res = add.run(2, 2)
+        self.assertEqual(res, 4)
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.service, 'celery-worker')
+        self.assertEqual(span.resource, 'tests.contrib.celery.test_task.add')
+        self.assertEqual(span.name, 'celery.run')
+        self.assertIsNone(span.parent_id)
+        self.assertEqual(span.error, 0)

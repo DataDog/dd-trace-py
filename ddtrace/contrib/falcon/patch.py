@@ -5,7 +5,7 @@ import falcon
 from ddtrace import tracer
 
 from .middleware import TraceMiddleware
-from ...util import asbool
+from ...utils.formats import asbool
 
 
 def patch():

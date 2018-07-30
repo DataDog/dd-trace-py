@@ -32,7 +32,8 @@ Set `distributed_tracing=True` if this is called remotely from an instrumented a
 We suggest to enable it only for internal services where headers are under your control.
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['flask']
 

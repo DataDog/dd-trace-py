@@ -55,6 +55,11 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': True,
+            'settings': {
+                'FILTERS':  [
+                    FilterRequestsOnUrl(r'http://test\.example\.com'),
+                ],
+            },
         },
     }
 
@@ -70,12 +75,13 @@ The available settings are:
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
 * ``distributed_tracing`` (default: `False`): enable distributed tracing if this is called
-remotely from an instrumented application.
-We suggest to enable it only for internal services where headers are under your control.
+  remotely from an instrumented application.
+  We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
+* ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['tornado']

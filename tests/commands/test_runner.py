@@ -5,6 +5,10 @@ import sys
 import subprocess
 import unittest
 
+from nose.tools import ok_
+
+from ..util import inject_sitecustomize
+
 
 class DdtraceRunTest(unittest.TestCase):
     def tearDown(self):
@@ -147,3 +151,43 @@ class DdtraceRunTest(unittest.TestCase):
         update_patched_modules()
         assert EXTRA_PATCHED_MODULES["boto"] == True
         assert EXTRA_PATCHED_MODULES["django"] == False
+
+    def test_sitecustomize_without_ddtrace_run_command(self):
+        # [Regression test]: ensure `sitecustomize` path is removed only if it's
+        # present otherwise it will cause:
+        #   ValueError: list.remove(x): x not in list
+        # as mentioned here: https://github.com/DataDog/dd-trace-py/pull/516
+        env = inject_sitecustomize('')
+        out = subprocess.check_output(
+            ['python', 'tests/commands/ddtrace_minimal.py'],
+            env=env,
+        )
+        # `out` contains the `loaded` status of the module
+        result = out[:-1] == b'True'
+        ok_(result)
+
+    def test_sitecustomize_run(self):
+        # [Regression test]: ensure users `sitecustomize.py` is properly loaded,
+        # so that our `bootstrap/sitecustomize.py` doesn't override the one
+        # defined in users' PYTHONPATH.
+        env = inject_sitecustomize('tests/commands/bootstrap')
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")
+
+    def test_sitecustomize_run_suppressed(self):
+        # ensure `sitecustomize.py` is not loaded if `-S` is used
+        env = inject_sitecustomize('tests/commands/bootstrap')
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py', '-S'],
+            env=env,
+        )
+        assert out.startswith(b"Test success")
+
+    def test_argv_passed(self):
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_argv.py', 'foo', 'bar']
+        )
+        assert out.startswith(b"Test success")
