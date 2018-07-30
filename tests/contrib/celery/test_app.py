@@ -1,5 +1,4 @@
 import celery
-import wrapt
 
 from nose.tools import ok_
 

@@ -3,7 +3,6 @@ import celery
 from nose.tools import eq_, ok_
 
 from .base import CeleryBaseTestCase
-from .utils import patch_task_with_pin
 
 
 class CeleryOldStyleTaskTest(CeleryBaseTestCase):
