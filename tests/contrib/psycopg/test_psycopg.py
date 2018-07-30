@@ -3,8 +3,12 @@ import time
 
 # 3p
 import psycopg2
+from psycopg2 import _psycopg
+from psycopg2 import extensions
 from psycopg2 import extras
-from nose.tools import eq_
+
+from unittest import skipIf
+from nose.tools import eq_, ok_
 
 # project
 from ddtrace.contrib.psycopg import connection_factory
@@ -16,6 +20,7 @@ from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 
 
+PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
@@ -54,7 +59,7 @@ class PsycopgCore(object):
         eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta["sql.query"], q)
+        ok_(span.get_tag("sql.query") is None)
         eq_(span.error, 0)
         eq_(span.span_type, "sql")
         assert start <= span.start <= end
@@ -76,16 +81,16 @@ class PsycopgCore(object):
         eq_(span.name, "postgres.query")
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta["sql.query"], q)
+        ok_(span.get_tag("sql.query") is None)
         eq_(span.error, 1)
         eq_(span.meta["out.host"], "localhost")
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
+    @skipIf(PSYCOPG_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
-
         conn, tracer = self._get_conn_and_tracer()
         t = type(conn.cursor())
         with conn.cursor() as cur:
@@ -108,12 +113,35 @@ class PsycopgCore(object):
         conn.cursor().execute("select 'blah'")
         assert not tracer.writer.pop()
 
+    @skipIf(PSYCOPG_VERSION < (2, 5), '_json is not available in psycopg2==2.4')
     def test_manual_wrap_extension_types(self):
         conn, _ = self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
         #   _ext.register_type(_ext.UUID, conn_or_curs)
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
+
+        # NOTE: this will crash if it doesn't work.
+        #   _ext.register_default_json(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        extras.register_default_json(conn)
+
+
+    def test_manual_wrap_extension_adapt(self):
+        conn, _ = self._get_conn_and_tracer()
+        # NOTE: this will crash if it doesn't work.
+        #   items = _ext.adapt([1, 2, 3])
+        #   items.prepare(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        items = extensions.adapt([1, 2, 3])
+        items.prepare(conn)
+
+        # NOTE: this will crash if it doesn't work.
+        #   binary = _ext.adapt(b'12345)
+        #   binary.prepare(conn)
+        #   TypeError: argument 2 must be a connection, cursor or None
+        binary = extensions.adapt(b'12345')
+        binary.prepare(conn)
 
     def test_connect_factory(self):
         tracer = get_dummy_tracer()

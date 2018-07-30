@@ -1,27 +1,46 @@
-"""
-Tracing for the requests library.
-
-https://github.com/kennethreitz/requests
-"""
-
-# stdlib
+import os
 import logging
 
-# 3p
-import requests
 import wrapt
+import requests
 
-# project
 import ddtrace
-from ddtrace.ext import http
+
+from ...ext import http
+from ...propagation.http import HTTPPropagator
+from ...util import asbool, unwrap as _u
 
 
 log = logging.getLogger(__name__)
 
 
 def patch():
-    """ Monkeypatch the requests library to trace http calls. """
+    """Activate http calls tracing"""
+    if getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', True)
+
+    wrapt.wrap_function_wrapper('requests', 'Session.__init__', _session_initializer)
     wrapt.wrap_function_wrapper('requests', 'Session.request', _traced_request_func)
+
+
+def unpatch():
+    """Disable traced sessions"""
+    if not getattr(requests, '__datadog_patch', False):
+        return
+    setattr(requests, '__datadog_patch', False)
+
+    _u(requests.Session, '__init__')
+    _u(requests.Session, 'request')
+
+
+def _session_initializer(func, instance, args, kwargs):
+    """Define settings when requests client is initialized"""
+    func(*args, **kwargs)
+
+    # set tracer settings
+    distributed_tracing = asbool(os.environ.get('DATADOG_REQUESTS_DISTRIBUTED_TRACING')) or False
+    setattr(instance, 'distributed_tracing', distributed_tracing)
 
 
 def _traced_request_func(func, instance, args, kwargs):
@@ -33,14 +52,23 @@ def _traced_request_func(func, instance, args, kwargs):
     # sessions to have their own (with the standard global fallback)
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
+    # [TODO:christian] replace this with a unified way of handling options (eg, Pin)
+    distributed_tracing = getattr(instance, 'distributed_tracing', None)
+
     # bail on the tracing if not enabled.
     if not tracer.enabled:
         return func(*args, **kwargs)
 
     method = kwargs.get('method') or args[0]
     url = kwargs.get('url') or args[1]
+    headers = kwargs.get('headers', {})
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
+        if distributed_tracing:
+            propagator = HTTPPropagator()
+            propagator.inject(span.context, headers)
+            kwargs['headers'] = headers
+
         resp = None
         try:
             resp = func(*args, **kwargs)

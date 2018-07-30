@@ -16,7 +16,7 @@ class TestTornadoSettings(TornadoTestCase):
                 'tags': {'env': 'production', 'debug': 'false'},
                 'enabled': False,
                 'agent_hostname': 'dd-agent.service.consul',
-                'agent_port': 58126,
+                'agent_port': 8126,
             },
         }
 
@@ -26,4 +26,4 @@ class TestTornadoSettings(TornadoTestCase):
         eq_(self.tracer.tags, {'env': 'production', 'debug': 'false'})
         eq_(self.tracer.enabled, False)
         eq_(self.tracer.writer.api.hostname, 'dd-agent.service.consul')
-        eq_(self.tracer.writer.api.port, 58126)
+        eq_(self.tracer.writer.api.port, 8126)

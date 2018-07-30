@@ -48,6 +48,7 @@ class TestAppSafety(TornadoTestCase):
     """
     Ensure that the application patch has the proper safety guards.
     """
+
     def test_trace_unpatch(self):
         # the application must not be traced if unpatch() is called
         patch()
@@ -107,6 +108,27 @@ class TestAppSafety(TornadoTestCase):
         request_span = traces[0][0]
         eq_('tornado.web.ErrorHandler', request_span.resource)
         eq_('/does_not_exist/', request_span.get_tag('http.url'))
+
+    @gen_test
+    def test_futures_without_context(self):
+        # ensures that if futures propagation is available, an empty
+        # context doesn't crash the system
+        from .web.compat import ThreadPoolExecutor
+
+        def job():
+            with self.tracer.trace('job'):
+                return 42
+
+        executor = ThreadPoolExecutor(max_workers=3)
+        yield executor.submit(job)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+        # this trace yields the execution of the thread
+        span = traces[0][0]
+        eq_('job', span.name)
 
 
 class TestCustomAppSafety(TornadoTestCase):

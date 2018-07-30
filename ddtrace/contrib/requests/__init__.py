@@ -15,6 +15,15 @@ code, use a TracedSession object as you would a requests.Session::
 
     session = TracedSession()
     session.get("http://www.datadog.com")
+
+To enable distributed tracing, for example if you call, from requests, a web service
+which is also instrumented and want to have traces including both client and server sides::
+
+    from ddtrace.contrib.requests import TracedSession
+
+    session = TracedSession()
+    session.distributed_tracing = True
+    session.get("http://host.lan/webservice")
 """
 
 
@@ -24,5 +33,5 @@ required_modules = ['requests']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import TracedSession, patch
-        __all__ = ['TracedSession', 'patch']
+        from .patch import TracedSession, patch, unpatch
+        __all__ = ['TracedSession', 'patch', 'unpatch']

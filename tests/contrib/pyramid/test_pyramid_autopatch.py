@@ -1,7 +1,8 @@
 # stdlib
-import logging
 import sys
 import webtest
+import ddtrace
+
 from nose.tools import eq_
 from pyramid.config import Configurator
 
@@ -9,62 +10,53 @@ from pyramid.config import Configurator
 from wsgiref.simple_server import make_server
 
 # project
-import ddtrace
-from .test_pyramid import PyramidBase, get_app
+from ...test_tracer import get_dummy_tracer
+from ...util import override_global_tracer
 
-class TestPyramidAutopatch(PyramidBase):
-    def setUp(self):
-        from tests.test_tracer import get_dummy_tracer
-        self.tracer = get_dummy_tracer()
-        ddtrace.tracer = self.tracer
+from .test_pyramid import PyramidTestCase, PyramidBase
 
-        config = Configurator()
 
-        app = get_app(config)
-        self.app = webtest.TestApp(app)
+class TestPyramidAutopatch(PyramidTestCase):
+    instrument = False
 
-class TestPyramidExplicitTweens(PyramidBase):
-    def setUp(self):
-        from tests.test_tracer import get_dummy_tracer
-        self.tracer = get_dummy_tracer()
-        ddtrace.tracer = self.tracer
 
-        config = Configurator(settings={'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n'})
+class TestPyramidExplicitTweens(PyramidTestCase):
+    instrument = False
 
-        app = get_app(config)
-        self.app = webtest.TestApp(app)
+    def get_settings(self):
+        return {
+            'pyramid.tweens': 'pyramid.tweens.excview_tween_factory\n',
+        }
+
+
+class TestPyramidDistributedTracing(PyramidBase):
+    instrument = False
+
+    def test_distributed_tracing(self):
+        # ensure the Context is properly created
+        # if distributed tracing is enabled
+        headers = {
+            'x-datadog-trace-id': '100',
+            'x-datadog-parent-id': '42',
+            'x-datadog-sampling-priority': '2',
+        }
+        res = self.app.get('/', headers=headers, status=200)
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        # check the propagated Context
+        span = spans[0]
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.get_metric('_sampling_priority_v1'), 2)
+
 
 def _include_me(config):
     pass
+
 
 def test_config_include():
     """ This test makes sure that relative imports still work when the
     application is run with ddtrace-run """
     config = Configurator()
     config.include('._include_me')
-
-def includeme(config):
-    pass
-
-def test_include_conflicts():
-    """ Test that includes do not create conflicts """
-    from ...test_tracer import get_dummy_tracer
-    from ...util import override_global_tracer
-    tracer = get_dummy_tracer()
-    with override_global_tracer(tracer):
-        config = Configurator(settings={'pyramid.includes': 'tests.contrib.pyramid.test_pyramid_autopatch'})
-        app = webtest.TestApp(config.make_wsgi_app())
-        app.get('/', status=404)
-        spans = tracer.writer.pop()
-        assert spans
-        eq_(len(spans), 1)
-
-
-if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-    ddtrace.tracer.debug_logging = True
-    app = get_app()
-    port = 8080
-    server = make_server('0.0.0.0', port, app)
-    print('running on %s' % port)
-    server.serve_forever()

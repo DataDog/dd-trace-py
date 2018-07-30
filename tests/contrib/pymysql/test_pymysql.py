@@ -1,5 +1,7 @@
 # 3p
 import pymysql
+
+from unittest import TestCase
 from nose.tools import eq_
 
 # project
@@ -7,34 +9,36 @@ from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.config import MYSQL_CONFIG
+
 from ...util import assert_dict_issuperset
+from ...test_tracer import get_dummy_tracer
+from ...contrib.config import MYSQL_CONFIG
 
 
 class PyMySQLCore(object):
-
-    # Reuse the connection across tests
+    """PyMySQL test case reuses the connection across tests"""
     conn = None
     TEST_SERVICE = 'test-pymysql'
 
     DB_INFO = {
-        'out.host': MYSQL_CONFIG.get("host"),
-        'out.port': str(MYSQL_CONFIG.get("port")),
+        'out.host': MYSQL_CONFIG.get('host'),
+        'out.port': str(MYSQL_CONFIG.get('port')),
     }
     if PY2:
         DB_INFO.update({
-            'db.user': MYSQL_CONFIG.get("user"),
-            'db.name': MYSQL_CONFIG.get("database")
+            'db.user': MYSQL_CONFIG.get('user'),
+            'db.name': MYSQL_CONFIG.get('database')
         })
     else:
         DB_INFO.update({
-            'db.user': stringify(bytes(MYSQL_CONFIG.get("user"), encoding="utf-8")),
-            'db.name': stringify(bytes(MYSQL_CONFIG.get("database"), encoding="utf-8"))
+            'db.user': stringify(bytes(MYSQL_CONFIG.get('user'), encoding='utf-8')),
+            'db.name': stringify(bytes(MYSQL_CONFIG.get('database'), encoding='utf-8'))
         })
 
+    def setUp(self):
+        patch()
+
     def tearDown(self):
-        # if self.conn and self.conn.is_connected():
         if self.conn and not self.conn._closed:
             self.conn.close()
         unpatch()
@@ -47,7 +51,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
+        cursor.execute('SELECT 1')
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
@@ -58,24 +62,20 @@ class PyMySQLCore(object):
         eq_(span.name, 'pymysql.query')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
-        meta = {'sql.query': u'SELECT 1'}
+        meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
-        # eq_(span.get_metric('sql.rows'), -1)
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
+        query = 'SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m'
         cursor.execute(query)
         rows = cursor.fetchall()
         eq_(len(rows), 3)
         spans = writer.pop()
         eq_(len(spans), 1)
-        span = spans[0]
-        eq_(span.get_tag('sql.query'), query)
-        # eq_(span.get_tag('sql.rows'), 3)
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -105,8 +105,6 @@ class PyMySQLCore(object):
 
         spans = writer.pop()
         eq_(len(spans), 2)
-        span = spans[-1]
-        eq_(span.get_tag('sql.query'), query)
         cursor.execute("drop table if exists dummy")
 
     def test_query_proc(self):
@@ -149,21 +147,12 @@ class PyMySQLCore(object):
         eq_(span.name, 'pymysql.query')
         eq_(span.span_type, 'sql')
         eq_(span.error, 0)
-        meta = {'sql.query': u'sp_sum'}
+        meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
-        # eq_(span.get_metric('sql.rows'), 1)
 
 
-class TestPyMysqlPatch(PyMySQLCore):
-
-    def setUp(self):
-        patch()
-
-    def tearDown(self):
-        unpatch()
-        PyMySQLCore.tearDown(self)
-
+class TestPyMysqlPatch(PyMySQLCore, TestCase):
     def _get_conn_tracer(self):
         if not self.conn:
             tracer = get_dummy_tracer()
@@ -175,8 +164,7 @@ class TestPyMysqlPatch(PyMySQLCore):
             assert pin.service == 'pymysql'
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(self.conn)
 
             return self.conn, tracer
 
@@ -194,8 +182,7 @@ class TestPyMysqlPatch(PyMySQLCore):
             conn = pymysql.connect(**MYSQL_CONFIG)
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(
-                service=self.TEST_SERVICE, tracer=tracer).onto(conn)
+            pin.clone(service=self.TEST_SERVICE, tracer=tracer).onto(conn)
             assert not conn._closed
 
             cursor = conn.cursor()
@@ -211,7 +198,7 @@ class TestPyMysqlPatch(PyMySQLCore):
             eq_(span.span_type, 'sql')
             eq_(span.error, 0)
 
-            meta = {'sql.query': u'SELECT 1'}
+            meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.meta, meta)
 

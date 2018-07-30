@@ -3,17 +3,26 @@
 import logging
 import pyramid.renderers
 from pyramid.settings import asbool
+from pyramid.httpexceptions import HTTPException
 import wrapt
 
 # project
 import ddtrace
 from ...ext import http, AppTypes
-from .constants import SETTINGS_SERVICE, SETTINGS_TRACE_ENABLED, SETTINGS_TRACER
+from ...propagation.http import HTTPPropagator
+from .constants import (
+    SETTINGS_TRACER,
+    SETTINGS_SERVICE,
+    SETTINGS_TRACE_ENABLED,
+    SETTINGS_DISTRIBUTED_TRACING,
+)
+
 
 log = logging.getLogger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 DD_SPAN = '_datadog_span'
+
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
@@ -28,7 +37,7 @@ def includeme(config):
 
 def trace_render(func, instance, args, kwargs):
     # If the request is not traced, we do not trace
-    request = kwargs.pop('request', {})
+    request = kwargs.get('request', {})
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)
@@ -48,6 +57,7 @@ def trace_tween_factory(handler, registry):
     service = settings.get(SETTINGS_SERVICE) or 'pyramid'
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
+    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
 
     # set the service info
     tracer.set_service_info(
@@ -58,11 +68,25 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
+            if distributed_tracing:
+                propagator = HTTPPropagator()
+                context = propagator.extract(request.headers)
+                # only need to active the new context if something was propagated
+                if context.trace_id:
+                    tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
                 try:
                     response = handler(request)
+                except HTTPException as e:
+                    # If the exception is a pyramid HTTPException,
+                    # that's still valuable information that isn't necessarily
+                    # a 500. For instance, HTTPFound is a 302.
+                    # As described in docs, Pyramid exceptions are all valid
+                    # response types
+                    response = e
+                    raise
                 except BaseException:
                     span.set_tag(http.STATUS_CODE, 500)
                     raise
