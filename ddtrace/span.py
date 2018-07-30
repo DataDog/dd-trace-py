@@ -35,6 +35,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '__weakref__',
     ]
 
     def __init__(
