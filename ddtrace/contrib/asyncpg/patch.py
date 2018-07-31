@@ -19,7 +19,7 @@ from ...ext import sql
 def _create_pin(tags):
     # Will propagate info from global pin
     pin = Pin.get_from(asyncpg)
-    service = pin.service if pin and pin.service else "postgres_%s", (tags[db.NAME],)
+    service = pin.service if pin and pin.service else "postgres_%s" % tags[db.NAME]
     app = pin.app if pin and pin.app else "postgres"
     app_type = pin.app_type if pin and pin.app_type else "db"
     tracer = pin.tracer if pin else None
