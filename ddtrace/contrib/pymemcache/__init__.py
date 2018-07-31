@@ -15,3 +15,10 @@
     # Use a pin to specify metadata related to this client
     Pin.override(client, service='my-memcached-service')
 """
+
+from .patch import patch, unpatch
+
+__all__ = [
+    patch,
+    unpatch,
+]
