@@ -1,9 +1,9 @@
 # dd-trace-py
 
 [![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/master.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/master)
-[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)]
-[![Releases](https://img.shields.io/github/release/Datadog/dd-trace-py.svg)]
-[![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)]
+[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
+[![Releases](https://img.shields.io/github/release/Datadog/dd-trace-py.svg)](https://github.com/DataDog/dd-trace-py/releases)
+[![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 
 `ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
 as they flow across web servers, databases and microservices so that developers
@@ -49,12 +49,16 @@ launch them through:
 #### Running the Tests
 
 Once docker is up and running you should be able to run the tests. To launch a
-single test manually:
+single test manually. For example to run the tests for `redis-py` 2.10 on Python
+3.5 and 3.6:
 
-    $ tox -e '{py36}-redis{210}'
+    $ tox -e '{py35,py36}-redis{210}'
 
+To see the defined test commands see `tox.ini`.
 
-To see the defined test commands see `tox.ini`
+To launch the complete test matrix run:
+
+    $ tox
 
 
 ### Continuous Integration
