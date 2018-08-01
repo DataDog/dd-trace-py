@@ -65,7 +65,7 @@ def patched_query_request(original_func, instance, args, kwargs):
                 span.set_tag(arg[0], arg[1])
 
         # Obtaining region name
-        region = getattr(instance, "region")
+        region = getattr(instance, "region", None)
         region_name = get_region_name(region)
 
         meta = {
