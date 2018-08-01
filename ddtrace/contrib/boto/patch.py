@@ -86,14 +86,15 @@ def patched_query_request(original_func, instance, args, kwargs):
                 span.set_tag(arg[0], arg[1])
 
         # Obtaining region name
-        region = getattr(instance, "region", None)
-        region_name = get_region_name(region)
+        region_name = _get_instance_region_name(instance)
 
         meta = {
             "aws.agent": "boto",
             "aws.operation": operation_name,
-            "aws.region": region_name,
         }
+        if region_name:
+            meta["aws.region"] = region_name
+
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
@@ -140,14 +141,15 @@ def patched_auth_request(original_func, instance, args, kwargs):
             span.resource = endpoint_name
 
         # Obtaining region name
-        region = getattr(instance, "region", None)
-        region_name = get_region_name(region)
+        region_name = _get_instance_region_name(instance)
 
         meta = {
             "aws.agent": "boto",
             "aws.operation": operation_name,
-            "aws.region": region_name,
         }
+        if region_name:
+            meta["aws.region"] = region_name
+
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
@@ -158,7 +160,9 @@ def patched_auth_request(original_func, instance, args, kwargs):
         return result
 
 
-def get_region_name(region):
+def _get_instance_region_name(instance):
+    region = getattr(instance, "region", None)
+
     if not region:
         return None
     if isinstance(region, str):
