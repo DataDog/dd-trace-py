@@ -132,7 +132,7 @@ class API(object):
         return response
 
     def _put(self, endpoint, data, count=0):
-        conn = httplib.HTTPConnection(self.hostname, self.port)
+        conn = httplib.HTTPConnection(self.hostname, self.port, buffering=True)
 
         headers = self._headers
         if count:
