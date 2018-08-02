@@ -1,4 +1,3 @@
-
 from ddtrace.ext import AppTypes
 
 CMD = "memcached.command"
