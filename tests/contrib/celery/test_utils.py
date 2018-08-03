@@ -2,7 +2,7 @@ import gc
 
 from nose.tools import eq_, ok_
 
-from ddtrace.contrib.celery.util import tags_from_context, propagate_span, retrieve_span
+from ddtrace.contrib.celery.util import tags_from_context, propagate_span, retrieve_span, retrieve_task_id
 
 from .base import CeleryBaseTestCase
 
@@ -89,3 +89,71 @@ class CeleryTagsTest(CeleryBaseTestCase):
         self.tracer.writer.pop_traces()
         gc.collect()
         ok_(weak_dict.get(task_id) is None)
+
+    def test_task_id_from_protocol_v1(self):
+        # ensures a `task_id` is properly returned when Protocol v1 is used.
+        # `context` is an example of an emitted Signal with Protocol v1
+        context = {
+            'body': {
+                'expires': None,
+                'utc': True,
+                'args': ['user'],
+                'chord': None,
+                'callbacks': None,
+                'errbacks': None,
+                'taskset': None,
+                'id': 'dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7',
+                'retries': 0,
+                'task': 'tests.contrib.celery.test_integration.fn_task_parameters',
+                'timelimit': (None, None),
+                'eta': None,
+                'kwargs': {'force_logout': True}
+            },
+            'sender': 'tests.contrib.celery.test_integration.fn_task_parameters',
+            'exchange': 'celery',
+            'routing_key': 'celery',
+            'retry_policy': None,
+            'headers': {},
+            'properties': {},
+        }
+
+        task_id = retrieve_task_id(context)
+        eq_(task_id, 'dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7')
+
+    def test_task_id_from_protocol_v2(self):
+        # ensures a `task_id` is properly returned when Protocol v2 is used.
+        # `context` is an example of an emitted Signal with Protocol v2
+        context = {
+            'body': (
+                ['user'],
+                {'force_logout': True},
+                {u'chord': None, u'callbacks': None, u'errbacks': None, u'chain': None},
+            ),
+            'sender': u'tests.contrib.celery.test_integration.fn_task_parameters',
+            'exchange': u'',
+            'routing_key': u'celery',
+            'retry_policy': None,
+            'headers': {
+                u'origin': u'gen83744@hostname',
+                u'root_id': '7e917b83-4018-431d-9832-73a28e1fb6c0',
+                u'expires': None,
+                u'shadow': None,
+                u'id': '7e917b83-4018-431d-9832-73a28e1fb6c0',
+                u'kwargsrepr': u"{'force_logout': True}",
+                u'lang': u'py',
+                u'retries': 0,
+                u'task': u'tests.contrib.celery.test_integration.fn_task_parameters',
+                u'group': None,
+                u'timelimit': [None, None],
+                u'parent_id': None,
+                u'argsrepr': u"['user']",
+                u'eta': None,
+            },
+            'properties': {
+                u'reply_to': 'c3054a07-5b28-3855-b18c-1623a24aaeca',
+                u'correlation_id': '7e917b83-4018-431d-9832-73a28e1fb6c0',
+            },
+        }
+
+        task_id = retrieve_task_id(context)
+        eq_(task_id, '7e917b83-4018-431d-9832-73a28e1fb6c0')

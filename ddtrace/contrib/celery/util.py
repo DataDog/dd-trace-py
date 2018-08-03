@@ -75,6 +75,22 @@ def retrieve_span(task, task_id):
         return weak_dict.get(task_id)
 
 
+def retrieve_task_id(context):
+    """Helper to retrieve the `Task` identifier from the message `body`.
+    This helper supports Protocol Version 1 and 2. The Protocol is well
+    detailed in the official documentation:
+    http://docs.celeryproject.org/en/latest/internals/protocol.html
+    """
+    headers = context.get('headers')
+    body = context.get('body')
+    if headers:
+        # Protocol Version 2 (default from Celery 4.0)
+        return headers.get('id')
+    else:
+        # Protocol Version 1
+        return body.get('id')
+
+
 def require_pin(decorated):
     """ decorator for extracting the `Pin` from a wrapped method """
     def wrapper(wrapped, instance, args, kwargs):
