@@ -15,7 +15,7 @@ from tests.test_tracer import get_dummy_tracer
 _Client = pymemcache.client.base.Client
 
 TEST_HOST = "localhost"
-TEST_PORT = 117712
+TEST_PORT = 117711
 
 
 class PymemcacheClientTestCaseMixin(unittest.TestCase):

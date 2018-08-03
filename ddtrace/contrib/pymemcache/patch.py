@@ -1,6 +1,6 @@
 import pymemcache
 
-from .trace import WrappedClient
+from .client import WrappedClient
 
 _Client = pymemcache.client.base.Client
 
