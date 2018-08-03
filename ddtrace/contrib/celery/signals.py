@@ -39,9 +39,8 @@ def trace_postrun(*args, **kwargs):
     else:
         # request context tags
         span.set_tag(c.TASK_TAG_KEY, c.TASK_RUN)
+        span.set_tags(tags_from_context(kwargs))
         span.set_tags(tags_from_context(task.request))
-        # response tags
-        span.set_tag('celery.state', kwargs.get('state'))
         span.finish()
 
 
