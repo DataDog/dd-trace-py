@@ -89,11 +89,11 @@ def patched_query_request(original_func, instance, args, kwargs):
         region_name = _get_instance_region_name(instance)
 
         meta = {
-            "aws.agent": "boto",
-            "aws.operation": operation_name,
+            aws.AGENT: "boto",
+            aws.OPERATION: operation_name,
         }
         if region_name:
-            meta["aws.region"] = region_name
+            meta[aws.REGION] = region_name
 
         span.set_tags(meta)
 
@@ -144,11 +144,11 @@ def patched_auth_request(original_func, instance, args, kwargs):
         region_name = _get_instance_region_name(instance)
 
         meta = {
-            "aws.agent": "boto",
-            "aws.operation": operation_name,
+            aws.AGENT: "boto",
+            aws.OPERATION: operation_name,
         }
         if region_name:
-            meta["aws.region"] = region_name
+            meta[aws.REGION] = region_name
 
         span.set_tags(meta)
 

@@ -25,3 +25,8 @@ def unpacking_args(args, args_name, traced_args_list):
             response += [(args_name[index], arg)]
         index += 1
     return response
+
+
+REGION = "aws.region"
+AGENT = "aws.agent"
+OPERATION = "aws.operation"
