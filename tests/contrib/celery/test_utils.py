@@ -2,7 +2,13 @@ import gc
 
 from nose.tools import eq_, ok_
 
-from ddtrace.contrib.celery.util import tags_from_context, propagate_span, retrieve_span, retrieve_task_id
+from ddtrace.contrib.celery.util import (
+    tags_from_context,
+    retrieve_task_id,
+    propagate_span,
+    retrieve_span,
+    remove_span,
+)
 
 from .base import CeleryBaseTestCase
 
@@ -69,6 +75,37 @@ class CeleryTagsTest(CeleryBaseTestCase):
         propagate_span(fn_task, task_id, span_before)
         span_after = retrieve_span(fn_task, task_id)
         ok_(span_before is span_after)
+
+    def test_span_delete(self):
+        # ensure the helper removes properly a propagated Span
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # propagate a Span
+        task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
+        span = self.tracer.trace('celery.run')
+        propagate_span(fn_task, task_id, span)
+        # delete the Span
+        weak_dict = getattr(fn_task, '__dd_task_span')
+        remove_span(fn_task, task_id)
+        ok_(weak_dict.get(task_id) is None)
+
+    def test_span_delete_empty(self):
+        # ensure the helper works even if the Task doesn't have
+        # a propagation
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # delete the Span
+        exception = None
+        task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
+        try:
+            remove_span(fn_task, task_id)
+        except Exception as e:
+            exception = e
+        ok_(exception is None)
 
     def test_memory_leak_safety(self):
         # Spans are shared between signals using a Dictionary (task_id -> span).
