@@ -3,7 +3,13 @@ from ddtrace import Pin
 from celery import registry
 
 from . import constants as c
-from .util import tags_from_context, propagate_span, retrieve_span, retrieve_task_id
+from .util import (
+    tags_from_context,
+    retrieve_task_id,
+    propagate_span,
+    retrieve_span,
+    remove_span,
+)
 
 
 def trace_prerun(*args, **kwargs):
@@ -42,6 +48,7 @@ def trace_postrun(*args, **kwargs):
         span.set_tags(tags_from_context(kwargs))
         span.set_tags(tags_from_context(task.request))
         span.finish()
+        remove_span(task, task_id)
 
 
 def trace_before_publish(*args, **kwargs):
@@ -88,8 +95,8 @@ def trace_after_publish(*args, **kwargs):
     if span is None:
         return
     else:
-        # tags from headers context
         span.finish()
+        remove_span(task, task_id)
 
 
 def trace_failure(*args, **kwargs):

@@ -64,6 +64,17 @@ def propagate_span(task, task_id, span):
     weak_dict[task_id] = span
 
 
+def remove_span(task, task_id):
+    """Helper to remove a `Span` in a Celery task when it's propagated.
+    This function handles tasks where the `Span` is not attached.
+    """
+    weak_dict = getattr(task, CTX_KEY, None)
+    if weak_dict is None:
+        return
+
+    weak_dict.pop(task_id, None)
+
+
 def retrieve_span(task, task_id):
     """Helper to retrieve an active `Span` stored in a `Task`
     instance
