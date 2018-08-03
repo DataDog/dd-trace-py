@@ -43,7 +43,6 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
         eq_(run_span.get_tag('celery.id'), res.task_id)
         eq_(run_span.get_tag('celery.action'), 'run')
         eq_(run_span.get_tag('celery.state'), 'SUCCESS')
-        ok_(run_span.get_tag('celery.hostname') is not None)
         apply_span = traces[0][1]
         eq_(apply_span.error, 0)
         eq_(apply_span.name, 'celery.apply')

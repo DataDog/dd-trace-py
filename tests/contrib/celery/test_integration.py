@@ -68,7 +68,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')
-        ok_(span.get_tag('celery.hostname') is not None)
 
     def test_fn_task_apply_bind(self):
         # it should execute a traced task with a returning value
@@ -91,7 +90,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')
-        ok_(span.get_tag('celery.hostname') is not None)
 
     def test_fn_task_apply_async(self):
         # it should execute a traced async task that has parameters
@@ -155,7 +153,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'FAILURE')
-        ok_(span.get_tag('celery.hostname') is not None)
         eq_(span.error, 1)
         eq_(span.get_tag('error.msg'), 'Task class is failing')
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
@@ -188,7 +185,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), r.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')
-        ok_(span.get_tag('celery.hostname') is not None)
 
     def test_class_task_exception(self):
         # it should catch exceptions in class based tasks
@@ -216,7 +212,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), r.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'FAILURE')
-        ok_(span.get_tag('celery.hostname') is not None)
         eq_(span.error, 1)
         eq_(span.get_tag('error.msg'), 'Task class is failing')
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
@@ -243,4 +238,3 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), res.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')
-        ok_(span.get_tag('celery.hostname') is not None)

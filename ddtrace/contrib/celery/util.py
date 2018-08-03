@@ -19,7 +19,7 @@ def tags_from_context(context):
     tag_keys = (
         'compression', 'correlation_id', 'countdown', 'delivery_info', 'eta',
         'exchange', 'expires', 'hostname', 'id', 'priority', 'queue', 'reply_to',
-        'retries', 'routing_key', 'serializer', 'timelimit',
+        'retries', 'routing_key', 'serializer', 'timelimit', 'origin', 'state',
     )
 
     tags = {}
@@ -38,6 +38,11 @@ def tags_from_context(context):
         # Skip `retries` if it's value is `0`
         if key == 'retries' and value == 0:
             continue
+
+        # Celery 4.0 uses `origin` instead of `hostname`; this change preserves
+        # the same name for the tag despite Celery version
+        if key == 'origin':
+            key = 'hostname'
 
         # prefix the tag as 'celery'
         tag_name = 'celery.{}'.format(key)
