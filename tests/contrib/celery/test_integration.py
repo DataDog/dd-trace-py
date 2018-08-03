@@ -2,6 +2,8 @@ import celery
 
 from nose.tools import eq_, ok_
 
+from ddtrace.contrib.celery import patch, unpatch
+
 from .base import CeleryBaseTestCase
 
 
@@ -20,6 +22,38 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         traces = self.tracer.writer.pop_traces()
         eq_(100, len(traces))
+
+    def test_idempotent_patch(self):
+        # calling patch() twice doesn't have side effects
+        patch()
+
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task.apply()
+        ok_(t.successful())
+        eq_(42, t.result)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+    def test_idempotent_unpatch(self):
+        # calling unpatch() twice doesn't have side effects
+        unpatch()
+        unpatch()
+
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task.apply()
+        ok_(t.successful())
+        eq_(42, t.result)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(0, len(traces))
 
     def test_fn_task_run(self):
         # the body of the function is not instrumented so calling it
