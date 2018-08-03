@@ -1,15 +1,17 @@
 from webob import Request, Response
 
 class ExceptionMiddleware(object):
+    """A middleware which raises an exception."""
     def __init__(self, app):
         self.app = app
 
     def __call__(self, environ, start_response):
-        # req = Request(environ)
-        # req.get_response(self.app)
         raise Exception('Middleware exception')
 
 class ExceptionToSuccessMiddleware(object):
+    """A middleware which catches any exceptions that occur in a later
+    middleware and returns a successful request.
+    """
     def __init__(self, app):
         self.app = app
 
