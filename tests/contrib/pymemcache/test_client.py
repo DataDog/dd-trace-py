@@ -1,5 +1,4 @@
 # 3p
-import wrapt
 from nose.tools import assert_raises
 import pymemcache
 from pymemcache.exceptions import (
@@ -9,10 +8,12 @@ from pymemcache.exceptions import (
     MemcacheUnknownError,
     MemcacheIllegalInputError,
 )
+import unittest
+import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
 
@@ -269,3 +270,52 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         assert result is True
 
         self.check_spans(2, ["add", "delete"], ["add key", "delete key"])
+
+
+class PymemcacheClientConfiguration(unittest.TestCase):
+    """Ensure that pymemache can be configured properly."""
+
+    def setUp(self):
+        patch()
+
+    def tearDown(self):
+        unpatch()
+
+    def make_client(self, mock_socket_values, **kwargs):
+        tracer = get_dummy_tracer()
+        Pin.override(pymemcache, tracer=tracer)
+        self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
+        self.client.sock = MockSocket(list(mock_socket_values))
+        return self.client
+
+    def test_same_tracer(self):
+        """Ensure same tracer reference is used by the pin on pymemache and
+        Clients.
+        """
+        client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT))
+        self.assertEqual(Pin.get_from(client).tracer, Pin.get_from(pymemcache).tracer)
+
+    def test_override_parent_pin(self):
+        """Test that the service set on `pymemcache` is used for Clients."""
+        Pin.override(pymemcache, service="mysvc")
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.writer.pop()
+
+        self.assertEqual(spans[0].service, "mysvc")
+
+    def test_override_client_pin(self):
+        """Test that the service set on `pymemcache` is used for Clients."""
+        client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
+        Pin.override(client, service="mysvc2")
+
+        client.set(b"key", b"value", noreply=False)
+
+        pin = Pin.get_from(pymemcache)
+        tracer = pin.tracer
+        spans = tracer.writer.pop()
+
+        self.assertEqual(spans[0].service, "mysvc2")

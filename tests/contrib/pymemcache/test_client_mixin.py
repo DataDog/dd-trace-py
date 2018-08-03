@@ -50,10 +50,10 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         unpatch()
 
     def make_client(self, mock_socket_values, **kwargs):
+        tracer = get_dummy_tracer()
+        Pin.override(pymemcache, tracer=tracer)
         self.client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT), **kwargs)
         self.client.sock = MockSocket(list(mock_socket_values))
-        tracer = get_dummy_tracer()
-        Pin.override(self.client, tracer=tracer)
         return self.client
 
     def test_set_success(self):

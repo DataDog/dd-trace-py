@@ -8,13 +8,17 @@
     patch(pymemcache=True)
 
     # Import reference to Client AFTER patching
+    import pymemcache
     from pymemcache.client.base import Client
+
+    # Use a pin to specify metadata related all clients
+    Pin.override(pymemcache, service='my-memcached-service')
 
     # This will report a span with the default settings
     client = Client(('localhost', 11211))
     client.set("my-key", "my-val")
 
-    # Use a pin to specify metadata related to this client
+    # Use a pin to specify metadata related to this particular client
     Pin.override(client, service='my-memcached-service')
 
 Pymemcache's ``HashClient`` will also be indirectly patched as it uses
