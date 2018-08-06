@@ -247,6 +247,11 @@ Memcached
 
 .. automodule:: ddtrace.contrib.pylibmc
 
+**pymemcache**
+
+.. automodule:: ddtrace.contrib.pymemcache
+
+
 MySQL
 ~~~~~
 
@@ -613,6 +618,8 @@ We officially support Python 2.7, 3.4 and above.
 | pylons              | >= 0.9.6           |
 +---------------------+--------------------+
 | pymongo             | >= 3.0             |
++---------------------+--------------------+
+| pymemcache          | >= 1.3             |
 +---------------------+--------------------+
 | pyramid             | >= 1.7             |
 +---------------------+--------------------+
