@@ -6,7 +6,7 @@ from json import loads
 
 # project
 from .encoding import get_encoder, JSONEncoder
-from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER
+from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 
 
 log = logging.getLogger(__name__)
@@ -140,4 +140,4 @@ class API(object):
             headers[TRACE_COUNT_HEADER] = str(count)
 
         conn.request("PUT", endpoint, data, headers)
-        return conn.getresponse()
+        return get_connection_response(conn)
