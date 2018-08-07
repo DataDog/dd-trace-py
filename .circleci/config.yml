@@ -705,7 +705,7 @@ jobs:
       - restore_cache:
           keys:
             - tox-cache-rediscluster-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-rediscluster{135}-redis{210}' --result-json /tmp/rediscluster.results
+      - run: tox -e '{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
       - persist_to_workspace:
           root: /tmp
           paths:
