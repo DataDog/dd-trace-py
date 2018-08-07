@@ -28,6 +28,17 @@ redis:
     image: redis:3.2
     ports:
         - "127.0.0.1:6379:6379"
+rediscluster:
+    image: grokzen/redis-cluster:4.0.9
+    environment:
+        - IP=0.0.0.0
+    ports:
+        - "127.0.0.1:7000:7000"
+        - "127.0.0.1:7001:7001"
+        - "127.0.0.1:7002:7002"
+        - "127.0.0.1:7003:7003"
+        - "127.0.0.1:7004:7004"
+        - "127.0.0.1:7005:7005"
 mongo:
     image: mongo:3.2
     ports:
