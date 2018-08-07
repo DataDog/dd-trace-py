@@ -1,52 +1,123 @@
 Datadog Trace Client
 ====================
 
-`ddtrace` is Datadog's Python tracing client. It is used to trace requests as
-they flow across web servers, databases and microservices so developers
-have great visibility into bottlenecks and troublesome requests.
+``ddtrace`` is Datadog's Python tracing client. It is used to trace requests as
+they flow across web servers, databases and microservices. This enables
+developers to have greater visibility into bottlenecks and troublesome requests
+in their application.
+
+
+Getting Started
+===============
+
+For a basic product overview: check out the `setup documentation`_.
+
+For details about developing and contributing: refer to the `development
+guide`_.
+
+For descriptions of the terminology of Datadog APM: take a look at the `official
+documentation`_.
+
+
+.. _setup documentation: https://docs.datadoghq.com/tracing/setup/python/
+
+.. _development guide: https://github.com/datadog/dd-trace-py#development
+
+.. _official documentation: https://docs.datadoghq.com/tracing/visualization/
+
 
 Installation
-------------
+============
 
 Install with :code:`pip`::
 
-    $ pip install ddtrace
+$ pip install ddtrace
 
 We strongly suggest pinning the version of the library you deploy.
 
-Get Started
------------
 
-Datadog Tracing can automatically instrument many widely used Python libraries
+Quickstart
+==========
+
+With ``ddtrace`` installed, the application can be instrumented.
+
+
+Auto Instrumentation
+--------------------
+
+Python applications can easily be instrumented with ``ddtrace`` by using the
+included ``ddtrace-run`` command. Simply prefix the Python execution command
+with ``ddtrace-run`` in order to auto-instrument the libraries in the
+application.
+
+For example, if the command to the application run is::
+
+$ python app.py
+
+then to enable tracing, the corresponding command is::
+
+$ ddtrace-run python app.py
+
+
+Manual Instrumentation
+----------------------
+
+Manually instrumenting a Python application is as easy as::
+
+  from ddtrace import patch_all
+  patch_all()
+
+**Note:** To ensure that the supported libraries are instrumented properly in
+the application, they must be patched *prior* to importing them. So make sure to
+call ``patch_all`` *before* importing libraries that are to be instrumented!
+
+More information about ``patch_all`` is available in our `patch_all API
+documentation`_.
+
+
+``ddtrace-run`` Usage
+=====================
+
+Datadog tracing can automatically instrument many widely used Python libraries
 and frameworks.
 
 Once installed, the package will make the ``ddtrace-run`` command-line entrypoint
 available in your Python environment.
 
-``ddtrace-run`` will trace available web frameworks and database modules without the need
-for changing your code::
+``ddtrace-run`` will trace available web frameworks and database modules without
+the need for changing your code::
+
+  $ ddtrace-run -h
+
+  Execute the given Python program, after configuring it
+  to emit Datadog traces.
+
+  Append command line arguments to your program as usual.
+
+  Usage: [ENV_VARS] ddtrace-run <my_program>
 
 
-    $ ddtrace-run -h
+The available environment variables for ``ddtrace-run`` are:
 
-    Execute the given Python program, after configuring it
-    to emit Datadog traces.
-
-    Append command line arguments to your program as usual.
-
-    Usage: [ENV_VARS] ddtrace-run <my_program>
-
-
-The available environment variables for `ddtrace-run` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
-  will not generate any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false``: override the modules patched for this execution of the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer will submit to  (default: 8126)
+* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
+  library instrumentation. When false, your application code will not generate
+  any traces.
+* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
+  ``pre-prod``, ``stage``
+* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
+  the tracer
+* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
+  for this program. This value is passed through when setting up middleware for
+  web framework integrations (e.g. pylons, flask, django). For tracing without a
+  web integration, prefer setting the service name in code.
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
+  ``boto:true,redis:false``: override the modules patched for this execution of
+  the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
+  agent host that the default tracer will attempt to submit to  (default:
+  ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
+  will submit to  (default: 8126)
 * ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
@@ -61,25 +132,30 @@ Pass along command-line arguments as your program would normally expect them::
 
     ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
 
-*As long as your application isn't running in* ``DEBUG`` *mode, this should be enough to see your application traces in Datadog.*
+*As long as your application isn't running in* ``DEBUG`` *mode, this should be
+enough to see your application traces in Datadog.*
 
-If you're running in a Kubernetes cluster, and still don't see your traces, make sure your application has a route to the tracing Agent. An easy way to test this is with a::
+If you're running in a Kubernetes cluster, and still don't see your traces, make
+sure your application has a route to the tracing Agent. An easy way to test this
+is with a::
 
 
 $ pip install ipython
 $ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
 
-Because iPython uses SQLite, it will be automatically instrumented, and your traces should be sent off. If there's an error, you'll see the message in the console, and can make changes as needed.
+Because iPython uses SQLite, it will be automatically instrumented, and your
+traces should be sent off. If there's an error, you'll see the message in the
+console, and can make changes as needed.
 
 Please read on if you are curious about further configuration, or
 would rather set up Datadog Tracing explicitly in code.
 
 
 Instrumentation
----------------
+===============
 
 Web
-~~~
+---
 
 We support many `web frameworks`_. Install the middleware for yours.
 
@@ -87,7 +163,7 @@ We support many `web frameworks`_. Install the middleware for yours.
 
 
 Databases
-~~~~~~~~~
+---------
 
 Then let's patch widely used Python libraries::
 
@@ -101,7 +177,7 @@ which `framework is automatically instrumented`_ with the ``patch_all()`` method
 .. _framework is automatically instrumented: #instrumented-libraries
 
 Custom
-~~~~~~
+------
 
 You can easily extend the spans we collect by adding your own traces. Here's a
 small example that shows adding a custom span to a Flask application::
@@ -125,7 +201,7 @@ small example that shows adding a custom span to a Flask application::
 Read the full `API`_ for more details.
 
 Modifying the Agent hostname and port
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------------------
 
 If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
 
@@ -141,52 +217,57 @@ Web Frameworks
 --------------
 
 Bottle
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.bottle
 
+
 Django
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.django
 
+
 Falcon
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.falcon
 
+
 Flask
-~~~~~
+^^^^^
 
 .. automodule:: ddtrace.contrib.flask
 
+
 Pylons
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.pylons
 
+
 Pyramid
-~~~~~~~
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.pyramid
 
 aiohttp
-~~~~~~~
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.aiohttp
 
 aiobotocore
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.aiobotocore
 
 aiopg
-~~~~~
+^^^^^
 
 .. automodule:: ddtrace.contrib.aiopg
 
 Tornado
-~~~~~~~
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.tornado
 
@@ -195,108 +276,130 @@ Other Libraries
 ---------------
 
 Futures
-~~~~~~~
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.futures
 
+
 Boto2
-~~~~~~~~~
+^^^^^
 
 .. automodule:: ddtrace.contrib.boto
 
+
 Botocore
-~~~~~~~~~
+^^^^^^^^
 
 .. automodule:: ddtrace.contrib.botocore
 
 Cassandra
-~~~~~~~~~
+^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.cassandra
 
+
 Elasticsearch
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.elasticsearch
 
+
 Flask Cache
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.flask_cache
 
+
 Celery
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.celery
 
 MongoDB
-~~~~~~~
+^^^^^^^
 
-**Mongoengine**
+Mongoengine
+^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mongoengine
 
-**Pymongo**
+Pymongo
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.pymongo
 
-Memcached
-~~~~~~~~~
 
-**pylibmc**
+Memcached
+^^^^^^^^^
+
+pylibmc
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.pylibmc
 
-MySQL
-~~~~~
 
-**mysql-connector**
+MySQL
+^^^^^
+
+mysql-connector
+^^^^^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mysql
 
-**mysqlclient and MySQL-python**
+
+mysqlclient and MySQL-python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mysqldb
 
-**pymysql**
+
+pymysql
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.pymysql
 
+
 Postgres
-~~~~~~~~
+^^^^^^^^
 
 .. automodule:: ddtrace.contrib.psycopg
 
+
 Redis
-~~~~~
+^^^^^
 
 .. automodule:: ddtrace.contrib.redis
 
+
 Requests
-~~~~~~~~
+^^^^^^^^
 
 .. automodule:: ddtrace.contrib.requests
 
+
 SQLAlchemy
-~~~~~~~~~~
+^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.sqlalchemy
 
+
 SQLite
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.sqlite3
+
 
 Asynchronous Libraries
 ----------------------
 
 asyncio
-~~~~~~~
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.asyncio
 
+
 gevent
-~~~~~~
+^^^^^^
 
 .. automodule:: ddtrace.contrib.gevent
 
@@ -312,7 +415,7 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 `ddtrace` already provides default propagators but you can also implement your own.
 
 Web frameworks
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
 For that, refer to the configuration of the given integration.
@@ -328,7 +431,7 @@ For web servers not supported, you can extract the HTTP context from the headers
     :members: extract
 
 HTTP client
-~~~~~~~~~~~
+^^^^^^^^^^^
 
 When calling a remote HTTP server part of the distributed trace, you have to propagate the HTTP headers.
 This is not done automatically to prevent your system from leaking tracing information to external services.
@@ -337,7 +440,7 @@ This is not done automatically to prevent your system from leaking tracing infor
     :members: inject
 
 Custom
-~~~~~~
+^^^^^^
 
 You can manually propagate your tracing context over your RPC protocol. Here is an example assuming that you have `rpc.call`
 function that call a `method` and propagate a `rpc_metadata` dictionary over the wire::
@@ -382,37 +485,45 @@ Sampling
 --------
 
 Priority sampling
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
-Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
-for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
+Priority sampling gives you control over whether or not a trace will be
+propagated. This is done by associating a priority attribute on a trace that
+will be propagated along with the trace. The priority value informs the Agent
+and the backend about how to deal with the trace. By default priorities are set
+on a trace by a sampler.
 
 The sampler can set the priority to the following values:
 
-- ``AUTO_REJECT``: the sampler automatically decided to reject the trace
-- ``AUTO_KEEP``: the sampler automatically decided to keep the trace
+- ``AUTO_REJECT``: the sampler automatically rejects the trace
+- ``AUTO_KEEP``: the sampler automatically keeps the trace
 
-For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
-To enable the priority sampling::
+For now, priority sampling is disabled by default. Enabling it ensures that your
+sampled distributed traces will be complete.  To enable priority sampling::
 
     tracer.configure(priority_sampling=True)
 
-Once enabled, the sampler will automatically assign a priority to your traces, depending on their service and volume.
+Once enabled, the sampler will automatically assign a priority to your traces,
+depending on their service and volume.
 
-You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
-For that, set the ``context.sampling_priority`` to one of the following:
+You can also set this priority manually to either drop an uninteresting trace or
+to keep an important one.
+To do this, set the ``context.sampling_priority`` to one of the following:
 
 - ``USER_REJECT``: the user asked to reject the trace
 - ``USER_KEEP``: the user asked to keep the trace
 
-When not using distributed tracing, you may change the priority at any time,
-as long as the trace is not finished yet.
-But it has to be done before any context propagation (fork, RPC calls) to be effective in a distributed context.
-Changing the priority after context has been propagated causes different parts of a distributed trace
-to use different priorities. Some parts might be kept, some parts might be rejected,
-and this can cause the trace to be partially stored and remain incomplete.
+When not using distributed tracing, you may change the priority at any time, as
+long as the trace is not finished yet.
+But it has to be done before any context propagation (fork, RPC calls) to be
+effective in a distributed context.
+Changing the priority after context has been propagated causes different parts
+of a distributed trace to use different priorities. Some parts might be kept,
+some parts might be rejected, and this can cause the trace to be partially
+stored and remain incomplete.
 
-If you change the priority, we recommend you do it as soon as possible, when the root span has just been created::
+If you change the priority, we recommend you do it as soon as possible, when the
+root span has just been created::
 
     from ddtrace.ext.priority import USER_REJECT, USER_KEEP
 
@@ -426,12 +537,13 @@ If you change the priority, we recommend you do it as soon as possible, when the
 
 
 Pre-sampling
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
-Pre-sampling will completely disable instrumentation of some transactions and drop the trace at the client level.
-Information will be lost but it allows to control any potential performance impact.
+Pre-sampling will completely disable instrumentation of some transactions and
+drop the trace at the client level. Information will be lost but it allows to
+control any potential performance impact.
 
-`RateSampler` ramdomly samples a percentage of traces. Its usage is simple::
+``RateSampler`` randomly samples a percentage of traces::
 
     from ddtrace.sampler import RateSampler
 
@@ -444,12 +556,12 @@ Information will be lost but it allows to control any potential performance impa
 Resolving deprecation warnings
 ------------------------------
 Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
-These warnings must be fixed before upgrading, otherwise ``ddtrace`` library will not work
-as expected. Our deprecation messages include the version where the behavior is altered or
-removed.
+These warnings must be fixed before upgrading, otherwise the ``ddtrace`` library
+will not work as expected. Our deprecation messages include the version where
+the behavior is altered or removed.
 
-In Python, deprecation warnings are silenced by default, and to turn them on you may add the
-following flag or environment variable::
+In Python, deprecation warnings are silenced by default. To enable them you may
+add the following flag or environment variable::
 
     $ python -Wall app.py
 
@@ -462,9 +574,9 @@ Advanced Usage
 --------------
 
 Trace Filtering
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
-It is possible to filter or modify traces before they are sent to the agent by
+It is possible to filter or modify traces before they are sent to the Agent by
 configuring the tracer with a filters list. For instance, to filter out
 all traces of incoming requests to a specific url::
 
@@ -475,12 +587,12 @@ all traces of incoming requests to a specific url::
     })
 
 All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the agent or
+for each trace and the resulting trace will either be sent to the Agent or
 discarded depending on the output.
 
 **Use the standard filters**
 
-The library comes with a FilterRequestsOnUrl filter that can be used to
+The library comes with a ``FilterRequestsOnUrl`` filter that can be used to
 filter out incoming requests to specific urls:
 
 .. autoclass:: ddtrace.filters.FilterRequestsOnUrl
@@ -489,9 +601,9 @@ filter out incoming requests to specific urls:
 **Write a custom filter**
 
 Creating your own filters is as simple as implementing a class with a
-process_trace method and adding it to the filters parameter of
+``process_trace`` method and adding it to the filters parameter of
 Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or None if the trace should be discarded::
+next step of the pipeline or ``None`` if the trace should be discarded::
 
     class FilterExample(object):
         def process_trace(self, trace):
@@ -507,7 +619,7 @@ next step of the pipeline or None if the trace should be discarded::
 
 
 API
-~~~
+^^^
 
 .. autoclass:: ddtrace.Tracer
     :members:
@@ -532,7 +644,7 @@ API
 .. _integrations:
 
 Glossary
-~~~~~~~~
+^^^^^^^^
 
 **Service**
 
@@ -623,10 +735,10 @@ We officially support Python 2.7, 3.4 and above.
 | tornado             | >= 4.0             |
 +---------------------+--------------------+
 
-
-These are the fully tested versions but `ddtrace` can be compatible with lower versions.
-If some versions are missing, you can contribute or ask for it by contacting our support.
-For deprecated library versions, the support is best-effort.
+The versions listed are the fully tested but ``ddtrace`` can still be compatible
+with lower versions. If a version of a library you use is missing, feel free to
+contribute or request it by contacting support. For deprecated library versions,
+the support is best-effort.
 
 Instrumented libraries
 ======================

@@ -74,7 +74,7 @@ The CI tests are configured through [config.yml](.circleci/config.yml).
 #### Running Locally
 
 The CI tests can be run locally using the `circleci` CLI. More information about
-the CLI can be found here https://circleci.com/docs/2.0/local-jobs/.
+the CLI can be found at https://circleci.com/docs/2.0/local-jobs/.
 
 After installing the `circleci` CLI, you can run jobs by name. For example:
 
