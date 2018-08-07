@@ -70,9 +70,6 @@ try:
     if opts:
         tracer.configure(**opts)
 
-    if not hasattr(sys, 'argv'):
-        sys.argv = ['']
-
     if patch:
         update_patched_modules()
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
