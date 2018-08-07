@@ -837,6 +837,7 @@ workflows:
       - aiobotocore
       - aiopg
       - redis
+      - rediscluster
       - sqlite3
       - msgpack
       - wait_all_tests:
@@ -873,6 +874,7 @@ workflows:
             - aiobotocore
             - aiopg
             - redis
+            - rediscluster
             - sqlite3
             - msgpack
       - deploy_dev:
