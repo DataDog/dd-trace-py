@@ -79,7 +79,22 @@ def patch(raise_errors=True, **patch_modules):
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     count = 0
     for module in modules:
-        patched = patch_module(module, raise_errors=raise_errors)
+        # TODO: this is a temporary hack until we shift to using
+        # post-import hooks for everything.
+        if module == 'celery':
+            # if patch celery via post-import hooks
+            from wrapt.importer import when_imported
+
+            @when_imported('celery')
+            def patch_celery(hook):
+                from ddtrace.contrib.celery import patch
+                patch()
+
+            # manually add celery to patched modules and increment count
+            _PATCHED_MODULES.add(module)
+            count += 1
+        else:
+            patched = patch_module(module, raise_errors=raise_errors)
         if patched:
             count += 1
 
@@ -115,7 +130,7 @@ def _patch_module(module):
     """
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
-        if module in _PATCHED_MODULES:
+        if module in _PATCHED_MODULES and module != 'celery':
             log.debug("already patched: %s", path)
             return False
 
