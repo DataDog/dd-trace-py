@@ -77,7 +77,6 @@ def patch(raise_errors=True, **patch_modules):
         >>> patch(psycopg=True, elasticsearch=True)
     """
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
-    count = 0
     for module in modules:
         # TODO: this is a temporary hack until we shift to using
         # post-import hooks for everything.
@@ -90,19 +89,16 @@ def patch(raise_errors=True, **patch_modules):
                 from ddtrace.contrib.celery import patch
                 patch()
 
-            # manually add celery to patched modules and increment count
+            # manually add celery to patched modules
             _PATCHED_MODULES.add(module)
-            count += 1
-            patched = True
         else:
-            patched = patch_module(module, raise_errors=raise_errors)
-        if patched:
-            count += 1
+            patch_module(module, raise_errors=raise_errors)
 
+    patched_modules = get_patched_modules()
     log.info("patched %s/%s modules (%s)",
-        count,
+        len(patched_modules),
         len(modules),
-        ",".join(get_patched_modules()))
+        ",".join(patched_modules))
 
 
 def patch_module(module, raise_errors=True):
