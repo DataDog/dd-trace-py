@@ -41,8 +41,21 @@ class TracedMongoClient(ObjectProxy):
         # TODO(Benjamin): drop it in a later version
         if not isinstance(client, _MongoClient):
             # Patched interface, instantiate the client
-            # Note that, in that case, the client argument isn't a client, it's just the first arg
-            client = _MongoClient(client, *args, **kwargs)
+
+            # client is just the first arg which could be the host if it is
+            # None, then it could be that the caller:
+
+            # if `client` is None then:
+            #   1) __init__ was invoked with host=None
+            #   2) __init__ was not given a first argument (client defaults to
+            #      None)
+            # we cannot tell which case it is, but it should not matter since
+            # the default value for host is None.
+            if client is None:
+                client = _MongoClient(*args, **kwargs)
+            # else client is a value for host so just pass it along
+            else:
+                client = _MongoClient(client, *args, **kwargs)
 
         super(TracedMongoClient, self).__init__(client)
         # NOTE[matt] the TracedMongoClient attempts to trace all of the network

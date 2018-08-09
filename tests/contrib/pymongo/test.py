@@ -287,6 +287,11 @@ class TestPymongoPatchDefault(PymongoCore):
         }
         client = pymongo.MongoClient(**conf)
 
+        conf = {
+            'host': None
+        }
+        client = pymongo.MongoClient(**conf)
+
         assert client
 
 
