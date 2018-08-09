@@ -93,6 +93,7 @@ def patch(raise_errors=True, **patch_modules):
             # manually add celery to patched modules and increment count
             _PATCHED_MODULES.add(module)
             count += 1
+            patched = True
         else:
             patched = patch_module(module, raise_errors=raise_errors)
         if patched:
