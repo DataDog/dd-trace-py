@@ -45,12 +45,12 @@ class TracedMongoClient(ObjectProxy):
             # client is just the first arg which could be the host if it is
             # None, then it could be that the caller:
 
-            # if `client` is None then:
-            #   1) __init__ was invoked with host=None
-            #   2) __init__ was not given a first argument (client defaults to
-            #      None)
+            # if client is None then __init__ was:
+            #   1) invoked with host=None
+            #   2) not given a first argument (client defaults to None)
             # we cannot tell which case it is, but it should not matter since
-            # the default value for host is None.
+            # the default value for host is None, in either case we can simply
+            # not provide it as an argument
             if client is None:
                 client = _MongoClient(*args, **kwargs)
             # else client is a value for host so just pass it along
