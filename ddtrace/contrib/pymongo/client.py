@@ -40,7 +40,7 @@ class TracedMongoClient(ObjectProxy):
         # To support the former trace_mongo_client interface, we have to keep this old interface
         # TODO(Benjamin): drop it in a later version
         if not isinstance(client, _MongoClient):
-            # Patched interface, instanciate the client
+            # Patched interface, instantiate the client
             # Note that, in that case, the client argument isn't a client, it's just the first arg
             client = _MongoClient(client, *args, **kwargs)
 

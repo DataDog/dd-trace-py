@@ -280,6 +280,15 @@ class TestPymongoPatchDefault(PymongoCore):
         assert s['app_type'] == 'db'
         assert s['app'] == 'mongodb'
 
+    def test_host_kwarg(self):
+        # simulate what celery and django do when instantiating a new client
+        conf = {
+            'host': 'localhost'
+        }
+        client = pymongo.MongoClient(**conf)
+
+        assert client
+
 
 class TestPymongoPatchConfigured(PymongoCore):
     """Test suite for pymongo with a configured patched library"""
