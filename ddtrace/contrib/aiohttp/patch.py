@@ -24,10 +24,13 @@ except ImportError:
 log = logging.getLogger(__name__)
 PY_35 = sys.version_info >= (3, 5)
 
+# Set these on the ClientSession instance to override the settings from the patch method
+ENABLE_DISTRIBUTED_ATTR_NAME = '_dd_enable_distributed'
+TRACE_HEADERS_ATTR_NAME = '_dd_trace_headers'
+
 
 # NOTE: this will create a trace for the outer request, and a span for each
 #       connect (redirect), and optionally a span for the read of the body
-
 
 def _get_url_obj(obj):
     url_obj = getattr(obj, 'url_obj', None)  # 1.x
@@ -255,6 +258,12 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
     # Note that we aren't tracing redirects
     span = pin.tracer.trace('ClientSession.request', service=_get_service_fallback(pin),
                             span_type=ext_http.TYPE)
+
+    if hasattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME):
+        enable_distributed = getattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME)
+
+    if hasattr(instance, TRACE_HEADERS_ATTR_NAME):
+        trace_headers = getattr(instance, TRACE_HEADERS_ATTR_NAME)
 
     if enable_distributed:
         headers = kwargs.get('headers', {})

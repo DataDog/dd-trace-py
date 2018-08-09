@@ -7,6 +7,8 @@ from ddtrace.util import deep_getattr, unwrap
 
 from aiobotocore.endpoint import ClientResponseContentProxy
 
+from ..aiohttp.patch import ENABLE_DISTRIBUTED_ATTR_NAME
+
 from ...ext import http, aws
 from ...compat import PYTHON_VERSION_INFO
 
@@ -82,6 +84,12 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         result = yield from original_func(*args, **kwargs)  # noqa: E999
         return result
+
+    # we can't enable aiohttp distributed tracing for aiobotocore's
+    # aiohttp session as it would inject headers into the API calls
+    aio_session = deep_getattr(instance, '_endpoint._aio_session')
+    if not hasattr(aio_session, ENABLE_DISTRIBUTED_ATTR_NAME):
+        setattr(aio_session, ENABLE_DISTRIBUTED_ATTR_NAME, False)
 
     endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
 
