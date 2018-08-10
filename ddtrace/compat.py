@@ -16,15 +16,6 @@ if PY2:
     stringify = unicode
     from Queue import Queue
 
-    # TODO: reloading sys and changing the default encoding seems controversial
-    # see:
-    # https://stackoverflow.com/a/34378962
-    # https://stackoverflow.com/a/29832646
-    # http://www.ianbicking.org/illusive-setdefaultencoding.html
-    import sys
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-
     try:
         from cStringIO import StringIO
     except ImportError:
