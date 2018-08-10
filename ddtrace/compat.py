@@ -15,7 +15,6 @@ if PY2:
     import httplib
     stringify = unicode
     from Queue import Queue
-
     try:
         from cStringIO import StringIO
     except ImportError:
