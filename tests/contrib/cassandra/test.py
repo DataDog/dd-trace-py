@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # stdlib
 import logging
 import unittest
@@ -215,6 +216,23 @@ class CassandraBase(object):
         eq_(len(spans), 1)
         query = spans[0]
         eq_(query.service, self.TEST_SERVICE)
+
+    def test_unicode_batch_statement(self):
+        # ensure that unicode included in queries is properly handled
+        session, writer = self._traced_session()
+
+        batch = BatchStatement()
+        query = 'INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'
+        batch.add(SimpleStatement(query), ('Joe', 1, '好'))
+        session.execute(batch)
+
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.resource, 'BatchStatement')
+        eq_(s.get_metric('cassandra.batch_size'), 1)
+        from ddtrace.compat import to_unicode
+        eq_(s.get_tag(cassx.QUERY), to_unicode("INSERT INTO test.person_write (name, age, description) VALUES ('Joe', 1, '好')"))
 
     def test_trace_error(self):
         session, tracer = self._traced_session()
