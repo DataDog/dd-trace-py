@@ -250,6 +250,8 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
 
     if enable_distributed:
         headers = kwargs.get('headers', {})
+        if headers is None:
+            headers = {}
         propagator = HTTPPropagator()
         propagator.inject(span.context, headers)
         kwargs['headers'] = headers
