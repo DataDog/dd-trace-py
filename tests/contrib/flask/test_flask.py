@@ -2,7 +2,7 @@
 import time
 import re
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 from unittest import TestCase
 
 from ddtrace.contrib.flask import TraceMiddleware
@@ -25,13 +25,38 @@ class TestFlask(TestCase):
             service='test.flask.service',
             distributed_tracing=True,
         )
-        # attach the tracer to the Flask app; remove this line
-        # when fixtures are used
-        self.flask_app._tracer = self.tracer
 
         # make the app testable
         self.flask_app.config['TESTING'] = True
         self.app = self.flask_app.test_client()
+
+    def test_double_instrumentation(self):
+        # ensure Flask is never instrumented twice when `ddtrace-run`
+        # and `TraceMiddleware` are used together. `traced_app` MUST
+        # be assigned otherwise it's not possible to reproduce the
+        # problem (the test scope must keep a strong reference)
+        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa
+        rv = self.app.get('/child')
+        eq_(rv.status_code, 200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+
+    def test_double_instrumentation_config(self):
+        # ensure Flask uses the last set configuration to be sure
+        # there are no breaking changes for who uses `ddtrace-run`
+        # with the `TraceMiddleware`
+        TraceMiddleware(
+            self.flask_app,
+            self.tracer,
+            service='new-intake',
+            distributed_tracing=False,
+        )
+        eq_(self.flask_app._service, 'new-intake')
+        ok_(self.flask_app._use_distributed_tracing is False)
+        rv = self.app.get('/child')
+        eq_(rv.status_code, 200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
 
     def test_child(self):
         start = time.time()
