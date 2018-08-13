@@ -24,7 +24,7 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 
 `ddtrace` already provides default propagators but you can also implement your own.
 
-Web frameworks
+Web Frameworks
 ^^^^^^^^^^^^^^
 
 Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
@@ -40,7 +40,7 @@ For web servers not supported, you can extract the HTTP context from the headers
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members: extract
 
-HTTP client
+HTTP Client
 ^^^^^^^^^^^
 
 When calling a remote HTTP server part of the distributed trace, you have to propagate the HTTP headers.
@@ -94,7 +94,9 @@ function that call a `method` and propagate a `rpc_metadata` dictionary over the
 Sampling
 --------
 
-Priority sampling
+.. _`Priority Sampling`:
+
+Priority Sampling
 ^^^^^^^^^^^^^^^^^
 
 Priority sampling gives you control over whether or not a trace will be
@@ -225,24 +227,106 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 (see filters.py for other example implementations)
 
 
+.. _ddtracerun:
+
+``ddtrace-run``
+---------------
+
+``ddtrace-run`` will trace :ref:`supported<Supported Libraries>` web frameworks
+and database modules without the need for changing your code::
+
+  $ ddtrace-run -h
+
+  Execute the given Python program, after configuring it
+  to emit Datadog traces.
+
+  Append command line arguments to your program as usual.
+
+  Usage: [ENV_VARS] ddtrace-run <my_program>
+
+
+The available environment variables for ``ddtrace-run`` are:
+
+* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
+  library instrumentation. When false, your application code will not generate
+  any traces.
+* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
+  ``pre-prod``, ``stage``
+* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
+  the tracer
+* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
+  for this program. This value is passed through when setting up middleware for
+  web framework integrations (e.g. pylons, flask, django). For tracing without a
+  web integration, prefer setting the service name in code.
+* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
+  ``boto:true,redis:false``: override the modules patched for this execution of
+  the program (default: none)
+* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
+  agent host that the default tracer will attempt to submit to  (default:
+  ``localhost``)
+* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
+  will submit to  (default: 8126)
+* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority Sampling`
+
+``ddtrace-run`` respects a variety of common entrypoints for web applications:
+
+- ``ddtrace-run python my_app.py``
+- ``ddtrace-run python manage.py runserver``
+- ``ddtrace-run gunicorn myapp.wsgi:application``
+- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
+
+
+Pass along command-line arguments as your program would normally expect them::
+
+    ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
+
+*As long as your application isn't running in* ``DEBUG`` *mode, this should be
+enough to see your application traces in Datadog.*
+
+If you're running in a Kubernetes cluster, and still don't see your traces, make
+sure your application has a route to the tracing Agent. An easy way to test this
+is with a::
+
+
+$ pip install ipython
+$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+
+Because iPython uses SQLite, it will be automatically instrumented, and your
+traces should be sent off. If there's an error, you'll see the message in the
+console, and can make changes as needed.
+
+
 API
 ---
 
+``Tracer``
+^^^^^^^^^^
 .. autoclass:: ddtrace.Tracer
     :members:
     :special-members: __init__
 
 
+``Span``
+^^^^^^^^
 .. autoclass:: ddtrace.Span
     :members:
     :special-members: __init__
 
+``Pin``
+^^^^^^^
 .. autoclass:: ddtrace.Pin
     :members:
     :special-members: __init__
 
+.. _patch_all:
+
+``patch_all``
+^^^^^^^^^^^^^
+
 .. autofunction:: ddtrace.monkey.patch_all
 
+``patch``
+^^^^^^^^^
 .. autofunction:: ddtrace.monkey.patch
 
 .. toctree::

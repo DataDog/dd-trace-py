@@ -3,6 +3,7 @@ from datetime import datetime
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.extlinks',
 ]
 templates_path = ['_templates']
 source_suffix = '.rst'
@@ -23,15 +24,20 @@ html_theme = 'alabaster'
 html_sidebars = {
     '**': [
         'about.html',
-        'navigation.html',
+        'nav.html',
         'relations.html',
         'searchbox.html',
-        'donate.html',
     ]
 }
 html_theme_options = {
     'description': 'Datadog\'s Python tracing client',
-    'github_user': 'Datadog',
-    'github_repo': 'dd-trace-py',
     'fixed_sidebar': True,
+}
+
+
+extlinks = {
+    'issue': ('https://github.com/sphinx-doc/sphinx/issues/%s', 'issue '),
+    'setupdocs': (
+        'https://docs.datadoghq.com/tracing/setup/python/%s', 'setupdocs'
+    )
 }

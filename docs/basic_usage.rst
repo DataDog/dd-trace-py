@@ -7,119 +7,105 @@ With ``ddtrace`` installed, the application can be instrumented.
 Auto Instrumentation
 --------------------
 
+``ddtrace-run``
+^^^^^^^^^^^^^^^
+
 Python applications can easily be instrumented with ``ddtrace`` by using the
-included ``ddtrace-run`` command. Simply prefix the Python execution command
-with ``ddtrace-run`` in order to auto-instrument the libraries in the
+included ``ddtrace-run`` command. Simply prefix your Python execution command
+with ``ddtrace-run`` in order to auto-instrument the libraries in your
 application.
 
-For example, if the command to the application run is::
+For example, if the command to run your application is::
 
 $ python app.py
 
-then to enable tracing, the corresponding command is::
+then to auto-instrument using Datadog, the corresponding command is::
 
 $ ddtrace-run python app.py
 
+For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
 
-``ddtrace-run``
-^^^^^^^^^^^^^^^
-Datadog tracing can automatically instrument many widely used Python libraries
-and frameworks.
+``patch_all``
+^^^^^^^^^^^^^
 
-Once installed, the package will make the ``ddtrace-run`` command-line entrypoint
-available in your Python environment.
+If your execution command is incompatible with ``ddtrace-run`` or you would
+prefer to have greater control of when the instrumentation occurs then the
+``patch_all`` function can be used to manually invoke the automatic
+instrumentation.
 
-``ddtrace-run`` will trace available web frameworks and database modules without
-the need for changing your code::
-
-  $ ddtrace-run -h
-
-  Execute the given Python program, after configuring it
-  to emit Datadog traces.
-
-  Append command line arguments to your program as usual.
-
-  Usage: [ENV_VARS] ddtrace-run <my_program>
-
-
-The available environment variables for ``ddtrace-run`` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
-  library instrumentation. When false, your application code will not generate
-  any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
-  ``pre-prod``, ``stage``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
-  the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
-  for this program. This value is passed through when setting up middleware for
-  web framework integrations (e.g. pylons, flask, django). For tracing without a
-  web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
-  ``boto:true,redis:false``: override the modules patched for this execution of
-  the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
-  agent host that the default tracer will attempt to submit to  (default:
-  ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
-  will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
-
-``ddtrace-run`` respects a variety of common entrypoints for web applications:
-
-- ``ddtrace-run python my_app.py``
-- ``ddtrace-run python manage.py runserver``
-- ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
-
-
-Pass along command-line arguments as your program would normally expect them::
-
-    ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
-
-*As long as your application isn't running in* ``DEBUG`` *mode, this should be
-enough to see your application traces in Datadog.*
-
-If you're running in a Kubernetes cluster, and still don't see your traces, make
-sure your application has a route to the tracing Agent. An easy way to test this
-is with a::
-
-
-$ pip install ipython
-$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
-
-Because iPython uses SQLite, it will be automatically instrumented, and your
-traces should be sent off. If there's an error, you'll see the message in the
-console, and can make changes as needed.
-
-Please read on if you are curious about further configuration, or
-would rather set up Datadog Tracing explicitly in code.
-
-
-Manual Instrumentation
-----------------------
-
-Manually instrumenting a Python application is as easy as::
+To do this::
 
   from ddtrace import patch_all
   patch_all()
+
+To toggle particular a particular module::
+
+  from ddtrace import patch_all
+  patch_all(redis=False, cassandra=False)
+
+By default all supported libraries will be patched when
+``patch_all`` is invoked.
 
 **Note:** To ensure that the supported libraries are instrumented properly in
 the application, they must be patched *prior* to importing them. So make sure to
 call ``patch_all`` *before* importing libraries that are to be instrumented!
 
-More information about ``patch_all`` is available in our `patch_all API
-documentation`_.
+More information about ``patch_all`` is available in our :ref:`patch_all` API
+documentation.
 
+
+Manual Instrumentation
+----------------------
+
+If you would like to extend the functionality of the ``ddtrace`` library or gain
+finer control over instrumenting your application several techniques are
+provided by the library.
 
 Decorator
 ^^^^^^^^^
 
+``ddtrace`` provides a decorator that can be used to trace particular methods in
+your application::
+
+  @tracer.wrap()
+  def business_logic():
+    """A method that would be of interest to trace"""
+    # ...
+    # ...
+
+API details of the decorator can be found here :py:meth:`ddtrace.Tracer.wrap`.
 
 Context Manager
 ^^^^^^^^^^^^^^^
 
+To trace an arbitrary block of code you can use the context manager built-in to
+:py:mod:`ddtrace.Span`::
 
-Completely Manual
-^^^^^^^^^^^^^^^^^
+  import time
+  from ddtrace import tracer
 
+  # trace some sleeping
+  with tracer.trace('sleep'):
+    # do interesting stuff besides sleeping for a second
+    time.sleep(1)
+
+Further API details can be found here :py:meth:`ddtrace.Tracer`.
+
+By Hand
+^^^^^^^
+
+If the above methods are still not enough to satisfy your tracing needs a
+completel manual API is provided which will allow you to start and finish spans
+however you please::
+
+  span = tracer.trace('interesting stuff')
+
+  # do interesting stuff in between
+
+  span.finish()
+
+
+API details of the decorator can be found here:
+
+- :py:meth:`ddtrace.Tracer.trace`
+- :py:meth:`ddtrace.Span.finish`.

@@ -1,31 +1,44 @@
 Datastore Libraries
 ===================
 
+.. _cassandra:
+
 Cassandra
-^^^^^^^^^
+---------
 
 .. automodule:: ddtrace.contrib.cassandra
 
 
+.. _elasticsearch:
+
 Elasticsearch
-^^^^^^^^^^^^^
+-------------
 
 .. automodule:: ddtrace.contrib.elasticsearch
 
 
+.. _flask_cache:
+
 Flask Cache
-^^^^^^^^^^^
+-----------
 
 .. automodule:: ddtrace.contrib.flask_cache
 
 
+.. _mongodb:
+
 MongoDB
-^^^^^^^
+-------
+
+.. _mongoengine:
 
 Mongoengine
 ^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mongoengine
+
+
+.. _pymongo:
 
 Pymongo
 ^^^^^^^
@@ -34,7 +47,9 @@ Pymongo
 
 
 Memcached
-^^^^^^^^^
+---------
+
+.. _pylibmc:
 
 pylibmc
 ^^^^^^^
@@ -43,7 +58,9 @@ pylibmc
 
 
 MySQL
-^^^^^
+-----
+
+.. _mysql-connector:
 
 mysql-connector
 ^^^^^^^^^^^^^^^
@@ -51,11 +68,15 @@ mysql-connector
 .. automodule:: ddtrace.contrib.mysql
 
 
+.. _mysqlclient:
+.. _MySQL-python:
+
 mysqlclient and MySQL-python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mysqldb
 
+.. _pymysql:
 
 pymysql
 ^^^^^^^
@@ -64,24 +85,43 @@ pymysql
 
 
 Postgres
-^^^^^^^^
+--------
+
+.. _aiopg:
+
+aiopg
+^^^^^
+
+.. automodule:: ddtrace.contrib.aiopg
+
+
+.. _psycopg:
+
+psycopg
+^^^^^^^
 
 .. automodule:: ddtrace.contrib.psycopg
 
 
+.. _redis:
+
 Redis
-^^^^^
+-----
 
 .. automodule:: ddtrace.contrib.redis
 
 
+.. _sqlalchemy:
+
 SQLAlchemy
-^^^^^^^^^^
+----------
 
 .. automodule:: ddtrace.contrib.sqlalchemy
 
 
+.. _sqllite:
+
 SQLite
-^^^^^^
+------
 
 .. automodule:: ddtrace.contrib.sqlite3
