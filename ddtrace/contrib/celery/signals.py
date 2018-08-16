@@ -1,3 +1,5 @@
+import logging
+
 from ddtrace import Pin
 
 from celery import registry
@@ -12,12 +14,16 @@ from .util import (
 )
 
 
+log = logging.getLogger(__name__)
+
+
 def trace_prerun(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
     # changes in Celery
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
     if task is None or task_id is None:
+        log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
 
     # retrieve the task Pin or fallback to the global one
@@ -36,6 +42,7 @@ def trace_postrun(*args, **kwargs):
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
     if task is None or task_id is None:
+        log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
 
     # retrieve and finish the Span
@@ -62,6 +69,7 @@ def trace_before_publish(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
     # changes in Celery
     if task is None or task_id is None:
+        log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
 
     # propagate the `Span` in the current task Context
@@ -88,6 +96,7 @@ def trace_after_publish(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
     # changes in Celery
     if task is None or task_id is None:
+        log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
 
     # retrieve and finish the Span
@@ -105,6 +114,7 @@ def trace_failure(*args, **kwargs):
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
     if task is None or task_id is None:
+        log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
 
     # retrieve and finish the Span
