@@ -36,8 +36,8 @@ instance::
 
 
 By default, reported service names are:
-    * ``celery-producer`` when messages are sent for processing
-    * ``celery-worker`` when messages are processed
+    * ``celery-producer`` when tasks are enqueued for processing
+    * ``celery-worker`` when tasks are processed by a Celery process
 
 """
 from ...utils.importlib import require_modules
