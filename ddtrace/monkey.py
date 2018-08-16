@@ -29,6 +29,7 @@ PATCH_MODULES = {
     'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
+    'pymemcache': True,
     'pymongo': True,
     'redis': True,
     'requests': False,  # Not ready yet
