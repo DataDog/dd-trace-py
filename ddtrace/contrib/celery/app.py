@@ -18,9 +18,14 @@ def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
     """
+    if getattr(app, '__datadog_patch', False):
+        return
+    setattr(app, '__datadog_patch', True)
+
+    # attach the PIN object
     pin = pin or Pin(service=WORKER_SERVICE, app=APP, app_type=AppTypes.worker)
     pin.onto(app)
-
+    # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun)
     signals.task_postrun.connect(trace_postrun)
     signals.before_task_publish.connect(trace_before_publish)
@@ -33,6 +38,10 @@ def unpatch_app(app):
     """Remove the Pin instance from the application and disconnect
     our handlers from Celery signal framework.
     """
+    if not getattr(app, '__datadog_patch', False):
+        return
+    setattr(app, '__datadog_patch', False)
+
     pin = Pin.get_from(app)
     if pin is not None:
         delattr(app, _DD_PIN_NAME)
