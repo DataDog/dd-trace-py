@@ -1,7 +1,8 @@
 import celery
 
+from nose.tools import eq_
+
 from .base import CeleryBaseTestCase
-from .utils import patch_task_with_pin
 
 
 class CeleryOldStyleTaskTest(CeleryBaseTestCase):
@@ -25,11 +26,27 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
                     return
                 CelerySubClass.apply_async(args=[], kwargs={"stop": True})
 
-        @patch_task_with_pin(pin=self.pin)
         class CelerySubClass(CelerySuperClass):
             pass
 
         t = CelerySubClass()
-        t.run()
-        spans = self.tracer.writer.pop()
-        self.assertEqual(len(spans), 2)
+        res = t.apply()
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        run_span = traces[0][0]
+        eq_(run_span.error, 0)
+        eq_(run_span.name, 'celery.run')
+        eq_(run_span.resource, 'tests.contrib.celery.test_old_style_task.CelerySubClass')
+        eq_(run_span.service, 'celery-worker')
+        eq_(run_span.get_tag('celery.id'), res.task_id)
+        eq_(run_span.get_tag('celery.action'), 'run')
+        eq_(run_span.get_tag('celery.state'), 'SUCCESS')
+        apply_span = traces[0][1]
+        eq_(apply_span.error, 0)
+        eq_(apply_span.name, 'celery.apply')
+        eq_(apply_span.resource, 'tests.contrib.celery.test_old_style_task.CelerySubClass')
+        eq_(apply_span.service, 'celery-producer')
+        eq_(apply_span.get_tag('celery.action'), 'apply_async')
+        eq_(apply_span.get_tag('celery.routing_key'), 'celery')

@@ -1,6 +1,8 @@
 import celery
-import wrapt
 
+from nose.tools import ok_
+
+from ddtrace import Pin
 from ddtrace.contrib.celery import unpatch_app
 
 from .base import CeleryBaseTestCase
@@ -10,14 +12,12 @@ class CeleryAppTest(CeleryBaseTestCase):
     """Ensures the default application is properly instrumented"""
 
     def test_patch_app(self):
-        # When celery.App is patched the task() method will return a patched task
+        # When celery.App is patched it must include a `Pin` instance
         app = celery.Celery()
-        self.assertIsInstance(celery.Celery.task, wrapt.BoundFunctionWrapper)
-        self.assertIsInstance(app.task, wrapt.BoundFunctionWrapper)
+        ok_(Pin.get_from(app) is not None)
 
     def test_unpatch_app(self):
-        # When unpatch_app is called on a patched app we unpatch the `task()` method
+        # When celery.App is unpatched it must not include a `Pin` instance
         unpatch_app(celery.Celery)
         app = celery.Celery()
-        self.assertFalse(isinstance(celery.Celery.task, wrapt.BoundFunctionWrapper))
-        self.assertFalse(isinstance(app.task, wrapt.BoundFunctionWrapper))
+        ok_(Pin.get_from(app) is None)
