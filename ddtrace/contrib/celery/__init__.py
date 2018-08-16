@@ -1,6 +1,9 @@
 """
 The Celery integration will trace all tasks that are executed in the
-background. To trace your Celery application, call the patch method::
+background. Functions and class based tasks are traced only if the Celery API
+is used, so calling the function directly or via the ``run()`` method will not
+generate traces. On the other hand, calling ``apply()`` and ``apply_async()``
+will produce tracing data. To trace your Celery application, call the patch method::
 
     import celery
     from ddtrace import patch
