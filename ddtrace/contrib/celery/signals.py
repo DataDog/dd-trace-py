@@ -5,7 +5,7 @@ from ddtrace import Pin
 from celery import registry
 
 from . import constants as c
-from .util import (
+from .utils import (
     tags_from_context,
     retrieve_task_id,
     attach_span,

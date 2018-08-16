@@ -2,7 +2,7 @@ import gc
 
 from nose.tools import eq_, ok_
 
-from ddtrace.contrib.celery.util import (
+from ddtrace.contrib.celery.utils import (
     tags_from_context,
     retrieve_task_id,
     attach_span,
