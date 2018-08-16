@@ -20,12 +20,22 @@ class TraceMiddleware(object):
         self.app = app
         log.debug('flask: initializing trace middleware')
 
-        self._tracer = tracer
-        self._service = service
-        self._use_distributed_tracing = distributed_tracing
+        # Attach settings to the inner application middleware. This is required if double
+        # instrumentation happens (i.e. `ddtrace-run` with `TraceMiddleware`). In that
+        # case, `ddtrace-run` instruments the application, but then users code is unable
+        # to update settings such as `distributed_tracing` flag. This step can be removed
+        # when the `Config` object is used
+        self.app._tracer = tracer
+        self.app._service = service
+        self.app._use_distributed_tracing = distributed_tracing
         self.use_signals = use_signals
 
-        self._tracer.set_service_info(
+        # safe-guard to avoid double instrumentation
+        if getattr(app, '__dd_instrumentation', False):
+            return
+        setattr(app, '__dd_instrumentation', True)
+
+        self.app._tracer.set_service_info(
             service=service,
             app="flask",
             app_type=AppTypes.web,
@@ -97,16 +107,16 @@ class TraceMiddleware(object):
             log.debug('flask: error finishing span', exc_info=True)
 
     def _start_span(self):
-        if self._use_distributed_tracing:
+        if self.app._use_distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(request.headers)
             # Only need to active the new context if something was propagated
             if context.trace_id:
-                self._tracer.context_provider.activate(context)
+                self.app._tracer.context_provider.activate(context)
         try:
-            g.flask_datadog_span = self._tracer.trace(
+            g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
-                service=self._service,
+                service=self.app._service,
                 span_type=http.TYPE,
             )
         except Exception:
