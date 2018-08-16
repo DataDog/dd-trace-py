@@ -4,7 +4,7 @@ from ddtrace import Pin
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.ext import AppTypes
 
-from .util import APP, WORKER_SERVICE
+from .constants import APP, WORKER_SERVICE
 from .signals import (
     trace_prerun,
     trace_postrun,
