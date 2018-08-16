@@ -5,9 +5,9 @@ from nose.tools import eq_, ok_
 from ddtrace.contrib.celery.util import (
     tags_from_context,
     retrieve_task_id,
-    propagate_span,
+    attach_span,
+    detach_span,
     retrieve_span,
-    remove_span,
 )
 
 from .base import CeleryBaseTestCase
@@ -72,7 +72,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         # propagate and retrieve a Span
         task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
         span_before = self.tracer.trace('celery.run')
-        propagate_span(fn_task, task_id, span_before)
+        attach_span(fn_task, task_id, span_before)
         span_after = retrieve_span(fn_task, task_id)
         ok_(span_before is span_after)
 
@@ -85,10 +85,10 @@ class CeleryTagsTest(CeleryBaseTestCase):
         # propagate a Span
         task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
         span = self.tracer.trace('celery.run')
-        propagate_span(fn_task, task_id, span)
+        attach_span(fn_task, task_id, span)
         # delete the Span
         weak_dict = getattr(fn_task, '__dd_task_span')
-        remove_span(fn_task, task_id)
+        detach_span(fn_task, task_id)
         ok_(weak_dict.get(task_id) is None)
 
     def test_span_delete_empty(self):
@@ -102,7 +102,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         exception = None
         task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
         try:
-            remove_span(fn_task, task_id)
+            detach_span(fn_task, task_id)
         except Exception as e:
             exception = e
         ok_(exception is None)
@@ -117,7 +117,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
 
         # propagate and finish a Span for `fn_task`
         task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
-        propagate_span(fn_task, task_id, self.tracer.trace('celery.run'))
+        attach_span(fn_task, task_id, self.tracer.trace('celery.run'))
         weak_dict = getattr(fn_task, '__dd_task_span')
         ok_(weak_dict.get(task_id))
         # flush data and force the GC

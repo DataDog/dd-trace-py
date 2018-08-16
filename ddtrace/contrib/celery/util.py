@@ -50,7 +50,7 @@ def tags_from_context(context):
     return tags
 
 
-def propagate_span(task, task_id, span):
+def attach_span(task, task_id, span):
     """Helper to propagate a `Span` for the given `Task` instance. This
     function uses a `WeakValueDictionary` that stores a Datadog Span using
     the `task_id` as a key. This is useful when information must be
@@ -64,7 +64,7 @@ def propagate_span(task, task_id, span):
     weak_dict[task_id] = span
 
 
-def remove_span(task, task_id):
+def detach_span(task, task_id):
     """Helper to remove a `Span` in a Celery task when it's propagated.
     This function handles tasks where the `Span` is not attached.
     """

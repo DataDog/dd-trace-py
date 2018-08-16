@@ -8,9 +8,9 @@ from . import constants as c
 from .util import (
     tags_from_context,
     retrieve_task_id,
-    propagate_span,
+    attach_span,
+    detach_span,
     retrieve_span,
-    remove_span,
 )
 
 
@@ -33,7 +33,7 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=c.WORKER_SERVICE, resource=task.name)
-    propagate_span(task, task_id, span)
+    attach_span(task, task_id, span)
 
 
 def trace_postrun(*args, **kwargs):
@@ -55,7 +55,7 @@ def trace_postrun(*args, **kwargs):
         span.set_tags(tags_from_context(kwargs))
         span.set_tags(tags_from_context(task.request))
         span.finish()
-        remove_span(task, task_id)
+        detach_span(task, task_id)
 
 
 def trace_before_publish(*args, **kwargs):
@@ -86,7 +86,7 @@ def trace_before_publish(*args, **kwargs):
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely
     # only on the given `Context`
-    propagate_span(task, task_id, span)
+    attach_span(task, task_id, span)
 
 
 def trace_after_publish(*args, **kwargs):
@@ -105,7 +105,7 @@ def trace_after_publish(*args, **kwargs):
         return
     else:
         span.finish()
-        remove_span(task, task_id)
+        detach_span(task, task_id)
 
 
 def trace_failure(*args, **kwargs):
