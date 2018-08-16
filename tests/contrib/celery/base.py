@@ -2,7 +2,7 @@ import unittest
 
 from celery import Celery
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery import patch, unpatch
 
@@ -21,6 +21,8 @@ class CeleryBaseTestCase(unittest.TestCase):
     """
 
     def setUp(self):
+        # keep track of original config
+        self._config = dict(config.celery)
         # instrument Celery and create an app with Broker and Result backends
         patch()
         self.tracer = get_dummy_tracer()
@@ -28,12 +30,14 @@ class CeleryBaseTestCase(unittest.TestCase):
         self.app = Celery('celery.test_app', broker=BROKER_URL, backend=BACKEND_URL)
         # override pins to use our Dummy Tracer
         Pin.override(self.app, tracer=self.tracer)
-        Pin.override(self.app.task, tracer=self.tracer)
-        Pin.override(self.app.Task, tracer=self.tracer)
 
     def tearDown(self):
+        # remove instrumentation from Celery
         unpatch()
         self.app = None
+        # restore the global configuration
+        config.celery.update(self._config)
+        self._config = None
 
     def assert_items_equal(self, a, b):
         if PY2:

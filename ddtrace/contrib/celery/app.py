@@ -1,10 +1,10 @@
 from celery import signals
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.ext import AppTypes
 
-from .constants import APP, WORKER_SERVICE
+from .constants import APP
 from .signals import (
     trace_prerun,
     trace_postrun,
@@ -23,7 +23,12 @@ def patch_app(app, pin=None):
     setattr(app, '__datadog_patch', True)
 
     # attach the PIN object
-    pin = pin or Pin(service=WORKER_SERVICE, app=APP, app_type=AppTypes.worker)
+    pin = pin or Pin(
+        service=config.celery['worker_service_name'],
+        app=APP,
+        app_type=AppTypes.worker,
+        _config=config.celery,
+    )
     pin.onto(app)
     # connect to the Signal framework
     signals.task_prerun.connect(trace_prerun)
