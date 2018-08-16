@@ -1,6 +1,17 @@
 import celery
 
+from ddtrace import config
+
 from .app import patch_app, unpatch_app
+from .constants import PRODUCER_SERVICE, WORKER_SERVICE
+from ...utils.formats import get_env
+
+
+# Celery default settings
+config._add('celery', {
+    'producer_service_name': get_env('celery', 'producer_service_name', PRODUCER_SERVICE),
+    'worker_service_name': get_env('celery', 'worker_service_name', WORKER_SERVICE),
+})
 
 
 def patch():

@@ -1,6 +1,6 @@
 import logging
 
-from ddtrace import Pin
+from ddtrace import Pin, config
 
 from celery import registry
 
@@ -32,7 +32,8 @@ def trace_prerun(*args, **kwargs):
         return
 
     # propagate the `Span` in the current task Context
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=c.WORKER_SERVICE, resource=task.name)
+    service = config.celery['worker_service_name']
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name)
     attach_span(task, task_id, span)
 
 
@@ -79,7 +80,8 @@ def trace_before_publish(*args, **kwargs):
 
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
-    span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=c.PRODUCER_SERVICE, resource=task_name)
+    service = config.celery['producer_service_name']
+    span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
     span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag('celery.id', task_id)
     span.set_tags(tags_from_context(kwargs))
