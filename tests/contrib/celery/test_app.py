@@ -17,7 +17,7 @@ class CeleryAppTest(CeleryBaseTestCase):
         ok_(Pin.get_from(app) is not None)
 
     def test_unpatch_app(self):
-        # When celery.App is patched it must not include a `Pin` instance
+        # When celery.App is unpatched it must not include a `Pin` instance
         unpatch_app(celery.Celery)
         app = celery.Celery()
         ok_(Pin.get_from(app) is None)
