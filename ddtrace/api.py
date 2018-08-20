@@ -140,4 +140,6 @@ class API(object):
             headers[TRACE_COUNT_HEADER] = str(count)
 
         conn.request("PUT", endpoint, data, headers)
-        return get_connection_response(conn)
+        resp = get_connection_response(conn)
+        conn.close()
+        return resp
