@@ -73,6 +73,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.prepare')
         eq_(span.resource, q)
         eq_(span.service, service)
+        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         assert start <= span.start <= end
@@ -83,6 +84,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.bind_execute')
         eq_(span.resource, q)
         eq_(span.service, service)
+        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         eq_(span.metrics['db.rowcount'], 1)
@@ -105,6 +107,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.prepare')
         eq_(span.resource, q)
         eq_(span.service, service)
+        eq_(span.meta['sql.query'], q)
         eq_(span.error, 1)
         eq_(span.meta['out.host'], 'localhost')
         eq_(span.meta['out.port'], TEST_PORT)
@@ -114,20 +117,25 @@ class TestPsycopgPatch(AsyncioTestCase):
     async def test_pool(self):
         Pin(None, tracer=self.tracer).onto(asyncpg)
 
-        async with asyncpg.create_pool(**POSTGRES_CONFIG,
-                                       min_size=1, max_size=1) as pool:
-            async with pool.acquire() as conn:
-                await conn.execute('select 1;')
+        for min_size in [0, 1]:
+            async with asyncpg.create_pool(**POSTGRES_CONFIG,
+                                           min_size=min_size, max_size=1) as pool:
+                async with pool.acquire() as conn:
+                    await conn.execute('select 1;')
 
-        spans = self.tracer.writer.pop()
-        eq_(len(spans), 6)
+            spans = self.tracer.writer.pop()
+            eq_(len(spans), 6)
 
-        eq_(spans[0].name, "postgres.connect")
-        eq_(spans[1].name, "postgres.pool.acquire")
-        eq_(spans[2].name, "postgres.query")
-        eq_(spans[3].name, "postgres.query")
-        eq_(spans[4].name, "postgres.pool.release")
-        eq_(spans[5].name, "postgres.close")
+            if min_size == 0:
+                eq_(spans[0].name, "postgres.pool.acquire")
+                eq_(spans[1].name, "postgres.connect")
+            else:
+                eq_(spans[0].name, "postgres.connect")
+                eq_(spans[1].name, "postgres.pool.acquire")
+            eq_(spans[2].name, "postgres.query")
+            eq_(spans[3].name, "postgres.query")
+            eq_(spans[4].name, "postgres.pool.release")
+            eq_(spans[5].name, "postgres.close")
 
     @mark_sync
     async def test_disabled_execute(self):
