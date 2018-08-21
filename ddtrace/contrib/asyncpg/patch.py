@@ -1,5 +1,4 @@
 import asyncio
-import functools
 
 # 3p
 from asyncpg.protocol import Protocol as orig_Protocol
@@ -19,7 +18,9 @@ from ...ext import sql
 def _create_pin(tags):
     # Will propagate info from global pin
     pin = Pin.get_from(asyncpg)
-    service = pin.service if pin and pin.service else "postgres_%s" % tags[db.NAME]
+    db_name = tags.get(db.NAME)
+    service = pin.service if pin and pin.service else "postgres_%s" % db_name \
+        if db_name else 'postgres'
     app = pin.app if pin and pin.app else "postgres"
     app_type = pin.app_type if pin and pin.app_type else "db"
     tracer = pin.tracer if pin else None
@@ -80,15 +81,44 @@ def _patched_connect(connect_func, _, args, kwargs):
     return conn
 
 
+def _get_parsed_tags(*,
+        dsn=None, host=None, port=None, user=None, password=None,
+        database=None, ssl=None, connect_timeout=60, server_settings=None):
+    try:
+        addrs, params = asyncpg.connect_utils._parse_connect_dsn_and_args(
+            dsn=dsn, host=host, port=port, user=user, password=password,
+            database=database, ssl=ssl, connect_timeout=connect_timeout,
+            server_settings=server_settings)
+
+        tags = {
+            net.TARGET_HOST: addrs[0][0],
+            net.TARGET_PORT: addrs[0][1],
+            db.NAME: params.database,
+            db.USER: params.user,
+        }
+        return tags
+    except:
+        # This same exception will presumably be raised during the actual conn
+        return {}
+
+
 @asyncio.coroutine
 def _patched_acquire(acquire_func, instance, args, kwargs):
-    tags = {
-        net.TARGET_HOST: instance._working_addr[0],
-        net.TARGET_PORT: instance._working_addr[1],
-        db.NAME: instance._working_params.database,
-        db.USER: instance._working_params.user,
-        # "db.application" : dsn.get("application_name"),
-    }
+    if instance._working_addr:
+        tags = {
+            net.TARGET_HOST: instance._working_addr[0],
+            net.TARGET_PORT: instance._working_addr[1],
+            db.NAME: instance._working_params.database,
+            db.USER: instance._working_params.user,
+            # "db.application" : dsn.get("application_name"),
+        }
+    else:
+        conn = instance._queue._queue[0]
+        kwargs_copy = dict(conn._connect_kwargs)
+        tags = {}
+        if len(conn._connect_args) == 1:
+            kwargs_copy['dsn'] = conn._connect_args[0]
+            tags = _get_parsed_tags(**kwargs_copy)
 
     pin = _create_pin(tags)
 
@@ -100,7 +130,6 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
                           service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
-
         conn = yield from acquire_func(*args, **kwargs)
 
     return conn

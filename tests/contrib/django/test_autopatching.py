@@ -43,9 +43,13 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
         ok_(django._datadog_patch)
         ok_('ddtrace.contrib.django' in settings.INSTALLED_APPS)
         eq_(settings.MIDDLEWARE[0], 'ddtrace.contrib.django.TraceMiddleware')
-        ok_('ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        # MIDDLEWARE_CLASSES gets created internally in django 1.10 & 1.11 but doesn't
+        # exist at all in 2.0.
+        ok_(not getattr(settings, 'MIDDLEWARE_CLASSES', None) or
+            'ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
         eq_(settings.MIDDLEWARE[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
-        ok_('ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        ok_(not getattr(settings, 'MIDDLEWARE_CLASSES', None) or
+            'ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
 
 
     @skipIf(django.VERSION < (1, 10), 'skip if version is below 1.10')
@@ -58,9 +62,13 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
         eq_(found_app, 1)
 
         eq_(settings.MIDDLEWARE[0], 'ddtrace.contrib.django.TraceMiddleware')
-        ok_('ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        # MIDDLEWARE_CLASSES gets created internally in django 1.10 & 1.11 but doesn't
+        # exist at all in 2.0.
+        ok_(not getattr(settings, 'MIDDLEWARE_CLASSES', None) or
+            'ddtrace.contrib.django.TraceMiddleware' not in settings.MIDDLEWARE_CLASSES)
         eq_(settings.MIDDLEWARE[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
-        ok_('ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
+        ok_(not getattr(settings, 'MIDDLEWARE_CLASSES', None) or
+            'ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
 
         found_mw = settings.MIDDLEWARE.count('ddtrace.contrib.django.TraceMiddleware')
         eq_(found_mw, 1)

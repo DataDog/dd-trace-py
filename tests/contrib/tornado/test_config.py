@@ -1,4 +1,6 @@
-from nose.tools import eq_
+from nose.tools import eq_, ok_
+
+from ddtrace.filters import FilterRequestsOnUrl
 
 from .utils import TornadoTestCase
 
@@ -17,6 +19,11 @@ class TestTornadoSettings(TornadoTestCase):
                 'enabled': False,
                 'agent_hostname': 'dd-agent.service.consul',
                 'agent_port': 8126,
+                'settings': {
+                    'FILTERS':  [
+                        FilterRequestsOnUrl(r'http://test\.example\.com'),
+                    ],
+                },
             },
         }
 
@@ -27,3 +34,7 @@ class TestTornadoSettings(TornadoTestCase):
         eq_(self.tracer.enabled, False)
         eq_(self.tracer.writer.api.hostname, 'dd-agent.service.consul')
         eq_(self.tracer.writer.api.port, 8126)
+        # settings are properly passed
+        ok_(self.tracer.writer._filters is not None)
+        eq_(len(self.tracer.writer._filters), 1)
+        ok_(isinstance(self.tracer.writer._filters[0], FilterRequestsOnUrl))

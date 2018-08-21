@@ -2,15 +2,14 @@ import asyncio
 import wrapt
 import aiobotocore.client
 
-from ddtrace import Pin
-from ddtrace.util import deep_getattr, unwrap
-
 from aiobotocore.endpoint import ClientResponseContentProxy
-
 from ..aiohttp.patch import ENABLE_DISTRIBUTED_ATTR_NAME
 
+from ...pin import Pin
 from ...ext import http, aws
 from ...compat import PYTHON_VERSION_INFO
+from ...utils.formats import deep_getattr
+from ...utils.wrappers import unwrap
 
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')

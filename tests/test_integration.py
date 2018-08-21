@@ -13,7 +13,6 @@ from ddtrace.api import API
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION

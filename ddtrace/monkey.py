@@ -16,17 +16,20 @@ log = logging.getLogger(__name__)
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     'asyncio': False,
-    'boto': False,
-    'botocore': False,
+    'boto': True,
+    'botocore': True,
     'bottle': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
+    'futures': False,  # experimental propagation
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
+    'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
+    'pymemcache': True,
     'pymongo': True,
     'redis': True,
     'requests': False,  # Not ready yet
@@ -76,16 +79,28 @@ def patch(raise_errors=True, **patch_modules):
         >>> patch(psycopg=True, elasticsearch=True)
     """
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
-    count = 0
     for module in modules:
-        patched = patch_module(module, raise_errors=raise_errors)
-        if patched:
-            count += 1
+        # TODO: this is a temporary hack until we shift to using
+        # post-import hooks for everything.
+        if module == 'celery':
+            # if patch celery via post-import hooks
+            from wrapt.importer import when_imported
 
+            @when_imported('celery')
+            def patch_celery(hook):
+                from ddtrace.contrib.celery import patch
+                patch()
+
+            # manually add celery to patched modules
+            _PATCHED_MODULES.add(module)
+        else:
+            patch_module(module, raise_errors=raise_errors)
+
+    patched_modules = get_patched_modules()
     log.info("patched %s/%s modules (%s)",
-        count,
+        len(patched_modules),
         len(modules),
-        ",".join(get_patched_modules()))
+        ",".join(patched_modules))
 
 
 def patch_module(module, raise_errors=True):
@@ -114,7 +129,7 @@ def _patch_module(module):
     """
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
-        if module in _PATCHED_MODULES:
+        if module in _PATCHED_MODULES and module != 'celery':
             log.debug("already patched: %s", path)
             return False
 

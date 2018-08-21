@@ -19,7 +19,7 @@
     Pin.override(es.transport, service='elasticsearch-videos')
     es.indices.create(index='videos', ignore=400)
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['elasticsearch']
 

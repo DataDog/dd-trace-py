@@ -61,10 +61,18 @@ Pass along command-line arguments as your program would normally expect them::
 
     ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
 
-`For most users, this should be sufficient to see your application traces in Datadog.`
+*As long as your application isn't running in* ``DEBUG`` *mode, this should be enough to see your application traces in Datadog.*
 
-`Please read on if you are curious about further configuration, or
-would rather set up Datadog Tracing explicitly in code.`
+If you're running in a Kubernetes cluster, and still don't see your traces, make sure your application has a route to the tracing Agent. An easy way to test this is with a::
+
+
+$ pip install ipython
+$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
+
+Because iPython uses SQLite, it will be automatically instrumented, and your traces should be sent off. If there's an error, you'll see the message in the console, and can make changes as needed.
+
+Please read on if you are curious about further configuration, or
+would rather set up Datadog Tracing explicitly in code.
 
 
 Instrumentation
@@ -73,7 +81,10 @@ Instrumentation
 Web
 ~~~
 
-We support many `Web Frameworks`_. Install the middleware for yours.
+We support many `web frameworks`_. Install the middleware for yours.
+
+.. _web frameworks: #web-frameworks
+
 
 Databases
 ~~~~~~~~~
@@ -123,6 +134,8 @@ If the Datadog Agent is on a separate host from your application, you can modify
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
 
 By default, these will be set to localhost and 8126 respectively.
+
+.. _web-frameworks:
 
 Web Frameworks
 --------------
@@ -186,6 +199,11 @@ Tornado
 Other Libraries
 ---------------
 
+Futures
+~~~~~~~
+
+.. automodule:: ddtrace.contrib.futures
+
 Boto2
 ~~~~~~~~~
 
@@ -234,6 +252,11 @@ Memcached
 
 .. automodule:: ddtrace.contrib.pylibmc
 
+**pymemcache**
+
+.. automodule:: ddtrace.contrib.pymemcache
+
+
 MySQL
 ~~~~~
 
@@ -244,6 +267,10 @@ MySQL
 **mysqlclient and MySQL-python**
 
 .. automodule:: ddtrace.contrib.mysqldb
+
+**pymysql**
+
+.. automodule:: ddtrace.contrib.pymysql
 
 Postgres
 ~~~~~~~~
@@ -256,7 +283,7 @@ Redis
 .. automodule:: ddtrace.contrib.redis
 
 Requests
-~~~~~
+~~~~~~~~
 
 .. automodule:: ddtrace.contrib.requests
 
@@ -424,6 +451,22 @@ Information will be lost but it allows to control any potential performance impa
     tracer.sampler = RateSampler(sample_rate)
 
 
+Resolving deprecation warnings
+------------------------------
+Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
+These warnings must be fixed before upgrading, otherwise ``ddtrace`` library will not work
+as expected. Our deprecation messages include the version where the behavior is altered or
+removed.
+
+In Python, deprecation warnings are silenced by default, and to turn them on you may add the
+following flag or environment variable::
+
+    $ python -Wall app.py
+
+    # or
+
+    $ PYTHONWARNINGS=all python app.py
+
 
 Advanced Usage
 --------------
@@ -532,63 +575,67 @@ Supported versions
 
 We officially support Python 2.7, 3.4 and above.
 
-+-----------------+--------------------+
-| Integrations    | Supported versions |
-+=================+====================+
-| aiohttp         | >= 1.2             |
-+-----------------+--------------------+
-| aiobotocore     | >= 0.2.3           |
-+-----------------+--------------------+
-| aiopg           | >= 0.12.0          |
-+-----------------+--------------------+
-| asyncpg         | >= 0.14.0          |
-+-----------------+--------------------+
-| boto            | >= 2.29.0          |
-+-----------------+--------------------+
-| botocore        | >= 1.4.51          |
-+-----------------+--------------------+
-| bottle          | >= 0.12            |
-+-----------------+--------------------+
-| celery          | >= 3.1             |
-+-----------------+--------------------+
-| cassandra       | >= 3.5             |
-+---------------------+----------------+
-| djangorestframework | >= 3.4         |
-+---------------------+----------------+
-| django          | >= 1.8             |
-+-----------------+--------------------+
-| elasticsearch   | >= 1.6             |
-+-----------------+--------------------+
-| falcon          | >= 1.0             |
-+-----------------+--------------------+
-| flask           | >= 0.10            |
-+-----------------+--------------------+
-| flask_cache     | >= 0.12            |
-+-----------------+--------------------+
-| gevent          | >= 1.0             |
-+-----------------+--------------------+
-| mongoengine     | >= 0.11            |
-+-----------------+--------------------+
-| mysql-connector | >= 2.1             |
-+-----------------+--------------------+
-| MySQL-python    | >= 1.2.3           |
-+-----------------+--------------------+
-| mysqlclient     | >= 1.3             |
-+-----------------+--------------------+
-| psycopg2        | >= 2.7             |
-+-----------------+--------------------+
-| pylibmc         | >= 1.4             |
-+-----------------+--------------------+
-| pylons          | >= 0.9.6           |
-+-----------------+--------------------+
-| pymongo         | >= 3.0             |
-+-----------------+--------------------+
-| pyramid         | >= 1.7             |
-+-----------------+--------------------+
-| redis           | >= 2.6             |
-+-----------------+--------------------+
-| sqlalchemy      | >= 1.0             |
-+-----------------+--------------------+
++---------------------+--------------------+
+| Integrations        | Supported versions |
++=====================+====================+
+| aiohttp             | >= 1.2             |
++---------------------+--------------------+
+| aiobotocore         | >= 0.2.3           |
++---------------------+--------------------+
+| aiopg               | >= 0.12.0          |
++---------------------+--------------------+
+| asyncpg             | >= 0.14.0          |
++---------------------+--------------------+
+| boto                | >= 2.29.0          |
++---------------------+--------------------+
+| botocore            | >= 1.4.51          |
++---------------------+--------------------+
+| bottle              | >= 0.11            |
++---------------------+--------------------+
+| celery              | >= 3.1             |
++---------------------+--------------------+
+| cassandra           | >= 3.5             |
++---------------------+--------------------+
+| djangorestframework | >= 3.4             |
++---------------------+--------------------+
+| django              | >= 1.8             |
++---------------------+--------------------+
+| elasticsearch       | >= 1.6             |
++---------------------+--------------------+
+| falcon              | >= 1.0             |
++---------------------+--------------------+
+| flask               | >= 0.10            |
++---------------------+--------------------+
+| flask_cache         | >= 0.12            |
++---------------------+--------------------+
+| gevent              | >= 1.0             |
++---------------------+--------------------+
+| mongoengine         | >= 0.11            |
++---------------------+--------------------+
+| mysql-connector     | >= 2.1             |
++---------------------+--------------------+
+| MySQL-python        | >= 1.2.3           |
++---------------------+--------------------+
+| mysqlclient         | >= 1.3             |
++---------------------+--------------------+
+| psycopg2            | >= 2.4             |
++---------------------+--------------------+
+| pylibmc             | >= 1.4             |
++---------------------+--------------------+
+| pylons              | >= 0.9.6           |
++---------------------+--------------------+
+| pymongo             | >= 3.0             |
++---------------------+--------------------+
+| pymemcache          | >= 1.3             |
++---------------------+--------------------+
+| pyramid             | >= 1.7             |
++---------------------+--------------------+
+| redis               | >= 2.6             |
++---------------------+--------------------+
+| sqlalchemy          | >= 1.0             |
++---------------------+--------------------+
+| tornado             | >= 4.0             |
++---------------------+--------------------+
 
 
 These are the fully tested versions but `ddtrace` can be compatible with lower versions.
@@ -605,6 +652,7 @@ soon as possible in your Python entrypoint.
 * sqlite3
 * mysql
 * mysqldb
+* pymysql
 * psycopg
 * redis
 * cassandra
@@ -613,6 +661,8 @@ soon as possible in your Python entrypoint.
 * elasticsearch
 * pylibmc
 * celery
+* boto
+* botocore
 * aiopg
 * asyncpg
 * aiohttp (only third-party modules such as ``aiohttp_jinja2``)

@@ -41,7 +41,7 @@ TEMPLATES = [
     },
 ]
 
-if django.VERSION >= (1, 10):
+if (1, 10) <= django.VERSION < (2, 0):
     MIDDLEWARE = [
         'django.contrib.sessions.middleware.SessionMiddleware',
         'django.middleware.common.CommonMiddleware',
@@ -56,7 +56,7 @@ if django.VERSION >= (1, 10):
     ]
 
 # Django 2.0 has different defaults
-if django.VERSION >= (2, 0):
+elif django.VERSION >= (2, 0):
     MIDDLEWARE = [
         'django.contrib.sessions.middleware.SessionMiddleware',
         'django.middleware.common.CommonMiddleware',
@@ -69,20 +69,20 @@ if django.VERSION >= (2, 0):
         'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
     ]
 
-# Always add the legacy conf to make sure we handle it properly
 # Pre 1.10 style
-MIDDLEWARE_CLASSES = [
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
+else:
+    MIDDLEWARE_CLASSES = [
+        'django.contrib.sessions.middleware.SessionMiddleware',
+        'django.middleware.common.CommonMiddleware',
+        'django.middleware.csrf.CsrfViewMiddleware',
+        'django.contrib.auth.middleware.AuthenticationMiddleware',
+        'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
+        'django.contrib.messages.middleware.MessageMiddleware',
+        'django.middleware.clickjacking.XFrameOptionsMiddleware',
+        'django.middleware.security.SecurityMiddleware',
 
-    'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
-]
+        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+    ]
 
 INSTALLED_APPS = [
     'django.contrib.admin',

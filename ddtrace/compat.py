@@ -26,9 +26,9 @@ else:
     from io import StringIO
 
 try:
-    import urlparse
+    import urlparse as parse
 except ImportError:
-    from urllib import parse as urlparse
+    from urllib import parse
 
 try:
     from asyncio import iscoroutinefunction
@@ -70,6 +70,24 @@ def to_unicode(s):
     return stringify(s)
 
 
+def get_connection_response(conn):
+    """Returns the response for a connection.
+
+    If using Python 2 enable buffering.
+
+    Python 2 does not enable buffering by default resulting in many recv
+    syscalls.
+
+    See:
+    https://bugs.python.org/issue4879
+    https://github.com/python/cpython/commit/3c43fcba8b67ea0cec4a443c755ce5f25990a6cf
+    """
+    if PY2:
+        return conn.getresponse(buffering=True)
+    else:
+        return conn.getresponse()
+
+
 if PY2:
     string_type = basestring
     msgpack_type = basestring
@@ -78,6 +96,25 @@ else:
     string_type = str
     msgpack_type = bytes
     numeric_types = (int, float)
+
+if PY2:
+    # avoids Python 3 `SyntaxError`
+    # this block will be replaced with the `six` library
+    from .utils.reraise import _reraise as reraise
+else:
+    def reraise(tp, value, tb=None):
+        """Python 3 re-raise function. This function is internal and
+        will be replaced entirely with the `six` library.
+        """
+        try:
+            if value is None:
+                value = tp()
+            if value.__traceback__ is not tb:
+                raise value.with_traceback(tb)
+            raise value
+        finally:
+            value = None
+            tb = None
 
 
 __all__ = [
@@ -88,5 +125,6 @@ __all__ = [
     'stringify',
     'StringIO',
     'urlencode',
-    'urlparse',
+    'parse',
+    'reraise',
 ]

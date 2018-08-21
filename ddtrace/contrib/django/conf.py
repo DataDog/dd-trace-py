@@ -18,8 +18,6 @@ import logging
 
 from django.conf import settings as django_settings
 
-from django.test.signals import setting_changed
-
 
 log = logging.getLogger(__name__)
 
@@ -152,6 +150,3 @@ def reload_settings(*args, **kwargs):
     setting, value = kwargs['setting'], kwargs['value']
     if setting == 'DATADOG_TRACE':
         settings = DatadogSettings(value, DEFAULTS, IMPORT_STRINGS)
-
-
-setting_changed.connect(reload_settings)

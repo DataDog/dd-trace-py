@@ -1,1 +1,1 @@
-from .util import func_name, module_name, require_modules  # noqa
+from ..utils.importlib import func_name, module_name, require_modules  # noqa

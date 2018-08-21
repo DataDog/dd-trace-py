@@ -4,10 +4,10 @@ import logging
 import sys
 import wrapt
 
-from ddtrace.util import unwrap
+from ...pin import Pin
+from ...utils.wrappers import unwrap
 
 from ...propagation.http import HTTPPropagator
-from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
 import aiohttp
@@ -24,7 +24,8 @@ except ImportError:
 log = logging.getLogger(__name__)
 PY_35 = sys.version_info >= (3, 5)
 
-# Set these on the ClientSession instance to override the settings from the patch method
+# Set these on the ClientSession instance to override the settings
+# from the patch method
 ENABLE_DISTRIBUTED_ATTR_NAME = '_dd_enable_distributed'
 TRACE_HEADERS_ATTR_NAME = '_dd_trace_headers'
 

@@ -7,6 +7,7 @@ from pylons import config
 from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
+from ...compat import reraise
 from ...ext import http, AppTypes
 from ...propagation.http import HTTPPropagator
 
@@ -78,7 +79,7 @@ class PylonsTraceMiddleware(object):
                 span.error = 1
 
                 # re-raise the original exception with its original traceback
-                raise typ, val, tb
+                reraise(typ, val, tb=tb)
             except SystemExit:
                 span.set_tag(http.STATUS_CODE, 500)
                 span.error = 1
