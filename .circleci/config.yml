@@ -521,6 +521,27 @@ jobs:
           paths:
             - .tox
 
+  pymemcache:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: memcached:1.4
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-pymemcache-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.1.results
+      - run: tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - pymemcache.1.results
+            - pymemcache.2.results
+      - save_cache:
+          key: tox-cache-pymemcache-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pymongo:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -830,6 +851,7 @@ workflows:
       - mysqlconnector
       - mysqlpython
       - mysqldb
+      - pymemcache
       - pymysql
       - pylibmc
       - pymongo
@@ -869,6 +891,7 @@ workflows:
             - mysqldb
             - pymysql
             - pylibmc
+            - pymemcache
             - pymongo
             - pyramid
             - requests

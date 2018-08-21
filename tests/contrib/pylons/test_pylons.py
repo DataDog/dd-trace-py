@@ -7,7 +7,7 @@ from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
 
-from ddtrace.ext import http
+from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
@@ -25,8 +25,131 @@ class PylonsTestCase(TestCase):
         # initialize a real traced Pylons app
         self.tracer = get_dummy_tracer()
         wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        self._wsgiapp = wsgiapp
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
         self.app = fixture.TestApp(app)
+
+    def test_controller_exception(self):
+        """Ensure exceptions thrown in controllers can be handled.
+
+        No error tags should be set in the span.
+        """
+        from .app.middleware import ExceptionToSuccessMiddleware
+        wsgiapp = ExceptionToSuccessMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+
+        app = fixture.TestApp(app)
+        app.get(url_for(controller='root', action='raise_exception'))
+
+        spans = self.tracer.writer.pop()
+
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'root.raise_exception')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
+
+    def test_mw_exc_success(self):
+        """Ensure exceptions can be properly handled by other middleware.
+
+        No error should be reported in the span.
+        """
+        from .app.middleware import ExceptionMiddleware, ExceptionToSuccessMiddleware
+        wsgiapp = ExceptionMiddleware(self._wsgiapp)
+        wsgiapp = ExceptionToSuccessMiddleware(wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        app = fixture.TestApp(app)
+
+        app.get(url_for(controller='root', action='index'))
+
+        spans = self.tracer.writer.pop()
+
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'None.None')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
+
+    def test_middleware_exception(self):
+        """Ensure exceptions raised in middleware are properly handled.
+
+        Uncaught exceptions should result in error tagged spans.
+        """
+        from .app.middleware import ExceptionMiddleware
+        wsgiapp = ExceptionMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        app = fixture.TestApp(app)
+
+        with assert_raises(Exception):
+            app.get(url_for(controller='root', action='index'))
+
+        spans = self.tracer.writer.pop()
+
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'None.None')
+        eq_(span.error, 1)
+        eq_(span.get_tag('http.status_code'), '500')
+        eq_(span.get_tag(errors.ERROR_MSG), 'Middleware exception')
+        eq_(span.get_tag(errors.ERROR_TYPE), 'exceptions.Exception')
+        ok_(span.get_tag(errors.ERROR_STACK))
+
+    def test_exc_success(self):
+        from .app.middleware import ExceptionToSuccessMiddleware
+        wsgiapp = ExceptionToSuccessMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        app = fixture.TestApp(app)
+
+        app.get(url_for(controller='root', action='raise_exception'))
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'root.raise_exception')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '200')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
+
+    def test_exc_client_failure(self):
+        from .app.middleware import ExceptionToClientErrorMiddleware
+        wsgiapp = ExceptionToClientErrorMiddleware(self._wsgiapp)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
+        app = fixture.TestApp(app)
+
+        app.get(url_for(controller='root', action='raise_exception'), status=404)
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'web')
+        eq_(span.resource, 'root.raise_exception')
+        eq_(span.error, 0)
+        eq_(span.get_tag('http.status_code'), '404')
+        eq_(span.get_tag(errors.ERROR_MSG), None)
+        eq_(span.get_tag(errors.ERROR_TYPE), None)
+        eq_(span.get_tag(errors.ERROR_STACK), None)
 
     def test_success_200(self):
         res = self.app.get(url_for(controller='root', action='index'))

@@ -1,6 +1,6 @@
 import functools
 import logging
-from os import getpid
+from os import environ, getpid
 
 from .ext import system
 from .provider import DefaultContextProvider
@@ -27,7 +27,7 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace("app.request", "web-server").finish()
     """
-    DEFAULT_HOSTNAME = 'localhost'
+    DEFAULT_HOSTNAME = environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost')
     DEFAULT_PORT = 8126
 
     def __init__(self):

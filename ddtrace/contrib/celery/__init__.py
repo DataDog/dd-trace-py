@@ -1,6 +1,9 @@
 """
 The Celery integration will trace all tasks that are executed in the
-background. To trace your Celery application, call the patch method::
+background. Functions and class based tasks are traced only if the Celery API
+is used, so calling the function directly or via the ``run()`` method will not
+generate traces. On the other hand, calling ``apply()``, ``apply_async()`` and ``delay()``
+will produce tracing data. To trace your Celery application, call the patch method::
 
     import celery
     from ddtrace import patch
@@ -12,36 +15,29 @@ background. To trace your Celery application, call the patch method::
     def my_task():
         pass
 
-
     class MyTask(app.Task):
         def run(self):
             pass
 
 
-If you don't need to patch all Celery tasks, you can patch individual
-applications or tasks using a fine grain patching method::
+To change Celery service name, you can use the ``Config`` API as follows::
 
-    import celery
-    from ddtrace.contrib.celery import patch_app, patch_task
+    from ddtrace import Pin
 
-    # patch only this application
     app = celery.Celery()
-    app = patch_app(app)
 
-    # or if you didn't patch the whole application, just patch
-    # a single function or class based Task
     @app.task
-    def fn_task():
+    def compute_stats():
         pass
 
+    # change service names for producers and workers
+    config.celery['producer_service_name'] = 'task-queue'
+    config.celery['worker_service_name'] = 'worker-notify'
 
-    class BaseClassTask(celery.Task):
-        def run(self):
-            pass
+By default, reported service names are:
+    * ``celery-producer`` when tasks are enqueued for processing
+    * ``celery-worker`` when tasks are processed by a Celery process
 
-
-    BaseClassTask = patch_task(BaseClassTask)
-    fn_task = patch_task(fn_task)
 """
 from ...utils.importlib import require_modules
 
