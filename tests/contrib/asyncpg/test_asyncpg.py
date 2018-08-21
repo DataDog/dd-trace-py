@@ -73,7 +73,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.prepare')
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         assert start <= span.start <= end
@@ -84,7 +83,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.bind_execute')
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 0)
         eq_(span.span_type, 'sql')
         eq_(span.metrics['db.rowcount'], 1)
@@ -107,7 +105,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.name, 'postgres.prepare')
         eq_(span.resource, q)
         eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
         eq_(span.error, 1)
         eq_(span.meta['out.host'], 'localhost')
         eq_(span.meta['out.port'], TEST_PORT)
