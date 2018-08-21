@@ -24,9 +24,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         name = (pin.app or 'sql') + "." + method.__name__
-        with pin.tracer.trace(name, service=service) as s:
+        with pin.tracer.trace(name, service=service,
+                              resource=query or self.query.decode('utf-8')) as s:
             s.span_type = sql.TYPE
-            s.set_tag(sql.QUERY, query or self.query.decode('utf-8'))
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -114,7 +114,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
         # ends up being the aiopg connection object
-        self._last_usage = self._loop.time()
+        self._last_usage = self._loop.time()  # set like wrapped class
         coro = self._cursor(*args, **kwargs)
         return _ContextManager(coro)
 

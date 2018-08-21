@@ -1,7 +1,6 @@
 # 3p
 import psycopg2.extensions
 import wrapt
-import pkg_resources
 
 # project
 from ddtrace import Pin
@@ -14,10 +13,6 @@ def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    # needed for psycopg2.extensions.parse_dsn support
-    assert pkg_resources.parse_version(psycopg2.__version__) >= \
-        pkg_resources.SetuptoolsLegacyVersion("2.7.0")
-
     if getattr(psycopg2, '_datadog_patch', False):
         return
     setattr(psycopg2, '_datadog_patch', True)
@@ -34,8 +29,8 @@ def unpatch():
 
 def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
-    # ensure we've patched extensions (this is idempotent) in
-    # case we're only tracing some connections.
+    # ensure we've patched extensions (this is idempotent) in case we're
+    # only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
     c = traced_conn_cls(conn)
@@ -63,7 +58,8 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or \
+                isinstance(getattr(module, func), wrapt.ObjectProxy):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
@@ -87,6 +83,7 @@ def patched_connect(connect_func, _, args, kwargs):
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
+
     obj, scope = _unroll_args(*args, **kwargs)
 
     # register_type performs a c-level check of the object
@@ -95,6 +92,7 @@ def _extensions_register_type(func, _, args, kwargs):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
+
 
 def _extensions_quote_ident(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
@@ -107,6 +105,7 @@ def _extensions_quote_ident(func, _, args, kwargs):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
+
 
 def _extensions_adapt(func, _, args, kwargs):
     adapt = func(*args, **kwargs)

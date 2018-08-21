@@ -17,7 +17,6 @@ def _trace_method(method, pin, trace_name, query, rowcount_method, extra_tags, *
     with pin.tracer.trace(trace_name, service=service,
                           resource=query) as s:
         s.span_type = sql.TYPE
-        s.set_tag(sql.QUERY, query)
         s.set_tags(pin.tags)
         s.set_tags(extra_tags)
 
