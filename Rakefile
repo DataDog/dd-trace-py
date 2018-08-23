@@ -87,8 +87,7 @@ end
 
 desc "build the docs"
 task :docs do
-    # Sphinx 1.7.5 is required otherwise docs are not properly built
-    sh "pip install sphinx==1.7.5"
+    sh "pip install sphinx"
   Dir.chdir 'docs' do
     sh "make html"
   end

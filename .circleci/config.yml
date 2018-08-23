@@ -779,7 +779,8 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
+      # Sphinx 1.7.5 is required otherwise docs are not properly built
+      - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
       - run: S3_DIR=trace rake release:docs
 
   wait_all_tests:
