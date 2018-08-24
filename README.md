@@ -15,7 +15,7 @@ For a basic product overview and quick start, check out our [setup
 documentation][setup docs].
 
 For installation, configuration, and details about using the API, check out our
-[API documentation][api docs].
+[API documentation][pypi docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].

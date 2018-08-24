@@ -278,7 +278,7 @@ The available environment variables for ``ddtrace-run`` are:
 
 Pass along command-line arguments as your program would normally expect them::
 
-    ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
+$ ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
 
 *As long as your application isn't running in* ``DEBUG`` *mode, this should be
 enough to see your application traces in Datadog.*

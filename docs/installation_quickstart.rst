@@ -31,6 +31,9 @@ For example if you start your application with ``python app.py`` then run::
 
 For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here<ddtracerun>`.
 
+To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
+
+
 OpenTracing
 -----------
 

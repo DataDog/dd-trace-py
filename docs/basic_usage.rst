@@ -1,3 +1,5 @@
+.. _`basic usage`:
+
 Basic Usage
 ===========
 

@@ -56,6 +56,12 @@ pylibmc
 
 .. automodule:: ddtrace.contrib.pylibmc
 
+.. _pymemcache:
+
+pymemcache
+^^^^^^^^^^
+
+.. automodule:: ddtrace.contrib.pymemcache
 
 MySQL
 -----
@@ -71,7 +77,7 @@ mysql-connector
 .. _mysqlclient:
 .. _MySQL-python:
 
-mysqlclient and MySQL-python
+mysqlclient/MySQL-python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. automodule:: ddtrace.contrib.mysqldb
@@ -95,7 +101,7 @@ aiopg
 .. automodule:: ddtrace.contrib.aiopg
 
 
-.. _psycopg:
+.. _psycopg2:
 
 psycopg
 ^^^^^^^

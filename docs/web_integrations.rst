@@ -8,6 +8,7 @@ Bottle
 
 .. automodule:: ddtrace.contrib.bottle
 
+.. _djangorestframework:
 .. _django:
 
 Django

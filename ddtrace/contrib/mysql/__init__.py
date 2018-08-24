@@ -17,9 +17,8 @@
     # Use a pin to specify metadata related to this connection
     Pin.override(conn, service='mysql-users')
 
-This package works for mysql.connector version 2.1.x.
 Only the default full-Python integration works. The binary C connector,
-provided by _mysql_connector, is not supported yet.
+provided by mysql_connector, is not supported yet.
 
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
