@@ -98,9 +98,9 @@ contacting support.
 
 
 .. [1] Libraries that are automatically instrumented when the
-  :ref:`ddtrace-run<ddtracerun>` command is used ``patch_all()`` method is
-  called. Always use ``patch()`` and ``patch_all()`` as soon as possible in your
-  Python entrypoint.
+  :ref:`ddtrace-run<ddtracerun>` command is used or the ``patch_all()`` method
+  is called. Always use ``patch()`` and ``patch_all()`` as soon as possible in
+  your Python entrypoint.
 
 .. [2] only third-party modules such as aiohttp_jinja2
 
@@ -115,7 +115,6 @@ Indices and tables
 .. toctree::
     :hidden:
 
-    installation_quickstart
     installation_quickstart
     web_integrations
     db_integrations

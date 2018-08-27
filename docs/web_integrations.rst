@@ -49,21 +49,6 @@ Pyramid
 
 .. automodule:: ddtrace.contrib.pyramid
 
-.. _aiohttp:
-
-aiohttp
-^^^^^^^
-
-.. automodule:: ddtrace.contrib.aiohttp
-
-
-.. _aiobotocore:
-
-aiobotocore
-^^^^^^^^^^^
-
-.. automodule:: ddtrace.contrib.aiobotocore
-
 
 .. _tornado:
 

@@ -102,16 +102,18 @@ Priority Sampling
 Priority sampling gives you control over whether or not a trace will be
 propagated. This is done by associating a priority attribute on a trace that
 will be propagated along with the trace. The priority value informs the Agent
-and the backend about how to deal with the trace. By default priorities are set
-on a trace by a sampler.
+and the backend about how to deal with the trace. To read more about priority
+sampling check out our documentation `here
+<https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
 
-The sampler can set the priority to the following values:
+By default priorities are set on a trace by a sampler. The sampler can set the
+priority to the following values:
 
 - ``AUTO_REJECT``: the sampler automatically rejects the trace
 - ``AUTO_KEEP``: the sampler automatically keeps the trace
 
-For now, priority sampling is disabled by default. Enabling it ensures that your
-sampled distributed traces will be complete.  To enable priority sampling::
+Priority sampling is disabled by default. Enabling it ensures that your sampled
+distributed traces will be complete. To enable priority sampling::
 
     tracer.configure(priority_sampling=True)
 

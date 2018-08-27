@@ -1,6 +1,22 @@
 Other Libraries
 ===============
 
+.. _aiohttp:
+
+aiohttp
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.aiohttp
+
+
+.. _aiobotocore:
+
+aiobotocore
+^^^^^^^^^^^
+
+.. automodule:: ddtrace.contrib.aiobotocore
+
+
 .. _futures:
 
 Futures
