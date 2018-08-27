@@ -146,9 +146,6 @@ root span has just been created::
     # indicate to not keep the trace
     context.sampling_priority = USER_REJECT
 
-    # indicate to keep the trace
-    span.context.sampling_priority = USER_KEEP
-
 
 Pre-sampling
 ^^^^^^^^^^^^
@@ -268,7 +265,8 @@ The available environment variables for ``ddtrace-run`` are:
   ``localhost``)
 * ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
   will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority Sampling`
+* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority
+  Sampling`
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -285,17 +283,16 @@ $ ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host 
 *As long as your application isn't running in* ``DEBUG`` *mode, this should be
 enough to see your application traces in Datadog.*
 
-If you're running in a Kubernetes cluster, and still don't see your traces, make
-sure your application has a route to the tracing Agent. An easy way to test this
-is with a::
-
+If you're running in a Kubernetes cluster and still don't see your traces, make
+sure your application has a route to the tracing Agent. An easy way to test
+this is with a::
 
 $ pip install ipython
 $ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
 
-Because iPython uses SQLite, it will be automatically instrumented, and your
-traces should be sent off. If there's an error, you'll see the message in the
-console, and can make changes as needed.
+Because iPython uses SQLite, it will be automatically instrumented and your
+traces should be sent off. If an error occurs, a message will be displayed in
+the console, and changes can be made as needed.
 
 
 API

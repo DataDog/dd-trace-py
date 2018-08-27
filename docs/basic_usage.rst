@@ -49,8 +49,8 @@ By default all supported libraries will be patched when
 ``patch_all`` is invoked.
 
 **Note:** To ensure that the supported libraries are instrumented properly in
-the application, they must be patched *prior* to importing them. So make sure to
-call ``patch_all`` *before* importing libraries that are to be instrumented!
+the application, they must be patched *prior* to being imported. So make sure
+to call ``patch_all`` *before* importing libraries that are to be instrumented!
 
 More information about ``patch_all`` is available in our :ref:`patch_all` API
 documentation.
@@ -60,14 +60,14 @@ Manual Instrumentation
 ----------------------
 
 If you would like to extend the functionality of the ``ddtrace`` library or gain
-finer control over instrumenting your application several techniques are
+finer control over instrumenting your application, several techniques are
 provided by the library.
 
 Decorator
 ^^^^^^^^^
 
-``ddtrace`` provides a decorator that can be used to trace particular methods in
-your application::
+``ddtrace`` provides a decorator that can be used to trace a particular method
+in your application::
 
   @tracer.wrap()
   def business_logic():
@@ -80,14 +80,14 @@ API details of the decorator can be found here :py:meth:`ddtrace.Tracer.wrap`.
 Context Manager
 ^^^^^^^^^^^^^^^
 
-To trace an arbitrary block of code you can use the context manager built-in to
-:py:mod:`ddtrace.Span`::
+To trace an arbitrary block of code, you can use the :py:mod:`ddtrace.Span`
+context manager::
 
   import time
   from ddtrace import tracer
 
   # trace some sleeping
-  with tracer.trace('sleep'):
+  with tracer.trace('time.sleep'):
     # do interesting stuff besides sleeping for a second
     time.sleep(1)
 
@@ -96,11 +96,11 @@ Further API details can be found here :py:meth:`ddtrace.Tracer`.
 By Hand
 ^^^^^^^
 
-If the above methods are still not enough to satisfy your tracing needs a
-completel manual API is provided which will allow you to start and finish spans
-however you please::
+If the above methods are still not enough to satisfy your tracing needs, a
+manual API is provided which will allow you to start and finish spans however
+you may require::
 
-  span = tracer.trace('interesting stuff')
+  span = tracer.trace('interesting.stuff')
 
   # do interesting stuff in between
 
