@@ -1,6 +1,15 @@
 Web Frameworks
 --------------
 
+
+.. _aiohttp:
+
+aiohttp
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.aiohttp
+
+
 .. _bottle:
 
 Bottle

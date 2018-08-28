@@ -31,28 +31,42 @@ Some web framework integrations support the distributed tracing out of the box, 
 For that, refer to the configuration of the given integration.
 Supported web frameworks:
 
-- :ref:`Bottle <bottle>`
-- :ref:`django`
-- :ref:`falcon`
-- :ref:`flask`
-- :ref:`pylons`
-- :ref:`requests`
-- :ref:`tornado`
 
-For web servers not supported, you can extract the HTTP context from the headers using the `HTTPPropagator`.
++-------------------+-----------------+
+| Framework/Library |  Enabled        |
++===================+=================+
+| :ref:`aiohttp`    | False           |
++-------------------+-----------------+
+| :ref:`bottle`     | False           |
++-------------------+-----------------+
+| :ref:`django`     | False           |
++-------------------+-----------------+
+| :ref:`falcon`     | False           |
++-------------------+-----------------+
+| :ref:`flask`      | False           |
++-------------------+-----------------+
+| :ref:`pylons`     | False           |
++-------------------+-----------------+
+| :ref:`pyramid`    | False           |
++-------------------+-----------------+
+| :ref:`requests`   | False           |
++-------------------+-----------------+
+| :ref:`tornado`    | False           |
++-------------------+-----------------+
 
-.. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members: extract
 
 HTTP Client
 ^^^^^^^^^^^
 
-When calling a remote HTTP server part of the distributed trace, you have to
-propagate the HTTP headers.  This is not done automatically to prevent your
-system from leaking tracing information to external services.
+For distributed tracing to work, necessary tracing information must be passed
+alongside a request as it flows through the system. When the request is handled
+on the other side, the metadata is retrieved and the trace can continue.
+
+To propagate the tracing information, HTTP headers are used to transmit the
+required metadata to piece together the trace.
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members: inject
+    :members:
 
 Custom
 ^^^^^^

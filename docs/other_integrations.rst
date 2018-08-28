@@ -1,14 +1,6 @@
 Other Libraries
 ===============
 
-.. _aiohttp:
-
-aiohttp
-^^^^^^^
-
-.. automodule:: ddtrace.contrib.aiohttp
-
-
 .. _aiobotocore:
 
 aiobotocore
@@ -48,6 +40,12 @@ Celery
 
 .. automodule:: ddtrace.contrib.celery
 
+.. _httplib:
+
+httplib
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.httplib
 
 .. _requests:
 

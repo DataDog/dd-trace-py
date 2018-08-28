@@ -66,7 +66,7 @@ in your application::
 
   @tracer.wrap()
   def business_logic():
-    """A method that would be of interest to trace"""
+    """A method that would be of interest to trace."""
     # ...
     # ...
 
@@ -78,30 +78,28 @@ Context Manager
 To trace an arbitrary block of code, you can use the :py:mod:`ddtrace.Span`
 context manager::
 
-  import time
-  from ddtrace import tracer
-
-  # trace some sleeping
-  with tracer.trace('time.sleep'):
-    # do interesting stuff besides sleeping for a second
-    time.sleep(1)
+  # trace some interesting operation
+  with tracer.trace('interesting.operations'):
+    # do some interesting operation(s)
+    # ...
+    # ...
 
 Further API details can be found here :py:meth:`ddtrace.Tracer`.
 
-By Hand
-^^^^^^^
+Using the API
+^^^^^^^^^^^^^
 
 If the above methods are still not enough to satisfy your tracing needs, a
 manual API is provided which will allow you to start and finish spans however
 you may require::
 
-  span = tracer.trace('interesting.stuff')
+  span = tracer.trace('operations.of.interest')
 
-  # do interesting stuff in between
+  # do some operation(s) of interest in between
 
-  # make sure to call span.finish() else the span will not be sent to Datadog
+  # NOTE: make sure to call span.finish() or the entire trace will not be sent
+  # to Datadog
   span.finish()
-
 
 API details of the decorator can be found here:
 
