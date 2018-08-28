@@ -25,7 +25,8 @@ class HTTPPropagator(object):
             def parent_call():
                 with tracer.trace("parent_span") as span:
                     headers = {}
-                    HTTPPropagator.inject(span.context, headers)
+                    propagator = HTTPPropagator()
+                    propagator.inject(span.context, headers)
                     url = "<some RPC endpoint>"
                     r = requests.get(url, headers=headers)
 
@@ -47,7 +48,8 @@ class HTTPPropagator(object):
             from ddtrace.propagation.http import HTTPPropagator
 
             def my_controller(url, headers):
-                context = HTTPPropagator.extract(headers)
+                propagator = HTTPPropagator()
+                context = propagator.extract(headers)
                 tracer.context_provider.activate(context)
 
                 with tracer.trace("my_controller") as span:
