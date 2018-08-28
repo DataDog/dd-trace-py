@@ -1,6 +1,17 @@
 Web Frameworks
 --------------
 
+``ddtrace`` provides tracing support for many Python web frameworks. For each
+framework ``ddtrace`` supports:
+
+- tracing of requests [*]_: trace requests through middleware and back
+- automatic error tagging [*]_: spans will be marked with any errors that occur
+- distributed tracing [*]_: trace requests across application boundaries
+
+.. [*] https://docs.datadoghq.com/tracing/
+.. [*] "erroneous HTTP return codes" are defined as being greater than 500
+.. [*] https://docs.datadoghq.com/tracing/faq/distributed-tracing/
+  information if exceptions are unhandled or erroneous HTTP return codes are detected
 
 .. _aiohttp:
 
