@@ -19,7 +19,7 @@
 
 This package works for mysqlclient or MySQL-python. Only the default
 full-Python integration works. The binary C connector provided by
-mysql is not yet supported.
+_mysql is not yet supported.
 
 Help on mysqlclient can be found on:
 https://mysqlclient.readthedocs.io/

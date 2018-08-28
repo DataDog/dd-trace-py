@@ -30,17 +30,12 @@ For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here
 ``patch_all``
 ^^^^^^^^^^^^^
 
-If your execution command is incompatible with ``ddtrace-run`` or you would
-prefer to have greater control of when the instrumentation occurs then the
-``patch_all`` function can be used to manually invoke the automatic
-instrumentation.
-
-To do this::
+To manually invoke the automatic instrumentation use ``patch_all``::
 
   from ddtrace import patch_all
   patch_all()
 
-To toggle particular a particular module::
+To toggle instrumentation for a particular module::
 
   from ddtrace import patch_all
   patch_all(redis=False, cassandra=False)
@@ -50,7 +45,7 @@ By default all supported libraries will be patched when
 
 **Note:** To ensure that the supported libraries are instrumented properly in
 the application, they must be patched *prior* to being imported. So make sure
-to call ``patch_all`` *before* importing libraries that are to be instrumented!
+to call ``patch_all`` *before* importing libraries that are to be instrumented.
 
 More information about ``patch_all`` is available in our :ref:`patch_all` API
 documentation.
@@ -104,6 +99,7 @@ you may require::
 
   # do interesting stuff in between
 
+  # make sure to call span.finish() else the span will not be sent to Datadog
   span.finish()
 
 

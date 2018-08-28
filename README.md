@@ -2,7 +2,6 @@
 
 [![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/master.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/master)
 [![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
-[![Releases](https://img.shields.io/github/release/Datadog/dd-trace-py.svg)](https://github.com/DataDog/dd-trace-py/releases)
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 
 `ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
@@ -11,11 +10,11 @@ have great visiblity into bottlenecks and troublesome requests.
 
 ## Getting Started
 
-For a basic product overview and quick start, check out our [setup
-documentation][setup docs].
+For a basic product overview, installation and quick start, check out our
+[setup documentation][setup docs].
 
-For installation, configuration, and details about using the API, check out our
-[API documentation][pypi docs].
+For more advanced usage and configuration, check out our [API
+documentation][pypi docs].
 
 For descriptions of terminology used in APM, take a look at the [official
 documentation][visualization docs].

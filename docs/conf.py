@@ -9,10 +9,10 @@ templates_path = ['_templates']
 source_suffix = '.rst'
 master_doc = 'index'
 
-project = u'ddtrace'
-copyright = u'2018, Datadog, Inc'
-author = u'Datadog, Inc'
 year = datetime.now().year
+project = u'ddtrace'
+copyright = u'2016-{}, Datadog, Inc'.format(year)
+author = u'Datadog, Inc'
 
 exclude_patterns = [
     '_build',

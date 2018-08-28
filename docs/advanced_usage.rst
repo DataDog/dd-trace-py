@@ -31,9 +31,13 @@ Some web framework integrations support the distributed tracing out of the box, 
 For that, refer to the configuration of the given integration.
 Supported web frameworks:
 
-- Django
-- Flask
-- Tornado
+- :ref:`Bottle <bottle>`
+- :ref:`django`
+- :ref:`falcon`
+- :ref:`flask`
+- :ref:`pylons`
+- :ref:`requests`
+- :ref:`tornado`
 
 For web servers not supported, you can extract the HTTP context from the headers using the `HTTPPropagator`.
 
@@ -43,8 +47,9 @@ For web servers not supported, you can extract the HTTP context from the headers
 HTTP Client
 ^^^^^^^^^^^
 
-When calling a remote HTTP server part of the distributed trace, you have to propagate the HTTP headers.
-This is not done automatically to prevent your system from leaking tracing information to external services.
+When calling a remote HTTP server part of the distributed trace, you have to
+propagate the HTTP headers.  This is not done automatically to prevent your
+system from leaking tracing information to external services.
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members: inject
@@ -52,12 +57,13 @@ This is not done automatically to prevent your system from leaking tracing infor
 Custom
 ^^^^^^
 
-You can manually propagate your tracing context over your RPC protocol. Here is an example assuming that you have `rpc.call`
-function that call a `method` and propagate a `rpc_metadata` dictionary over the wire::
+You can manually propagate your tracing context over your RPC protocol. Here is
+an example assuming that you have `rpc.call` function that call a `method` and
+propagate a `rpc_metadata` dictionary over the wire::
 
 
     # Implement your own context propagator
-    MyRPCPropagator(object):
+    class MyRPCPropagator(object):
         def inject(self, span_context, rpc_metadata):
             rpc_metadata.update({
                 'trace_id': span_context.trace_id,
@@ -99,11 +105,7 @@ Sampling
 Priority Sampling
 ^^^^^^^^^^^^^^^^^
 
-Priority sampling gives you control over whether or not a trace will be
-propagated. This is done by associating a priority attribute on a trace that
-will be propagated along with the trace. The priority value informs the Agent
-and the backend about how to deal with the trace. To read more about priority
-sampling check out our documentation `here
+To learn about *what* sampling is check out our documentation `here
 <https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
 
 By default priorities are set on a trace by a sampler. The sampler can set the

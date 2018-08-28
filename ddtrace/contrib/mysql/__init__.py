@@ -18,7 +18,7 @@
     Pin.override(conn, service='mysql-users')
 
 Only the default full-Python integration works. The binary C connector,
-provided by mysql_connector, is not supported yet.
+provided by _mysql_connector, is not supported yet.
 
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
