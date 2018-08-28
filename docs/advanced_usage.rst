@@ -105,7 +105,7 @@ Sampling
 Priority Sampling
 ^^^^^^^^^^^^^^^^^
 
-To learn about *what* sampling is check out our documentation `here
+To learn about what sampling is check out our documentation `here
 <https://docs.datadoghq.com/tracing/getting_further/trace_sampling_and_storage/#priority-sampling-for-distributed-tracing>`_.
 
 By default priorities are set on a trace by a sampler. The sampler can set the
@@ -149,14 +149,14 @@ root span has just been created::
     context.sampling_priority = USER_REJECT
 
 
-Pre-sampling
-^^^^^^^^^^^^
+Client Sampling
+^^^^^^^^^^^^^^^
 
-Pre-sampling will completely disable instrumentation of some transactions and
-drop the trace at the client level. Information will be lost but it allows to
-control any potential performance impact.
+Client sampling enables the sampling of traces before they are sent to the
+Agent. This can provide some performance benefit as the traces will be
+dropped in the client.
 
-``RateSampler`` randomly samples a percentage of traces::
+The ``RateSampler`` randomly samples a percentage of traces::
 
     from ddtrace.sampler import RateSampler
 
