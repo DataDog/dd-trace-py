@@ -70,9 +70,6 @@ try:
     if opts:
         tracer.configure(**opts)
 
-    if not hasattr(sys, 'argv'):
-        sys.argv = ['']
-
     if patch:
         update_patched_modules()
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
@@ -90,7 +87,9 @@ try:
     # * import that module via `imp`
     bootstrap_dir = os.path.dirname(__file__)
     path = list(sys.path)
-    path.remove(bootstrap_dir)
+
+    if bootstrap_dir in path:
+        path.remove(bootstrap_dir)
 
     try:
         (f, path, description) = imp.find_module('sitecustomize', path)
@@ -101,6 +100,10 @@ try:
         log.debug('sitecustomize from user found in: %s', path)
         imp.load_module('sitecustomize', f, path, description)
 
-
+    # Loading status used in tests to detect if the `sitecustomize` has been
+    # properly loaded without exceptions. This must be the last action in the module
+    # when the execution ends with a success.
+    loaded = True
 except Exception as e:
+    loaded = False
     log.warn("error configuring Datadog tracing", exc_info=True)
