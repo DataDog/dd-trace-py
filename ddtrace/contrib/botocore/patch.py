@@ -6,6 +6,8 @@ import wrapt
 import botocore.client
 
 # project
+from ddtrace import config
+
 from ...pin import Pin
 from ...ext import http, aws
 from ...utils.formats import deep_getattr
@@ -19,6 +21,12 @@ SPAN_TYPE = "http"
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = ["params", "path", "verb"]
 
+# Default settings
+config._add(
+    'aws',
+    {'service_name': 'aws'},
+)
+
 
 def patch():
     if getattr(botocore.client, '_datadog_patch', False):
@@ -26,7 +34,11 @@ def patch():
     setattr(botocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
-    Pin(service="aws", app="aws", app_type="web").onto(botocore.client.BaseClient)
+    Pin(
+        service=config.aws['service_name'],
+        app="aws",
+        app_type="web",
+    ).onto(botocore.client.BaseClient)
 
 
 def unpatch():
