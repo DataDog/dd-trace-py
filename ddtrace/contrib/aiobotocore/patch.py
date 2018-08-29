@@ -3,6 +3,7 @@ import wrapt
 import aiobotocore.client
 
 from aiobotocore.endpoint import ClientResponseContentProxy
+from ddtrace import config
 
 from ...pin import Pin
 from ...ext import http, aws
@@ -13,6 +14,11 @@ from ...utils.wrappers import unwrap
 
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
+# AIO botocore default settings
+config._add(
+    'aiobotocore',
+    {'service_name': 'aws'},
+)
 
 
 def patch():
@@ -21,7 +27,11 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(aiobotocore.client.AioBaseClient)
+    Pin(
+        service=config.aiobotocore['service_name'],
+        app='aws',
+        app_type='web',
+    ).onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
