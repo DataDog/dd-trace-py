@@ -2,6 +2,8 @@ import boto.connection
 import wrapt
 import inspect
 
+from ddtrace import config
+
 from ...pin import Pin
 from ...ext import http, aws
 from ...utils.wrappers import unwrap
@@ -24,6 +26,12 @@ AWS_AUTH_ARGS_NAME = (
 AWS_QUERY_TRACED_ARGS = ["operation_name", "params", "path"]
 AWS_AUTH_TRACED_ARGS = ["path", "data", "host"]
 
+# Default settings
+config._add(
+    'aws',
+    {'service_name': 'aws'},
+)
+
 
 def patch():
 
@@ -41,12 +49,16 @@ def patch():
     wrapt.wrap_function_wrapper(
         "boto.connection", "AWSAuthConnection.make_request", patched_auth_request
     )
-    Pin(service="aws", app="aws", app_type="web").onto(
-        boto.connection.AWSQueryConnection
-    )
-    Pin(service="aws", app="aws", app_type="web").onto(
-        boto.connection.AWSAuthConnection
-    )
+    Pin(
+        service=config.aws['service_name'],
+        app="aws",
+        app_type="web",
+    ).onto(boto.connection.AWSQueryConnection)
+    Pin(
+        service=config.aws['service_name'],
+        app="aws",
+        app_type="web",
+    ).onto(boto.connection.AWSAuthConnection)
 
 
 def unpatch():

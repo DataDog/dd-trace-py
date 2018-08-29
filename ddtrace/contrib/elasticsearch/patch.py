@@ -1,5 +1,6 @@
 import elasticsearch
 import wrapt
+from ddtrace import config
 from elasticsearch.exceptions import TransportError
 
 from . import metadata
@@ -14,6 +15,12 @@ from ...ext import http
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
+# Default settings
+config._add(
+    DEFAULT_SERVICE,
+    {'service_name': DEFAULT_SERVICE},
+)
+
 
 # NB: We are patching the default elasticsearch.transport module
 def patch():
@@ -22,7 +29,11 @@ def patch():
         return
     setattr(elasticsearch, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', _perform_request)
-    Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db").onto(elasticsearch.transport.Transport)
+    Pin(
+        service=config.elasticsearch['service_name'],
+        app="elasticsearch",
+        app_type="db",
+    ).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
