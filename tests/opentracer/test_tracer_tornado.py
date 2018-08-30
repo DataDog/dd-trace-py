@@ -1,35 +1,34 @@
 import pytest
-from nose.tools import eq_
-
 from opentracing.scope_managers.tornado import TornadoScopeManager
-from tests.opentracer.test_tracer import get_dummy_ot_tracer
 
+import ddtrace
 
-def get_dummy_tornado_tracer():
-    return get_dummy_ot_tracer('tornado_svc', {}, TornadoScopeManager())
+from tests.opentracer.utils import ot_tracer_factory, ot_tracer, writer
 
 
 @pytest.fixture()
-def nop_tracer():
-    return get_dummy_tornado_tracer()
+def ot_tracer(ot_tracer_factory):
+    """Fixture providing an opentracer configured for tornado usage."""
+    yield ot_tracer_factory("tornado_svc", {}, TornadoScopeManager())
 
 
-class TestTracerTornado():
+class TestTracerTornado(object):
     """
     Since the ScopeManager is provided by OpenTracing we should simply test
     whether it exists and works for a very simple use-case.
     """
 
-    def test_sanity(self, nop_tracer):
-        with nop_tracer.start_active_span('one'):
-            with nop_tracer.start_active_span('two'):
+    def test_sanity(self, ot_tracer, writer):
+        with ot_tracer.start_active_span('one'):
+            with ot_tracer.start_active_span('two'):
                 pass
 
-        traces = nop_tracer._dd_tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('one', traces[0][0].name)
-        eq_('two', traces[0][1].name)
+        traces = writer.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
+        assert traces[0][0].name == 'one'
+        assert traces[0][1].name == 'two'
+
         # the parenting is correct
-        eq_(traces[0][0], traces[0][1]._parent)
-        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+        assert traces[0][0] == traces[0][1]._parent
+        assert traces[0][0].trace_id == traces[0][1].trace_id
