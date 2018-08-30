@@ -223,7 +223,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         eq_(dd_span.name, 'ec2.command')
 
     @mark_asyncio
-    def test_s3_client(self):
+    def test_opentraced_s3_client(self):
         from tests.opentracer.utils import init_tracer
 
         ot_tracer = init_tracer('my_svc', self.tracer)
