@@ -13,6 +13,7 @@ from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
+from .utils import get_context_provider_for_scope_manager
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class Tracer(opentracing.Tracer):
 
         self._scope_manager = scope_manager or ThreadLocalScopeManager()
 
+        dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
+
         self._dd_tracer = DatadogTracer()
         self._dd_tracer.configure(enabled=self._enabled,
                                   hostname=self._config.get(keys.AGENT_HOSTNAME),
@@ -79,6 +82,7 @@ class Tracer(opentracing.Tracer):
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
                                   priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  context_provider=dd_context_provider,
                                   )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator(),
@@ -142,6 +146,7 @@ class Tracer(opentracing.Tracer):
 
         # activate this new span
         scope = self._scope_manager.activate(otspan, finish_on_close)
+
         return scope
 
     def start_span(self, operation_name=None, child_of=None, references=None,
@@ -216,6 +221,11 @@ class Tracer(opentracing.Tracer):
             # we want the ddcontext of the active span in order to maintain the
             # ddspan hierarchy
             dd_parent = getattr(ot_parent_context, '_dd_context', None)
+
+            # if we cannot get the context then try getting it from the DD tracer
+            # this emulates the behaviour of tracer.trace()
+            if dd_parent is None:
+                dd_parent = self._dd_tracer.get_call_context()
         elif ot_parent is not None and isinstance(ot_parent, Span):
             # a span is given to use as a parent
             ot_parent_context = ot_parent.context
@@ -232,17 +242,20 @@ class Tracer(opentracing.Tracer):
 
         # create a new otspan and ddspan using the ddtracer and associate it
         # with the new otspan
-        otspan = Span(self, ot_parent_context, operation_name)
         ddspan = self._dd_tracer.start_span(
             name=operation_name,
             child_of=dd_parent,
             service=self._service_name,
         )
+
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
         if tags is not None:
             ddspan.set_tags(tags)
-        otspan._add_dd_span(ddspan)
+
+        otspan = Span(self, ot_parent_context, operation_name)
+        # sync up the OT span with the DD span
+        otspan._associate_dd_span(ddspan)
 
         return otspan
 

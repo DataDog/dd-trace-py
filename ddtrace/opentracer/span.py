@@ -149,8 +149,8 @@ class Span(OpenTracingSpan):
         self._dd_span.__exit__(exc_type, exc_val, exc_tb)
         self.finish()
 
-    def _add_dd_span(self, ddspan):
-        """Associates a datadog span with this span."""
+    def _associate_dd_span(self, ddspan):
+        """Associates a DD span with this span."""
         # get the datadog span context
         self._dd_span = ddspan
         self.context._dd_context = ddspan.context
