@@ -8,6 +8,7 @@ from tests.test_tracer import get_dummy_tracer
 @pytest.fixture()
 def ot_tracer_factory():
     """Fixture which returns an opentracer ready to use for testing."""
+
     def make_ot_tracer(
         service_name="my_svc", config=None, scope_manager=None, context_provider=None
     ):
@@ -52,3 +53,14 @@ def writer(ot_tracer):
 @pytest.fixture()
 def dd_tracer(ot_tracer):
     return ot_tracer._dd_tracer
+
+
+def init_tracer(service_name, dd_tracer):
+    """A method that emulates what a user of OpenTracing would call to
+    initialize a Datadog opentracer.
+
+    It accepts a Datadog tracer that should be the same one used for testing.
+    """
+    ot_tracer = Tracer(service_name)
+    ot_tracer._dd_tracer = dd_tracer
+    return ot_tracer
