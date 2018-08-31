@@ -5,13 +5,12 @@ Web Frameworks
 framework ``ddtrace`` supports:
 
 - tracing of requests [*]_: trace requests through middleware and back
-- automatic error tagging [*]_: spans will be marked with any errors that occur
 - distributed tracing [*]_: trace requests across application boundaries
+- automatic error tagging [*]_: spans will be marked with any errors that occur
 
 .. [*] https://docs.datadoghq.com/tracing/
-.. [*] "erroneous HTTP return codes" are defined as being greater than 500
 .. [*] https://docs.datadoghq.com/tracing/faq/distributed-tracing/
-  information if exceptions are unhandled or erroneous HTTP return codes are detected
+.. [*] "erroneous HTTP return codes" are defined as being greater than 500
 
 .. _aiohttp:
 
