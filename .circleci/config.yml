@@ -878,12 +878,17 @@ workflows:
             - redis
             - sqlite3
             - msgpack
-      - deploy_dev:
-          requires:
-            - wait_all_tests
+      - docs:
+          type: approval
           filters:
             branches:
-              only: /(master)/
+              only: alex.charrier/fix-docs
+      - deploy_dev:
+          requires:
+            - docs
+          filters:
+            branches:
+              only: alex.charrier/fix-docs
       - deploy_experimental:
           requires:
             - wait_all_tests
