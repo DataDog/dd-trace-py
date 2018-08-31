@@ -27,7 +27,7 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 Web Frameworks
 ^^^^^^^^^^^^^^
 
-Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
+Some web framework integrations support distributed tracing out of the box, you just have to enable it.
 For that, refer to the configuration of the given integration.
 Supported web frameworks:
 
