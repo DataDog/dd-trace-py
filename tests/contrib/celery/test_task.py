@@ -258,6 +258,51 @@ class CeleryTaskTest(unittest.TestCase):
         assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
         self.assertEqual(meta['celery.action'], 'apply_async')
 
+    def test_task_apply_ot(self):
+        """OpenTraced version of test_task_apply_ot."""
+        from tests.opentracer.utils import init_tracer
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        # Create an instance of our patched app
+        # DEV: We need a broker now since we are publishing a task
+        app = celery.Celery('test_task_apply', broker=self.broker_url)
+
+        # Create our test task
+        task_spy = mock.Mock(__name__='patched_task')
+        patched_task = app.task(task_spy)
+        patched_task.__header__ = mock.Mock()
+
+        # Call the apply method
+        with ot_tracer.start_active_span('ot_span'):
+            patched_task.apply_async()
+
+        # Assert it was called
+        task_spy.assert_not_called()
+
+        # Assert we created a span
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 2)
+
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        self.assertIsNone(ot_span.parent_id)
+        self.assertEqual(dd_span.parent_id, ot_span.span_id)
+
+        self.assertEqual(ot_span.resource, 'ot_span')
+        self.assertEqual(ot_span.service, 'my_svc')
+
+        self.assert_items_equal(dd_span.to_dict().keys(), EXPECTED_KEYS)
+        self.assertEqual(dd_span.service, 'celery-producer')
+        self.assertEqual(dd_span.resource, 'mock.mock.patched_task')
+        self.assertEqual(dd_span.name, 'celery.apply')
+        self.assertEqual(dd_span.error, 0)
+
+        # Assert the metadata is correct
+        meta = dd_span.meta
+        assert_list_issuperset(meta.keys(), ['id', 'celery.action'])
+        self.assertEqual(meta['celery.action'], 'apply_async')
+
     def test_task_apply_eager(self):
         """
         Calling the apply method of a patched task
