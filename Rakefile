@@ -88,7 +88,6 @@ end
 desc "build the docs"
 task :docs do
     sh "pip install sphinx"
-    sh "pip install ddtrace"
   Dir.chdir 'docs' do
     sh "make html"
   end
