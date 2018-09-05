@@ -12,6 +12,9 @@ from ddtrace import Pin
 from ddtrace.ext import memcached
 from ddtrace.contrib.pylibmc import TracedClient
 from ddtrace.contrib.pylibmc.patch import patch, unpatch
+
+# testing
+from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 
@@ -77,6 +80,32 @@ class PylibmcCore(object):
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
+    def test_incr_decr_ot(self):
+        """OpenTracing version of test_incr_decr."""
+        client, tracer = self.get_client()
+        ot_tracer = init_tracer('memcached', tracer)
+
+        start = time.time()
+        with ot_tracer.start_active_span('mc_ops'):
+            client.set("a", 1)
+            client.incr("a", 2)
+            client.decr("a", 1)
+            v = client.get("a")
+            assert v == 2
+        end = time.time()
+
+        # verify spans
+        spans = tracer.writer.pop()
+        ot_span = spans[0]
+
+        eq_(ot_span.name, 'mc_ops')
+
+        for s in spans[1:]:
+            eq_(s.parent_id, ot_span.span_id)
+            self._verify_cache_span(s, start, end)
+        expected_resources = sorted(["get", "set", "incr", "decr"])
+        resources = sorted(s.resource for s in spans[1:])
+        eq_(expected_resources, resources)
 
     def test_clone(self):
         # ensure cloned connections are traced as well.
