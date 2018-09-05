@@ -9,7 +9,9 @@ from nose.tools import eq_
 from ddtrace import Tracer, Pin
 from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
+
 # testing
+from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -119,6 +121,33 @@ class MongoEngineCore(object):
         eq_(span.span_type, 'mongodb')
         eq_(span.service, self.TEST_SERVICE)
         _assert_timing(span, start, end)
+
+    def test_opentracing(self):
+        """Ensure the opentracer works with mongoengine."""
+        tracer = self.get_tracer_and_connect()
+        ot_tracer = init_tracer('my_svc', tracer)
+
+        with ot_tracer.start_active_span('ot_span'):
+            start = time.time()
+            Artist.drop_collection()
+            end = time.time()
+
+        # ensure we get a drop collection span
+        spans = tracer.writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'ot_span')
+        eq_(ot_span.service, 'my_svc')
+
+        eq_(dd_span.resource, 'drop artist')
+        eq_(dd_span.span_type, 'mongodb')
+        eq_(dd_span.service, self.TEST_SERVICE)
+        _assert_timing(dd_span, start, end)
 
 
 class TestMongoEnginePatchConnectDefault(MongoEngineCore):
