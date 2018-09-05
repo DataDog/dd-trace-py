@@ -5,7 +5,7 @@ from ddtrace.contrib.mysqldb.patch import patch, unpatch
 
 from nose.tools import eq_, ok_
 
-from test.opentracer.utils import init_tracer
+from tests.opentracer.utils import init_tracer
 from ..config import MYSQL_CONFIG
 from ...util import assert_dict_issuperset
 from ...test_tracer import get_dummy_tracer
