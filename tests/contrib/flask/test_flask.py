@@ -15,6 +15,7 @@ from ddtrace import Tracer
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
 from ddtrace.ext import http, errors
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import DummyWriter
 
 
@@ -417,5 +418,28 @@ class TestFlask(object):
         eq_(s.meta.get(http.STATUS_CODE), '200')
         eq_(s.meta.get(http.METHOD), 'GET')
 
+    def test_success_200_ot(self):
+        """OpenTracing version of test_success_200."""
+        ot_tracer = init_tracer('my_svc', tracer)
 
+        with ot_tracer.start_active_span('ot_span'):
+            start = time.time()
+            rv = app.get('/')
+            end = time.time()
 
+        # ensure request worked
+        eq_(rv.status_code, 200)
+        eq_(rv.data, b'hello')
+
+        # ensure trace worked
+        assert not tracer.current_span(), tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        s = spans[1]
+        eq_(s.service, service)
+        eq_(s.resource, "index")
+        assert s.start >= start
+        assert s.duration <= end - start
+        eq_(s.error, 0)
+        eq_(s.meta.get(http.STATUS_CODE), '200')
+        eq_(s.meta.get(http.METHOD), 'GET')
