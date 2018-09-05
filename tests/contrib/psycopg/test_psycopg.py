@@ -3,7 +3,6 @@ import time
 
 # 3p
 import psycopg2
-from psycopg2 import _psycopg
 from psycopg2 import extensions
 from psycopg2 import extras
 
@@ -16,6 +15,7 @@ from ddtrace.contrib.psycopg.patch import patch, unpatch
 from ddtrace import Pin
 
 # testing
+from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 
@@ -64,6 +64,34 @@ class PsycopgCore(object):
         eq_(span.span_type, "sql")
         assert start <= span.start <= end
         assert span.duration <= end - start
+
+        # check OpenTracing compatibility
+        ot_tracer = init_tracer('psycopg_svc', tracer)
+
+        with ot_tracer.start_active_span('psyco_op'):
+            cursor = db.cursor()
+            cursor.execute(q)
+            rows = cursor.fetchall()
+
+        eq_(rows, [('foobarblah',)])
+        assert rows
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+        # check the OpenTracing span
+        eq_(ot_span.name, 'psyco_op')
+        eq_(ot_span.service, 'psycopg_svc')
+        # make sure the Datadog span is unaffected by OpenTracing
+        eq_(dd_span.name, "postgres.query")
+        eq_(dd_span.resource, q)
+        eq_(dd_span.service, service)
+        ok_(dd_span.get_tag("sql.query") is None)
+        eq_(dd_span.error, 0)
+        eq_(dd_span.span_type, "sql")
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
