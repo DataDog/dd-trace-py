@@ -7,12 +7,13 @@ from elasticsearch.exceptions import TransportError
 from nose.tools import eq_
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -147,7 +148,6 @@ class ElasticsearchTest(unittest.TestCase):
 
     def test_elasticsearch_ot(self):
         """Shortened OpenTracing version of test_elasticsearch."""
-        from tests.opentracer.utils import init_tracer
         tracer = get_dummy_tracer()
         writer = tracer.writer
         ot_tracer = init_tracer('my_svc', tracer)
