@@ -2,6 +2,8 @@ from nose.tools import eq_, ok_
 
 from ddtrace.ext import errors as errx, http as httpx
 
+from tests.opentracer.utils import init_tracer
+
 
 class FalconTestCase(object):
     """Falcon mixin test case that includes all possible tests. If you need
@@ -130,7 +132,6 @@ class FalconTestCase(object):
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
-        from tests.opentracer.utils import init_tracer
         ot_tracer = init_tracer('my_svc', self.tracer)
 
         with ot_tracer.start_active_span('ot_span'):
