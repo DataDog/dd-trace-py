@@ -7,6 +7,21 @@ from tests.opentracer.utils import ot_tracer_factory, ot_tracer, dd_tracer, writ
 class TestTracerCompatibility(object):
     """Ensure that our opentracer produces results in the underlying ddtracer."""
 
+    def test_ottracer_uses_global_ddtracer(self):
+        """Ensure that the opentracer will by default use the global ddtracer
+        as its underlying Datadog tracer.
+        """
+        tracer = ddtrace.opentracer.Tracer()
+        assert tracer._dd_tracer is ddtrace.tracer
+
+    def test_custom_ddtracer(self):
+        """A user should be able to specify their own Datadog tracer instance if
+        they wish.
+        """
+        custom_dd_tracer = ddtrace.Tracer()
+        tracer = ddtrace.opentracer.Tracer(dd_tracer=custom_dd_tracer)
+        assert tracer._dd_tracer is custom_dd_tracer
+
     def test_ot_dd_global_tracers(self, global_tracer):
         """Ensure our test function opentracer_init() prep"""
         ot_tracer = global_tracer
