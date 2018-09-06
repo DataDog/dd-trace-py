@@ -19,6 +19,7 @@ from ddtrace.ext import http
 
 # testing
 from unittest import skipUnless
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
@@ -201,7 +202,6 @@ class BotoTest(unittest.TestCase):
     @mock_ec2
     def test_ec2_client_ot(self):
         """OpenTracing compatibility check of the test_ec2_client test."""
-        from tests.opentracer.utils import init_tracer
 
         ec2 = boto.ec2.connect_to_region("us-west-2")
         tracer = get_dummy_tracer()
