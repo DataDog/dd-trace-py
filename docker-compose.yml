@@ -3,15 +3,15 @@ version: "3"
 
 services:
     elasticsearch:
-        image: elasticsearch:2.3
+        image: elasticsearch:2.3-alpine
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
-        image: cassandra:3.7
+        image: cassandra:3.11
         ports:
             - "127.0.0.1:9042:9042"
     postgres:
-        image: postgres:9.5
+        image: postgres:10.5-alpine
         environment:
             - POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD
             - POSTGRES_USER=$TEST_POSTGRES_USER
@@ -28,15 +28,15 @@ services:
         ports:
             - "127.0.0.1:3306:3306"
     redis:
-        image: redis:3.2
+        image: redis:3.2-alpine
         ports:
             - "127.0.0.1:6379:6379"
     mongo:
-        image: mongo:3.2
+        image: mongo:3.6
         ports:
             - "127.0.0.1:27017:27017"
     memcached:
-        image: memcached:1.4
+        image: memcached:1.5-alpine
         ports:
             - "127.0.0.1:11211:11211"
     moto:
