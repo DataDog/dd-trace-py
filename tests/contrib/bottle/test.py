@@ -4,6 +4,7 @@ import webtest
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
+from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace import compat
@@ -104,7 +105,6 @@ class TraceBottleTest(TestCase):
         eq_(s.get_tag('http.method'), 'GET')
 
     def test_200_ot(self):
-        from tests.opentracer.utils import init_tracer
         ot_tracer = init_tracer('my_svc', self.tracer)
 
         # setup our test app
