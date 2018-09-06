@@ -6,12 +6,11 @@ from django.db import connections
 
 # project
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django.db import unpatch_conn
-from ddtrace.contrib.django import TraceMiddleware
 from ddtrace.ext import errors
 
 # testing
+from tests.opentracer.utils import init_tracer
 from .compat import reverse
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
 
@@ -270,7 +269,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
     def test_middleware_trace_request_ot(self):
         """OpenTracing version of test_middleware_trace_request."""
-        from tests.opentracer.utils import init_tracer
         ot_tracer = init_tracer('my_svc', self.tracer)
 
         # ensures that the internals are properly traced
