@@ -179,12 +179,9 @@ class PyMySQLCore(object):
         eq_(dd_span.name, 'pymysql.query')
         eq_(dd_span.span_type, 'sql')
         eq_(dd_span.error, 0)
-        assert_dict_issuperset(dd_span.meta, {
-            'out.host': u'127.0.0.1',
-            'out.port': u'3306',
-            'db.name': u'test',
-            'db.user': u'test',
-        })
+        meta = {}
+        meta.update(self.DB_INFO)
+        assert_dict_issuperset(dd_span.meta, meta)
 
 
 class TestPyMysqlPatch(PyMySQLCore, TestCase):
