@@ -106,7 +106,7 @@ jobs:
   ddtracerun:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
@@ -221,7 +221,7 @@ jobs:
       - image: datadog/docker-library:dd_trace_py_1_0_0
         env:
           - CASS_DRIVER_NO_EXTENSIONS=1
-      - image: cassandra:3.7
+      - image: cassandra:3.11
         env:
           - MAX_HEAP_SIZE=1024M
           - HEAP_NEWSIZE=400M
@@ -244,7 +244,7 @@ jobs:
   celery:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
@@ -302,8 +302,8 @@ jobs:
   django:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
-      - image: memcached:1.4
+      - image: redis:3.2-alpine
+      - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
         env:
             - DD_APM_ENABLED=true
@@ -337,8 +337,8 @@ jobs:
   flask:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
-      - image: memcached:1.4
+      - image: redis:3.2-alpine
+      - image: memcached:1.5-alpine
     steps:
       - checkout
       - restore_cache:
@@ -505,7 +505,7 @@ jobs:
   pylibmc:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: memcached:1.4
+      - image: memcached:1.5-alpine
     steps:
       - checkout
       - restore_cache:
@@ -524,7 +524,7 @@ jobs:
   pymemcache:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: memcached:1.4
+      - image: memcached:1.5-alpine
     steps:
       - checkout
       - restore_cache:
@@ -545,7 +545,7 @@ jobs:
   pymongo:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: mongo:3.2
+      - image: mongo:3.6
     steps:
       - checkout
       - restore_cache:
@@ -602,7 +602,7 @@ jobs:
   sqlalchemy:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -632,7 +632,7 @@ jobs:
   psycopg:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -675,7 +675,7 @@ jobs:
   aiopg:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -699,7 +699,7 @@ jobs:
   redis:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
