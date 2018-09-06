@@ -13,18 +13,18 @@ services:
     postgres:
         image: postgres:10.5-alpine
         environment:
-            - POSTGRES_PASSWORD=$TEST_POSTGRES_PASSWORD
-            - POSTGRES_USER=$TEST_POSTGRES_USER
-            - POSTGRES_DB=$TEST_POSTGRES_DB
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_USER=postgres
+            - POSTGRES_DB=postgres
         ports:
             - "127.0.0.1:5432:5432"
     mysql:
         image: mysql:5.7
         environment:
-            - MYSQL_ROOT_PASSWORD=$TEST_MYSQL_ROOT_PASSWORD
-            - MYSQL_PASSWORD=$TEST_MYSQL_PASSWORD
-            - MYSQL_USER=$TEST_MYSQL_USER
-            - MYSQL_DATABASE=$TEST_MYSQL_DATABASE
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
         ports:
             - "127.0.0.1:3306:3306"
     redis:
