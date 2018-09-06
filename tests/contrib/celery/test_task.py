@@ -9,6 +9,7 @@ from ddtrace.compat import PY2
 from ddtrace.contrib.celery.app import patch_app, unpatch_app
 from ddtrace.contrib.celery.task import patch_task, unpatch_task
 
+from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 from ...util import assert_list_issuperset
@@ -260,7 +261,6 @@ class CeleryTaskTest(unittest.TestCase):
 
     def test_task_apply_ot(self):
         """OpenTraced version of test_task_apply_ot."""
-        from tests.opentracer.utils import init_tracer
         ot_tracer = init_tracer('my_svc', self.tracer)
 
         # Create an instance of our patched app
