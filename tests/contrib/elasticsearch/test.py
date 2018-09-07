@@ -7,12 +7,13 @@ from elasticsearch.exceptions import TransportError
 from nose.tools import eq_
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -144,6 +145,44 @@ class ElasticsearchTest(unittest.TestCase):
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+
+    def test_elasticsearch_ot(self):
+        """Shortened OpenTracing version of test_elasticsearch."""
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        ot_tracer = init_tracer('my_svc', tracer)
+
+        transport_class = get_traced_transport(
+                datadog_tracer=tracer,
+                datadog_service=self.TEST_SERVICE)
+
+        es = Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
+
+        # Test index creation
+        mapping = {"mapping": {"properties": {"created": {"type":"date", "format": "yyyy-MM-dd"}}}}
+
+        with ot_tracer.start_active_span('ot_span'):
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, "my_svc")
+        eq_(ot_span.resource, "ot_span")
+
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, "elasticsearch.query")
+        eq_(dd_span.span_type, "elasticsearch")
+        eq_(dd_span.error, 0)
+        eq_(dd_span.get_tag(metadata.METHOD), "PUT")
+        eq_(dd_span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
+        eq_(dd_span.resource, "PUT /%s" % self.ES_INDEX)
 
 
 class ElasticsearchPatchTest(unittest.TestCase):
