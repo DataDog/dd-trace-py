@@ -11,6 +11,9 @@ from ddtrace import Pin
 from ddtrace.contrib.sqlite3 import connection_factory
 from ddtrace.contrib.sqlite3.patch import patch, unpatch
 from ddtrace.ext import errors
+
+# testing
+from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -104,6 +107,42 @@ class TestSQLite(object):
             assert span.get_tag(errors.ERROR_STACK)
             assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
             assert 'no such table' in span.get_tag(errors.ERROR_MSG)
+
+    def test_sqlite_ot(self):
+        """Ensure sqlite works with the opentracer."""
+        tracer = get_dummy_tracer()
+        ot_tracer = init_tracer('sqlite_svc', tracer)
+
+        # Ensure we can run a query and it's correctly traced
+        q = "select * from sqlite_master"
+        with ot_tracer.start_active_span('sqlite_op'):
+            db = sqlite3.connect(":memory:")
+            pin = Pin.get_from(db)
+            assert pin
+            eq_("db", pin.app_type)
+            pin.clone(tracer=tracer).onto(db)
+            cursor = db.execute(q)
+            rows = cursor.fetchall()
+        assert not rows
+        spans = tracer.writer.pop()
+        assert spans
+
+        print(spans)
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'sqlite_op')
+        eq_(ot_span.service, 'sqlite_svc')
+
+        eq_(dd_span.name, "sqlite.query")
+        eq_(dd_span.span_type, "sql")
+        eq_(dd_span.resource, q)
+        ok_(dd_span.get_tag("sql.query") is None)
+        eq_(dd_span.error, 0)
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
