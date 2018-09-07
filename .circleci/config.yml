@@ -550,7 +550,7 @@ jobs:
   mongoengine:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: mongo:3.2
+      - image: mongo:3.6
     steps:
       - checkout
       - restore_cache:
