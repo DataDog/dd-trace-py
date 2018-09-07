@@ -568,6 +568,25 @@ jobs:
           paths:
             - .tox
 
+  mongoengine:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mongo:3.6
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-mongoengine-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-mongoengine{011}' --result-json /tmp/mongoengine.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mongoengine.results
+      - save_cache:
+          key: tox-cache-mongoengine-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pymongo:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -852,6 +871,7 @@ workflows:
       - flask
       - gevent
       - httplib
+      - mongoengine
       - mysqlconnector
       - mysqlpython
       - mysqldb
@@ -890,6 +910,7 @@ workflows:
             - flask
             - gevent
             - httplib
+            - mongoengine
             - mysqlconnector
             - mysqlpython
             - mysqldb
