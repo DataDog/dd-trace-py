@@ -3,6 +3,7 @@ import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
 
+import ddtrace
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.settings import ConfigException
@@ -34,7 +35,7 @@ DEFAULT_CONFIG = {
 class Tracer(opentracing.Tracer):
     """A wrapper providing an OpenTracing API for the Datadog tracer."""
 
-    def __init__(self, service_name=None, config=None, scope_manager=None):
+    def __init__(self, service_name=None, config=None, scope_manager=None, dd_tracer=None):
         """Initialize a new Datadog opentracer.
 
         :param service_name: (optional) the name of the service that this
@@ -48,6 +49,9 @@ class Tracer(opentracing.Tracer):
             here: https://github.com/opentracing/opentracing-python#scope-managers.
             If ``None`` is provided, defaults to
             :class:`opentracing.scope_managers.ThreadLocalScopeManager`.
+        :param dd_tracer: (optional) the Datadog tracer for this tracer to use. This
+            should only be passed if a custom Datadog tracer is being used. Defaults
+            to the global ``ddtrace.tracer`` tracer.
         """
         # Merge the given config with the default into a new dict
         config = config or {}
@@ -75,7 +79,7 @@ class Tracer(opentracing.Tracer):
 
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
-        self._dd_tracer = DatadogTracer()
+        self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
         self._dd_tracer.configure(enabled=self._enabled,
                                   hostname=self._config.get(keys.AGENT_HOSTNAME),
                                   port=self._config.get(keys.AGENT_PORT),
