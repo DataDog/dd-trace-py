@@ -234,8 +234,10 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         assert spans, spans
         eq_(len(spans), 1)
 
-        # Test unpatch
         mongoengine.connection.disconnect()
+        tracer.writer.pop()
+
+        # Test unpatch
         unpatch()
 
         mongoengine.connect(port=MONGO_CONFIG['port'])
