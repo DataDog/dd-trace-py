@@ -2,6 +2,8 @@ from nose.tools import eq_, ok_
 
 from ddtrace.ext import errors as errx, http as httpx
 
+from tests.opentracer.utils import init_tracer
+
 
 class FalconTestCase(object):
     """Falcon mixin test case that includes all possible tests. If you need
@@ -127,3 +129,31 @@ class FalconTestCase(object):
         eq_(span.get_tag(httpx.STATUS_CODE), '404')
         ok_(span.get_tag(errx.ERROR_TYPE) is None)
         eq_(span.parent_id, None)
+
+    def test_200_ot(self):
+        """OpenTracing version of test_200."""
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        with ot_tracer.start_active_span('ot_span'):
+            out = self.simulate_get('/200')
+
+        eq_(out.status_code, 200)
+        eq_(out.content.decode('utf-8'), 'Success')
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, 'my_svc')
+        eq_(ot_span.resource, 'ot_span')
+
+        eq_(dd_span.name, 'falcon.request')
+        eq_(dd_span.service, self._service)
+        eq_(dd_span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
+        eq_(dd_span.get_tag(httpx.STATUS_CODE), '200')
+        eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
