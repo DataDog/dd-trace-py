@@ -7,6 +7,7 @@ from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
 from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
@@ -387,7 +388,7 @@ class TestTraceMiddleware(TraceTestCase):
     @asyncio.coroutine
     def test_parenting_200_ot(self):
         """OpenTracing version of test_handler."""
-        ot_tracer = init_tracer('aiohttp_svc', self.tracer)
+        ot_tracer = init_tracer('aiohttp_svc', self.tracer, scope_manager=AsyncioScopeManager())
 
         with ot_tracer.start_active_span('aiohttp_op'):
             request = yield from self.client.request('GET', '/')
