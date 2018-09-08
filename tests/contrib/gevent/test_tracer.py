@@ -8,6 +8,7 @@ from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
+from opentracing.scope_managers.gevent import GeventScopeManager
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
@@ -372,7 +373,7 @@ class TestGeventTracer(TestCase):
     def test_trace_spawn_multiple_greenlets_multiple_traces_ot(self):
         """OpenTracing version of the same test."""
 
-        ot_tracer = init_tracer('my_svc', self.tracer)
+        ot_tracer = init_tracer('my_svc', self.tracer, scope_manager=GeventScopeManager())
 
         def entrypoint():
             with ot_tracer.start_active_span('greenlet.main') as span:
@@ -393,5 +394,6 @@ class TestGeventTracer(TestCase):
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
+
         spans = self.tracer.writer.pop()
         self._assert_spawn_multiple_greenlets(spans)
