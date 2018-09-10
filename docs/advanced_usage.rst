@@ -249,7 +249,8 @@ OpenTracing
 
 
 The Datadog opentracer can be configured via the ``config`` dictionary
-parameter which accepts the following described fields.
+parameter to the tracer which accepts the following described fields. See below
+for usage.
 
 +---------------------+---------------------------------------------------------+---------------+
 | Configuration Key   |  Description                                            | Default Value |
@@ -334,6 +335,15 @@ the Datadog opentracer.
 See also the `Python OpenTracing`_ repository for usage of the tracer.
 
 .. _Python OpenTracing: https://github.com/opentracing/opentracing-python
+
+
+**Alongside Datadog tracer**
+
+The Datadog OpenTracing tracer can be used alongside the Datadog tracer. This
+provides the advantage of providing tracing information collected by
+``ddtrace`` in addition to OpenTracing.  The simplest way to do this is to use
+the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
+application.
 
 
 **Opentracer API**
