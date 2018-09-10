@@ -496,25 +496,8 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
-    def test_invalid_baggage_key(self, ot_tracer):
-        """Invalid baggage keys should be ignored."""
-        span_ctx = SpanContext(
-            trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"}
-        )
-        carrier = {}
-
-        ot_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
-        assert len(carrier.keys()) > 0
-
-        # add a key to the carrier
-        corrupted_key = HTTP_HEADER_TRACE_ID[2:]
-        carrier[corrupted_key] = 123
-
-        ext_span_ctx = ot_tracer.extract(Format.TEXT_MAP, carrier)
-        assert ext_span_ctx.baggage == span_ctx.baggage
-
     def test_corrupted_propagated_context(self, ot_tracer):
-        """Corrupted context should raise a SpanContextCorruprtedException."""
+        """Corrupted context should raise a SpanContextCorruptedException."""
         span_ctx = SpanContext(
             trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"}
         )
