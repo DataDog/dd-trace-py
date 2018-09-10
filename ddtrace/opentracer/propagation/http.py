@@ -1,10 +1,9 @@
 import logging
 
-from opentracing import InvalidCarrierException
+from opentracing import InvalidCarrierException, SpanContextCorruptedException
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
 
 from ..span_context import SpanContext
-
 from .propagator import Propagator
 
 
@@ -66,6 +65,11 @@ class HTTPPropagator(Propagator):
             raise InvalidCarrierException('propagator expects carrier to be a dict')
 
         ddspan_ctx = self._dd_propagator.extract(carrier)
+
+        # if the trace_id returned from the dd propagator is 0 (or None) then
+        # the extraction or propagation of the context failed
+        if not ddspan_ctx.trace_id:
+            raise SpanContextCorruptedException
 
         baggage = {}
         for key in carrier:
