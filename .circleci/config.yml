@@ -731,7 +731,7 @@ jobs:
           keys:
               - tox-cache-aiopg-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' postgres
-      - run: tox -e '{py34,py35,py36}-aiopg{012,013}' --result-json /tmp/aiopg.results
+      - run: tox -e '{py34,py35,py36}-aiopg{012,015}' --result-json /tmp/aiopg.results
       - persist_to_workspace:
           root: /tmp
           paths:
