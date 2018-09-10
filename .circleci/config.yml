@@ -37,6 +37,32 @@ jobs:
           paths:
             - .tox
 
+  opentracer:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-opentracer-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-opentracer' --result-json /tmp/opentracer.results
+      - run: tox -e '{py34,py35,py36}-opentracer_asyncio' --result-json /tmp/opentracer-asyncio.results
+      - run: tox -e '{py34,py35,py36}-opentracer_tornado-tornado{40,41,42,43,44}' --result-json /tmp/opentracer-tornado.results
+      - run: tox -e '{py27}-opentracer_gevent-gevent{10}' --result-json /tmp/opentracer-gevent.1.results
+      - run: tox -e '{py27,py34,py35,py36}-opentracer_gevent-gevent{11,12}' --result-json /tmp/opentracer-gevent.2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - opentracer.results
+            - opentracer-asyncio.results
+            - opentracer-tornado.results
+            - opentracer-gevent.1.results
+            - opentracer-gevent.2.results
+      - save_cache:
+          key: tox-cache-opentracer-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   integration:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -542,6 +568,25 @@ jobs:
           paths:
             - .tox
 
+  mongoengine:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mongo:3.6
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-mongoengine-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-mongoengine{011}' --result-json /tmp/mongoengine.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mongoengine.results
+      - save_cache:
+          key: tox-cache-mongoengine-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pymongo:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -808,6 +853,7 @@ workflows:
     jobs:
       - flake8
       - tracer
+      - opentracer
       - integration
       - futures
       - boto
@@ -825,6 +871,7 @@ workflows:
       - flask
       - gevent
       - httplib
+      - mongoengine
       - mysqlconnector
       - mysqlpython
       - mysqldb
@@ -845,6 +892,7 @@ workflows:
           requires:
             - flake8
             - tracer
+            - opentracer
             - integration
             - futures
             - boto
@@ -862,6 +910,7 @@ workflows:
             - flask
             - gevent
             - httplib
+            - mongoengine
             - mysqlconnector
             - mysqlpython
             - mysqldb

@@ -4,6 +4,7 @@ import webtest
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
+from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace import compat
@@ -102,3 +103,42 @@ class TraceBottleTest(TestCase):
         eq_(s.resource, 'GET /home/')
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
+
+    def test_200_ot(self):
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        # make a request
+        with ot_tracer.start_active_span('ot_span'):
+            resp = self.app.get('/hi/dougie')
+
+        eq_(resp.status_int, 200)
+        eq_(compat.to_unicode(resp.body), u'hi dougie')
+        # validate it's traced
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.resource, 'ot_span')
+
+        eq_(dd_span.name, 'bottle.request')
+        eq_(dd_span.service, 'bottle-app')
+        eq_(dd_span.resource, 'GET /hi/<name>')
+        eq_(dd_span.get_tag('http.status_code'), '200')
+        eq_(dd_span.get_tag('http.method'), 'GET')
+
+        services = self.tracer.writer.pop_services()
+        eq_(len(services), 1)
+        ok_(SERVICE in services)
+        s = services[SERVICE]
+        eq_(s['app_type'], 'web')
+        eq_(s['app'], 'bottle')

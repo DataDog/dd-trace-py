@@ -5,8 +5,11 @@ from nose.tools import eq_, ok_
 # project
 from ddtrace import Pin
 from ddtrace.contrib.mysql.patch import patch, unpatch
-from tests.test_tracer import get_dummy_tracer
+
+# tests
 from tests.contrib.config import MYSQL_CONFIG
+from tests.opentracer.utils import init_tracer
+from tests.test_tracer import get_dummy_tracer
 from ...util import assert_dict_issuperset
 
 
@@ -137,6 +140,41 @@ class MySQLCore(object):
         })
         ok_(span.get_tag('sql.query') is None)
 
+    def test_simple_query_ot(self):
+        """OpenTracing version of test_simple_query."""
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+
+        ot_tracer = init_tracer('mysql_svc', tracer)
+
+        with ot_tracer.start_active_span('mysql_op'):
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+
+        spans = writer.pop()
+        eq_(len(spans), 2)
+
+        ot_span, dd_span = spans
+
+        # confirm parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, 'mysql_svc')
+        eq_(ot_span.name, 'mysql_op')
+
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, 'mysql.query')
+        eq_(dd_span.span_type, 'sql')
+        eq_(dd_span.error, 0)
+        assert_dict_issuperset(dd_span.meta, {
+            'out.host': u'127.0.0.1',
+            'out.port': u'3306',
+            'db.name': u'test',
+            'db.user': u'test',
+        })
 
 class TestMysqlPatch(MySQLCore):
 

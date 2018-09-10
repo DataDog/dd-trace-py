@@ -19,6 +19,7 @@ from ddtrace.ext import http
 
 # testing
 from unittest import skipUnless
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
@@ -197,3 +198,49 @@ class BotoTest(unittest.TestCase):
         eq_(span.get_tag('aws.region'), 'us-west-2')
         eq_(span.service, "test-boto-tracing.elasticache")
         eq_(span.resource, "elasticache")
+
+    @mock_ec2
+    def test_ec2_client_ot(self):
+        """OpenTracing compatibility check of the test_ec2_client test."""
+
+        ec2 = boto.ec2.connect_to_region("us-west-2")
+        tracer = get_dummy_tracer()
+        ot_tracer = init_tracer('my_svc', tracer)
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
+
+        with ot_tracer.start_active_span('ot_span'):
+            ec2.get_all_instances()
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.resource, "ot_span")
+        eq_(dd_span.get_tag('aws.operation'), "DescribeInstances")
+        eq_(dd_span.get_tag(http.STATUS_CODE), "200")
+        eq_(dd_span.get_tag(http.METHOD), "POST")
+        eq_(dd_span.get_tag('aws.region'), "us-west-2")
+
+        with ot_tracer.start_active_span('ot_span'):
+            ec2.run_instances(21)
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(dd_span.get_tag('aws.operation'), "RunInstances")
+        eq_(dd_span.get_tag(http.STATUS_CODE), "200")
+        eq_(dd_span.get_tag(http.METHOD), "POST")
+        eq_(dd_span.get_tag('aws.region'), "us-west-2")
+        eq_(dd_span.service, "test-boto-tracing.ec2")
+        eq_(dd_span.resource, "ec2.runinstances")
+        eq_(dd_span.name, "ec2.command")

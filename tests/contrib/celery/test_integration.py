@@ -7,6 +7,8 @@ from ddtrace.contrib.celery import patch, unpatch
 
 from .base import CeleryBaseTestCase
 
+from tests.opentracer.utils import init_tracer
+
 
 class CeleryIntegrationTask(CeleryBaseTestCase):
     """Ensures that the tracer works properly with a real Celery application
@@ -310,3 +312,36 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         eq_(span.service, 'task-queue')
+
+    def test_fn_task_apply_async_ot(self):
+        """OpenTracing version of test_fn_task_apply_async."""
+        ot_tracer = init_tracer('celery_svc', self.tracer)
+
+        # it should execute a traced async task that has parameters
+        @self.app.task
+        def fn_task_parameters(user, force_logout=False):
+            return (user, force_logout)
+
+        with ot_tracer.start_active_span('celery_op'):
+            t = fn_task_parameters.apply_async(args=['user'], kwargs={'force_logout': True})
+            eq_('PENDING', t.status)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'celery_op')
+        eq_(ot_span.service, 'celery_svc')
+
+        eq_(dd_span.error, 0)
+        eq_(dd_span.name, 'celery.apply')
+        eq_(dd_span.resource, 'tests.contrib.celery.test_integration.fn_task_parameters')
+        eq_(dd_span.service, 'celery-producer')
+        eq_(dd_span.get_tag('celery.id'), t.task_id)
+        eq_(dd_span.get_tag('celery.action'), 'apply_async')
+        eq_(dd_span.get_tag('celery.routing_key'), 'celery')

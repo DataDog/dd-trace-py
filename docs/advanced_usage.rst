@@ -242,6 +242,117 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 (see filters.py for other example implementations)
 
 
+.. _adv_opentracing:
+
+OpenTracing
+-----------
+
+
+The Datadog opentracer can be configured via the ``config`` dictionary
+parameter to the tracer which accepts the following described fields. See below
+for usage.
+
++---------------------+---------------------------------------------------------+---------------+
+| Configuration Key   |  Description                                            | Default Value |
++=====================+=========================================================+===============+
+| `enabled`           | enable or disable the tracer                            | `True`        |
++---------------------+---------------------------------------------------------+---------------+
+| `debug`             | enable debug logging                                    | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_hostname`    | hostname of the Datadog agent to use                    | `localhost`   |
++---------------------+---------------------------------------------------------+---------------+
+| `agent_port`        | port the Datadog agent is listening on                  | `8126`        |
++---------------------+---------------------------------------------------------+---------------+
+| `global_tags`       | tags that will be applied to each span                  | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
+| `sampler`           | see `Sampling`_                                         | `AllSampler`  |
++---------------------+---------------------------------------------------------+---------------+
+| `priority_sampling` | see `Priority Sampling`_                                | `False`       |
++---------------------+---------------------------------------------------------+---------------+
+| `settings`          | see `Advanced Usage`_                                   | `{}`          |
++---------------------+---------------------------------------------------------+---------------+
+
+
+Usage
+^^^^^
+
+**Manual tracing**
+
+To explicitly trace::
+
+  import time
+  import opentracing
+  from ddtrace.opentracer import Tracer, set_global_tracer
+
+  def init_tracer(service_name):
+      config = {
+        'agent_hostname': 'localhost',
+        'agent_port': 8126,
+      }
+      tracer = Tracer(service_name, config=config)
+      set_global_tracer(tracer)
+      return tracer
+
+  def my_operation():
+    span = opentracing.tracer.start_span('my_operation_name')
+    span.set_tag('my_interesting_tag', 'my_interesting_value')
+    time.sleep(0.05)
+    span.finish()
+
+  init_tracer('my_service_name')
+  my_operation()
+
+**Context Manager Tracing**
+
+To trace a function using the span context manager::
+
+  import time
+  import opentracing
+  from ddtrace.opentracer import Tracer, set_global_tracer
+
+  def init_tracer(service_name):
+      config = {
+        'agent_hostname': 'localhost',
+        'agent_port': 8126,
+      }
+      tracer = Tracer(service_name, config=config)
+      set_global_tracer(tracer)
+      return tracer
+
+  def my_operation():
+    with opentracing.tracer.start_span('my_operation_name') as span:
+      span.set_tag('my_interesting_tag', 'my_interesting_value')
+      time.sleep(0.05)
+
+  init_tracer('my_service_name')
+  my_operation()
+
+See our tracing trace-examples_ repository for concrete, runnable examples of
+the Datadog opentracer.
+
+.. _trace-examples: https://github.com/DataDog/trace-examples/tree/master/python
+
+See also the `Python OpenTracing`_ repository for usage of the tracer.
+
+.. _Python OpenTracing: https://github.com/opentracing/opentracing-python
+
+
+**Alongside Datadog tracer**
+
+The Datadog OpenTracing tracer can be used alongside the Datadog tracer. This
+provides the advantage of providing tracing information collected by
+``ddtrace`` in addition to OpenTracing.  The simplest way to do this is to use
+the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
+application.
+
+
+**Opentracer API**
+
+.. autoclass:: ddtrace.opentracer.Tracer
+    :members:
+    :special-members: __init__
+
+
 .. _ddtracerun:
 
 ``ddtrace-run``
