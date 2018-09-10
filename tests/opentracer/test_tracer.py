@@ -1,7 +1,20 @@
+import opentracing
+from opentracing import (
+    child_of,
+    Format,
+    InvalidCarrierException,
+    UnsupportedFormatException,
+    SpanContextCorruptedException,
+)
+
+import ddtrace
+from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.opentracer import Tracer, set_global_tracer
+from ddtrace.opentracer.span_context import SpanContext
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.settings import ConfigException
+
 import pytest
-
-from ddtrace.opentracer import Tracer
-
 from .utils import ot_tracer_factory, ot_tracer, writer
 
 
@@ -38,7 +51,6 @@ class TestTracerConfig(object):
 
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
-        from ddtrace.settings import ConfigException
 
         config = {"enabeld": False}
 
@@ -76,7 +88,6 @@ class TestTracer(object):
 
     def test_start_span_references(self, ot_tracer, writer):
         """Start a span using references."""
-        from opentracing import child_of
 
         with ot_tracer.start_span("one", references=[child_of()]):
             pass
@@ -407,8 +418,6 @@ class TestTracer(object):
 
 @pytest.fixture
 def nop_span_ctx():
-    from ddtrace.ext.priority import AUTO_KEEP
-    from ddtrace.opentracer.span_context import SpanContext
 
     return SpanContext(sampling_priority=AUTO_KEEP, sampled=True)
 
@@ -418,8 +427,6 @@ class TestTracerSpanContextPropagation(object):
 
     def test_invalid_format(self, ot_tracer, nop_span_ctx):
         """An invalid format should raise an UnsupportedFormatException."""
-        from opentracing import UnsupportedFormatException
-
         # test inject
         with pytest.raises(UnsupportedFormatException):
             ot_tracer.inject(nop_span_ctx, None, {})
@@ -430,24 +437,16 @@ class TestTracerSpanContextPropagation(object):
 
     def test_inject_invalid_carrier(self, ot_tracer, nop_span_ctx):
         """Only dicts should be supported as a carrier."""
-        from opentracing import InvalidCarrierException
-        from opentracing import Format
-
         with pytest.raises(InvalidCarrierException):
             ot_tracer.inject(nop_span_ctx, Format.HTTP_HEADERS, None)
 
     def test_extract_invalid_carrier(self, ot_tracer):
         """Only dicts should be supported as a carrier."""
-        from opentracing import InvalidCarrierException
-        from opentracing import Format
-
         with pytest.raises(InvalidCarrierException):
             ot_tracer.extract(Format.HTTP_HEADERS, None)
 
     def test_http_headers_base(self, ot_tracer):
         """extract should undo inject for http headers."""
-        from opentracing import Format
-        from ddtrace.opentracer.span_context import SpanContext
 
         span_ctx = SpanContext(trace_id=123, span_id=456)
         carrier = {}
@@ -461,9 +460,6 @@ class TestTracerSpanContextPropagation(object):
 
     def test_http_headers_baggage(self, ot_tracer):
         """extract should undo inject for http headers."""
-        from opentracing import Format
-        from ddtrace.opentracer.span_context import SpanContext
-
         span_ctx = SpanContext(
             trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"}
         )
@@ -477,11 +473,16 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
+    def test_empty_propagated_context(self, ot_tracer):
+        """An empty propagated context should raise a
+        SpanContextCorruptedException when extracted.
+        """
+        carrier = {}
+        with pytest.raises(SpanContextCorruptedException):
+            ot_tracer.extract(Format.HTTP_HEADERS, carrier)
+
     def test_text(self, ot_tracer):
         """extract should undo inject for http headers"""
-        from opentracing import Format
-        from ddtrace.opentracer.span_context import SpanContext
-
         span_ctx = SpanContext(
             trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"}
         )
@@ -495,12 +496,8 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx._dd_context.span_id == 456
         assert ext_span_ctx.baggage == span_ctx.baggage
 
-    def test_invalid_baggage_key(self, ot_tracer):
-        """Invaid baggage keys should be ignored."""
-        from opentracing import Format
-        from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-        from ddtrace.opentracer.span_context import SpanContext
-
+    def test_corrupted_propagated_context(self, ot_tracer):
+        """Corrupted context should raise a SpanContextCorruptedException."""
         span_ctx = SpanContext(
             trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"}
         )
@@ -514,8 +511,8 @@ class TestTracerSpanContextPropagation(object):
         corrupted_key = HTTP_HEADER_TRACE_ID[2:]
         carrier[corrupted_key] = 123
 
-        ext_span_ctx = ot_tracer.extract(Format.TEXT_MAP, carrier)
-        assert ext_span_ctx.baggage == span_ctx.baggage
+        with pytest.raises(SpanContextCorruptedException):
+            ot_tracer.extract(Format.TEXT_MAP, carrier)
 
     def test_immutable_span_context(self, ot_tracer):
         """Span contexts should be immutable."""
@@ -570,10 +567,6 @@ class TestTracerCompatibility(object):
 
 def test_set_global_tracer():
     """Sanity check for set_global_tracer"""
-    import opentracing
-    import ddtrace
-    from ddtrace.opentracer import set_global_tracer
-
     my_tracer = Tracer("service")
     set_global_tracer(my_tracer)
 
