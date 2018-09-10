@@ -66,10 +66,11 @@ class HTTPPropagator(Propagator):
 
         ddspan_ctx = self._dd_propagator.extract(carrier)
 
-        # if the trace_id returned from the dd propagator is 0 (or None) then
-        # the extraction or propagation of the context failed
+        # if the dd propagator fails then it will return a new empty span
+        # context (with trace_id=None), we however want to raise an exception
+        # if this occurs.
         if not ddspan_ctx.trace_id:
-            raise SpanContextCorruptedException
+            raise SpanContextCorruptedException('failed to extract span context')
 
         baggage = {}
         for key in carrier:
