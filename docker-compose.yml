@@ -58,3 +58,12 @@ services:
             - DD_API_KEY=invalid_key_but_this_is_fine
         ports:
             - "127.0.0.1:8126:8126"
+
+    verticadb:
+        image: sumitchawla/vertica
+        environment:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=test
+        ports:
+          - "127.0.0.1:5433:5433"
