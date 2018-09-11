@@ -371,8 +371,8 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-flask-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-blinker' --result-json /tmp/flask.1.results
-      - run: tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-blinker' --result-json /tmp/flask.2.results
+      - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
+      - run: tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012,10}-blinker' --result-json /tmp/flask.2.results
       - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
       - run: tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
       - run: tox -e '{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
