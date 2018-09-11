@@ -314,8 +314,8 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-falcon-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-falcon{10,11,12}' --result-json /tmp/falcon.1.results
-      - run: tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12}' --result-json /tmp/falcon.2.results
+      - run: tox -e '{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.1.results
+      - run: tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12,13,14}' --result-json /tmp/falcon.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
