@@ -258,7 +258,7 @@ jobs:
           keys:
               - tox-cache-cassandra-{{ checksum "tox.ini" }}
       - run: tox -e wait cassandra
-      - run: tox -e '{py27,py34,py35,py36}-cassandra{35,36,37,38}' --result-json /tmp/cassandra.results
+      - run: tox -e '{py27,py34,py35,py36}-cassandra{35,36,37,38,315}' --result-json /tmp/cassandra.results
       - persist_to_workspace:
           root: /tmp
           paths:
