@@ -597,7 +597,7 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-pymongo-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-pymongo{30,31,32,33,34}-mongoengine{011}' --result-json /tmp/pymongo.results
+      - run: tox -e '{py27,py34,py35,py36}-pymongo{30,31,32,33,34,36}-mongoengine{015}' --result-json /tmp/pymongo.results
       - persist_to_workspace:
           root: /tmp
           paths:
