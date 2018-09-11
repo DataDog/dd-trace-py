@@ -2,7 +2,6 @@ from ddtrace import tracer
 from tests.test_tracer import DummyWriter
 
 from falcon import testing
-from falcon.testing.client import TestClient
 
 from .app import get_app
 from .test_suite import FalconTestCase
@@ -10,11 +9,11 @@ from .test_suite import FalconTestCase
 
 class AutoPatchTestCase(testing.TestCase, FalconTestCase):
 
-    def __init__(self, methodName='runTest'):
-        super(AutoPatchTestCase, self).__init__(methodName=methodName)
-        # Required as in falcon 1.3+ some required test properties are initialized
-        # in the __init__ method
-        TestClient.__init__(self, None)
+    # Added because falcon 1.3 and 1.4 test clients (falcon.testing.client.TestClient) expect this property to be
+    # defined. It would be initialized in the constructor, but we call it here like in 'TestClient.__init__(self, None)'
+    # because falcon 1.0.x does not have such module and would fail. Once we stop supporting falcon 1.0.x then we can
+    # use the cleaner __init__ invocation
+    _default_headers = None
 
     def setUp(self):
         self._service = 'my-falcon'
