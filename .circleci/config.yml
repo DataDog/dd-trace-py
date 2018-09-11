@@ -665,7 +665,7 @@ jobs:
           keys:
               - tox-cache-sqlalchemy-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' postgres mysql
-      - run: tox -e '{py27,py34,py35,py36}-sqlalchemy{10,11}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
+      - run: tox -e '{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
       - persist_to_workspace:
           root: /tmp
           paths:
