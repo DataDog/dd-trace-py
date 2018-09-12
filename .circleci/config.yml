@@ -423,7 +423,6 @@ jobs:
   httplib:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - *httpbin_local
     steps:
       - checkout
       - restore_cache:
