@@ -128,7 +128,7 @@ class TraceMiddleware(object):
             return
 
         code = response.status_code if response else ''
-        span.set_tag(http.STATUS_CODE, code)
+        span.set_tag(http.STATUS_CODE, int(code))
 
     def _request_exception(self, *args, **kwargs):
         exception = kwargs.get("exception", None)
