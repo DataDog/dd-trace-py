@@ -211,8 +211,8 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-tornado-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-tornado{40,41,42,43,44,45,50}' --result-json /tmp/tornado.1.results
-      - run: tox -e '{py27}-tornado{40,41,42,43,44,45,50}-futures{30,31,32}' --result-json /tmp/tornado.2.results
+      - run: tox -e '{py27,py34,py35,py36}-tornado{40,41,42,43,44,45}' --result-json /tmp/tornado.1.results
+      - run: tox -e '{py27}-tornado{40,41,42,43,44,45}-futures{30,31,32}' --result-json /tmp/tornado.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
