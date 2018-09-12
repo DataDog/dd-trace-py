@@ -205,7 +205,8 @@ jobs:
       - persist_to_workspace:
           root: /tmp
           paths:
-            - aiohttp.results
+            - aiohttp.1.results
+            - aiohttp.2.results
       - save_cache:
           key: tox-cache-aiohttp-{{ checksum "tox.ini" }}
           paths:
