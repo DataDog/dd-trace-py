@@ -1,5 +1,13 @@
 version: 2
 
+
+# Common configuration blocks as YAML anchors
+# See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+httpbin_local: &httpbin_local
+  image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+  name: httpbin.org
+
+
 jobs:
   flake8:
     docker:
@@ -414,6 +422,7 @@ jobs:
   httplib:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *httpbin_local
     steps:
       - checkout
       - restore_cache:
@@ -630,6 +639,7 @@ jobs:
   requests:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *httpbin_local
     steps:
       - checkout
       - restore_cache:
