@@ -1,3 +1,4 @@
+# Latest image for this Dockerfile: datadog/docker-library:dd_trace_py_1_1_0
 FROM buildpack-deps:xenial
 
 # Install required packages
@@ -29,4 +30,4 @@ RUN pyenv global 2.7.12 3.4.4 3.5.2 3.6.1
 
 # Install tox
 RUN pip install --upgrade pip
-RUN pip install tox
+RUN pip install "tox>=3.3,<4.0"

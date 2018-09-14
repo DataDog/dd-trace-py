@@ -1,9 +1,21 @@
 version: 2
 
+
+# Common configuration blocks as YAML anchors
+# See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+httpbin_local: &httpbin_local
+  image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+  name: httpbin.org
+test_runner: &test_runner
+  image: datadog/docker-library:dd_trace_py_1_1_0
+  env:
+    TOX_SKIP_DIST: True
+
+
 jobs:
   flake8:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -21,7 +33,7 @@ jobs:
 
   tracer:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -39,7 +51,7 @@ jobs:
 
   opentracer:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -65,8 +77,9 @@ jobs:
 
   integration:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - <<: *test_runner
         env:
+          TOX_SKIP_DIST: True
           TEST_DATADOG_INTEGRATION: 1
       - image: datadog/docker-dd-agent
         env:
@@ -91,7 +104,7 @@ jobs:
 
   futures:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -111,7 +124,7 @@ jobs:
 
   boto:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -131,8 +144,10 @@ jobs:
 
   ddtracerun:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: redis:3.2-alpine
+    environment:
+      TOX_SKIP_DIST: False
     steps:
       - checkout
       - restore_cache:
@@ -150,7 +165,7 @@ jobs:
 
   asyncio:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -168,7 +183,7 @@ jobs:
 
   pylons:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -186,17 +201,19 @@ jobs:
 
   aiohttp:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-aiohttp-{{ checksum "tox.ini" }}
-      - run: tox -e '{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl' --result-json /tmp/aiohttp.results
+      - run: tox -e '{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl' --result-json /tmp/aiohttp.1.results
+      - run: tox -e '{py34,py35,py36}-aiohttp{23}-aiohttp_jinja{015}-yarl10' --result-json /tmp/aiohttp.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - aiohttp.results
+            - aiohttp.1.results
+            - aiohttp.2.results
       - save_cache:
           key: tox-cache-aiohttp-{{ checksum "tox.ini" }}
           paths:
@@ -204,14 +221,14 @@ jobs:
 
   tornado:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-tornado-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-tornado{40,41,42,43,44}' --result-json /tmp/tornado.1.results
-      - run: tox -e '{py27}-tornado{40,41,42,43,44}-futures{30,31,32}' --result-json /tmp/tornado.2.results
+      - run: tox -e '{py27,py34,py35,py36}-tornado{40,41,42,43,44,45}' --result-json /tmp/tornado.1.results
+      - run: tox -e '{py27}-tornado{40,41,42,43,44,45}-futures{30,31,32}' --result-json /tmp/tornado.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -224,14 +241,14 @@ jobs:
 
   bottle:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-bottle-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.1.results
-      - run: tox -e '{py27,py34,py35,py36}-bottle-autopatch{11,12}-webtest' --result-json /tmp/bottle.2.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-bottle-autopatch{11,12}-webtest' --result-json /tmp/bottle.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -244,9 +261,10 @@ jobs:
 
   cassandra:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - <<: *test_runner
         env:
-          - CASS_DRIVER_NO_EXTENSIONS=1
+          TOX_SKIP_DIST: True
+          CASS_DRIVER_NO_EXTENSIONS: 1
       - image: cassandra:3.11
         env:
           - MAX_HEAP_SIZE=1024M
@@ -257,7 +275,7 @@ jobs:
           keys:
               - tox-cache-cassandra-{{ checksum "tox.ini" }}
       - run: tox -e wait cassandra
-      - run: tox -e '{py27,py34,py35,py36}-cassandra{35,36,37,38}' --result-json /tmp/cassandra.results
+      - run: tox -e '{py27,py34,py35,py36}-cassandra{35,36,37,38,315}' --result-json /tmp/cassandra.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -269,14 +287,14 @@ jobs:
 
   celery:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-celery-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -288,14 +306,14 @@ jobs:
 
   elasticsearch:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: elasticsearch:2.3
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-elasticsearch-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54}' --result-json /tmp/elasticsearch.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -307,14 +325,14 @@ jobs:
 
   falcon:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-falcon-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-falcon{10,11,12}' --result-json /tmp/falcon.1.results
-      - run: tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12}' --result-json /tmp/falcon.2.results
+      - run: tox -e '{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.1.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12,13,14}' --result-json /tmp/falcon.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -327,7 +345,7 @@ jobs:
 
   django:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: redis:3.2-alpine
       - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
@@ -341,10 +359,10 @@ jobs:
           keys:
               - tox-cache-django-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
-      - run: tox -e '{py27,py34,py35,py36}-django-autopatch{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-django-autopatch{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
       - run: tox -e '{py27,py34,py35,py36}-django-drf{111}-djangorestframework{34,37,38}' --result-json /tmp/django.3.results
       - run: tox -e '{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
-      - run: tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
       - run: tox -e '{py34,py35,py36}-django-drf{200}-djangorestframework{37}' --result-json /tmp/django.6.results
       - persist_to_workspace:
           root: /tmp
@@ -362,7 +380,7 @@ jobs:
 
   flask:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: redis:3.2-alpine
       - image: memcached:1.5-alpine
     steps:
@@ -370,12 +388,12 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-flask-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-blinker' --result-json /tmp/flask.1.results
-      - run: tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-blinker' --result-json /tmp/flask.2.results
+      - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012,10}-blinker' --result-json /tmp/flask.2.results
       - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
-      - run: tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
       - run: tox -e '{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
-      - run: tox -e '{py27}-flask-autopatch{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27}-flask-autopatch{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -392,13 +410,13 @@ jobs:
 
   gevent:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-gevent-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-gevent{11,12}' --result-json /tmp/gevent.1.results
+      - run: tox -e '{py27,py34,py35,py36}-gevent{11,12,13}' --result-json /tmp/gevent.1.results
       - run: tox -e '{py27}-gevent{10}' --result-json /tmp/gevent.2.results
       - persist_to_workspace:
           root: /tmp
@@ -412,7 +430,7 @@ jobs:
 
   httplib:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -430,7 +448,7 @@ jobs:
 
   mysqlconnector:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mysql:5.7
         env:
             - MYSQL_ROOT_PASSWORD=admin
@@ -455,7 +473,7 @@ jobs:
 
   mysqlpython:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mysql:5.7
         env:
             - MYSQL_ROOT_PASSWORD=admin
@@ -480,7 +498,7 @@ jobs:
 
   mysqldb:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mysql:5.7
         env:
             - MYSQL_ROOT_PASSWORD=admin
@@ -505,7 +523,7 @@ jobs:
 
   pymysql:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mysql:5.7
         env:
             - MYSQL_ROOT_PASSWORD=admin
@@ -518,7 +536,7 @@ jobs:
           keys:
               - tox-cache-pymysql-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' mysql
-      - run: tox -e '{py27,py34,py35,py36}-pymysql{07,08}' --result-json /tmp/pymysql.results
+      - run: tox -e '{py27,py34,py35,py36}-pymysql{07,08,09}' --result-json /tmp/pymysql.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -530,7 +548,7 @@ jobs:
 
   pylibmc:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: memcached:1.5-alpine
     steps:
       - checkout
@@ -549,7 +567,7 @@ jobs:
 
   pymemcache:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: memcached:1.5-alpine
     steps:
       - checkout
@@ -557,7 +575,7 @@ jobs:
           keys:
               - tox-cache-pymemcache-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.1.results
-      - run: tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -570,14 +588,14 @@ jobs:
 
   mongoengine:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mongo:3.6
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-mongoengine-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-mongoengine{011}' --result-json /tmp/mongoengine.results
+      - run: tox -e '{py27,py34,py35,py36}-mongoengine{015}' --result-json /tmp/mongoengine.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -589,14 +607,14 @@ jobs:
 
   pymongo:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: mongo:3.6
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-pymongo-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-pymongo{30,31,32,33,34}-mongoengine{011}' --result-json /tmp/pymongo.results
+      - run: tox -e '{py27,py34,py35,py36}-pymongo{30,31,32,33,34,36}-mongoengine{015}' --result-json /tmp/pymongo.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -608,14 +626,14 @@ jobs:
 
   pyramid:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-pyramid-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.1.results
-      - run: tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
+      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -628,13 +646,14 @@ jobs:
 
   requests:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
+      - *httpbin_local
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-requests-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-requests{208,209,210,211,212,213}' --result-json /tmp/requests.results
+      - run: tox -e '{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -646,7 +665,7 @@ jobs:
 
   sqlalchemy:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
@@ -664,7 +683,7 @@ jobs:
           keys:
               - tox-cache-sqlalchemy-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' postgres mysql
-      - run: tox -e '{py27,py34,py35,py36}-sqlalchemy{10,11}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
+      - run: tox -e '{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -676,7 +695,7 @@ jobs:
 
   psycopg:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
@@ -700,7 +719,7 @@ jobs:
 
   aiobotocore:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: palazzem/moto:1.0.1
     steps:
       - checkout
@@ -719,7 +738,7 @@ jobs:
 
   aiopg:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
@@ -731,7 +750,7 @@ jobs:
           keys:
               - tox-cache-aiopg-{{ checksum "tox.ini" }}
       - run: tox -e 'wait' postgres
-      - run: tox -e '{py34,py35,py36}-aiopg{012,013}' --result-json /tmp/aiopg.results
+      - run: tox -e '{py34,py35,py36}-aiopg{012,015}' --result-json /tmp/aiopg.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -743,7 +762,7 @@ jobs:
 
   redis:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: redis:3.2-alpine
     steps:
       - checkout
@@ -762,7 +781,7 @@ jobs:
 
   sqlite3:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
@@ -780,13 +799,13 @@ jobs:
 
   msgpack:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - checkout
       - restore_cache:
           keys:
               - tox-cache-msgpack-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34}-msgpack{03,04}' --result-json /tmp/msgpack.results
+      - run: tox -e '{py27,py34}-msgpack{03,04,05}' --result-json /tmp/msgpack.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -831,7 +850,7 @@ jobs:
   wait_all_tests:
     # this step ensures all `tox` environments are properly executed
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
     steps:
       - attach_workspace:
           at: /tmp/workspace
