@@ -246,7 +246,7 @@ jobs:
           keys:
               - tox-cache-bottle-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-bottle-autopatch{11,12}-webtest' --result-json /tmp/bottle.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-bottle-autopatch{11,12}-webtest' --result-json /tmp/bottle.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -292,7 +292,7 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-celery-{{ checksum "tox.ini" }}
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -311,7 +311,7 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-elasticsearch-{{ checksum "tox.ini" }}
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54}' --result-json /tmp/elasticsearch.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54}' --result-json /tmp/elasticsearch.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -330,7 +330,7 @@ jobs:
           keys:
               - tox-cache-falcon-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-falcon{10,11,12}' --result-json /tmp/falcon.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12}' --result-json /tmp/falcon.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-falcon-autopatch{10,11,12}' --result-json /tmp/falcon.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -357,10 +357,10 @@ jobs:
           keys:
               - tox-cache-django-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-django-autopatch{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-django-autopatch{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
       - run: tox -e '{py27,py34,py35,py36}-django-drf{111}-djangorestframework{34,37,38}' --result-json /tmp/django.3.results
       - run: tox -e '{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
+      - run: TOX_SKIP_DIST=False tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
       - run: tox -e '{py34,py35,py36}-django-drf{200}-djangorestframework{37}' --result-json /tmp/django.6.results
       - persist_to_workspace:
           root: /tmp
@@ -387,11 +387,11 @@ jobs:
           keys:
               - tox-cache-flask-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-blinker' --result-json /tmp/flask.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-blinker' --result-json /tmp/flask.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-blinker' --result-json /tmp/flask.2.results
       - run: tox -e '{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-flask-autopatch{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
       - run: tox -e '{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27}-flask-autopatch{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27}-flask-autopatch{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -573,7 +573,7 @@ jobs:
           keys:
               - tox-cache-pymemcache-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -631,7 +631,7 @@ jobs:
           keys:
               - tox-cache-pyramid-{{ checksum "tox.ini" }}
       - run: tox -e '{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.1.results
-      - run: export TOX_SKIP_DIST=False; tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-pyramid-autopatch{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
