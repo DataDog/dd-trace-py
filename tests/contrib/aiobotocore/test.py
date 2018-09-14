@@ -188,3 +188,82 @@ class AIOBotocoreTest(AsyncioTestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
+
+    @mark_asyncio
+    def test_opentraced_client(self):
+        from tests.opentracer.utils import init_tracer
+
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        with ot_tracer.start_active_span('ot_outer_span'):
+            with aiobotocore_client('ec2', self.tracer) as ec2:
+                    yield from ec2.describe_instances()
+
+        traces = self.tracer.writer.pop_traces()
+        print(traces)
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        ot_span = traces[0][0]
+        dd_span = traces[0][1]
+
+        eq_(ot_span.resource, 'ot_outer_span')
+        eq_(ot_span.service, 'my_svc')
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(dd_span.get_tag('aws.agent'), 'aiobotocore')
+        eq_(dd_span.get_tag('aws.region'), 'us-west-2')
+        eq_(dd_span.get_tag('aws.operation'), 'DescribeInstances')
+        eq_(dd_span.get_tag('http.status_code'), '200')
+        eq_(dd_span.get_tag('retry_attempts'), '0')
+        eq_(dd_span.service, 'aws.ec2')
+        eq_(dd_span.resource, 'ec2.describeinstances')
+        eq_(dd_span.name, 'ec2.command')
+
+    @mark_asyncio
+    def test_opentraced_s3_client(self):
+        from tests.opentracer.utils import init_tracer
+
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        with ot_tracer.start_active_span('ot_outer_span'):
+            with aiobotocore_client('s3', self.tracer) as s3:
+                yield from s3.list_buckets()
+                with ot_tracer.start_active_span('ot_inner_span1'):
+                    yield from s3.list_buckets()
+                with ot_tracer.start_active_span('ot_inner_span2'):
+                    pass
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 5)
+        ot_outer_span = traces[0][0]
+        dd_span = traces[0][1]
+        ot_inner_span = traces[0][2]
+        dd_span2 = traces[0][3]
+        ot_inner_span2 = traces[0][4]
+
+        eq_(ot_outer_span.resource, 'ot_outer_span')
+        eq_(ot_inner_span.resource, 'ot_inner_span1')
+        eq_(ot_inner_span2.resource, 'ot_inner_span2')
+
+        # confirm the parenting
+        eq_(ot_outer_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_outer_span.span_id)
+        eq_(ot_inner_span.parent_id, ot_outer_span.span_id)
+        eq_(dd_span2.parent_id, ot_inner_span.span_id)
+        eq_(ot_inner_span2.parent_id, ot_outer_span.span_id)
+
+        eq_(dd_span.get_tag('aws.operation'), 'ListBuckets')
+        eq_(dd_span.get_tag('http.status_code'), '200')
+        eq_(dd_span.service, 'aws.s3')
+        eq_(dd_span.resource, 's3.listbuckets')
+        eq_(dd_span.name, 's3.command')
+
+        eq_(dd_span2.get_tag('aws.operation'), 'ListBuckets')
+        eq_(dd_span2.get_tag('http.status_code'), '200')
+        eq_(dd_span2.service, 'aws.s3')
+        eq_(dd_span2.resource, 's3.listbuckets')
+        eq_(dd_span2.name, 's3.command')

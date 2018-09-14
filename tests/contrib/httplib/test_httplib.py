@@ -12,6 +12,7 @@ from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
 
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 from ...util import assert_dict_issuperset, override_global_tracer
 
@@ -434,6 +435,40 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertEqual(span.get_tag('http.status_code'), '200')
         self.assertEqual(span.get_tag('http.url'), URL_200)
 
+    def test_httplib_request_get_request_ot(self):
+        """ OpenTracing version of test with same name. """
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        with ot_tracer.start_active_span('ot_span'):
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200')
+                resp = conn.getresponse()
+                self.assertEqual(self.to_str(resp.read()), '')
+                self.assertEqual(resp.status, 200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        self.assertEqual(ot_span.parent_id, None)
+        self.assertEqual(dd_span.parent_id, ot_span.span_id)
+
+        self.assertEqual(ot_span.service, 'my_svc')
+        self.assertEqual(ot_span.name, 'ot_span')
+
+        self.assertEqual(dd_span.span_type, 'http')
+        self.assertEqual(dd_span.name, self.SPAN_NAME)
+        self.assertEqual(dd_span.error, 0)
+        assert_dict_issuperset(
+            dd_span.meta,
+            {
+                'http.method': 'GET',
+                'http.status_code': '200',
+                'http.url': URL_200,
+            }
+        )
 
 # Additional Python2 test cases for urllib
 if PY2:

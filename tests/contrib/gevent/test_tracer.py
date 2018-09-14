@@ -8,6 +8,8 @@ from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
+from opentracing.scope_managers.gevent import GeventScopeManager
+from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
 from .utils import silence_errors
@@ -302,3 +304,96 @@ class TestGeventTracer(TestCase):
         eq_(1, span.error)
         eq_('Custom exception', span.get_tag('error.msg'))
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
+
+    def _assert_spawn_multiple_greenlets(self, spans):
+        """A helper to assert the parenting of a trace when greenlets are
+        spawned within another greenlet.
+
+        This is meant to help maintain compatibility between the Datadog and
+        OpenTracing tracer implementations.
+
+        Note that for gevent there is differing behaviour between the context
+        management so the traces are not identical in form. However, the
+        parenting of the spans must remain the same.
+        """
+        eq_(len(spans), 3)
+
+        parent = None
+        worker_1 = None
+        worker_2 = None
+        # get the spans since they can be in any order
+        for span in spans:
+            if span.name == 'greenlet.main':
+                parent = span
+            if span.name == 'greenlet.worker1':
+                worker_1 = span
+            if span.name == 'greenlet.worker2':
+                worker_2 = span
+        ok_(parent)
+        ok_(worker_1)
+        ok_(worker_2)
+
+        # confirm the parenting
+        eq_(worker_1.parent_id, parent.span_id)
+        eq_(worker_2.parent_id, parent.span_id)
+
+        # check spans data and hierarchy
+        eq_(parent.name, 'greenlet.main')
+        eq_(worker_1.get_tag('worker_id'), '1')
+        eq_(worker_1.name, 'greenlet.worker1')
+        eq_(worker_1.resource, 'greenlet.worker1')
+        eq_(worker_2.get_tag('worker_id'), '2')
+        eq_(worker_2.name, 'greenlet.worker2')
+        eq_(worker_2.resource, 'greenlet.worker2')
+
+    def test_trace_spawn_multiple_greenlets_multiple_traces_dd(self):
+        """Datadog version of the same test."""
+        def entrypoint():
+            with self.tracer.trace('greenlet.main') as span:
+                span.resource = 'base'
+                jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
+                gevent.joinall(jobs)
+
+        def green_1():
+            with self.tracer.trace('greenlet.worker1') as span:
+                span.set_tag('worker_id', '1')
+                gevent.sleep(0.01)
+
+        # note that replacing the `tracer.trace` call here with the
+        # OpenTracing equivalent will cause the checks to fail
+        def green_2():
+            with self.tracer.trace('greenlet.worker2') as span:
+                span.set_tag('worker_id', '2')
+                gevent.sleep(0.01)
+
+        gevent.spawn(entrypoint).join()
+        spans = self.tracer.writer.pop()
+        self._assert_spawn_multiple_greenlets(spans)
+
+    def test_trace_spawn_multiple_greenlets_multiple_traces_ot(self):
+        """OpenTracing version of the same test."""
+
+        ot_tracer = init_tracer('my_svc', self.tracer, scope_manager=GeventScopeManager())
+
+        def entrypoint():
+            with ot_tracer.start_active_span('greenlet.main') as span:
+                span.resource = 'base'
+                jobs = [gevent.spawn(green_1), gevent.spawn(green_2)]
+                gevent.joinall(jobs)
+
+        def green_1():
+            with self.tracer.trace('greenlet.worker1') as span:
+                span.set_tag('worker_id', '1')
+                gevent.sleep(0.01)
+
+        # note that replacing the `tracer.trace` call here with the
+        # OpenTracing equivalent will cause the checks to fail
+        def green_2():
+            with ot_tracer.start_active_span('greenlet.worker2') as scope:
+                scope.span.set_tag('worker_id', '2')
+                gevent.sleep(0.01)
+
+        gevent.spawn(entrypoint).join()
+
+        spans = self.tracer.writer.pop()
+        self._assert_spawn_multiple_greenlets(spans)

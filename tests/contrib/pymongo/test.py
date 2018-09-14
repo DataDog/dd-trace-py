@@ -12,6 +12,7 @@ from ddtrace.contrib.pymongo.client import trace_mongo_client, normalize_filter
 from ddtrace.contrib.pymongo.patch import patch, unpatch
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -74,7 +75,6 @@ class PymongoCore(object):
         # implement me
         pass
 
-
     def test_update(self):
         # ensure we trace deletes
         tracer, client = self.get_tracer_and_client()
@@ -116,7 +116,6 @@ class PymongoCore(object):
         ])
 
         eq_(expected_resources, {s.resource for s in spans})
-
 
     def test_delete(self):
         # ensure we trace deletes
@@ -171,7 +170,6 @@ class PymongoCore(object):
         ]
 
         eq_(sorted(expected_resources), sorted(s.resource for s in spans))
-
 
     def test_insert_find(self):
         tracer, client = self.get_tracer_and_client()
@@ -237,6 +235,59 @@ class PymongoCore(object):
 
         eq_(sorted(expected_resources), sorted(s.resource for s in spans))
 
+    def test_update_ot(self):
+        """OpenTracing version of test_update."""
+        tracer, client = self.get_tracer_and_client()
+        ot_tracer = init_tracer('mongo_svc', tracer)
+
+        writer = tracer.writer
+        with ot_tracer.start_active_span('mongo_op'):
+            db = client["testdb"]
+            db.drop_collection("songs")
+            input_songs = [
+                {'name' : 'Powderfinger', 'artist':'Neil'},
+                {'name' : 'Harvest', 'artist':'Neil'},
+                {'name' : 'Suzanne', 'artist':'Leonard'},
+                {'name' : 'Partisan', 'artist':'Leonard'},
+            ]
+            db.songs.insert_many(input_songs)
+            result = db.songs.update_many(
+                {"artist":"Neil"},
+                {"$set": {"artist":"Shakey"}},
+            )
+
+            eq_(result.matched_count, 2)
+            eq_(result.modified_count, 2)
+
+        # ensure all is traced.
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 4)
+
+        ot_span = spans[0]
+        eq_(ot_span.parent_id, None)
+        eq_(ot_span.name, 'mongo_op')
+        eq_(ot_span.service, 'mongo_svc')
+
+        for span in spans[1:]:
+            # ensure the parenting
+            eq_(span.parent_id, ot_span.span_id)
+            # ensure all the of the common metadata is set
+            eq_(span.service, self.TEST_SERVICE)
+            eq_(span.span_type, "mongodb")
+            eq_(span.meta.get("mongodb.collection"), "songs")
+            eq_(span.meta.get("mongodb.db"), "testdb")
+            assert span.meta.get("out.host")
+            assert span.meta.get("out.port")
+
+        expected_resources = set([
+            "drop songs",
+            'update songs {"artist": "?"}',
+            "insert songs",
+        ])
+
+        eq_(expected_resources, {s.resource for s in spans[1:]})
+
 
 class TestPymongoTraceClient(PymongoCore):
     """Test suite for pymongo with the legacy trace interface"""
@@ -279,6 +330,20 @@ class TestPymongoPatchDefault(PymongoCore):
         s = services[self.TEST_SERVICE]
         assert s['app_type'] == 'db'
         assert s['app'] == 'mongodb'
+
+    def test_host_kwarg(self):
+        # simulate what celery and django do when instantiating a new client
+        conf = {
+            'host': 'localhost'
+        }
+        client = pymongo.MongoClient(**conf)
+
+        conf = {
+            'host': None
+        }
+        client = pymongo.MongoClient(**conf)
+
+        assert client
 
 
 class TestPymongoPatchConfigured(PymongoCore):

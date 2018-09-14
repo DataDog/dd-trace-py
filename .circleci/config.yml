@@ -37,6 +37,32 @@ jobs:
           paths:
             - .tox
 
+  opentracer:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-opentracer-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-opentracer' --result-json /tmp/opentracer.results
+      - run: tox -e '{py34,py35,py36}-opentracer_asyncio' --result-json /tmp/opentracer-asyncio.results
+      - run: tox -e '{py34,py35,py36}-opentracer_tornado-tornado{40,41,42,43,44}' --result-json /tmp/opentracer-tornado.results
+      - run: tox -e '{py27}-opentracer_gevent-gevent{10}' --result-json /tmp/opentracer-gevent.1.results
+      - run: tox -e '{py27,py34,py35,py36}-opentracer_gevent-gevent{11,12}' --result-json /tmp/opentracer-gevent.2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - opentracer.results
+            - opentracer-asyncio.results
+            - opentracer-tornado.results
+            - opentracer-gevent.1.results
+            - opentracer-gevent.2.results
+      - save_cache:
+          key: tox-cache-opentracer-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   integration:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
@@ -106,7 +132,7 @@ jobs:
   ddtracerun:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
@@ -221,7 +247,7 @@ jobs:
       - image: datadog/docker-library:dd_trace_py_1_0_0
         env:
           - CASS_DRIVER_NO_EXTENSIONS=1
-      - image: cassandra:3.7
+      - image: cassandra:3.11
         env:
           - MAX_HEAP_SIZE=1024M
           - HEAP_NEWSIZE=400M
@@ -244,7 +270,7 @@ jobs:
   celery:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
@@ -302,8 +328,8 @@ jobs:
   django:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
-      - image: memcached:1.4
+      - image: redis:3.2-alpine
+      - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
         env:
             - DD_APM_ENABLED=true
@@ -314,9 +340,9 @@ jobs:
       - restore_cache:
           keys:
               - tox-cache-django-{{ checksum "tox.ini" }}
-      - run: tox -e '{py27,py34,py35,py36}-django{18,19,110,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
-      - run: tox -e '{py27,py34,py35,py36}-django-autopatch{18,19,110,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
-      - run: tox -e '{py27,py34,py35,py36}-django-drf{110,111}-djangorestframework{34,35,36,37}' --result-json /tmp/django.3.results
+      - run: tox -e '{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
+      - run: tox -e '{py27,py34,py35,py36}-django-autopatch{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
+      - run: tox -e '{py27,py34,py35,py36}-django-drf{111}-djangorestframework{34,37,38}' --result-json /tmp/django.3.results
       - run: tox -e '{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
       - run: tox -e '{py34,py35,py36}-django-autopatch{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
       - run: tox -e '{py34,py35,py36}-django-drf{200}-djangorestframework{37}' --result-json /tmp/django.6.results
@@ -337,8 +363,8 @@ jobs:
   flask:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
-      - image: memcached:1.4
+      - image: redis:3.2-alpine
+      - image: memcached:1.5-alpine
     steps:
       - checkout
       - restore_cache:
@@ -505,7 +531,7 @@ jobs:
   pylibmc:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: memcached:1.4
+      - image: memcached:1.5-alpine
     steps:
       - checkout
       - restore_cache:
@@ -521,10 +547,50 @@ jobs:
           paths:
             - .tox
 
+  pymemcache:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: memcached:1.5-alpine
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-pymemcache-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.1.results
+      - run: tox -e '{py27,py34,py35,py36}-pymemcache-autopatch{130,140}' --result-json /tmp/pymemcache.2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - pymemcache.1.results
+            - pymemcache.2.results
+      - save_cache:
+          key: tox-cache-pymemcache-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
+  mongoengine:
+    docker:
+      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - image: mongo:3.6
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-mongoengine-{{ checksum "tox.ini" }}
+      - run: tox -e '{py27,py34,py35,py36}-mongoengine{011}' --result-json /tmp/mongoengine.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mongoengine.results
+      - save_cache:
+          key: tox-cache-mongoengine-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
   pymongo:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: mongo:3.2
+      - image: mongo:3.6
     steps:
       - checkout
       - restore_cache:
@@ -581,7 +647,7 @@ jobs:
   sqlalchemy:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -611,7 +677,7 @@ jobs:
   psycopg:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -654,7 +720,7 @@ jobs:
   aiopg:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
@@ -678,7 +744,7 @@ jobs:
   redis:
     docker:
       - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: redis:3.2
+      - image: redis:3.2-alpine
     steps:
       - checkout
       - restore_cache:
@@ -758,7 +824,7 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli
+      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: S3_DIR=trace-dev rake release:docs
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
@@ -769,7 +835,7 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli
+      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   deploy_docs:
@@ -779,7 +845,8 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
+      # Sphinx 1.7.5 is required otherwise docs are not properly built
+      - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
       - run: S3_DIR=trace rake release:docs
 
   wait_all_tests:
@@ -807,6 +874,7 @@ workflows:
     jobs:
       - flake8
       - tracer
+      - opentracer
       - integration
       - futures
       - boto
@@ -824,9 +892,11 @@ workflows:
       - flask
       - gevent
       - httplib
+      - mongoengine
       - mysqlconnector
       - mysqlpython
       - mysqldb
+      - pymemcache
       - pymysql
       - pylibmc
       - pymongo
@@ -844,6 +914,7 @@ workflows:
           requires:
             - flake8
             - tracer
+            - opentracer
             - integration
             - futures
             - boto
@@ -861,11 +932,13 @@ workflows:
             - flask
             - gevent
             - httplib
+            - mongoengine
             - mysqlconnector
             - mysqlpython
             - mysqldb
             - pymysql
             - pylibmc
+            - pymemcache
             - pymongo
             - pyramid
             - requests

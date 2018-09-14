@@ -12,6 +12,7 @@ from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
 
 # testing
+from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
@@ -75,6 +76,28 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.span_type, 'sql')
         assert start <= span.start <= end
         assert span.duration <= end - start
+
+        # Ensure OpenTracing compatibility
+        ot_tracer = init_tracer('aiopg_svc', tracer)
+        with ot_tracer.start_active_span('aiopg_op'):
+            cursor = yield from db.cursor()
+            yield from cursor.execute(q)
+            rows = yield from cursor.fetchall()
+            eq_(rows, [('foobarblah',)])
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+        eq_(ot_span.name, 'aiopg_op')
+        eq_(ot_span.service, 'aiopg_svc')
+        eq_(dd_span.name, 'postgres.query')
+        eq_(dd_span.resource, q)
+        eq_(dd_span.service, service)
+        eq_(dd_span.meta['sql.query'], q)
+        eq_(dd_span.error, 0)
+        eq_(dd_span.span_type, 'sql')
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'

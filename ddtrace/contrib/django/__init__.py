@@ -28,6 +28,19 @@ If you need to access to Datadog settings, you can::
     tracer.trace("something")
     # your code ...
 
+To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
+``settings.py`` looks similar to::
+
+    LOGGING = {
+        'loggers': {
+            'ddtrace': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+            },
+        },
+    }
+
+
 The available settings are:
 
 * ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the

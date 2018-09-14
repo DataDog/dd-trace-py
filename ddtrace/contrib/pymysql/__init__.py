@@ -1,4 +1,4 @@
-"""Instrumeent pymysql to report MySQL queries.
+"""Instrument pymysql to report MySQL queries.
 
 ``patch_all`` will automatically patch your pymysql connection to make it work.
 ::

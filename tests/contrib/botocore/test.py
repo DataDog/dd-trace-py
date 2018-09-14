@@ -4,7 +4,7 @@ import unittest
 # 3p
 from nose.tools import eq_
 import botocore.session
-from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_sts, mock_kms
+from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
 # project
 from ddtrace import Pin
@@ -12,6 +12,7 @@ from ddtrace.contrib.botocore.patch import patch, unpatch
 from ddtrace.ext import http
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
@@ -186,6 +187,41 @@ class BotocoreTest(unittest.TestCase):
 
         # checking for protection on sts against security leak
         eq_(span.get_tag('params'), None)
+
+    @mock_ec2
+    def test_traced_client_ot(self):
+        """OpenTracing version of test_traced_client."""
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        ot_tracer = init_tracer('ec2_svc', tracer)
+
+        with ot_tracer.start_active_span('ec2_op'):
+            ec2 = self.session.create_client('ec2', region_name='us-west-2')
+            Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
+            ec2.describe_instances()
+
+        spans = writer.pop()
+        assert spans
+        eq_(len(spans), 2)
+
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'ec2_op')
+        eq_(ot_span.service, 'ec2_svc')
+
+        eq_(dd_span.get_tag('aws.agent'), "botocore")
+        eq_(dd_span.get_tag('aws.region'), 'us-west-2')
+        eq_(dd_span.get_tag('aws.operation'), 'DescribeInstances')
+        eq_(dd_span.get_tag(http.STATUS_CODE), '200')
+        eq_(dd_span.get_tag('retry_attempts'), '0')
+        eq_(dd_span.service, "test-botocore-tracing.ec2")
+        eq_(dd_span.resource, "ec2.describeinstances")
+        eq_(dd_span.name, "ec2.command")
+
 
 if __name__ == '__main__':
     unittest.main()

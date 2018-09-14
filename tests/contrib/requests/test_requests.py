@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace.ext import http, errors
 from ddtrace.contrib.requests import patch, unpatch
 
+from tests.opentracer.utils import init_tracer
 from ...util import override_global_tracer
 from ...test_tracer import get_dummy_tracer
 
@@ -268,3 +269,30 @@ class TestRequests(BaseRequestTestCase):
         s = spans[0]
 
         eq_(s.service, 'requests')
+
+    def test_200_ot(self):
+        """OpenTracing version of test_200."""
+
+        ot_tracer = init_tracer('requests_svc', self.tracer)
+
+        with ot_tracer.start_active_span('requests_get'):
+            out = self.session.get(URL_200)
+            eq_(out.status_code, 200)
+
+        # validation
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'requests_get')
+        eq_(ot_span.service, 'requests_svc')
+
+        eq_(dd_span.get_tag(http.METHOD), 'GET')
+        eq_(dd_span.get_tag(http.STATUS_CODE), '200')
+        eq_(dd_span.error, 0)
+        eq_(dd_span.span_type, http.TYPE)
