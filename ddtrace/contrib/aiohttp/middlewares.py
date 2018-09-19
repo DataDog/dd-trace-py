@@ -1,9 +1,20 @@
 import asyncio
+import functools
 
 from ..asyncio import context_provider
 from ...ext import AppTypes, http
 from ...compat import stringify
 from ...propagation.http import HTTPPropagator
+
+
+try:
+    from aiohttp.web import middleware
+    AIOHTTP_2x = True
+except ImportError:
+    AIOHTTP_2x = False
+
+    def middleware(f):
+        return f
 
 
 CONFIG_KEY = 'datadog_trace'
@@ -12,7 +23,45 @@ REQUEST_SPAN_KEY = '__datadog_request_span'
 
 
 @asyncio.coroutine
-def trace_middleware(app, handler):
+@middleware
+def trace_middleware_2x(request, handler, app=None):
+    # application configs
+    if app is None:
+        app = request.app
+
+    tracer = app[CONFIG_KEY]['tracer']
+    service = app[CONFIG_KEY]['service']
+    distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
+
+    # Create a new context based on the propagated information.
+    if distributed_tracing:
+        propagator = HTTPPropagator()
+        context = propagator.extract(request.headers)
+        # Only need to active the new context if something was propagated
+        if context.trace_id:
+            tracer.context_provider.activate(context)
+
+    # trace the handler
+    request_span = tracer.trace(
+        'aiohttp.request',
+        service=service,
+        span_type=http.TYPE,
+    )
+
+    # attach the context and the root span to the request; the Context
+    # may be freely used by the application code
+    request[REQUEST_CONTEXT_KEY] = request_span.context
+    request[REQUEST_SPAN_KEY] = request_span
+    try:
+        response = yield from handler(request)  # noqa: E999
+        return response
+    except Exception:
+        request_span.set_traceback()
+        raise
+
+
+@asyncio.coroutine
+def trace_middleware_1x(app, handler):
     """
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
@@ -20,39 +69,10 @@ def trace_middleware(app, handler):
         * the Task is used by the internal automatic instrumentation
         * the ``Context`` attached to the request can be freely used in the application code
     """
-    @asyncio.coroutine
-    def attach_context(request):
-        # application configs
-        tracer = app[CONFIG_KEY]['tracer']
-        service = app[CONFIG_KEY]['service']
-        distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
+    return functools.partial(trace_middleware_2x, handler=handler, app=app)
 
-        # Create a new context based on the propagated information.
-        if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
-            # Only need to active the new context if something was propagated
-            if context.trace_id:
-                tracer.context_provider.activate(context)
 
-        # trace the handler
-        request_span = tracer.trace(
-            'aiohttp.request',
-            service=service,
-            span_type=http.TYPE,
-        )
-
-        # attach the context and the root span to the request; the Context
-        # may be freely used by the application code
-        request[REQUEST_CONTEXT_KEY] = request_span.context
-        request[REQUEST_SPAN_KEY] = request_span
-        try:
-            response = yield from handler(request)  # noqa: E999
-            return response
-        except Exception:
-            request_span.set_traceback()
-            raise
-    return attach_context
+trace_middleware = trace_middleware_2x if AIOHTTP_2x else trace_middleware_1x
 
 
 @asyncio.coroutine
