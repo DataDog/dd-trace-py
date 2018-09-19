@@ -1,5 +1,8 @@
 import ddtrace
 import opentracing
+from opentracing import Format
+
+from ddtrace.opentracer.span_context import SpanContext
 
 from tests.opentracer.utils import ot_tracer_factory, ot_tracer, dd_tracer, writer, global_tracer
 
@@ -166,3 +169,22 @@ class TestTracerCompatibility(object):
         assert spans[0].parent_id is None
         assert spans[1].parent_id is spans[0].span_id
         assert spans[2].parent_id is spans[1].span_id
+
+    def test_distributed_trace_propagation(self, ot_tracer, dd_tracer, writer):
+        """Ensure that a propagated span context is properly activated."""
+        span_ctx = SpanContext(trace_id=123, span_id=456)
+        carrier = {}
+        ot_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
+
+        # extract should activate the span so that a subsequent start_span
+        # will inherit from the propagated span context
+        ext_span_ctx = ot_tracer.extract(Format.HTTP_HEADERS, carrier)
+
+        with dd_tracer.trace('test') as span:
+            pass
+
+        assert span.parent_id == 456
+        assert span.trace_id == 123
+
+        spans = writer.pop()
+        assert len(spans) == 1

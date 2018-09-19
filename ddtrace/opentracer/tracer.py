@@ -288,4 +288,9 @@ class Tracer(opentracing.Tracer):
         if propagator is None:
             raise opentracing.UnsupportedFormatException
 
-        return propagator.extract(carrier)
+        # we have to manually activate the returned context from a distributed
+        # trace
+        ot_span_ctx = propagator.extract(carrier)
+        dd_span_ctx = ot_span_ctx._dd_context
+        self._dd_tracer.context_provider.activate(dd_span_ctx)
+        return ot_span_ctx
