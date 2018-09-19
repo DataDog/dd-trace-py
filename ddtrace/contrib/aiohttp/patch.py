@@ -30,9 +30,10 @@ PY_35 = sys.version_info >= (3, 5)
 
 
 def _get_url_obj(obj):
-    url_obj = getattr(obj, 'url_obj', None)  # 1.x
-    if url_obj is None:
-        url_obj = obj.url  # 2.x
+    url_obj = obj.url
+
+    if not isinstance(url_obj, URL):
+        url_obj = getattr(obj, 'url_obj', None)  # 1.x
 
     return url_obj
 
