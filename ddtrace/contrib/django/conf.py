@@ -30,6 +30,7 @@ DEFAULTS = {
     'INSTRUMENT_DATABASE': True,
     'INSTRUMENT_TEMPLATE': True,
     'DEFAULT_DATABASE_PREFIX': '',
+    'CACHE_SERVICE_NAME': None,
     'DEFAULT_SERVICE': 'django',
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
@@ -109,6 +110,21 @@ class DatadogSettings(object):
         if 'ENABLED' not in self._user_settings:
             self._user_settings['ENABLED'] = not django_settings.DEBUG
         return self._user_settings
+
+    @property
+    def cache_service_name(self):
+        name_from_config = self.CACHE_SERVICE_NAME
+
+        if name_from_config in (None, ''):
+            # If the user  does not provide an explicit service name for the django cache service,
+            # we include cache spans in the default service.
+            return self.DEFAULT_SERVICE
+
+        if not isinstance(name_from_config, str):
+            log.warning('Invalid setting "CACHE_SERVICE_NAME". The setting MUST be either None or a string.')
+            return self.DEFAULT_SERVICE
+
+        return name_from_config
 
     def __getattr__(self, attr):
         if attr not in self.defaults:

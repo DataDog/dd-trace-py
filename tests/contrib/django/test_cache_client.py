@@ -350,3 +350,28 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         ok_('missing_key' in span_delete_many.meta['django.cache.key'])
         ok_('another_key' in span_delete_many.meta['django.cache.key'])
         assert start < span_delete_many.start < span_delete_many.start + span_delete_many.duration < end
+
+    @override_ddtrace_settings(CACHE_SERVICE_NAME='modified_cache_name')
+    def test_cache_as_named_service(self):
+        # get the default cache
+        cache = caches['default']
+        cache.set('a_new_key', 50)
+
+        # tests
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        span = spans[0]
+        eq_(span.service, 'modified_cache_name')
+        eq_(span.resource, 'set')
+        eq_(span.name, 'django.cache')
+        eq_(span.span_type, 'cache')
+        eq_(span.error, 0)
+
+        expected_meta = {
+            'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+            'django.cache.key': 'a_new_key',
+            'env': 'test',
+        }
+
+        assert_dict_issuperset(span.meta, expected_meta)
