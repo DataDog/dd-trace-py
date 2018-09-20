@@ -52,7 +52,7 @@ def patch_cache(tracer):
             # get the original function method
             method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
             with tracer.trace('django.cache',
-                    span_type=TYPE, service=settings.DEFAULT_SERVICE) as span:
+                    span_type=TYPE, service=settings.cache_service_name) as span:
                 # update the resource name and tag the cache backend
                 span.resource = _resource_from_cache_prefix(method_name, self)
                 cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)

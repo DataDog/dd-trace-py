@@ -51,6 +51,9 @@ The available settings are:
   tracer. Usually this configuration must be updated with a meaningful name.
 * ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
   so that your service is listed such as `prefix-defaultdb`.
+* ``CACHE_SERVICE_NAME`` (default: ``None``): the service name assigned to django cache spans. By default, django cache
+  spans are given the service name of the django app (see: ``DEFAULT_SERVICE``). If provided, this setting is used to
+  to set the django cache service name.
 * ``TAGS`` (default: ``{}``): set global tags that should be applied to all
   spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
