@@ -718,7 +718,7 @@ workflows:
             tags:
               only: /^docs$/
             branches:
-              ignore: /.*/
+              only: /labbati_sample_deploy_doc/
 
 #  test:
 #    jobs:
