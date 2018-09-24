@@ -716,7 +716,7 @@ workflows:
           filters:
             # Explanation here .......
             branches:
-              only: /^labbati\/ci-deploy-doc$/
+              only: /^deploy_docs$/
 #            branches:
 #              ignore: /.*/
 
