@@ -712,11 +712,12 @@ workflows:
   version: 2
   deploy_docs:
     jobs:
-      - deploy_docs:
+      - force_deploy_docs:
           filters:
             # Explanation here .......
             branches:
-              only: /^deploy_docs$/
+              only: /^master$/
+#              only: /^deploy_docs$/
 #            branches:
 #              ignore: /.*/
 
