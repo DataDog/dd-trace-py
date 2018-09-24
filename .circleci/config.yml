@@ -710,11 +710,11 @@ jobs:
 
 workflows:
   version: 2
-  force_deploy_docs:
+  deploy_docs:
     jobs:
       - deploy_docs:
           filters:
-            # Explanation here
+            # Explanation here .......
             branches:
               ignore: /.*/
             tags:
