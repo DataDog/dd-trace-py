@@ -712,13 +712,13 @@ workflows:
   version: 2
   deploy_docs:
     jobs:
-      - deploy_docs:
-          filters:
-            # Explanation here .......
-            tags:
-              only: /^docs$/
-            branches:
-              ignore: /.*/
+      - deploy_docs
+#          filters:
+#            # Explanation here .......
+#            tags:
+#              only: /^docs$/
+#            branches:
+#              ignore: /.*/
 
 #  test:
 #    jobs:
