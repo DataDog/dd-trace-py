@@ -714,6 +714,9 @@ workflows:
     jobs:
       - deploy_docs:
           filters:
+            # Explanation here
+            branches:
+              ignore: /.*/
             tags:
               only: /^docs/
 #  test:
