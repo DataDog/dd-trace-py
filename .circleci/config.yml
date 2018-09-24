@@ -717,8 +717,9 @@ workflows:
             # Explanation here .......
             tags:
               only: /^docs$/
-            branches:
-              ignore: /.*/
+#            branches:
+#              ignore: /.*/
+
 #  test:
 #    jobs:
 #      build_docs:
