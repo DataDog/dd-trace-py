@@ -715,7 +715,7 @@ workflows:
       - deploy_docs:
           filters:
             tags:
-              only: /^docs$/
+              only: /^docs/
 #  test:
 #    jobs:
 #      build_docs:
