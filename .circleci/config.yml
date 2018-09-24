@@ -710,7 +710,7 @@ jobs:
 
 workflows:
   version: 2
-  deploy_docs:
+  force_deploy_docs:
     jobs:
       - deploy_docs:
           filters:
