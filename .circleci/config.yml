@@ -671,9 +671,9 @@ jobs:
       - run: sudo pip install mkwheelhouse sphinx==1.7.5 wrapt
       - run: rake docs
       - run:
-        command: |
-           mkdir -p /tmp/docs
-           cp -r docs/_build/html/* /tmp/docs
+          command: |
+             mkdir -p /tmp/docs
+             cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
 
