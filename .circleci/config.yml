@@ -715,10 +715,10 @@ workflows:
       - deploy_docs:
           filters:
             # Explanation here .......
-            branches:
-              ignore: /.*/
             tags:
               only: /^docs$/
+            branches:
+              ignore: /.*/
 #  test:
 #    jobs:
 #      build_docs:
