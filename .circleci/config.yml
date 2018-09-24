@@ -715,11 +715,10 @@ workflows:
       - force_deploy_docs:
           filters:
             # Explanation here .......
+            tags:
+              only: /^docs/
             branches:
-              only: /^master$/
-#              only: /^deploy_docs$/
-#            branches:
-#              ignore: /.*/
+              ignore: /.*/
 
 #  test:
 #    jobs:
