@@ -710,119 +710,120 @@ jobs:
 
 workflows:
   version: 2
-  force_docs_deploy:
+  deploy_docs:
     jobs:
       - deploy_docs:
           filters:
             tags:
               only: /^docs$/
-  test:
-    jobs:
-      - flake8
-#      - tracer
-#      - opentracer
-#      - integration
-#      - futures
-#      - boto
-#      - ddtracerun
-#      - asyncio
-#      - pylons
-#      - aiohttp
-#      - tornado
-#      - bottle
-#      - cassandra
-#      - celery
-#      - elasticsearch
-#      - falcon
-#      - django
-#      - flask
-#      - gevent
-#      - httplib
-#      - mongoengine
-#      - mysqlconnector
-#      - mysqlpython
-#      - mysqldb
-#      - pymemcache
-#      - pymysql
-#      - pylibmc
-#      - pymongo
-#      - pyramid
-#      - requests
-#      - sqlalchemy
-#      - psycopg
-#      - aiobotocore
-#      - aiopg
-#      - redis
-#      - sqlite3
-#      - msgpack
-      - build_docs
-      - wait_all_tests:
-          requires:
-            - flake8
-#            - tracer
-#            - opentracer
-#            - integration
-#            - futures
-#            - boto
-#            - ddtracerun
-#            - asyncio
-#            - pylons
-#            - aiohttp
-#            - tornado
-#            - bottle
-#            - cassandra
-#            - celery
-#            - elasticsearch
-#            - falcon
-#            - django
-#            - flask
-#            - gevent
-#            - httplib
-#            - mongoengine
-#            - mysqlconnector
-#            - mysqlpython
-#            - mysqldb
-#            - pymysql
-#            - pylibmc
-#            - pymemcache
-#            - pymongo
-#            - pyramid
-#            - requests
-#            - sqlalchemy
-#            - psycopg
-#            - aiobotocore
-#            - aiopg
-#            - redis
-#            - sqlite3
-#            - msgpack
-            - build_docs
-#      - deploy_dev:
+#  test:
+#    jobs:
+#      build_docs:
+#      - flake8
+##      - tracer
+##      - opentracer
+##      - integration
+##      - futures
+##      - boto
+##      - ddtracerun
+##      - asyncio
+##      - pylons
+##      - aiohttp
+##      - tornado
+##      - bottle
+##      - cassandra
+##      - celery
+##      - elasticsearch
+##      - falcon
+##      - django
+##      - flask
+##      - gevent
+##      - httplib
+##      - mongoengine
+##      - mysqlconnector
+##      - mysqlpython
+##      - mysqldb
+##      - pymemcache
+##      - pymysql
+##      - pylibmc
+##      - pymongo
+##      - pyramid
+##      - requests
+##      - sqlalchemy
+##      - psycopg
+##      - aiobotocore
+##      - aiopg
+##      - redis
+##      - sqlite3
+##      - msgpack
+#      - build_docs
+#      - wait_all_tests:
+#          requires:
+#            - flake8
+##            - tracer
+##            - opentracer
+##            - integration
+##            - futures
+##            - boto
+##            - ddtracerun
+##            - asyncio
+##            - pylons
+##            - aiohttp
+##            - tornado
+##            - bottle
+##            - cassandra
+##            - celery
+##            - elasticsearch
+##            - falcon
+##            - django
+##            - flask
+##            - gevent
+##            - httplib
+##            - mongoengine
+##            - mysqlconnector
+##            - mysqlpython
+##            - mysqldb
+##            - pymysql
+##            - pylibmc
+##            - pymemcache
+##            - pymongo
+##            - pyramid
+##            - requests
+##            - sqlalchemy
+##            - psycopg
+##            - aiobotocore
+##            - aiopg
+##            - redis
+##            - sqlite3
+##            - msgpack
+#            - build_docs
+##      - deploy_dev:
+##          requires:
+##            - wait_all_tests
+##          filters:
+##            branches:
+##              only: /(master)/
+##      - deploy_experimental:
+##          requires:
+##            - wait_all_tests
+##          filters:
+##            branches:
+##              only: /(develop)/
+##      - approve_deploy_docs:
+##          type: approval
+##          requires:
+##            - wait_all_tests
+##          filters:
+##            branches:
+##              only: /master/
+#      - deploy_docs:
 #          requires:
 #            - wait_all_tests
-#          filters:
-#            branches:
-#              only: /(master)/
-#      - deploy_experimental:
-#          requires:
-#            - wait_all_tests
-#          filters:
-#            branches:
-#              only: /(develop)/
-#      - approve_deploy_docs:
-#          type: approval
-#          requires:
-#            - wait_all_tests
-#          filters:
-#            branches:
-#              only: /master/
-      - deploy_docs:
-          requires:
-            - wait_all_tests
-#          filters:
-#            # By default the job is available for a `release-vX.X.X`
-#            # version without manual approval. This simplifies a bit
-#            # the docs building.
-#            # NOTE: we may update this step so that a tag push with a
-#            # manual approval can trigger the documents building.
-#            branches:
-#              only: /release-v[0-9]+(\.[0-9]+)*/
+##          filters:
+##            # By default the job is available for a `release-vX.X.X`
+##            # version without manual approval. This simplifies a bit
+##            # the docs building.
+##            # NOTE: we may update this step so that a tag push with a
+##            # manual approval can trigger the documents building.
+##            branches:
+##              only: /release-v[0-9]+(\.[0-9]+)*/
