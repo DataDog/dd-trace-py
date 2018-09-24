@@ -673,7 +673,7 @@ jobs:
       - run:
         command: |
            mkdir -p /tmp/docs
-           cp docs/_build/html/* /tmp/docs
+           cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
 
