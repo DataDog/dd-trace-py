@@ -362,18 +362,13 @@ jobs:
       - image: influxdb:1.5-alpine
     steps:
       - checkout
-      - restore_cache:
-          keys:
-              - tox-cache-influx-{{ checksum "tox.ini" }}
+      - *restore_cache_step
       - run: tox -e 'influx_contrib-{py27,py34,py35,py36}-influx{50,51,52}' --result-json /tmp/influx.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - influx.results
-      - save_cache:
-          key: tox-cache-influx-{{ checksum "tox.ini" }}
-          paths:
-            - .tox
+      - *save_cache_step
 
 
   httplib:
