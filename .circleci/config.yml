@@ -27,6 +27,12 @@ save_cache_step: &save_cache_step
     key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
     paths:
       - .tox
+deploy_docs_filters: &deploy_docs_filters
+  filters:
+    tags:
+      only: /(^docs$)|(^v[0-9]+(\.[0-9]+)*$)/
+    branches:
+      ignore: /.*/
 
 
 jobs:
@@ -668,7 +674,24 @@ jobs:
       - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
-  deploy_docs:
+  build_docs:
+    # deploy official documentation
+    docker:
+      - image: circleci/python:3.6
+    steps:
+      - checkout
+      - run: sudo apt-get -y install rake
+      # Sphinx 1.7.5 is required otherwise docs are not properly built
+      - run: sudo pip install mkwheelhouse sphinx==1.7.5 wrapt
+      - run: rake docs
+      - run:
+          command: |
+             mkdir -p /tmp/docs
+             cp -r docs/_build/html/* /tmp/docs
+      - store_artifacts:
+          path: /tmp/docs
+
+  deploy_to_s3:
     # deploy official documentation
     docker:
       - image: circleci/python:3.6
@@ -700,6 +723,21 @@ jobs:
 
 workflows:
   version: 2
+
+  deploy_docs:
+    jobs:
+      - build_docs:
+          <<: *deploy_docs_filters
+      - approve_docs_deployment:
+          <<: *deploy_docs_filters
+          type: approval
+          requires:
+            - build_docs
+      - deploy_to_s3:
+          <<: *deploy_docs_filters
+          requires:
+            - approve_docs_deployment
+
   test:
     jobs:
       - flake8
@@ -739,6 +777,7 @@ workflows:
       - redis
       - sqlite3
       - msgpack
+      - build_docs
       - wait_all_tests:
           requires:
             - flake8
@@ -778,6 +817,7 @@ workflows:
             - redis
             - sqlite3
             - msgpack
+            - build_docs
       - deploy_dev:
           requires:
             - wait_all_tests
@@ -790,14 +830,3 @@ workflows:
           filters:
             branches:
               only: /(develop)/
-      - deploy_docs:
-          requires:
-            - wait_all_tests
-          filters:
-            # By default the job is available for a `release-vX.X.X`
-            # version without manual approval. This simplifies a bit
-            # the docs building.
-            # NOTE: we may update this step so that a tag push with a
-            # manual approval can trigger the documents building.
-            branches:
-              only: /release-v[0-9]+(\.[0-9]+)*/
