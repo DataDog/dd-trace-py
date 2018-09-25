@@ -45,3 +45,8 @@ MEMCACHED_CONFIG = {
     'host' : os.getenv('TEST_MEMCACHED_HOST', '127.0.0.1'),
     'port': int(os.getenv("TEST_MEMCACHED_PORT", 11211)),
 }
+
+INFLUX_CONFIG = {
+    'host': os.getenv("TEST_INFLUX_HOST", '127.0.0.1'),
+    'port': int(os.getenv("TEST_INFLUX_PORT", 8086)),
+}

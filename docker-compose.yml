@@ -39,6 +39,10 @@ services:
         image: memcached:1.5-alpine
         ports:
             - "127.0.0.1:11211:11211"
+    influx:
+        image: influxdb:1.5-alpine
+        ports:
+            - "127.0.0.1:8086:8086"
     moto:
         # container that executes mocked AWS services; this is a custom
         # build that runs all of them in a single container. It is built

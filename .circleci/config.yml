@@ -428,6 +428,26 @@ jobs:
           paths:
             - .tox
 
+  influx:
+    docker:
+      - *test_runner
+      - image: influxdb:1.5-alpine
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+              - tox-cache-influx-{{ checksum "tox.ini" }}
+      - run: TOX_SKIP_DIST=False tox -e '{py27,py34,py35,py36}-influx{50,51,52}' --result-json /tmp/influx.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - influx.results
+      - save_cache:
+          key: tox-cache-influx-{{ checksum "tox.ini" }}
+          paths:
+            - .tox
+
+
   httplib:
     docker:
       - *test_runner
