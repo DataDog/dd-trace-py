@@ -910,6 +910,7 @@ workflows:
       - flask
       - gevent
       - httplib
+      - influx
       - mongoengine
       - mysqlconnector
       - mysqlpython
@@ -949,6 +950,7 @@ workflows:
             - flask
             - gevent
             - httplib
+            - influx
             - mongoengine
             - mysqlconnector
             - mysqlpython
