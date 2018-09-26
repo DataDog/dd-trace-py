@@ -16,7 +16,7 @@ from ..config import INFLUX_CONFIG
 from ...test_tracer import get_dummy_tracer
 
 
-class InfluxDBPatchTest(unittest.TestCase):
+class TestInfluxDBPatch(unittest.TestCase):
     """
     InfluxDB integration test suite.
     Need a running InfluxDB database.
