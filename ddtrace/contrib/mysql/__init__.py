@@ -2,15 +2,16 @@
 
 ``patch_all`` will automatically patch your mysql connection to make it work.
 ::
-
+    # Make sure to import mysql.connector and not the 'connect' function,
+    # otherwise you won't have access to the patched version
     from ddtrace import Pin, patch
-    from mysql.connector import connect
+    import mysql.connector
 
     # If not patched yet, you can patch mysql specifically
     patch(mysql=True)
 
     # This will report a span with the default settings
-    conn = connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
+    conn = mysql.connector.connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
     cursor = conn.cursor()
     cursor.execute("SELECT 6*7 AS the_answer;")
 
