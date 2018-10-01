@@ -285,6 +285,9 @@ class Tracer(object):
             span_type=span_type,
         )
 
+    def current_root_span(self):
+        return self.get_call_context().get_current_root_span()
+
     def current_span(self):
         """
         Return the active span for the current call context or ``None``

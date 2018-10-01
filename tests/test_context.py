@@ -53,6 +53,18 @@ class TestTracingContext(TestCase):
         ctx.add_span(span)
         eq_(span, ctx.get_current_span())
 
+    def test_current_root_span_none(self):
+        # it should return none when there is no root span
+        ctx = Context()
+        eq_(None, ctx.get_current_root_span())
+
+    def test_current_root_span(self):
+        # it should return the current active root span
+        ctx = Context()
+        span = Span(tracer=None, name='fake_span')
+        ctx.add_span(span)
+        eq_(span, ctx.get_current_root_span())
+
     def test_close_span(self):
         # it should keep track of closed spans, moving
         # the current active to it's parent

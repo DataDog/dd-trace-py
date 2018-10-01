@@ -159,6 +159,24 @@ def test_tracer_wrap_multiple_calls():
     eq_(len(spans), 2)
     assert spans[0].span_id != spans[1].span_id
 
+def test_tracer_wrap_span_nesting_current_root_span():
+    # Make sure that the current root span is correct
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap('inner')
+    def inner():
+        eq_(tracer.current_root_span().name, 'outer')
+        pass
+    @tracer.wrap('outer')
+    def outer():
+        eq_(tracer.current_root_span().name, 'outer')
+        with tracer.trace('mid'):
+            eq_(tracer.current_root_span().name, 'outer')
+            inner()
+    outer()
+
 def test_tracer_wrap_span_nesting():
     # Make sure that nested spans have the correct parents
     writer = DummyWriter()
