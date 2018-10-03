@@ -629,24 +629,19 @@ jobs:
 
   rediscluster:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
+      - *test_runner
       - image: grokzen/redis-cluster:4.0.9
         env:
           - IP=0.0.0.0
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - tox-cache-rediscluster-{{ checksum "tox.ini" }}
+      - *restore_cache_step
       - run: tox -e '{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - rediscluster.results
-      - save_cache:
-          key: tox-cache-rediscluster-{{ checksum "tox.ini" }}
-          paths:
-            - .tox
+      - *save_cache_step
 
   sqlite3:
     docker:
