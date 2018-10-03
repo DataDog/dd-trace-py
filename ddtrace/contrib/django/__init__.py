@@ -2,6 +2,10 @@
 The Django integration will trace users requests, template renderers, database and cache
 calls.
 
+**Note:** by default the tracer is **disabled** (will not send spans) when
+``Debug=True``. This can be overridden by explicitly enabling the tracer with
+``DATADOG_TRACE['ENABLED'] = True``, as described below.
+
 To enable the Django integration, add the application to your installed
 apps, as follows::
 

@@ -20,6 +20,13 @@ from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
+# Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop
+# is known and is due to 'auto_snapshot' configuration. In our test env we should disable it, but the official cassandra
+# image that we are using only allows us to configure a few configs:
+# https://github.com/docker-library/cassandra/blob/4474c6c5cc2a81ee57c5615aae00555fca7e26a6/3.11/docker-entrypoint.sh#L51
+# So for now we just increase the timeout, if this is not enough we may want to extend the official image with our own
+# custom image.
+CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
@@ -29,19 +36,23 @@ def setUpModule():
         raise unittest.SkipTest('cassandra.cluster.Cluster is not available.')
 
     # create the KEYSPACE for this test module
-    cluster = Cluster(port=CASSANDRA_CONFIG['port'])
-    cluster.connect().execute('DROP KEYSPACE IF EXISTS test')
-    cluster.connect().execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1}")
-    cluster.connect().execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
-    cluster.connect().execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
+    cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
+    session = cluster.connect()
+    session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
+    session.execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};")
+    session.execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
+    session.execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
 
 def tearDownModule():
     # destroy the KEYSPACE
-    cluster = Cluster(port=CASSANDRA_CONFIG['port'])
-    cluster.connect().execute('DROP KEYSPACE IF EXISTS test')
+    cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
+    session = cluster.connect()
+    session.execute('DROP TABLE IF EXISTS test.person')
+    session.execute('DROP TABLE IF EXISTS test.person_write')
+    session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
 
 
 class CassandraBase(object):

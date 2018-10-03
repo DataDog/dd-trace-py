@@ -434,6 +434,6 @@ class Tracer(object):
         """ Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
-        :param str tags: dict of tags to set at tracer level
+        :param dict tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)

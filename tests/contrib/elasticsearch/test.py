@@ -123,7 +123,7 @@ class ElasticsearchTest(unittest.TestCase):
         # Raise error 404 with a non existent index
         writer.pop()
         try:
-            es.get(index="non_existent_index", id=100)
+            es.get(index="non_existent_index", id=100, doc_type="_all")
             eq_("error_not_raised", "TransportError")
         except TransportError as e:
             spans = writer.pop()

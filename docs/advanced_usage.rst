@@ -407,9 +407,6 @@ Pass along command-line arguments as your program would normally expect them::
 
 $ ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
 
-*As long as your application isn't running in* ``DEBUG`` *mode, this should be
-enough to see your application traces in Datadog.*
-
 If you're running in a Kubernetes cluster and still don't see your traces, make
 sure your application has a route to the tracing Agent. An easy way to test
 this is with a::
