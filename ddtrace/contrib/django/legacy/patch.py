@@ -5,6 +5,7 @@ from ....ext import AppTypes
 from ..templates import patch_template
 from ..db import patch_db
 from ..cache import patch_cache
+from ..middleware import insert_trace_middleware, insert_exception_middleware
 
 
 log = logging.getLogger(__name__)
@@ -12,7 +13,7 @@ log = logging.getLogger(__name__)
 DD_DJANGO_PATCHED_FLAG = '__dd_django_patched_flag'
 
 
-def patch_companion_services():
+def patch():
     # We make patch idempotent
     mod = sys.modules[__name__]
     if getattr(mod, DD_DJANGO_PATCHED_FLAG, False):
@@ -40,6 +41,10 @@ def patch_companion_services():
     )
 
     if settings.AUTO_INSTRUMENT:
+        # trace Django internals
+        insert_trace_middleware()
+        insert_exception_middleware()
+
         if settings.INSTRUMENT_TEMPLATE:
             try:
                 patch_template(tracer)
