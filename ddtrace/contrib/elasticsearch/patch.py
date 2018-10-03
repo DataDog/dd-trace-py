@@ -17,7 +17,11 @@ def patch():
         return
     setattr(elasticsearch, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', _perform_request)
-    Pin(service=elasticsearchx.SERVICE, app=elasticsearchx.APP, app_type=AppTypes.db).onto(elasticsearch.transport.Transport)
+    Pin(
+        service=elasticsearchx.SERVICE,
+        app=elasticsearchx.APP,
+        app_type=AppTypes.db
+    ).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
