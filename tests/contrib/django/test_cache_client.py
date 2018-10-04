@@ -42,6 +42,21 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
+    @override_ddtrace_settings(DEFAULT_CACHE_SERVICE='foo')
+    def test_cache_service_can_be_overriden(self):
+        # get the default cache
+        cache = caches['default']
+
+        # (trace) the cache miss
+        hit = cache.get('missing_key')
+
+        # tests
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        span = spans[0]
+        eq_(span.service, 'foo')
+
     @override_ddtrace_settings(INSTRUMENT_CACHE=False)
     def test_cache_disabled(self):
         # get the default cache
