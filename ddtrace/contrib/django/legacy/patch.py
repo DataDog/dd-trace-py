@@ -1,5 +1,5 @@
+import django
 import logging
-import sys
 from ..conf import settings
 from ....ext import AppTypes
 from ..templates import patch_template
@@ -7,18 +7,16 @@ from ..db import patch_db
 from ..cache import patch_cache
 from ..middleware import insert_trace_middleware, insert_exception_middleware
 
-
 log = logging.getLogger(__name__)
 
-DD_DJANGO_PATCHED_FLAG = '__dd_django_patched_flag'
+DD_DJANGO_PATCHED_FLAG = '_datadog_patch'
 
 
 def patch():
     # We make patch idempotent
-    mod = sys.modules[__name__]
-    if getattr(mod, DD_DJANGO_PATCHED_FLAG, False):
+    if getattr(django, DD_DJANGO_PATCHED_FLAG, False):
         return
-    setattr(mod, DD_DJANGO_PATCHED_FLAG, True)
+    setattr(django, DD_DJANGO_PATCHED_FLAG, True)
 
     tracer = settings.TRACER
 
