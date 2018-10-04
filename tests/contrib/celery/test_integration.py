@@ -1,4 +1,5 @@
 import celery
+from celery.exceptions import Retry
 
 from nose.tools import eq_, ok_
 
@@ -195,6 +196,32 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
         ok_('Task class is failing' in span.get_tag('error.stack'))
 
+    def test_fn_retry_exception(self):
+        # it should not catch retry exceptions in task functions
+        @self.app.task
+        def fn_exception():
+            raise Retry('Task class is being retried')
+
+        t = fn_exception.apply()
+        ok_(not t.failed())
+        ok_('Task class is being retried' in t.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_exception')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'RETRY')
+
+        # TODO: these should be failing
+        eq_(span.error, 0)
+        ok_(not span.get_tag('error.msg'))
+        ok_(not span.get_tag('error.stack'))
+
     def test_class_task(self):
         # it should execute class based tasks with a returning value
         class BaseTask(self.app.Task):
@@ -345,3 +372,4 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(dd_span.get_tag('celery.id'), t.task_id)
         eq_(dd_span.get_tag('celery.action'), 'apply_async')
         eq_(dd_span.get_tag('celery.routing_key'), 'celery')
+

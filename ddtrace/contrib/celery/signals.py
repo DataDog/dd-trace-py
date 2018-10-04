@@ -130,3 +130,6 @@ def trace_failure(*args, **kwargs):
         if ex is None:
             return
         span.set_exc_info(ex.type, ex.exception, ex.tb)
+
+def trace_retry(*args, **kwargs):
+    pass

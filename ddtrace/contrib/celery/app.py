@@ -11,6 +11,7 @@ from .signals import (
     trace_before_publish,
     trace_after_publish,
     trace_failure,
+    trace_retry,
 )
 
 
@@ -36,6 +37,7 @@ def patch_app(app, pin=None):
     signals.before_task_publish.connect(trace_before_publish)
     signals.after_task_publish.connect(trace_after_publish)
     signals.task_failure.connect(trace_failure)
+    signals.task_retry.connect(trace_retry)
     return app
 
 
