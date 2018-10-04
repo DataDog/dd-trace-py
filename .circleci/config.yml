@@ -7,7 +7,7 @@ httpbin_local: &httpbin_local
   image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
   name: httpbin.org
 test_runner: &test_runner
-  image: datadog/docker-library:dd_trace_py_1_1_0
+  image: datadog/docker-library:ddtrace_py
   env:
     TOX_SKIP_DIST: True
 restore_cache_step: &restore_cache_step
