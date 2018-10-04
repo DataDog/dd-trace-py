@@ -1,7 +1,11 @@
 import wrapt
 import vertica_python
 
+from ddtrace import config
+from ddtrace import Pin
+from ddtrace.ext import net, AppTypes
 
+from .constants import APP
 from .cursor import TracedVerticaCursor as TracedCursor
 
 
@@ -24,6 +28,19 @@ class TracedVerticaConnection(wrapt.ObjectProxy):
         cursor = orig_cursor_fn(*args, **kwargs)
 
         if cursor:
-            return TracedCursor(cursor)
+            traced_cursor = TracedCursor(cursor)
+            tags = {}
+            tags[net.TARGET_HOST] = self.options['host']
+            tags[net.TARGET_PORT] = self.options['port']
+
+            pin = Pin(
+                service=config.vertica['service_name'],
+                app=APP,
+                app_type=AppTypes.db,
+                _config=config.vertica,
+                tags=tags
+            )
+            pin.onto(traced_cursor)
+            return traced_cursor
         else:
             return cursor
