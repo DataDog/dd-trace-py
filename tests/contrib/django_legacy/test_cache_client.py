@@ -14,6 +14,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
     Ensures that the cache system is properly traced
     """
     def test_cache_get(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -44,6 +45,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     @override_ddtrace_settings(INSTRUMENT_CACHE=False)
     def test_cache_disabled(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -57,6 +59,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         eq_(len(spans), 0)
 
     def test_cache_set(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -86,6 +89,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_add(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -115,6 +119,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_delete(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -144,6 +149,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_incr(self):
+        self.patch()
         # get the default cache, set the value and reset the spans
         cache = get_cache('default')
         cache.set('value', 0)
@@ -184,6 +190,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span_incr.start < span_incr.start + span_incr.duration < end
 
     def test_cache_decr(self):
+        self.patch()
         # get the default cache, set the value and reset the spans
         cache = get_cache('default')
         cache.set('value', 0)
@@ -231,6 +238,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span_decr.start < span_decr.start + span_decr.duration < end
 
     def test_cache_get_many(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -274,6 +282,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span_get_many.start < span_get_many.start + span_get_many.duration < end
 
     def test_cache_set_many(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
@@ -313,6 +322,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert start < span_set_many.start < span_set_many.start + span_set_many.duration < end
 
     def test_cache_delete_many(self):
+        self.patch()
         # get the default cache
         cache = get_cache('default')
 
