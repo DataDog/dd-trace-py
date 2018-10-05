@@ -536,6 +536,20 @@ jobs:
             - requests.results
       - *save_cache_step
 
+  requestsgevent:
+    docker:
+      - *test_runner
+      - *httpbin_local
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'requests_gevent_contrib-{py36}-requests{208,209,210,211,212,213,219}-gevent{12,13}' --result-json /tmp/requestsgevent.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - requestsgevent.results
+      - *save_cache_step
+
   sqlalchemy:
     docker:
       - *test_runner
