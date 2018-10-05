@@ -9,23 +9,28 @@ _connect = vertica_python.connect
 
 
 def meta_execute(instance, span, conf, *args, **kwargs):
-    span.set_tag('query', args[0])
+    span.set_tag("query", args[0])
     return
 
 
 # tracing configuration
-config._add('vertica', {
-    "service_name": "vertica",
-    "cursor": {
-        "routines": {
-            "execute": {
-                "meta_routine": meta_execute,
-                "operation_name": "vertica.query",
-                "span_type": "vertica",
-            },
+config._add(
+    "vertica",
+    {
+        "service_name": "vertica",
+        "patch": {
+            "cursor": {
+                "routines": {
+                    "execute": {
+                        "operation_name": "vertica.query",
+                        "span_type": "vertica",
+                        "meta_routine": meta_execute,
+                    }
+                }
+            }
         },
     },
-})
+)
 
 
 def patch():

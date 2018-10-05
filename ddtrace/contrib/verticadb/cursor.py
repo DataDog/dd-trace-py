@@ -1,7 +1,10 @@
+import sys
+
 import wrapt
 import vertica_python
 
 from ddtrace import Pin
+from ddtrace.compat import reraise
 from ddtrace.pin import _DD_PIN_NAME, _DD_PIN_PROXY_NAME
 
 from ...ext import db as dbx
@@ -14,11 +17,11 @@ def execute_meta(instance, meta, *args, **kwargs):
     """
     # send the operation_name specified by the config so the span can be
     # created with it
-    span = yield meta['operation_name']
+    span = yield meta["operation_name"]
     # set default tags
-    if 'span_type' in meta:
-        span.span_type = meta['span_type']
-    meta_routine = meta['meta_routine']
+    if "span_type" in meta:
+        span.span_type = meta["span_type"]
+    meta_routine = meta["meta_routine"]
     meta_routine(instance, span, meta, *args, **kwargs)
     yield span
 
@@ -35,15 +38,15 @@ class TracedVerticaCursor(wrapt.ObjectProxy):
             return object.__getattribute__(self, name)
 
         pin = Pin.get_from(self)
-        conf = pin._config['cursor']
+        conf = pin._config["patch"]["cursor"]
 
         # name = "{0}.{1}".format(attr.__module__, attr.__name__)
         name = attr.__name__
-        if hasattr(attr, "__call__") and name in conf['routines']:
+        if hasattr(attr, "__call__") and name in conf["routines"]:
             tracer = pin.tracer
 
             # get the tracing metadata specified for this routine
-            meta = conf['routines'][attr.__name__]
+            meta = conf["routines"][attr.__name__]
 
             def traced_routine(*args, **kwargs):
                 gen = execute_meta(self, meta, *args, **kwargs)
@@ -59,6 +62,7 @@ class TracedVerticaCursor(wrapt.ObjectProxy):
                         return result
                     finally:
                         span.set_metric(dbx.ROWCOUNT, self.rowcount)
+
             return traced_routine
         else:
             return attr

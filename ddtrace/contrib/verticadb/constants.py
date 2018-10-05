@@ -1,4 +1,4 @@
 
 
 # Service info
-APP = 'vertica'
+APP = "vertica"

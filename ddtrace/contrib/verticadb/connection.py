@@ -24,21 +24,21 @@ class TracedVerticaConnection(wrapt.ObjectProxy):
         `from .cursor import Cursor` reference which we cannot modify at
         run-time.
         """
-        orig_cursor_fn = getattr(self.__wrapped__, 'cursor')
+        orig_cursor_fn = getattr(self.__wrapped__, "cursor")
         cursor = orig_cursor_fn(*args, **kwargs)
 
         if cursor:
             traced_cursor = TracedCursor(cursor)
             tags = {}
-            tags[net.TARGET_HOST] = self.options['host']
-            tags[net.TARGET_PORT] = self.options['port']
+            tags[net.TARGET_HOST] = self.options["host"]
+            tags[net.TARGET_PORT] = self.options["port"]
 
             pin = Pin(
-                service=config.vertica['service_name'],
+                service=config.vertica["service_name"],
                 app=APP,
                 app_type=AppTypes.db,
                 _config=config.vertica,
-                tags=tags
+                tags=tags,
             )
             pin.onto(traced_cursor)
             return traced_cursor
