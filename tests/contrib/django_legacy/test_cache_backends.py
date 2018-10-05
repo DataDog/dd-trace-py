@@ -1,5 +1,4 @@
 import time
-'''
 
 # 3rd party
 from nose.tools import eq_, ok_
@@ -245,5 +244,3 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
-
-'''

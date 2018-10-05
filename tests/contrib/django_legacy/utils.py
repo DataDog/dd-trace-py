@@ -6,6 +6,7 @@ from django.test import TestCase
 # project
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
+from ddtrace.contrib.django.legacy import patch
 from ddtrace.contrib.django.db import patch_db, unpatch_db
 from ddtrace.contrib.django.cache import unpatch_cache
 from ddtrace.contrib.django.templates import unpatch_template
@@ -39,10 +40,15 @@ class DjangoTraceTestCase(TestCase):
         patch_db(self.tracer)
 
     def tearDown(self):
+        print ('teardown-----')
         # empty the tracer spans from test operations
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
         unpatch_db()
+
+    def _reset_patch(self):
+        print ('patch-----')
+        patch()
 
 class override_ddtrace_settings(object):
     def __init__(self, *args, **kwargs):

@@ -17,6 +17,7 @@ class DjangoTemplateTest(DjangoTraceTestCase):
     Ensures that the template system is properly traced
     """
     def test_template(self):
+        self._reset_patch()
         # prepare a base template using the default engine
         template = Template("Hello {{name}}!")
         ctx = Context({'name': 'Django'})
@@ -39,6 +40,7 @@ class DjangoTemplateTest(DjangoTraceTestCase):
 
     @override_ddtrace_settings(INSTRUMENT_TEMPLATE=False)
     def test_template_disabled(self):
+        self._reset_patch()
         # prepare a base template using the default engine
         template = Template("Hello {{name}}!")
         ctx = Context({'name': 'Django'})

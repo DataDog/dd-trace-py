@@ -1,5 +1,5 @@
 import time
-'''
+
 # 3rd party
 from nose.tools import eq_, ok_
 from django.core.cache import caches
@@ -350,4 +350,4 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         ok_('missing_key' in span_delete_many.meta['django.cache.key'])
         ok_('another_key' in span_delete_many.meta['django.cache.key'])
         assert start < span_delete_many.start < span_delete_many.start + span_delete_many.duration < end
-'''
+

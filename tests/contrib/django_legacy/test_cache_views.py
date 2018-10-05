@@ -13,6 +13,7 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
     Ensures that the cache system is properly traced
     """
     def test_cached_view(self):
+        self._reset_patch()
         # make the first request so that the view is cached
         url = reverse('cached-users-list')
         response = self.client.get(url)
@@ -61,6 +62,7 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
         eq_(span_header.meta, expected_meta_header)
 
     def test_cached_template(self):
+        self._reset_patch()
         # make the first request so that the view is cached
         url = reverse('cached-template-list')
         response = self.client.get(url)
