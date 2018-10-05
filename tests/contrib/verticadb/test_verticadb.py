@@ -18,7 +18,7 @@ from .fixtures import test_conn, test_tracer
 
 TEST_TABLE = "test_table"
 
-
+'''
 class TestVerticaPatching(object):
     def test_patch(self):
         patch()
@@ -38,7 +38,7 @@ class TestVerticaPatching(object):
         assert not issubclass(vertica_python.Connection, wrapt.ObjectProxy)
         # assert not issubclass(vertica_python.connect, wrapt.ObjectProxy)
 
-
+'''
 class TestVertica(object):
     def setup_method(self, method):
         patch()
@@ -69,7 +69,7 @@ class TestVertica(object):
 
         with conn:
             cur.execute(
-                "INSERT INTO {} (a, b) VALUES (1, 'aa'); commit;".format(TEST_TABLE)
+                "INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE)
             )
             cur.execute("SELECT * FROM {};".format(TEST_TABLE))
             row = [i for i in cur.iterate()][0]
@@ -84,7 +84,7 @@ class TestVertica(object):
         assert spans[0].span_type == "vertica"
         assert spans[0].name == "vertica.query"
         assert spans[0].get_metric("db.rowcount") == -1
-        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa'); commit;"
+        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].get_tag("query") == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
         assert spans[0].get_tag("out.port") == "5433"
@@ -101,7 +101,7 @@ class TestVertica(object):
             cur.execute("INVALID QUERY")
 
         spans = test_tracer.writer.pop()
-        assert len(spans) == 1
+        assert len(spans) == 2
 
         # check all the metadata
         assert spans[0].service == "vertica"
@@ -109,3 +109,5 @@ class TestVertica(object):
         assert "INVALID QUERY" in spans[0].get_tag(errors.ERROR_MSG)
         assert spans[0].get_tag(errors.ERROR_TYPE) == "vertica_python.errors.VerticaSyntaxError"
         assert spans[0].get_tag(errors.ERROR_STACK)
+
+        assert spans[1].get_tag('query') == 'COMMIT;'

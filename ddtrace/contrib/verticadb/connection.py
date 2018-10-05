@@ -28,7 +28,6 @@ class TracedVerticaConnection(wrapt.ObjectProxy):
         cursor = orig_cursor_fn(*args, **kwargs)
 
         if cursor:
-            traced_cursor = TracedCursor(cursor)
             tags = {}
             tags[net.TARGET_HOST] = self.options["host"]
             tags[net.TARGET_PORT] = self.options["port"]
@@ -40,7 +39,7 @@ class TracedVerticaConnection(wrapt.ObjectProxy):
                 _config=config.vertica,
                 tags=tags,
             )
-            pin.onto(traced_cursor)
+            traced_cursor = TracedCursor(cursor, pin)
             return traced_cursor
         else:
             return cursor

@@ -19,15 +19,15 @@ config._add(
     {
         "service_name": "vertica",
         "patch": {
-            "cursor": {
+            "Cursor": {
                 "routines": {
                     "execute": {
                         "operation_name": "vertica.query",
                         "span_type": "vertica",
                         "meta_routine": meta_execute,
-                    }
-                }
-            }
+                    },
+                },
+            },
         },
     },
 )
