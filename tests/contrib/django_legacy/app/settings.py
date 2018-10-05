@@ -24,10 +24,10 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
     },
-    # 'redis': {
-    #     'BACKEND': 'django_redis.cache.RedisCache',
-    #     'LOCATION': 'redis://127.0.0.1:6379/1',
-    # },
+    # ######
+    # Redis cache is not supported for django < 1.11, so we are not testing it here as our reference legacy django
+    # version is 1.4.1
+    # ######
     'pylibmc': {
         'BACKEND': 'django.core.cache.backends.memcached.PyLibMCCache',
         'LOCATION': '127.0.0.1:11211',
