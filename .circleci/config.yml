@@ -784,6 +784,7 @@ workflows:
       - pymongo
       - pyramid
       - requests
+      - requestsgevent
       - sqlalchemy
       - psycopg
       - aiobotocore
@@ -824,6 +825,7 @@ workflows:
             - pymongo
             - pyramid
             - requests
+            - requestsgevent
             - sqlalchemy
             - psycopg
             - aiobotocore
