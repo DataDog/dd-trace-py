@@ -1,10 +1,9 @@
 import sys
 import unittest
-import warnings
 
 
-class TestRequestsGeventRegression(unittest.TestCase):
-    def test_regression(self):
+class TestRequestsGevent(unittest.TestCase):
+    def test_patch(self):
         """
         Patching `requests` before `gevent` monkeypatching
 
