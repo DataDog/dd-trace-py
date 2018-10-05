@@ -305,6 +305,7 @@ jobs:
       - run: tox -e 'django_contrib-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
       - run: TOX_SKIP_DIST=False tox -e 'django_contrib_autopatch-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
       - run: tox -e 'django_drf_contrib-{py34,py35,py36}-django{200}-djangorestframework{37,38}' --result-json /tmp/django.6.results
+      - run: tox -e 'django_legacy_contrib-{py27}-django{141}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.7.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -314,6 +315,7 @@ jobs:
             - django.4.results
             - django.5.results
             - django.6.results
+            - django.7.results
       - *save_cache_step
 
   flask:
