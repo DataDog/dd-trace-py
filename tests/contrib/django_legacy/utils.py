@@ -1,14 +1,12 @@
-from functools import wraps
-
-# 3rd party
+import django
 from django.test import TestCase
-
-# project
+from functools import wraps
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django.legacy import patch
 from ddtrace.contrib.django.db import patch_db, unpatch_db
 from ddtrace.contrib.django.cache import unpatch_cache
+from ddtrace.contrib.django.legacy.patch import DD_DJANGO_PATCHED_FLAG
 from ddtrace.contrib.django.templates import unpatch_template
 from ddtrace.contrib.django.middleware import remove_exception_middleware, remove_trace_middleware
 from ddtrace.contrib.django.legacy import patch as _ready
@@ -30,6 +28,7 @@ class DjangoTraceTestCase(TestCase):
     the ``self.tracer`` attribute.
     """
     def setUp(self):
+        self.unpatch()
         # assign the default tracer
         self.tracer = settings.TRACER
         # empty the tracer spans from previous operations
@@ -40,15 +39,23 @@ class DjangoTraceTestCase(TestCase):
         patch_db(self.tracer)
 
     def tearDown(self):
-        print ('teardown-----')
         # empty the tracer spans from test operations
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
-        unpatch_db()
+        self.unpatch()
 
-    def _reset_patch(self):
-        print ('patch-----')
+    def patch(self):
         patch()
+
+    def unpatch(self):
+        remove_trace_middleware()
+        remove_exception_middleware()
+        unpatch_cache()
+        unpatch_db()
+        unpatch_template()
+        if hasattr(django, DD_DJANGO_PATCHED_FLAG):
+            delattr(django, DD_DJANGO_PATCHED_FLAG)
+
 
 class override_ddtrace_settings(object):
     def __init__(self, *args, **kwargs):

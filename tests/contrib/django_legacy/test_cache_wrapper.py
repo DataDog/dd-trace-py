@@ -1,7 +1,7 @@
 # 3rd party
-'''
+
 from nose.tools import eq_, ok_, assert_raises
-from django.core.cache import caches
+from django.core.cache import get_cache
 
 # testing
 from .utils import DjangoTraceTestCase
@@ -12,8 +12,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
     cache framework
     """
     def test_wrapper_get_and_set(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         value = cache.get('missing_key')
         eq_(value, None)
@@ -23,8 +24,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(value, 50)
 
     def test_wrapper_add(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.add('a_key', 50)
         value = cache.get('a_key')
@@ -36,8 +38,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(value, 50)
 
     def test_wrapper_delete(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set('a_key', 50)
         cache.delete('a_key')
@@ -45,8 +48,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(value, None)
 
     def test_wrapper_incr_safety(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # it should fail not because of our wrapper
         with assert_raises(ValueError) as ex:
@@ -64,8 +68,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(span.error, 1)
 
     def test_wrapper_incr(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set('value', 0)
         value = cache.incr('value')
@@ -74,8 +79,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(value, 1)
 
     def test_wrapper_decr_safety(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # it should fail not because of our wrapper
         with assert_raises(ValueError) as ex:
@@ -93,8 +99,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(span.error, 1)
 
     def test_wrapper_decr(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set('value', 0)
         value = cache.decr('value')
@@ -103,8 +110,9 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(value, -1)
 
     def test_wrapper_get_many(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set('a_key', 50)
         cache.set('another_key', 60)
@@ -115,20 +123,21 @@ class DjangoCacheTest(DjangoTraceTestCase):
         eq_(values['another_key'], 60)
 
     def test_wrapper_set_many(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set_many({'a_key': 50, 'another_key': 60})
         eq_(cache.get('a_key'), 50)
         eq_(cache.get('another_key'), 60)
 
     def test_wrapper_delete_many(self):
+        self.patch()
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         cache.set('a_key', 50)
         cache.set('another_key', 60)
         cache.delete_many(['a_key', 'another_key'])
         eq_(cache.get('a_key'), None)
         eq_(cache.get('another_key'), None)
-'''

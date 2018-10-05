@@ -2,7 +2,7 @@ import time
 
 # 3rd party
 from nose.tools import eq_, ok_
-from django.core.cache import caches
+from django.core.cache import get_cache
 
 # testing
 from .utils import DjangoTraceTestCase
@@ -14,8 +14,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
     different cache backend
     """
     def test_cache_redis_get(self):
+        self.patch()
         # get the redis cache
-        cache = caches['redis']
+        cache = get_cache('redis')
 
         # (trace) the cache miss
         start = time.time()
@@ -43,8 +44,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_redis_get_many(self):
+        self.patch()
         # get the redis cache
-        cache = caches['redis']
+        cache = get_cache('redis')
 
         # (trace) the cache miss
         start = time.time()
@@ -72,8 +74,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_pylibmc_get(self):
+        self.patch()
         # get the redis cache
-        cache = caches['pylibmc']
+        cache = get_cache('pylibmc')
 
         # (trace) the cache miss
         start = time.time()
@@ -101,8 +104,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_pylibmc_get_many(self):
+        self.patch()
         # get the redis cache
-        cache = caches['pylibmc']
+        cache = get_cache('pylibmc')
 
         # (trace) the cache miss
         start = time.time()
@@ -130,8 +134,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_memcached_get(self):
+        self.patch()
         # get the redis cache
-        cache = caches['python_memcached']
+        cache = get_cache('python_memcached')
 
         # (trace) the cache miss
         start = time.time()
@@ -159,8 +164,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_memcached_get_many(self):
+        self.patch()
         # get the redis cache
-        cache = caches['python_memcached']
+        cache = get_cache('python_memcached')
 
         # (trace) the cache miss
         start = time.time()
@@ -188,8 +194,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_django_pylibmc_get(self):
+        self.patch()
         # get the redis cache
-        cache = caches['django_pylibmc']
+        cache = get_cache('django_pylibmc')
 
         # (trace) the cache miss
         start = time.time()
@@ -217,8 +224,9 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
         assert start < span.start < span.start + span.duration < end
 
     def test_cache_django_pylibmc_get_many(self):
+        self.patch()
         # get the redis cache
-        cache = caches['django_pylibmc']
+        cache = get_cache('django_pylibmc')
 
         # (trace) the cache miss
         start = time.time()

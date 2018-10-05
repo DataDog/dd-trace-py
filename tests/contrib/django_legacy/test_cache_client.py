@@ -2,7 +2,7 @@ import time
 
 # 3rd party
 from nose.tools import eq_, ok_
-from django.core.cache import caches
+from django.core.cache import get_cache
 
 # testing
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
@@ -15,7 +15,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
     """
     def test_cache_get(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -45,7 +45,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
     @override_ddtrace_settings(INSTRUMENT_CACHE=False)
     def test_cache_disabled(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -58,7 +58,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_set(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -87,7 +87,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_add(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -116,7 +116,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_delete(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -145,7 +145,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_incr(self):
         # get the default cache, set the value and reset the spans
-        cache = caches['default']
+        cache = get_cache('default')
         cache.set('value', 0)
         self.tracer.writer.spans = []
 
@@ -185,7 +185,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_decr(self):
         # get the default cache, set the value and reset the spans
-        cache = caches['default']
+        cache = get_cache('default')
         cache.set('value', 0)
         self.tracer.writer.spans = []
 
@@ -232,7 +232,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_get_many(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -275,7 +275,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_set_many(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()
@@ -314,7 +314,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
     def test_cache_delete_many(self):
         # get the default cache
-        cache = caches['default']
+        cache = get_cache('default')
 
         # (trace) the cache miss
         start = time.time()

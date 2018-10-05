@@ -15,6 +15,7 @@ class DjangoConnectionTest(DjangoTraceTestCase):
     Ensures that database connections are properly traced
     """
     def test_connection(self):
+        self.patch()
         # trace a simple query
         start = time.time()
         # import pdb; pdb.set_trace()
@@ -38,6 +39,7 @@ class DjangoConnectionTest(DjangoTraceTestCase):
 
     @override_ddtrace_settings(INSTRUMENT_DATABASE=False)
     def test_connection_disabled(self):
+        self.patch()
         # trace a simple query
         users = User.objects.count()
         eq_(users, 0)
@@ -47,6 +49,7 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         eq_(len(spans), 0)
 
     def test_should_append_database_prefix(self):
+        self.patch()
         # trace a simple query and check if the prefix is correctly
         # loaded from Django settings
         settings.DEFAULT_DATABASE_PREFIX = 'my_prefix_db'
