@@ -37,6 +37,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
 
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
