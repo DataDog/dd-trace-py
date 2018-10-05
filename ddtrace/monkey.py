@@ -71,6 +71,17 @@ class PatchException(Exception):
     pass
 
 
+def _on_import_factory(module, raise_errors=True):
+    """Factory to create an import hook for the provided module name"""
+    def on_import(hook):
+        # Import and patch module
+        path = 'ddtrace.contrib.%s' % module
+        imported_module = importlib.import_module(path)
+        imported_module.patch()
+
+    return on_import
+
+
 def patch_all(**patch_modules):
     """Automatically patches all available modules.
 
@@ -94,17 +105,17 @@ def patch(raise_errors=True, **patch_modules):
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     for module in modules:
         if module in _PATCH_ON_IMPORT:
-            log.info('patching on import %s', module)
-
             # If the module has already been imported then patch immediately
             if module in sys.modules:
                 patch_module(module, raise_errors=raise_errors)
 
             # Otherwise, add a hook to patch when it is imported for the first time
             else:
-                @when_imported(module)
-                def on_import(hook):
-                    patch_module(module, raise_errors=raise_errors)
+                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                when_imported(module)(_on_import_factory(module, raise_errors))
+
+                # manually add module to patched modules
+                _PATCHED_MODULES.add(module)
         else:
             patch_module(module, raise_errors=raise_errors)
 
@@ -141,7 +152,7 @@ def _patch_module(module):
     """
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
-        if module in _PATCHED_MODULES:
+        if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
             log.debug("already patched: %s", path)
             return False
 
