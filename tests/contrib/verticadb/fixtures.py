@@ -1,7 +1,7 @@
 # 3p
-import vertica_python
 
 # project
+import ddtrace
 from ddtrace.contrib.verticadb.patch import patch, unpatch
 
 # testing
@@ -19,7 +19,11 @@ def test_tracer():
 
 
 @pytest.fixture
-def test_conn():
+def test_conn(test_tracer):
+    ddtrace.tracer = test_tracer
+    patch()
+
+    import vertica_python # must happen AFTER installing with patch()
     conn = vertica_python.connect(**VERTICA_CONFIG)
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
@@ -32,5 +36,5 @@ def test_conn():
             TEST_TABLE
         )
     )
-    patch()
+    test_tracer.writer.pop()
     return conn, cur
