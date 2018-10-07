@@ -37,6 +37,7 @@ def cursor_after(cursor, instance, span, conf, *args, **kwargs):
         app=APP,
         app_type=AppTypes.db,
         tags=tags,
+        _config=config.vertica["patch"]["vertica_python.vertica.cursor.Cursor"]
     )
     pin.onto(cursor)
 
@@ -46,6 +47,8 @@ config._add(
     "vertica",
     {
         "service_name": "vertica",
+        "app": "vertica",
+        "app_type": "db",
         "patch": {
             "vertica_python.vertica.connection.Connection": {
                 "routines": {
@@ -86,27 +89,33 @@ config._add(
 
 def patch():
     # TODO: set marker for idompotency checking (use config??)
-    _install(config.vertica["patch"])
+    _install(config.vertica)
 
 
 def unpatch():
-    # note that we inline import here because we do not want to import the
-    # library and find out that we want to patch it but haven't yet
-    # installed the hooks!
-    import vertica_python
-    # TODO: POC of unpatching
-    unwrap(vertica_python.vertica.connection.Connection, 'cursor')
-    unwrap(vertica_python.vertica.cursor.Cursor, 'execute')
-    unwrap(vertica_python.vertica.cursor.Cursor, 'fetchone')
-    unwrap(vertica_python.vertica.cursor.Cursor, 'fetchall')
+    _uninstall(config.vertica)
 
+import importlib
 
-def _install(config):
-    for patch_class_path in config:
+def _uninstall(config):
+    for patch_class_path in config["patch"]:
         patch_mod = '.'.join(patch_class_path.split('.')[0:-1])
         patch_class = patch_class_path.split('.')[-1]
 
-        for patch_routine in config[patch_class_path]["routines"]:
+        for patch_routine in config["patch"][patch_class_path]["routines"]:
+            mod = importlib.import_module(patch_mod)
+            cls = getattr(mod, patch_class)
+            unwrap(cls, patch_routine)
+
+
+def _install(config):
+    # TODO: idempotance check
+
+    for patch_class_path in config["patch"]:
+        patch_mod = '.'.join(patch_class_path.split('.')[0:-1])
+        patch_class = patch_class_path.split('.')[-1]
+
+        for patch_routine in config["patch"][patch_class_path]["routines"]:
             # log.debug('PATCHING {} {}.{}'.format(patch_mod, patch_class, patch_routine))
 
             def _wrap():
@@ -120,15 +129,28 @@ def _install(config):
                 _patch_routine = patch_routine
                 _patch_item = patch_class_path
 
+                # patch the __init__ of the class with a Pin instance containing the defaults
+                @wrapt.patch_function_wrapper(patch_mod, "{}.{}".format(patch_class, "__init__"))
+                def init_wrapper(wrapped, instance, args, kwargs):
+                    wrapped(*args, **kwargs)
+                    if Pin.get_from(instance):
+                        return
+                    Pin(
+                        service=config["service_name"],
+                        app=config["app"],
+                        app_type=config["app_type"],
+                        tags=config.get("tags", {}),
+                        _config=config["patch"][_patch_item]
+                    ).onto(instance)
+
                 @wrapt.patch_function_wrapper(patch_mod, "{}.{}".format(patch_class, patch_routine))
                 def wrapper(wrapped, instance, args, kwargs):
+                    # TODO?: remove Pin dependence
                     pin = Pin.get_from(instance)
 
-                    # TODO: allow conf setting by pin._config so that users can specify
-                    # a unique config for each instance, else default to the global
-                    # conf = pin and pin._config
-
-                    conf = config[_patch_item]["routines"][_patch_routine]
+                    # TODO: if we try to use the pin for the config we may end up getting a child instance
+                    # for a parent config object
+                    conf = pin._config["routines"][_patch_routine] # config[_patch_item]["routines"][_patch_routine]
                     enabled = conf.get("trace_enabled", True)
 
                     span = None
@@ -140,7 +162,7 @@ def _install(config):
                             return result
 
                         operation_name = conf["operation_name"]
-                        tracer = pin.tracer  # TODO: get tracer from pin, or config or global
+                        tracer = pin.tracer  # TODO: get tracer config or global
                         with tracer.trace(operation_name, service=pin.service) as span:
                             span.set_tags(pin.tags)
                             if "span_type" in conf:

@@ -19,7 +19,6 @@ from .fixtures import test_conn, test_tracer
 
 TEST_TABLE = "test_table"
 
-
 '''
 class TestVerticaPatching(object):
     def test_patch(self):
@@ -40,7 +39,6 @@ class TestVerticaPatching(object):
         assert not issubclass(vertica_python.Connection, wrapt.ObjectProxy)
         # assert not issubclass(vertica_python.connect, wrapt.ObjectProxy)
 '''
-
 
 class TestVertica(object):
     # def setup_method(self, method):
