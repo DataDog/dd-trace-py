@@ -25,9 +25,6 @@ def copy_before(instance, span, conf, *args, **kwargs):
 def execute_before(instance, span, conf, *args, **kwargs):
     span.set_tag("query", args[0])
 
-def execute_error(instance, span, conf, *args, **kwargs):
-    pass
-
 def execute_after(result, instance, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
@@ -38,6 +35,11 @@ def cursor_after(cursor, instance, span, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
+    if "user" in instance.options:
+        tags[dbx.USER] = instance.options["user"]
+    if "database" in instance.options:
+        tags[dbx.NAME] = instance.options["database"]
+
     pin = Pin(
         service=config.vertica["service_name"],
         app=APP,
@@ -71,7 +73,6 @@ config._add(
                         "span_type": "vertica",
                         "on_before": execute_before,
                         "on_after": execute_after,
-                        "on_error": execute_error,
                     },
                     "copy": {
                         "operation_name": "vertica.copy",
