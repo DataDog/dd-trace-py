@@ -641,6 +641,22 @@ jobs:
             - redis.results
       - *save_cache_step
 
+  rediscluster:
+    docker:
+      - *test_runner
+      - image: grokzen/redis-cluster:4.0.9
+        env:
+          - IP=0.0.0.0
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - rediscluster.results
+      - *save_cache_step
+      
   vertica:
     docker:
       - *test_runner
@@ -657,7 +673,6 @@ jobs:
           root: /tmp
           paths:
             - vertica.results
-      - *save_cache_step
 
   sqlite3:
     docker:
@@ -808,6 +823,7 @@ workflows:
       - aiobotocore
       - aiopg
       - redis
+      - rediscluster
       - sqlite3
       - msgpack
       - vertica
@@ -850,6 +866,7 @@ workflows:
             - aiobotocore
             - aiopg
             - redis
+            - rediscluster
             - sqlite3
             - msgpack
             - vertica
