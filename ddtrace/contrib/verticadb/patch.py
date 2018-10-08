@@ -1,5 +1,7 @@
+import importlib
 import wrapt
 
+import ddtrace
 from ddtrace import config, Pin
 from ddtrace.ext import net, AppTypes
 from ddtrace.utils.wrappers import unwrap
@@ -15,6 +17,10 @@ well. wrapt will hook into the module import system for the patches that we
 provide.
 """
 
+_PATCHED = False
+
+def copy_before(instance, span, conf, *args, **kwargs):
+    span.set_tag("query", args[0])
 
 def execute_before(instance, span, conf, *args, **kwargs):
     span.set_tag("query", args[0])
@@ -63,13 +69,17 @@ config._add(
                     "execute": {
                         "operation_name": "vertica.query",
                         "span_type": "vertica",
-                        "trace_enabled": True,
+                        # "trace_enabled": True,
                         # TODO: tracer config
                         # "tracer": Tracer(),
-                        # TODO??: before and after can be replaced with a generator
                         "on_before": execute_before,
                         "on_after": execute_after,
                         "on_error": execute_error,
+                    },
+                    "copy": {
+                        "operation_name": "vertica.copy",
+                        "span_type": "vertica",
+                        "on_before": copy_before,
                     },
                     "fetchone": {
                         "operation_name": "vertica.fetchone",
@@ -81,6 +91,11 @@ config._add(
                         "span_type": "vertica",
                         "on_after": fetch_after,
                     },
+                    "nextset": {
+                        "operation_name": "vertica.nextset",
+                        "span_type": "vertica",
+                        "on_after": fetch_after,
+                    },
                 },
             },
         },
@@ -88,14 +103,19 @@ config._add(
 )
 
 def patch():
-    # TODO: set marker for idompotency checking (use config??)
+    global _PATCHED
+    if _PATCHED:
+        return
+
     _install(config.vertica)
+    _PATCHED = True
 
 
 def unpatch():
-    _uninstall(config.vertica)
-
-import importlib
+    global _PATCHED
+    if _PATCHED:
+        _uninstall(config.vertica)
+        _PATCHED = False
 
 def _uninstall(config):
     for patch_class_path in config["patch"]:
@@ -107,25 +127,18 @@ def _uninstall(config):
             cls = getattr(mod, patch_class)
             unwrap(cls, patch_routine)
 
-
 def _install(config):
-    # TODO: idempotance check
-
     for patch_class_path in config["patch"]:
         patch_mod = '.'.join(patch_class_path.split('.')[0:-1])
         patch_class = patch_class_path.split('.')[-1]
 
         for patch_routine in config["patch"][patch_class_path]["routines"]:
-            # log.debug('PATCHING {} {}.{}'.format(patch_mod, patch_class, patch_routine))
-
             def _wrap():
-                # _wrap is needed to provide data to the wrapper which can
+                # _wrap is needed to provide data to the wrappers which can
                 # only be provided from the function closure.
                 # Not having the closure will mean that each wrapper will have
                 # the same patch_routine and patch_item.
 
-                # We need to copy these items to the _wrap closure for them to
-                # be available to the wrapper.
                 _patch_routine = patch_routine
                 _patch_item = patch_class_path
 
@@ -133,24 +146,76 @@ def _install(config):
                 @wrapt.patch_function_wrapper(patch_mod, "{}.{}".format(patch_class, "__init__"))
                 def init_wrapper(wrapped, instance, args, kwargs):
                     wrapped(*args, **kwargs)
-                    if Pin.get_from(instance):
-                        return
+
+                    # create and attach a pin with the defaults
                     Pin(
                         service=config["service_name"],
                         app=config["app"],
                         app_type=config["app_type"],
                         tags=config.get("tags", {}),
-                        _config=config["patch"][_patch_item]
+                        tracer=config.get("tracer", ddtrace.tracer),
+                        _config=config["patch"][_patch_item],
                     ).onto(instance)
+
+                def _find_config(instance, routine_name):
+                    bases = instance.__class__.__bases__
+
+                    while bases:
+                        newbases = []
+                        for base in bases:
+                            full_name = "{}.{}".format(base.__module__, base.__name__)
+                            if full_name in config["patch"] and routine_name in config["patch"][full_name]["routines"]:
+                                return config["patch"][full_name]["routines"][routine_name]
+                            newbases += base.__class__.__bases__
 
                 @wrapt.patch_function_wrapper(patch_mod, "{}.{}".format(patch_class, patch_routine))
                 def wrapper(wrapped, instance, args, kwargs):
                     # TODO?: remove Pin dependence
                     pin = Pin.get_from(instance)
 
-                    # TODO: if we try to use the pin for the config we may end up getting a child instance
-                    # for a parent config object
-                    conf = pin._config["routines"][_patch_routine] # config[_patch_item]["routines"][_patch_routine]
+                    # TODO: inheritance problem with pins:
+                    # Say we have a base class B and child class C:
+                    # class B:
+                    #   def my_method(self):
+                    #     pass
+                    #
+                    # class C(B):
+                    #   pass
+                    #
+                    # and an instance `c`:
+                    # c = C()
+                    #
+                    # with tracing config:
+                    #  'patch': {
+                    #     'B': {
+                    #       'routines': {
+                    #         'my_method: {...}
+                    #       }
+                    #     },
+                    #     'C': {}  # does not contain 'my_method'
+                    #  }
+                    #
+                    # An instance of either will have a pin attached so that
+                    # the user can override specific configuration for that
+                    # instance.
+                    #
+                    # The pins will contain the config for the instance which they
+                    # are attached:
+                    #   PinB._config == { 'routines: { 'my_method: { ... } } }
+                    #   PinC._config == { }
+                    #
+                    # The problem here is that at this point in the wrapper
+                    # we have an instance of C and a pin from C, but require
+                    # the config of B.
+
+                    # TODO: possible solution: follow inheritance and look for config on parent
+                    #       Can we use normal python inheritance somehow?
+                    # conf = pin._config["routines"][_patch_routine] # config[_patch_item]["routines"][_patch_routine]
+                    if _patch_routine in pin._config["routines"]:
+                        conf = pin._config["routines"][_patch_routine]
+                    else:
+                        conf = _find_config(instance, _patch_routine)
+
                     enabled = conf.get("trace_enabled", True)
 
                     span = None
@@ -162,7 +227,7 @@ def _install(config):
                             return result
 
                         operation_name = conf["operation_name"]
-                        tracer = pin.tracer  # TODO: get tracer config or global
+                        tracer = pin.tracer
                         with tracer.trace(operation_name, service=pin.service) as span:
                             span.set_tags(pin.tags)
                             if "span_type" in conf:
