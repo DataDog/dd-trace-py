@@ -133,11 +133,13 @@ class API(object):
 
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
+        try:
+            headers = self._headers
+            if count:
+                headers = dict(self._headers)
+                headers[TRACE_COUNT_HEADER] = str(count)
 
-        headers = self._headers
-        if count:
-            headers = dict(self._headers)
-            headers[TRACE_COUNT_HEADER] = str(count)
-
-        conn.request("PUT", endpoint, data, headers)
-        return get_connection_response(conn)
+            conn.request("PUT", endpoint, data, headers)
+            return get_connection_response(conn)
+        finally:
+            conn.close()

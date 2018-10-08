@@ -37,20 +37,22 @@ def setUpModule():
 
     # create the KEYSPACE for this test module
     cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
-    cluster.connect().execute('DROP KEYSPACE IF EXISTS test')
-    cluster.connect().execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1}")
-    cluster.connect().execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
-    cluster.connect().execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
-    cluster.connect().execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
+    session = cluster.connect()
+    session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
+    session.execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};")
+    session.execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
+    session.execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
 
 def tearDownModule():
     # destroy the KEYSPACE
     cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
-    cluster.connect().execute('DROP TABLE IF EXISTS test.person')
-    cluster.connect().execute('DROP TABLE IF EXISTS test.person_write')
-    cluster.connect().execute('DROP KEYSPACE IF EXISTS test')
+    session = cluster.connect()
+    session.execute('DROP TABLE IF EXISTS test.person')
+    session.execute('DROP TABLE IF EXISTS test.person_write')
+    session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
 
 
 class CassandraBase(object):
