@@ -23,7 +23,8 @@ def test_conn(test_tracer):
     ddtrace.tracer = test_tracer
     patch()
 
-    import vertica_python # must happen AFTER installing with patch()
+    import vertica_python  # must happen AFTER installing with patch()
+
     conn = vertica_python.connect(**VERTICA_CONFIG)
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))

@@ -10,7 +10,7 @@ def merge(a, b, path=None):
             if isinstance(a[key], dict) and isinstance(b[key], dict):
                 merge(a[key], b[key], path + [str(key)])
             elif a[key] == b[key]:
-                pass # same leaf value
+                pass  # same leaf value
             else:
                 a[key] = b[key]
         else:
@@ -28,7 +28,9 @@ def override_config(custom_conf):
             orig = deepcopy(config.vertica)
             merge(config.vertica, custom_conf)
             r = func(*args, **kwargs)
-            config._add('vertica', orig)
+            config._add("vertica", orig)
             return r
+
         return wrapper
+
     return provide_config
