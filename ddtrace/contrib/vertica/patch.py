@@ -69,9 +69,6 @@ config._add(
                     "execute": {
                         "operation_name": "vertica.query",
                         "span_type": "vertica",
-                        # "trace_enabled": True,
-                        # TODO: tracer config
-                        # "tracer": Tracer(),
                         "on_before": execute_before,
                         "on_after": execute_after,
                         "on_error": execute_error,
@@ -135,9 +132,7 @@ def _install(config):
         for patch_routine in config["patch"][patch_class_path]["routines"]:
             def _wrap():
                 # _wrap is needed to provide data to the wrappers which can
-                # only be provided from the function closure.
-                # Not having the closure will mean that each wrapper will have
-                # the same patch_routine and patch_item.
+                # only be provided from a function closure.
 
                 _patch_routine = patch_routine
                 _patch_item = patch_class_path
@@ -182,9 +177,6 @@ def _install(config):
                     # class C(B):
                     #   pass
                     #
-                    # and an instance `c`:
-                    # c = C()
-                    #
                     # with tracing config:
                     #  'patch': {
                     #     'B': {
@@ -194,23 +186,25 @@ def _install(config):
                     #     },
                     #     'C': {}  # does not contain 'my_method'
                     #  }
+                    # and an instance `c`:
+                    # c = C()
+                    # c.my_method()
                     #
                     # An instance of either will have a pin attached so that
                     # the user can override specific configuration for that
                     # instance.
                     #
-                    # The pins will contain the config for the instance which they
-                    # are attached:
+                    # The pins will contain the config for the instance which
+                    # they are attached:
                     #   PinB._config == { 'routines: { 'my_method: { ... } } }
                     #   PinC._config == { }
                     #
                     # The problem here is that at this point in the wrapper
-                    # we have an instance of C and a pin from C, but require
-                    # the config of B.
-
-                    # TODO: possible solution: follow inheritance and look for config on parent
-                    #       Can we use normal python inheritance somehow?
-                    # conf = pin._config["routines"][_patch_routine] # config[_patch_item]["routines"][_patch_routine]
+                    # when c.my_method() is called we have an instance of C and
+                    # a pin from C, but require the config from B.
+                    #
+                    # Possible solution: follow inheritance and look for config
+                    # on a parent. Can we use normal python inheritance somehow?
                     if _patch_routine in pin._config["routines"]:
                         conf = pin._config["routines"][_patch_routine]
                     else:

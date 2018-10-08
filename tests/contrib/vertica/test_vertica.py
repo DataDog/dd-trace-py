@@ -270,6 +270,22 @@ class TestVertica(object):
         assert spans[2].name == 'vertica.query'
         assert spans[2].get_tag('query') == 'COMMIT;'
 
+    def test_copy(self, test_conn, test_tracer):
+        """cursor.copy() should be traced."""
+        conn, cur = test_conn
+
+        with conn:
+            cur.copy("COPY {0} (a, b) FROM STDIN DELIMITER ','".format(TEST_TABLE), "1,foo\n2,bar")
+
+        spans = test_tracer.writer.pop()
+        assert len(spans) == 2
+
+        # check all the rowcounts
+        assert spans[0].name == 'vertica.copy'
+        assert spans[0].get_tag('query') == "COPY test_table (a, b) FROM STDIN DELIMITER ','"
+        assert spans[1].name == 'vertica.query'
+        assert spans[1].get_tag('query') == 'COMMIT;'
+
     def test_opentracing(self, test_conn, test_tracer):
         """Ensure OpenTracing works with vertica."""
         conn, cur = test_conn
