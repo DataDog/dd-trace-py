@@ -61,6 +61,7 @@ class BotoTest(unittest.TestCase):
         eq_(span.service, "test-boto-tracing.ec2")
         eq_(span.resource, "ec2.runinstances")
         eq_(span.name, "ec2.command")
+        eq_(span.span_type, 'boto')
 
     @mock_s3
     def test_s3_client(self):

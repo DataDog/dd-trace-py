@@ -6,9 +6,12 @@ A patched module will automatically report spans with its default configuration.
 A library instrumentation can be configured (for instance, to report as another service)
 using Pin. For that, check its documentation.
 """
-import logging
 import importlib
+import logging
+import sys
 import threading
+
+from wrapt.importer import when_imported
 
 
 log = logging.getLogger(__name__)
@@ -51,10 +54,32 @@ PATCH_MODULES = {
 _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
+# Modules which are patched on first use
+# DEV: These modules are patched when the user first imports them, rather than
+#      explicitly importing and patching them on application startup `ddtrace.patch_all(module=True)`
+# DEV: This ensures we do not patch a module until it is needed
+# DEV: <contrib name> => <list of module names that trigger a patch>
+_PATCH_ON_IMPORT = {
+    'celery': ('celery', ),
+    'gevent': ('gevent', ),
+    'requests': ('requests', ),
+}
+
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
     pass
+
+
+def _on_import_factory(module, raise_errors=True):
+    """Factory to create an import hook for the provided module name"""
+    def on_import(hook):
+        # Import and patch module
+        path = 'ddtrace.contrib.%s' % module
+        imported_module = importlib.import_module(path)
+        imported_module.patch()
+
+    return on_import
 
 
 def patch_all(**patch_modules):
@@ -79,19 +104,18 @@ def patch(raise_errors=True, **patch_modules):
     """
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     for module in modules:
-        # TODO: this is a temporary hack until we shift to using
-        # post-import hooks for everything.
-        if module == 'celery':
-            # if patch celery via post-import hooks
-            from wrapt.importer import when_imported
+        if module in _PATCH_ON_IMPORT:
+            # If the module has already been imported then patch immediately
+            if module in sys.modules:
+                patch_module(module, raise_errors=raise_errors)
 
-            @when_imported('celery')
-            def patch_celery(hook):
-                from ddtrace.contrib.celery import patch
-                patch()
+            # Otherwise, add a hook to patch when it is imported for the first time
+            else:
+                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                when_imported(module)(_on_import_factory(module, raise_errors))
 
-            # manually add celery to patched modules
-            _PATCHED_MODULES.add(module)
+                # manually add module to patched modules
+                _PATCHED_MODULES.add(module)
         else:
             patch_module(module, raise_errors=raise_errors)
 
@@ -128,7 +152,7 @@ def _patch_module(module):
     """
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
-        if module in _PATCHED_MODULES and module != 'celery':
+        if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
             log.debug("already patched: %s", path)
             return False
 

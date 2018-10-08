@@ -55,6 +55,7 @@ class PylonsTestCase(TestCase):
         eq_(span.get_tag(errors.ERROR_MSG), None)
         eq_(span.get_tag(errors.ERROR_TYPE), None)
         eq_(span.get_tag(errors.ERROR_STACK), None)
+        eq_(span.span_type, 'http')
 
     def test_mw_exc_success(self):
         """Ensure exceptions can be properly handled by other middleware.
