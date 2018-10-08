@@ -167,7 +167,7 @@ class TestVertica(object):
         assert spans[0].get_tag("query") == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
         assert spans[0].get_tag("out.port") == "5433"
-        assert spans[0].get_tag("db.name") == "dbadmin"
+        assert spans[0].get_tag("db.name") == "docker"
         assert spans[0].get_tag("db.user") == "dbadmin"
 
         assert spans[1].get_tag("query") == "SELECT * FROM test_table;"

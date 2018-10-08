@@ -59,11 +59,11 @@ services:
         ports:
             - "127.0.0.1:8126:8126"
 
-    verticadb:
+    vertica:
         image: sumitchawla/vertica
         environment:
           - VP_TEST_USER=dbadmin
           - VP_TEST_PASSWORD=abc123
-          - VP_TEST_DATABASE=test
+          - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"

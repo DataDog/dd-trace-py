@@ -51,5 +51,5 @@ VERTICA_CONFIG = {
     'port': os.getenv('TEST_VERTICA_PORT', 5433),
     'user': os.getenv('TEST_VERTICA_USER', 'dbadmin'),
     'password': os.getenv('TEST_VERTICA_PASSWORD', 'abc123'),
-    'database': os.getenv('TEST_VERTICA_DATABASE', 'dbadmin'),
+    'database': os.getenv('TEST_VERTICA_DATABASE', 'docker'),
 }
