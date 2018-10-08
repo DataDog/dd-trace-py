@@ -42,7 +42,7 @@ PATCH_MODULES = {
     'aiopg': True,
     'aiobotocore': False,
     'httplib': False,
-    "verticadb": True,
+    "vertica": True,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,

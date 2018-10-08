@@ -2,7 +2,7 @@
 
 # project
 import ddtrace
-from ddtrace.contrib.verticadb.patch import patch, unpatch
+from ddtrace.contrib.vertica.patch import patch, unpatch
 
 # testing
 import pytest

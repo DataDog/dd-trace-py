@@ -5,7 +5,7 @@ import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.contrib.verticadb.patch import patch, unpatch
+from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
 
 # testing
