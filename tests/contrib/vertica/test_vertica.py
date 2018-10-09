@@ -160,7 +160,7 @@ class TestVertica(object):
 
         # check all the metadata
         assert spans[0].service == "vertica"
-        assert spans[0].span_type == "vertica"
+        assert spans[0].span_type == "sql"
         assert spans[0].name == "vertica.query"
         assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
@@ -188,7 +188,7 @@ class TestVertica(object):
 
         # check all the metadata
         assert spans[0].service == "vertica"
-        assert spans[0].span_type == "vertica"
+        assert spans[0].span_type == "sql"
         assert spans[0].name == "vertica.query"
         assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
@@ -332,7 +332,7 @@ class TestVertica(object):
         assert dd_span.parent_id == ot_span.span_id
 
         assert dd_span.service == "vertica"
-        assert dd_span.span_type == "vertica"
+        assert dd_span.span_type == "sql"
         assert dd_span.name == "vertica.query"
         assert dd_span.get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
