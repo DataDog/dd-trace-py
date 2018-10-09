@@ -141,10 +141,7 @@ def _find_routine_config(config, instance, routine_name):
 
         config_routines = config["patch"][full_name]["routines"]
 
-        if (
-            full_name in config["patch"]
-            and routine_name in config_routines
-        ):
+        if full_name in config["patch"] and routine_name in config_routines:
             return config_routines[routine_name]
     return {}
 
@@ -178,7 +175,6 @@ def _install(config):
 
             def wrap_routine():
                 _patch_routine = patch_routine
-
 
                 patch_class_routine = "{}.{}".format(patch_class, patch_routine)
 
