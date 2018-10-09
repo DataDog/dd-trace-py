@@ -49,6 +49,7 @@ class APITests(TestCase):
             eq_(v['js'], js)
             if 'log' in v:
                 ok_(1<=len(log.call_args_list), "not enough elements in call_args_list: %s" % log.call_args_list)
+                print(log.call_args_list)
                 l = log.call_args_list[-1][0][0]
                 ok_(v['log'] in l, "unable to find %s in %s" % (v['log'], l))
 
