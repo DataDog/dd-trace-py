@@ -4,9 +4,10 @@ import time
 import mysql.connector
 from psycopg2 import connect, OperationalError
 from cassandra.cluster import Cluster, NoHostAvailable
+import rediscluster
 import vertica_python
 
-from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG, VERTICA_CONFIG
+from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG, REDISCLUSTER_CONFIG, VERTICA_CONFIG
 
 
 def try_until_timeout(exception):
@@ -55,6 +56,17 @@ def check_mysql():
         conn.close()
 
 @try_until_timeout(Exception)
+def check_rediscluster():
+    test_host = REDISCLUSTER_CONFIG['host']
+    test_ports = REDISCLUSTER_CONFIG['ports']
+    startup_nodes = [
+        {'host': test_host, 'port': int(port)}
+        for port in test_ports.split(',')
+    ]
+    r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
+    r.flushall()
+
+@try_until_timeout(Exception)
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
     try:
@@ -68,6 +80,7 @@ if __name__ == '__main__':
         'cassandra': check_cassandra,
         'postgres': check_postgres,
         'mysql': check_mysql,
+        'rediscluster': check_rediscluster,
         'vertica': check_vertica,
     }
     if len(sys.argv) >= 2:
