@@ -4,8 +4,9 @@ import time
 import mysql.connector
 from psycopg2 import connect, OperationalError
 from cassandra.cluster import Cluster, NoHostAvailable
+import vertica_python
 
-from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG
+from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG, VERTICA_CONFIG
 
 
 def try_until_timeout(exception):
@@ -53,11 +54,21 @@ def check_mysql():
     finally:
         conn.close()
 
+@try_until_timeout(Exception)
+def check_vertica():
+    conn = vertica_python.connect(**VERTICA_CONFIG)
+    try:
+        conn.cursor().execute("SELECT 1;")
+    finally:
+        conn.close()
+
+
 if __name__ == '__main__':
     check_functions = {
         'cassandra': check_cassandra,
         'postgres': check_postgres,
-        'mysql': check_mysql
+        'mysql': check_mysql,
+        'vertica': check_vertica,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
