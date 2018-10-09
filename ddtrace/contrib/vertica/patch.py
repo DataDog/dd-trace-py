@@ -28,11 +28,11 @@ def execute_span_start(instance, span, conf, *args, **kwargs):
     span.set_tag("query", args[0])
 
 
-def execute_span_end(result, instance, span, conf, *args, **kwargs):
+def execute_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 
-def fetch_span_end(result, instance, span, conf, *args, **kwargs):
+def fetch_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 
@@ -244,17 +244,15 @@ def _install(config):
 
                             result = wrapped(*args, **kwargs)
                             return result
-                    except Exception:
+                    except Exception as err:
                         if "on_error" in conf:
-                            conf["on_error"](instance, span, conf, *args, **kwargs)
+                            conf["on_error"](instance, err, span, conf, *args, **kwargs)
                         raise
                     finally:
                         # if an exception is raised result will not exist
                         if "result" not in locals():
                             result = None
                         if "span_end" in conf:
-                            conf["span_end"](
-                                result, instance, span, conf, *args, **kwargs
-                            )
+                            conf["span_end"](instance, result, span, conf, *args, **kwargs)
 
             wrap_routine()
