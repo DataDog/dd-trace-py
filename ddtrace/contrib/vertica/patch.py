@@ -7,7 +7,7 @@ from ddtrace.ext import net, AppTypes
 from ddtrace.utils.wrappers import unwrap
 
 from .constants import APP
-from ...ext import db as dbx
+from ...ext import db as dbx, sql
 
 """
 Note: we DO NOT import the library to be patched at all!
@@ -72,13 +72,13 @@ config._add(
                 "routines": {
                     "execute": {
                         "operation_name": "vertica.query",
-                        "span_type": "vertica",
+                        "span_type": sql.TYPE,
                         "span_start": execute_span_start,
                         "span_end": execute_span_end,
                     },
                     "copy": {
                         "operation_name": "vertica.copy",
-                        "span_type": "vertica",
+                        "span_type": sql.TYPE,
                         "span_start": copy_span_start,
                     },
                     "fetchone": {
