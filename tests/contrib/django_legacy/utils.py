@@ -1,5 +1,6 @@
 import django
 from django.test import TestCase
+from django.db import connections
 from functools import wraps
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
@@ -35,8 +36,6 @@ class DjangoTraceTestCase(TestCase):
         # such as database creation queries
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
-        # gets unpatched for some tests
-        patch_db(self.tracer)
 
     def tearDown(self):
         # empty the tracer spans from test operations
@@ -46,6 +45,15 @@ class DjangoTraceTestCase(TestCase):
 
     def patch(self):
         patch()
+
+    def activate_db_patch_for_non_request_based_tests(self):
+        # Because of the way we patch, we have to manually trigger the method that we wrap,
+        # otherwise when we do something like `User.objects.count()` the all() function that we wrap is not called and
+        # the connection is accessed directly.
+        # In the normal django request serving flow, the same effect is reached through the
+        # signals.request_started.send(...) in the wsgi handler, but tests NOT based on request (e.g. test_connection)
+        # would not have this activated
+        connections.all()
 
     def unpatch(self):
         remove_trace_middleware()

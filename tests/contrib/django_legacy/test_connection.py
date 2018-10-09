@@ -16,16 +16,15 @@ class DjangoConnectionTest(DjangoTraceTestCase):
     """
     def test_connection(self):
         self.patch()
+        self.activate_db_patch_for_non_request_based_tests()
         # trace a simple query
         start = time.time()
-        # import pdb; pdb.set_trace()
         users = User.objects.count()
         eq_(users, 0)
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        assert spans, spans
         eq_(len(spans), 1)
 
         span = spans[0]
@@ -34,12 +33,13 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         eq_(span.span_type, 'sql')
         eq_(span.get_tag('django.db.vendor'), 'sqlite')
         eq_(span.get_tag('django.db.alias'), 'default')
-        eq_(span.get_tag('sql.query'), 'SELECT COUNT(*) AS "__count" FROM "auth_user"')
+        eq_(span.get_tag('sql.query'), 'SELECT COUNT(*) FROM "auth_user"')
         assert start < span.start < span.start + span.duration < end
 
     @override_ddtrace_settings(INSTRUMENT_DATABASE=False)
     def test_connection_disabled(self):
         self.patch()
+        self.activate_db_patch_for_non_request_based_tests()
         # trace a simple query
         users = User.objects.count()
         eq_(users, 0)
@@ -50,6 +50,7 @@ class DjangoConnectionTest(DjangoTraceTestCase):
 
     def test_should_append_database_prefix(self):
         self.patch()
+        self.activate_db_patch_for_non_request_based_tests()
         # trace a simple query and check if the prefix is correctly
         # loaded from Django settings
         settings.DEFAULT_DATABASE_PREFIX = 'my_prefix_db'

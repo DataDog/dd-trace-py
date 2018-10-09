@@ -35,7 +35,7 @@ class DjangoTemplateTest(DjangoTraceTestCase):
         span = spans[0]
         eq_(span.span_type, 'template')
         eq_(span.name, 'django.template')
-        eq_(span.get_tag('django.template_name'), 'unknown')
+        eq_(span.get_tag('django.template_name'), '<Unknown Template>')
         assert start < span.start < span.start + span.duration < end
 
     @override_ddtrace_settings(INSTRUMENT_TEMPLATE=False)
