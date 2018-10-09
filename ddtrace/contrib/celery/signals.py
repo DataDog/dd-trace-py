@@ -3,6 +3,7 @@ import logging
 from ddtrace import Pin, config
 
 from celery import registry
+from celery.exceptions import Retry
 
 from . import constants as c
 from .utils import (
@@ -131,5 +132,28 @@ def trace_failure(*args, **kwargs):
             return
         span.set_exc_info(ex.type, ex.exception, ex.tb)
 
+
 def trace_retry(*args, **kwargs):
-    pass
+    task = kwargs.get('sender')
+    context = kwargs.get('request')
+    if task is None or context is None:
+        log.debug('unable to extract the Task or the Context. This version of Celery may not be supported.')
+        return
+
+    reason = kwargs.get('reason')
+    if not reason:
+        log.debug('unable to extract the retry reason. This version of Celery may not be supported.')
+        return
+
+    span = retrieve_span(task, context.id)
+    print(span)
+    if span is None:
+        return
+
+    if isinstance(reason, Retry):
+        span.set_tag(c.TASK_RETRY_REASON_KEY, reason.message)
+    else:
+        # add Exception tags
+        ex = kwargs.get('einfo')
+        if ex is not None:
+            span.set_exc_info(ex.type, ex.exception, ex.tb)

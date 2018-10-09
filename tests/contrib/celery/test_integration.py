@@ -216,8 +216,9 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'RETRY')
+        eq_(span.get_tag('celery.retry.reason'), 'Task class is being retried')
 
-        # TODO: these should be failing
+        # This type of retrying should not be marked as an exception
         eq_(span.error, 0)
         ok_(not span.get_tag('error.msg'))
         ok_(not span.get_tag('error.stack'))
@@ -372,4 +373,3 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(dd_span.get_tag('celery.id'), t.task_id)
         eq_(dd_span.get_tag('celery.action'), 'apply_async')
         eq_(dd_span.get_tag('celery.routing_key'), 'celery')
-
