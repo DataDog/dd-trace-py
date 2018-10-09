@@ -1,4 +1,2 @@
-
-
 # Service info
 APP = "vertica"
