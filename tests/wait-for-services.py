@@ -4,8 +4,9 @@ import time
 import mysql.connector
 from psycopg2 import connect, OperationalError
 from cassandra.cluster import Cluster, NoHostAvailable
+import rediscluster
 
-from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG
+from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG, REDISCLUSTER_CONFIG
 
 
 def try_until_timeout(exception):
@@ -53,11 +54,24 @@ def check_mysql():
     finally:
         conn.close()
 
+@try_until_timeout(Exception)
+def check_rediscluster():
+    test_host = REDISCLUSTER_CONFIG['host']
+    test_ports = REDISCLUSTER_CONFIG['ports']
+    startup_nodes = [
+        {'host': test_host, 'port': int(port)}
+        for port in test_ports.split(',')
+    ]
+    r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
+    r.flushall()
+
+
 if __name__ == '__main__':
     check_functions = {
         'cassandra': check_cassandra,
         'postgres': check_postgres,
-        'mysql': check_mysql
+        'mysql': check_mysql,
+        'rediscluster': check_rediscluster,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
