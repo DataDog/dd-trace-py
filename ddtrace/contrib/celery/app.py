@@ -58,3 +58,4 @@ def unpatch_app(app):
     signals.before_task_publish.disconnect(trace_before_publish)
     signals.after_task_publish.disconnect(trace_after_publish)
     signals.task_failure.disconnect(trace_failure)
+    signals.task_retry.disconnect(trace_retry)

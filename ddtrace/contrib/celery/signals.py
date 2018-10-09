@@ -3,7 +3,6 @@ import logging
 from ddtrace import Pin, config
 
 from celery import registry
-from celery.exceptions import Retry
 
 from . import constants as c
 from .utils import (
@@ -134,6 +133,8 @@ def trace_failure(*args, **kwargs):
 
 
 def trace_retry(*args, **kwargs):
+    # safe-guard to avoid crashes in case the signals API
+    # changes in Celery
     task = kwargs.get('sender')
     context = kwargs.get('request')
     if task is None or context is None:
@@ -146,14 +147,9 @@ def trace_retry(*args, **kwargs):
         return
 
     span = retrieve_span(task, context.id)
-    print(span)
     if span is None:
         return
 
-    if isinstance(reason, Retry):
-        span.set_tag(c.TASK_RETRY_REASON_KEY, reason.message)
-    else:
-        # add Exception tags
-        ex = kwargs.get('einfo')
-        if ex is not None:
-            span.set_exc_info(ex.type, ex.exception, ex.tb)
+    # Add retry reason metadata to span
+    # DEV: Use `str(reason)` instead of `reason.message` in case we get something that isn't an `Exception`
+    span.set_tag(c.TASK_RETRY_REASON_KEY, str(reason))
