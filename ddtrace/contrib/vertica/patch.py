@@ -129,6 +129,26 @@ def _uninstall(config):
             unwrap(cls, patch_routine)
 
 
+def _find_routine_config(config, instance, routine_name):
+    """Attempts to find the config for a routine based on the bases of the
+    class of the instance.
+    """
+    bases = instance.__class__.__mro__
+    for base in bases:
+        full_name = "{}.{}".format(base.__module__, base.__name__)
+        if full_name not in config["patch"]:
+            continue
+
+        config_routines = config["patch"][full_name]["routines"]
+
+        if (
+            full_name in config["patch"]
+            and routine_name in config_routines
+        ):
+            return config_routines[routine_name]
+    return {}
+
+
 def _install(config):
     for patch_class_path in config["patch"]:
         patch_mod, _, patch_class = patch_class_path.rpartition(".")
@@ -159,20 +179,6 @@ def _install(config):
             def wrap_routine():
                 _patch_routine = patch_routine
 
-                def _find_config(instance, routine_name):
-                    bases = instance.__class__.__mro__
-                    for base in bases:
-                        full_name = "{}.{}".format(base.__module__, base.__name__)
-                        if full_name not in config["patch"]:
-                            continue
-
-                        config_routines = config["patch"][full_name]["routines"]
-
-                        if (
-                            full_name in config["patch"]
-                            and routine_name in config_routines
-                        ):
-                            return config_routines[routine_name]
 
                 patch_class_routine = "{}.{}".format(patch_class, patch_routine)
 
@@ -221,7 +227,7 @@ def _install(config):
                     if _patch_routine in pin._config["routines"]:
                         conf = pin._config["routines"][_patch_routine]
                     else:
-                        conf = _find_config(instance, _patch_routine)
+                        conf = _find_routine_config(config, instance, _patch_routine)
 
                     enabled = conf.get("trace_enabled", True)
 
