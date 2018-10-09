@@ -160,19 +160,16 @@ def _install(config):
                 _patch_routine = patch_routine
 
                 def _find_config(instance, routine_name):
-                    bases = instance.__class__.__bases__
+                    bases = instance.__class__.__mro__
+                    for base in bases:
+                        full_name = "{}.{}".format(base.__module__, base.__name__)
+                        if full_name not in config["patch"]:
+                            continue
 
-                    while bases:
-                        newbases = []
-                        for base in bases:
-                            full_name = "{}.{}".format(base.__module__, base.__name__)
-                            config_routines = config["patch"][full_name]["routines"]
-                            if (
-                                full_name in config["patch"]
-                                and routine_name in config_routines
-                            ):
-                                return config_routines[routine_name]
-                            newbases += base.__class__.__bases__
+                        config_routines = config["patch"][full_name]["routines"]
+
+                        if full_name in config["patch"] and routine_name in config_routines:
+                            return config_routines[routine_name]
 
                 patch_class_routine = "{}.{}".format(patch_class, patch_routine)
 
