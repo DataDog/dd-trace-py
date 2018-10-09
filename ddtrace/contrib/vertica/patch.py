@@ -36,7 +36,7 @@ def fetch_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 
-def cursor_after(cursor, instance, span, conf, *args, **kwargs):
+def cursor_after(instance, cursor, span, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
@@ -168,7 +168,10 @@ def _install(config):
 
                         config_routines = config["patch"][full_name]["routines"]
 
-                        if full_name in config["patch"] and routine_name in config_routines:
+                        if (
+                            full_name in config["patch"]
+                            and routine_name in config_routines
+                        ):
                             return config_routines[routine_name]
 
                 patch_class_routine = "{}.{}".format(patch_class, patch_routine)
@@ -253,6 +256,8 @@ def _install(config):
                         if "result" not in locals():
                             result = None
                         if "span_end" in conf:
-                            conf["span_end"](instance, result, span, conf, *args, **kwargs)
+                            conf["span_end"](
+                                instance, result, span, conf, *args, **kwargs
+                            )
 
             wrap_routine()
