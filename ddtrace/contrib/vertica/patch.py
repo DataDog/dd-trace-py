@@ -21,11 +21,11 @@ _PATCHED = False
 
 
 def copy_span_start(instance, span, conf, *args, **kwargs):
-    span.set_tag("query", args[0])
+    span.resource = args[0]
 
 
 def execute_span_start(instance, span, conf, *args, **kwargs):
-    span.set_tag("query", args[0])
+    span.resource = args[0]
 
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
