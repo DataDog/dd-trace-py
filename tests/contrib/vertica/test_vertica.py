@@ -167,13 +167,13 @@ class TestVertica(object):
         assert spans[0].name == "vertica.query"
         assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
-        assert spans[0].get_tag("query") == query
+        assert spans[0].resource == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
         assert spans[0].get_tag("out.port") == "5433"
         assert spans[0].get_tag("db.name") == "docker"
         assert spans[0].get_tag("db.user") == "dbadmin"
 
-        assert spans[1].get_tag("query") == "SELECT * FROM test_table;"
+        assert spans[1].resource == "SELECT * FROM test_table;"
 
     def test_cursor_override(self, test_conn):
         """Test overriding the tracer with our own."""
@@ -195,11 +195,11 @@ class TestVertica(object):
         assert spans[0].name == "vertica.query"
         assert spans[0].get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
-        assert spans[0].get_tag("query") == query
+        assert spans[0].resource == query
         assert spans[0].get_tag("out.host") == "127.0.0.1"
         assert spans[0].get_tag("out.port") == "5433"
 
-        assert spans[1].get_tag("query") == "SELECT * FROM test_table;"
+        assert spans[1].resource == "SELECT * FROM test_table;"
 
     def test_execute_exception(self, test_conn, test_tracer):
         """Exceptions should result in appropriate span tagging."""
@@ -223,7 +223,7 @@ class TestVertica(object):
         assert spans[0].get_tag(errors.ERROR_TYPE) == error_type
         assert spans[0].get_tag(errors.ERROR_STACK)
 
-        assert spans[1].get_tag("query") == "COMMIT;"
+        assert spans[1].resource == "COMMIT;"
 
     def test_rowcount_oddity(self, test_conn, test_tracer):
         """Vertica treats rowcount specially. Ensure we handle it.
@@ -294,7 +294,7 @@ class TestVertica(object):
         assert spans[1].name == "vertica.nextset"
         assert spans[1].get_metric("db.rowcount") == -1
         assert spans[2].name == "vertica.query"
-        assert spans[2].get_tag("query") == "COMMIT;"
+        assert spans[2].resource == "COMMIT;"
 
     def test_copy(self, test_conn, test_tracer):
         """cursor.copy() should be traced."""
@@ -312,9 +312,9 @@ class TestVertica(object):
         # check all the rowcounts
         assert spans[0].name == "vertica.copy"
         query = "COPY test_table (a, b) FROM STDIN DELIMITER ','"
-        assert spans[0].get_tag("query") == query
+        assert spans[0].resource == query
         assert spans[1].name == "vertica.query"
-        assert spans[1].get_tag("query") == "COMMIT;"
+        assert spans[1].resource == "COMMIT;"
 
     def test_opentracing(self, test_conn, test_tracer):
         """Ensure OpenTracing works with vertica."""
@@ -339,6 +339,6 @@ class TestVertica(object):
         assert dd_span.name == "vertica.query"
         assert dd_span.get_metric("db.rowcount") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
-        assert dd_span.get_tag("query") == query
+        assert dd_span.resource == query
         assert dd_span.get_tag("out.host") == "127.0.0.1"
         assert dd_span.get_tag("out.port") == "5433"

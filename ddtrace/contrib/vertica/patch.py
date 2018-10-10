@@ -1,4 +1,6 @@
 import importlib
+import logging
+
 import wrapt
 
 import ddtrace
@@ -16,6 +18,8 @@ What this means is that this approach completely solves our patching problem as
 well. wrapt will hook into the module import system for the patches that we
 provide.
 """
+
+log = logging.getLogger(__name__)
 
 _PATCHED = False
 
@@ -123,7 +127,15 @@ def _uninstall(config):
     for patch_class_path in config["patch"]:
         patch_mod, _, patch_class = patch_class_path.rpartition(".")
         mod = importlib.import_module(patch_mod)
-        cls = getattr(mod, patch_class)
+        cls = getattr(mod, patch_class, None)
+
+        if not cls:
+            log.debug(
+                """
+                Unable to find corresponding class for tracing configuration.
+                This version may not be supported.
+                """
+            )
 
         for patch_routine in config["patch"][patch_class_path]["routines"]:
             unwrap(cls, patch_routine)
