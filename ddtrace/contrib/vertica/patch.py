@@ -11,13 +11,6 @@ from ddtrace.utils.wrappers import unwrap
 from .constants import APP
 from ...ext import db as dbx, sql
 
-"""
-Note: we DO NOT import the library to be patched at all!
-
-What this means is that this approach completely solves our patching problem as
-well. wrapt will hook into the module import system for the patches that we
-provide.
-"""
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +33,7 @@ def fetch_span_end(instance, result, span, conf, *args, **kwargs):
     span.set_metric(dbx.ROWCOUNT, instance.rowcount)
 
 
-def cursor_after(instance, cursor, span, conf, *args, **kwargs):
+def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     tags = {}
     tags[net.TARGET_HOST] = instance.options["host"]
     tags[net.TARGET_PORT] = instance.options["port"]
@@ -69,8 +62,11 @@ config._add(
         "patch": {
             "vertica_python.vertica.connection.Connection": {
                 "routines": {
-                    "cursor": {"trace_enabled": False, "span_end": cursor_after}
-                }
+                    "cursor": {
+                        "trace_enabled": False,
+                        "span_end": cursor_span_end,
+                    },
+                },
             },
             "vertica_python.vertica.cursor.Cursor": {
                 "routines": {
@@ -100,7 +96,7 @@ config._add(
                         "span_type": "vertica",
                         "span_end": fetch_span_end,
                     },
-                }
+                },
             },
         },
     },
@@ -136,6 +132,7 @@ def _uninstall(config):
                 This version may not be supported.
                 """
             )
+            continue
 
         for patch_routine in config["patch"][patch_class_path]["routines"]:
             unwrap(cls, patch_routine)
@@ -164,7 +161,7 @@ def _install_init(patch_item, patch_class, patch_mod, config):
     # patch the __init__ of the class with a Pin instance containing the defaults
     @wrapt.patch_function_wrapper(patch_mod, patch_class_routine)
     def init_wrapper(wrapped, instance, args, kwargs):
-        wrapped(*args, **kwargs)
+        r = wrapped(*args, **kwargs)
 
         # create and attach a pin with the defaults
         Pin(
@@ -175,6 +172,7 @@ def _install_init(patch_item, patch_class, patch_mod, config):
             tracer=config.get("tracer", ddtrace.tracer),
             _config=config["patch"][patch_item],
         ).onto(instance)
+        return r
 
 
 def _install_routine(patch_routine, patch_class, patch_mod, config):
@@ -185,42 +183,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
         # TODO?: remove Pin dependence
         pin = Pin.get_from(instance)
 
-        # TODO: inheritance problem with pins:
-        # Say we have a base class B and child class C:
-        # class B:
-        #   def my_method(self):
-        #     pass
-        # class C(B):
-        #   pass
-        #
-        # with tracing config:
-        #  'patch': {
-        #     'B': {
-        #       'routines': {
-        #         'my_method: {...}
-        #       }
-        #     },
-        #     'C': {}  # does not contain 'my_method'
-        #  }
-        # and an instance `c`:
-        # c = C()
-        # c.my_method()
-        #
-        # An instance of either will have a pin attached so that
-        # the user can override specific configuration for that
-        # instance.
-        #
-        # The pins will contain the config for the instance which
-        # they are attached:
-        #   PinB._config == { 'routines: { 'my_method: { ... } } }
-        #   PinC._config == { }
-        #
-        # The problem here is that at this point in the wrapper
-        # when c.my_method() is called we have an instance of C and
-        # a pin from C, but require the config from B.
-        #
-        # Possible solution: follow inheritance and look for config
-        # on a parent. Can we use normal python inheritance somehow?
         if patch_routine in pin._config["routines"]:
             conf = pin._config["routines"][patch_routine]
         else:
