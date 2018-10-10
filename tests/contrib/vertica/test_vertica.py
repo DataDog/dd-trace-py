@@ -14,11 +14,8 @@ from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
-from .fixtures import test_conn, test_tracer
+from .fixtures import test_conn, test_tracer, TEST_TABLE
 from .utils import override_config
-
-
-TEST_TABLE = "test_table"
 
 
 class TestVerticaPatching(object):
@@ -34,16 +31,22 @@ class TestVerticaPatching(object):
     def test_patch_after_import(self):
         """Patching _after_ the import will not work because we hook into
         the module import system.
+
+        Vertica uses a local reference to `Cursor` which won't get patched
+        if we call `patch` after the module has already been imported.
         """
         import vertica_python
 
-        patch()
-
-        # use a patched method from each class as indicators
-        assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
-        assert isinstance(
+        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
+        assert not isinstance(
             vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy
         )
+
+        patch()
+
+        conn = vertica_python.connect(**VERTICA_CONFIG)
+        cursor = conn.cursor()
+        assert not isinstance(cursor, wrapt.ObjectProxy)
 
     def test_patch_before_import(self):
         patch()
