@@ -658,6 +658,25 @@ jobs:
             - rediscluster.results
       - *save_cache_step
 
+  vertica:
+    docker:
+      - *test_runner
+      - image: sumitchawla/vertica
+        env:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e wait vertica
+      - run: tox -e 'vertica_contrib-{py27,py34,py35,py36}-vertica{060,070}' --result-json /tmp/vertica.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - vertica.results
+      - *save_cache_step
+
   sqlite3:
     docker:
       - *test_runner
@@ -810,6 +829,7 @@ workflows:
       - rediscluster
       - sqlite3
       - msgpack
+      - vertica
       - build_docs
       - wait_all_tests:
           requires:
@@ -852,6 +872,7 @@ workflows:
             - rediscluster
             - sqlite3
             - msgpack
+            - vertica
             - build_docs
       - deploy_dev:
           requires:
