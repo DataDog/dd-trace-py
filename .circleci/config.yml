@@ -382,6 +382,19 @@ jobs:
             - grpc.results
       - *save_cache_step
 
+  http_tests:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'http_tests-{py27,py34,py35,py36}' --result-json /tmp/http_tests.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - http_tests.results
+      - *save_cache_step
+
   mysqlconnector:
     docker:
       - *test_runner
@@ -835,8 +848,9 @@ workflows:
       - django
       - flask
       - gevent
-      - httplib
       - grpc
+      - httplib
+      - http_tests
       - mongoengine
       - mysqlconnector
       - mysqlpython
@@ -882,6 +896,7 @@ workflows:
             - gevent
             - grpc
             - httplib
+            - http_tests
             - mongoengine
             - mysqlconnector
             - mysqlpython
