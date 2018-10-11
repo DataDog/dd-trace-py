@@ -138,12 +138,13 @@ class TestVertica(object):
         test_tracer = get_dummy_tracer()
 
         conn = vertica_python.connect(**VERTICA_CONFIG)
-        Pin.override(conn, tracer=test_tracer)
+        Pin.override(conn, service="mycustomservice", tracer=test_tracer)
         conn.cursor()  # should be traced now
         conn.close()
         spans = test_tracer.writer.pop()
         assert len(spans) == 1
         assert spans[0].name == "get_cursor"
+        assert spans[0].service == "mycustomservice"
 
     def test_execute_metadata(self, test_conn, test_tracer):
         """Metadata related to an `execute` call should be captured."""
