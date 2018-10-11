@@ -25,6 +25,7 @@ class Config(object):
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
+        self.http = HttpConfig()
 
     def __getattr__(self, name):
         if name not in self._config:
@@ -77,3 +78,58 @@ class Config(object):
         cls = self.__class__
         integrations = ', '.join(self._config.keys())
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
+
+
+class HttpConfig(object):
+    """Configuration object that expose an API to set and retrieve both global and integration specific settings
+    related to the http context.
+    """
+
+    _traced_headers = 'traced_headers'
+
+    def __init__(self):
+        self._integrations_config = {}
+        self._global_config = {}
+
+    def trace_headers(self, *args, **kwargs):
+        """Registers a set of headers to be traced at global level or integration level.
+        :param args: the list of headers names
+        :type args: list of str
+        :param integrations: if None this setting will apply to all the integrations, otherwise only to the specific
+                             integration
+        :type integrations: str or list of str
+        :return: self
+        :rtype: HttpConfig
+        """
+        normalized_header_names = list([header.strip().lower() for header in args])
+        integrations = kwargs.get('integrations', None)
+        normalized_integrations = [integrations] if isinstance(integrations, str) else integrations or []
+        if not normalized_integrations:
+            self._set_config_key(self._global_config, normalized_header_names, self._traced_headers)
+        else:
+            for integration in normalized_integrations:
+                self._set_config_key(self._integrations_config, normalized_header_names, integration,
+                                     self._traced_headers)
+        return self
+
+    def get_integration_traced_headers(self, integration):
+        """Returns a set of headers that are set for tracing for the specified integration.
+        :param integration: the integration to retrieve the list of traced headers for.
+        :type integration: str
+        :return: the set of activated headers for tracing
+        :rtype: set of str
+        """
+        global_headers = self._global_config.get(self._traced_headers, [])
+        integration_headers = self._integrations_config.get(integration, {}).get(self._traced_headers, [])
+        return set(integration_headers + global_headers)
+
+    @staticmethod
+    def _set_config_key(config, value, *args):
+        """Utility method to set a value at any dept in a dictionary"""
+        current = config
+        for level in args[:-1]:
+            # we create dict until the expected level
+            if not current.get(level, None):
+                current[level] = {}
+            current = current[level]
+        current[args[-1]] = value
