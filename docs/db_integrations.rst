@@ -143,3 +143,10 @@ SQLite
 ------
 
 .. automodule:: ddtrace.contrib.sqlite3
+
+.. _vertica:
+
+Vertica
+-------
+
+.. automodule:: ddtrace.contrib.vertica
