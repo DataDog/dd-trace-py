@@ -20,7 +20,7 @@ from .utils import override_config
 
 class TestVerticaPatching(object):
     def test_not_patched(self):
-        """Ensure that vertica is not patched somewhere before our tests"""
+        """Ensure that vertica is not patched somewhere before our tests."""
         import vertica_python
 
         assert not isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
@@ -96,9 +96,6 @@ class TestVerticaPatching(object):
 
 
 class TestVertica(object):
-    # def setup_method(self, method):
-    #     patch()
-
     def teardown_method(self, method):
         unpatch()
 
@@ -113,8 +110,8 @@ class TestVertica(object):
         conn = vertica_python.connect(**VERTICA_CONFIG)
         cur = conn.cursor()
         Pin.override(cur, tracer=test_tracer)
-        cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
-        conn.close()
+        with conn:
+            cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
         spans = test_tracer.writer.pop()
         assert len(spans) == 1
         assert spans[0].service == "test_svc_name"
@@ -154,9 +151,9 @@ class TestVertica(object):
 
         Pin.override(cur, tracer=test_tracer)
 
-        cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-        cur.execute("SELECT * FROM {};".format(TEST_TABLE))
-        conn.close()
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = test_tracer.writer.pop()
         assert len(spans) == 2
@@ -182,9 +179,9 @@ class TestVertica(object):
         test_tracer = get_dummy_tracer()
         Pin.override(cur, tracer=test_tracer)
 
-        cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
-        cur.execute("SELECT * FROM {};".format(TEST_TABLE))
-        conn.close()
+        with conn:
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+            cur.execute("SELECT * FROM {};".format(TEST_TABLE))
 
         spans = test_tracer.writer.pop()
         assert len(spans) == 2
@@ -206,8 +203,6 @@ class TestVertica(object):
         from vertica_python.errors import VerticaSyntaxError
 
         conn, cur = test_conn
-
-        Pin.override(cur, tracer=test_tracer)
 
         with conn, pytest.raises(VerticaSyntaxError):
             cur.execute("INVALID QUERY")
