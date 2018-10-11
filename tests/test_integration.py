@@ -114,6 +114,8 @@ class TestWorkers(TestCase):
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
 
+    # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
+    @skip('Writer flush intervals are impossible to time correctly to make this test not flaky')
     def test_worker_multiple_traces(self):
         # make a single send() if multiple traces are created before the flush interval
         tracer = self.tracer
