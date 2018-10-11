@@ -26,6 +26,18 @@ TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'
 MIDDLEWARE = 'MIDDLEWARE'
 MIDDLEWARE_CLASSES = 'MIDDLEWARE_CLASSES'
 
+# Default views list available from:
+#   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/views/defaults.py
+# DEV: Django doesn't call `process_view` when falling back to one of these internal error handling views
+# DEV: We only use these names when `span.resource == 'unknown'` and we have one of these status codes
+_django_default_views = {
+    400: 'django.views.defaults.bad_request',
+    403: 'django.views.defaults.permission_denied',
+    404: 'django.views.defaults.page_not_found',
+    500: 'django.views.defaults.server_error',
+}
+
+
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
     If middleware cannot be found, returns None for the middleware collection."""
@@ -120,6 +132,12 @@ class TraceMiddleware(InstrumentationMixin):
                     # remove any existing stack trace since it must have been
                     # handled appropriately
                     span._remove_exc_info()
+
+                # Set resource name to django default view name for known status codes
+                # DEV: We get here because django won't call `process_view` when one of it's
+                #   internal error views handles a response
+                if span.resource == 'unknown':
+                    span.resource = _django_default_views.get(response.status_code, 'unknown')
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
