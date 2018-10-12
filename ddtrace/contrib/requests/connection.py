@@ -58,7 +58,7 @@ def _wrap_request(func, instance, args, kwargs):
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
-        span.service = _extract_service_name(instance, span, netloc=parsed_uri.netloc)
+        span.service = _extract_service_name(instance, span, netloc=parsed_uri.hostname)
 
         # propagate distributed tracing headers
         if config.get_from(instance).get('distributed_tracing'):
