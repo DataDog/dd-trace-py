@@ -6,7 +6,7 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 
 def patch():

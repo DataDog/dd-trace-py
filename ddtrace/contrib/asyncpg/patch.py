@@ -11,7 +11,7 @@ import wrapt
 from ddtrace.ext import net, db
 from ddtrace.pin import Pin
 from .connection import AIOTracedProtocol
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 from ...ext import sql
 
 
