@@ -33,7 +33,7 @@ def store_response_headers(headers, span, white_list):
 
 def _store_headers(headers, span, white_list, request_or_response):
     """
-    :param headers: A callback that provides http headers to be stored in the span
+    :param headers: A dict of http headers to be stored in the span
     :param span: The Span instance where tags will be store
     :type span: ddtrace.span.Span
     :param white_list: the list of white listed names. Accepts '*' meaning 'anything'.
