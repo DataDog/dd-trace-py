@@ -70,6 +70,7 @@ class TestHeaders(object):
     def test_whitelist_match(self, span):
         store_response_headers({
             'Content-Type': 'some;value',
+            'No-Match': 'some;other;value',
         }, span, ['conten*ype'])
         assert span.get_tag('http.response.headers.content_type') == 'some;value'
 
