@@ -139,7 +139,7 @@ class TraceMiddleware(InstrumentationMixin):
                 if span.resource == 'unknown':
                     try:
                         # Attempt to lookup the view function from the url resolver
-                        #   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/core/handlers/base.py#L104-L113
+                        #   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/core/handlers/base.py#L104-L113  # noqa
                         urlconf = None
                         if hasattr(request, 'urlconf'):
                             urlconf = request.urlconf
@@ -155,7 +155,8 @@ class TraceMiddleware(InstrumentationMixin):
                     except Exception:
                         log.debug('error determining request view function', exc_info=True)
 
-                        # If the view could not be found, try to set from a static list of known internal error handler views
+                        # If the view could not be found, try to set from a static list of
+                        # known internal error handler views
                         span.resource = _django_default_views.get(response.status_code, 'unknown')
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
