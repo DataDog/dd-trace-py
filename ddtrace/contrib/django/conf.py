@@ -31,6 +31,7 @@ DEFAULTS = {
     'INSTRUMENT_TEMPLATE': True,
     'DEFAULT_DATABASE_PREFIX': '',
     'DEFAULT_SERVICE': 'django',
+    'DEFAULT_CACHE_SERVICE': '',
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
     'TAGS': {},

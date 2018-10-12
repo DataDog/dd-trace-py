@@ -17,6 +17,7 @@ from sqlalchemy import (
 from ddtrace.contrib.sqlalchemy import trace_engine
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
@@ -168,3 +169,34 @@ class SQLAlchemyTestMixin(object):
             self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
         }
         eq_(services, expected)
+
+    def test_opentracing(self):
+        """Ensure that sqlalchemy works with the opentracer."""
+        ot_tracer = init_tracer('sqlalch_svc', self.tracer)
+
+        with ot_tracer.start_active_span('sqlalch_op'):
+            with self.connection() as conn:
+                rows = conn.execute('SELECT * FROM players').fetchall()
+                eq_(len(rows), 0)
+
+        traces = self.tracer.writer.pop_traces()
+        # trace composition
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'sqlalch_op')
+        eq_(ot_span.service, 'sqlalch_svc')
+
+        # span fields
+        eq_(dd_span.name, '{}.query'.format(self.VENDOR))
+        eq_(dd_span.service, self.SERVICE)
+        eq_(dd_span.resource, 'SELECT * FROM players')
+        eq_(dd_span.get_tag('sql.db'), self.SQL_DB)
+        eq_(dd_span.span_type, 'sql')
+        eq_(dd_span.error, 0)
+        ok_(dd_span.duration > 0)

@@ -2,7 +2,7 @@
 The Celery integration will trace all tasks that are executed in the
 background. Functions and class based tasks are traced only if the Celery API
 is used, so calling the function directly or via the ``run()`` method will not
-generate traces. On the other hand, calling ``apply()``, ``apply_async()`` and ``delay()``
+generate traces. However, calling ``apply()``, ``apply_async()`` and ``delay()``
 will produce tracing data. To trace your Celery application, call the patch method::
 
     import celery
@@ -22,13 +22,7 @@ will produce tracing data. To trace your Celery application, call the patch meth
 
 To change Celery service name, you can use the ``Config`` API as follows::
 
-    from ddtrace import Pin
-
-    app = celery.Celery()
-
-    @app.task
-    def compute_stats():
-        pass
+    from ddtrace import config
 
     # change service names for producers and workers
     config.celery['producer_service_name'] = 'task-queue'

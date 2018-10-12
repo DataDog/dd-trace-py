@@ -37,6 +37,11 @@ REDIS_CONFIG = {
     'port': int(os.getenv("TEST_REDIS_PORT", 6379)),
 }
 
+REDISCLUSTER_CONFIG = {
+    'host': '127.0.0.1',
+    'ports': os.getenv('TEST_REDISCLUSTER_PORTS', '7000,7001,7002,7003,7004,7005'),
+}
+
 MONGO_CONFIG = {
     'port': int(os.getenv("TEST_MONGO_PORT", 27017)),
 }
@@ -44,4 +49,12 @@ MONGO_CONFIG = {
 MEMCACHED_CONFIG = {
     'host' : os.getenv('TEST_MEMCACHED_HOST', '127.0.0.1'),
     'port': int(os.getenv("TEST_MEMCACHED_PORT", 11211)),
+}
+
+VERTICA_CONFIG = {
+    'host': os.getenv('TEST_VERTICA_HOST', '127.0.0.1'),
+    'port': os.getenv('TEST_VERTICA_PORT', 5433),
+    'user': os.getenv('TEST_VERTICA_USER', 'dbadmin'),
+    'password': os.getenv('TEST_VERTICA_PASSWORD', 'abc123'),
+    'database': os.getenv('TEST_VERTICA_DATABASE', 'docker'),
 }

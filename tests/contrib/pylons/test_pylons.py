@@ -11,6 +11,7 @@ from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
+from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
@@ -54,6 +55,7 @@ class PylonsTestCase(TestCase):
         eq_(span.get_tag(errors.ERROR_MSG), None)
         eq_(span.get_tag(errors.ERROR_TYPE), None)
         eq_(span.get_tag(errors.ERROR_STACK), None)
+        eq_(span.span_type, 'http')
 
     def test_mw_exc_success(self):
         """Ensure exceptions can be properly handled by other middleware.
@@ -310,3 +312,28 @@ class PylonsTestCase(TestCase):
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
         eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+
+    def test_success_200_ot(self):
+        """OpenTracing version of test_success_200."""
+        ot_tracer = init_tracer('pylons_svc', self.tracer)
+
+        with ot_tracer.start_active_span('pylons_get'):
+            res = self.app.get(url_for(controller='root', action='index'))
+            eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'pylons_get')
+        eq_(ot_span.service, 'pylons_svc')
+
+        eq_(dd_span.service, 'web')
+        eq_(dd_span.resource, 'root.index')
+        eq_(dd_span.meta.get(http.STATUS_CODE), '200')
+        eq_(dd_span.error, 0)
