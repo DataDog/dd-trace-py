@@ -7,7 +7,7 @@ import pkg_resources
 from ddtrace import Pin, config
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
-from ...util import unwrap as _u
+from ...utils.wrappers import unwrap as _u
 
 # psycopg2 versions can end in `-betaN` where `N` is a number
 # in such cases we simply skip version specific patching
