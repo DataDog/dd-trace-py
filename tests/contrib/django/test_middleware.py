@@ -299,7 +299,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         """
         When making a request to an unknown url in django
             when we do not have a 404 view handler set
-                the default view handler is used
+                we set a resource name for the default view handler
         """
         response = self.client.get('/unknown-url')
         eq_(response.status_code, 404)
@@ -310,10 +310,12 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         sp_request = spans[0]
         sp_template = spans[1]
 
+        # Template
         # DEV: The template name is `unknown` because unless they define a `404.html`
         #   django generates the template from a string, which will not have a `Template.name` set
         eq_(sp_template.get_tag('django.template_name'), 'unknown')
 
+        # Request
         eq_(sp_request.get_tag('http.status_code'), '404')
         eq_(sp_request.get_tag('http.url'), '/unknown-url')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
