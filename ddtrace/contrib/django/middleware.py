@@ -2,7 +2,7 @@ import logging
 
 # project
 from .conf import settings
-from .compat import user_is_authenticated
+from .compat import user_is_authenticated, get_resolver
 
 from ...ext import http
 from ...contrib import func_name
@@ -133,11 +133,30 @@ class TraceMiddleware(InstrumentationMixin):
                     # handled appropriately
                     span._remove_exc_info()
 
-                # Set resource name to django default view name for known status codes
-                # DEV: We get here because django won't call `process_view` when one of it's
-                #   internal error views handles a response
+                # If `process_view` was not called, try to determine the correct `span.resource` to set
+                # DEV: `process_view` won't get called if a middle `process_request` returns an HttpResponse
+                # DEV: `process_view` won't get called when internal error handlers are used (e.g. for 404 responses)
                 if span.resource == 'unknown':
-                    span.resource = _django_default_views.get(response.status_code, 'unknown')
+                    try:
+                        # Attempt to lookup the view function from the url resolver
+                        #   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/core/handlers/base.py#L104-L113
+                        urlconf = None
+                        if hasattr(request, 'urlconf'):
+                            urlconf = request.urlconf
+                        resolver = get_resolver(urlconf)
+
+                        # Try to resolve the Django view for handling this request
+                        if getattr(request, 'request_match', None):
+                            request_match = request.request_match
+                        else:
+                            # This may raise a `django.urls.exceptions.Resolver404` exception
+                            request_match = resolver.resolve(request.path_info)
+                        span.resource = func_name(request_match.func)
+                    except Exception:
+                        log.debug('error determining request view function', exc_info=True)
+
+                        # If the view could not be found, try to set from a static list of known internal error handler views
+                        span.resource = _django_default_views.get(response.status_code, 'unknown')
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
