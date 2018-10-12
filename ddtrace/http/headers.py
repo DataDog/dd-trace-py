@@ -40,8 +40,10 @@ def _store_headers(headers, span, white_list, request_or_response):
     :type white_list: list of str
     :param request_or_response: The context of the headers: request|response
     """
-    headers = headers  # type: dict
     if not isinstance(headers, dict):
+        return
+
+    if not white_list:
         return
 
     for header_name, header_value in headers.items():

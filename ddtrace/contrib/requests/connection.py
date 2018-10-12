@@ -2,6 +2,7 @@ import logging
 import ddtrace
 
 from ddtrace import config
+from ddtrace.http import store_request_headers, store_response_headers
 
 from .constants import DEFAULT_SERVICE
 
@@ -55,6 +56,7 @@ def _wrap_request(func, instance, args, kwargs):
     url = kwargs.get('url') or args[1]
     headers = kwargs.get('headers', {})
     parsed_uri = parse.urlparse(url)
+    traced_headers_whitelist = config.http.get_integration_traced_headers('requests')
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
@@ -69,9 +71,17 @@ def _wrap_request(func, instance, args, kwargs):
             propagator.inject(span.context, headers)
             kwargs['headers'] = headers
 
+        # Storing request headers in the span
+        store_request_headers(headers, span, traced_headers_whitelist)
+
         response = None
         try:
             response = func(*args, **kwargs)
+
+            # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
+            # requests custom structure, that we convert to a dict
+            store_response_headers(dict(getattr(response, 'headers', {}).items()), span, traced_headers_whitelist)
+
             return response
         finally:
             try:

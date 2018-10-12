@@ -9,6 +9,14 @@ class TestHeaders(object):
     def span(self):
         yield Span(tracer, 'some_span')
 
+    def test_it_does_not_break_if_no_headers(self, span):
+        store_request_headers(None, span, ['*'])
+        store_response_headers(None, span, ['*'])
+
+    def test_it_does_not_break_if_headers_are_not_a_dict(self, span):
+        store_request_headers(list(), span, ['*'])
+        store_response_headers(list(), span, ['*'])
+
     def test_store_multiple_request_headers_as_dict(self, span):
         store_request_headers({
             'Content-Type': 'some;value',
