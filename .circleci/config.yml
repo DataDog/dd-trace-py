@@ -568,7 +568,6 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres mysql
-
       - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
       - persist_to_workspace:
           root: /tmp
@@ -630,27 +629,22 @@ jobs:
 
   asyncpg:
     docker:
-      - image: datadog/docker-library:dd_trace_py_1_0_0
-      - image: postgres:9.5
+      - *test_runner
+      - image: postgres:10.5-alpine
         env:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
             - POSTGRES_DB=postgres
     steps:
       - checkout
-      - restore_cache:
-          keys:
-              - tox-cache-asyncpg-{{ checksum "tox.ini" }}
+      - *restore_cache_step
       - run: tox -e 'wait' postgres
-      - run: tox -e '{py35,py36}-asyncpg{014}' --result-json /tmp/asyncpg.results
+      - run: tox -e 'asyncpg_contrib-{py35,py36}-asyncpg{014}' --result-json /tmp/asyncpg.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - asyncpg.results
-      - save_cache:
-          key: tox-cache-asyncpg-{{ checksum "tox.ini" }}
-          paths:
-            - .tox
+      - *save_cache_step
 
   redis:
     docker:
