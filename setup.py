@@ -59,7 +59,6 @@ setup(
     install_requires=[
         "wrapt",
         "msgpack-python",
-        "setuptools",  # for pkg_resources.parse_version
     ],
     extras_require={
         # users can include opentracing by having:
