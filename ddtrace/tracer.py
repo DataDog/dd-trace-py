@@ -288,6 +288,21 @@ class Tracer(object):
             span_type=span_type,
         )
 
+    def current_root_span(self):
+        """Returns the root span of the current context.
+
+        This is useful for attaching information related to the trace as a
+        whole without needing to add to child spans.
+
+        Usage is simple, for example::
+
+            # get the root span
+            root_span = tracer.current_root_span()
+            # set the host just once on the root span
+            root_span.set_tag('host', '127.0.0.1')
+        """
+        return self.get_call_context().get_current_root_span()
+
     def current_span(self):
         """
         Return the active span for the current call context or ``None``
@@ -437,6 +452,6 @@ class Tracer(object):
         """ Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
-        :param str tags: dict of tags to set at tracer level
+        :param dict tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)

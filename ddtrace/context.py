@@ -90,6 +90,12 @@ class Context(object):
             new_ctx._current_span = self._current_span
             return new_ctx
 
+    def get_current_root_span(self):
+        """
+        Return the root span of the context or None if it does not exist.
+        """
+        return self._trace[0] if len(self._trace) > 0 else None
+
     def get_current_span(self):
         """
         Return the last active span that corresponds to the last inserted

@@ -130,3 +130,26 @@ def trace_failure(*args, **kwargs):
         if ex is None:
             return
         span.set_exc_info(ex.type, ex.exception, ex.tb)
+
+
+def trace_retry(*args, **kwargs):
+    # safe-guard to avoid crashes in case the signals API
+    # changes in Celery
+    task = kwargs.get('sender')
+    context = kwargs.get('request')
+    if task is None or context is None:
+        log.debug('unable to extract the Task or the Context. This version of Celery may not be supported.')
+        return
+
+    reason = kwargs.get('reason')
+    if not reason:
+        log.debug('unable to extract the retry reason. This version of Celery may not be supported.')
+        return
+
+    span = retrieve_span(task, context.id)
+    if span is None:
+        return
+
+    # Add retry reason metadata to span
+    # DEV: Use `str(reason)` instead of `reason.message` in case we get something that isn't an `Exception`
+    span.set_tag(c.TASK_RETRY_REASON_KEY, str(reason))

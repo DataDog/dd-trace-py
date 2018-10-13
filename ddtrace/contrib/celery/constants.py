@@ -12,6 +12,7 @@ TASK_TAG_KEY = 'celery.action'
 TASK_APPLY = 'apply'
 TASK_APPLY_ASYNC = 'apply_async'
 TASK_RUN = 'run'
+TASK_RETRY_REASON_KEY = 'celery.retry.reason'
 
 # Service info
 APP = 'celery'
