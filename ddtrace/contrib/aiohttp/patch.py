@@ -38,6 +38,14 @@ def _get_url_obj(obj):
     return url_obj
 
 
+def _get_service_fallback(pin):
+    span = pin.tracer.current_span()
+    if span and span.service:
+        return span.service
+
+    return pin.service
+
+
 def _set_request_tags(span, url):
     if (url.scheme == 'http' and url.port == 80) or \
             (url.scheme == 'https' and url.port == 443):
@@ -57,25 +65,27 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin.onto(self)
 
     @asyncio.coroutine
-    def connect(self, req):
+    def connect(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace('{}.connect'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE,
-                              service=pin.service) as span:
+                              service=_get_service_fallback(pin)) as span:
             _set_request_tags(span, _get_url_obj(req))
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
-            result = yield from self.__wrapped__.__class__.connect(self, req)  # noqa: E999
+            result = yield from self.__wrapped__.__class__.connect(
+                self, req, *args, **kwargs)  # noqa: E999
             return result
 
     @asyncio.coroutine
-    def _create_connection(self, req):
+    def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace(
                 '{}._create_connection'.format(self.__class__.__name__),
                 span_type=ext_http.TYPE, service=pin.service) as span:
             _set_request_tags(span, _get_url_obj(req))
-            result = yield from self.__wrapped__._create_connection(req)  # noqa: E999
+            result = yield from self.__wrapped__._create_connection(
+                req, *args, **kwargs)  # noqa: E999
             return result
 
 
@@ -105,7 +115,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         # This will parent correctly as we'll always have an enclosing span
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE,
-                              service=pin.service) as span:
+                              service=_get_service_fallback(pin)) as span:
             _set_request_tags(span, _get_url_obj(self))
 
             resp = yield from self.__wrapped__.start(*args, **kwargs)  # noqa: E999
@@ -126,7 +136,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         # This may not have an immediate parent as the request completed
         with pin.tracer.trace('{}.read'.format(self.__class__.__name__),
-                              service=pin.service,
+                              service=_get_service_fallback(pin),
                               span_type=ext_http.TYPE) as span:
 
             if self._self_parent_trace_id:
@@ -247,8 +257,9 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
     # Create a new span and attach to this instance (so we can
     # retrieve/update/close later on the response)
     # Note that we aren't tracing redirects
-    span = pin.tracer.trace('ClientSession.request', service=pin.service,
-                            span_type=ext_http.TYPE)
+    span = pin.tracer.trace(
+        'ClientSession.request', service=_get_service_fallback(pin),
+        span_type=ext_http.TYPE)
 
     if enable_distributed:
         headers = kwargs.get('headers', {})
