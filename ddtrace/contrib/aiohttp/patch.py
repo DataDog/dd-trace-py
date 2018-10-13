@@ -86,8 +86,8 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         with pin.tracer.trace(
                 '{}._create_connection'.format(self.__class__.__name__),
-                 span_type=ext_http.TYPE,
-                 service=_get_service_fallback(pin)) as span:
+                span_type=ext_http.TYPE,
+                service=_get_service_fallback(pin)) as span:
             _set_request_tags(span, _get_url_obj(req))
             result = yield from self.__wrapped__._create_connection(  # noqa: E999
                 req, *args, **kwargs)
