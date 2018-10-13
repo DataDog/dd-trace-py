@@ -77,17 +77,20 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             _set_request_tags(span, _get_url_obj(req))
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
-            result = yield from self.__wrapped__.__class__.connect(self, req, *args, **kwargs)  # noqa: E999
+            result = yield from self.__wrapped__.__class__.connect(
+                self, req, *args, **kwargs)  # noqa: E999
             return result
 
     @asyncio.coroutine
     def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
-        with pin.tracer.trace('{}._create_connection'.format(self.__class__.__name__),
-                              span_type=ext_http.TYPE,
-                              service=_get_service_fallback(pin)) as span:
+        with pin.tracer.trace(
+                '{}._create_connection'.format(self.__class__.__name__),
+                 span_type=ext_http.TYPE,
+                 service=_get_service_fallback(pin)) as span:
             _set_request_tags(span, _get_url_obj(req))
-            result = yield from self.__wrapped__._create_connection(req, *args, **kwargs)  # noqa: E999
+            result = yield from self.__wrapped__._create_connection(
+                req, *args, **kwargs)  # noqa: E999
             return result
 
 
@@ -162,7 +165,8 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         @asyncio.coroutine
         def __aexit__(self, exc_type, exc_val, exc_tb):
-            result = yield from self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)  # noqa: E999
+            result = yield from self.__wrapped__.__aexit__(exc_type,
+                                                           exc_val, exc_tb)  # noqa: E999
             return result
 
 
@@ -324,7 +328,8 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
         * aiohttp_jinja2
         * aiohttp ClientSession request
 
-    :param trace_context: set to true to expand span to life of response context
+    :param trace_context: set to true to expand span to life of response
+                          context
     :param trace_headers: set of headers to trace
     :param tracer: tracer to use
     :param enable_distributed: enable aiohttp client to set parent span IDs in
