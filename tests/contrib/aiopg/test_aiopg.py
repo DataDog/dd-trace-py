@@ -93,19 +93,26 @@ class TestPsycopgPatch(AsyncioTestCase):
             rows = yield from cursor.fetchall()
             eq_(rows, [('foobarblah',)])
         spans = writer.pop()
-        eq_(len(spans), 2)
-        ot_span, dd_span = spans
+        eq_(len(spans), 3)
+        ot_span, dd_execute_span, dd_fetchall_span = spans
         # confirm the parenting
         eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
         eq_(ot_span.name, 'aiopg_op')
         eq_(ot_span.service, 'aiopg_svc')
-        eq_(dd_span.name, 'postgres.query')
-        eq_(dd_span.resource, q)
-        eq_(dd_span.service, service)
-        eq_(dd_span.meta['sql.query'], q)
-        eq_(dd_span.error, 0)
-        eq_(dd_span.span_type, 'sql')
+
+        eq_(dd_execute_span.parent_id, ot_span.span_id)
+        eq_(dd_execute_span.name, 'postgres.execute')
+        eq_(dd_execute_span.resource, q)
+        eq_(dd_execute_span.service, service)
+        eq_(dd_execute_span.error, 0)
+        eq_(dd_execute_span.span_type, 'sql')
+
+        eq_(dd_fetchall_span.parent_id, ot_span.span_id)
+        eq_(dd_fetchall_span.name, 'postgres.fetchall')
+        eq_(dd_fetchall_span.resource, q)
+        eq_(dd_fetchall_span.service, service)
+        eq_(dd_fetchall_span.error, 0)
+        eq_(dd_fetchall_span.span_type, 'sql')
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
