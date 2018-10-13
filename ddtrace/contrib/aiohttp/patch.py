@@ -28,7 +28,6 @@ PY_35 = sys.version_info >= (3, 5)
 # NOTE: this will create a trace for the outer request, and a span for each
 #       connect (redirect), and optionally a span for the read of the body
 
-
 def _get_url_obj(obj):
     url_obj = obj.url
 
