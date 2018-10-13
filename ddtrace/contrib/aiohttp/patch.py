@@ -77,8 +77,8 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
             _set_request_tags(span, _get_url_obj(req))
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
-            result = yield from self.__wrapped__.__class__.connect(
-                self, req, *args, **kwargs)  # noqa: E999
+            result = yield from self.__wrapped__.__class__.connect(  # noqa: E999
+                self, req, *args, **kwargs)
             return result
 
     @asyncio.coroutine
@@ -89,8 +89,8 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
                  span_type=ext_http.TYPE,
                  service=_get_service_fallback(pin)) as span:
             _set_request_tags(span, _get_url_obj(req))
-            result = yield from self.__wrapped__._create_connection(
-                req, *args, **kwargs)  # noqa: E999
+            result = yield from self.__wrapped__._create_connection(  # noqa: E999
+                req, *args, **kwargs)
             return result
 
 
@@ -165,8 +165,8 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         @asyncio.coroutine
         def __aexit__(self, exc_type, exc_val, exc_tb):
-            result = yield from self.__wrapped__.__aexit__(exc_type,
-                                                           exc_val, exc_tb)  # noqa: E999
+            result = yield from self.__wrapped__.__aexit__(exc_type,  # noqa: E999
+                                                           exc_val, exc_tb)
             return result
 
 
