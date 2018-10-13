@@ -100,12 +100,13 @@ aiopg
 
 .. automodule:: ddtrace.contrib.aiopg
 
+.. _psycopg2:
+
 asyncpg
 ^^^^^
 
 .. automodule:: ddtrace.contrib.asyncpg
 
-.. _psycopg2:
 
 psycopg
 ^^^^^^^
