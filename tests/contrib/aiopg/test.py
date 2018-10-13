@@ -96,19 +96,26 @@ class AiopgTestCase(AsyncioTestCase):
             rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
         spans = writer.pop()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
+        assert len(spans) == 3
+        ot_span, dd_execute_span, dd_fetchall_span = spans
         # confirm the parenting
-        assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
+        assert ot_span.parent_id == None
         assert ot_span.name == 'aiopg_op'
         assert ot_span.service == 'aiopg_svc'
-        assert dd_span.name == 'postgres.query'
-        assert dd_span.resource == q
-        assert dd_span.service == service
-        assert dd_span.meta['sql.query'] == q
-        assert dd_span.error == 0
-        assert dd_span.span_type == 'sql'
+
+        assert dd_execute_span.parent_id == ot_span.span_id
+        assert dd_execute_span.name == 'postgres.execute'
+        assert dd_execute_span.resource == q
+        assert dd_execute_span.service == service
+        assert dd_execute_span.error == 0
+        assert dd_execute_span.span_type == 'sql'
+
+        assert dd_fetchall_span.parent_id == ot_span.span_id
+        assert dd_fetchall_span.name == 'postgres.fetchall'
+        assert dd_fetchall_span.resource == q
+        assert dd_fetchall_span.service == service
+        assert dd_fetchall_span.error == 0
+        assert dd_fetchall_span.span_type == 'sql'
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
