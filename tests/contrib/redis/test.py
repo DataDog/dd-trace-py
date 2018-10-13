@@ -5,6 +5,8 @@ from nose.tools import eq_, ok_
 from ddtrace import Pin, compat
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
+
+from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 
@@ -121,6 +123,37 @@ class TestRedisPatch(object):
         spans = writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
+
+    def test_opentracing(self):
+        """Ensure OpenTracing works with redis."""
+        conn, tracer = self.get_redis_and_tracer()
+
+        ot_tracer = init_tracer('redis_svc', tracer)
+
+        with ot_tracer.start_active_span('redis_get'):
+            us = conn.get('cheese')
+            eq_(us, None)
+
+        spans = tracer.writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'redis_get')
+        eq_(ot_span.service, 'redis_svc')
+
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, 'redis.command')
+        eq_(dd_span.span_type, 'redis')
+        eq_(dd_span.error, 0)
+        eq_(dd_span.get_tag('out.redis_db'), '0')
+        eq_(dd_span.get_tag('out.host'), 'localhost')
+        eq_(dd_span.get_tag('redis.raw_command'), u'GET cheese')
+        eq_(dd_span.get_metric('redis.args_length'), 2)
+        eq_(dd_span.resource, 'GET cheese')
 
 
 def _assert_pipeline_immediate(conn, tracer, service):

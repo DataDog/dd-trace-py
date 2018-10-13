@@ -3,7 +3,6 @@ import time
 
 # 3p
 import psycopg2
-from psycopg2 import _psycopg
 from psycopg2 import extensions
 from psycopg2 import extras
 
@@ -16,6 +15,7 @@ from ddtrace.contrib.psycopg.patch import patch, unpatch
 from ddtrace import Pin
 
 # testing
+from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 
@@ -84,6 +84,35 @@ class PsycopgCore(object):
         eq_(span.meta["out.host"], "localhost")
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
+
+    def test_opentracing_propagation(self):
+        # ensure OpenTracing plays well with our integration
+        query = "SELECT 'tracing'"
+        db, tracer = self._get_conn_and_tracer()
+        ot_tracer = init_tracer('psycopg-svc', tracer)
+
+        with ot_tracer.start_active_span('db.access'):
+            cursor = db.cursor()
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        eq_(rows, [('tracing',)])
+        spans = tracer.writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+        # check the OpenTracing span
+        eq_(ot_span.name, "db.access")
+        eq_(ot_span.service, "psycopg-svc")
+        # make sure the Datadog span is unaffected by OpenTracing
+        eq_(dd_span.name, "postgres.query")
+        eq_(dd_span.resource, query)
+        eq_(dd_span.service, 'postgres')
+        ok_(dd_span.get_tag("sql.query") is None)
+        eq_(dd_span.error, 0)
+        eq_(dd_span.span_type, "sql")
 
     @skipIf(PSYCOPG_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):

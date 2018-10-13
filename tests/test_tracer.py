@@ -4,7 +4,9 @@ tests for Tracer and utilities.
 
 import time
 from os import getpid
+import sys
 
+import mock
 from nose.tools import assert_raises, eq_, ok_
 from unittest.case import SkipTest
 
@@ -156,6 +158,24 @@ def test_tracer_wrap_multiple_calls():
     spans = writer.pop()
     eq_(len(spans), 2)
     assert spans[0].span_id != spans[1].span_id
+
+def test_tracer_wrap_span_nesting_current_root_span():
+    # Make sure that the current root span is correct
+    writer = DummyWriter()
+    tracer = Tracer()
+    tracer.writer = writer
+
+    @tracer.wrap('inner')
+    def inner():
+        eq_(tracer.current_root_span().name, 'outer')
+        pass
+    @tracer.wrap('outer')
+    def outer():
+        eq_(tracer.current_root_span().name, 'outer')
+        with tracer.trace('mid'):
+            eq_(tracer.current_root_span().name, 'outer')
+            inner()
+    outer()
 
 def test_tracer_wrap_span_nesting():
     # Make sure that nested spans have the correct parents
@@ -517,3 +537,16 @@ def get_dummy_tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
     return tracer
+
+
+def test_default_hostname_from_env():
+    # it should use default hostname from DATADOG_TRACE_AGENT_HOSTNAME if available
+    try:
+        with mock.patch.dict('os.environ', {'DATADOG_TRACE_AGENT_HOSTNAME': 'customhost'}):
+            del sys.modules['ddtrace.tracer']  # force reload of module
+            from ddtrace.tracer import Tracer
+            eq_('customhost', Tracer.DEFAULT_HOSTNAME)
+    finally:
+        del sys.modules['ddtrace.tracer']  # clean up our test module
+        from ddtrace.tracer import Tracer
+        eq_('localhost', Tracer.DEFAULT_HOSTNAME)

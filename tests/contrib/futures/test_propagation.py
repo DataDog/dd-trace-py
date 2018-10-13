@@ -6,6 +6,7 @@ from nose.tools import eq_, ok_
 
 from ddtrace.contrib.futures import patch, unpatch
 
+from tests.opentracer.utils import init_tracer
 from ...util import override_global_tracer
 from ...test_tracer import get_dummy_tracer
 
@@ -160,3 +161,33 @@ class PropagationTestCase(TestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 2)
+
+    def test_propagation_ot(self):
+        """OpenTracing version of test_propagation."""
+        # it must propagate the tracing context if available
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        def fn():
+            # an active context must be available
+            ok_(self.tracer.context_provider.active() is not None)
+            with self.tracer.trace('executor.thread'):
+                return 42
+
+        with override_global_tracer(self.tracer):
+            with ot_tracer.start_active_span('main.thread'):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future = executor.submit(fn)
+                    result = future.result()
+                    # assert the right result
+                    eq_(result, 42)
+
+        # the trace must be completed
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        main = traces[0][0]
+        executor = traces[0][1]
+
+        eq_(main.name, 'main.thread')
+        eq_(executor.name, 'executor.thread')
+        ok_(executor._parent is main)

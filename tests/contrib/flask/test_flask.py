@@ -1,135 +1,73 @@
 # -*- coding: utf-8 -*-
-# stdlib
 import time
-import logging
-import os
 import re
 
-# 3p
-from flask import Flask, render_template
-from nose.tools import eq_
+from nose.tools import eq_, ok_
+from unittest import TestCase
 
-
-# project
-from ddtrace import Tracer
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http, errors
-from ...test_tracer import DummyWriter
+
+from tests.opentracer.utils import init_tracer
+from .web import create_app
+from ...test_tracer import get_dummy_tracer
 
 
-log = logging.getLogger(__name__)
-
-# global writer tracer for the tests.
-writer = DummyWriter()
-tracer = Tracer()
-tracer.writer = writer
-
-
-class TestError(Exception): pass
-class HandleMe(Exception): pass
-
-
-# define a toy flask app.
-cur_dir = os.path.dirname(os.path.realpath(__file__))
-tmpl_path = os.path.join(cur_dir, 'test_templates')
-
-app = Flask(__name__, template_folder=tmpl_path)
-
-
-@app.route('/')
-def index():
-    return 'hello'
-
-
-@app.route('/error')
-def error():
-    raise TestError()
-
-@app.route('/handleme')
-def handle_me():
-    raise HandleMe()
-
-@app.route('/fatal')
-def fatal():
-    1 / 0
-
-
-@app.route('/tmpl')
-def tmpl():
-    return render_template('test.html', world="earth")
-
-
-@app.route('/tmpl/err')
-def tmpl_err():
-    return render_template('err.html')
-
-@app.route('/tmpl/render_err')
-def tmpl_render_err():
-    return render_template('render_err.html')
-
-@app.route('/child')
-def child():
-    with tracer.trace('child') as span:
-        span.set_tag('a', 'b')
-        return 'child'
-
-@app.route("/custom_span")
-def custom_span():
-    span = tracer.current_span()
-    assert span
-    span.resource = "overridden"
-    return 'hiya'
-
-
-def unicode_view():
-    return u'üŋïĉóđē'
-
-# DEV: Manually register endpoint so we can control the endpoint name
-app.add_url_rule(
-    u'/üŋïĉóđē',
-    u'üŋïĉóđē',
-    unicode_view,
-)
-
-
-@app.errorhandler(TestError)
-def handle_my_exception(e):
-    assert isinstance(e, TestError)
-    return 'error', 500
-
-@app.errorhandler(HandleMe)
-def err_to_202(e):
-    assert isinstance(e, HandleMe)
-    return 'handled', 202
-
-
-# add tracing to the app (we use a global app to help ensure multiple requests
-# work)
-service = "test.flask.service"
-assert not writer.pop()  # should always be empty
-traced_app = TraceMiddleware(app, tracer, service=service, distributed_tracing=True)
-
-# make the app testable
-app.config['TESTING'] = True
-app = app.test_client()
-
-
-class TestFlask(object):
+class TestFlask(TestCase):
+    """Ensures Flask is properly instrumented."""
 
     def setUp(self):
-        # ensure the last test didn't leave any trash
-        writer.pop()
+        self.tracer = get_dummy_tracer()
+        self.flask_app = create_app()
+        self.traced_app = TraceMiddleware(
+            self.flask_app,
+            self.tracer,
+            service='test.flask.service',
+            distributed_tracing=True,
+        )
+
+        # make the app testable
+        self.flask_app.config['TESTING'] = True
+        self.app = self.flask_app.test_client()
+
+    def test_double_instrumentation(self):
+        # ensure Flask is never instrumented twice when `ddtrace-run`
+        # and `TraceMiddleware` are used together. `traced_app` MUST
+        # be assigned otherwise it's not possible to reproduce the
+        # problem (the test scope must keep a strong reference)
+        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa
+        rv = self.app.get('/child')
+        eq_(rv.status_code, 200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+
+    def test_double_instrumentation_config(self):
+        # ensure Flask uses the last set configuration to be sure
+        # there are no breaking changes for who uses `ddtrace-run`
+        # with the `TraceMiddleware`
+        TraceMiddleware(
+            self.flask_app,
+            self.tracer,
+            service='new-intake',
+            distributed_tracing=False,
+        )
+        eq_(self.flask_app._service, 'new-intake')
+        ok_(self.flask_app._use_distributed_tracing is False)
+        rv = self.app.get('/child')
+        eq_(rv.status_code, 200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
 
     def test_child(self):
         start = time.time()
-        rv = app.get('/child')
+        rv = self.app.get('/child')
         end = time.time()
         # ensure request worked
         eq_(rv.status_code, 200)
         eq_(rv.data, b'child')
         # ensure trace worked
-        spans = writer.pop()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
 
         spans_by_name = {s.name:s for s in spans}
@@ -138,7 +76,7 @@ class TestFlask(object):
         assert s.span_id
         assert s.trace_id
         assert not s.parent_id
-        eq_(s.service, service)
+        eq_(s.service, 'test.flask.service')
         eq_(s.resource, "child")
         assert s.start >= start
         assert s.duration <= end - start
@@ -148,7 +86,7 @@ class TestFlask(object):
         assert c.span_id
         eq_(c.trace_id, s.trace_id)
         eq_(c.parent_id, s.span_id)
-        eq_(c.service, service)
+        eq_(c.service, 'test.flask.service')
         eq_(c.resource, 'child')
         assert c.start >= start
         assert c.duration <= end - start
@@ -156,7 +94,7 @@ class TestFlask(object):
 
     def test_success(self):
         start = time.time()
-        rv = app.get('/')
+        rv = self.app.get('/')
         end = time.time()
 
         # ensure request worked
@@ -164,11 +102,11 @@ class TestFlask(object):
         eq_(rv.data, b'hello')
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, 'test.flask.service')
         eq_(s.resource, "index")
         assert s.start >= start
         assert s.duration <= end - start
@@ -176,15 +114,15 @@ class TestFlask(object):
         eq_(s.meta.get(http.STATUS_CODE), '200')
         eq_(s.meta.get(http.METHOD), 'GET')
 
-        services = writer.pop_services()
+        services = self.tracer.writer.pop_services()
         expected = {
-            service : {"app":"flask", "app_type":"web"}
+            "test.flask.service": {"app":"flask", "app_type":"web"}
         }
         eq_(services, expected)
 
     def test_template(self):
         start = time.time()
-        rv = app.get('/tmpl')
+        rv = self.app.get('/tmpl')
         end = time.time()
 
         # ensure request worked
@@ -192,12 +130,12 @@ class TestFlask(object):
         eq_(rv.data, b'hello earth')
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
         by_name = {s.name:s for s in spans}
         s = by_name["flask.request"]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl")
         assert s.start >= start
         assert s.duration <= end - start
@@ -213,7 +151,7 @@ class TestFlask(object):
 
     def test_handleme(self):
         start = time.time()
-        rv = app.get('/handleme')
+        rv = self.app.get('/handleme')
         end = time.time()
 
         # ensure request worked
@@ -221,11 +159,11 @@ class TestFlask(object):
         eq_(rv.data, b'handled')
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "handle_me")
         assert s.start >= start
         assert s.duration <= end - start
@@ -236,7 +174,7 @@ class TestFlask(object):
     def test_template_err(self):
         start = time.time()
         try:
-            app.get('/tmpl/err')
+            self.app.get('/tmpl/err')
         except Exception:
             pass
         else:
@@ -244,12 +182,12 @@ class TestFlask(object):
         end = time.time()
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         by_name = {s.name:s for s in spans}
         s = by_name["flask.request"]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl_err")
         assert s.start >= start
         assert s.duration <= end - start
@@ -258,10 +196,10 @@ class TestFlask(object):
         eq_(s.meta.get(http.METHOD), 'GET')
 
     def test_template_render_err(self):
-        tracer.debug_logging = True
+        self.tracer.debug_logging = True
         start = time.time()
         try:
-            app.get('/tmpl/render_err')
+            self.app.get('/tmpl/render_err')
         except Exception:
             pass
         else:
@@ -269,12 +207,12 @@ class TestFlask(object):
         end = time.time()
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
         by_name = {s.name:s for s in spans}
         s = by_name["flask.request"]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl_render_err")
         assert s.start >= start
         assert s.duration <= end - start
@@ -289,7 +227,7 @@ class TestFlask(object):
 
     def test_error(self):
         start = time.time()
-        rv = app.get('/error')
+        rv = self.app.get('/error')
         end = time.time()
 
         # ensure the request itself worked
@@ -297,11 +235,11 @@ class TestFlask(object):
         eq_(rv.data, b'error')
 
         # ensure the request was traced.
-        assert not tracer.current_span()
-        spans = writer.pop()
+        assert not self.tracer.current_span()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "error")
         assert s.start >= start
         assert s.duration <= end - start
@@ -309,12 +247,12 @@ class TestFlask(object):
         eq_(s.meta.get(http.METHOD), 'GET')
 
     def test_fatal(self):
-        if not traced_app.use_signals:
+        if not self.traced_app.use_signals:
             return
 
         start = time.time()
         try:
-            app.get('/fatal')
+            self.app.get('/fatal')
         except ZeroDivisionError:
             pass
         else:
@@ -322,11 +260,11 @@ class TestFlask(object):
         end = time.time()
 
         # ensure the request was traced.
-        assert not tracer.current_span()
-        spans = writer.pop()
+        assert not self.tracer.current_span()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "fatal")
         assert s.start >= start
         assert s.duration <= end - start
@@ -334,11 +272,11 @@ class TestFlask(object):
         eq_(s.meta.get(http.METHOD), 'GET')
         assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE), s.meta
         assert "by zero" in s.meta.get(errors.ERROR_MSG)
-        assert re.search('File ".*/contrib/flask/test_flask.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
+        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
 
     def test_unicode(self):
         start = time.time()
-        rv = app.get(u'/üŋïĉóđē')
+        rv = self.app.get(u'/üŋïĉóđē')
         end = time.time()
 
         # ensure request worked
@@ -346,11 +284,11 @@ class TestFlask(object):
         eq_(rv.data, b'\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93')
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, u'üŋïĉóđē')
         assert s.start >= start
         assert s.duration <= end - start
@@ -361,18 +299,18 @@ class TestFlask(object):
 
     def test_404(self):
         start = time.time()
-        rv = app.get(u'/404/üŋïĉóđē')
+        rv = self.app.get(u'/404/üŋïĉóđē')
         end = time.time()
 
         # ensure that we hit a 404
         eq_(rv.status_code, 404)
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, u'404')
         assert s.start >= start
         assert s.duration <= end - start
@@ -382,7 +320,7 @@ class TestFlask(object):
         eq_(s.meta.get(http.URL), u'http://localhost/404/üŋïĉóđē')
 
     def test_propagation(self):
-        rv = app.get('/', headers={
+        rv = self.app.get('/', headers={
             'x-datadog-trace-id': '1234',
             'x-datadog-parent-id': '4567',
             'x-datadog-sampling-priority': '2'
@@ -393,8 +331,8 @@ class TestFlask(object):
         eq_(rv.data, b'hello')
 
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
 
@@ -404,18 +342,49 @@ class TestFlask(object):
         eq_(s.get_metric(SAMPLING_PRIORITY_KEY), 2)
 
     def test_custom_span(self):
-        rv = app.get('/custom_span')
+        rv = self.app.get('/custom_span')
         eq_(rv.status_code, 200)
         # ensure trace worked
-        assert not tracer.current_span(), tracer.current_span().pprint()
-        spans = writer.pop()
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.service, service)
+        eq_(s.service, "test.flask.service")
         eq_(s.resource, "overridden")
         eq_(s.error, 0)
         eq_(s.meta.get(http.STATUS_CODE), '200')
         eq_(s.meta.get(http.METHOD), 'GET')
 
+    def test_success_200_ot(self):
+        """OpenTracing version of test_success_200."""
+        ot_tracer = init_tracer('my_svc', self.tracer)
+        writer = self.tracer.writer
 
+        with ot_tracer.start_active_span('ot_span'):
+            start = time.time()
+            rv = self.app.get('/')
+            end = time.time()
 
+        # ensure request worked
+        eq_(rv.status_code, 200)
+        eq_(rv.data, b'hello')
+
+        # ensure trace worked
+        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.resource, 'ot_span')
+        eq_(ot_span.service, 'my_svc')
+
+        eq_(dd_span.resource, "index")
+        assert dd_span.start >= start
+        assert dd_span.duration <= end - start
+        eq_(dd_span.error, 0)
+        eq_(dd_span.meta.get(http.STATUS_CODE), '200')
+        eq_(dd_span.meta.get(http.METHOD), 'GET')

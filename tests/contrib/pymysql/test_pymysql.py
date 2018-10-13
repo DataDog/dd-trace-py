@@ -10,6 +10,8 @@ from ddtrace.compat import PY2
 from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
 
+# testing
+from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
 from ...test_tracer import get_dummy_tracer
 from ...contrib.config import MYSQL_CONFIG
@@ -150,6 +152,36 @@ class PyMySQLCore(object):
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
+
+    def test_simple_query_ot(self):
+        """OpenTracing version of test_simple_query."""
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        ot_tracer = init_tracer('mysql_svc', tracer)
+        with ot_tracer.start_active_span('mysql_op'):
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, 'mysql_svc')
+        eq_(ot_span.name, 'mysql_op')
+
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, 'pymysql.query')
+        eq_(dd_span.span_type, 'sql')
+        eq_(dd_span.error, 0)
+        meta = {}
+        meta.update(self.DB_INFO)
+        assert_dict_issuperset(dd_span.meta, meta)
 
 
 class TestPyMysqlPatch(PyMySQLCore, TestCase):

@@ -13,7 +13,6 @@ from ddtrace.api import API
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
@@ -115,6 +114,8 @@ class TestWorkers(TestCase):
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
 
+    # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
+    @skip('Writer flush intervals are impossible to time correctly to make this test not flaky')
     def test_worker_multiple_traces(self):
         # make a single send() if multiple traces are created before the flush interval
         tracer = self.tracer

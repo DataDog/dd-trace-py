@@ -35,6 +35,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '__weakref__',
     ]
 
     def __init__(
@@ -54,7 +55,8 @@ class Span(object):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
-        :param Tracer tracer: the tracer that will submit this span when finished.
+        :param ddtrace.Tracer tracer: the tracer that will submit this span when
+            finished.
         :param str name: the name of the traced operation.
 
         :param str service: the service name

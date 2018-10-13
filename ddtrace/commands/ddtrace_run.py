@@ -30,6 +30,7 @@ Available environment variables:
                            This value is passed through when setting up middleware for web framework integrations.
                            (e.g. pylons, flask, django)
                            For tracing without a web integration, prefer setting the service name in code.
+    DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
 """ # noqa
 
 def _ddtrace_root():

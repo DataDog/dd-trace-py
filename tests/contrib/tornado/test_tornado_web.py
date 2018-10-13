@@ -5,6 +5,9 @@ from .utils import TornadoTestCase
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 
+from opentracing.scope_managers.tornado import TornadoScopeManager
+from tests.opentracer.utils import init_tracer
+
 
 class TestTornadoWeb(TornadoTestCase):
     """
@@ -262,6 +265,36 @@ class TestTornadoWeb(TornadoTestCase):
         eq_(1234, request_span.trace_id)
         eq_(4567, request_span.parent_id)
         eq_(2, request_span.get_metric(SAMPLING_PRIORITY_KEY))
+
+    def test_success_handler_ot(self):
+        """OpenTracing version of test_success_handler."""
+        ot_tracer = init_tracer('tornado_svc', self.tracer, scope_manager=TornadoScopeManager())
+
+        with ot_tracer.start_active_span('tornado_op'):
+            response = self.fetch('/success/')
+            eq_(200, response.code)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        # dd_span will start and stop before the ot_span finishes
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'tornado_op')
+        eq_(ot_span.service, 'tornado_svc')
+
+        eq_('tornado-web', dd_span.service)
+        eq_('tornado.request', dd_span.name)
+        eq_('http', dd_span.span_type)
+        eq_('tests.contrib.tornado.web.app.SuccessHandler', dd_span.resource)
+        eq_('GET', dd_span.get_tag('http.method'))
+        eq_('200', dd_span.get_tag('http.status_code'))
+        eq_('/success/', dd_span.get_tag('http.url'))
+        eq_(0, dd_span.error)
 
 
 class TestNoPropagationTornadoWeb(TornadoTestCase):
