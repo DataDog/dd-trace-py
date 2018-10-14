@@ -1,0 +1,2 @@
+DEFAULT_TEMPLATE_NAME = '<memory>'
+DEFAULT_SERVICE = 'jinja2'
