@@ -48,3 +48,45 @@ class GlobalConfigTestCase(TestCase):
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module
         ok_(isinstance(global_config, Config))
+
+    def test_settings_merge(self):
+        """
+        When caling `config._add()`
+            when existing settings exist
+                we do not overwrite the existing settings
+        """
+        self.config.requests['split_by_domain'] = True
+        self.config._add('requests', dict(split_by_domain=False))
+        eq_(self.config.requests['split_by_domain'], True)
+
+    def test_settings_overwrite(self):
+        """
+        When caling `config._add(..., merge=False)`
+            when existing settings exist
+                we overwrite the existing settings
+        """
+        self.config.requests['split_by_domain'] = True
+        self.config._add('requests', dict(split_by_domain=False), merge=False)
+        eq_(self.config.requests['split_by_domain'], False)
+
+    def test_settings_merge_deep(self):
+        """
+        When caling `config._add()`
+            when existing "deep" settings exist
+                we do not overwrite the existing settings
+        """
+        self.config.requests['a'] = dict(
+            b=dict(
+                c=True,
+            ),
+        )
+        self.config._add('requests', dict(
+            a=dict(
+                b=dict(
+                    c=False,
+                    d=True,
+                ),
+            ),
+        ))
+        eq_(self.config.requests['a']['b']['c'], True)
+        eq_(self.config.requests['a']['b']['d'], True)

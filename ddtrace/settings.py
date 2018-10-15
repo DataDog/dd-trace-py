@@ -3,6 +3,7 @@ import logging
 from copy import deepcopy
 
 from .pin import Pin
+from .utils.merge import deepmerge
 
 
 log = logging.getLogger(__name__)
@@ -26,12 +27,9 @@ class Config(object):
         self._config = {}
 
     def __getattr__(self, name):
-        try:
-            return self._config[name]
-        except KeyError as e:
-            raise ConfigException(
-                'Integration "{}" is not registered in this configuration'.format(e.message)
-            )
+        if name not in self._config:
+            self._config[name] = dict()
+        return self._config[name]
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -46,7 +44,7 @@ class Config(object):
 
         return pin._config
 
-    def _add(self, integration, settings):
+    def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
         settings.
 
@@ -54,6 +52,28 @@ class Config(object):
         :param dict settings: A dictionary that contains integration settings;
             to preserve immutability of these values, the dictionary is copied
             since it contains integration defaults.
+        :param bool merge: Whether to merge any existing settings with those provided,
+            or if we should overwrite the settings with those provided;
+            Note: when merging existing settings take precedence.
         """
+        # DEV: Use `getattr()` to call our `__getattr__` helper
+        existing = getattr(self, integration)
+        settings = deepcopy(settings)
 
-        self._config[integration] = deepcopy(settings)
+        if merge:
+            # DEV: This may appear backwards keeping `existing` as the "source" and `settings` as
+            #   the "destination", but we do not want to let `_add(..., merge=True)` overwrite any
+            #   existing settings
+            #
+            # >>> config.requests['split_by_domain'] = True
+            # >>> config._add('requests', dict(split_by_domain=False))
+            # >>> config.requests['split_by_domain']
+            # True
+            self._config[integration] = deepmerge(existing, settings)
+        else:
+            self._config[integration] = settings
+
+    def __repr__(self):
+        cls = self.__class__
+        integrations = ', '.join(self._config.keys())
+        return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
