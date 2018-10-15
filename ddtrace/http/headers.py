@@ -1,15 +1,18 @@
 import re
+from ..utils.http import normalize_header_name
 
 
 REQUEST = 'request'
 RESPONSE = 'response'
+
+NORMALIZE_PATTERN = re.compile(r'([^a-z0-9])+')
 
 
 def store_request_headers(headers, span, white_list):
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
-    :dict headers: dict
+    :type headers: dict
     :param span: The Span instance where tags will be store
     :type span: ddtrace.Span
     :param white_list: the list of white listed names. Accepts '*' meaning 'anything'.
@@ -22,7 +25,7 @@ def store_response_headers(headers, span, white_list):
     """
     Store request headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
-    :dict headers: dict
+    :type headers: dict
     :param span: The Span instance where tags will be store
     :type span: ddtrace.Span
     :param white_list: the list of white listed names. Accepts '*' meaning 'anything'.
@@ -34,6 +37,7 @@ def store_response_headers(headers, span, white_list):
 def _store_headers(headers, span, white_list, request_or_response):
     """
     :param headers: A dict of http headers to be stored in the span
+    :type headers: dict
     :param span: The Span instance where tags will be store
     :type span: ddtrace.span.Span
     :param white_list: the list of white listed names. Accepts '*' meaning 'anything'.
@@ -73,18 +77,8 @@ def _normalize_tag_name(request_or_response, header_name):
     #   - any letter is converted to lowercase
     #   - any digit is left unchanged
     #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = re.sub(r'([^a-z0-9])+', '_', _normalize_header_name(header_name))
+    normalized_name = NORMALIZE_PATTERN.sub('_', normalize_header_name(header_name))
     return 'http.{}.headers.{}'.format(request_or_response, normalized_name)
-
-
-def _normalize_header_name(header_name):
-    """
-    Normalizes an header name to lower case, stripping all its leading and trailing white spaces.
-    :param header_name: the header name to stri
-    :type header_name: str
-    :return: the normalized header name
-    """
-    return header_name.strip().lower()
 
 
 def _is_white_listed(header_name, white_list):
@@ -96,13 +90,13 @@ def _is_white_listed(header_name, white_list):
     :type white_list: list of str
     :rtype: bool
     """
-    normalized_header_name = _normalize_header_name(header_name)
+    normalized_header_name = normalize_header_name(header_name)
     for white_list_entry in white_list:
-        normalized_white_list_entry = _normalize_header_name(white_list_entry)
+        normalized_white_list_entry = normalize_header_name(white_list_entry)
         if white_list_entry == '*' or normalized_white_list_entry == normalized_header_name:
             return True
-        # White list can use basic * substitution. Note that this works because headers names di not have any special
+        # White list can use basic * substitution. Note that this works because headers names do not have any special
         # character in them, otherwise we should escape the names as regex.
-        elif re.match(_normalize_header_name(white_list_entry).replace('*', '.*'), _normalize_header_name(header_name)):
+        elif re.match(normalize_header_name(white_list_entry).replace('*', '.*'), normalize_header_name(header_name)):
             return True
     return False

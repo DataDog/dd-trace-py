@@ -1,8 +1,7 @@
 import logging
-
 from copy import deepcopy
-
 from .pin import Pin
+from .utils.http import normalize_header_name
 from .utils.merge import deepmerge
 
 
@@ -88,28 +87,28 @@ class HttpConfig(object):
     _traced_headers = 'traced_headers'
 
     def __init__(self):
-        self._integrations_config = {}
-        self._global_config = {}
+        self._config = {}
 
-    def trace_headers(self, *args, **kwargs):
+    def trace_headers(self, headers, integrations=None):
         """Registers a set of headers to be traced at global level or integration level.
-        :param args: the list of headers names
-        :type args: list of str
+        :param headers: the list of headers names
+        :type headers: list of str
         :param integrations: if None this setting will apply to all the integrations, otherwise only to the specific
                              integration
         :type integrations: str or list of str
         :return: self
         :rtype: HttpConfig
         """
-        normalized_header_names = list([header.strip().lower() for header in args])
-        integrations = kwargs.get('integrations', None)
-        normalized_integrations = [integrations] if isinstance(integrations, str) else integrations or []
-        if not normalized_integrations:
-            self._set_config_key(self._global_config, normalized_header_names, self._traced_headers)
-        else:
-            for integration in normalized_integrations:
-                self._set_config_key(self._integrations_config, normalized_header_names, integration,
-                                     self._traced_headers)
+        headers = [headers] if isinstance(headers, str) else headers
+        normalized_header_patterns = [normalize_header_name(header_name) for header_name in headers]
+        if integrations is None:
+            self._set_config_key(None, self._traced_headers, normalized_header_patterns)
+            return self
+
+        normalized_integrations = [integrations] if isinstance(integrations, str) else integrations
+        for integration in normalized_integrations:
+            self._set_config_key(integration, self._traced_headers, normalized_header_patterns)
+
         return self
 
     def get_integration_traced_headers(self, integration):
@@ -119,17 +118,17 @@ class HttpConfig(object):
         :return: the set of activated headers for tracing
         :rtype: set of str
         """
-        global_headers = self._global_config.get(self._traced_headers, [])
-        integration_headers = self._integrations_config.get(integration, {}).get(self._traced_headers, [])
+        global_headers = self._config[None][self._traced_headers] \
+            if None in self._config and self._traced_headers in self._config[None] \
+            else []
+        integration_headers = self._config[integration][self._traced_headers] \
+            if integration in self._config and self._traced_headers in self._config[integration] \
+            else []
+
         return set(integration_headers + global_headers)
 
-    @staticmethod
-    def _set_config_key(config, value, *args):
-        """Utility method to set a value at any dept in a dictionary"""
-        current = config
-        for level in args[:-1]:
-            # we create dict until the expected level
-            if not current.get(level, None):
-                current[level] = {}
-            current = current[level]
-        current[args[-1]] = value
+    def _set_config_key(self, integration, key, value):
+        """Utility method to set a value at for a specific integration"""
+        if integration not in self._config:
+            self._config[integration] = {}
+        self._config[integration][key] = value

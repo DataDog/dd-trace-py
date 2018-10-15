@@ -27,7 +27,7 @@ class TestHttpSettings(object):
 
     def test_can_configure_multiple_integrations_multiple_traced_header(self, config):
         """:type config: Config"""
-        config.http.trace_headers('some_header', 'some_other_header',
+        config.http.trace_headers(['some_header', 'some_other_header'],
                                   integrations=['my_integration', 'my_other_integration'])
         assert {'some_header', 'some_other_header'} == \
             config.http.get_integration_traced_headers('my_integration')
