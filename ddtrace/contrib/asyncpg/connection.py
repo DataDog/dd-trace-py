@@ -108,7 +108,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
     def copy_out(self, copy_stmt, sink, timeout):
         result = yield from self._trace_method(
             self.__wrapped__.copy_out, copy_stmt, None, {},
-            sink, timeout)  # noqa: E999
+            copy_stmt, sink, timeout)  # noqa: E999
         return result
 
     @asyncio.coroutine
