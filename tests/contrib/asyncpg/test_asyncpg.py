@@ -111,6 +111,27 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.span_type, 'sql')
 
     @mark_sync
+    async def test_copy_from(self):
+        # This test is here to ensure we don't break the params
+        Pin(None, tracer=self.tracer).onto(asyncpg)
+        conn, tracer = await self._get_conn_and_tracer()
+
+        async def consumer(input):
+            pass
+
+        await conn.execute('''CREATE TABLE IF NOT EXISTS mytable (a int);''')
+
+        try:
+            await conn.execute(
+                '''INSERT INTO mytable (a) VALUES (100), (200), (300);''')
+
+            result = await conn.copy_from_query(
+                'SELECT * FROM mytable WHERE a > $1', 10, output=consumer,
+                format='csv')
+        finally:
+            conn.execute('DROP TABLE IF EXISTS mytable')
+
+    @mark_sync
     async def test_pool(self):
         Pin(None, tracer=self.tracer).onto(asyncpg)
 
