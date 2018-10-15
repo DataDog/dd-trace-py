@@ -77,11 +77,6 @@ def _wrap_request(func, instance, args, kwargs):
         response = None
         try:
             response = func(*args, **kwargs)
-
-            # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
-            # requests custom structure, that we convert to a dict
-            store_response_headers(dict(getattr(response, 'headers', {}).items()), span, traced_headers_whitelist)
-
             return response
         finally:
             try:
@@ -91,5 +86,9 @@ def _wrap_request(func, instance, args, kwargs):
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer
                     span.error = int(500 <= response.status_code)
+                    # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
+                    # requests custom structure, that we convert to a dict
+                    store_response_headers(dict(getattr(response, 'headers', {}).items()), span,
+                                           traced_headers_whitelist)
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

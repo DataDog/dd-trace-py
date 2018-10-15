@@ -5,8 +5,10 @@ import logging
 import wrapt
 
 # Project
+from ddtrace import config
 from ...compat import httplib, PY2
 from ...ext import http as ext_http
+from ...http import store_request_headers, store_response_headers
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 
@@ -39,6 +41,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
                 if resp:
                     span.set_tag(ext_http.STATUS_CODE, resp.status)
                     span.error = int(500 <= resp.status)
+                    store_response_headers(dict(resp.getheaders()), span, config.http.get_integration_traced_headers('httplib'))
 
                 span.finish()
                 delattr(instance, '_datadog_span')
@@ -67,6 +70,17 @@ def _wrap_putrequest(func, instance, args, kwargs):
         span.set_tag(ext_http.METHOD, method)
     except Exception:
         log.debug('error applying request tags', exc_info=True)
+    return func(*args, **kwargs)
+
+
+def _wrap_putheader(func, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin:
+        return func(*args, **kwargs)
+
+    span = getattr(instance, '_datadog_span', None)
+    if span:
+        store_request_headers({args[0]: args[1]}, span, config.http.get_integration_traced_headers('httplib'))
 
     return func(*args, **kwargs)
 
@@ -93,6 +107,8 @@ def patch():
             wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse))
     setattr(httplib.HTTPConnection, 'putrequest',
             wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest))
+    setattr(httplib.HTTPConnection, 'putheader',
+            wrapt.FunctionWrapper(httplib.HTTPConnection.putheader, _wrap_putheader))
 
 
 def unpatch():
@@ -104,3 +120,4 @@ def unpatch():
     _u(httplib.HTTPConnection, '__init__')
     _u(httplib.HTTPConnection, 'getresponse')
     _u(httplib.HTTPConnection, 'putrequest')
+    _u(httplib.HTTPConnection, 'putheader')
