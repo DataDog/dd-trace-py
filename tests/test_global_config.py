@@ -51,7 +51,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_merge(self):
         """
-        When caling `config._add()`
+        When calling `config._add()`
             when existing settings exist
                 we do not overwrite the existing settings
         """
@@ -61,7 +61,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_overwrite(self):
         """
-        When caling `config._add(..., merge=False)`
+        When calling `config._add(..., merge=False)`
             when existing settings exist
                 we overwrite the existing settings
         """
@@ -71,7 +71,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_settings_merge_deep(self):
         """
-        When caling `config._add()`
+        When calling `config._add()`
             when existing "deep" settings exist
                 we do not overwrite the existing settings
         """
