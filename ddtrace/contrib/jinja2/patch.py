@@ -7,13 +7,12 @@ from ...ext import http
 from ...utils.formats import asbool, get_env
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
-from .constants import DEFAULT_SERVICE, DEFAULT_TEMPLATE_NAME
+from .constants import DEFAULT_TEMPLATE_NAME
 
 
 # default settings
 config._add('jinja2',{
-    'service_name': get_env('jinja2', 'service_name', DEFAULT_SERVICE),
-    'inherit_service': asbool(get_env('jinja2', 'inherit_service', True)),
+    'service_name': get_env('jinja2', 'service_name', None),
 })
 
 
@@ -42,18 +41,6 @@ def unpatch():
     _u(jinja2.Environment, '_load_template')
 
 
-def _get_service_name(environment, span):
-    """if `inherit_service` is set then tries to get the service name of the
-    parent span.
-    The default value is set to `service_name` config variable (default: jinja2)
-    """
-    cfg = config.get_from(environment)
-    if cfg['inherit_service']:
-        if span._parent and span._parent.service:
-            return span._parent.service
-    return cfg['service_name']
-
-
 def _get_render_wrapper(operation):
     def _wrap_render(wrapped, instance, args, kwargs):
         """Wrap `Template.render()` or `Template.generate()`
@@ -63,9 +50,7 @@ def _get_render_wrapper(operation):
             return wrapped(*args, **kwargs)
 
         template_name = instance.name or DEFAULT_TEMPLATE_NAME
-        with pin.tracer.trace(operation, span_type=http.TEMPLATE) as span:
-            # update the span service name before doing any action
-            span.service = _get_service_name(instance.environment, span)
+        with pin.tracer.trace(operation, pin.service, span_type=http.TEMPLATE) as span:
             try:
                 return wrapped(*args, **kwargs)
             finally:
@@ -84,9 +69,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
     else:
         template_name = kwargs.get('name', DEFAULT_TEMPLATE_NAME)
 
-    with pin.tracer.trace('jinja2.compile', span_type=http.TEMPLATE) as span:
-        # update the span service name before doing any action
-        span.service = _get_service_name(instance, span)
+    with pin.tracer.trace('jinja2.compile', pin.service, span_type=http.TEMPLATE) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:
@@ -100,9 +83,7 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = kwargs.get('name', args[0])
-    with pin.tracer.trace('jinja2.load', span_type=http.TEMPLATE) as span:
-        # update the span service name before doing any action
-        span.service = _get_service_name(instance, span)
+    with pin.tracer.trace('jinja2.load', pin.service, span_type=http.TEMPLATE) as span:
         template = None
         try:
             template = wrapped(*args, **kwargs)

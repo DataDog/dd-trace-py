@@ -35,7 +35,7 @@ class Jinja2Test(unittest.TestCase):
         eq_(len(spans), 2)
 
         for span in spans:
-            eq_(span.service, "jinja2")
+            eq_(span.service, None)
             eq_(span.span_type, "template")
             eq_(span.get_tag("jinja2.template_name"), "<memory>")
 
@@ -51,7 +51,7 @@ class Jinja2Test(unittest.TestCase):
         eq_(len(spans), 2)
 
         for span in spans:
-            eq_(span.service, "jinja2")
+            eq_(span.service, None)
             eq_(span.span_type, "template")
             eq_(span.get_tag("jinja2.template_name"), "<memory>")
 
@@ -70,7 +70,7 @@ class Jinja2Test(unittest.TestCase):
 
         for span in spans:
             eq_(span.span_type, "template")
-            eq_(span.service, "jinja2")
+            eq_(span.service, None)
 
         # templates.html extends base.html
         def get_def(s):
@@ -93,7 +93,7 @@ class Jinja2Test(unittest.TestCase):
         )
 
     def test_service_name(self):
-        # When there is no parent span, always use the configured service name
+        # don't inherit the service name from the parent span, but force the value.
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
         env = jinja2.Environment(loader=loader)
 
@@ -110,9 +110,8 @@ class Jinja2Test(unittest.TestCase):
         for span in spans:
             eq_(span.service, "renderer")
 
-    def test_inherit_service_on(self):
-        # `inherit_service` is True by default so if there is a parent span the
-        # service name is inherited
+    def test_inherit_service(self):
+        # When there is a parent span and no custom service_name, the service name is inherited
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
         env = jinja2.Environment(loader=loader)
 
@@ -126,23 +125,3 @@ class Jinja2Test(unittest.TestCase):
 
         for span in spans:
             eq_(span.service, "web")
-
-    def test_inherit_service_off(self):
-        # When inherit_service is set to False, use the configured service name
-        # instead of the parent span's service name
-        loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
-        env = jinja2.Environment(loader=loader)
-
-        cfg = config.get_from(env)
-        cfg['inherit_service'] = False
-
-        with self.tracer.trace('parent.span', service='web'):
-            t = env.get_template("template.html")
-            eq_(t.render(name="Jinja"), "Message: Hello Jinja!")
-
-        # tests
-        spans = self.tracer.writer.pop()
-        eq_(len(spans), 6)
-
-        for span in spans[1:]:
-            eq_(span.service, "jinja2")
