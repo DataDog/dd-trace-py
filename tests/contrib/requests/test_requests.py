@@ -287,7 +287,7 @@ class TestRequests(BaseRequestTestCase):
         # ensure that port is included if present in URL
         cfg = config.get_from(self.session)
         cfg['split_by_domain'] = True
-        out = self.session.get('https://httpbin.org:443')
+        out = self.session.get('http://httpbin.org:80')
         eq_(out.status_code, 200)
 
         spans = self.tracer.writer.pop()
