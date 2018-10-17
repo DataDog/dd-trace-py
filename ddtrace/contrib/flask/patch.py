@@ -4,12 +4,15 @@ import wrapt
 
 from ddtrace import tracer
 
+from .new_patch import patch as new_patch
 from .middleware import TraceMiddleware
 
 
 def patch():
     """Patch the instrumented Flask object
     """
+    return new_patch()
+
     if getattr(flask, '_datadog_patch', False):
         return
 
