@@ -284,7 +284,7 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.service, 'httpbin.org')
 
     def test_split_by_domain_includes_port(self):
-        # ensure that auth details are stripped from URL
+        # ensure that port is included if present in URL
         cfg = config.get_from(self.session)
         cfg['split_by_domain'] = True
         out = self.session.get('https://httpbin.org:443')
