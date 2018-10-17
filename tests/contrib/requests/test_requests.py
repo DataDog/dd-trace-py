@@ -270,6 +270,32 @@ class TestRequests(BaseRequestTestCase):
 
         eq_(s.service, 'requests')
 
+    def test_split_by_domain_remove_auth_in_url(self):
+        # ensure that auth details are stripped from URL
+        cfg = config.get_from(self.session)
+        cfg['split_by_domain'] = True
+        out = self.session.get('http://user:pass@httpbin.org')
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'httpbin.org')
+
+    def test_split_by_domain_includes_port(self):
+        # ensure that auth details are stripped from URL
+        cfg = config.get_from(self.session)
+        cfg['split_by_domain'] = True
+        out = self.session.get('https://httpbin.org:443')
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'httpbin.org:443')
+
     def test_200_ot(self):
         """OpenTracing version of test_200."""
 
