@@ -294,7 +294,7 @@ class TestRequests(BaseRequestTestCase):
         eq_(len(spans), 1)
         s = spans[0]
 
-        eq_(s.service, 'httpbin.org:443')
+        eq_(s.service, 'httpbin.org:80')
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
