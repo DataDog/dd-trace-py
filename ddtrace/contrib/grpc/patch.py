@@ -4,7 +4,7 @@ import wrapt
 from ddtrace import Pin
 from ...utils.wrappers import unwrap
 
-from .client_interceptor import create
+from .client_interceptor import GrpcClientInterceptor
 
 def patch():
     # patch only once
@@ -40,7 +40,7 @@ def _secure_channel_with_interceptor(wrapped, instance, args, kwargs):
     return channel
 
 def _intercept_channel(channel, host, port):
-    return grpc.intercept_channel(channel, create(host, port))
+    return grpc.intercept_channel(channel, GrpcClientInterceptor(host, port))
 
 def get_host_port(target):
     split = target.rsplit(':', 2)
