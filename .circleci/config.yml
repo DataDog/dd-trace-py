@@ -143,34 +143,11 @@ jobs:
       TOX_SKIP_DIST: False
     steps:
       - checkout
-      - *restore_cache_step
       - run: tox -e '{py27,py34,py35,py36}-ddtracerun' --result-json /tmp/ddtracerun.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - ddtracerun.results
-      - *save_cache_step
-
-  ddtracerun_dist_install_execute:
-    docker:
-      - *test_runner
-      - image: redis:3.2-alpine
-      - image: memcached:1.5-alpine
-      - image: datadog/docker-dd-agent
-        env:
-            - DD_APM_ENABLED=true
-            - DD_BIND_HOST=0.0.0.0
-            - DD_API_KEY=invalid_key_but_this_is_fine
-    environment:
-      TOX_SKIP_DIST: False
-    steps:
-      # DO NOT CACHE THIS JOB
-      - checkout
-      - run: tox -e '{py27,py34,py35,py36}-ddtracerun_dist_install_execute-django{111}-djangopylibmc{06}-djangoredis{45}-pylibmc-redis{210}-memcached' --result-json /tmp/ddtracerun_dist_install_execute.results
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - ddtracerun_dist_install_execute.results
 
   asyncio:
     docker:
@@ -820,7 +797,6 @@ workflows:
       - futures
       - boto
       - ddtracerun
-      - ddtracerun_dist_install_execute
       - asyncio
       - pylons
       - aiohttp
@@ -864,7 +840,6 @@ workflows:
             - futures
             - boto
             - ddtracerun
-            - ddtracerun_dist_install_execute
             - asyncio
             - pylons
             - aiohttp
