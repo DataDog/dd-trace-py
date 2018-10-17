@@ -24,8 +24,6 @@ def patch():
     setattr(jinja2, '__datadog_patch', True)
     Pin(
         service=config.jinja2['service_name'],
-        app='jinja2',
-        app_type=http.TEMPLATE,
         _config=config.jinja2,
     ).onto(jinja2.environment.Environment)
     _w(jinja2, 'environment.Template.render', _get_render_wrapper('jinja2.render'))
