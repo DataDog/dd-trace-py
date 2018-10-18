@@ -1,4 +1,3 @@
-from ddtrace import Pin
 from wrapt import function_wrapper
 
 from .helpers import func_name, get_inherited_pin, get_current_app
