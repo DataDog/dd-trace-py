@@ -3,6 +3,7 @@ import flask
 
 
 def get_current_app():
+    """Helper to get the flask.app.Flask from the current app context"""
     appctx = flask._app_ctx_stack.top
     if appctx:
         return appctx.app
@@ -10,6 +11,7 @@ def get_current_app():
 
 
 def get_inherited_pin(*instances):
+    """Helper to iterate instances and return the first pin found"""
     for instance in instances:
         if not instance:
             continue
@@ -41,10 +43,12 @@ def simple_tracer(name, span_type=None):
 
 
 def func_name(func):
+    """Helper to get the module + name from a function"""
     return '{}.{}'.format(func.__module__, func.__name__)
 
 
 def get_current_span(pin, root=False):
+    """Helper to get the current span from the provided pins current call context"""
     if not pin or not pin.enabled():
         return None
 
