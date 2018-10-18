@@ -46,7 +46,7 @@ launch them through:
 [docker-compose]: https://www.docker.com/products/docker-compose
 
 
-#### Running the Tests
+#### Running the Tests in your local environment
 
 Once docker is up and running you should be able to run the tests. To launch a
 single test manually. For example to run the tests for `redis-py` 2.10 on Python
@@ -59,6 +59,21 @@ To see the defined test commands see `tox.ini`.
 To launch the complete test matrix run:
 
     $ tox
+
+
+#### Running Tests in docker
+
+If you are on a unix machine and prefer not to setup your local machine to run tests, we provide a docker image
+preconfigured to run tests. Note that this image is the same used in CircleCI to run tests.
+
+You still need dockers container running additional services up and running. For example to run the tests
+for `redis-py` 2.10 on Python 3.5 and 3.6:
+
+    $ ./scripts/ddtest tox -e '{py35,py36}-redis{210}'
+
+You can also add the `scripts` folder to your path, so can then run
+
+    $ ddtest tox -e '{py35,py36}-redis{210}'
 
 
 ### Continuous Integration
