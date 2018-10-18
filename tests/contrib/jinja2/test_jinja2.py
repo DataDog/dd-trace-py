@@ -56,7 +56,7 @@ class Jinja2Test(unittest.TestCase):
             eq_(span.get_tag("jinja2.template_name"), "<memory>")
 
         eq_(spans[0].name, "jinja2.compile")
-        eq_(spans[1].name, "jinja2.generate")
+        eq_(spans[1].name, "jinja2.render")
 
     def test_file_template(self):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)

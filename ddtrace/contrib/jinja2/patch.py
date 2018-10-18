@@ -4,7 +4,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 
 from ...ext import http
-from ...utils.formats import asbool, get_env
+from ...utils.formats import get_env
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 from .constants import DEFAULT_TEMPLATE_NAME
@@ -25,8 +25,8 @@ def patch():
         service=config.jinja2['service_name'],
         _config=config.jinja2,
     ).onto(jinja2.environment.Environment)
-    _w(jinja2, 'environment.Template.render', _get_render_wrapper('jinja2.render'))
-    _w(jinja2, 'environment.Template.generate', _get_render_wrapper('jinja2.generate'))
+    _w(jinja2, 'environment.Template.render', _wrap_render)
+    _w(jinja2, 'environment.Template.generate', _wrap_render)
     _w(jinja2, 'environment.Environment.compile', _wrap_compile)
     _w(jinja2, 'environment.Environment._load_template', _wrap_load_template)
 
@@ -41,22 +41,20 @@ def unpatch():
     _u(jinja2.Environment, '_load_template')
 
 
-def _get_render_wrapper(operation):
-    def _wrap_render(wrapped, instance, args, kwargs):
-        """Wrap `Template.render()` or `Template.generate()`
-        """
-        pin = Pin.get_from(instance.environment)
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
+def _wrap_render(wrapped, instance, args, kwargs):
+    """Wrap `Template.render()` or `Template.generate()`
+    """
+    pin = Pin.get_from(instance.environment)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
 
-        template_name = instance.name or DEFAULT_TEMPLATE_NAME
-        with pin.tracer.trace(operation, pin.service, span_type=http.TEMPLATE) as span:
-            try:
-                return wrapped(*args, **kwargs)
-            finally:
-                span.resource = template_name
-                span.set_tag('jinja2.template_name', template_name)
-    return _wrap_render
+    template_name = instance.name or DEFAULT_TEMPLATE_NAME
+    with pin.tracer.trace('jinja2.render', pin.service, span_type=http.TEMPLATE) as span:
+        try:
+            return wrapped(*args, **kwargs)
+        finally:
+            span.resource = template_name
+            span.set_tag('jinja2.template_name', template_name)
 
 
 def _wrap_compile(wrapped, instance, args, kwargs):
