@@ -24,8 +24,6 @@ class TraceMiddleware(object):
             service=service,
         )
 
-        self.traced_headers = config.http.get_integration_traced_headers('falcon')
-
     def process_request(self, req, resp):
         if self._distributed_tracing:
             # Falcon uppercases all header names.
@@ -44,8 +42,7 @@ class TraceMiddleware(object):
         span.set_tag(httpx.URL, req.url)
 
         # Note: any request header set after this line will not be stored in the span
-        if self.traced_headers:
-            store_request_headers(req.headers, span, self.traced_headers)
+        store_request_headers(req.headers, span, config.falcon)
 
     def process_resource(self, req, resp, resource, params):
         span = self.tracer.current_span()
@@ -63,8 +60,7 @@ class TraceMiddleware(object):
         status = httpx.normalize_status_code(resp.status)
 
         # Note: any response header set after this line will not be stored in the span
-        if self.traced_headers:
-            store_response_headers(resp._headers, span, self.traced_headers)
+        store_response_headers(resp._headers, span, config.falcon)
 
         # FIXME[matt] falcon does not map errors or unmatched routes
         # to proper status codes, so we we have to try to infer them

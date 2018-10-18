@@ -1,10 +1,10 @@
 import collections
 import logging
 from copy import deepcopy
+import re
 
 from .pin import Pin
 from .span import Span
-from .utils.http import normalize_header_name
 from .utils.merge import deepmerge
 
 
@@ -27,7 +27,7 @@ class Config(object):
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
-        self.http = HttpConfig()
+        self._http = HttpConfig()
 
     def __getattr__(self, name):
         if name not in self._config:
@@ -76,6 +76,13 @@ class Config(object):
         else:
             self._config[integration] = IntegrationConfig(self, settings)
 
+    def trace_headers(self, whitelist, blacklist=None):
+        self._http.trace_headers(whitelist, blacklist=blacklist)
+        return self
+
+    def header_is_traced(self, header_name):
+        return self._http.header_is_traced(header_name)
+
     def __repr__(self):
         cls = self.__class__
         integrations = ', '.join(self._config.keys())
@@ -106,10 +113,12 @@ class IntegrationConfig(dict):
         super(IntegrationConfig, self).__init__(*args, **kwargs)
         self.global_config = global_config
         self.hooks = Hooks()
+        self.http = HttpConfig()
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
         new.hooks = deepcopy(self.hooks)
+        new.http = deepcopy(self.http)
         return new
 
     def __repr__(self):
@@ -234,58 +243,62 @@ class Hooks(object):
 
 
 class HttpConfig(object):
-    """Configuration object that expose an API to set and retrieve both global and integration specific settings
+    """
+    Configuration object that expose an API to set and retrieve both global and integration specific settings
     related to the http context.
     """
 
-    _traced_headers = 'traced_headers'
-
     def __init__(self):
-        self._config = {}
+        self._whitelist_headers_patterns = []
+        self._blacklist_headers_patterns = []
 
-    def trace_headers(self, headers, integrations=None):
+    @property
+    def is_header_tracing_configured(self):
+        return len(self._whitelist_headers_patterns) > 0
+
+    def trace_headers(self, whitelist, blacklist=None):
         """Registers a set of headers to be traced at global level or integration level.
-        :param headers: the list of headers names
-        :type headers: list of str
-        :param integrations: if None this setting will apply to all the integrations, otherwise only to the specific
-                             integration
-        :type integrations: str or list of str
+        :param whitelist: the list of pattern
+        :type whitelist: list of str or str
         :return: self
         :rtype: HttpConfig
         """
-        headers = [headers] if isinstance(headers, str) else headers
-        normalized_header_patterns = [normalize_header_name(header_name) for header_name in headers]
-        if integrations is None:
-            self._set_config_key(None, self._traced_headers, normalized_header_patterns)
-            return self
+        if not whitelist:
+            return
 
-        normalized_integrations = [integrations] if isinstance(integrations, str) else integrations
-        for integration in normalized_integrations:
-            self._set_config_key(integration, self._traced_headers, normalized_header_patterns)
+        whitelist = [whitelist] if isinstance(whitelist, str) else whitelist
+        for whitelist_entry in whitelist:
+            try:
+                self._whitelist_headers_patterns.append(re.compile(whitelist_entry, re.IGNORECASE))
+            except Exception:
+                log.warning('Invalid regex in http headers tracing whitelist definition: %s', whitelist_entry)
+
+        blacklist = [blacklist] if isinstance(blacklist, str) else blacklist or []
+        for blacklist_entry in blacklist:
+            try:
+                self._blacklist_headers_patterns.append(re.compile(blacklist_entry, re.IGNORECASE))
+            except Exception:
+                log.warning('Invalid regex in http headers tracing blacklist definition: %s', blacklist_entry)
 
         return self
 
-    def get_integration_traced_headers(self, integration):
-        """Returns a set of headers that are set for tracing for the specified integration.
-        :param integration: the integration to retrieve the list of traced headers for.
-        :type integration: str
-        :return: the set of activated headers for tracing
-        :rtype: set of str
+    def header_is_traced(self, header_name):
         """
-        global_headers = self._config[None][self._traced_headers] \
-            if None in self._config and self._traced_headers in self._config[None] \
-            else []
-        integration_headers = self._config[integration][self._traced_headers] \
-            if integration in self._config and self._traced_headers in self._config[integration] \
-            else []
+        :param header_name:
+        :type header_name: str
+        :return:
+        """
+        # If any of the whitelist matches, then the header is traced
+        for pattern in self._blacklist_headers_patterns:
+            if pattern.match(header_name):
+                return False
 
-        return set(integration_headers + global_headers)
+        # If any of the blacklist matches, then the header is dropped
+        for pattern in self._whitelist_headers_patterns:
+            if pattern.match(header_name):
+                return True
 
-    def _set_config_key(self, integration, key, value):
-        """Utility method to set a value at for a specific integration"""
-        if integration not in self._config:
-            self._config[integration] = {}
-        self._config[integration][key] = value
+        return False
 
 
 # Configure our global configuration object
