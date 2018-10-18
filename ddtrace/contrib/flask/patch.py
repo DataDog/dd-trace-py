@@ -17,8 +17,8 @@ Clean up and contribute test app to trace-eamples
 Make sure we are off of master and not 0.16-dev
 """
 import flask
+import os
 import werkzeug
-from wrapt import function_wrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import Pin
@@ -27,6 +27,7 @@ from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from .helpers import get_current_app, get_current_span, get_inherited_pin, func_name, simple_tracer, with_instance_pin
+from .wrappers import wrap_function, wrap_signal
 
 
 # TODO: This isn't the final form, waiting on Kyle for config api changes
@@ -35,7 +36,8 @@ config = {
     'flask.response.error_codes': set([500, ]),
 
     # Flask service configuration
-    'flask.service.name': 'flask',
+    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
+    'flask.service.name': os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
     'flask.service.app': 'flask',
     'flask.service.app_type': AppTypes.web,
 
@@ -228,29 +230,6 @@ def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def wrap_function(instance, func, name=None, resource=None):
-    """
-    Helper function to wrap common flask.app.Flask methods.
-
-    This helper will first ensure that a Pin is available and enabled before tracing
-    """
-    # TODO: Check to see if it is already wrapped
-    #   Cannot do `if getattr(func, '__wrapped__', None)` because `functools.wraps` is used by third parties
-    #   `isinstance(func, wrapt.ObjectProxy)` doesn't work because `tracer.wrap()` doesn't use `wrapt`
-    if not name:
-        name = func_name(func)
-
-    @function_wrapper
-    def trace_func(wrapped, _instance, args, kwargs):
-        pin = get_inherited_pin(wrapped, _instance, instance, get_current_app())
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-        with pin.tracer.trace(name, service=pin.service, resource=resource):
-            return wrapped(*args, **kwargs)
-
-    return trace_func(func)
-
-
 def traced_add_url_rule(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
     def _wrap(rule, endpoint=None, view_func=None, **kwargs):
@@ -395,27 +374,6 @@ def traced_finalize_request(pin, wrapped, instance, args, kwargs):
             # DEV: They may have handled this 500 error in code via a custom error handler
             if response.status_code in config.get('flask.response.error_codes', set()):
                 span.error = 1
-
-
-def wrap_signal(app, signal, func):
-    """
-    Helper used to wrap signal handlers
-
-    We will attempt to find the pin attached to the flask.app.Flask app
-    """
-    name = func_name(func)
-
-    @function_wrapper
-    def trace_func(wrapped, instance, args, kwargs):
-        pin = get_inherited_pin(wrapped, instance, app, get_current_app())
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        with pin.tracer.trace(name, service=pin.service) as span:
-            span.set_tag('flask.signal', signal)
-            return wrapped(*args, **kwargs)
-
-    return trace_func(func)
 
 
 def traced_signal_connect(signal):
