@@ -25,33 +25,71 @@ class TracedCursor(wrapt.ObjectProxy):
         pin.onto(self)
         name = pin.app or 'sql'
         self._self_datadog_name = '%s.query' % name
+        self._self_last_execute_operation = None
+        # self._self_last_execute_span = None
 
-    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         service = pin.service
 
-        with pin.tracer.trace(self._self_datadog_name, service=service, resource=resource) as s:
+        with pin.tracer.trace(name, service=service, resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # TMP, we are not doing this like here
+            # s.parent_id = self._self_last_execute_span.span_id if self._self_last_execute_span else None
+            # print("Setting paremt id to: ", s.parent_id)
+            # store_span = kwargs.pop('store_span') if 'store_span' in kwargs.keys() else False
 
             try:
                 return method(*args, **kwargs)
             finally:
                 s.set_metric("db.rowcount", self.rowcount)
+                # if store_span:
+                #     print("Storing the span")
+                #     self._self_last_execute_span = s
 
     def executemany(self, query, *args, **kwargs):
+        self._self_last_execute_operation = None
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         return self._trace_method(
-            self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
+            self.__wrapped__.executemany, self._self_datadog_name, query, {'sql.executemany': 'true'},
             query, *args, **kwargs)
 
     def execute(self, query, *args, **kwargs):
-        return self._trace_method(
-            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        self._self_last_execute_operation = query
+        self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
+        return self
+
+    def fetchone(self, *args, **kwargs):
+        span_name = "{}.{}".format(self._self_datadog_name, 'fetchone')
+        return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
+                                  *args, **kwargs)
+
+    def fetchall(self, *args, **kwargs):
+        span_name = "{}.{}".format(self._self_datadog_name, 'fetchall')
+        return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
+                                  *args, **kwargs)
+
+    def fetchmany(self, *args, **kwargs):
+        span_name = "{}.{}".format(self._self_datadog_name, 'fetchmany')
+        # We want to trace the information about how many rows were requested. Note that this number may be larger
+        # the number of rows actually returned if less then requested are available from the query.
+        size_tag_key = 'db.fetch.size'
+        if 'size' in kwargs:
+            extra_tags = {size_tag_key: kwargs.get('size')}
+        elif len(args) == 1 and isinstance(args[0], int):
+            extra_tags = {size_tag_key: args[0]}
+        else:
+            default_array_size = getattr(self.__wrapped__, 'arraysize', None)
+            extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
+
+        return self._trace_method(self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags,
+                                  *args, **kwargs)
 
     def callproc(self, proc, args):
         return self._trace_method(self.__wrapped__.callproc, proc, {}, proc,
