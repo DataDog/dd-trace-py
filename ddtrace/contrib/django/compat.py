@@ -5,7 +5,7 @@ if django.VERSION >= (1, 10, 1):
     from django.urls import get_resolver
 
     def user_is_authenticated(user):
-        # Explicit comparision due to the following bug
+        # Explicit comparison due to the following bug
         # https://code.djangoproject.com/ticket/26988
         return user.is_authenticated == True  # noqa E712
 else:
