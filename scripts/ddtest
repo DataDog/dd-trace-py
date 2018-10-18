@@ -2,21 +2,4 @@
 
 set -e
 
-DD_ROOT_TRACE_PY=${DD_ROOT_TRACE_PY:-"$(pwd)"}
-
-# A note about the mounted volumes:
-#   - dd-trace-py/(ddtrace|tests|setup.cfg|setup.py|tox.ini): are obviously required to run tests
-#   - dd-trace-py/.ddtox: we use it as a cache between different runs for tox envs si that tox do not recreate envs
-
-docker run -t -i --net=host \
-    --name ddtrace_py_test_runner \
-    --rm \
-    -v $DD_ROOT_TRACE_PY/ddtrace/:/src/ddtrace:ro \
-    -v $DD_ROOT_TRACE_PY/tests/:/src/tests:ro \
-    -v $DD_ROOT_TRACE_PY/setup.cfg/:/src/setup.cfg:ro \
-    -v $DD_ROOT_TRACE_PY/setup.py/:/src/setup.py:ro \
-    -v $DD_ROOT_TRACE_PY/tox.ini/:/src/tox.ini:ro \
-    -v $DD_ROOT_TRACE_PY/.ddtox:/src/.tox \
-    -e TOX_SKIP_DIST=${TOX_SKIP_DIST:-True} \
-    -w /src \
-    datadog/docker-library:ddtrace_py $*
+docker-compose run --rm testrunner $*
