@@ -63,10 +63,10 @@ To launch the complete test matrix run:
 
 #### Running Tests in docker
 
-If you prefer not to setup your local machine to run tests, we provide a docker image
-preconfigured to run tests. Note that this image is the same used in CircleCI to run tests.
+If you prefer not to setup your local machine to run tests, we provide a preconfigured docker image.
+Note that this image is the same used in CircleCI to run tests.
 
-You still need dockers container running additional services up and running.
+You still need docker containers running additional services up and running.
 
 Run the test runner
 
