@@ -1,35 +1,32 @@
 """
-The Flask trace middleware will track request timings and templates. It
-requires the `Blinker <https://pythonhosted.org/blinker/>`_ library, which
-Flask uses for signalling.
+The `Flask <http://flask.pocoo.org/>`_ integration will add tracing to all requests to your Flask application.
 
-To install the middleware, add::
+This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
+signals, and templating rendering.
 
-    from ddtrace import tracer
-    from ddtrace.contrib.flask import TraceMiddleware
+To configure tracing::
 
-and create a `TraceMiddleware` object::
-
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
-
-Here is the end result, in a sample app::
+    from ddtrace import patch_all
+    patch_all(flask=True)
 
     from flask import Flask
-    import blinker as _
-
-    from ddtrace import tracer
-    from ddtrace.contrib.flask import TraceMiddleware
 
     app = Flask(__name__)
 
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
 
-    @app.route("/")
-    def home():
-        return "hello world"
+    @app.route('/')
+    def index():
+        return 'hello world'
 
-Set `distributed_tracing=True` if this is called remotely from an instrumented application.
-We suggest to enable it only for internal services where headers are under your control.
+
+    if __name__ == '__main__':
+        app.run()
+
+
+You may also enable Flask tracing via ddtrace-run::
+
+    DATADOG_PATCH_MODULES=flask:true ddtrace-run python app.py
+
 """
 
 from ...utils.importlib import require_modules
