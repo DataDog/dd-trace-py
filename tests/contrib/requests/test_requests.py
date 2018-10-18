@@ -8,6 +8,7 @@ from nose.tools import eq_, assert_raises
 from ddtrace import config
 from ddtrace.ext import http, errors
 from ddtrace.contrib.requests import patch, unpatch
+from ddtrace.settings import IntegrationConfig
 
 from tests.opentracer.utils import init_tracer
 from ...util import override_global_tracer
@@ -322,3 +323,22 @@ class TestRequests(BaseRequestTestCase):
         eq_(dd_span.get_tag(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
         eq_(dd_span.span_type, http.TYPE)
+
+    def test_request_and_response_headers(self):
+        # Disabled when not configured
+        self.session.get(URL_200, headers={'my_header': 'my_value'})
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my_header'), None)
+        eq_(s.get_tag('http.response.headers.access_control_allow_origin'), None)
+
+        # Enabled when explicitly configured
+        integration_config = config.requests  # type: IntegrationConfig
+        integration_config.http.trace_headers('.*')
+        self.session.get(URL_200, headers={'my_header': 'my_value'})
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my_header'), 'my_value')
+        eq_(s.get_tag('http.response.headers.access_control_allow_origin'), '*')

@@ -7,10 +7,12 @@ import unittest
 import wrapt
 
 # Project
+from ddtrace import config
 from ddtrace.compat import httplib, PY2
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
+from ddtrace.settings import IntegrationConfig
 
 from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
@@ -338,6 +340,31 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
 
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 0)
+
+    def test_httplib_request_and_response_headers(self):
+
+        # Disabled when not configured
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200', headers={'my_header': 'my_value'})
+            conn.getresponse()
+            spans = self.tracer.writer.pop()
+            s = spans[0]
+            self.assertEqual(s.get_tag('http.request.headers.my_header'), None)
+            self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
+
+        # Enabled when configured
+        integration_config = config.httplib  # type: IntegrationConfig
+        integration_config.http.trace_headers('.*')
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200', headers={'my_header': 'my_value'})
+            conn.getresponse()
+            spans = self.tracer.writer.pop()
+            s = spans[0]
+            print (s.meta)
+            self.assertEqual(s.get_tag('http.request.headers.my_header'), 'my_value')
+            self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), '*')
 
     def test_urllib_request(self):
         """

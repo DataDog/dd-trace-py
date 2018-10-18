@@ -56,7 +56,6 @@ def _wrap_request(func, instance, args, kwargs):
     url = kwargs.get('url') or args[1]
     headers = kwargs.get('headers', {})
     parsed_uri = parse.urlparse(url)
-    traced_headers_whitelist = config.http.get_integration_traced_headers('requests')
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
@@ -72,7 +71,7 @@ def _wrap_request(func, instance, args, kwargs):
             kwargs['headers'] = headers
 
         # Storing request headers in the span
-        store_request_headers(headers, span, traced_headers_whitelist)
+        store_request_headers(headers, span, config.requests)
 
         response = None
         try:
@@ -88,7 +87,6 @@ def _wrap_request(func, instance, args, kwargs):
                     span.error = int(500 <= response.status_code)
                     # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
-                    store_response_headers(dict(getattr(response, 'headers', {}).items()), span,
-                                           traced_headers_whitelist)
+                    store_response_headers(dict(getattr(response, 'headers', {}).items()), span, config.requests)
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

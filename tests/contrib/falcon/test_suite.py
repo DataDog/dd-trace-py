@@ -1,5 +1,6 @@
 from nose.tools import eq_, ok_, assert_raises
 
+from ddtrace import config
 from ddtrace.ext import errors as errx, http as httpx
 from tests.opentracer.utils import init_tracer
 
@@ -192,3 +193,21 @@ class FalconTestCase(object):
         eq_(dd_span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
         eq_(dd_span.get_tag(httpx.STATUS_CODE), '200')
         eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
+
+    def test_http_header_tracing(self):
+        self.simulate_get('/200', headers={'my_header': 'my_value'})
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.get_tag('http.request.headers.my_header'), None)
+        eq_(span.get_tag('http.response.headers.my_response_header'), None)
+
+        config.falcon.http.trace_headers('.*')
+        self.simulate_get('/200', headers={'my_header': 'my_value'})
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.get_tag('http.request.headers.my_header'), 'my_value')
+        eq_(span.get_tag('http.response.headers.my_response_header'), 'my_response_value')
