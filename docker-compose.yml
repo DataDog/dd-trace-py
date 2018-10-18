@@ -78,3 +78,18 @@ services:
           - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"
+
+    testrunner:
+        image: datadog/docker-library:ddtrace_py
+        environment:
+            - TOX_SKIP_DIST=True
+        network_mode: host
+        working_dir: /src
+        volumes:
+            - ./ddtrace:/src/ddtrace:ro
+            - ./tests:/src/tests:ro
+            - ./setup.cfg:/src/setup.cfg:ro
+            - ./setup.py:/src/setup.py:ro
+            - ./tox.ini:/src/tox.ini:ro
+            - ./.ddtox:/src/.tox
+        command: bash
