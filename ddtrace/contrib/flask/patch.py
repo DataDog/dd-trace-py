@@ -1,14 +1,20 @@
 """
 TODO:
-  - What should they be able to pin?
-  - Test more exceptions
-  - What metadata can we grab from different places?
-  - Do not double trace user code
-    - e.g. if they add `@tracer.wrap()` to an endpoint, we should not wrap
-  - Break up this file to better organize?
-  - Can we get `def patch(flask)` to work?
-  - distributed tracing
-  - check existing patching to ensure we don't lose any functionality
+
+Document:
+  - which Flask functions/methods we override
+  - which span name/resources they map to
+  - metadata captured by each
+  - which can be pinned
+  - configuration options
+  - check compatibility with versions and track differences between them
+
+Write tests:
+  - ugh
+
+Clean up and contribute test app to trace-eamples
+
+Make sure we are off of master and not 0.16-dev
 """
 import flask
 import werkzeug
@@ -20,8 +26,10 @@ from ddtrace import Pin
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
+from .helpers import get_current_app, get_current_span, get_inherited_pin, func_name, simple_tracer, with_instance_pin
 
 
+# TODO: This isn't the final form, waiting on Kyle for config api changes
 config = {
     # Error codes that trigger the main span to be marked as an error
     'flask.response.error_codes': set([500, ]),
@@ -55,6 +63,10 @@ def patch():
         return
     setattr(flask, '_datadog_patch', True)
 
+    # TODO: Patch differently based on the version
+    # TODO: Add a tag with the flask version?
+    # version = tuple([int(i) for i in getattr(flask, '__version__', '0.0.0').split('.')])
+
     # Attach service pin to `flask.app.Flask`
     Pin(
         service=config.get('flask.service.name'),
@@ -72,6 +84,7 @@ def patch():
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Blueprint.register', traced_blueprint_register)
+    _w('flask', 'Blueprint.add_url_rule', traced_blueprint_add_url_rule)
 
     # flask.app.Flask traced hook decorators
     flask_hooks = [
@@ -83,6 +96,7 @@ def patch():
     ]
     for hook in flask_hooks:
         _w('flask', 'Flask.{}'.format(hook), traced_flask_hook)
+    _w('flask', 'after_this_request', traced_flask_hook)
 
     # flask.app.Flask traced methods
     flask_app_traces = [
@@ -94,9 +108,17 @@ def patch():
         'try_trigger_before_first_request_functions',
         'do_teardown_request',
         'do_teardown_appcontext',
+        'send_static_file',
     ]
     for name in flask_app_traces:
-        _w('flask', 'Flask.{}'.format(name), _simple_tracer('flask.{}'.format(name)))
+        _w('flask', 'Flask.{}'.format(name), simple_tracer('flask.{}'.format(name)))
+
+    # flask static file helpers
+    _w('flask', 'send_file', simple_tracer('flask.send_file'))
+    _w('flask', 'send_from_directory', simple_tracer('flask.send_from_directory'))
+
+    # flask.json.jsonify
+    _w('flask', 'jsonify', traced_jsonify)
 
     # flask.templating traced functions
     _w('flask.templating', '_render', traced_render)
@@ -134,26 +156,6 @@ def patch():
             _w('flask', '{}.connect'.format(signal), traced_signal_connect(signal))
 
 
-def with_instance_pin(func):
-    """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
-    def wrapper(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        return func(pin, wrapped, instance, args, kwargs)
-    return wrapper
-
-
-def _simple_tracer(name, span_type=None):
-    """Generate a simple tracer that wraps the function call with `with tracer.trace()`"""
-    @with_instance_pin
-    def wrapper(pin, wrapped, instance, args, kwargs):
-        with pin.tracer.trace(name, service=pin.service, span_type=span_type):
-            return wrapped(*args, **kwargs)
-    return wrapper
-
-
 @with_instance_pin
 def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     """
@@ -183,6 +185,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = '{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
+        if hasattr(flask, '__version__'):
+            s.set_tag('flask.version', flask.__version__)
         # DEV: We set response status code in `traced_finalize_request`
         s.set_tag(http.URL, request.url)
         s.set_tag(http.METHOD, request.method)
@@ -211,6 +215,19 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
+def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
+    pin = get_inherited_pin(wrapped, instance)
+    if not pin:
+        return wrapped(*args, **kwargs)
+
+    def _wrap(rule, endpoint=None, view_func=None, **kwargs):
+        if view_func:
+            pin.clone().onto(view_func)
+        return wrapped(rule, endpoint=endpoint, view_func=view_func, **kwargs)
+
+    return _wrap(*args, **kwargs)
+
+
 def wrap_function(instance, func, name=None, resource=None):
     """
     Helper function to wrap common flask.app.Flask methods.
@@ -221,18 +238,11 @@ def wrap_function(instance, func, name=None, resource=None):
     #   Cannot do `if getattr(func, '__wrapped__', None)` because `functools.wraps` is used by third parties
     #   `isinstance(func, wrapt.ObjectProxy)` doesn't work because `tracer.wrap()` doesn't use `wrapt`
     if not name:
-        name = '{}.{}'.format(func.__module__, func.__name__)
+        name = func_name(func)
 
     @function_wrapper
-    def trace_func(wrapped, _, args, kwargs):
-        # Try to grab the current app from the app context, if we can
-        i = instance
-        if not i:
-            appctx = flask._app_ctx_stack.top
-            if appctx:
-                i = appctx.app
-
-        pin = Pin.get_from(i)
+    def trace_func(wrapped, _instance, args, kwargs):
+        pin = get_inherited_pin(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with pin.tracer.trace(name, service=pin.service, resource=resource):
@@ -258,7 +268,7 @@ def traced_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
     def _wrap(endpoint):
         def _wrapper(func):
-            name = '{}.{}'.format(func.__module__, func.__name__)
+            name = func_name(func)
             return wrapped(endpoint)(wrap_function(instance, func, name=name, resource=endpoint))
         return _wrapper
 
@@ -275,11 +285,7 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
 
 def traced_render_template(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template"""
-    ctx = flask._app_ctx_stack.top
-    if not ctx:
-        return wrapped(*args, **kwargs)
-
-    pin = Pin.get_from(ctx.app)
+    pin = get_inherited_pin(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -289,11 +295,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
 
 def traced_render_template_string(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template_string"""
-    ctx = flask._app_ctx_stack.top
-    if not ctx:
-        return wrapped(*args, **kwargs)
-
-    pin = Pin.get_from(ctx.app)
+    pin = get_inherited_pin(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -310,19 +312,9 @@ def traced_render(wrapped, instance, args, kwargs):
 
     This method is called for render_template or render_template_string
     """
-    appctx = flask._app_ctx_stack.top
-    if not appctx:
-        return wrapped(*args, **kwargs)
-
-    pin = Pin.get_from(appctx.app)
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    ctx = pin.tracer.get_call_context()
-    if not ctx:
-        return wrapped(*args, **kwargs)
-
-    span = ctx.get_current_span()
+    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    # DEV: `get_current_span` will verify `pin` is valid and enabled first
+    span = get_current_span(pin)
     if not span:
         return wrapped(*args, **kwargs)
 
@@ -349,11 +341,7 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
 
     This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
     """
-    ctx = pin.tracer.get_call_context()
-    if not ctx:
-        return wrapped(*args, **kwargs)
-
-    span = ctx.get_current_span()
+    span = get_current_span(pin)
     if not span:
         return wrapped(*args, **kwargs)
 
@@ -387,11 +375,7 @@ def traced_finalize_request(pin, wrapped, instance, args, kwargs):
 
     This wrapper is used to set response tags on the span from `flask.app.Flask.wsgi_app`
     """
-    ctx = pin.tracer.get_call_context()
-    if not ctx:
-        return wrapped(*args, **kwargs)
-
-    span = ctx.get_current_root_span()
+    span = get_current_span(pin, root=True)
     if not span:
         return wrapped(*args, **kwargs)
 
@@ -419,17 +403,11 @@ def wrap_signal(app, signal, func):
 
     We will attempt to find the pin attached to the flask.app.Flask app
     """
-    name = '{}.{}'.format(func.__module__, func.__name__)
+    name = func_name(func)
 
     @function_wrapper
     def trace_func(wrapped, instance, args, kwargs):
-        a = app
-        if not a:
-            appctx = flask._app_ctx_stack.top
-            if appctx:
-                a = appctx.app
-
-        pin = Pin.get_from(a)
+        pin = get_inherited_pin(wrapped, instance, app, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
@@ -444,12 +422,30 @@ def traced_signal_connect(signal):
     """Wrapper for flask.signals.{signal}.connect to ensure all signal receivers are traced"""
     def outer(wrapped, instance, args, kwargs):
         def _wrap(receiver, *args, **kwargs):
+            # See if they gave us the flask.app.Flask as the sender
             app = None
-            for arg in args:
-                if isinstance(arg, flask.Flask):
-                    app = arg
-                    break
+            if isinstance(kwargs.get('sender'), flask.Flask):
+                app = kwargs['sender']
+            elif len(args) > 0 and isinstance(args[0], flask.Flask):
+                app = args[0]
+
+            # We must mark as `weak=False` because the wrapt.FunctionWrapper we create is a weak reference
+            if len(args) > 1:
+                args = list(args)
+                args[1] = False
+                args = tuple(args)
+            else:
+                kwargs['weak'] = False
             return wrapped(wrap_signal(app, signal, receiver), *args, **kwargs)
 
         return _wrap(*args, **kwargs)
     return outer
+
+
+def traced_jsonify(wrapped, instance, args, kwargs):
+    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    with pin.tracer.trace('flask.jsonify'):
+        return wrapped(*args, **kwargs)
