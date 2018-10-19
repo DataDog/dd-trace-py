@@ -22,7 +22,7 @@ To configure the Grpc integration on an per-channel basis use the
     custom_tracer = Tracer()
 
     # override the service and tracer to be used
-    Pin.override(grpc, service="mygrpc", tracer=custom_tracer)
+    Pin.override(grpc, service='mygrpc', tracer=custom_tracer)
     with grpc.insecure_channel('localhost:50051' as channel:
         # create stubs and send requests
         pass
