@@ -60,7 +60,7 @@ def _wrap_request(func, instance, args, kwargs):
         # update the span service name before doing any action
         hostname = parsed_uri.hostname
         if parsed_uri.port:
-            hostname += ":{}".format(parsed_uri.port)
+            hostname += ':{}'.format(parsed_uri.port)
         span.service = _extract_service_name(instance, span, hostname=hostname)
 
         # propagate distributed tracing headers
