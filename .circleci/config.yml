@@ -369,6 +369,19 @@ jobs:
             - httplib.results
       - *save_cache_step
 
+  grpc:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'grpc_contrib-{py27,py34,py35,py36}-grpc' --result-json /tmp/grpc.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - grpc.results
+      - *save_cache_step
+
   mysqlconnector:
     docker:
       - *test_runner
@@ -810,6 +823,7 @@ workflows:
       - flask
       - gevent
       - httplib
+      - grpc
       - mongoengine
       - mysqlconnector
       - mysqlpython
@@ -852,6 +866,7 @@ workflows:
             - django
             - flask
             - gevent
+            - grpc
             - httplib
             - mongoengine
             - mysqlconnector
