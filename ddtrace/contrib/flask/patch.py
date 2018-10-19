@@ -48,7 +48,8 @@ config._add('flask', dict(
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
 # DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
-flask_version = tuple([int(i) for i in getattr(flask, '__version__', '0.0.0').split('.')])
+flask_version_str = getattr(flask, '__version__', '0.0.0')
+flask_version = tuple([int(i) for i in flask_version_str.split('.')])
 
 
 def patch():
@@ -180,8 +181,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = '{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
-        if hasattr(flask, '__version__'):
-            s.set_tag('flask.version', flask.__version__)
+        s.set_tag('flask.version', flask_version_str)
 
         # Flask version < 0.12.0 does not have `finalize_request`,
         # so we need to patch `start_response` instead
