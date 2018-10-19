@@ -44,6 +44,7 @@ PATCH_MODULES = {
     'aiobotocore': False,
     'httplib': False,
     'vertica': True,
+    'jinja2': True,
 
     # Even though instrumentation for web frameworks can be installed manually,
     # instrumenting should be done idempotently
