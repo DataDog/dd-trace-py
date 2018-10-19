@@ -46,7 +46,7 @@ PATCH_MODULES = {
 
     # Even though instrumentation for web frameworks can be installed manually,
     # instrumenting should be done idempotently
-    "django": True,
+    'django': True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "flask": False,
     "falcon": False,
