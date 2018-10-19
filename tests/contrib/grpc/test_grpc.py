@@ -72,7 +72,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         # Create a channel and send one request to the server
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name="test"))
+            response = stub.SayHello(HelloRequest(name='test'))
 
         writer = self._tracer.writer
         spans = writer.pop()
