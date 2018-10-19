@@ -6,9 +6,8 @@ class ClientCallDetails(
             '_ClientCallDetails',
             ('method', 'timeout', 'metadata', 'credentials')),
         grpc.ClientCallDetails):
-    """Copy/paste fromhttps://github.com/grpc/grpc/blob/d0cb61eada9d270b9043ec866b55c88617d362be\
-    /examples/python/interceptors/headers/header_manipulator_client_interceptor.py#L22
-    """
+    """Copy/paste fromhttps://github.com/grpc/grpc/blob/d0cb61eada9d270b9043ec866b55c88617d362be/examples/python/interceptors/headers/header_manipulator_client_interceptor.py#L22
+    """  # noqa
     pass
 
 def inject_span(span, client_call_details):

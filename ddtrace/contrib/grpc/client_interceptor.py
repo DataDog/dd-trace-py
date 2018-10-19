@@ -7,9 +7,8 @@ class GrpcClientInterceptor(
         grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
         grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
     """Intercept calls on a channel. It creates span as well as doing the propagation
-    Derived from https://github.com/grpc/grpc/blob/\
-    d0cb61eada9d270b9043ec866b55c88617d362be/examples/python/interceptors/headers/generic_client_interceptor.py#L19
-    """
+    Derived from https://github.com/grpc/grpc/blob/d0cb61eada9d270b9043ec866b55c88617d362be/examples/python/interceptors/headers/generic_client_interceptor.py#L19
+    """  # noqa
 
     def __init__(self, host, port):
         self._pin = Pin.get_from(grpc)

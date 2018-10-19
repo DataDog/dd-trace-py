@@ -26,6 +26,7 @@ PATCH_MODULES = {
     'celery': True,
     'elasticsearch': True,
     'futures': False,  # experimental propagation
+    'grpc': True,
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
