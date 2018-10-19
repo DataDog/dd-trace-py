@@ -11,7 +11,7 @@ def patch():
     if getattr(grpc, '__datadog_patch', False):
         return
     setattr(grpc, '__datadog_patch', True)
-    Pin(service='grpc', app='grpc', app_type="grpc").onto(grpc)
+    Pin(service='grpc', app='grpc', app_type='grpc').onto(grpc)
 
     _w = wrapt.wrap_function_wrapper
 
