@@ -1,14 +1,13 @@
-import os
-import time
-
 # 3rd party
+import django
 from nose.tools import eq_, ok_
-from django.test import override_settings
 
 # project
 from ddtrace.contrib.django.conf import settings, DatadogSettings
+from ddtrace.contrib.django import patch
 
 # testing
+from .compat import reverse
 from .utils import DjangoTraceTestCase
 from ...util import set_env
 
@@ -28,8 +27,8 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         # Django defaults can be overridden by env vars, ensuring that
         # environment strings are properly converted
         with set_env(
-            DATADOG_TRACE_AGENT_HOSTNAME='agent.consul.local',
-            DATADOG_TRACE_AGENT_PORT='58126'):
+                DATADOG_TRACE_AGENT_HOSTNAME='agent.consul.local',
+                DATADOG_TRACE_AGENT_PORT='58126'):
             settings = DatadogSettings()
             eq_(settings.AGENT_HOSTNAME, 'agent.consul.local')
             eq_(settings.AGENT_PORT, 58126)
@@ -52,3 +51,26 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         response = tracer.writer.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+
+    def test_idempotent_patch(self):
+        patch()
+        django.setup()
+
+        # ensures that the internals are properly traced
+        url = reverse('users-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check that spans are not duplicated
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
+        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
+        eq_(sp_request.get_tag('http.status_code'), '200')
+        eq_(sp_request.get_tag('http.url'), '/users/')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
+        eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
