@@ -99,7 +99,7 @@ class TracedCursor(object):
         )
 
         with span:
-            # The sql query MUST NOT be added as a tag as is added by the agent in the tag `sql.query`. See:
+            # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             span.set_tag("django.db.vendor", self._vendor)
             span.set_tag("django.db.alias", self._alias)
