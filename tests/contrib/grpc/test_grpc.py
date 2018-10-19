@@ -132,7 +132,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         stub1 = HelloStub(channel1)
         stub2 = HelloStub(channel2)
         stub1.SayHello(HelloRequest(name="test"))
-        stub2.SayHello(HelloRequest(name="test"))
+        stub2.SayHello(HelloRequest(name='test'))
 
         writer = self._tracer.writer
         spans = writer.pop()
