@@ -47,7 +47,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         spans = writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' %(span.trace_id, span.span_id))
+        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' % (span.trace_id, span.span_id))
         _check_span(span)
 
     def test_secure_channel(self):
