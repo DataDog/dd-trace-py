@@ -12,7 +12,7 @@ class BaseFlaskTestCase(unittest.TestCase):
         patch()
 
         self.tracer = get_dummy_tracer()
-        self.app = flask.Flask(__name__)
+        self.app = flask.Flask(__name__, template_folder='test_templates/')
         self.client = self.app.test_client()
         Pin.override(self.app, tracer=self.tracer)
 
