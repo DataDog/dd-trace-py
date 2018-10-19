@@ -4,7 +4,8 @@ The Grpc integration will trace queries made using the grpc library.
 Grpc will be automatically instrumented with ``patch_all``, or when using
 the ``ddtrace-run`` command.
 Grpc is instrumented on import. To instrument Grpc manually use the
-``patch`` function.
+``patch`` function.::
+
     import grpc
     from ddtrace import patch
     patch(grpc=True)
