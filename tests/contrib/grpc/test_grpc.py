@@ -104,7 +104,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         Pin.override(grpc, tracer=self._tracer)
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            stub.SayHello(HelloRequest(name="test"))
+            stub.SayHello(HelloRequest(name='test'))
 
         writer = self._tracer.writer
         spans = writer.pop()
