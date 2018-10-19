@@ -87,7 +87,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             try:
-                stub.SayError(HelloRequest(name="test"))
+                stub.SayError(HelloRequest(name='test'))
             except:
                 pass # excepted to throw
 
