@@ -168,7 +168,9 @@ class SendBackDatadogHeaders(object):
         """
         metadata = context.invocation_metadata()
         context.set_code(grpc.StatusCode.OK)
-        return HelloReply(message=str.join(';', (w.key + '='+ w.value for w in metadata if w.key.startswith('x-datadog'))))
+        return HelloReply(
+            message=';'.join(w.key + '=' + w.value for w in metadata if w.key.startswith('x-datadog')),
+        )
 
     def SayError(self, request, context):
         context.set_code(grpc.StatusCode.ABORTED)
