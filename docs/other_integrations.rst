@@ -63,6 +63,6 @@ Requests
 .. _grpc:
 
 Grpc
-^^^^
+----
 
 .. automodule:: ddtrace.contrib.grpc
