@@ -14,6 +14,7 @@ Grpc is instrumented on import. To instrument Grpc manually use the
 
 To configure the Grpc integration on an per-channel basis use the
 ``Pin`` API::
+
     import grpc
     from ddtrace import Pin, patch, Tracer
 
