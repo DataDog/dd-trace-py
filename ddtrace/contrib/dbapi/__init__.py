@@ -8,6 +8,7 @@ import logging
 # 3p
 import wrapt
 
+
 # project
 from ddtrace import Pin
 from ddtrace.ext import sql
@@ -33,24 +34,21 @@ class TracedCursor(wrapt.ObjectProxy):
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         service = pin.service
-
         with pin.tracer.trace(name, service=service, resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
-
-            # TMP, we are not doing this like here
-            # s.parent_id = self._self_last_execute_span.span_id if self._self_last_execute_span else None
-            # print("Setting paremt id to: ", s.parent_id)
-            # store_span = kwargs.pop('store_span') if 'store_span' in kwargs.keys() else False
+            # Necessary for django
+            s.set_tag(sql.QUERY, resource)
 
             try:
                 return method(*args, **kwargs)
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
-                # if store_span:
-                #     print("Storing the span")
-                #     self._self_last_execute_span = s
+                row_count = self.rowcount
+                s.set_metric("db.rowcount", row_count)
+                # Necessary for django
+                if row_count and row_count >= 0:
+                    s.set_tag(sql.ROWS, row_count)
 
     def executemany(self, query, *args, **kwargs):
         self._self_last_execute_operation = None
@@ -92,7 +90,7 @@ class TracedCursor(wrapt.ObjectProxy):
                                   *args, **kwargs)
 
     def callproc(self, proc, args):
-        return self._trace_method(self.__wrapped__.callproc, proc, {}, proc,
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc,
                                   args)
 
     def __enter__(self):
