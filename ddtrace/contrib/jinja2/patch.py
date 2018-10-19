@@ -11,7 +11,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 
 
 # default settings
-config._add('jinja2',{
+config._add('jinja2', {
     'service_name': get_env('jinja2', 'service_name', None),
 })
 
