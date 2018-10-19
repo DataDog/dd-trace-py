@@ -198,8 +198,14 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         if flask_version < (0, 12, 0):
             def _wrap_start_response(func):
                 def traced_start_response(status_code, headers):
-                    s.set_tag(http.STATUS_CODE, status_code)
-                    if status_code in config.get('flask.response.error_codes', set()):
+                    code, _, _ = status_code.partition(' ')
+                    try:
+                        code = int(code)
+                    except ValueError:
+                        pass
+
+                    s.set_tag(http.STATUS_CODE, code)
+                    if code in config.get('flask.response.error_codes', set()):
                         s.error = 1
                     return func(status_code, headers)
                 return traced_start_response
