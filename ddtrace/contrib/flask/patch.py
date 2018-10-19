@@ -26,6 +26,7 @@ from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
+from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app, get_current_span, get_inherited_pin, func_name, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
@@ -138,7 +139,6 @@ def patch():
     if config.flask['trace_signals']:
         signals = [
             'template_rendered',
-            'before_render_template',
             'request_started',
             'request_finished',
             'request_tearing_down',
@@ -148,8 +148,88 @@ def patch():
             'appcontext_popped',
             'message_flashed',
         ]
+        if flask_version >= (0, 11, 0):
+            signals.append('before_render_template')
+
         for signal in signals:
-            _w('flask', '{}.connect'.format(signal), traced_signal_connect(signal))
+            # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
+            _w('flask', '{}.receivers_for'.format(signal), traced_signal_receivers_for(signal))
+
+
+def unpatch():
+    if not getattr(flask, '_datadog_patch', False):
+        return
+    setattr(flask, '_datadog_patch', False)
+
+    props = [
+        # Flask
+        'Flask.wsgi_app',
+        'Flask.dispatch_request',
+        'Flask.add_url_rule',
+        'Flask.endpoint',
+        'Flask._register_error_handler',
+        'Flask.finalize_request',
+
+        'Flask.preprocess_request',
+        'Flask.process_response',
+        'Flask.handle_exception',
+        'Flask.handle_http_exception',
+        'Flask.handle_user_exception',
+        'Flask.try_trigger_before_first_request_functions',
+        'Flask.do_teardown_request',
+        'Flask.do_teardown_appcontext',
+        'Flask.send_static_file',
+
+        # Flask Hooks
+        'Flask.before_request',
+        'Flask.before_first_request',
+        'Flask.after_request',
+        'Flask.teardown_request',
+        'Flask.teardown_appcontext',
+
+        # Blueprint
+        'Blueprint.register',
+        'Blueprint.add_url_rule',
+
+        # Blueprint Hooks
+        'Blueprint.after_app_request',
+        'Blueprint.after_request',
+        'Blueprint.before_app_first_request',
+        'Blueprint.before_app_request',
+        'Blueprint.before_request',
+        'Blueprint.teardown_request',
+        'Blueprint.teardown_app_request',
+
+        # Signals
+        'template_rendered.receivers_for',
+        'request_started.receivers_for',
+        'request_finished.receivers_for',
+        'request_tearing_down.receivers_for',
+        'got_request_exception.receivers_for',
+        'appcontext_tearing_down.receivers_for',
+        'appcontext_pushed.receivers_for',
+        'appcontext_popped.receivers_for',
+        'message_flashed.receivers_for',
+
+        # Top level props
+        'after_this_request',
+        'send_file',
+        'send_from_directory',
+        'jsonify',
+        'render_template',
+        'render_template_string',
+    ]
+
+    if flask_version >= (0, 11, 0):
+        props.append('before_render_template.receivers_for')
+
+    for prop in props:
+        # Handle 'flask.request_started.receivers_for'
+        obj = flask
+        if '.' in prop:
+            attr, _, prop = prop.partition('.')
+            obj = getattr(obj, attr, object())
+        _u(obj, prop)
 
 
 @with_instance_pin
@@ -384,29 +464,20 @@ def traced_finalize_request(pin, wrapped, instance, args, kwargs):
             # Mark this span as an error if we have a 500 response
             # DEV: We don't have any error info to set here
             # DEV: They may have handled this 500 error in code via a custom error handler
-            if response.status_code in config.get('flask.response.error_codes', set()):
+            if response.status_code in config.flask.get('error_codes', set()):
                 span.error = 1
 
 
-def traced_signal_connect(signal):
-    """Wrapper for flask.signals.{signal}.connect to ensure all signal receivers are traced"""
+def traced_signal_receivers_for(signal):
+    """Wrapper for flask.signals.{signal}.receivers_for to ensure all signal receivers are traced"""
     def outer(wrapped, instance, args, kwargs):
-        def _wrap(receiver, *args, **kwargs):
+        def _wrap(sender, *args, **kwargs):
             # See if they gave us the flask.app.Flask as the sender
             app = None
-            if isinstance(kwargs.get('sender'), flask.Flask):
-                app = kwargs['sender']
-            elif len(args) > 0 and isinstance(args[0], flask.Flask):
-                app = args[0]
-
-            # We must mark as `weak=False` because the wrapt.FunctionWrapper we create is a weak reference
-            if len(args) > 1:
-                args = list(args)
-                args[1] = False
-                args = tuple(args)
-            else:
-                kwargs['weak'] = False
-            return wrapped(wrap_signal(app, signal, receiver), *args, **kwargs)
+            if isinstance(sender, flask.Flask):
+                app = sender
+            for receiver in wrapped(sender, *args ,**kwargs):
+                yield wrap_signal(app, signal, receiver)
 
         return _wrap(*args, **kwargs)
     return outer
