@@ -305,9 +305,8 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
         pin = Pin.get_from(instance)
         if not pin:
             pin = Pin.get_from(app)
-            if not pin:
-                return wrapped(app, *args, **kwargs)
-            pin.clone().onto(instance)
+            if pin:
+                pin.clone().onto(instance)
         return wrapped(app, *args, **kwargs)
     return _wrap(*args, **kwargs)
 
