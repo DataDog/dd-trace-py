@@ -32,8 +32,14 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         eq_(span.span_type, 'sql')
         eq_(span.get_tag('django.db.vendor'), 'sqlite')
         eq_(span.get_tag('django.db.alias'), 'default')
-        eq_(span.get_tag('sql.query'), 'SELECT COUNT(*) AS "__count" FROM "auth_user"')
         assert start < span.start < span.start + span.duration < end
+
+    def test_django_db_query_in_resource_not_in_tags(self):
+        User.objects.count()
+        spans = self.tracer.writer.pop()
+        eq_(spans[0].name, 'sqlite.query')
+        eq_(spans[0].resource, 'SELECT COUNT(*) AS "__count" FROM "auth_user"')
+        eq_(spans[0].get_tag('sql.query'), None)
 
     @override_ddtrace_settings(INSTRUMENT_DATABASE=False)
     def test_connection_disabled(self):
