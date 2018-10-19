@@ -214,10 +214,13 @@ def unpatch():
         # Top level props
         'after_this_request',
         'send_file',
-        'send_from_directory',
         'jsonify',
         'render_template',
         'render_template_string',
+        'templating._render',
+
+        # DEV: Skipping this because it basically does `return send_file(join(directory, filename))`
+        # 'send_from_directory',
     ]
 
     if flask_version >= (0, 11, 0):
