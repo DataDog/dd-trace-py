@@ -16,8 +16,8 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
             Then ``flask.send_file`` is patched
         """
         # DEV: We call `patch` in `setUp`
-        self.assertTrue(isinstance(flask.jsonify, wrapt.ObjectProxy))
-        self.assertTrue(isinstance(flask.send_file, wrapt.ObjectProxy))
+        self.assert_is_wrapped(flask.jsonify)
+        self.assert_is_wrapped(flask.send_file)
 
     def test_unpatch(self):
         """
@@ -26,8 +26,8 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
             Then ``flask.send_file`` is unpatched
         """
         unpatch()
-        self.assertFalse(isinstance(flask.jsonify, wrapt.ObjectProxy))
-        self.assertFalse(isinstance(flask.send_file, wrapt.ObjectProxy))
+        self.assert_is_not_wrapped(flask.jsonify)
+        self.assert_is_not_wrapped(flask.send_file)
 
     def test_jsonify(self):
         """

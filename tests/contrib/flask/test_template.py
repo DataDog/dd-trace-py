@@ -18,9 +18,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             Then ``flask.templating._render`` is patched
         """
         # DEV: We call `patch` in `setUp`
-        self.assertTrue(isinstance(flask.render_template, wrapt.ObjectProxy))
-        self.assertTrue(isinstance(flask.render_template_string, wrapt.ObjectProxy))
-        self.assertTrue(isinstance(flask.templating._render, wrapt.ObjectProxy))
+        self.assert_is_wrapped(flask.render_template)
+        self.assert_is_wrapped(flask.render_template_string)
+        self.assert_is_wrapped(flask.templating._render)
 
     def test_unpatch(self):
         """
@@ -30,9 +30,9 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             Then ``flask.templating._render`` is unpatched
         """
         unpatch()
-        self.assertFalse(isinstance(flask.render_template, wrapt.ObjectProxy))
-        self.assertFalse(isinstance(flask.render_template_string, wrapt.ObjectProxy))
-        self.assertFalse(isinstance(flask.templating._render, wrapt.ObjectProxy))
+        self.assert_is_not_wrapped(flask.render_template)
+        self.assert_is_not_wrapped(flask.render_template_string)
+        self.assert_is_not_wrapped(flask.templating._render)
 
     def test_render_template(self):
         """

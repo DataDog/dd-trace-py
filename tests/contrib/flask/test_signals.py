@@ -62,7 +62,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         for signal_name in self.signals():
             signal = getattr(flask, signal_name)
             receivers_for = getattr(signal, 'receivers_for')
-            self.assertTrue(isinstance(receivers_for, wrapt.ObjectProxy))
+            self.assert_is_wrapped(receivers_for)
 
     def test_unpatch(self):
         """
@@ -74,7 +74,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         for signal_name in self.signals():
             signal = getattr(flask, signal_name)
             receivers_for = getattr(signal, 'receivers_for')
-            self.assertFalse(isinstance(receivers_for, wrapt.ObjectProxy))
+            self.assert_is_not_wrapped(receivers_for)
 
     def test_signals(self):
         """

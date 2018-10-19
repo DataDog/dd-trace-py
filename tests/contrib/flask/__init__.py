@@ -3,6 +3,7 @@ import unittest
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch, unpatch
 import flask
+import wrapt
 
 from ...test_tracer import get_dummy_tracer
 
@@ -25,3 +26,9 @@ class BaseFlaskTestCase(unittest.TestCase):
 
     def get_spans(self):
         return self.tracer.writer.pop()
+
+    def assert_is_wrapped(self, obj):
+        self.assertTrue(isinstance(obj, wrapt.ObjectProxy))
+
+    def assert_is_not_wrapped(self, obj):
+        self.assertFalse(isinstance(obj, wrapt.ObjectProxy))
