@@ -21,7 +21,7 @@ import os
 import werkzeug
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import Pin
+from ddtrace import config, Pin
 
 from ...ext import AppTypes
 from ...ext import http
@@ -30,30 +30,20 @@ from .helpers import get_current_app, get_current_span, get_inherited_pin, func_
 from .wrappers import wrap_function, wrap_signal
 
 
-# TODO: This isn't the final form, waiting on Kyle for config api changes
-config = {
-    # Error codes that trigger the main span to be marked as an error
-    'flask.response.error_codes': set([500, ]),
-
+# Configure default configuration
+config._add('flask', dict(
     # Flask service configuration
     # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
-    'flask.service.name': os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
-    'flask.service.app': 'flask',
-    'flask.service.app_type': AppTypes.web,
+    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
+    app='flask',
+    app_type=AppTypes.web,
 
-    # Default name for jinja2 templates
-    # DEV: This is mostly used for in-memory/string templates (e.g. `render_template_string()`)
-    'flask.template.default_name': '<memory>',
-
-    # Whether we should collect `request.view_args` as tags
-    'flask.collect_view_args': True,
-
-    # Whether we should trace signal functions
-    'flask.trace_signals': True,
-
-    # Whether distributed tracing is enabled or not
-    'flask.distributed_tracing.enabled': False,
-}
+    collect_view_args=True,
+    distributed_tracing_enabled=False,
+    template_default_name='<memory>',
+    trace_signals=True,
+    error_codes=set([500, ]),
+))
 
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
@@ -72,9 +62,9 @@ def patch():
 
     # Attach service pin to `flask.app.Flask`
     Pin(
-        service=config.get('flask.service.name'),
-        app=config.get('flask.service.app'),
-        app_type=config.get('flask.service.app_type'),
+        service=config.flask['service_name'],
+        app=config.flask['app'],
+        app_type=config.flask['app_type'],
     ).onto(flask.Flask)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
@@ -144,7 +134,7 @@ def patch():
         _w('flask', 'Blueprint.{}'.format(hook), traced_flask_hook)
 
     # flask.signals signals
-    if config.get('flask.trace_signals'):
+    if config.flask['trace_signals']:
         signals = [
             'template_rendered',
             'before_render_template',
@@ -177,7 +167,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     request = werkzeug.Request(environ)
 
     # Configure distributed tracing
-    if config.get('flask.distributed_tracing.enabled'):
+    if config.flask['distributed_tracing_enabled']:
         propagator = HTTPPropagator()
         context = propagator.extract(request.headers)
         # Only need to active the new context if something was propagated
@@ -205,7 +195,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                         pass
 
                     s.set_tag(http.STATUS_CODE, code)
-                    if code in config.get('flask.response.error_codes', set()):
+                    if code in config.flask.get('error_codes', set()):
                         s.error = 1
                     return func(status_code, headers)
                 return traced_start_response
@@ -320,7 +310,7 @@ def traced_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrap(template, context, app):
-        name = getattr(template, 'name', None) or config.get('flask.template.default_name')
+        name = getattr(template, 'name', None) or config.flask.get('template_default_name')
         span.set_tag('template.name', name)
         # TODO: Anything else? Should we add tags for the context?
         return wrapped(*args, **kwargs)
@@ -358,7 +348,7 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
             span.resource = '{} {}'.format(request.method, request.url_rule.rule)
             span.set_tag('flask.url_rule', request.url_rule.rule)
 
-        if request.view_args and config.get('flask.collect_view_args'):
+        if request.view_args and config.flask.get('collect_view_args'):
             for k, v in request.view_args.items():
                 span.set_tag('flask.view_args.{}'.format(k), v)
     except Exception:
