@@ -394,8 +394,8 @@ def traced_render(wrapped, instance, args, kwargs):
 
     def _wrap(template, context, app):
         name = getattr(template, 'name', None) or config.flask.get('template_default_name')
-        span.set_tag('template.name', name)
-        # TODO: Anything else? Should we add tags for the context?
+        span.resource = name
+        span.set_tag('flask.template_name', name)
         return wrapped(*args, **kwargs)
     return _wrap(*args, **kwargs)
 
