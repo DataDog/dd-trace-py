@@ -737,6 +737,19 @@ jobs:
       - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
+  jinja2:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'jinja2_contrib-{py27,py34,py35,py36}-jinja{27,28,29,210}' --result-json /tmp/jinja2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - jinja2.results
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -844,6 +857,7 @@ workflows:
       - sqlite3
       - msgpack
       - vertica
+      - jinja2
       - build_docs
       - wait_all_tests:
           requires:
@@ -888,6 +902,7 @@ workflows:
             - sqlite3
             - msgpack
             - vertica
+            - jinja2
             - build_docs
       - deploy_dev:
           requires:

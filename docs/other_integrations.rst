@@ -66,3 +66,10 @@ Grpc
 ----
 
 .. automodule:: ddtrace.contrib.grpc
+
+.. _jinja2:
+
+Jinja2
+------
+
+.. automodule:: ddtrace.contrib.jinja2
