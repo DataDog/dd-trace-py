@@ -56,6 +56,11 @@ config = {
 }
 
 
+# Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
+# DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
+flask_version = tuple([int(i) for i in getattr(flask, '__version__', '0.0.0').split('.')])
+
+
 def patch():
     """
     Patch `flask` module for tracing
@@ -64,10 +69,6 @@ def patch():
     if getattr(flask, '_datadog_patch', False):
         return
     setattr(flask, '_datadog_patch', True)
-
-    # TODO: Patch differently based on the version
-    # TODO: Add a tag with the flask version?
-    # version = tuple([int(i) for i in getattr(flask, '__version__', '0.0.0').split('.')])
 
     # Attach service pin to `flask.app.Flask`
     Pin(
@@ -79,10 +80,12 @@ def patch():
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Flask.wsgi_app', traced_wsgi_app)
     _w('flask', 'Flask.dispatch_request', traced_dispatch_request)
-    _w('flask', 'Flask.finalize_request', traced_finalize_request)
     _w('flask', 'Flask.add_url_rule', traced_add_url_rule)
     _w('flask', 'Flask.endpoint', traced_endpoint)
     _w('flask', 'Flask._register_error_handler', traced_register_error_handler)
+
+    if flask_version >= (0, 12, 0):
+        _w('flask', 'Flask.finalize_request', traced_finalize_request)
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Blueprint.register', traced_blueprint_register)
@@ -189,6 +192,19 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
         if hasattr(flask, '__version__'):
             s.set_tag('flask.version', flask.__version__)
+
+        # Flask version < 0.12.0 does not have `finalize_request`,
+        # so we need to patch `start_response` instead
+        if flask_version < (0, 12, 0):
+            def _wrap_start_response(func):
+                def traced_start_response(status_code, headers):
+                    s.set_tag(http.STATUS_CODE, status_code)
+                    if status_code in config.get('flask.response.error_codes', set()):
+                        s.error = 1
+                    return func(status_code, headers)
+                return traced_start_response
+            start_response = _wrap_start_response(start_response)
+
         # DEV: We set response status code in `traced_finalize_request`
         s.set_tag(http.URL, request.url)
         s.set_tag(http.METHOD, request.method)
