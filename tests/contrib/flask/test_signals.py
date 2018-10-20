@@ -15,7 +15,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
         #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
         # DEV: Version 0.9 doesn't have a patch version
-        if flask_version == (0, 9) and signal_name == 'appcontext_tearing_down':
+        if flask_version <= (0, 9) and signal_name == 'appcontext_tearing_down':
             return getattr(flask.signals, signal_name)
         return getattr(flask, signal_name)
 

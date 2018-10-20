@@ -58,6 +58,7 @@ config._add('flask', dict(
 #      (1, 0, 0) >= (0, 10)
 #      (0, 9) == (0, 9)
 #      (0, 9, 0) != (0, 9)
+#      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, '__version__', '0.0.0')
 flask_version = tuple([int(i) for i in flask_version_str.split('.')])
 
@@ -171,7 +172,7 @@ def patch():
             #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
             #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
             # DEV: Version 0.9 doesn't have a patch version
-            if flask_version == (0, 9) and signal == 'appcontext_tearing_down':
+            if flask_version <= (0, 9) and signal == 'appcontext_tearing_down':
                 module = 'flask.signals'
 
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
@@ -260,7 +261,7 @@ def unpatch():
         #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
         #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
         # DEV: Version 0.9 doesn't have a patch version
-        if flask_version == (0, 9) and prop == 'appcontext_tearing_down.receivers_for':
+        if flask_version <= (0, 9) and prop == 'appcontext_tearing_down.receivers_for':
             obj = flask.signals
 
         if '.' in prop:
