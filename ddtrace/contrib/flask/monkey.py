@@ -49,6 +49,15 @@ config._add('flask', dict(
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
 # DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
+# DEV: Example tests:
+#      (0, 10, 0) >= (0, 10)
+#      (0, 10, 0) >= (0, 10, 0)
+#      (0, 10, 1) >= (0, 10)
+#      (0, 11, 1) >= (0, 10)
+#      (0, 11, 1) >= (0, 10, 2)
+#      (1, 0, 0) >= (0, 10)
+#      (0, 9) == (0, 9)
+#      (0, 9, 0) != (0, 9)
 flask_version_str = getattr(flask, '__version__', '0.0.0')
 flask_version = tuple([int(i) for i in flask_version_str.split('.')])
 
@@ -76,7 +85,7 @@ def patch():
     _w('flask', 'Flask.endpoint', traced_endpoint)
     _w('flask', 'Flask._register_error_handler', traced_register_error_handler)
 
-    if flask_version >= (0, 12, 0):
+    if flask_version >= (0, 12):
         _w('flask', 'Flask.finalize_request', traced_finalize_request)
 
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
@@ -144,16 +153,29 @@ def patch():
             'request_tearing_down',
             'got_request_exception',
             'appcontext_tearing_down',
-            'appcontext_pushed',
-            'appcontext_popped',
-            'message_flashed',
         ]
-        if flask_version >= (0, 11, 0):
+        # These were added in 0.11.0
+        if flask_version >= (0, 11):
             signals.append('before_render_template')
 
+        # These were added in 0.10.0
+        if flask_version >= (0, 10):
+            signals.append('appcontext_pushed')
+            signals.append('appcontext_popped')
+            signals.append('message_flashed')
+
         for signal in signals:
+            module = 'flask'
+
+            # v0.9 missed importing `appcontext_tearing_down` in `flask/__init__.py`
+            #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
+            #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
+            # DEV: Version 0.9 doesn't have a patch version
+            if flask_version == (0, 9) and signal == 'appcontext_tearing_down':
+                module = 'flask.signals'
+
             # DEV: Patch `receivers_for` instead of `connect` to ensure we don't mess with `disconnect`
-            _w('flask', '{}.receivers_for'.format(signal), traced_signal_receivers_for(signal))
+            _w(module, '{}.receivers_for'.format(signal), traced_signal_receivers_for(signal))
 
 
 def unpatch():
@@ -207,9 +229,6 @@ def unpatch():
         'request_tearing_down.receivers_for',
         'got_request_exception.receivers_for',
         'appcontext_tearing_down.receivers_for',
-        'appcontext_pushed.receivers_for',
-        'appcontext_popped.receivers_for',
-        'message_flashed.receivers_for',
 
         # Top level props
         'after_this_request',
@@ -223,12 +242,27 @@ def unpatch():
         # 'send_from_directory',
     ]
 
-    if flask_version >= (0, 11, 0):
+    # These were added in 0.11.0
+    if flask_version >= (0, 11):
         props.append('before_render_template.receivers_for')
+
+    # These were added in 0.10.0
+    if flask_version >= (0, 10):
+        props.append('app_context_pushed.receivers_for')
+        props.append('app_context_popped.receivers_for')
+        props.append('message_flashed.receivers_for')
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
         obj = flask
+
+        # v0.9.0 missed importing `appcontext_tearing_down` in `flask/__init__.py`
+        #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
+        #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
+        # DEV: Version 0.9 doesn't have a patch version
+        if flask_version == (0, 9) and prop == 'appcontext_tearing_down.receivers_for':
+            obj = flask.signals
+
         if '.' in prop:
             attr, _, prop = prop.partition('.')
             obj = getattr(obj, attr, object())
@@ -268,7 +302,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         # Flask version < 0.12.0 does not have `finalize_request`,
         # so we need to patch `start_response` instead
-        if flask_version < (0, 12, 0):
+        if flask_version < (0, 12):
             def _wrap_start_response(func):
                 def traced_start_response(status_code, headers):
                     code, _, _ = status_code.partition(' ')
