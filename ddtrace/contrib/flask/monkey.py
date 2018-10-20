@@ -249,8 +249,8 @@ def unpatch():
 
     # These were added in 0.10.0
     if flask_version >= (0, 10):
-        props.append('app_context_pushed.receivers_for')
-        props.append('app_context_popped.receivers_for')
+        props.append('appcontext_pushed.receivers_for')
+        props.append('appcontext_popped.receivers_for')
         props.append('message_flashed.receivers_for')
 
     for prop in props:
