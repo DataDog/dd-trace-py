@@ -43,7 +43,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             response = flask.render_template('test.html', world='world')
             self.assertEqual(response, 'hello world')
 
-        # 1 for calling `flask.render_templat`
+        # 1 for calling `flask.render_template`
         # 1 for tearing down the app context we created
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
@@ -80,7 +80,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
             response = flask.render_template_string('hello {{world}}', world='world')
             self.assertEqual(response, 'hello world')
 
-        # 1 for calling `flask.render_templat`
+        # 1 for calling `flask.render_template`
         # 1 for tearing down the app context we created
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
