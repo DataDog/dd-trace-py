@@ -36,7 +36,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
                 We do not use the ``flask.Flask`` app ``Pin``
         """
         bp = flask.Blueprint('pinned', __name__)
-        Pin(service='flask-bp').onto(bp)
+        Pin(service='flask-bp', tracer=self.tracer).onto(bp)
 
         # DEV:This is more common than calling ``flask.Blueprint.register`` directly
         self.app.register_blueprint(bp)
@@ -58,7 +58,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         """
         # When the Blueprint has a Pin attached
         bp = flask.Blueprint('pinned', __name__)
-        Pin(service='flask-bp').onto(bp)
+        Pin(service='flask-bp', tracer=self.tracer).onto(bp)
 
         @bp.route('/')
         def test_view():
