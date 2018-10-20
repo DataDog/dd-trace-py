@@ -10,6 +10,15 @@ from . import BaseFlaskTestCase
 
 
 class FlaskSignalsTestCase(BaseFlaskTestCase):
+    def get_signal(self, signal_name):
+        # v0.9 missed importing `appcontext_tearing_down` in `flask/__init__.py`
+        #  https://github.com/pallets/flask/blob/0.9/flask/__init__.py#L35-L37
+        #  https://github.com/pallets/flask/blob/0.9/flask/signals.py#L52
+        # DEV: Version 0.9 doesn't have a patch version
+        if flask_version == (0, 9) and signal_name == 'appcontext_tearing_down':
+            return getattr(flask.signals, signal_name)
+        return getattr(flask, signal_name)
+
     def signal_function(self, name):
         def signal(*args, **kwargs):
             pass
@@ -22,7 +31,8 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
     def call_signal(self, signal_name, *args, **kwargs):
         """Context manager helper used for generating a mock signal function and registering with flask"""
         func = self.signal_function(signal_name)
-        signal = getattr(flask, signal_name)
+
+        signal = self.get_signal(signal_name)
         signal.connect(func, self.app)
 
         try:
@@ -43,13 +53,17 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
 
             'got_request_exception',
             'appcontext_tearing_down',
-            'appcontext_pushed',
-            'appcontext_popped',
-            'message_flashed',
         ]
         # This signal was added in 0.11.0
-        if flask_version >= (0, 11, 0):
+        if flask_version >= (0, 11):
             signals.append('before_render_template')
+
+        # These were added in 0.10
+        if flask_version >= (0, 10):
+            signals.append('appcontext_pushed')
+            signals.append('appcontext_popped')
+            signals.append('message_flashed')
+
         return signals
 
     def test_patched(self):
@@ -59,7 +73,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         """
         # DEV: We call `patch()` in `setUp`
         for signal_name in self.signals():
-            signal = getattr(flask, signal_name)
+            signal = self.get_signal(signal_name)
             receivers_for = getattr(signal, 'receivers_for')
             self.assert_is_wrapped(receivers_for)
 
@@ -71,7 +85,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         unpatch()
 
         for signal_name in self.signals():
-            signal = getattr(flask, signal_name)
+            signal = self.get_signal(signal_name)
             receivers_for = getattr(signal, 'receivers_for')
             self.assert_is_not_wrapped(receivers_for)
 
