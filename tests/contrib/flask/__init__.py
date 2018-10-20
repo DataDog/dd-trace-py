@@ -28,7 +28,7 @@ class BaseFlaskTestCase(unittest.TestCase):
         return self.tracer.writer.pop()
 
     def assert_is_wrapped(self, obj):
-        self.assertTrue(isinstance(obj, wrapt.ObjectProxy))
+        self.assertTrue(isinstance(obj, wrapt.ObjectProxy), '{} is not wrapped'.format(obj))
 
     def assert_is_not_wrapped(self, obj):
-        self.assertFalse(isinstance(obj, wrapt.ObjectProxy))
+        self.assertFalse(isinstance(obj, wrapt.ObjectProxy), '{} is wrapped'.format(obj))
