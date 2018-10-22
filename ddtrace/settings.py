@@ -1,11 +1,11 @@
 import collections
 import logging
 from copy import deepcopy
-import re
 
 from .pin import Pin
 from .span import Span
 from .utils.merge import deepmerge
+from .utils.http import normalize_header_name
 
 
 log = logging.getLogger(__name__)
@@ -76,11 +76,24 @@ class Config(object):
         else:
             self._config[integration] = IntegrationConfig(self, settings)
 
-    def trace_headers(self, whitelist, blacklist=None):
-        self._http.trace_headers(whitelist, blacklist=blacklist)
+    def trace_headers(self, whitelist):
+        """
+        Registers a set of headers to be traced at global level or integration level.
+        :param whitelist: the case-insensitive list of traced headers
+        :type whitelist: list of str or str
+        :return: self
+        :rtype: HttpConfig
+        """
+        self._http.trace_headers(whitelist)
         return self
 
     def header_is_traced(self, header_name):
+        """
+        Returns whether or not the current header should be traced.
+        :param header_name: the header name
+        :type header_name: str
+        :rtype: bool
+        """
         return self._http.header_is_traced(header_name)
 
     def __repr__(self):
@@ -249,16 +262,16 @@ class HttpConfig(object):
     """
 
     def __init__(self):
-        self._whitelist_headers_patterns = []
-        self._blacklist_headers_patterns = []
+        self._whitelist_headers = []
 
     @property
     def is_header_tracing_configured(self):
-        return len(self._whitelist_headers_patterns) > 0
+        return len(self._whitelist_headers) > 0
 
-    def trace_headers(self, whitelist, blacklist=None):
-        """Registers a set of headers to be traced at global level or integration level.
-        :param whitelist: the list of pattern
+    def trace_headers(self, whitelist):
+        """
+        Registers a set of headers to be traced at global level or integration level.
+        :param whitelist: the case-insensitive list of traced headers
         :type whitelist: list of str or str
         :return: self
         :rtype: HttpConfig
@@ -268,37 +281,22 @@ class HttpConfig(object):
 
         whitelist = [whitelist] if isinstance(whitelist, str) else whitelist
         for whitelist_entry in whitelist:
-            try:
-                self._whitelist_headers_patterns.append(re.compile(whitelist_entry, re.IGNORECASE))
-            except Exception:
-                log.warning('Invalid regex in http headers tracing whitelist definition: %s', whitelist_entry)
-
-        blacklist = [blacklist] if isinstance(blacklist, str) else blacklist or []
-        for blacklist_entry in blacklist:
-            try:
-                self._blacklist_headers_patterns.append(re.compile(blacklist_entry, re.IGNORECASE))
-            except Exception:
-                log.warning('Invalid regex in http headers tracing blacklist definition: %s', blacklist_entry)
+            normalized_header_name = normalize_header_name(whitelist_entry)
+            if not normalized_header_name:
+                continue
+            self._whitelist_headers.append(normalized_header_name)
 
         return self
 
     def header_is_traced(self, header_name):
         """
-        :param header_name:
+        Returns whether or not the current header should be traced.
+        :param header_name: the header name
         :type header_name: str
-        :return:
+        :rtype: bool
         """
-        # If any of the whitelist matches, then the header is traced
-        for pattern in self._blacklist_headers_patterns:
-            if pattern.match(header_name):
-                return False
-
-        # If any of the blacklist matches, then the header is dropped
-        for pattern in self._whitelist_headers_patterns:
-            if pattern.match(header_name):
-                return True
-
-        return False
+        normalized_header_name = normalize_header_name(header_name)
+        return normalized_header_name in self._whitelist_headers
 
 
 # Configure our global configuration object
