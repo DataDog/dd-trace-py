@@ -50,10 +50,10 @@ PATCH_MODULES = {
     # instrumenting should be done idempotently
     'django': True,
     'falcon': True,
+    'pyramid': True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "flask": False,
     "pylons": False,
-    "pyramid": False,
 }
 
 _LOCK = threading.Lock()

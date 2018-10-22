@@ -4,7 +4,7 @@ import webtest
 from nose.tools import eq_, assert_raises
 
 from ddtrace import compat
-from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
+from ddtrace.contrib.pyramid.patch import insert_tween_if_needed, patch, unpatch
 
 from pyramid.httpexceptions import HTTPException
 
@@ -12,7 +12,6 @@ from .app import create_app
 
 from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
 
 
 class PyramidBase(object):
@@ -41,6 +40,28 @@ class PyramidBase(object):
 
 class PyramidTestCase(PyramidBase):
     """Pyramid TestCase that includes tests for automatic instrumentation"""
+
+    def test_idempotence(self):
+        # Ensure that patching is idempotent.
+        patch()
+        prev_instrument = self.instrument
+        self.instrument = True
+        # With self.instrument=True, self.create_app should create an app
+        # that will also use the manual tracing method.
+        # This, in addition to the patch() call above should mimic the app
+        # being patched twice.
+        self.create_app()
+
+        # Perform a request, ensure no duplicate spans are created.
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+
+        # clean up
+        self.instrument = prev_instrument
+        unpatch()
 
     def test_200(self):
         res = self.app.get('/', status=200)
