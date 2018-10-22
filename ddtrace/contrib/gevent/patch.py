@@ -41,8 +41,19 @@ def _replace(g_class, imap_class, imap_unordered_class):
     """
     # replace the original Greenlet classes with the new one
     gevent.greenlet.Greenlet = g_class
-    gevent.pool.IMap = imap_class
-    gevent.pool.IMapUnordered = imap_unordered_class
+
+    if hasattr(gevent, '_imap'):
+        # For gevent >= 1.3, IMap and IMapUnordered were pulled out of
+        # gevent.pool and into gevent._imap
+        gevent._imap.IMap = imap_class
+        gevent._imap.IMapUnordered = imap_unordered_class
+        gevent.pool.IMap = gevent._imap.IMap
+        gevent.pool.IMapUnordered = gevent._imap.IMapUnordered
+        gevent.pool.Greenlet = gevent.greenlet.Greenlet
+    else:
+        # For gevent < 1.3, only patching of gevent.pool classes necessary
+        gevent.pool.IMap = imap_class
+        gevent.pool.IMapUnordered = imap_unordered_class
 
     gevent.pool.Group.greenlet_class = g_class
 
