@@ -241,6 +241,65 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+Http layer
+----------
+
+..  _http-headers-tracing:
+
+Headers tracing
+^^^^^^^^^^^^^^^
+
+
+For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.trace_headers([
+        'user-agent',
+        'transfer-encoding',
+    ])
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.trace_headers([
+        'user-agent',
+        'some-other-header',
+    ])
+
+The following rules apply:
+  - headers configuration is based on a whitelist. If a header does not appear in the whitelist, it won't be traced.
+  - headers configuration is case-insensitive.
+  - headers configuration does not allow for wildcards.
+  - the following integrations have headers tracing capability. Web: :ref:`falcon`. Clients: :ref:`httplib`,
+    :ref:`requests`.
+  - if you configure a specific integration, e.g. 'requests', then such configuration override the default global
+    configuration, only for the specific integration.
+  - if you do not configure a specific integration, then the default global configuration applies, if any.
+  - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
+
+Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
+structure like in the following example::
+
+    http {
+      method  GET
+      request {
+        headers {
+          user_agent  my-app/0.0.1
+        }
+      }
+      response {
+        headers {
+          transfer_encoding  chunked
+        }
+      }
+      status_code  200
+      url  https://api.github.com/events
+    }
+
 
 .. _adv_opentracing:
 

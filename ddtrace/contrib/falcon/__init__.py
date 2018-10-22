@@ -19,6 +19,8 @@ You can also use the autopatching functionality::
 
 To enable distributed tracing when using autopatching, set the
 ``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``True``.
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 
