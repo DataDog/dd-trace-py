@@ -116,7 +116,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 500 request
         res = self.client.get('/500')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, 'whoops')
+        self.assertEqual(res.data, b'whoops')
 
         spans = self.get_spans()
 
@@ -246,7 +246,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 500 request
         res = self.client.get('/error')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, 'whoops')
+        self.assertEqual(res.data, b'whoops')
 
         spans = self.get_spans()
 
