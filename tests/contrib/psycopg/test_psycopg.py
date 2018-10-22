@@ -52,7 +52,7 @@ class PsycopgCore(object):
         assert rows
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
         span = spans[0]
         eq_(span.name, "postgres.query")
         eq_(span.resource, q)
@@ -62,6 +62,9 @@ class PsycopgCore(object):
         eq_(span.span_type, "sql")
         assert start <= span.start <= end
         assert span.duration <= end - start
+
+        fetch_span = spans[1]
+        eq_(fetch_span.name, "postgres.query.fetchall")
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
@@ -98,8 +101,8 @@ class PsycopgCore(object):
 
         eq_(rows, [('tracing',)])
         spans = tracer.writer.pop()
-        eq_(len(spans), 2)
-        ot_span, dd_span = spans
+        eq_(len(spans), 3)
+        ot_span, dd_span, fetch_span = spans
         # confirm the parenting
         eq_(ot_span.parent_id, None)
         eq_(dd_span.parent_id, ot_span.span_id)
@@ -113,6 +116,8 @@ class PsycopgCore(object):
         ok_(dd_span.get_tag("sql.query") is None)
         eq_(dd_span.error, 0)
         eq_(dd_span.span_type, "sql")
+
+        eq_(fetch_span.name, 'postgres.query.fetchall')
 
     @skipIf(PSYCOPG_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
@@ -128,9 +133,10 @@ class PsycopgCore(object):
             assert rows[0][0] == 'blah'
 
         spans = tracer.writer.pop()
-        assert len(spans) == 1
-        span = spans[0]
+        assert len(spans) == 2
+        span, fetch_span = spans
         eq_(span.name, "postgres.query")
+        eq_(fetch_span.name, 'postgres.query.fetchall')
 
     def test_disabled_execute(self):
         conn, tracer = self._get_conn_and_tracer()

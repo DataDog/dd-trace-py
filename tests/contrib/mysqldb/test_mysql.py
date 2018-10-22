@@ -42,7 +42,7 @@ class MySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -55,6 +55,8 @@ class MySQLCore(object):
             'db.name': u'test',
             'db.user': u'test',
         })
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'mysql.query.fetchall')
 
     def test_simple_query_with_positional_args(self):
         conn, tracer = self._get_conn_tracer_with_positional_args()
@@ -64,7 +66,7 @@ class MySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -77,6 +79,8 @@ class MySQLCore(object):
             'db.name': u'test',
             'db.user': u'test',
         })
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'mysql.query.fetchall')
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
@@ -87,9 +91,11 @@ class MySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 3)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
         span = spans[0]
         ok_(span.get_tag('sql.query') is None)
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'mysql.query.fetchall')
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -120,10 +126,12 @@ class MySQLCore(object):
         eq_(rows[1][1], "this is foo")
 
         spans = writer.pop()
-        eq_(len(spans), 2)
-        span = spans[-1]
+        eq_(len(spans), 3)
+        span = spans[1]
         ok_(span.get_tag('sql.query') is None)
         cursor.execute("drop table if exists dummy")
+        fetch_span = spans[2]
+        eq_(fetch_span.name, 'mysql.query.fetchall')
 
     def test_query_proc(self):
         conn, tracer = self._get_conn_tracer()
@@ -180,8 +188,8 @@ class MySQLCore(object):
             eq_(len(rows), 1)
 
         spans = writer.pop()
-        eq_(len(spans), 2)
-        ot_span, dd_span = spans
+        eq_(len(spans), 3)
+        ot_span, dd_span, fetch_span = spans
 
         # confirm parenting
         eq_(ot_span.parent_id, None)
@@ -200,6 +208,8 @@ class MySQLCore(object):
             'db.name': u'test',
             'db.user': u'test',
         })
+
+        eq_(fetch_span.name, 'mysql.query.fetchall')
 
 class TestMysqlPatch(MySQLCore):
     """Ensures MysqlDB is properly patched"""
@@ -271,7 +281,7 @@ class TestMysqlPatch(MySQLCore):
             rows = cursor.fetchall()
             eq_(len(rows), 1)
             spans = writer.pop()
-            eq_(len(spans), 1)
+            eq_(len(spans), 2)
 
             span = spans[0]
             eq_(span.service, self.TEST_SERVICE)
@@ -285,6 +295,8 @@ class TestMysqlPatch(MySQLCore):
                 'db.user': u'test',
             })
             ok_(span.get_tag('sql.query') is None)
+            fetch_span = spans[1]
+            eq_(fetch_span.name, 'mysql.query.fetchall')
 
         finally:
             unpatch()

@@ -75,7 +75,7 @@ class TestSQLite(object):
             assert not rows
             spans = writer.pop()
             assert spans
-            eq_(len(spans), 1)
+            eq_(len(spans), 2)
             span = spans[0]
             eq_(span.name, "sqlite.query")
             eq_(span.span_type, "sql")
@@ -85,6 +85,9 @@ class TestSQLite(object):
             eq_(span.error, 0)
             assert start <= span.start <= end
             assert span.duration <= end - start
+
+            fetch_span = spans[1]
+            eq_(fetch_span.name, 'sqlite.query.fetchall')
 
             # run a query with an error and ensure all is well
             q = "select * from some_non_existant_table"
@@ -108,6 +111,91 @@ class TestSQLite(object):
             assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
             assert 'no such table' in span.get_tag(errors.ERROR_MSG)
 
+    def test_sqlite_fetchall_is_traced(self):
+        tracer = get_dummy_tracer()
+        connection = self._given_a_traced_connection(tracer)
+        q = "select * from sqlite_master"
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = tracer.writer.pop()
+
+        eq_(len(spans), 2)
+        
+        execute_span = spans[0]
+        fetchall_span = spans[1]
+        
+        # Execute span
+        eq_(execute_span.name, "sqlite.query")
+        eq_(execute_span.span_type, "sql")
+        eq_(execute_span.resource, q)
+        ok_(execute_span.get_tag("sql.query") is None)
+        eq_(execute_span.error, 0)
+        # Fetchall span
+        eq_(fetchall_span.parent_id, None)
+        eq_(fetchall_span.name, "sqlite.query.fetchall")
+        eq_(fetchall_span.span_type, "sql")
+        eq_(fetchall_span.resource, q)
+        ok_(fetchall_span.get_tag("sql.query") is None)
+        eq_(fetchall_span.error, 0)
+
+    def test_sqlite_fetchone_is_traced(self):
+        tracer = get_dummy_tracer()
+        connection = self._given_a_traced_connection(tracer)
+        q = "select * from sqlite_master"
+        cursor = connection.execute(q)
+        cursor.fetchone()
+
+        spans = tracer.writer.pop()
+
+        eq_(len(spans), 2)
+
+        execute_span = spans[0]
+        fetchone_span = spans[1]
+
+        # Execute span
+        eq_(execute_span.name, "sqlite.query")
+        eq_(execute_span.span_type, "sql")
+        eq_(execute_span.resource, q)
+        ok_(execute_span.get_tag("sql.query") is None)
+        eq_(execute_span.error, 0)
+        # Fetchone span
+        eq_(fetchone_span.parent_id, None)
+        eq_(fetchone_span.name, "sqlite.query.fetchone")
+        eq_(fetchone_span.span_type, "sql")
+        eq_(fetchone_span.resource, q)
+        ok_(fetchone_span.get_tag("sql.query") is None)
+        eq_(fetchone_span.error, 0)
+
+    def test_sqlite_fetchmany_is_traced(self):
+        tracer = get_dummy_tracer()
+        connection = self._given_a_traced_connection(tracer)
+        q = "select * from sqlite_master"
+        cursor = connection.execute(q)
+        cursor.fetchmany(123)
+
+        spans = tracer.writer.pop()
+
+        eq_(len(spans), 2)
+
+        execute_span = spans[0]
+        fetchmany_span = spans[1]
+
+        # Execute span
+        eq_(execute_span.name, "sqlite.query")
+        eq_(execute_span.span_type, "sql")
+        eq_(execute_span.resource, q)
+        ok_(execute_span.get_tag("sql.query") is None)
+        eq_(execute_span.error, 0)
+        # Fetchmany span
+        eq_(fetchmany_span.parent_id, None)
+        eq_(fetchmany_span.name, "sqlite.query.fetchmany")
+        eq_(fetchmany_span.span_type, "sql")
+        eq_(fetchmany_span.resource, q)
+        ok_(fetchmany_span.get_tag("sql.query") is None)
+        eq_(fetchmany_span.error, 0)
+        eq_(fetchmany_span.get_tag('db.fetch.size'), '123')
+
     def test_sqlite_ot(self):
         """Ensure sqlite works with the opentracer."""
         tracer = get_dummy_tracer()
@@ -128,8 +216,8 @@ class TestSQLite(object):
         assert spans
 
         print(spans)
-        eq_(len(spans), 2)
-        ot_span, dd_span = spans
+        eq_(len(spans), 3)
+        ot_span, dd_span, fetchall_span = spans
 
         # confirm the parenting
         eq_(ot_span.parent_id, None)
@@ -143,6 +231,12 @@ class TestSQLite(object):
         eq_(dd_span.resource, q)
         ok_(dd_span.get_tag("sql.query") is None)
         eq_(dd_span.error, 0)
+
+        eq_(fetchall_span.name, "sqlite.query.fetchall")
+        eq_(fetchall_span.span_type, "sql")
+        eq_(fetchall_span.resource, q)
+        ok_(fetchall_span.get_tag("sql.query") is None)
+        eq_(fetchall_span.error, 0)
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
@@ -160,7 +254,7 @@ class TestSQLite(object):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         # Test unpatch
         unpatch()
@@ -182,5 +276,9 @@ class TestSQLite(object):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
+    def _given_a_traced_connection(self, tracer):
+        db = sqlite3.connect(":memory:")
+        Pin.get_from(db).clone(tracer=tracer).onto(db)
+        return db
