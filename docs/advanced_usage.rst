@@ -265,7 +265,7 @@ Examples::
     ])
 
     # Integration level config, e.g. 'falcon'
-    config.falcon.trace_headers([
+    config.falcon.http.trace_headers([
         'user-agent',
         'some-other-header',
     ])
