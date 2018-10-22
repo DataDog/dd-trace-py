@@ -26,7 +26,7 @@ def patch():
 
 def unpatch():
     """
-    Patch pyramid.config.Configurator
+    Unpatch pyramid.config.Configurator if it has been patched.
     """
     if not getattr(pyramid.config, DD_PATCH, False):
         return
