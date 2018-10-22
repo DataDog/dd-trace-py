@@ -86,9 +86,6 @@ def patch():
     _w('flask', 'Flask.endpoint', traced_endpoint)
     _w('flask', 'Flask._register_error_handler', traced_register_error_handler)
 
-    if flask_version >= (0, 12):
-        _w('flask', 'Flask.finalize_request', traced_finalize_request)
-
     # flask.blueprints.Blueprint methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Blueprint.register', traced_blueprint_register)
     _w('flask', 'Blueprint.add_url_rule', traced_blueprint_add_url_rule)
@@ -192,7 +189,6 @@ def unpatch():
         'Flask.add_url_rule',
         'Flask.endpoint',
         'Flask._register_error_handler',
-        'Flask.finalize_request',
 
         'Flask.preprocess_request',
         'Flask.process_response',
@@ -302,25 +298,27 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
         s.set_tag('flask.version', flask_version_str)
 
-        # Flask version < 0.12.0 does not have `finalize_request`,
-        # so we need to patch `start_response` instead
-        if flask_version < (0, 12):
-            def _wrap_start_response(func):
-                def traced_start_response(status_code, headers):
-                    code, _, _ = status_code.partition(' ')
-                    try:
-                        code = int(code)
-                    except ValueError:
-                        pass
+        # Wrap the `start_response` handler to extract response code
+        # DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
+        # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
+        #   only `status_code`, and `headers` to work with
+        #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
+        def _wrap_start_response(func):
+            def traced_start_response(status_code, headers):
+                code, _, _ = status_code.partition(' ')
+                try:
+                    code = int(code)
+                except ValueError:
+                    pass
 
-                    s.set_tag(http.STATUS_CODE, code)
-                    if code in config.flask.get('error_codes', set()):
-                        s.error = 1
-                    return func(status_code, headers)
-                return traced_start_response
-            start_response = _wrap_start_response(start_response)
+                s.set_tag(http.STATUS_CODE, code)
+                if code in config.flask.get('error_codes', set()):
+                    s.error = 1
+                return func(status_code, headers)
+            return traced_start_response
+        start_response = _wrap_start_response(start_response)
 
-        # DEV: We set response status code in `traced_finalize_request`
+        # DEV: We set response status code in `_wrap_start_response`
         s.set_tag(http.URL, request.url)
         s.set_tag(http.METHOD, request.method)
 
@@ -475,35 +473,6 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace('flask.dispatch_request', service=pin.service):
         return wrapped(*args, **kwargs)
-
-
-@with_instance_pin
-def traced_finalize_request(pin, wrapped, instance, args, kwargs):
-    """
-    Wrapper for flask.app.Flask.finalize_request
-
-    This wrapper is used to set response tags on the span from `flask.app.Flask.wsgi_app`
-    """
-    span = get_current_span(pin, root=True)
-    if not span:
-        return wrapped(*args, **kwargs)
-
-    response = None
-    try:
-        response = wrapped(*args, **kwargs)
-        return response
-    finally:
-        if response:
-            # TODO: Add response header tracing
-            # for k, v in response.headers:
-            #     s.set_tag('http.response.headers.{}'.format(k), v)
-            span.set_tag(http.STATUS_CODE, response.status_code)
-
-            # Mark this span as an error if we have a 500 response
-            # DEV: We don't have any error info to set here
-            # DEV: They may have handled this 500 error in code via a custom error handler
-            if response.status_code in config.flask.get('error_codes', set()):
-                span.error = 1
 
 
 def traced_signal_receivers_for(signal):
