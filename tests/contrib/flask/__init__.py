@@ -32,3 +32,10 @@ class BaseFlaskTestCase(unittest.TestCase):
 
     def assert_is_not_wrapped(self, obj):
         self.assertFalse(isinstance(obj, wrapt.ObjectProxy), '{} is wrapped'.format(obj))
+
+    def find_span_by_name(self, spans, name, required=True):
+        """Helper to find the first span with a given name from a list"""
+        span = next((s for s in spans if s.name == name), None)
+        if required:
+            self.assertIsNotNone(span, 'could not find span with name {}'.format(name))
+        return span
