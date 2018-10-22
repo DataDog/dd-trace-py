@@ -21,12 +21,12 @@ from .hello_pb2_grpc import add_HelloServicer_to_server, HelloServicer, HelloStu
 
 GRPC_PORT = 50531
 
-class GrpcBaseMixin(object):
+class GrpcClientBaseMixin(object):
     def setUp(self):
         patch()
         self._tracer = get_dummy_tracer()
-        Pin.override(grpc, tracer=self._tracer)
         self._server = grpc.server(logging_pool.pool(2))
+        Pin.override(grpc, tracer=self._tracer)
         self._server.add_insecure_port('[::]:%d' % (GRPC_PORT))
         add_HelloServicer_to_server(SendBackDatadogHeaders(), self._server)
         self._server.start()
@@ -35,8 +35,16 @@ class GrpcBaseMixin(object):
         unpatch()
         self._server.stop(5)
 
+class GrpcServerBaseMixin(object):
+    def setUp(self):
+        patch()
+        self._tracer = get_dummy_tracer()
 
-class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
+    def tearDown(self):
+        unpatch()
+
+
+class GrpcClientTestCase(GrpcClientBaseMixin, unittest.TestCase):
     def test_insecure_channel(self):
         # Create a channel and send one request to the server
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
@@ -148,6 +156,34 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
 
         channel1.close()
         channel2.close()
+
+class GrpcServerTestCase(GrpcServerBaseMixin, unittest.TestCase):
+
+    def test_server_span_has_correct_parent_id(self):
+        Pin.override(grpc, tracer=self._tracer, service='grpc.server')
+
+        server = grpc.server(logging_pool.pool(2))
+        server.add_insecure_port('[::]:%d' % (GRPC_PORT))
+        add_HelloServicer_to_server(SendBackDatadogHeaders(), server)
+        server.start()
+
+        Pin.override(grpc, service='grpc.client')
+        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            stub.SayHello(HelloRequest(name='test'))
+
+        server.stop(5)
+
+        writer = self._tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        if (spans[0].name == 'grpc.client'):
+            client_span = spans[0]
+            server_span = spans[1]
+        else:
+            server_span = spans[0]
+            client_span = spans[1]
+        eq_(client_span.span_id, server_span.parent_id)
 
 
 def _check_span(span, service='grpc'):
