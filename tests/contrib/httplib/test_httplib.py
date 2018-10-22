@@ -346,7 +346,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         # Disabled when not configured
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
-            conn.request('GET', '/status/200', headers={'my_header': 'my_value'})
+            conn.request('GET', '/status/200', headers={'my-eader': 'my_value'})
             conn.getresponse()
             spans = self.tracer.writer.pop()
             s = spans[0]
@@ -355,10 +355,10 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
 
         # Enabled when configured
         integration_config = config.httplib  # type: IntegrationConfig
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
-            conn.request('GET', '/status/200', headers={'my_header': 'my_value'})
+            conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
             conn.getresponse()
             spans = self.tracer.writer.pop()
             s = spans[0]

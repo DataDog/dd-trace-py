@@ -1,6 +1,5 @@
 from copy import deepcopy
 import logging
-import re
 
 from .pin import Pin
 from .utils.merge import deepmerge

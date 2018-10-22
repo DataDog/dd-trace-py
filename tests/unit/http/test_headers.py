@@ -19,46 +19,50 @@ class TestHeaders(object):
     def integration_config(self, config):
         yield IntegrationConfig(config)
 
-    def test_it_does_not_break_if_no_headers(self, span):
-        store_request_headers(None, span, ['*'])
-        store_response_headers(None, span, ['*'])
+    def test_it_does_not_break_if_no_headers(self, span, integration_config):
+        store_request_headers(None, span, integration_config)
+        store_response_headers(None, span, integration_config)
 
-    def test_it_does_not_break_if_headers_are_not_a_dict(self, span):
-        store_request_headers(list(), span, ['*'])
-        store_response_headers(list(), span, ['*'])
+    def test_it_does_not_break_if_headers_are_not_a_dict(self, span, integration_config):
+        store_request_headers(list(), span, integration_config)
+        store_response_headers(list(), span, integration_config)
 
     def test_store_multiple_request_headers_as_dict(self, span, integration_config):
         """
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
         store_request_headers({
-            'Content-Type': 'some;value',
-            'Max-Age': 'some;other;value',
+            'Content-Type': 'some;value;content_type',
+            'Max-Age': 'some;value;max_age',
+            'Other': 'some;value;other',
         }, span, integration_config)
-        assert span.get_tag('http.request.headers.content_type') == 'some;value'
-        assert span.get_tag('http.request.headers.max_age') == 'some;other;value'
+        assert span.get_tag('http.request.headers.content_type') == 'some;value;content_type'
+        assert span.get_tag('http.request.headers.max_age') == 'some;value;max_age'
+        assert None is span.get_tag('http.request.headers.other')
 
     def test_store_multiple_response_headers_as_dict(self, span, integration_config):
         """
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
         store_response_headers({
-            'Content-Type': 'some;value',
-            'Max-Age': 'some;other;value',
+            'Content-Type': 'some;value;content_type',
+            'Max-Age': 'some;value;max_age',
+            'Other': 'some;value;other',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
-        assert span.get_tag('http.response.headers.max_age') == 'some;other;value'
+        assert span.get_tag('http.response.headers.content_type') == 'some;value;content_type'
+        assert span.get_tag('http.response.headers.max_age') == 'some;value;max_age'
+        assert None is span.get_tag('http.response.headers.other')
 
     def test_numbers_in_headers_names_are_allowed(self, span, integration_config):
         """
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers('Content-Type123')
         store_response_headers({
             'Content-Type123': 'some;value',
         }, span, integration_config)
@@ -69,7 +73,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers('Content----T_%%y&%$pe')
         store_response_headers({
             'Content----T_%%y&%$pe': 'some;value',
         }, span, integration_config)
@@ -80,7 +84,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers('Content-Type')
         store_response_headers({
             '   Content-Type   ': 'some;value',
         }, span, integration_config)
@@ -91,7 +95,7 @@ class TestHeaders(object):
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('.*')
+        integration_config.http.trace_headers('Content-Type')
         store_response_headers({
             'Content-Type': '   some;value   ',
         }, span, integration_config)
@@ -107,17 +111,6 @@ class TestHeaders(object):
         }, span, integration_config)
         assert span.get_tag('http.response.headers.content_type') is None
 
-    def test_whitelist_all(self, span, integration_config):
-        """
-        :type span: Span
-        :type integration_config: IntegrationConfig
-        """
-        integration_config.http.trace_headers('.*')
-        store_response_headers({
-            'Content-Type': 'some;value',
-        }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
-
     def test_whitelist_exact(self, span, integration_config):
         """
         :type span: Span
@@ -129,25 +122,13 @@ class TestHeaders(object):
         }, span, integration_config)
         assert span.get_tag('http.response.headers.content_type') == 'some;value'
 
-    def test_whitelist_match(self, span, integration_config):
-        """
-        :type span: Span
-        :type integration_config: IntegrationConfig
-        """
-        integration_config.http.trace_headers('conten.*ype')
-        store_response_headers({
-            'Content-Type': 'some;value',
-            'No-Match': 'some;other;value',
-        }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
-
     def test_whitelist_case_insensitive(self, span, integration_config):
         """
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('conTen.*ypE')
+        integration_config.http.trace_headers('CoNtEnT-tYpE')
         store_response_headers({
-            'ContENt-Type': 'some;value',
+            'cOnTeNt-TyPe': 'some;value',
         }, span, integration_config)
         assert span.get_tag('http.response.headers.content_type') == 'some;value'

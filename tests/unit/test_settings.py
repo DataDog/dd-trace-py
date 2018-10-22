@@ -42,7 +42,7 @@ class TestHttpConfig(object):
         http_config = HttpConfig()
         http_config.trace_headers('sOmE_hEaDeR')
         assert http_config.header_is_traced('SoMe_HeAdEr')
-        assert http_config.header_is_traced('some_other_header')
+        assert not http_config.header_is_traced('some_other_header')
 
     def test_header_is_traced_false_for_empty_header(self):
         http_config = HttpConfig()

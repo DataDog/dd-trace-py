@@ -195,7 +195,7 @@ class FalconTestCase(object):
         eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
 
     def test_http_header_tracing(self):
-        self.simulate_get('/200', headers={'my_header': 'my_value'})
+        self.simulate_get('/200', headers={'my-header': 'my_value'})
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
@@ -203,8 +203,8 @@ class FalconTestCase(object):
         eq_(span.get_tag('http.request.headers.my_header'), None)
         eq_(span.get_tag('http.response.headers.my_response_header'), None)
 
-        config.falcon.http.trace_headers('.*')
-        self.simulate_get('/200', headers={'my_header': 'my_value'})
+        config.falcon.http.trace_headers(['my-header', 'my-response-header'])
+        self.simulate_get('/200', headers={'my-header': 'my_value'})
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
