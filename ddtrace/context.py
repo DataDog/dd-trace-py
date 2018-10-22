@@ -2,9 +2,15 @@ import logging
 import threading
 
 from .constants import SAMPLING_PRIORITY_KEY
-
+from .settings import config
+from .utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
+
+config._add('context', dict(
+    partial_flush_enabled=asbool(get_env('context', 'partial_flush_enabled', 'false')),
+    partial_flush_min_spans=int(get_env('context', 'partial_flush_min_spans', 500)),
+))
 
 
 class Context(object):
@@ -190,6 +196,32 @@ class Context(object):
                 self._sampling_priority = None
                 self._sampled = True
                 return trace, sampled
+
+            elif (config.context['partial_flush_enabled'] and
+                  self._finished_spans > config.context['partial_flush_min_spans']):
+                # partial flush when enabled and we have more than the minimal required spans
+                trace = self._trace
+                sampled = self._sampled
+                sampling_priority = self._sampling_priority
+                # attach the sampling priority to the context root span
+                if sampled and sampling_priority is not None and trace:
+                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+
+                # Any open spans will remain as `self._trace`
+                # Any finished spans will get returned to be flushed
+                opened_spans = []
+                closed_spans = []
+                for span in trace:
+                    if span._finished:
+                        closed_spans.append(span)
+                    else:
+                        opened_spans.append(span)
+
+                # Update trace spans and stats
+                self._trace = opened_spans
+                self._finished_spans = 0
+
+                return closed_spans, sampled
             else:
                 return None, None
 
