@@ -44,7 +44,7 @@ class TracedIMapUnordered(TracingMixin, gpool.IMapUnordered):
 
 if issubclass(gpool.IMap, gpool.IMapUnordered):
     if hasattr(gevent, '_imap'):
-        # For gevent >= 1.3, IMap ????
+        # For gevent >= 1.3, follow the pattern from 1.1
         class TracedIMap(TracingMixin, gpool.IMap):
             def __init__(self, *args, **kwargs):
                 super(TracedIMap, self).__init__(*args, **kwargs)
