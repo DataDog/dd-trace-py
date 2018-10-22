@@ -122,7 +122,8 @@ def patch():
 
     # flask static file helpers
     _w('flask', 'send_file', simple_tracer('flask.send_file'))
-    _w('flask', 'send_from_directory', simple_tracer('flask.send_from_directory'))
+    # Skipping for now since it basically does `return send_file(join(dir, filename))`
+    # _w('flask', 'send_from_directory', simple_tracer('flask.send_from_directory'))
 
     # flask.json.jsonify
     _w('flask', 'jsonify', traced_jsonify)
