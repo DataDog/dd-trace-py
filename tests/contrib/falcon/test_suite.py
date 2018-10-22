@@ -181,10 +181,8 @@ class FalconTestCase(object):
         eq_(span.get_tag('my.custom'), 'tag')
 
     def test_http_header_tracing(self):
-        self.simulate_get('/200', headers={'my_header': 'my_value'})
-
-        config.falcon.http.trace_headers('.*')
-        self.simulate_get('/200', headers={'my_header': 'my_value'})
+        config.falcon.http.trace_headers(['my-header', 'my-response-header'])
+        self.simulate_get('/200', headers={'my-header': 'my_value'})
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)

@@ -354,7 +354,7 @@ class TestRequests(BaseRequestTestCase):
 
     def test_request_and_response_headers(self):
         # Disabled when not configured
-        self.session.get(URL_200, headers={'my_header': 'my_value'})
+        self.session.get(URL_200, headers={'my-header': 'my_value'})
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
@@ -363,8 +363,8 @@ class TestRequests(BaseRequestTestCase):
 
         # Enabled when explicitly configured
         integration_config = config.requests  # type: IntegrationConfig
-        integration_config.http.trace_headers('.*')
-        self.session.get(URL_200, headers={'my_header': 'my_value'})
+        integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
+        self.session.get(URL_200, headers={'my-header': 'my_value'})
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]

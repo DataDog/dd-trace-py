@@ -1,6 +1,6 @@
 import collections
-import logging
 from copy import deepcopy
+import logging
 
 from .pin import Pin
 from .span import Span
