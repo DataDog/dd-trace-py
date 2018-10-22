@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import json
 import webtest
 
@@ -22,6 +23,9 @@ class PyramidBase(object):
         self.tracer = get_dummy_tracer()
         self.create_app()
 
+    def tearDown(self):
+        unpatch()
+
     def create_app(self, settings=None):
         # get default settings or use what is provided
         settings = settings or self.get_settings()
@@ -38,19 +42,89 @@ class PyramidBase(object):
     def override_settings(self, settings):
         self.create_app(settings)
 
+    @contextmanager
+    def override_instrument(self, new):
+        old = self.instrument
+        try:
+            self.instrument = new
+            yield
+        finally:
+            self.instrument = old
+
+
 class PyramidTestCase(PyramidBase):
     """Pyramid TestCase that includes tests for automatic instrumentation"""
 
-    def test_idempotence(self):
-        # Ensure that patching is idempotent.
-        patch()
-        prev_instrument = self.instrument
+    def test_patch(self):
+        # Make sure patch installs our instrumentation.
+        with self.override_instrument(False):
+            patch()
+            self.create_app()
+
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+
+    def test_override_instrument(self):
+        old = self.instrument
         self.instrument = True
-        # With self.instrument=True, self.create_app should create an app
-        # that will also use the manual tracing method.
-        # This, in addition to the patch() call above should mimic the app
-        # being patched twice.
-        self.create_app()
+        with self.override_instrument(False):
+            assert self.instrument is False
+        assert self.instrument is True
+        self.instrument = old
+
+    def test_patch_unpatch(self):
+        # Make sure unpatching removes our instrumentation.
+        with self.override_instrument(False):
+            patch()
+            unpatch()
+            self.create_app()
+
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 0)
+
+    def test_patch_unpatch_patch(self):
+        # Make sure we can unpatch and patch
+        with self.override_instrument(False):
+            patch()
+            unpatch()
+            patch()
+            self.create_app()
+
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+
+    def test_double_patch(self):
+        # Make sure double patching only results in our instrumentation being
+        # installed once.
+        with self.override_instrument(False):
+            patch()
+            patch()
+            self.create_app()
+
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 1)
+
+    def test_idempotence(self):
+        # Ensure that patching is idempotent with manual instrumentation.
+        patch()
+        with self.override_instrument(False):
+            # With self.instrument=True, self.create_app should create an app
+            # that will also use the manual tracing method.
+            # This, in addition to the patch() call above should mimic the app
+            # being patched twice.
+            self.create_app()
 
         # Perform a request, ensure no duplicate spans are created.
         res = self.app.get('/', status=200)
@@ -58,10 +132,6 @@ class PyramidTestCase(PyramidBase):
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
-
-        # clean up
-        self.instrument = prev_instrument
-        unpatch()
 
     def test_200(self):
         res = self.app.get('/', status=200)
@@ -335,7 +405,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
         }
-        res = self.app.get('/', headers=headers, status=200)
+        self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
