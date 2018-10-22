@@ -1,5 +1,3 @@
-import pytest
-
 from ddtrace.settings import Config, IntegrationConfig, HttpConfig
 
 
@@ -17,12 +15,6 @@ class TestHttpConfig(object):
         assert http_config.header_is_traced('sOmE_hEaDeR')
         assert not http_config.header_is_traced('some_other_header')
 
-    def test_trace_headers_blacklist_case_insensitive(self):
-        http_config = HttpConfig()
-        http_config.trace_headers('.*', blacklist=['some_other_header'])
-        assert http_config.header_is_traced('some_header')
-        assert not http_config.header_is_traced('sOmE_oThEr_HeAdEr')
-
     def test_trace_multiple_headers(self):
         http_config = HttpConfig()
         http_config.trace_headers(['some_header_1', 'some_header_2'])
@@ -30,21 +22,37 @@ class TestHttpConfig(object):
         assert http_config.header_is_traced('some_header_2')
         assert not http_config.header_is_traced('some_header_3')
 
-    def test_trace_blacklist(self):
+    def test_empty_entry_do_not_raise_exception(self):
         http_config = HttpConfig()
-        http_config.trace_headers(['.*'], blacklist=['some_header_2'])
-        assert http_config.header_is_traced('some_header_1')
-        assert not http_config.header_is_traced('some_header_2')
+        http_config.trace_headers('')
+        assert not http_config.header_is_traced('some_header_1')
 
-    def test_invalid_regex_do_not_raise_exception(self):
+    def test_none_entry_do_not_raise_exception(self):
         http_config = HttpConfig()
-        http_config.trace_headers('[[[[[[[')
+        http_config.trace_headers(None)
+        assert not http_config.header_is_traced('some_header_1')
 
     def test_is_header_tracing_configured(self):
         http_config = HttpConfig()
         assert not http_config.is_header_tracing_configured
         http_config.trace_headers('some_header')
         assert http_config.is_header_tracing_configured
+
+    def test_header_is_traced_case_insensitive(self):
+        http_config = HttpConfig()
+        http_config.trace_headers('sOmE_hEaDeR')
+        assert http_config.header_is_traced('SoMe_HeAdEr')
+        assert http_config.header_is_traced('some_other_header')
+
+    def test_header_is_traced_false_for_empty_header(self):
+        http_config = HttpConfig()
+        http_config.trace_headers('some_header')
+        assert not http_config.header_is_traced('')
+
+    def test_header_is_traced_false_for_none_header(self):
+        http_config = HttpConfig()
+        http_config.trace_headers('some_header')
+        assert not http_config.header_is_traced(None)
 
 
 class TestIntegrationConfig(object):
