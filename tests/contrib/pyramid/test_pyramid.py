@@ -116,6 +116,20 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         eq_(len(spans), 1)
 
+    def test_double_unpatch(self):
+        # Make sure double unpatching is a no-op
+        with self.override_instrument(False):
+            patch()
+            unpatch()
+            unpatch()
+            self.create_app()
+
+        res = self.app.get('/', status=200)
+        assert b'idx' in res.body
+        writer = self.tracer.writer
+        spans = writer.pop()
+        eq_(len(spans), 0)
+
     def test_idempotence(self):
         # Ensure that patching is idempotent with manual instrumentation.
         patch()
