@@ -276,7 +276,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     #   GET /
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
-    resource = '{} {}'.format(request.method, request.path)
+    resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
         s.set_tag('flask.version', flask_version_str)
 
@@ -297,7 +297,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                 # DEV: We do this because we want to make it easier to see all 404 requests together
                 #      Also, we do this to reduce the cardinality on unknown urls
                 if code == 404:
-                    s.resource = '{} 404'.format(request.method)
+                    s.resource = u'{} 404'.format(request.method)
 
                 s.set_tag(http.STATUS_CODE, code)
                 if code in config.flask.get('error_codes', set()):
@@ -449,12 +449,12 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
             span.set_tag('flask.endpoint', request.endpoint)
 
         if request.url_rule and request.url_rule.rule:
-            span.resource = '{} {}'.format(request.method, request.url_rule.rule)
+            span.resource = u'{} {}'.format(request.method, request.url_rule.rule)
             span.set_tag('flask.url_rule', request.url_rule.rule)
 
         if request.view_args and config.flask.get('collect_view_args'):
             for k, v in request.view_args.items():
-                span.set_tag('flask.view_args.{}'.format(k), v)
+                span.set_tag(u'flask.view_args.{}'.format(k), v)
     except Exception:
         # TODO: Log this exception
         pass

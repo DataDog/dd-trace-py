@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from ddtrace.compat import PY2
 from ddtrace.contrib.flask.monkey import flask_version
 
@@ -71,6 +72,70 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.service, 'flask')
         self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.index')
         self.assertEqual(handler_span.resource, '/')
+        self.assertEqual(req_span.error, 0)
+
+    def test_request_unicode(self):
+        """
+        When making a request
+            When the url contains unicode
+                We create the expected spans
+        """
+        @self.app.route(u'/üŋïĉóđē')
+        def unicode():
+            return 'üŋïĉóđē', 200
+
+        res = self.client.get(u'/üŋïĉóđē')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data, b'\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93')
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 8)
+
+        # Assert the order of the spans created
+        self.assertListEqual(
+            [
+                'flask.request',
+                'flask.try_trigger_before_first_request_functions',
+                'flask.preprocess_request',
+                'flask.dispatch_request',
+                'tests.contrib.flask.test_request.unicode',
+                'flask.process_response',
+                'flask.do_teardown_request',
+                'flask.do_teardown_appcontext',
+            ],
+            [s.name for s in spans],
+        )
+
+        # Assert span serices
+        for span in spans:
+            self.assertEqual(span.service, 'flask')
+
+        # Root request span
+        req_span = spans[0]
+        self.assertEqual(req_span.service, 'flask')
+        self.assertEqual(req_span.name, 'flask.request')
+        self.assertEqual(req_span.resource, u'GET /üŋïĉóđē')
+        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.error, 0)
+        self.assertIsNone(req_span.parent_id)
+
+        # Request tags
+        self.assertEqual(
+            set(['system.pid', 'flask.version', 'http.url', 'http.method',
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
+            set(req_span.meta.keys()),
+        )
+        self.assertEqual(req_span.get_tag('flask.endpoint'), 'unicode')
+        self.assertEqual(req_span.get_tag('flask.url_rule'), u'/üŋïĉóđē')
+        self.assertEqual(req_span.get_tag('http.method'), 'GET')
+        self.assertEqual(req_span.get_tag('http.url'), u'http://localhost/üŋïĉóđē')
+        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+
+        # Handler span
+        handler_span = spans[4]
+        self.assertEqual(handler_span.service, 'flask')
+        self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.unicode')
+        self.assertEqual(handler_span.resource, u'/üŋïĉóđē')
         self.assertEqual(req_span.error, 0)
 
     def test_request_404(self):
