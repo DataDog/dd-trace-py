@@ -134,6 +134,19 @@ class IntegrationConfig(dict):
         new.http = deepcopy(self.http)
         return new
 
+    def header_is_traced(self, header_name):
+        """
+        Returns whether or not the current header should be traced.
+        :param header_name: the header name
+        :type header_name: str
+        :rtype: bool
+        """
+        return (
+            self.http.header_is_traced(header_name)
+            if self.http.is_header_tracing_configured
+            else self.global_config.header_is_traced(header_name)
+        )
+
     def __repr__(self):
         cls = self.__class__
         keys = ', '.join(self.keys())
