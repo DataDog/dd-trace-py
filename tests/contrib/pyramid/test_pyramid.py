@@ -52,6 +52,7 @@ class PyramidBase(object):
             self.instrument = old
 
 
+
 class PyramidTestCase(PyramidBase):
     """Pyramid TestCase that includes tests for automatic instrumentation"""
 
@@ -122,13 +123,14 @@ class PyramidTestCase(PyramidBase):
             patch()
             unpatch()
             unpatch()
+            patch()
             self.create_app()
 
         res = self.app.get('/', status=200)
         assert b'idx' in res.body
         writer = self.tracer.writer
         spans = writer.pop()
-        eq_(len(spans), 0)
+        eq_(len(spans), 1)
 
     def test_idempotence(self):
         # Ensure that patching is idempotent with manual instrumentation.
