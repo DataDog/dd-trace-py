@@ -51,9 +51,9 @@ PATCH_MODULES = {
     'django': True,
     'falcon': True,
     'pyramid': True,
+    'pylons': True,
     # Ignore some web framework integrations that might be configured explicitly in code
     "flask": False,
-    "pylons": False,
 }
 
 _LOCK = threading.Lock()
