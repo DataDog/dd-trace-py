@@ -293,6 +293,12 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                 except ValueError:
                     pass
 
+                # Override root span resource name to be `<method> 404` for 404 requests
+                # DEV: We do this because we want to make it easier to see all 404 requests together
+                #      Also, we do this to reduce the cardinality on unknown urls
+                if code == 404:
+                    s.resource = '{} 404'.format(request.method)
+
                 s.set_tag(http.STATUS_CODE, code)
                 if code in config.flask.get('error_codes', set()):
                     s.error = 1
