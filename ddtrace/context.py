@@ -198,7 +198,7 @@ class Context(object):
                 return trace, sampled
 
             elif (config.context['partial_flush_enabled'] and
-                  self._finished_spans > config.context['partial_flush_min_spans']):
+                  self._finished_spans >= config.context['partial_flush_min_spans']):
                 # partial flush when enabled and we have more than the minimal required spans
                 trace = self._trace
                 sampled = self._sampled
