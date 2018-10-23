@@ -1,14 +1,12 @@
 import os
 
+from beaker.middleware import SessionMiddleware, CacheMiddleware
 from mako.lookup import TemplateLookup
-
+from paste.registry import RegistryManager
 import pylons
 from pylons import config
-
 from routes.middleware import RoutesMiddleware
-from beaker.middleware import SessionMiddleware, CacheMiddleware
 
-from paste.registry import RegistryManager
 
 from .router import create_routes
 from .lib.helpers import AppGlobals

@@ -6,7 +6,6 @@ import ddtrace
 from ddtrace import Pin
 
 from .middleware import PylonsTraceMiddleware
-from ...utils.wrappers import unwrap as _u
 
 
 _PylonsApp = pylons.wsgiapp.PylonsApp

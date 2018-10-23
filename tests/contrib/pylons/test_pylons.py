@@ -3,7 +3,6 @@ import os
 from unittest import TestCase
 from nose.tools import eq_, ok_, assert_raises
 
-import pylons
 from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
