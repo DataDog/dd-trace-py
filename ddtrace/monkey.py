@@ -25,6 +25,7 @@ PATCH_MODULES = {
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
+    'flask': True,
     'futures': False,  # experimental propagation
     'mongoengine': True,
     'mysql': True,
@@ -46,7 +47,6 @@ PATCH_MODULES = {
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
-    "flask": False,
     "falcon": False,
     "pylons": False,
     "pyramid": False,
@@ -62,6 +62,7 @@ _PATCHED_MODULES = set()
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
     'celery': ('celery', ),
+    'flask': ('flask, '),
     'gevent': ('gevent', ),
     'requests': ('requests', ),
 }
