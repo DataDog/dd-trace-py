@@ -542,11 +542,13 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'requests_contrib-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
+      - run: tox -e 'requests_contrib-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.1.results
+      - run: tox -e 'requests_contrib_autopatch-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - requests.results
+            - requests.1.results
+            - requests.2.results
       - *save_cache_step
 
   requestsgevent:
