@@ -1,21 +1,3 @@
-"""
-TODO:
-
-Document:
-  - which Flask functions/methods we override
-  - which span name/resources they map to
-  - metadata captured by each
-  - which can be pinned
-  - configuration options
-  - check compatibility with versions and track differences between them
-
-Write tests:
-  - ugh
-
-Clean up and contribute test app to trace-eamples
-
-Make sure we are off of master and not 0.16-dev
-"""
 import flask
 import os
 import werkzeug
