@@ -163,7 +163,7 @@ class TestTracedCursor(object):
         assert span.span_type == 'sql', 'Span has the correct span type'
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
     @mock.patch('tests.contrib.dbapi.Cursor')
     def test_django_traced_cursor_backward_compatibility(self, cursor_class, tracer):
@@ -182,4 +182,4 @@ class TestTracedCursor(object):
         span = tracer.writer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_tag('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
