@@ -31,6 +31,17 @@ services:
         image: redis:3.2-alpine
         ports:
             - "127.0.0.1:6379:6379"
+    rediscluster:
+        image: grokzen/redis-cluster:4.0.9
+        environment:
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
     mongo:
         image: mongo:3.6
         ports:
@@ -64,3 +75,27 @@ services:
             - DD_API_KEY=invalid_key_but_this_is_fine
         ports:
             - "127.0.0.1:8126:8126"
+
+    vertica:
+        image: sumitchawla/vertica
+        environment:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+        ports:
+          - "127.0.0.1:5433:5433"
+
+    testrunner:
+        image: datadog/docker-library:ddtrace_py
+        environment:
+            - TOX_SKIP_DIST=True
+        network_mode: host
+        working_dir: /src
+        volumes:
+            - ./ddtrace:/src/ddtrace:ro
+            - ./tests:/src/tests:ro
+            - ./setup.cfg:/src/setup.cfg:ro
+            - ./setup.py:/src/setup.py:ro
+            - ./tox.ini:/src/tox.ini:ro
+            - ./.ddtox:/src/.tox
+        command: bash

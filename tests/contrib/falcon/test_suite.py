@@ -67,6 +67,7 @@ class FalconTestCase(object):
         eq_(span.get_tag(httpx.STATUS_CODE), '200')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/200')
         eq_(span.parent_id, None)
+        eq_(span.span_type, 'http')
 
     def test_201(self):
         out = self.simulate_post('/201')

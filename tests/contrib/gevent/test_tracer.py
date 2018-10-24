@@ -1,4 +1,5 @@
 import gevent
+import gevent.pool
 import ddtrace
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -117,6 +118,45 @@ class TestGeventTracer(TestCase):
         eq_(1, len(traces[0]))
         eq_('greenlet', traces[0][0].name)
         eq_('base', traces[0][0].resource)
+
+    def test_trace_map_greenlet(self):
+        # a greenlet can be traced using the trace API
+        def greenlet(_):
+            with self.tracer.trace('greenlet', resource='base'):
+                gevent.sleep(0.01)
+
+        funcs = [
+            gevent.pool.Group().map,
+            gevent.pool.Group().imap,
+            gevent.pool.Group().imap_unordered,
+            gevent.pool.Pool(2).map,
+            gevent.pool.Pool(2).imap,
+            gevent.pool.Pool(2).imap_unordered,
+        ]
+        for func in funcs:
+            with self.tracer.trace('outer', resource='base') as span:
+                # Use a list to force evaluation
+                list(func(greenlet, [0,1,2]))
+            traces = self.tracer.writer.pop_traces()
+
+            eq_(4, len(traces))
+            spans = []
+            outer_span = None
+            for t in traces:
+                eq_(1, len(t))
+                span = t[0]
+                spans.append(span)
+                if span.name == 'outer':
+                    outer_span = span
+
+            ok_(outer_span is not None)
+            eq_('base', outer_span.resource)
+            inner_spans = [s for s in spans if s is not outer_span]
+            for s in inner_spans:
+                eq_('greenlet', s.name)
+                eq_('base', s.resource)
+                eq_(outer_span.trace_id, s.trace_id)
+                eq_(outer_span.span_id, s.parent_id)
 
     def test_trace_later_greenlet(self):
         # a greenlet can be traced using the trace API

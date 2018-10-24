@@ -7,7 +7,7 @@ httpbin_local: &httpbin_local
   image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
   name: httpbin.org
 test_runner: &test_runner
-  image: datadog/docker-library:dd_trace_py_1_1_0
+  image: datadog/docker-library:ddtrace_py
   env:
     TOX_SKIP_DIST: True
 restore_cache_step: &restore_cache_step
@@ -347,7 +347,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'gevent_contrib-{py27,py34,py35,py36}-gevent{11,12,13}' --result-json /tmp/gevent.1.results
+      - run: tox -e 'gevent_contrib-{py27,py34,py35,py36}-gevent{11,12}' --result-json /tmp/gevent.1.results
       - run: tox -e 'gevent_contrib-{py27}-gevent{10}' --result-json /tmp/gevent.2.results
       - persist_to_workspace:
           root: /tmp
@@ -551,6 +551,20 @@ jobs:
             - requests.results
       - *save_cache_step
 
+  requestsgevent:
+    docker:
+      - *test_runner
+      - *httpbin_local
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'requests_gevent_contrib-{py36}-requests{208,209,210,211,212,213,219}-gevent{12,13}' --result-json /tmp/requestsgevent.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - requestsgevent.results
+      - *save_cache_step
+
   sqlalchemy:
     docker:
       - *test_runner
@@ -640,6 +654,42 @@ jobs:
           root: /tmp
           paths:
             - redis.results
+      - *save_cache_step
+
+  rediscluster:
+    docker:
+      - *test_runner
+      - image: grokzen/redis-cluster:4.0.9
+        env:
+          - IP=0.0.0.0
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e wait rediscluster
+      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - rediscluster.results
+      - *save_cache_step
+
+  vertica:
+    docker:
+      - *test_runner
+      - image: sumitchawla/vertica
+        env:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e wait vertica
+      - run: tox -e 'vertica_contrib-{py27,py34,py35,py36}-vertica{060,070}' --result-json /tmp/vertica.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - vertica.results
       - *save_cache_step
 
   sqlite3:
@@ -786,13 +836,16 @@ workflows:
       - pymongo
       - pyramid
       - requests
+      - requestsgevent
       - sqlalchemy
       - psycopg
       - aiobotocore
       - aiopg
       - redis
+      - rediscluster
       - sqlite3
       - msgpack
+      - vertica
       - build_docs
       - wait_all_tests:
           requires:
@@ -827,13 +880,16 @@ workflows:
             - pymongo
             - pyramid
             - requests
+            - requestsgevent
             - sqlalchemy
             - psycopg
             - aiobotocore
             - aiopg
             - redis
+            - rediscluster
             - sqlite3
             - msgpack
+            - vertica
             - build_docs
       - deploy_dev:
           requires:

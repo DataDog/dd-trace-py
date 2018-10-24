@@ -38,6 +38,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         eq_(span.service, 'aws.ec2')
         eq_(span.resource, 'ec2.describeinstances')
         eq_(span.name, 'ec2.command')
+        eq_(span.span_type, 'http')
 
     @mark_asyncio
     def test_s3_client(self):

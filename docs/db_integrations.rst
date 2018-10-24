@@ -117,12 +117,24 @@ psycopg
 .. automodule:: ddtrace.contrib.psycopg
 
 
-.. _redis:
 
 Redis
 -----
 
+.. _redis:
+
+redis
+^^^^^
+
 .. automodule:: ddtrace.contrib.redis
+
+
+.. _rediscluster:
+
+redis-py-cluster
+^^^^^^^^^^^^^^^^
+
+.. automodule:: ddtrace.contrib.rediscluster
 
 
 .. _sqlalchemy:
@@ -139,3 +151,10 @@ SQLite
 ------
 
 .. automodule:: ddtrace.contrib.sqlite3
+
+.. _vertica:
+
+Vertica
+-------
+
+.. automodule:: ddtrace.contrib.vertica
