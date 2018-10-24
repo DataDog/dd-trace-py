@@ -36,7 +36,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
-    'requests': False,  # Not ready yet
+    'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
