@@ -120,7 +120,7 @@ class TestTracingContext(TestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child.finish()
+            child._finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
@@ -160,7 +160,7 @@ class TestTracingContext(TestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child.finish()
+            child._finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
@@ -200,7 +200,7 @@ class TestTracingContext(TestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child.finish()
+            child._finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
