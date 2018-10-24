@@ -1,6 +1,8 @@
+import logging
 import re
 from ..utils.http import normalize_header_name
 
+log = logging.getLogger(__name__)
 
 REQUEST = 'request'
 RESPONSE = 'response'
@@ -45,14 +47,17 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
     if not isinstance(headers, dict):
+        log.debug('Skipping %s headers are not a dict: %s', request_or_response, headers)
         return
 
     if integration_config is None:
+        log.debug('Skipping headers tracing as no integration config was provided')
         return
 
     for header_name, header_value in headers.items():
         if not integration_config.header_is_traced(header_name):
             continue
+        log.debug('Tracing %s header: %s', request_or_response, header_name)
         tag_name = _normalize_tag_name(request_or_response, header_name)
         span.set_tag(tag_name, header_value)
 
