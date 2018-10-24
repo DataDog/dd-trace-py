@@ -1,23 +1,28 @@
-"""Instrument Elasticsearch to report Elasticsearch queries.
+"""
 
-``patch_all`` will automatically patch your Elasticsearch instance to make it work.
-::
+The InfluxDB integration will trace all requests made to an InfluxDB backend.
+To trace your application, call the patch method::
 
-    from ddtrace import Pin, patch
-    from elasticsearch import Elasticsearch
+    from ddtrace import patch
+    from influxdb import InfluxDBClient
 
-    # If not patched yet, you can patch elasticsearch specifically
-    patch(elasticsearch=True)
+    # If not patched yet, you can patch InfluxDBClient explicitly
+    patch(influx=True)
 
     # This will report spans with the default instrumentation
-    es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+    influx_connection = InfluxDBClient(host="influxdb.example.com")
     # Example of instrumented query
-    es.indices.create(index='books', ignore=400)
+    r = influx_connection.query('SELECT * from average_temperature where time > 1439857080000000000 limit 10', database="NOAA_water_database")
 
-    # Use a pin to specify metadata related to this client
-    es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-    Pin.override(es.transport, service='elasticsearch-videos')
-    es.indices.create(index='videos', ignore=400)
+
+To change the InfluxDB service name, you can use the ``Config`` API as follows::
+
+    from ddtrace import config
+
+    # change service names for producers and workers
+    config.influx['service_name'] = 'tsdb'
+    config.influx['app_name'] = 'water'
+
 """
 from ...utils.importlib import require_modules
 

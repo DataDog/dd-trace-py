@@ -359,7 +359,7 @@ jobs:
   influx:
     docker:
       - *test_runner
-      - image: influxdb:1.5-alpine
+      - image: influxdb:1.6-alpine
     steps:
       - checkout
       - *restore_cache_step

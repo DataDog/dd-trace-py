@@ -8,10 +8,20 @@ from ...utils.wrappers import unwrap
 from ...compat import urlencode
 from ...pin import Pin
 from ...ext import http, db, AppTypes
+from ... import config
+from ...utils.formats import get_env
 
 
 DEFAULT_SERVICE = 'influxdb'
+ROOT_SPAN = 'influx.request'
 SPAN_TYPE = 'sql'
+
+
+# Influx default settings
+config._add('influx', {
+    'service_name': get_env('influx', 'service_name', DEFAULT_SERVICE),
+    'app_name': get_env('influx', 'app_name', DEFAULT_SERVICE),
+})
 
 
 def patch():
@@ -20,7 +30,12 @@ def patch():
     setattr(influxdb, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('influxdb.client', 'InfluxDBClient.request', _request)
 
-    Pin(service=DEFAULT_SERVICE, app=DEFAULT_SERVICE, app_type=AppTypes.db).onto(influxdb.client.InfluxDBClient)
+    Pin(
+        service=config.influx['service_name'],
+        app=config.influx['app_name'],
+        app_type=AppTypes.db,
+        _config=config.influx,
+    ).onto(influxdb.client.InfluxDBClient)
 
 
 def unpatch():
@@ -43,7 +58,7 @@ def _request(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace('influx.request') as span:
+    with pin.tracer.trace(ROOT_SPAN) as span:
         # Don't instrument if the trace is not sampled
         if not span.sampled:
             return func(*args, **kwargs)

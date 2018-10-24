@@ -40,7 +40,9 @@ services:
         ports:
             - "127.0.0.1:11211:11211"
     influx:
-        image: influxdb:1.5-alpine
+        image: influxdb:1.6-alpine
+        environment:
+            - INFLUXDB_REPORTING_DISABLED=true
         ports:
             - "127.0.0.1:8086:8086"
     moto:

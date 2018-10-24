@@ -27,6 +27,14 @@ Flask Cache
 
 .. _mongodb:
 
+InfluxDB
+--------
+
+.. automodule:: ddtrace.contrib.influx
+
+
+.. _influx:
+
 MongoDB
 -------
 
