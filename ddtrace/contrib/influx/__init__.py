@@ -12,7 +12,10 @@ To trace your application, call the patch method::
     # This will report spans with the default instrumentation
     influx_connection = InfluxDBClient(host="influxdb.example.com")
     # Example of instrumented query
-    r = influx_connection.query('SELECT * from average_temperature where time > 1439857080000000000 limit 10', database="NOAA_water_database")
+    r = influx_connection.query(
+        'SELECT * from average_temperature where time > 1439857080000000000 limit 10',
+        database='NOAA_water_database'
+    )
 
 
 To change the InfluxDB service name, you can use the ``Config`` API as follows::
