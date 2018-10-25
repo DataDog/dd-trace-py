@@ -2,7 +2,7 @@ import gevent
 import gevent.pool
 import ddtrace
 
-from .greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered
+from .greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered, GEVENT_VERSION
 from .provider import GeventContextProvider
 from ...provider import DefaultContextProvider
 
@@ -42,8 +42,8 @@ def _replace(g_class, imap_class, imap_unordered_class):
     # replace the original Greenlet classes with the new one
     gevent.greenlet.Greenlet = g_class
 
-    if hasattr(gevent, '_imap'):
-        # For gevent >= 1.3, IMap and IMapUnordered were pulled out of
+    if GEVENT_VERSION >= (1, 3):
+        # For gevent >= 1.3.0, IMap and IMapUnordered were pulled out of
         # gevent.pool and into gevent._imap
         gevent._imap.IMap = imap_class
         gevent._imap.IMapUnordered = imap_unordered_class
