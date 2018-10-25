@@ -21,7 +21,7 @@ PATCH_MODULES = {
     'asyncio': False,
     'boto': True,
     'botocore': True,
-    'bottle': False,
+    'bottle': True,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
