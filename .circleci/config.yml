@@ -154,8 +154,6 @@ jobs:
   test_utils:
     docker:
       - *test_runner
-    environment:
-      TOX_SKIP_DIST: False
     steps:
       - checkout
       - *restore_cache_step
