@@ -4,10 +4,10 @@ The `Flask <http://flask.pocoo.org/>`_ integration will add tracing to all reque
 This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
 signals, and templating rendering.
 
-To configure tracing::
+To configure tracing manually::
 
     from ddtrace import patch_all
-    patch_all(flask=True)
+    patch_all()
 
     from flask import Flask
 
@@ -23,9 +23,9 @@ To configure tracing::
         app.run()
 
 
-You may also enable Flask tracing via ddtrace-run::
+You may also enable Flask tracing automatically via ddtrace-run::
 
-    DATADOG_PATCH_MODULES=flask:true ddtrace-run python app.py
+    ddtrace-run python app.py
 
 """
 
