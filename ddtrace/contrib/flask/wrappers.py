@@ -1,6 +1,7 @@
 from wrapt import function_wrapper
 
-from .helpers import func_name, get_inherited_pin, get_current_app
+from ...utils.importlib import func_name
+from .helpers import get_inherited_pin, get_current_app
 
 
 def wrap_function(instance, func, name=None, resource=None):

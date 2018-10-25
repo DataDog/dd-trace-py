@@ -42,11 +42,6 @@ def simple_tracer(name, span_type=None):
     return wrapper
 
 
-def func_name(func):
-    """Helper to get the module + name from a function"""
-    return '{}.{}'.format(func.__module__, func.__name__)
-
-
 def get_current_span(pin, root=False):
     """Helper to get the current span from the provided pins current call context"""
     if not pin or not pin.enabled():

@@ -8,8 +8,9 @@ from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
+from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
-from .helpers import get_current_app, get_current_span, get_inherited_pin, func_name, simple_tracer, with_instance_pin
+from .helpers import get_current_app, get_current_span, get_inherited_pin, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
 
