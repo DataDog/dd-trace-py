@@ -1,27 +1,28 @@
-# stdlib
-import sys
-import webtest
-import ddtrace
-
 from nose.tools import eq_
 from pyramid.config import Configurator
 
-# 3p
-from wsgiref.simple_server import make_server
-
-# project
-from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
-
 from .test_pyramid import PyramidTestCase, PyramidBase
+
+
+"""
+Note: we cannot unpatch when autopatching since the patch will only be
+performed once when the application starts up. So for each test case we have
+to override the tearDown method of the base class (which calls unpatch).
+"""
 
 
 class TestPyramidAutopatch(PyramidTestCase):
     instrument = False
 
+    def tearDown(self):
+        pass
+
 
 class TestPyramidExplicitTweens(PyramidTestCase):
     instrument = False
+
+    def tearDown(self):
+        pass
 
     def get_settings(self):
         return {
@@ -32,6 +33,9 @@ class TestPyramidExplicitTweens(PyramidTestCase):
 class TestPyramidDistributedTracing(PyramidBase):
     instrument = False
 
+    def tearDown(self):
+        pass
+
     def test_distributed_tracing(self):
         # ensure the Context is properly created
         # if distributed tracing is enabled
@@ -40,7 +44,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
         }
-        res = self.app.get('/', headers=headers, status=200)
+        self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
