@@ -42,7 +42,7 @@ PATCH_MODULES = {
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiopg': True,
     'aiobotocore': True,
-    'httplib': False,
+    'httplib': True,
     'vertica': True,
     'jinja2': True,
 
