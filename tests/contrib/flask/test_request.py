@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from ddtrace.compat import PY2
-from ddtrace.contrib.flask.monkey import flask_version
+from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
 

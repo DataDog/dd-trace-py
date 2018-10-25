@@ -32,7 +32,7 @@ config._add('flask', dict(
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
 # DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
 # DEV: Example tests:
-#      (0, 10, 0) >= (0, 10)
+#      (0, 10, 0) > (0, 10)
 #      (0, 10, 0) >= (0, 10, 0)
 #      (0, 10, 1) >= (0, 10)
 #      (0, 11, 1) >= (0, 10)

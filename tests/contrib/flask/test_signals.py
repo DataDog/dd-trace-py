@@ -4,7 +4,7 @@ import flask
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch
-from ddtrace.contrib.flask.monkey import flask_version
+from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
 
