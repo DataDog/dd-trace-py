@@ -101,8 +101,6 @@ def patch():
 
     # flask static file helpers
     _w('flask', 'send_file', simple_tracer('flask.send_file'))
-    # Skipping for now since it basically does `return send_file(join(dir, filename))`
-    # _w('flask', 'send_from_directory', simple_tracer('flask.send_from_directory'))
 
     # flask.json.jsonify
     _w('flask', 'jsonify', traced_jsonify)
@@ -217,9 +215,6 @@ def unpatch():
         'render_template',
         'render_template_string',
         'templating._render',
-
-        # DEV: Skipping this because it basically does `return send_file(join(directory, filename))`
-        # 'send_from_directory',
     ]
 
     # These were added in 0.11.0
@@ -402,7 +397,6 @@ def traced_render(wrapped, instance, args, kwargs):
     """
     Wrapper for flask.templating._render
 
-
     This wrapper is used for setting template tags on the span.
 
     This method is called for render_template or render_template_string
@@ -432,7 +426,6 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
 def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
     """
     Wrapper to trace flask.app.Flask.dispatch_request
-
 
     This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
     """
