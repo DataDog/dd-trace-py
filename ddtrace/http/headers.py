@@ -42,7 +42,6 @@ def _store_headers(headers, span, integration_config, request_or_response):
     :type headers: dict
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.span.Span
-    :param integration_config:
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """

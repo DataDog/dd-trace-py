@@ -13,7 +13,7 @@ class TestHeaders(object):
 
     @pytest.fixture()
     def config(self):
-        yield Config
+        yield Config()
 
     @pytest.fixture()
     def integration_config(self, config):
