@@ -57,7 +57,6 @@ def _store_headers(headers, span, integration_config, request_or_response):
     for header_name, header_value in headers.items():
         if not integration_config.header_is_traced(header_name):
             continue
-        log.debug('Tracing %s header: %s', request_or_response, header_name)
         tag_name = _normalize_tag_name(request_or_response, header_name)
         span.set_tag(tag_name, header_value)
 
