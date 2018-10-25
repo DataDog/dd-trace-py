@@ -18,8 +18,8 @@ class SQLAlchemyPatchTestCase(TestCase):
         # create a traced engine with the given arguments
         # and configure the current PIN instance
         patch()
-        dsn = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG
-        self.engine = sqlalchemy.create_engine(dsn)
+        self.dsn = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG
+        self.engine = sqlalchemy.create_engine(self.dsn)
         self.tracer = get_dummy_tracer()
         Pin.override(self.engine, tracer=self.tracer)
 
@@ -31,6 +31,33 @@ class SQLAlchemyPatchTestCase(TestCase):
         self.conn.close()
         self.engine.dispose()
         unpatch()
+
+    def test_unpatch(self):
+        unpatch()
+        engine = sqlalchemy.create_engine(self.dsn)
+        Pin.override(engine, tracer=self.tracer)
+
+        # prepare a connection
+        conn = engine.connect()
+        conn.execute('SELECT 1').fetchall()
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
+
+    def test_double_patch(self):
+        # setUp() already patches, patch again and make sure we're idempotent
+        patch()
+        self.conn.execute('SELECT 1').fetchall()
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+    def test_double_unpatch_patch(self):
+        # setUp() already patches, unpatch
+        unpatch()
+        unpatch()
+        patch()
+        self.conn.execute('SELECT 1').fetchall()
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
 
     def test_engine_traced(self):
         # ensures that the engine is traced

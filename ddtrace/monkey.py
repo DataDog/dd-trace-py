@@ -21,7 +21,7 @@ PATCH_MODULES = {
     'asyncio': False,
     'boto': True,
     'botocore': True,
-    'bottle': False,
+    'bottle': True,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
@@ -37,11 +37,11 @@ PATCH_MODULES = {
     'pymongo': True,
     'redis': True,
     'requests': True,
-    'sqlalchemy': False,  # Prefer DB client instrumentation
+    'sqlalchemy': True,
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiopg': True,
-    'aiobotocore': False,
+    'aiobotocore': True,
     'httplib': True,
     'vertica': True,
     'jinja2': True,
