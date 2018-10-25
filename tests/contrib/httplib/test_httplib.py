@@ -94,6 +94,36 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertEqual(httplib.HTTPConnection.putrequest, original_putrequest)
         self.assertEqual(httplib.HTTPConnection.getresponse, original_getresponse)
 
+    def test_double_patch(self):
+        """
+        When patching httplib twice
+            we shouldn't instrument twice
+        """
+        # setUp() calls patch, patch again
+        patch()
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            conn.getresponse()
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+
+    def test_double_unpatch(self):
+        """
+        When unpatching httplib twice
+            we shouldn't break
+        """
+        unpatch()
+        unpatch()
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            conn.getresponse()
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 0)
+
     def test_should_skip_request(self):
         """
         When calling should_skip_request
