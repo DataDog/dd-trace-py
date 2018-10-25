@@ -151,6 +151,21 @@ jobs:
             - ddtracerun.results
       - *save_cache_step
 
+  test_utils:
+    docker:
+      - *test_runner
+    environment:
+      TOX_SKIP_DIST: False
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_utils' --result-json /tmp/test_utils.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_utils.results
+      - *save_cache_step
+
   asyncio:
     docker:
       - *test_runner
