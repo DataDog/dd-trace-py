@@ -854,6 +854,7 @@ workflows:
             - futures
             - boto
             - ddtracerun
+            - test_utils
             - asyncio
             - pylons
             - aiohttp
