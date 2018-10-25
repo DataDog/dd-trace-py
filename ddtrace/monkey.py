@@ -37,7 +37,7 @@ PATCH_MODULES = {
     'pymongo': True,
     'redis': True,
     'requests': True,
-    'sqlalchemy': False,  # Prefer DB client instrumentation
+    'sqlalchemy': True,
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiopg': True,
