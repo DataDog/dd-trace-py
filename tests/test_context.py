@@ -241,7 +241,6 @@ class TestTracingContext(TestCase):
                 child._finished = True
                 ctx.close_span(child)
 
-        # Test with having 1 too few spans for partial flush
         with override_config('context', dict(partial_flush_enabled=True, partial_flush_min_spans=5)):
             trace, sampled = ctx.get()
 
