@@ -3,7 +3,7 @@ import gevent.pool as gpool
 
 from .provider import CONTEXT_ATTR
 
-GEVENT_VERSION = tuple(map(int, gevent.__version__.split()[0].split('.')))
+GEVENT_VERSION = gevent.version_info[0:3]
 
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
