@@ -25,7 +25,7 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
-.. _mongodb:
+.. _influx:
 
 InfluxDB
 --------
@@ -33,7 +33,7 @@ InfluxDB
 .. automodule:: ddtrace.contrib.influx
 
 
-.. _influx:
+.. _mongodb:
 
 MongoDB
 -------
