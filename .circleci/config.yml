@@ -149,6 +149,19 @@ jobs:
           paths:
             - ddtracerun.results
 
+  test_utils:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_utils' --result-json /tmp/test_utils.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_utils.results
+      - *save_cache_step
+
   asyncio:
     docker:
       - *test_runner
@@ -824,6 +837,7 @@ workflows:
       - futures
       - boto
       - ddtracerun
+      - test_utils
       - asyncio
       - pylons
       - aiohttp
@@ -870,6 +884,7 @@ workflows:
             - futures
             - boto
             - ddtracerun
+            - test_utils
             - asyncio
             - pylons
             - aiohttp

@@ -1,14 +1,12 @@
 import os
 
-from mako.lookup import TemplateLookup
-
-from pylons import config
-from pylons.wsgiapp import PylonsApp
-
-from routes.middleware import RoutesMiddleware
 from beaker.middleware import SessionMiddleware, CacheMiddleware
-
+from mako.lookup import TemplateLookup
 from paste.registry import RegistryManager
+import pylons
+from pylons import config
+from routes.middleware import RoutesMiddleware
+
 
 from .router import create_routes
 from .lib.helpers import AppGlobals
@@ -33,7 +31,7 @@ def make_app(global_conf, full_stack=True, **app_conf):
     )
 
     # define a default middleware stack
-    app = PylonsApp()
+    app = pylons.wsgiapp.PylonsApp()
     app = RoutesMiddleware(app, config['routes.map'])
     app = SessionMiddleware(app, config)
     app = CacheMiddleware(app, config)
