@@ -10,7 +10,7 @@ from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
-from .helpers import get_current_app, get_current_span, get_inherited_pin, simple_tracer, with_instance_pin
+from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
 
@@ -330,7 +330,7 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
 
 
 def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
-    pin = get_inherited_pin(wrapped, instance)
+    pin = Pin.get_from(wrapped, instance)
     if not pin:
         return wrapped(*args, **kwargs)
 
@@ -376,7 +376,7 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
 
 def traced_render_template(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template"""
-    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    pin = Pin.get_from(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -386,7 +386,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
 
 def traced_render_template_string(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template_string"""
-    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    pin = Pin.get_from(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -402,7 +402,7 @@ def traced_render(wrapped, instance, args, kwargs):
 
     This method is called for render_template or render_template_string
     """
-    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    pin = Pin.get_from(wrapped, instance, get_current_app())
     # DEV: `get_current_span` will verify `pin` is valid and enabled first
     span = get_current_span(pin)
     if not span:
@@ -460,20 +460,19 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
 def traced_signal_receivers_for(signal):
     """Wrapper for flask.signals.{signal}.receivers_for to ensure all signal receivers are traced"""
     def outer(wrapped, instance, args, kwargs):
-        def _wrap(sender, *args, **kwargs):
-            # See if they gave us the flask.app.Flask as the sender
-            app = None
-            if isinstance(sender, flask.Flask):
-                app = sender
-            for receiver in wrapped(sender, *args ,**kwargs):
-                yield wrap_signal(app, signal, receiver)
-
-        return _wrap(*args, **kwargs)
+        # def receivers_for(sender, *args, **kwargs)
+        sender = get_arg_or_kwarg('sender', 0, args, kwargs)
+        # See if they gave us the flask.app.Flask as the sender
+        app = None
+        if isinstance(sender, flask.Flask):
+            app = sender
+        for receiver in wrapped(*args ,**kwargs):
+            yield wrap_signal(app, signal, receiver)
     return outer
 
 
 def traced_jsonify(wrapped, instance, args, kwargs):
-    pin = get_inherited_pin(wrapped, instance, get_current_app())
+    pin = Pin.get_from(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 

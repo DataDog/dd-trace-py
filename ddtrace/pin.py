@@ -57,13 +57,34 @@ class Pin(object):
             self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
-    def get_from(obj):
+    def get_from(*objs):
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
         instance, avoiding that a specific instance overrides other pins values.
 
             >>> pin = Pin.get_from(conn)
+
+            >>> # Find the first pin available from any of the provided
+            >>> pin = Pin.get_from(wrapped, instance, app)
+
+        :param *objs: objects to search for a Pin from
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
+        """
+        for obj in objs:
+            pin = Pin._extract_pin(obj)
+            if pin:
+                return pin
+        return None
+
+    @staticmethod
+    def _extract_pin(obj):
+        """
+        Helper to extract a :class:`ddtrace.pin.Pin` object from the provided object
+
+        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
+        :type obj: object
         """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()

@@ -25,7 +25,7 @@ def get_inherited_pin(*instances):
 def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
     def wrapper(wrapped, instance, args, kwargs):
-        pin = get_inherited_pin(wrapped, instance, get_current_app())
+        pin = Pin.get_from(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
