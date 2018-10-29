@@ -52,14 +52,11 @@ def wrap_middleware(instance, middleware):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-
         name = None
         if inspect.isfunction(wrapped):
             name = wrapped.__name__
         else:
             name = type(wrapped).__name__
-
-        import pdb; pdb.set_trace()
 
         with pin.tracer.trace(name, service='molten'):
             return wrapped(*args, **kwargs)
