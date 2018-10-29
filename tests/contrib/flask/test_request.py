@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from ddtrace.compat import PY2
 from ddtrace.contrib.flask.patch import flask_version
+from flask import abort
 
 from . import BaseFlaskTestCase
 
@@ -197,6 +198,84 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertTrue(dispatch_span.get_tag('error.msg').startswith('404 Not Found'))
         self.assertTrue(dispatch_span.get_tag('error.stack').startswith('Traceback'))
         self.assertEqual(dispatch_span.get_tag('error.type'), 'werkzeug.exceptions.NotFound')
+
+    def test_request_abort_404(self):
+        """
+        When making a request
+            When the requested endpoint calls `abort(404)`
+                We create the expected spans
+        """
+        @self.app.route('/not-found')
+        def not_found():
+            abort(404)
+
+        res = self.client.get('/not-found')
+        self.assertEqual(res.status_code, 404)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 10)
+
+        # Assert the order of the spans created
+        self.assertListEqual(
+            [
+                'flask.request',
+                'flask.try_trigger_before_first_request_functions',
+                'flask.preprocess_request',
+                'flask.dispatch_request',
+                'tests.contrib.flask.test_request.not_found',
+                'flask.handle_user_exception',
+                'flask.handle_http_exception',
+                'flask.process_response',
+                'flask.do_teardown_request',
+                'flask.do_teardown_appcontext',
+            ],
+            [s.name for s in spans],
+        )
+
+        # Assert span serices
+        for span in spans:
+            self.assertEqual(span.service, 'flask')
+
+        # Root request span
+        req_span = spans[0]
+        self.assertEqual(req_span.service, 'flask')
+        self.assertEqual(req_span.name, 'flask.request')
+        self.assertEqual(req_span.resource, 'GET /not-found')
+        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.error, 0)
+        self.assertIsNone(req_span.parent_id)
+
+        # Request tags
+        self.assertEqual(
+            set(['system.pid', 'flask.endpoint', 'flask.url_rule', 'flask.version',
+                 'http.url', 'http.method', 'http.status_code']),
+            set(req_span.meta.keys()),
+        )
+        self.assertEqual(req_span.get_tag('http.method'), 'GET')
+        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/not-found')
+        self.assertEqual(req_span.get_tag('http.status_code'), '404')
+        self.assertEqual(req_span.get_tag('flask.endpoint'), 'not_found')
+        self.assertEqual(req_span.get_tag('flask.url_rule'), '/not-found')
+
+        # Dispatch span
+        dispatch_span = spans[3]
+        self.assertEqual(dispatch_span.service, 'flask')
+        self.assertEqual(dispatch_span.name, 'flask.dispatch_request')
+        self.assertEqual(dispatch_span.resource, 'flask.dispatch_request')
+        self.assertEqual(dispatch_span.error, 1)
+        self.assertTrue(dispatch_span.get_tag('error.msg').startswith('404 Not Found'))
+        self.assertTrue(dispatch_span.get_tag('error.stack').startswith('Traceback'))
+        self.assertEqual(dispatch_span.get_tag('error.type'), 'werkzeug.exceptions.NotFound')
+
+        # Handler span
+        handler_span = spans[4]
+        self.assertEqual(handler_span.service, 'flask')
+        self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.not_found')
+        self.assertEqual(handler_span.resource, '/not-found')
+        self.assertEqual(handler_span.error, 1)
+        self.assertTrue(handler_span.get_tag('error.msg').startswith('404 Not Found'))
+        self.assertTrue(handler_span.get_tag('error.stack').startswith('Traceback'))
+        self.assertEqual(handler_span.get_tag('error.type'), 'werkzeug.exceptions.NotFound')
 
     def test_request_500(self):
         """

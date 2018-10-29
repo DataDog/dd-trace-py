@@ -292,7 +292,10 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                 # Override root span resource name to be `<method> 404` for 404 requests
                 # DEV: We do this because we want to make it easier to see all 404 requests together
                 #      Also, we do this to reduce the cardinality on unknown urls
-                if code == 404:
+                # DEV: If we have an endpoint tag, then we don't need to do this,
+                #      we still want `GET /product/<int:product_id>` grouped together,
+                #      even if it is a 404
+                if code == 404 and not s.get_tag('flask.endpoint'):
                     s.resource = u'{} 404'.format(request.method)
 
                 s.set_tag(http.STATUS_CODE, code)

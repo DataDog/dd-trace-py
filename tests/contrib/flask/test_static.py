@@ -64,7 +64,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.error, 0)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
-        self.assertEqual(req_span.resource, 'GET 404')
+        self.assertEqual(req_span.resource, 'GET /static/<path:filename>')
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'static')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/static/<path:filename>')
         self.assertEqual(req_span.get_tag('flask.view_args.filename'), 'unknown-file')
