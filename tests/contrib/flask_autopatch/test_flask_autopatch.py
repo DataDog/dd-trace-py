@@ -88,7 +88,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/')
+        self.assertEqual(req_span.get_tag('http.url'), '/')
         self.assertEqual(req_span.get_tag('http.status_code'), '200')
 
         # Handler span

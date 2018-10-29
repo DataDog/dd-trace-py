@@ -306,7 +306,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         start_response = _wrap_start_response(start_response)
 
         # DEV: We set response status code in `_wrap_start_response`
-        s.set_tag(http.URL, request.url)
+        # DEV: Use `request.path` and not `request.url` to keep from leaking any query string parameters
+        s.set_tag(http.URL, request.path)
         s.set_tag(http.METHOD, request.method)
 
         # TODO: Add request header tracing

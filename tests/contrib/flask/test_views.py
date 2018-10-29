@@ -45,7 +45,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag('http.status_code'), '200')
-        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/hello/flask')
+        self.assertEqual(req_span.get_tag('http.url'), '/hello/flask')
 
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
@@ -87,7 +87,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag('http.status_code'), '500')
-        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/hello/flask')
+        self.assertEqual(req_span.get_tag('http.url'), '/hello/flask')
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
@@ -134,7 +134,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag('http.status_code'), '200')
-        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/hello/flask')
+        self.assertEqual(req_span.get_tag('http.url'), '/hello/flask')
 
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
@@ -174,7 +174,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag('http.status_code'), '500')
-        self.assertEqual(req_span.get_tag('http.url'), 'http://localhost/hello/flask')
+        self.assertEqual(req_span.get_tag('http.url'), '/hello/flask')
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
