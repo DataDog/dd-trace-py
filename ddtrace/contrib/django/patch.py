@@ -1,6 +1,5 @@
-import wrapt
-
 import django
+import wrapt
 
 def patch():
     """Patch the instrumented methods
@@ -15,6 +14,7 @@ def patch():
 def traced_setup(wrapped, instance, args, kwargs):
     from django.conf import settings
 
+    # idempotence check
     if 'ddtrace.contrib.django' not in settings.INSTALLED_APPS:
         if isinstance(settings.INSTALLED_APPS, tuple):
             # INSTALLED_APPS is a tuple < 1.9
