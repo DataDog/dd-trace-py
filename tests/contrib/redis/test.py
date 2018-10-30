@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-import redis
 from nose.tools import eq_, ok_
 
 from ddtrace import Pin, compat
 from ddtrace.contrib.redis import get_traced_redis
-from ddtrace.contrib.redis.patch import patch, unpatch
+from ddtrace.contrib.redis import patch, unpatch
 
 from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
@@ -28,12 +27,13 @@ class TestRedisPatch(object):
     TEST_PORT = REDIS_CONFIG['port']
 
     def setUp(self):
+        patch()
+        import redis
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
-        patch()
 
     def tearDown(self):
-        unpatch()
+        import redis
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
 
@@ -70,6 +70,7 @@ class TestRedisPatch(object):
         _assert_pipeline_immediate(r, tracer, self.TEST_SERVICE)
 
     def get_redis_and_tracer(self):
+        import redis
         tracer = get_dummy_tracer()
         r = redis.Redis(port=REDIS_CONFIG['port'])
         Pin.override(r, service=self.TEST_SERVICE, tracer=tracer)
@@ -87,42 +88,6 @@ class TestRedisPatch(object):
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
         ok_('cheese' in span.meta and span.meta['cheese'] == 'camembert')
-
-    def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
-        # Test patch idempotence
-        patch()
-        patch()
-
-        r = redis.Redis(port=REDIS_CONFIG['port'])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
-
-        spans = writer.pop()
-        assert spans, spans
-        eq_(len(spans), 1)
-
-        # Test unpatch
-        unpatch()
-
-        r = redis.Redis(port=REDIS_CONFIG['port'])
-        r.get("key")
-
-        spans = writer.pop()
-        assert not spans, spans
-
-        # Test patch again
-        patch()
-
-        r = redis.Redis(port=REDIS_CONFIG['port'])
-        Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
-
-        spans = writer.pop()
-        assert spans, spans
-        eq_(len(spans), 1)
 
     def test_opentracing(self):
         """Ensure OpenTracing works with redis."""
@@ -175,6 +140,7 @@ def _assert_pipeline_immediate(conn, tracer, service):
     eq_(span.get_tag('out.redis_db'), '0')
     eq_(span.get_tag('out.host'), 'localhost')
 
+
 def _assert_pipeline_traced(conn, tracer, service):
     writer = tracer.writer
 
@@ -196,6 +162,7 @@ def _assert_pipeline_traced(conn, tracer, service):
     eq_(span.get_tag('out.host'), 'localhost')
     eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
     eq_(span.get_metric('redis.pipeline_length'), 3)
+
 
 def _assert_conn_traced(conn, tracer, service):
     us = conn.get('cheese')
