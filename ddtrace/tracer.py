@@ -509,7 +509,7 @@ class Tracer(object):
         :raises: TypeError
         """
         if not isinstance(span, Span):
-            raise TypeError('Tracer.emit expected a `ddtrace.span.Span` instead got "{}"'.format(span))
+            return
 
         # Return early if no hooks exist
         # DEV: Do this check even though we use a `defaultdict` to save from
@@ -524,4 +524,4 @@ class Tracer(object):
             try:
                 func(span, *args, **kwargs)
             except Exception as err:
-                log.error('error while calling "{}" hook function "{}": {}'.format(span.name, fname, err))
+                log.debug('error while calling "{}" hook function "{}": {}'.format(span.name, fname, err))
