@@ -432,6 +432,91 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertTrue(user_ex_span.get_tag('error.stack').startswith('Traceback'))
         self.assertEqual(user_ex_span.get_tag('error.type'), base_exception_name)
 
+    def test_request_501(self):
+        """
+        When making a request
+            When the requested endpoint calls `abort(501)`
+                We create the expected spans
+        """
+        @self.app.route('/501')
+        def fivehundredone():
+            abort(501)
+
+        res = self.client.get('/501')
+        self.assertEqual(res.status_code, 501)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 10)
+
+        # Assert the order of the spans created
+        self.assertListEqual(
+            [
+                'flask.request',
+                'flask.try_trigger_before_first_request_functions',
+                'flask.preprocess_request',
+                'flask.dispatch_request',
+                'tests.contrib.flask.test_request.fivehundredone',
+                'flask.handle_user_exception',
+                'flask.handle_http_exception',
+                'flask.process_response',
+                'flask.do_teardown_request',
+                'flask.do_teardown_appcontext',
+            ],
+            [s.name for s in spans],
+        )
+
+        # Assert span serices
+        for span in spans:
+            self.assertEqual(span.service, 'flask')
+
+        # Root request span
+        req_span = spans[0]
+        self.assertEqual(req_span.service, 'flask')
+        self.assertEqual(req_span.name, 'flask.request')
+        self.assertEqual(req_span.resource, 'GET /501')
+        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.error, 1)
+        self.assertIsNone(req_span.parent_id)
+
+        # Request tags
+        self.assertEqual(
+            set(['system.pid', 'flask.version', 'http.url', 'http.method',
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
+            set(req_span.meta.keys()),
+        )
+        self.assertEqual(req_span.get_tag('http.method'), 'GET')
+        self.assertEqual(req_span.get_tag('http.url'), '/501')
+        self.assertEqual(req_span.get_tag('http.status_code'), '501')
+        self.assertEqual(req_span.get_tag('flask.endpoint'), 'fivehundredone')
+        self.assertEqual(req_span.get_tag('flask.url_rule'), '/501')
+
+        # Dispatch span
+        dispatch_span = spans[3]
+        self.assertEqual(dispatch_span.service, 'flask')
+        self.assertEqual(dispatch_span.name, 'flask.dispatch_request')
+        self.assertEqual(dispatch_span.resource, 'flask.dispatch_request')
+        self.assertEqual(dispatch_span.error, 1)
+        self.assertTrue(dispatch_span.get_tag('error.msg').startswith('501 Not Implemented'))
+        self.assertTrue(dispatch_span.get_tag('error.stack').startswith('Traceback'))
+        self.assertEqual(dispatch_span.get_tag('error.type'), 'werkzeug.exceptions.NotImplemented')
+
+        # Handler span
+        handler_span = spans[4]
+        self.assertEqual(handler_span.service, 'flask')
+        self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.fivehundredone')
+        self.assertEqual(handler_span.resource, '/501')
+        self.assertEqual(handler_span.error, 1)
+        self.assertTrue(handler_span.get_tag('error.msg').startswith('501 Not Implemented'))
+        self.assertTrue(handler_span.get_tag('error.stack').startswith('Traceback'))
+        self.assertEqual(handler_span.get_tag('error.type'), 'werkzeug.exceptions.NotImplemented')
+
+        # User exception span
+        user_ex_span = spans[5]
+        self.assertEqual(user_ex_span.service, 'flask')
+        self.assertEqual(user_ex_span.name, 'flask.handle_user_exception')
+        self.assertEqual(user_ex_span.resource, 'flask.handle_user_exception')
+        self.assertEqual(user_ex_span.error, 0)
+
     def test_request_error_handler(self):
         """
         When making a request

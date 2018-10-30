@@ -26,7 +26,10 @@ config._add('flask', dict(
     distributed_tracing_enabled=False,
     template_default_name='<memory>',
     trace_signals=True,
-    error_codes=set([500, ]),
+
+    # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
+    # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
+    extra_error_codes=set(),
 ))
 
 
@@ -299,7 +302,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     s.resource = u'{} 404'.format(request.method)
 
                 s.set_tag(http.STATUS_CODE, code)
-                if code in config.flask.get('error_codes', set()):
+                if 500 <= code < 600:
+                    s.error = 1
+                elif code in config.flask.get('extra_error_codes', set()):
                     s.error = 1
                 return func(status_code, headers)
             return traced_start_response
