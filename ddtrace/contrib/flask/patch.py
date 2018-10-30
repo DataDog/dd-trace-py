@@ -461,10 +461,7 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
 def traced_signal_receivers_for(signal):
     """Wrapper for flask.signals.{signal}.receivers_for to ensure all signal receivers are traced"""
     def outer(wrapped, instance, args, kwargs):
-        # def receivers_for(sender, *args, **kwargs)
-        sender = kwargs.get('sender')
-        if len(args) > 0:
-            sender = args[0]
+        sender = kwargs.get('sender', args[0])
         # See if they gave us the flask.app.Flask as the sender
         app = None
         if isinstance(sender, flask.Flask):
