@@ -108,7 +108,6 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         def handle_500(e):
             return 'whoops', 200
 
-
         @self.app.route('/500')
         def endpoint_500():
             flask.abort(500)

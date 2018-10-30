@@ -96,18 +96,10 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         # Request the endpoint
         self.client.get('/')
 
-        spans = self.get_spans()
-
         # Only extract the span we care about
         # DEV: Making a request creates a bunch of lifecycle spans,
         #   ignore them, we test them elsewhere
-        span = None
-        for s in spans:
-            if s.name == 'bp.test':
-                span = s
-                break
-        self.assertIsNotNone(span, 'could not find the necessary span for bp.index')
-
+        span = self.find_span_by_name(self.get_spans(), 'bp.test')
         self.assertEqual(span.service, 'flask')
         self.assertEqual(span.name, 'bp.test')
         self.assertEqual(span.resource, '/')
@@ -131,18 +123,10 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         # Request the endpoint
         self.client.get('/')
 
-        spans = self.get_spans()
-
         # Only extract the span we care about
         # DEV: Making a request creates a bunch of lifecycle spans,
         #   ignore them, we test them elsewhere
-        span = None
-        for s in spans:
-            if s.name == 'bp.test':
-                span = s
-                break
-        self.assertIsNotNone(span, 'could not find the necessary span for bp.index')
-
+        span = self.find_span_by_name(self.get_spans(), 'bp.test')
         self.assertEqual(span.service, 'flask-bp')
         self.assertEqual(span.name, 'bp.test')
         self.assertEqual(span.resource, '/')
@@ -152,7 +136,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         """
         When making a request to a Blueprint's endpoint
             When the app's ``Pin`` is disabled
-                We do not create an spans
+                We do not create any spans
         """
         pin = Pin.get_from(self.app)
         pin.tracer.enabled = False
