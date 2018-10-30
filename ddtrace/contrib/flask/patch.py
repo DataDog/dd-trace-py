@@ -320,15 +320,14 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
     This wrapper just ensures the blueprint has a pin, either set manually on
     itself from the user or inherited from the application
     """
-    def _wrap(app, *args, **kwargs):
-        # Check if this Blueprint has a pin, otherwise clone the one from the app onto it
-        pin = Pin.get_from(instance)
-        if not pin:
-            pin = Pin.get_from(app)
-            if pin:
-                pin.clone().onto(instance)
-        return wrapped(app, *args, **kwargs)
-    return _wrap(*args, **kwargs)
+    app = kwargs.get('app', args[0])
+    # Check if this Blueprint has a pin, otherwise clone the one from the app onto it
+    pin = Pin.get_from(instance)
+    if not pin:
+        pin = Pin.get_from(app)
+        if pin:
+            pin.clone().onto(instance)
+    return wrapped(*args, **kwargs)
 
 
 def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
@@ -359,21 +358,17 @@ def traced_add_url_rule(wrapped, instance, args, kwargs):
 
 def traced_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
-    def _wrap(endpoint):
-        def _wrapper(func):
-            name = func_name(func)
-            return wrapped(endpoint)(wrap_function(instance, func, name=name, resource=endpoint))
-        return _wrapper
-
-    return _wrap(*args, **kwargs)
+    endpoint = kwargs.get('endpoint', args[0])
+    def _wrapper(func):
+        name = func_name(func)
+        return wrapped(endpoint)(wrap_function(instance, func, name=name, resource=endpoint))
+    return _wrapper
 
 
 def traced_flask_hook(wrapped, instance, args, kwargs):
     """Wrapper for hook functions (before_request, after_request, etc) are properly traced"""
-    def _wrap(func):
-        return wrapped(wrap_function(instance, func))
-
-    return _wrap(*args, **kwargs)
+    func = kwargs.get('f', args[0])
+    return wrapped(wrap_function(instance, func))
 
 
 def traced_render_template(wrapped, instance, args, kwargs):
