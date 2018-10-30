@@ -86,6 +86,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
                 self.assertEqual(response, 'hello world')
 
         # 1 for calling `flask.render_template`
+        # 1 for tearing down the request
         # 1 for tearing down the app context we created
         spans = self.get_spans()
         self.assertEqual(len(spans), 3)
