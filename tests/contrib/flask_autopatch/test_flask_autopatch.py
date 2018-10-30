@@ -66,7 +66,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
             [s.name for s in spans],
         )
 
-        # Assert span serices
+        # Assert span services
         for span in spans:
             self.assertEqual(span.service, 'test-flask')
 
