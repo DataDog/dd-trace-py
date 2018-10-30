@@ -1,4 +1,4 @@
-from .monkey import patch, patch_all
+from .install import patch, patch_all
 from .pin import Pin
 from .span import Span
 from .tracer import Tracer
