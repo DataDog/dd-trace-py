@@ -481,7 +481,7 @@ class Tracer(object):
         :returns: A function decorator that registers a function for the provided hook name
         """
         def wrapper(func):
-            self.hooks[hook_name].add(func)
+            self._hooks[hook_name].add(func)
             return func
         return wrapper
 
