@@ -365,8 +365,8 @@ def traced_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
     endpoint = kwargs.get('endpoint', args[0])
     def _wrapper(func):
-        name = func_name(func)
-        return wrapped(endpoint)(wrap_function(instance, func, name=name, resource=endpoint))
+        # DEV: `wrap_function` will call `func_name(func)` for us
+        return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
     return _wrapper
 
 
