@@ -1,5 +1,7 @@
-import flask
+import logging
 import os
+
+import flask
 import werkzeug
 from wrapt import wrap_function_wrapper as _w
 
@@ -8,11 +10,11 @@ from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
+log = logging.getLogger(__name__)
 
 # Configure default configuration
 config._add('flask', dict(
@@ -364,6 +366,7 @@ def traced_add_url_rule(wrapped, instance, args, kwargs):
 def traced_endpoint(wrapped, instance, args, kwargs):
     """Wrapper for flask.app.Flask.endpoint to ensure all endpoints are wrapped"""
     endpoint = kwargs.get('endpoint', args[0])
+
     def _wrapper(func):
         # DEV: `wrap_function` will call `func_name(func)` for us
         return wrapped(endpoint)(wrap_function(instance, func, resource=endpoint))
