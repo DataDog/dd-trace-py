@@ -10,22 +10,10 @@ def get_current_app():
     return None
 
 
-def get_inherited_pin(*instances):
-    """Helper to iterate instances and return the first pin found"""
-    for instance in instances:
-        if not instance:
-            continue
-
-        pin = Pin.get_from(instance)
-        if pin:
-            return pin
-    return None
-
-
 def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
     def wrapper(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(wrapped, instance, get_current_app())
+        pin = Pin.find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 

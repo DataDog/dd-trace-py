@@ -321,6 +321,7 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
     itself from the user or inherited from the application
     """
     def _wrap(app, *args, **kwargs):
+        # Check if this Blueprint has a pin, otherwise clone the one from the app onto it
         pin = Pin.get_from(instance)
         if not pin:
             pin = Pin.get_from(app)
@@ -331,7 +332,7 @@ def traced_blueprint_register(wrapped, instance, args, kwargs):
 
 
 def traced_blueprint_add_url_rule(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(wrapped, instance)
+    pin = Pin.find(wrapped, instance)
     if not pin:
         return wrapped(*args, **kwargs)
 
@@ -377,7 +378,7 @@ def traced_flask_hook(wrapped, instance, args, kwargs):
 
 def traced_render_template(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template"""
-    pin = Pin.get_from(wrapped, instance, get_current_app())
+    pin = Pin.find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -387,7 +388,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
 
 def traced_render_template_string(wrapped, instance, args, kwargs):
     """Wrapper for flask.templating.render_template_string"""
-    pin = Pin.get_from(wrapped, instance, get_current_app())
+    pin = Pin.find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -403,7 +404,7 @@ def traced_render(wrapped, instance, args, kwargs):
 
     This method is called for render_template or render_template_string
     """
-    pin = Pin.get_from(wrapped, instance, get_current_app())
+    pin = Pin.find(wrapped, instance, get_current_app())
     # DEV: `get_current_span` will verify `pin` is valid and enabled first
     span = get_current_span(pin)
     if not span:
@@ -474,7 +475,7 @@ def traced_signal_receivers_for(signal):
 
 
 def traced_jsonify(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(wrapped, instance, get_current_app())
+    pin = Pin.find(wrapped, instance, get_current_app())
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
