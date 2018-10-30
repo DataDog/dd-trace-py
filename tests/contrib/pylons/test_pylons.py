@@ -7,9 +7,10 @@ from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
 
+import ddtrace
 from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.pylons import PylonsTraceMiddleware
+from ddtrace.contrib.pylons import patch, PylonsTraceMiddleware, unpatch
 
 from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
@@ -337,3 +338,100 @@ class PylonsTestCase(TestCase):
         eq_(dd_span.resource, 'root.index')
         eq_(dd_span.meta.get(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
+
+    def test_patch(self):
+        # Ensure that patching installs the instrumentation
+        ddtrace.tracer = self.tracer
+
+        patch()
+
+        wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        app = fixture.TestApp(wsgiapp)
+
+        res = app.get(url_for(controller='root', action='index'))
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.service, 'pylons')
+        eq_(span.resource, 'root.index')
+        eq_(span.meta.get(http.STATUS_CODE), '200')
+        eq_(span.error, 0)
+        unpatch()
+
+    def test_unpatch(self):
+        ddtrace.tracer = self.tracer
+
+        patch()
+        unpatch()
+
+        wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        app = fixture.TestApp(wsgiapp)
+
+        res = app.get(url_for(controller='root', action='index'))
+        eq_(res.status, 200)
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
+
+    def test_double_patch(self):
+        ddtrace.tracer = self.tracer
+
+        patch()
+        patch()
+
+        wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        app = fixture.TestApp(wsgiapp)
+
+        res = app.get(url_for(controller='root', action='index'))
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        unpatch()
+
+    def test_double_unpatch(self):
+        ddtrace.tracer = self.tracer
+
+        patch()
+        unpatch()
+        unpatch()
+
+        wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        app = fixture.TestApp(wsgiapp)
+
+        res = app.get(url_for(controller='root', action='index'))
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
+
+    def test_patch_auto_and_manual(self):
+        # Test when the app is autoinstrumented and manually instrumented
+        ddtrace.tracer = self.tracer
+
+        patch()
+
+        wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
+        app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='manual')
+        app = fixture.TestApp(app)
+
+        res = app.get(url_for(controller='root', action='index'))
+        eq_(res.status, 200)
+
+        spans = self.tracer.writer.pop()
+
+        # There should be two spans one from each instrumentation
+        eq_(len(spans), 2)
+        manual, auto = spans
+
+        eq_(manual.service, 'manual')
+        eq_(manual.resource, 'root.index')
+        eq_(manual.meta.get(http.STATUS_CODE), '200')
+        eq_(manual.error, 0)
+
+        eq_(auto.service, 'pylons')
+        eq_(auto.resource, 'root.index')
+        eq_(auto.meta.get(http.STATUS_CODE), '200')
+        eq_(auto.error, 0)

@@ -21,6 +21,38 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.tracer = None
 
     @mark_asyncio
+    def test_double_patch(self):
+        # setUp() already patches, patch again and make sure we're idempotent
+        patch()
+        with aiobotocore_client('ec2', self.tracer) as ec2:
+            yield from ec2.describe_instances()
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+    @mark_asyncio
+    def test_unpatch(self):
+        # setUp() already patches, unpatch and check no spans are generated
+        unpatch()
+        with aiobotocore_client('ec2', self.tracer) as ec2:
+            yield from ec2.describe_instances()
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 0)
+
+    @mark_asyncio
+    def test_double_unpatch_patch(self):
+        unpatch()
+        unpatch()
+        patch()
+
+        with aiobotocore_client('ec2', self.tracer) as ec2:
+            yield from ec2.describe_instances()
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+    @mark_asyncio
     def test_traced_client(self):
         with aiobotocore_client('ec2', self.tracer) as ec2:
             yield from ec2.describe_instances()
