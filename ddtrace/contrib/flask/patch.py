@@ -310,9 +310,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         s.set_tag(http.URL, request.path)
         s.set_tag(http.METHOD, request.method)
 
-        # TODO: Add request header tracing
-        # for k, v in request.headers:
-        #     s.set_tag('http.request.headers.{}'.format(k), v)
         return wrapped(environ, start_response)
 
 
@@ -453,9 +450,8 @@ def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
         if request.view_args and config.flask.get('collect_view_args'):
             for k, v in request.view_args.items():
                 span.set_tag(u'flask.view_args.{}'.format(k), v)
-    except Exception:
-        # TODO: Log this exception
-        pass
+    except Exception as e:
+        log.debug('failed to set tags for "flask.request" span: {}'.format(e))
 
     with pin.tracer.trace('flask.dispatch_request', service=pin.service):
         return wrapped(*args, **kwargs)
