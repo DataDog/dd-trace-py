@@ -38,7 +38,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         bp = flask.Blueprint('pinned', __name__)
         Pin(service='flask-bp', tracer=self.tracer).onto(bp)
 
-        # DEV:This is more common than calling ``flask.Blueprint.register`` directly
+        # DEV: This is more common than calling ``flask.Blueprint.register`` directly
         self.app.register_blueprint(bp)
         pin = Pin.get_from(bp)
         self.assertEqual(pin.service, 'flask-bp')
