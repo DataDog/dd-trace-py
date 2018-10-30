@@ -39,3 +39,10 @@ class BaseFlaskTestCase(unittest.TestCase):
         if required:
             self.assertIsNotNone(span, 'could not find span with name {}'.format(name))
         return span
+
+    def find_span_parent(self, spans, span, required=True):
+        """Helper to search for a span's parent in a given list of spans"""
+        parent = next((s for s in spans if s.span_id == span.parent_id), None)
+        if required:
+            self.assertIsNotNone(parent, 'could not find parent span {}'.format(span))
+        return parent
