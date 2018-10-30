@@ -19,6 +19,28 @@ You can also use the autopatching functionality::
 
 To enable distributed tracing when using autopatching, set the
 ``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``True``.
+
+**Supported span hooks**
+
+The following is a list of available tracer hooks that can be used to intercept
+and modify spans created by this integration.
+
+- ``falcon.request``
+    - Called before the response has been finished
+    - ``def on_falcon_request(span, request, response)``
+
+
+Example::
+
+    import falcon
+    from ddtrace import tracer, patch_all
+    patch_all()
+
+    app = falcon.API()
+
+    @tracer.on('falcon.request')
+    def on_falcon_request(span, request, response):
+        span.set_tag('my.custom', 'tag')
 """
 from ...utils.importlib import require_modules
 
