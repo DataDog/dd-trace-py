@@ -79,7 +79,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        self.tracer.emit(span, req, resp)
+        self.tracer._emit(span, req, resp)
 
         # Close the span
         span.finish()

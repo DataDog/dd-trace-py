@@ -473,7 +473,7 @@ class Tracer(object):
 
             # Create and emit a `my.span` Span with the provided data
             with tracer.trace('my.span') as span:
-                tracer.emit(span, dict(key='value'))
+                tracer._emit(span, dict(key='value'))
 
         :param hook_name: The name of the hook to configure a hook for
         :type hook_name: str
@@ -485,7 +485,7 @@ class Tracer(object):
             return func
         return wrapper
 
-    def emit(self, span, *args, **kwargs):
+    def _emit(self, span, *args, **kwargs):
         """
         Call all registered span hooks for the provided :class:`ddtrace.span.Span`
 
@@ -499,7 +499,7 @@ class Tracer(object):
 
             # Create and emit a `my.span` Span with the provided data
             with tracer.trace('my.span') as span:
-                tracer.emit(span, dict(key='value'))
+                tracer._emit(span, dict(key='value'))
 
         :param span: The span to emit a hook for
         :type span: :class:`ddtrace.span.Span`
