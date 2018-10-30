@@ -485,6 +485,80 @@ def test_start_child_from_context():
     eq_(child, child._context._current_span)
 
 
+def test_tracer_hook():
+    tracer = get_dummy_tracer()
+
+    # Setup our hook
+    @tracer.on('web.request')
+    def on_web_request(span):
+        span.set_tag('web.request', '/')
+
+    # Create our span
+    span = tracer.start_span('web.request')
+    ok_('web.request' not in span.meta)
+
+    # Emit the span
+    tracer._emit(span)
+
+    # Assert we updated the span as expected
+    eq_(span.get_tag('web.request'), '/')
+
+
+def test_tracer_multiple_hook():
+    tracer = get_dummy_tracer()
+
+    # Setup our hooks
+    @tracer.on('web.request')
+    def on_web_request(span):
+        span.set_tag('web.request', '/')
+
+    @tracer.on('web.request')
+    def on_web_request2(span):
+        span.set_tag('web.status', 200)
+
+    @tracer.on('web.request')
+    def on_web_request3(span):
+        span.set_tag('web.method', 'GET')
+
+    # Create our span
+    span = tracer.start_span('web.request')
+    ok_('web.request' not in span.meta)
+    ok_('web.status' not in span.meta)
+    ok_('web.method' not in span.meta)
+
+    # Emit the span
+    tracer._emit(span)
+
+    # Assert we updated the span as expected
+    eq_(span.get_tag('web.request'), '/')
+    eq_(span.get_tag('web.status'), '200')
+    eq_(span.get_tag('web.method'), 'GET')
+
+
+def test_tracer_hook_failure():
+    tracer = get_dummy_tracer()
+
+    # Setup our failing hook
+    on_web_request = mock.Mock(side_effect=Exception)
+    tracer.on('web.request')(on_web_request)
+
+    # Create our span
+    span = tracer.start_span('web.request')
+
+    # Emit the span
+    # DEV: This is the test, to ensure no exceptions are raised
+    tracer._emit(span)
+    on_web_request.assert_called()
+
+    # Calling without a span
+    # DEV: This is the test, to ensure no exceptions are raised
+    tracer._emit('web.request')
+
+    # Calling with a span for a hook we don't have setup
+    span = tracer.start_span('web.response')
+    tracer._emit('web.response')
+
+
 class DummyWriter(AgentWriter):
     """ DummyWriter is a small fake writer used for tests. not thread-safe. """
 
