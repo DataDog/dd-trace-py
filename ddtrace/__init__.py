@@ -1,8 +1,8 @@
-from .monkey import patch, patch_all
+from .install import patch, patch_all
 from .pin import Pin
+from .settings import Config
 from .span import Span
 from .tracer import Tracer
-from .settings import Config
 
 __version__ = '0.15.0'
 
