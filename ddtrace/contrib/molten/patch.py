@@ -102,14 +102,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
-    # intercept components and patch methods
-    if 'components' in kwargs:
-        components = kwargs['components']
-        for component in components:
-            component.can_handle_parameter = trace_func(component.__class__.__name__)(component.can_handle_parameter)
-            component.resolve = trace_func(component.__class__.__name__)(component.resolve)
-        kwargs['components'] = components
-
     # allow instance to be initialized with middleware
     wrapped(*args, **kwargs)
 
@@ -124,3 +116,12 @@ def patch_app_init(wrapped, instance, args, kwargs):
         trace_middleware(mw)
         for mw in instance.middleware
     ]
+
+    # patch class methods of component instances
+    for component in instance.components:
+        component.__class__.can_handle_parameter = trace_func(component.__class__.__name__)(component.can_handle_parameter)
+        component.__class__.resolve = trace_func(component.__class__.__name__)(component.resolve)
+
+    # patch renderers
+    for renderers in instance.renderers:
+        renderers.__class__.render = trace_func(renderers.__class__.__name__)(renderers.render)
