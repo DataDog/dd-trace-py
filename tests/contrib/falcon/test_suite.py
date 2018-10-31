@@ -1,5 +1,6 @@
 from nose.tools import eq_, ok_, assert_raises
 
+from ddtrace import config
 from ddtrace.ext import errors as errx, http as httpx
 from tests.opentracer.utils import init_tracer
 
@@ -194,7 +195,7 @@ class FalconTestCase(object):
         eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
 
     def test_falcon_request_hook(self):
-        @self.tracer.on('falcon.request')
+        @config.falcon.hooks.request
         def on_falcon_request(span, request, response):
             span.set_tag('my.custom', 'tag')
 

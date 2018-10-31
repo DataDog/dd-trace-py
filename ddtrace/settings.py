@@ -1,9 +1,11 @@
+import collections
 import logging
 
 from copy import deepcopy
 
 from .pin import Pin
 from .utils.merge import deepmerge
+from .utils.attrdict import AttrDict
 
 
 log = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ class Config(object):
 
     def __getattr__(self, name):
         if name not in self._config:
-            self._config[name] = dict()
+            self._config[name] = IntegrationConfig(self)
         return self._config[name]
 
     def get_from(self, obj):
@@ -69,11 +71,152 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = deepmerge(existing, settings)
+            self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
         else:
-            self._config[integration] = settings
+            self._config[integration] = IntegrationConfig(self, settings)
 
     def __repr__(self):
         cls = self.__class__
         integrations = ', '.join(self._config.keys())
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
+
+
+class IntegrationConfig(AttrDict):
+    def __init__(self, global_config, *args, **kwargs):
+        """
+        :param global_config:
+        :type global_config: Config
+        :param args:
+        :param kwargs:
+        """
+        super(IntegrationConfig, self).__init__(*args, **kwargs)
+
+        # DEV: Use `object.__setattr__` to get round the `AttrDict` custom `__setattr__` code
+        # DEV: We cannot use `super(IntegrationConfig, self).__setattr__` because `dict` doesn't have it
+        object.__setattr__(self, 'global_config', global_config)
+        object.__setattr__(self, 'hooks', Hooks())
+
+    def __deepcopy__(self, memodict=None):
+        new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
+        return new
+
+    def __repr__(self):
+        cls = self.__class__
+        keys = ', '.join(self.keys())
+        return '{}.{}({})'.format(cls.__module__, cls.__name__, keys)
+
+
+class Hooks(object):
+    __slots__ = ['_hooks']
+
+    def __init__(self):
+        super(Hooks, self).__setattr__('_hooks', collections.defaultdict(set))
+
+    def __getattr__(self, key):
+        """
+        Return a hook decorator for the attribute name provided
+
+        Example::
+
+            @config.falcon.hooks.request
+            def on_request(span, request, response):
+                pass
+
+
+        This is the same as::
+
+            @config.falcon.hooks.register('request')
+            def on_request(span, request, response):
+                pass
+
+        :param key: Hook name to register
+        :type key: str
+        :returns: A function decorator used to register a hook
+        :rtype: function
+        """
+        return self.register(key)
+
+    def register(self, hook, func=None):
+        """
+        Function used to register a hook for the provided name.
+
+        Example::
+
+            def on_request(span, request, response):
+                pass
+
+            config.falcon.hooks.register('request', on_request)
+
+
+        If no function is provided then a decorator is returned::
+
+            @config.falcon.hooks.register('request')
+            def on_request(span, request, response):
+                pass
+
+        :param hook: The name of the hook to register the function for
+        :type hook: str
+        :param func: The function to register, or ``None`` if a decorator should be returned
+        :type func: function, None
+        :returns: Either a function decorator if ``func is None``, otherwise ``None``
+        :rtype: function, None
+        """
+        # If they didn't provide a function, then return a decorator
+        if not func:
+            def wrapper(func):
+                self.register(hook, func)
+                return func
+            return wrapper
+        self._hooks[hook].add(func)
+
+    def deregister(self, func):
+        """
+        Function to deregister a function from all hooks it was registered under
+
+        Example::
+
+            @config.falcon.hooks.request
+            def on_request(span, request, response):
+                pass
+
+            config.falcon.hooks.deregister(on_request)
+
+
+        :param func: Function hook to register
+        :type func: function
+        """
+        for funcs in self._hooks.values():
+            if func in funcs:
+                funcs.remove(func)
+
+    def _emit(self, hook, span, *args, **kwargs):
+        """
+        Function used to call registered hook functions.
+
+        :param hook: The hook to call functions for
+        :type hook: str
+        :param span: The span to call the hook with
+        :type span: :class:`ddtrace.span.Span`
+        :param *args: Positional arguments to pass to the hook functions
+        :type args: list
+        :param **kwargs: Keyword arguments to pass to the hook functions
+        :type kwargs: dict
+        """
+        if hook not in self._hooks:
+            return
+
+        for func in self._hooks[hook]:
+            try:
+                func(span, *args, **kwargs)
+            except Exception as e:
+                log.debug('Failed to run hook {} function {}: {}'.format(hook, func, e))
+
+    def __repr__(self):
+        """Return string representation of this class instance"""
+        cls = self.__class__
+        hooks = ','.join(self._hooks.keys())
+        return '{}.{}({})'.format(cls.__module__, cls.__name__, hooks)
+
+
+# Configure our global configuration object
+config = Config()

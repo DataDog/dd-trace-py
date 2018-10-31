@@ -4,6 +4,7 @@ from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
 from ...compat import iteritems
 from ...ext import AppTypes
+from ...settings import config
 
 
 class TraceMiddleware(object):
@@ -79,7 +80,7 @@ class TraceMiddleware(object):
 
         # Emit span hook for this response
         # DEV: Emit before closing so they can overwrite `span.resource` if they want
-        self.tracer._emit(span, req, resp)
+        config.falcon.hooks._emit('request', span, req, resp)
 
         # Close the span
         span.finish()

@@ -25,7 +25,7 @@ To enable distributed tracing when using autopatching, set the
 The following is a list of available tracer hooks that can be used to intercept
 and modify spans created by this integration.
 
-- ``falcon.request``
+- ``request``
     - Called before the response has been finished
     - ``def on_falcon_request(span, request, response)``
 
@@ -33,12 +33,12 @@ and modify spans created by this integration.
 Example::
 
     import falcon
-    from ddtrace import tracer, patch_all
+    from ddtrace import config, patch_all
     patch_all()
 
     app = falcon.API()
 
-    @tracer.on('falcon.request')
+    @config.falcon.hooks.request
     def on_falcon_request(span, request, response):
         span.set_tag('my.custom', 'tag')
 """
