@@ -504,6 +504,49 @@ def test_tracer_hook():
     eq_(span.get_tag('web.request'), '/')
 
 
+def test_tracer_hook_args():
+    tracer = get_dummy_tracer()
+
+    # Setup our hook
+    @tracer.on('web.request')
+    def on_web_request(span, request, response):
+        span.set_tag('web.request', request)
+        span.set_tag('web.response', response)
+
+    # Create our span
+    span = tracer.start_span('web.request')
+    ok_('web.request' not in span.meta)
+
+    # Emit the span
+    # DEV: The actual values don't matter, we just want to test args + kwargs usage
+    tracer._emit(span, 'request', response='response')
+
+    # Assert we updated the span as expected
+    eq_(span.get_tag('web.request'), 'request')
+    eq_(span.get_tag('web.response'), 'response')
+
+
+def test_tracer_hook_args_failure():
+    tracer = get_dummy_tracer()
+
+    # Setup our hook
+    # DEV: We are missing the required "response" argument
+    @tracer.on('web.request')
+    def on_web_request(span, request):
+        span.set_tag('web.request', request)
+
+    # Create our span
+    span = tracer.start_span('web.request')
+    ok_('web.request' not in span.meta)
+
+    # Emit the span
+    # DEV: This also asserts that no exception was raised
+    tracer._emit(span, 'request', response='response')
+
+    # Assert we did not update the span
+    ok_('web.request' not in span.meta)
+
+
 def test_tracer_multiple_hook():
     tracer = get_dummy_tracer()
 
