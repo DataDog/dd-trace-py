@@ -90,12 +90,14 @@ def patch_add_route(wrapped, instance, args, kwargs):
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
+    # import pdb; pdb.set_trace()
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    # trace call
-    with pin.tracer.trace(func_name(wrapped), service=pin.service):
+    params, _ = args
+    resource = u'{} {}'.format(params.get('REQUEST_METHOD'), params.get('PATH_INFO'))
+    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
         return wrapped(*args, **kwargs)
 
 
