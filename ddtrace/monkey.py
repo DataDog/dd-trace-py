@@ -44,7 +44,7 @@ DEFAULT_INTEGRATIONS = {
     "flask": False,
 }
 
-class InstallException(Exception):
+class PatchException(Exception):
     pass
 
 
@@ -90,7 +90,7 @@ def install(integration, raise_errors=False):
     except ImportError:
         log_msg = 'install: integration {} not found'.format(integration)
         if raise_errors:
-            raise InstallException(log_msg)
+            raise PatchException(log_msg)
         else:
             log.error(log_msg)
             return
