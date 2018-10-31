@@ -71,8 +71,6 @@ def trace_middleware(middleware):
 
 
 def patch_add_route(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(molten)
-
     def _wrap(route_like, prefix="", namespace=None):
         # avoid patching non-Route, e.g. Include
         if not isinstance(route_like, molten.Route):
@@ -119,7 +117,8 @@ def patch_app_init(wrapped, instance, args, kwargs):
 
     # patch class methods of component instances
     for component in instance.components:
-        component.__class__.can_handle_parameter = trace_func(component.__class__.__name__)(component.can_handle_parameter)
+        component.__class__.can_handle_parameter = \
+            trace_func(component.__class__.__name__)(component.can_handle_parameter)
         component.__class__.resolve = trace_func(component.__class__.__name__)(component.resolve)
 
     # patch renderers
