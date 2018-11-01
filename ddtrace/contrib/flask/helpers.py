@@ -13,7 +13,7 @@ def get_current_app():
 def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
     def wrapper(wrapped, instance, args, kwargs):
-        pin = Pin.find(wrapped, instance, get_current_app())
+        pin = Pin._find(wrapped, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
