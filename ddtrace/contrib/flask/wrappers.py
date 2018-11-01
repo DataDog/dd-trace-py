@@ -16,7 +16,7 @@ def wrap_function(instance, func, name=None, resource=None):
 
     @function_wrapper
     def trace_func(wrapped, _instance, args, kwargs):
-        pin = Pin.find(wrapped, _instance, instance, get_current_app())
+        pin = Pin._find(wrapped, _instance, instance, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
         with pin.tracer.trace(name, service=pin.service, resource=resource):
@@ -35,7 +35,7 @@ def wrap_signal(app, signal, func):
 
     @function_wrapper
     def trace_func(wrapped, instance, args, kwargs):
-        pin = Pin.find(wrapped, instance, app, get_current_app())
+        pin = Pin._find(wrapped, instance, app, get_current_app())
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 

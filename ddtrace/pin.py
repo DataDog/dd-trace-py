@@ -57,12 +57,12 @@ class Pin(object):
             self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
-    def find(*objs):
+    def _find(*objs):
         """
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
 
-            >>> pin = Pin.find(wrapper, instance, conn, app)
+            >>> pin = Pin._find(wrapper, instance, conn, app)
 
         :param *objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
