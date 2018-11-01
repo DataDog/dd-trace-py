@@ -866,6 +866,7 @@ workflows:
             - flask
             - gevent
             - httplib
+            - molten
             - mongoengine
             - mysqlconnector
             - mysqlpython
