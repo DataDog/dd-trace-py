@@ -375,7 +375,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'molten_contrib-{py36}-molten{07}' --result-json /tmp/molten.results
+      - run: tox -e 'molten_contrib-{py36}-molten{05,06,07}' --result-json /tmp/molten.results
       - persist_to_workspace:
           root: /tmp
           paths:
