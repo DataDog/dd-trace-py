@@ -8,6 +8,7 @@ from ddtrace.utils.formats import get_env
 from ddtrace.utils.importlib import func_name
 
 from ...ext import AppTypes
+from ...ext import http
 
 # Configure default configuration
 config._add('molten', dict(
@@ -69,6 +70,17 @@ def trace_middleware(middleware):
 
     return _trace_middleware(middleware)
 
+def patch_start_response(start_response):
+    @wrapt.function_wrapper
+    def _start_response(wrapped, instance, args, kwargs):
+        pin = Pin.get_from(molten)
+        span = pin.tracer.current_root_span()
+        status, headers, exc_info = args
+        status_code, _, _ = status.partition(' ')
+        span.set_tag(http.STATUS_CODE, status_code)
+        return wrapped(*args, **kwargs)
+
+    return _start_response(start_response)
 
 def patch_add_route(wrapped, instance, args, kwargs):
     def _wrap(route_like, prefix="", namespace=None):
@@ -88,17 +100,20 @@ def patch_add_route(wrapped, instance, args, kwargs):
 
     return _wrap(*args, **kwargs)
 
-
 def patch_app_call(wrapped, instance, args, kwargs):
-    # import pdb; pdb.set_trace()
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    params, _ = args
-    resource = u'{} {}'.format(params.get('REQUEST_METHOD'), params.get('PATH_INFO'))
-    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
-        return wrapped(*args, **kwargs)
+    params, start_response = args
+    start_response = patch_start_response(start_response)
+    method = params.get('REQUEST_METHOD')
+    path = params.get('PATH_INFO')
+    resource = u'{} {}'.format(method, path)
+    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource) as span:
+        span.set_tag(http.METHOD, method)
+        span.set_tag(http.URL, path)
+        return wrapped(params, start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
