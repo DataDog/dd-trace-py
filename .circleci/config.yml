@@ -369,6 +369,19 @@ jobs:
             - httplib.results
       - *save_cache_step
 
+  molten:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'molten_contrib-{py36}-molten{07}' --result-json /tmp/molten.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - molten.results
+      - *save_cache_step
+
   mysqlconnector:
     docker:
       - *test_runner
