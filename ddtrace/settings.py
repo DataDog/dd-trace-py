@@ -1,9 +1,11 @@
+import collections
 import logging
 
 from copy import deepcopy
 
 from .pin import Pin
 from .utils.merge import deepmerge
+from .utils.attrdict import AttrDict
 
 
 log = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ class Config(object):
 
     def __getattr__(self, name):
         if name not in self._config:
-            self._config[name] = dict()
+            self._config[name] = IntegrationConfig(self)
         return self._config[name]
 
     def get_from(self, obj):
@@ -69,11 +71,53 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = deepmerge(existing, settings)
+            self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
         else:
-            self._config[integration] = settings
+            self._config[integration] = IntegrationConfig(self, settings)
 
     def __repr__(self):
         cls = self.__class__
         integrations = ', '.join(self._config.keys())
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
+
+
+class IntegrationConfig(AttrDict):
+    """
+    Integration specific configuration object.
+
+    This is what you will get when you do::
+
+        from ddtrace import config
+
+        # This is an `IntegrationConfig`
+        config.flask
+
+        # `IntegrationConfig` supports both item and attribute accessors
+        config.flask.service_name = 'my-service-name'
+        config.flask['service_name'] = 'my-service-name'
+    """
+    def __init__(self, global_config, *args, **kwargs):
+        """
+        :param global_config:
+        :type global_config: Config
+        :param args:
+        :param kwargs:
+        """
+        super(IntegrationConfig, self).__init__(*args, **kwargs)
+
+        # DEV: Use `object.__setattr__` to get round the `AttrDict` custom `__setattr__` code
+        # DEV: We cannot use `super(IntegrationConfig, self).__setattr__` because `dict` doesn't have it
+        object.__setattr__(self, 'global_config', global_config)
+
+    def __deepcopy__(self, memodict=None):
+        new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
+        return new
+
+    def __repr__(self):
+        cls = self.__class__
+        keys = ', '.join(self.keys())
+        return '{}.{}({})'.format(cls.__module__, cls.__name__, keys)
+
+
+# Configure our global configuration object
+config = Config()
