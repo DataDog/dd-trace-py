@@ -1,9 +1,9 @@
 """
-To trace the molten web framework, install the trace middleware::
+To trace the molten web framework, run ``patch``::
 
 
 To enable distributed tracing when using autopatching, set the
-``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``True``.
+``DATADOG_MOLTEN_DISTRIBUTED_TRACING`` environment variable to ``True``.
 """
 from ...utils.importlib import require_modules
 

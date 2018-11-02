@@ -1,14 +1,16 @@
 import inspect
+import os
 
 import wrapt
 
 import molten
 from ddtrace import Pin, config
-from ddtrace.utils.formats import get_env
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.formats import asbool, get_env
 from ddtrace.utils.importlib import func_name
+from molten.http import Request
 
-from ...ext import AppTypes
-from ...ext import http
+from ...ext import AppTypes, http
 
 # Configure default configuration
 config._add('molten', dict(
@@ -40,6 +42,8 @@ def patch():
     _w('molten', 'Router.add_route', patch_add_route)
 
 def trace_func(resource):
+    """Trace calls to function using provided resource name
+    """
     @wrapt.function_wrapper
     def _trace_func(wrapped, instance, args, kwargs):
         pin = Pin.get_from(molten)
@@ -53,24 +57,27 @@ def trace_func(resource):
     return _trace_func
 
 def trace_middleware(middleware):
+    """Trace calling of middleware function or object
+    """
     @wrapt.function_wrapper
     def _trace_middleware(wrapped, instance, args, kwargs):
         pin = Pin.get_from(molten)
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        name = None
+        resource = None
         if inspect.isfunction(wrapped):
-            name = wrapped.__name__
+            resource = wrapped.__name__
         else:
-            name = type(wrapped).__name__
+            resource = type(wrapped).__name__
 
-        with pin.tracer.trace(name, service=pin.service):
-            return trace_func(name)(wrapped(*args, **kwargs))
+        return trace_func(resource)(wrapped(*args, **kwargs))
 
     return _trace_middleware(middleware)
 
 def patch_start_response(start_response):
+    """Patch respond handling to set metadata
+    """
     @wrapt.function_wrapper
     def _start_response(wrapped, instance, args, kwargs):
         pin = Pin.get_from(molten)
@@ -83,6 +90,8 @@ def patch_start_response(start_response):
     return _start_response(start_response)
 
 def patch_add_route(wrapped, instance, args, kwargs):
+    """Patch adding routes to trace route handler
+    """
     def _wrap(route_like, prefix="", namespace=None):
         # avoid patching non-Route, e.g. Include
         if not isinstance(route_like, molten.Route):
@@ -101,22 +110,38 @@ def patch_add_route(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 def patch_app_call(wrapped, instance, args, kwargs):
+    """Patch wsgi interface for app
+    """
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    params, start_response = args
+    # destruct arguments to wsgi app
+    environ, start_response = args
     start_response = patch_start_response(start_response)
-    method = params.get('REQUEST_METHOD')
-    path = params.get('PATH_INFO')
+    method = environ.get('REQUEST_METHOD')
+    path = environ.get('PATH_INFO')
     resource = u'{} {}'.format(method, path)
+
+    # enable distributed tracing
+    distributed_tracing = asbool(os.environ.get(
+        'DATADOG_MOLTEN_DISTRIBUTED_TRACING')) or False
+    request = Request.from_environ(environ)
+    if distributed_tracing:
+        propagator = HTTPPropagator()
+        context = propagator.extract(request.headers)
+        if context.trace_id:
+            pin.tracer.context_provider.activate(context)
+
     with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource) as span:
         span.set_tag(http.METHOD, method)
         span.set_tag(http.URL, path)
-        return wrapped(params, start_response, **kwargs)
+        return wrapped(environ, start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
+    """Patch app initialization of middleware, components and renderers
+    """
     # allow instance to be initialized with middleware
     wrapped(*args, **kwargs)
 
