@@ -19,8 +19,8 @@ class TestMolten(TestCase):
         self.tracer = get_dummy_tracer()
         # simple hello app
         def hello(name: str, age: int) -> str:
-            return f"Hello {age} year old named {name}!"
-        self.app = App(routes=[Route("/hello/{name}/{age}", hello)])
+            return f'Hello {age} year old named {name}!'
+        self.app = App(routes=[Route('/hello/{name}/{age}', hello)])
         patch()
 
     def tearDown(self):
@@ -28,15 +28,16 @@ class TestMolten(TestCase):
 
     def test_route_success(self):
         client, tracer = self.get_client_and_tracer()
-        uri = self.app.reverse_uri("hello", name="Jim", age=24)
+        uri = self.app.reverse_uri('hello', name='Jim', age=24)
         response = client.get(uri)
         eq_(response.status_code, 200)
-        eq_(response.json(), "Hello 24 year old named Jim!")
+        eq_(response.json(), 'Hello 24 year old named Jim!')
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'molten.app.__call__')
+        eq_(span.name, 'molten.request')
+        eq_(span.resource, 'GET /hello/Jim/24')
         eq_(span.get_tag('http.url'), uri)
         eq_(span.get_tag('http.method'), 'GET')
         eq_(span.get_tag('http.status_code'), '200')
