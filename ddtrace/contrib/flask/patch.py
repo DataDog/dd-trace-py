@@ -16,6 +16,11 @@ from .wrappers import wrap_function, wrap_signal
 
 log = logging.getLogger(__name__)
 
+FLASK_ENDPOINT = 'flask.endpoint'
+FLASK_VIEW_ARGS = 'flask.view_args'
+FLASK_URL_RULE = 'flask.url_rule'
+FLASK_VERSION = 'flask.version'
+
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
@@ -69,7 +74,8 @@ def patch():
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Flask.wsgi_app', traced_wsgi_app)
-    _w('flask', 'Flask.dispatch_request', traced_dispatch_request)
+    _w('flask', 'Flask.dispatch_request', request_tracer('dispatch_request'))
+    _w('flask', 'Flask.preprocess_request', request_tracer('preprocess_request'))
     _w('flask', 'Flask.add_url_rule', traced_add_url_rule)
     _w('flask', 'Flask.endpoint', traced_endpoint)
     _w('flask', 'Flask._register_error_handler', traced_register_error_handler)
@@ -92,7 +98,6 @@ def patch():
 
     # flask.app.Flask traced methods
     flask_app_traces = [
-        'preprocess_request',
         'process_response',
         'handle_exception',
         'handle_http_exception',
@@ -279,7 +284,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
-        s.set_tag('flask.version', flask_version_str)
+        s.set_tag(FLASK_VERSION, flask_version_str)
 
         # Wrap the `start_response` handler to extract response code
         # DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
@@ -295,13 +300,13 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     pass
 
                 # Override root span resource name to be `<method> 404` for 404 requests
-                # DEV: We do this because we want to make it easier to see all 404 requests together
+                # DEV: We do this because we want to make it easier to see all unknown requests together
                 #      Also, we do this to reduce the cardinality on unknown urls
-                # DEV: If we have an endpoint tag, then we don't need to do this,
+                # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
                 #      we still want `GET /product/<int:product_id>` grouped together,
                 #      even if it is a 404
-                if code == 404 and not s.get_tag('flask.endpoint'):
-                    s.resource = u'{} 404'.format(request.method)
+                if not s.get_tag(FLASK_ENDPOINT) and not s.get_tag(FLASK_URL_RULE):
+                    s.resource = u'{} {}'.format(request.method, code)
 
                 s.set_tag(http.STATUS_CODE, code)
                 if 500 <= code < 600:
@@ -428,37 +433,39 @@ def traced_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-@with_instance_pin
-def traced_dispatch_request(pin, wrapped, instance, args, kwargs):
-    """
-    Wrapper to trace flask.app.Flask.dispatch_request
+def request_tracer(name):
+    @with_instance_pin
+    def _traced_request(pin, wrapped, instance, args, kwargs):
+        """
+        Wrapper to trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
 
-    This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
-    """
-    span = get_current_span(pin)
-    if not span:
-        return wrapped(*args, **kwargs)
+        This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
+        """
+        span = get_current_span(pin)
+        if not span:
+            return wrapped(*args, **kwargs)
 
-    try:
-        request = flask._request_ctx_stack.top.request
+        try:
+            request = flask._request_ctx_stack.top.request
 
-        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if request.endpoint:
-            span.resource = request.endpoint
-            span.set_tag('flask.endpoint', request.endpoint)
+            # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
+            if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+                span.resource = u'{} {}'.format(request.method, request.endpoint)
+                span.set_tag(FLASK_ENDPOINT, request.endpoint)
 
-        if request.url_rule and request.url_rule.rule:
-            span.resource = u'{} {}'.format(request.method, request.url_rule.rule)
-            span.set_tag('flask.url_rule', request.url_rule.rule)
+            if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+                span.resource = u'{} {}'.format(request.method, request.url_rule.rule)
+                span.set_tag(FLASK_URL_RULE, request.url_rule.rule)
 
-        if request.view_args and config.flask.get('collect_view_args'):
-            for k, v in request.view_args.items():
-                span.set_tag(u'flask.view_args.{}'.format(k), v)
-    except Exception as e:
-        log.debug('failed to set tags for "flask.request" span: {}'.format(e))
+            if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get('collect_view_args'):
+                for k, v in request.view_args.items():
+                    span.set_tag(u'{}.{}'.format(FLASK_VIEW_ARGS, k), v)
+        except Exception as e:
+            log.debug('failed to set tags for "flask.request" span: {}'.format(e))
 
-    with pin.tracer.trace('flask.dispatch_request', service=pin.service):
-        return wrapped(*args, **kwargs)
+        with pin.tracer.trace('flask.{}'.format(name), service=pin.service):
+            return wrapped(*args, **kwargs)
+    return _traced_request
 
 
 def traced_signal_receivers_for(signal):

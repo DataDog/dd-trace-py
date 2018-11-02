@@ -31,8 +31,55 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 9)
 
+        # DEV: This will raise an exception if this span doesn't exist
+        self.find_span_by_name(spans, 'flask.dispatch_request')
+
         span = self.find_span_by_name(spans, 'tests.contrib.flask.test_hooks.before_request')
         parent = self.find_span_parent(spans, span)
+
+        # Assert hook span
+        self.assertEqual(span.service, 'flask')
+        self.assertEqual(span.name, 'tests.contrib.flask.test_hooks.before_request')
+        self.assertEqual(span.resource, 'tests.contrib.flask.test_hooks.before_request')
+        self.assertEqual(span.meta, dict())
+
+        # Assert correct parent span
+        self.assertEqual(parent.name, 'flask.preprocess_request')
+
+    def test_before_request_return(self):
+        """
+        When Flask before_request hook is registered
+            When the hook handles the request
+                We create the expected spans
+        """
+        @self.app.before_request
+        def before_request():
+            return 'Not Allowed', 401
+
+        req = self.client.get('/')
+        self.assertEqual(req.status_code, 401)
+        self.assertEqual(req.data, b'Not Allowed')
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 7)
+
+        dispatch = self.find_span_by_name(spans, 'flask.dispatch_request', required=False)
+        self.assertIsNone(dispatch)
+
+        root = self.find_span_by_name(spans, 'flask.request')
+        span = self.find_span_by_name(spans, 'tests.contrib.flask.test_hooks.before_request')
+        parent = self.find_span_parent(spans, span)
+
+        # Assert root hook
+        # DEV: This is the main thing we need to check with this test
+        self.assertEqual(root.service, 'flask')
+        self.assertEqual(root.name, 'flask.request')
+        self.assertEqual(root.resource, 'GET /')
+        self.assertEqual(root.get_tag('flask.endpoint'), 'index')
+        self.assertEqual(root.get_tag('flask.url_rule'), '/')
+        self.assertEqual(root.get_tag('http.method'), 'GET')
+        self.assertEqual(root.get_tag('http.status_code'), '401')
+        self.assertEqual(root.get_tag('http.url'), '/')
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')
@@ -100,6 +147,39 @@ class FlaskHookTestCase(BaseFlaskTestCase):
 
         span = self.find_span_by_name(spans, 'tests.contrib.flask.test_hooks.after_request')
         parent = self.find_span_parent(spans, span)
+
+        # Assert hook span
+        self.assertEqual(span.service, 'flask')
+        self.assertEqual(span.name, 'tests.contrib.flask.test_hooks.after_request')
+        self.assertEqual(span.resource, 'tests.contrib.flask.test_hooks.after_request')
+        self.assertEqual(span.meta, dict())
+
+        # Assert correct parent span
+        self.assertEqual(parent.name, 'flask.process_response')
+
+    def test_after_request_change_status(self):
+        """
+        When Flask after_request hook is registered
+            We create the expected spans
+        """
+        @self.app.after_request
+        def after_request(response):
+            response.status_code = 401
+            return response
+
+        req = self.client.get('/')
+        self.assertEqual(req.status_code, 401)
+        self.assertEqual(req.data, b'Hello Flask')
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 9)
+
+        root = self.find_span_by_name(spans, 'flask.request')
+        span = self.find_span_by_name(spans, 'tests.contrib.flask.test_hooks.after_request')
+        parent = self.find_span_parent(spans, span)
+
+        # Assert root span
+        self.assertEqual(root.get_tag('http.status_code'), '401')
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')
