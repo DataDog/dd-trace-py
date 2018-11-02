@@ -1,17 +1,17 @@
 import unittest
-import requests
 
+import requests
 from requests import Session
 from requests.exceptions import MissingSchema
-from nose.tools import eq_, assert_raises
 
 from ddtrace import config
-from ddtrace.ext import http, errors
 from ddtrace.contrib.requests import patch, unpatch
-
+from ddtrace.ext import errors, http
+from nose.tools import assert_raises, eq_
 from tests.opentracer.utils import init_tracer
-from ...util import override_global_tracer
+
 from ...test_tracer import get_dummy_tracer
+from ...util import override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -102,6 +102,20 @@ class TestRequests(BaseRequestTestCase):
         s = spans[0]
         eq_(s.get_tag(http.METHOD), 'GET')
         eq_(s.get_tag(http.STATUS_CODE), '200')
+        eq_(s.error, 0)
+        eq_(s.span_type, http.TYPE)
+
+    def test_200_query_string(self):
+        # ensure query string is removed before adding url to metadata
+        out = self.session.get(URL_200 + '?key=value&key2=value2')
+        eq_(out.status_code, 200)
+        # validation
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag(http.METHOD), 'GET')
+        eq_(s.get_tag(http.STATUS_CODE), '200')
+        eq_(s.get_tag(http.URL), URL_200)
         eq_(s.error, 0)
         eq_(s.span_type, http.TYPE)
 

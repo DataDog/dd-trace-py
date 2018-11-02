@@ -1,14 +1,12 @@
 import logging
-import ddtrace
 
+import ddtrace
 from ddtrace import config
 
-from .constants import DEFAULT_SERVICE
-
-from ...ext import http
 from ...compat import parse
+from ...ext import http
 from ...propagation.http import HTTPPropagator
-
+from .constants import DEFAULT_SERVICE
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +53,15 @@ def _wrap_request(func, instance, args, kwargs):
     url = kwargs.get('url') or args[1]
     headers = kwargs.get('headers', {})
     parsed_uri = parse.urlparse(url)
+    # sanitize url of query
+    sanitized_url = parse.urlunparse((
+        parsed_uri.scheme,
+        parsed_uri.netloc,
+        parsed_uri.path,
+        parsed_uri.params,
+        None, # drop parsed_uri.query
+        parsed_uri.fragment
+    ))
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
@@ -73,7 +80,7 @@ def _wrap_request(func, instance, args, kwargs):
         finally:
             try:
                 span.set_tag(http.METHOD, method.upper())
-                span.set_tag(http.URL, url)
+                span.set_tag(http.URL, sanitized_url)
                 if response is not None:
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer
