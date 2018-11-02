@@ -133,7 +133,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
 
-    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource) as span:
+    with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
         span.set_tag(http.METHOD, method)
         span.set_tag(http.URL, path)
         return wrapped(environ, start_response, **kwargs)
