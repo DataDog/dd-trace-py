@@ -437,7 +437,8 @@ def request_tracer(name):
     @with_instance_pin
     def _traced_request(pin, wrapped, instance, args, kwargs):
         """
-        Wrapper to trace a Flask function while trying to extract endpoint information (endpoint, url_rule, view_args, etc)
+        Wrapper to trace a Flask function while trying to extract endpoint information
+          (endpoint, url_rule, view_args, etc)
 
         This wrapper will add identifier tags to the current span from `flask.app.Flask.wsgi_app`.
         """
