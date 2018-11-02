@@ -12,7 +12,6 @@ stringify = str
 
 if PY2:
     from urllib import urlencode
-    from urlparse import urlparse
     import httplib
     stringify = unicode
     from Queue import Queue
@@ -23,7 +22,6 @@ if PY2:
 else:
     from queue import Queue
     from urllib.parse import urlencode
-    from urllib.parse import urlparse
     import http.client as httplib
     from io import StringIO
 

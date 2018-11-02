@@ -5,7 +5,7 @@ import logging
 import wrapt
 
 # Project
-from ...compat import PY2, httplib, urlparse
+from ...compat import PY2, httplib, parse
 from ...ext import http as ext_http
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
@@ -61,7 +61,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         port = ':{port}'.format(port=instance.port)
 
         # strip path of non-path data
-        path = urlparse(path).path
+        path = parse.urlparse(path).path
 
         if (scheme == 'http' and instance.port == 80) or (scheme == 'https' and instance.port == 443):
             port = ''

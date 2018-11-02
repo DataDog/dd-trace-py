@@ -7,15 +7,14 @@ import unittest
 import wrapt
 
 # Project
-from ddtrace.compat import httplib, PY2
+from ddtrace.compat import PY2, httplib
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
-
 from tests.opentracer.utils import init_tracer
+
 from ...test_tracer import get_dummy_tracer
 from ...util import assert_dict_issuperset, override_global_tracer
-
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -242,7 +241,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             {
                 'http.method': 'GET',
                 'http.status_code': '200',
-                'http.url': '{}?key=value&key2=value2'.format(URL_200),
+                'http.url': '{}'.format(URL_200),
             }
         )
 
