@@ -121,6 +121,9 @@ class TracedServer(ObjectProxy):
             span.set_tag(mongox.COLLECTION, cmd.coll)
             span.set_tags(cmd.tags)
 
+            if cmd.query is not None:
+                span.set_tag('mongodb.query', normalize_filter(cmd.query))
+
             result = self.__wrapped__.send_message_with_response(
                 operation,
                 *args,
