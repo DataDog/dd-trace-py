@@ -241,6 +241,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             {
                 'http.method': 'GET',
                 'http.status_code': '200',
+                # check url metadata lacks query string
                 'http.url': '{}'.format(URL_200),
             }
         )
