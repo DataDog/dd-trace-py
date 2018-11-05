@@ -4,13 +4,15 @@ import os
 import wrapt
 
 import molten
-from ddtrace import Pin, config
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.utils.formats import asbool, get_env
-from ddtrace.utils.importlib import func_name
 from molten.http import Request
 
+from ... import Pin, config
 from ...ext import AppTypes, http
+from ...propagation.http import HTTPPropagator
+from ...utils.formats import asbool, get_env
+from ...utils.importlib import func_name
+from ...utils.wrappers import unwrap
+
 
 # Configure default configuration
 config._add('molten', dict(
@@ -40,6 +42,15 @@ def patch():
     _w('molten', 'App.__init__', patch_app_init)
     _w('molten', 'App.__call__', patch_app_call)
     _w('molten', 'Router.add_route', patch_add_route)
+
+def unpatch():
+    """Remove instrumentation
+    """
+    if getattr(molten, '_datadog_patch', False):
+        setattr(molten, '_datadog_patch', False)
+        unwrap(molten.App, '__init__')
+        unwrap(molten.App, '__call__')
+        unwrap(molten.Router, 'add_route')
 
 def trace_func(resource):
     """Trace calls to function using provided resource name
