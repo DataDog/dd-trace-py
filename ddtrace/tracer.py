@@ -1,4 +1,3 @@
-import collections
 import functools
 import logging
 from os import environ, getpid
@@ -56,7 +55,6 @@ class Tracer(object):
 
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
-
 
     def get_call_context(self, *args, **kwargs):
         """
