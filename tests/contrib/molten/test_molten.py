@@ -17,7 +17,7 @@ class TestMolten(TestCase):
 
     def setUp(self):
         self.tracer = get_dummy_tracer()
-        # simple hello app
+        # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
         def hello(name: str, age: int) -> str:
             return f'Hello {age} year old named {name}!'
         self.app = App(routes=[Route('/hello/{name}/{age}', hello)])
