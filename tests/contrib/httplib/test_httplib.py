@@ -220,7 +220,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
     def test_httplib_request_get_request_query_string(self):
         """
         When making a GET request with a query string via httplib.HTTPConnection.request
-            we capture a the entire url in the span
+            we capture the all of the url in the span except for the query string
         """
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
