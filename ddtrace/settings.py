@@ -3,9 +3,9 @@ import logging
 
 from copy import deepcopy
 
+from .span import Span
 from .pin import Pin
 from .utils.merge import deepmerge
-from .utils.attrdict import AttrDict
 
 
 log = logging.getLogger(__name__)
@@ -81,7 +81,21 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-class IntegrationConfig(AttrDict):
+class IntegrationConfig(dict):
+    """
+    Integration specific configuration object.
+
+    This is what you will get when you do::
+
+        from ddtrace import config
+
+        # This is an `IntegrationConfig`
+        config.flask
+
+        # `IntegrationConfig` supports both item and attribute accessors
+        config.flask.service_name = 'my-service-name'
+        config.flask['service_name'] = 'my-service-name'
+    """
     def __init__(self, global_config, *args, **kwargs):
         """
         :param global_config:
@@ -90,11 +104,8 @@ class IntegrationConfig(AttrDict):
         :param kwargs:
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
-
-        # DEV: Use `object.__setattr__` to get round the `AttrDict` custom `__setattr__` code
-        # DEV: We cannot use `super(IntegrationConfig, self).__setattr__` because `dict` doesn't have it
-        object.__setattr__(self, 'global_config', global_config)
-        object.__setattr__(self, 'hooks', Hooks())
+        self.global_config = global_config
+        self.hooks = Hooks()
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
@@ -107,9 +118,19 @@ class IntegrationConfig(AttrDict):
 
 
 class Hooks(object):
+    """
+    Hooks configuration object is used for registering and calling hook functions
+
+    Example::
+
+        @config.falcon.hooks.request
+        def on_reqiest(span, request, resposne):
+            pass
+    """
     __slots__ = ['_hooks']
 
     def __init__(self):
+        # DEV: We have a custom `__setattr__`, call the inherited `object.__setattr__`
         super(Hooks, self).__setattr__('_hooks', collections.defaultdict(set))
 
     def __getattr__(self, key):
@@ -202,9 +223,15 @@ class Hooks(object):
         :param **kwargs: Keyword arguments to pass to the hook functions
         :type kwargs: dict
         """
+        # Return early if no hooks are registered
         if hook not in self._hooks:
             return
 
+        # Return early if we don't have a Span
+        if not isinstance(span, Span):
+            return
+
+        # Call registered hooks
         for func in self._hooks[hook]:
             try:
                 func(span, *args, **kwargs)

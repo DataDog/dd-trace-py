@@ -12,7 +12,6 @@ from .span import Span
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
-from .utils.importlib import func_name
 
 
 log = logging.getLogger(__name__)
@@ -58,9 +57,6 @@ class Tracer(object):
         # a buffer for service info so we dont' perpetually send the same things
         self._services = {}
 
-        # registered span hooks for this tracer
-        # DEV: Use a `set` to ensure we don't double register a function
-        self._hooks = collections.defaultdict(set)
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -458,70 +454,3 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)
-
-    def on(self, hook_name):
-        """
-        Decorator used to configure a tracer span hook
-
-        Usage::
-
-            # Register a hook for any emitted `my.span` Spans
-            @tracer.on('my.span')
-            def on_falcon_request(span, data):
-                span.set_tag('key', data['key'])
-
-
-            # Create and emit a `my.span` Span with the provided data
-            with tracer.trace('my.span') as span:
-                tracer._emit(span, dict(key='value'))
-
-        :param hook_name: The name of the hook to configure a hook for
-        :type hook_name: str
-        :rtype: function
-        :returns: A function decorator that registers a function for the provided hook name
-        """
-        def wrapper(func):
-            self._hooks[hook_name].add(func)
-            return func
-        return wrapper
-
-    def _emit(self, span, *args, **kwargs):
-        """
-        Call all registered span hooks for the provided :class:`ddtrace.span.Span`
-
-        Usage::
-
-            # Register a hook for any emitted `my.span` Spans
-            @tracer.on('my.span')
-            def on_falcon_request(span, data):
-                span.set_tag('key', data['key'])
-
-
-            # Create and emit a `my.span` Span with the provided data
-            with tracer.trace('my.span') as span:
-                tracer._emit(span, dict(key='value'))
-
-        :param span: The span to emit a hook for
-        :type span: :class:`ddtrace.span.Span`
-        :param *args: positional arguments to pass to hook functions
-        :param **kwargs: keyword arguments to pass to hook functions
-        :rtype: None
-        :raises: TypeError
-        """
-        if not isinstance(span, Span):
-            return
-
-        # Return early if no hooks exist
-        # DEV: Do this check even though we use a `defaultdict` to save from
-        #      creating an entry for the name if one does not already exist
-        if span.name not in self._hooks:
-            return
-
-        # Iterate and call all hooks for this span name
-        for func in self._hooks[span.name]:
-            fname = func_name(func)
-            log.debug('calling "{}" hook function "{}"'.format(span.name, fname))
-            try:
-                func(span, *args, **kwargs)
-            except Exception as err:
-                log.debug('error while calling "{}" hook function "{}": {}'.format(span.name, fname, err))
