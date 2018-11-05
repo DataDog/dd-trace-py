@@ -3,6 +3,7 @@ import gevent.pool as gpool
 
 from .provider import CONTEXT_ATTR
 
+GEVENT_VERSION = gevent.version_info[0:3]
 
 class TracingMixin(object):
     def __init__(self, *args, **kwargs):
@@ -42,15 +43,15 @@ class TracedIMapUnordered(TracingMixin, gpool.IMapUnordered):
         super(TracedIMapUnordered, self).__init__(*args, **kwargs)
 
 
-if issubclass(gpool.IMap, gpool.IMapUnordered):
-    # For gevent >=1.1, IMap derives from IMapUnordered, so we derive
-    # from TracedIMapUnordered and get tracing that way
-    class TracedIMap(gpool.IMap, TracedIMapUnordered):
+if GEVENT_VERSION >= (1, 3) or GEVENT_VERSION < (1, 1):
+    # For gevent <1.1 and >=1.3, IMap is its own class, so we derive
+    # from TracingMixin
+    class TracedIMap(TracingMixin, gpool.IMap):
         def __init__(self, *args, **kwargs):
             super(TracedIMap, self).__init__(*args, **kwargs)
 else:
-    # For gevent <1.1, IMap is its own class, so we derive
-    # from TracingMixin
-    class TracedIMap(TracingMixin, gpool.IMap):
+    # For gevent >=1.1 and <1.3, IMap derives from IMapUnordered, so we derive
+    # from TracedIMapUnordered and get tracing that way
+    class TracedIMap(gpool.IMap, TracedIMapUnordered):
         def __init__(self, *args, **kwargs):
             super(TracedIMap, self).__init__(*args, **kwargs)

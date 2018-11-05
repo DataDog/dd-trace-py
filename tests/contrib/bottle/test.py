@@ -51,6 +51,7 @@ class TraceBottleTest(TestCase):
         s = spans[0]
         eq_(s.name, 'bottle.request')
         eq_(s.service, 'bottle-app')
+        eq_(s.span_type, 'web')
         eq_(s.resource, 'GET /hi/<name>')
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')

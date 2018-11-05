@@ -11,7 +11,7 @@ from .constants import DEFAULT_SERVICE
 log = logging.getLogger(__name__)
 
 
-def _extract_service_name(session, span, netloc=None):
+def _extract_service_name(session, span, hostname=None):
     """Extracts the right service name based on the following logic:
     - `requests` is the default service name
     - users can change it via `session.service_name = 'clients'`
@@ -26,8 +26,8 @@ def _extract_service_name(session, span, netloc=None):
     Updated service name > parent service name > default to `requests`.
     """
     cfg = config.get_from(session)
-    if cfg['split_by_domain'] and netloc:
-        return netloc
+    if cfg['split_by_domain'] and hostname:
+        return hostname
 
     service_name = cfg['service_name']
     if (service_name == DEFAULT_SERVICE and
@@ -65,7 +65,10 @@ def _wrap_request(func, instance, args, kwargs):
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
-        span.service = _extract_service_name(instance, span, netloc=parsed_uri.netloc)
+        hostname = parsed_uri.hostname
+        if parsed_uri.port:
+            hostname += ':{}'.format(parsed_uri.port)
+        span.service = _extract_service_name(instance, span, hostname=hostname)
 
         # propagate distributed tracing headers
         if config.get_from(instance).get('distributed_tracing'):

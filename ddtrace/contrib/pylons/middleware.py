@@ -73,7 +73,7 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except:
+                except Exception:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
@@ -92,7 +92,7 @@ class PylonsTraceMiddleware(object):
                 # set resources. If this is so, don't do anything, otherwise
                 # set the resource to the controller / action that handled it.
                 if span.resource == span.name:
-                    span.resource = "%s.%s" % (controller, action)
+                    span.resource = "{}.{}".format(controller, action)
 
                 span.set_tags({
                     http.METHOD: environ.get('REQUEST_METHOD'),
