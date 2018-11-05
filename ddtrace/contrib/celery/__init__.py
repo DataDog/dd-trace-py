@@ -33,22 +33,46 @@ By default, reported service names are:
     * ``celery-worker`` when tasks are processed by a Celery process
 
 """
-from ...utils.importlib import require_modules
+from ddtrace import config
+
+from ...utils.install import install_module_import_hook, mark_module_unpatched
+from ...utils.formats import get_env
+from .app import patch_app, unpatch_app
+from .constants import PRODUCER_SERVICE, WORKER_SERVICE
+from .task import patch_task, unpatch_task
 
 
-required_modules = ['celery']
+__all__ = [
+    'patch',
+    'patch_app',
+    'patch_task',
+    'unpatch',
+    'unpatch_app',
+    'unpatch_task',
+]
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        from .app import patch_app, unpatch_app
-        from .patch import patch, unpatch
-        from .task import patch_task, unpatch_task
+# Celery default settings
+config._add('celery', {
+    'producer_service_name': get_env('celery', 'producer_service_name', PRODUCER_SERVICE),
+    'worker_service_name': get_env('celery', 'worker_service_name', WORKER_SERVICE),
+})
 
-        __all__ = [
-            'patch',
-            'patch_app',
-            'patch_task',
-            'unpatch',
-            'unpatch_app',
-            'unpatch_task',
-        ]
+
+def _patch(celery):
+    """Instrument Celery base application and the `TaskRegistry` so
+    that any new registered task is automatically instrumented. In the
+    case of Django-Celery integration, also the `@shared_task` decorator
+    must be instrumented because Django doesn't use the Celery registry.
+    """
+    patch_app(celery.Celery)
+
+
+def unpatch():
+    """Disconnect all signals and remove Tracing capabilities"""
+    import celery
+    unpatch_app(celery.Celery)
+    mark_module_unpatched(celery)
+
+
+def patch():
+    install_module_import_hook('celery', _patch)

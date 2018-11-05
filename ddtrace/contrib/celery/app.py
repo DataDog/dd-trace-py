@@ -1,5 +1,3 @@
-from celery import signals
-
 from ddtrace import Pin, config
 from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.ext import AppTypes
@@ -19,6 +17,7 @@ def patch_app(app, pin=None):
     """Attach the Pin class to the application and connect
     our handlers to Celery signals.
     """
+    from celery import signals
     if getattr(app, '__datadog_patch', False):
         return
     setattr(app, '__datadog_patch', True)
@@ -45,6 +44,7 @@ def unpatch_app(app):
     """Remove the Pin instance from the application and disconnect
     our handlers from Celery signal framework.
     """
+    from celery import signals
     if not getattr(app, '__datadog_patch', False):
         return
     setattr(app, '__datadog_patch', False)

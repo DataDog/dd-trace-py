@@ -2,8 +2,6 @@ import logging
 
 from ddtrace import Pin, config
 
-from celery import registry
-
 from . import constants as c
 from .utils import (
     tags_from_context,
@@ -60,6 +58,7 @@ def trace_postrun(*args, **kwargs):
 
 
 def trace_before_publish(*args, **kwargs):
+    from celery import registry
     # `before_task_publish` signal doesn't propagate the task instance so
     # we need to retrieve it from the Celery Registry to access the `Pin`. The
     # `Task` instance **does not** include any information about the current
@@ -92,6 +91,7 @@ def trace_before_publish(*args, **kwargs):
 
 
 def trace_after_publish(*args, **kwargs):
+    from celery import registry
     task_name = kwargs.get('sender')
     task = registry.tasks.get(task_name)
     task_id = retrieve_task_id(kwargs)
