@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import molten
 from ddtrace import Pin
-from ddtrace.contrib.molten import patch
+from ddtrace.contrib.molten import patch, unpatch
 from molten import App, Route
 from molten.testing import TestClient
 from nose.tools import eq_, ok_
@@ -24,7 +24,7 @@ class TestMolten(TestCase):
         patch()
 
     def tearDown(self):
-        pass
+        unpatch()
 
     def test_route_success(self):
         client, tracer = self.get_client_and_tracer()
@@ -47,3 +47,26 @@ class TestMolten(TestCase):
         client = TestClient(self.app)
         Pin.override(molten, service=self.TEST_SERVICE, tracer=tracer)
         return client, tracer
+
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+
+        def simple_check():
+            client, tracer = self.get_client_and_tracer()
+            uri = self.app.reverse_uri('hello', name='Jim', age=24)
+            _ = client.get(uri)
+            return tracer.writer.pop()
+
+        # Test patch idempotence
+        patch()
+        patch()
+        eq_(len(simple_check()), 1)
+
+        # Test unpatch
+        unpatch()
+        eq_(len(simple_check()), 0)
+
+        # Test patch again
+        patch()
+        eq_(len(simple_check()), 1)
