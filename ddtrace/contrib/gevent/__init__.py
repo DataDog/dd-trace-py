@@ -32,7 +32,10 @@ patch ``gevent`` **before importing** the library::
 import ddtrace
 
 from ...provider import DefaultContextProvider
-from ...utils.install import install_module_import_hook, mark_module_unpatched
+from ...utils.install import (
+    install_module_import_hook,
+    uninstall_module_import_hook,
+)
 
 from .provider import GeventContextProvider
 
@@ -86,7 +89,7 @@ def unpatch():
     global __Greenlet, __IMap, __IMapUnordered
     _replace(gevent, __Greenlet, __IMap, __IMapUnordered)
     ddtrace.tracer.configure(context_provider=DefaultContextProvider())
-    mark_module_unpatched(gevent)
+    uninstall_module_import_hook('gevent')
 
 
 def _replace(gevent, g_class, imap_class, imap_unordered_class):

@@ -5,17 +5,14 @@ from ddtrace import Pin
 from tests.contrib import PatchMixin
 
 
-class CeleryPatchTest(unittest.TestCase, PatchMixin):
-    def test_patch(self):
+class CeleryPatchTest(PatchMixin, unittest.TestCase):
+    def test_patch_before_import(self):
         from ddtrace import patch
         patch(celery=True)
         import celery
 
         app = celery.Celery()
         ok_(Pin.get_from(app) is not None)
-
-    def test_patch_idempotent(self):
-        pass
 
     def test_patch_after_import(self):
         import celery
@@ -25,10 +22,5 @@ class CeleryPatchTest(unittest.TestCase, PatchMixin):
         app = celery.Celery()
         ok_(Pin.get_from(app) is not None)
 
-    def test_patch_before_import(self):
-        from ddtrace import patch
-        patch(celery=True)
-        import celery
-
-        app = celery.Celery()
-        ok_(Pin.get_from(app) is not None)
+    def test_patch_idempotent(self):
+        pass

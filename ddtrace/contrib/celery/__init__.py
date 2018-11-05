@@ -35,7 +35,10 @@ By default, reported service names are:
 """
 from ddtrace import config
 
-from ...utils.install import install_module_import_hook, mark_module_unpatched
+from ...utils.install import (
+    install_module_import_hook,
+    uninstall_module_import_hook,
+)
 from ...utils.formats import get_env
 from .app import patch_app, unpatch_app
 from .constants import PRODUCER_SERVICE, WORKER_SERVICE
@@ -71,7 +74,7 @@ def unpatch():
     """Disconnect all signals and remove Tracing capabilities"""
     import celery
     unpatch_app(celery.Celery)
-    mark_module_unpatched(celery)
+    uninstall_module_import_hook('celery')
 
 
 def patch():

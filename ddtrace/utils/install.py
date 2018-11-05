@@ -1,4 +1,11 @@
-from wrapt.importer import register_post_import_hook
+import sys
+
+from wrapt.importer import (
+    register_post_import_hook,
+    _post_import_hooks,
+    _post_import_hooks_lock,
+)
+from wrapt.decorators import synchronized
 
 
 def install_module_import_hook(modulename, modulehook):
@@ -9,29 +16,59 @@ def install_module_import_hook(modulename, modulehook):
     """
     # wrap the module hook with an idempotence check
     def check_patched_hook(module):
-        if module_patched(module):
+        if _module_patched(module):
             return
-        mark_module_patched(module)
+        _mark_module_patched(module)
         modulehook(module)
-
+    setattr(check_patched_hook, '_datadog_hook', True)
     register_post_import_hook(check_patched_hook, modulename)
 
 
-def mark_module_patched(module):
+def _hook_matcher(hook):
+    return hasattr(hook, '_datadog_hook')
+
+
+def uninstall_module_import_hook(modulename):
+    """
+    """
+    if modulename in sys.modules:
+        module = __import__(modulename)
+        _mark_module_unpatched(module)
+    _unregister_post_import_hook(modulename, _hook_matcher)
+
+
+@synchronized(_post_import_hooks_lock)
+def _unregister_post_import_hook(modulename, matcher):
+    """
+    Unregisters post import hooks for a module given the module name and a
+    matcher function.
+    """
+    hooks = _post_import_hooks.get(modulename, []) or []
+    hooks = list(filter(lambda h: not matcher(h), hooks))
+
+    # Work around for wrapt since wrapt assumes that if
+    # _post_import_hooks.get(modulename) is a list then the module must have
+    # been imported.
+    if not len(hooks):
+        hooks = None
+    _post_import_hooks[modulename] = hooks
+
+
+def _mark_module_patched(module):
     """
     Marks a module as being patched.
     """
     setattr(module, '_datadog_patch', True)
 
 
-def module_patched(module):
+def _module_patched(module):
     """
     Returns whether a given module is patched.
     """
     return getattr(module, '_datadog_patch', False)
 
 
-def mark_module_unpatched(module):
+def _mark_module_unpatched(module):
     """
     Marks a module as being unpatched.
     """

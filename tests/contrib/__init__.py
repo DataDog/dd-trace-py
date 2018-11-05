@@ -41,10 +41,11 @@ class PatchMixin(object):
         self.assertTrue(hasattr(obj, '__wrapped__'), '{} is not wrapped'.format(obj))
         self.assert_not_wrapped(obj.__wrapped__)
 
-    def test_patch(self):
+    def test_patch_before_import(self):
         """
         The integration should test that each class, method or function that
-        is to be patched is in fact done so.
+        is to be patched is in fact done so when ddtrace.patch() is called
+        before the module is imported.
 
         For example:
 
@@ -57,7 +58,35 @@ class PatchMixin(object):
 
         an appropriate ``test_patch`` would be::
 
-            ddtrace.contrib.redis.patch()
+            ddtrace.patch(redis=True)
+            import redis
+            self.assert_wrapped(redis.StrictRedis.execute_command)
+            self.assert_wrapped(redis.StrictRedis.pipeline)
+            self.assert_wrapped(redis.Redis.pipeline)
+            self.assert_wrapped(redis.client.BasePipeline.execute)
+            self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
+        """
+        raise NotImplementedError()
+
+    def test_patch_after_import(self):
+        """
+        The integration should test that each class, method or function that
+        is to be patched is in fact done so when ddtrace.patch() is called
+        after the module is imported.
+
+        For example:
+
+        The redis integration patches the following methods:
+        - redis.StrictRedis.execute_command
+        - redis.StrictRedis.pipeline
+        - redis.Redis.pipeline
+        - redis.client.BasePipeline.execute
+        - redis.client.BasePipeline.immediate_execute_command
+
+        an appropriate ``test_patch`` would be::
+
+            import redis
+            ddtrace.patch(redis=True)
             self.assert_wrapped(redis.StrictRedis.execute_command)
             self.assert_wrapped(redis.StrictRedis.pipeline)
             self.assert_wrapped(redis.Redis.pipeline)
