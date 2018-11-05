@@ -147,6 +147,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
         span.set_tag(http.METHOD, method)
         span.set_tag(http.URL, path)
+        span.set_tag('molten.version', molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 
