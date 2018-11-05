@@ -1,21 +1,24 @@
 """
 TestCases that each integration should inherit.
 """
-import unittest
-
 import wrapt
 
+from tests.utils import delete_module
 
-class PatchTestCase(unittest.TestCase):
+
+class PatchMixin(object):
     """
     TestCase for testing the patch logic of an integration.
     """
-    def tearDown(self, method):
+    def tearDown(self):
         """
         If tests being done require the module to be deleted/unimported a
         helper is provided in tests.utils.delete_module.
         """
         pass
+
+    def delete_module(self, module):
+        delete_module(module)
 
     def assert_wrapped(self, obj):
         """

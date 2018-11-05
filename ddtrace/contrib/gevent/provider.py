@@ -1,5 +1,3 @@
-import gevent
-
 from ...context import Context
 from ...provider import BaseContextProvider
 
@@ -16,8 +14,11 @@ class GeventContextProvider(BaseContextProvider):
     gevent WSGI server (or gevent in general), can use this provider.
     """
     def activate(self, context):
-        """Sets the scoped ``Context`` for the current running ``Greenlet``.
-        """
+        """Sets the scoped ``Context`` for the current running ``Greenlet``."""
+
+        # DEV: we must inline import gevent so that gevent is not imported
+        # while the integration is installed.
+        import gevent
         current_g = gevent.getcurrent()
         if current_g is not None:
             setattr(current_g, CONTEXT_ATTR, context)
@@ -29,6 +30,10 @@ class GeventContextProvider(BaseContextProvider):
         uses the ``Greenlet`` class as a carrier, and everytime a greenlet
         is created it receives the "parent" context.
         """
+        # DEV: we must inline import gevent so that gevent is not imported
+        # while the integration is installed.
+        import gevent
+
         current_g = gevent.getcurrent()
         ctx = getattr(current_g, CONTEXT_ATTR, None)
         if ctx is not None:

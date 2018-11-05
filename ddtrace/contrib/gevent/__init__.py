@@ -29,20 +29,79 @@ patch ``gevent`` **before importing** the library::
             with tracer.trace("greenlet.child_call") as child:
                 ...
 """
-from ...utils.importlib import require_modules
+import ddtrace
+
+from ...provider import DefaultContextProvider
+from ...utils.install import install_module_import_hook, mark_module_unpatched
+
+from .provider import GeventContextProvider
 
 
-required_modules = ['gevent']
+__all__ = [
+    'context_provider',
+    'patch',
+    'unpatch',
+]
 
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        from .provider import GeventContextProvider
-        from .patch import patch, unpatch
 
-        context_provider = GeventContextProvider()
+__Greenlet = None
+__IMap = None
+__IMapUnordered = None
 
-        __all__ = [
-            'patch',
-            'unpatch',
-            'context_provider',
-        ]
+context_provider = GeventContextProvider()
+
+
+def _patch(gevent):
+    """
+    Patch the gevent module so that all references to the
+    internal ``Greenlet`` class points to the ``DatadogGreenlet``
+    class.
+
+    This action ensures that if a user extends the ``Greenlet``
+    class, the ``TracedGreenlet`` is used as a parent class.
+    """
+    # DEV: we must inline these imports to avoid importing gevent when the
+    # integration is installed.
+    from .greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered
+
+    print('_patch')
+    global __Greenlet, __IMap, __IMapUnordered
+    __Greenlet = gevent.Greenlet
+    __IMap = gevent.pool.IMap
+    __IMapUnordered = gevent.pool.IMapUnordered
+    _replace(gevent, TracedGreenlet, TracedIMap, TracedIMapUnordered)
+    ddtrace.tracer.configure(context_provider=GeventContextProvider())
+
+
+def patch():
+    install_module_import_hook('gevent', _patch)
+
+
+def unpatch():
+    """
+    Restore the original ``Greenlet``. This function must be invoked
+    before executing application code, otherwise the ``DatadogGreenlet``
+    class may be used during initialization.
+    """
+    import gevent
+    global __Greenlet, __IMap, __IMapUnordered
+    _replace(gevent, __Greenlet, __IMap, __IMapUnordered)
+    ddtrace.tracer.configure(context_provider=DefaultContextProvider())
+    mark_module_unpatched(gevent)
+
+
+def _replace(gevent, g_class, imap_class, imap_unordered_class):
+    """
+    Utility function that replace the gevent Greenlet class with the given one.
+    """
+    # replace the original Greenlet classes with the new one
+    gevent.greenlet.Greenlet = g_class
+    gevent.pool.IMap = imap_class
+    gevent.pool.IMapUnordered = imap_unordered_class
+
+    gevent.pool.Group.greenlet_class = g_class
+
+    # replace gevent shortcuts
+    gevent.Greenlet = gevent.greenlet.Greenlet
+    gevent.spawn = gevent.greenlet.Greenlet.spawn
+    gevent.spawn_later = gevent.greenlet.Greenlet.spawn_later

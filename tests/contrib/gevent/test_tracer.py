@@ -1,10 +1,10 @@
 import gevent
-import gevent.pool
-import ddtrace
 
+import ddtrace
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.context import Context
-from ddtrace.contrib.gevent import patch, unpatch
+from ddtrace.contrib.gevent import patch
+from ddtrace.contrib.gevent.provider import GeventContextProvider
 from ddtrace.ext.priority import USER_KEEP
 
 from unittest import TestCase
@@ -25,8 +25,8 @@ class TestGeventTracer(TestCase):
         # use a dummy tracer
         self.tracer = get_dummy_tracer()
         self._original_tracer = ddtrace.tracer
+        self.tracer.configure(context_provider=GeventContextProvider())
         ddtrace.tracer = self.tracer
-        # trace gevent
         patch()
 
     def tearDown(self):
@@ -34,8 +34,6 @@ class TestGeventTracer(TestCase):
         self.tracer.context_provider.activate(None)
         # restore the original tracer
         ddtrace.tracer = self._original_tracer
-        # untrace gevent
-        unpatch()
 
     def test_main_greenlet(self):
         # the main greenlet must not be affected by the tracer
@@ -136,7 +134,7 @@ class TestGeventTracer(TestCase):
         for func in funcs:
             with self.tracer.trace('outer', resource='base') as span:
                 # Use a list to force evaluation
-                list(func(greenlet, [0,1,2]))
+                list(func(greenlet, [0, 1, 2]))
             traces = self.tracer.writer.pop_traces()
 
             eq_(4, len(traces))
@@ -298,7 +296,7 @@ class TestGeventTracer(TestCase):
         self.tracer.context_provider.activate(ctx)
 
         def greenlet():
-            with self.tracer.trace('greenlet') as span:
+            with self.tracer.trace('greenlet'):
                 gevent.sleep(0.01)
 
         jobs = [gevent.spawn(greenlet) for x in range(1)]
