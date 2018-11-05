@@ -6,7 +6,7 @@ from .span import TestSpan
 
 
 class DummyWriter(AgentWriter):
-    """ DummyWriter is a small fake writer used for tests. not thread-safe. """
+    """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self):
         # original call
@@ -54,6 +54,11 @@ class DummyWriter(AgentWriter):
 
 
 class DummyTracer(Tracer):
+    """
+    DummyTracer is a tracer which uses the DummyWriter by default
+
+    This tracer will also wrap all started spans with a :class:`test.utils.span.TestSpan`
+    """
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__(*args, **kwargs)
         self.writer = DummyWriter()

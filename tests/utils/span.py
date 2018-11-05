@@ -1,61 +1,27 @@
 from ddtrace.span import Span
 
-
-class TestSpanContainer(object):
-    def _ensure_test_spans(self, spans):
-        return [
-            span if isinstance(span, TestSpan) else TestSpan(span) for span in spans
-        ]
-
-    @property
-    def spans(self):
-        raise NotImplementedError
-
-    def _build_tree(self, root):
-        children = []
-        for span in self.spans:
-            if span.parent_id == root.span_id:
-                children.append(self._build_tree(span))
-
-        return TestSpanNode(root, children)
-
-    def get_root_span(self):
-        root = None
-        for span in self.spans:
-            if span.parent_id is None:
-                if root is not None:
-                    raise AssertionError('Multiple root spans found {0!r} {1!r}'.format(root, span))
-                root = span
-
-        return self._build_tree(root)
-
-    def assert_span_count(self, count):
-        assert len(self.spans) == count, 'Span count {0} != {1}'.format(len(self.spans), count)
-
-    def assert_has_spans(self):
-        assert len(self.spans), 'No spans found'
-
-    def assert_has_no_spans(self):
-        assert len(self.spans) == 0, 'Span count {0}'.format(len(self.spans))
-
-    def filter_spans(self, *args, **kwargs):
-        """
-        Helper to filter current spans by provided parameters
-        """
-        for span in self.spans:
-            if span.matches(*args, **kwargs):
-                yield span
-
-    def find_span(self, *args, **kwargs):
-        span = next(self.filter_spans(*args, **kwargs), None)
-        assert span is not None, (
-            'No span found for filter {0!r} {1!r}, have {2} spans'
-            .format(args, kwargs, len(self.spans))
-        )
-        return span
-
 class TestSpan(Span):
+    """
+    Test wrapper for a :class:`ddtrace.span.Span` that provides additional functions and assertions
+
+    Example::
+
+        span = tracer.trace('my.span')
+        span = TestSpan(span)
+
+        if span.matches(name='my.span'):
+            print('matches')
+
+        # Raises an AssertionError
+        span.assert_matches(name='not.my.span', meta={'system.pid': getpid()})
+    """
     def __init__(self, span):
+        """
+        Constructor for TestSpan
+
+        :param span: The :class:`ddtrace.span.Span` to wrap
+        :type span: :class:`ddtrace.span.Span`
+        """
         if isinstance(span, TestSpan):
             span = span._span
 
@@ -76,6 +42,14 @@ class TestSpan(Span):
         return setattr(self._span, key, value)
 
     def __eq__(self, other):
+        """
+        Custom equality code to ensure we are using the base :class:`ddtrace.span.Span.__eq__`
+
+        :param other: The object to check equality with
+        :type other: object
+        :returns: True if equal, False otherwise
+        :rtype: bool
+        """
         if isinstance(other, TestSpan):
             return other._span == self._span
         elif isinstance(other, Span):
@@ -83,14 +57,75 @@ class TestSpan(Span):
         return other == self
 
     def matches(self, **kwargs):
+        """
+        Helper function to check if this span's properties matches the expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.matches(name='my.span', resource='GET /')
+
+        :param **kwargs: Property/Value pairs to evaluate on this span
+        :type **kwargs: dict
+        :returns: True if the arguments passed match, False otherwise
+        :rtype: bool
+        """
         for name, value in kwargs.items():
+            # Special case for `meta`
+            if name == 'meta' and not self.meta_matches(value):
+                return False
+
+            # Ensure it has the property first
+            if not hasattr(self, name):
+                return False
+
+            # Ensure the values match
             if getattr(self, name) != value:
                 return False
 
         return True
 
+    def meta_matches(self, meta, exact=False):
+        """
+        Helper function to check if this span's meta matches the expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.meta_matches({'system.pid': getpid()})
+
+        :param meta: Property/Value pairs to evaluate on this span
+        :type meta: dict
+        :param exact: Whether to do an exact match on the meta values or not, default: False
+        :type exact: bool
+        :returns: True if the arguments passed match, False otherwise
+        :rtype: bool
+        """
+        if exact:
+            return self.meta == meta
+
+        for key, value in meta.items():
+            if key not in self.meta:
+                return False
+            if self.meta[key] != value:
+                return False
+        return True
+
     def assert_matches(self, **kwargs):
+        """
+        Assertion method to ensure this span's properties match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_matches(name='my.span')
+
+        :param **kwargs: Property/Value pairs to evaluate on this span
+        :type **kwargs: dict
+        :raises: AssertionError
+        """
         for name, value in kwargs.items():
+            # Special case for `meta`
             if name == 'meta':
                 self.assert_meta(value)
             else:
@@ -101,6 +136,20 @@ class TestSpan(Span):
                 )
 
     def assert_meta(self, meta, exact=False):
+        """
+        Assertion method to ensure this span's meta match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_meta({'system.pid': getpid()})
+
+        :param meta: Property/Value pairs to evaluate on this span
+        :type meta: dict
+        :param exact: Whether to do an exact match on the meta values or not, default: False
+        :type exact: bool
+        :raises: AssertionError
+        """
         if exact:
             assert self.meta == meta
         else:
@@ -112,16 +161,212 @@ class TestSpan(Span):
                 )
 
 
+
+class TestSpanContainer(object):
+    """
+    Helper class for a container of Spans.
+
+    Subclasses of this class must implement a `spans` property::
+
+        @property
+        def spans(self):
+            return []
+
+    This class provides methods and assertions over a list of spans::
+
+        class TestCases(BaseTracerTestCase):
+            def test_spans(self):
+                # TODO: Create spans
+
+                self.assert_has_spans()
+                self.assert_span_count(3)
+                self.assert_structure( ... )
+
+                # Grab only the `requests.request` spans
+                spans = self.filter_spans(name='requests.request')
+    """
+    def _ensure_test_spans(self, spans):
+        """
+        internal helper to ensure the list of spans are all :class:`tests.utils.span.TestSpan`
+
+        :param spans: List of :class:`ddtrace.span.Span` or :class:`tests.utils.span.TestSpan`
+        :type spans: list
+        :returns: A list og :class:`tests.utils.span.TestSpan`
+        :rtype: list
+        """
+        return [
+            span if isinstance(span, TestSpan) else TestSpan(span) for span in spans
+        ]
+
+    @property
+    def spans(self):
+        """subclass required property"""
+        raise NotImplementedError
+
+    def _build_tree(self, root):
+        """helper to build a tree structure for the provided root span"""
+        children = []
+        for span in self.spans:
+            if span.parent_id == root.span_id:
+                children.append(self._build_tree(span))
+
+        return TestSpanNode(root, children)
+
+    def get_root_span(self):
+        """
+        Helper to get the root span from the list of spans in this container
+
+        :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
+        :rtype: :class:`tests.utils.span.TestSpanNode`, None
+        :raises: AssertionError
+        """
+        root = None
+        for span in self.spans:
+            if span.parent_id is None:
+                if root is not None:
+                    raise AssertionError('Multiple root spans found {0!r} {1!r}'.format(root, span))
+                root = span
+
+        return self._build_tree(root)
+
+    def assert_span_count(self, count):
+        """Assert this container has the expected number of spans"""
+        assert len(self.spans) == count, 'Span count {0} != {1}'.format(len(self.spans), count)
+
+    def assert_has_spans(self):
+        """Assert this container has spans"""
+        assert len(self.spans), 'No spans found'
+
+    def assert_has_no_spans(self):
+        """Assert this container does not have any spans"""
+        assert len(self.spans) == 0, 'Span count {0}'.format(len(self.spans))
+
+    def filter_spans(self, *args, **kwargs):
+        """
+        Helper to filter current spans by provided parameters.
+
+        This function will yield all spans whose `TestSpan.matches` function return `True`
+
+        :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type *args: list
+        :param *kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type **kwargs: dict
+        :returns: generator for the matched :class:`tests.utils.span.TestSpan`
+        :rtype: generator
+        """
+        for span in self.spans:
+            # ensure we have a TestSpan
+            if not isinstance(span, TestSpan):
+                span = TestSpan(span)
+
+            if span.matches(*args, **kwargs):
+                yield span
+
+    def find_span(self, *args, **kwargs):
+        """
+        Find a single span matches the provided filter parameters.
+
+        This function will find the first spans whose `TestSpan.matches` function return `True`
+
+        :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type *args: list
+        :param *kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type **kwargs: dict
+        :returns: The first matching span
+        :rtype: :class:`tests.utils.span.TestSpan`
+        """
+        span = next(self.filter_spans(*args, **kwargs), None)
+        assert span is not None, (
+            'No span found for filter {0!r} {1!r}, have {2} spans'
+            .format(args, kwargs, len(self.spans))
+        )
+        return span
+
+
+
 class TestSpanNode(TestSpan, TestSpanContainer):
+    """
+    A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
+
+    Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace.span.Span`
+    along with any children who have that span as it's parent.
+
+    This class can be used to assert on the parent/child relationships between spans.
+
+    Example::
+
+        class TestCase(BaseTestCase):
+            def test_case(self):
+                # TODO: Create spans
+
+                self.assert_structure( ... )
+
+                tree = self.get_root_span()
+
+                # Find the first child of the root span with the matching name
+                request = tree.find_span(name='requests.request')
+
+                # Assert the parent/child relationship of this `request` span
+                request.assert_structure( ... )
+    """
     def __init__(self, root, children=None):
         super(TestSpanNode, self).__init__(root)
         object.__setattr__(self, '_children', children or [])
 
     @property
     def spans(self):
+        """required subclass property, returns this spans children"""
         return self._children
 
     def assert_structure(self, root, children):
+        """
+        Assertion to assert on the structure of this node and it's children.
+
+        This assertion takes a dictionary of properties to assert for this node
+        along with a list of assertions to make for it's children.
+
+        Example::
+
+            def test_case(self):
+                # Assert the following structure
+                #
+                # One root_span, with two child_spans, one with a requests.request span
+                #
+                # |                  root_span                |
+                # |       child_span       | |   child_span   |
+                # | requests.request |
+                self.assert_structure(
+                    # Root span with two child_span spans
+                    dict(name='root_span'),
+
+                    (
+                        # Child span with one child of it's own
+                        (
+                            dict(name='child_span'),
+
+                            # One requests.request span with no children
+                            (
+                                dict(name='requests.request'), (),
+                            ),
+                        ),
+
+                        # Child span with no children
+                        (
+                            dict(name='child_span'), (),
+                        ),
+                    ),
+                )
+
+        :param root: Properties to assert for this root span, these are passed to
+            :meth:`tests.utils.span.TestSpan.assert_matches`
+        :type root: dict
+        :param children: List of child assertions to make, if children is None then do not make any
+            assertions about this nodes children. Each list element must be a list with 2 items
+            the first is a ``dict`` of property assertions on that child, and the second is a ``list``
+            of child assertions to make.
+        :type children: list, None
+        :raises:
+        """
         self.assert_matches(**root)
 
         # Give them a way to ignore asserting on children
