@@ -64,7 +64,6 @@ def _patch(gevent):
     # integration is installed.
     from .greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered
 
-    print('_patch')
     global __Greenlet, __IMap, __IMapUnordered
     __Greenlet = gevent.Greenlet
     __IMap = gevent.pool.IMap

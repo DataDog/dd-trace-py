@@ -18,11 +18,11 @@ class TestGeventPatch(unittest.TestCase, PatchMixin):
         def f():
             pass
 
-        self.assertTrue(isinstance(gevent.greenlet.Greenlet(), TracedGreenlet))
-        self.assertTrue(isinstance(gevent.pool.Group.greenlet_class(), TracedGreenlet))
-        self.assertTrue(isinstance(gevent.Greenlet(), TracedGreenlet))
-        self.assertTrue(isinstance(gevent.pool.IMap(f, []), TracedIMap))
-        self.assertTrue(isinstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered))
+        self.assertIsInstance(gevent.greenlet.Greenlet(), TracedGreenlet)
+        self.assertIsInstance(gevent.pool.Group.greenlet_class(), TracedGreenlet)
+        self.assertIsInstance(gevent.Greenlet(), TracedGreenlet)
+        self.assertIsInstance(gevent.pool.IMap(f, []), TracedIMap)
+        self.assertIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)
 
     def test_patch_idempotent(self):
         """
@@ -41,8 +41,8 @@ class TestGeventPatch(unittest.TestCase, PatchMixin):
         def f():
             pass
 
-        self.assertFalse(isinstance(gevent.greenlet.Greenlet(), TracedGreenlet))
-        self.assertFalse(isinstance(gevent.pool.Group.greenlet_class(), TracedGreenlet))
-        self.assertFalse(isinstance(gevent.Greenlet(), TracedGreenlet))
-        self.assertFalse(isinstance(gevent.pool.IMap(f, []), TracedIMap))
-        self.assertFalse(isinstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered))
+        self.assertNotIsInstance(gevent.greenlet.Greenlet(), TracedGreenlet)
+        self.assertNotIsInstance(gevent.pool.Group.greenlet_class(), TracedGreenlet)
+        self.assertNotIsInstance(gevent.Greenlet(), TracedGreenlet)
+        self.assertNotIsInstance(gevent.pool.IMap(f, []), TracedIMap)
+        self.assertNotIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)

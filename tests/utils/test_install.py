@@ -40,7 +40,7 @@ class TestInstallUtils(unittest.TestCase):
         install_module_import_hook('tests.utils.my_module', test_hook)
         assert not test_hook.called, 'test_hook should not be called until module import'
 
-        import tests.utils.my_module
+        import tests.utils.my_module  # noqa
         test_hook.assert_called_once()
 
     def test_install_module_import_hook_already_import(self):
