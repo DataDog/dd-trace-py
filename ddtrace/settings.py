@@ -101,7 +101,19 @@ class Config(object):
 
 
 class IntegrationConfig(dict):
+    """
+    Integration specific configuration object.
 
+    This is what you will get when you do::
+
+        from ddtrace import config
+
+        # This is an `IntegrationConfig`
+        config.flask
+
+        # `IntegrationConfig` supports both item accessor
+        config.flask['service_name'] = 'my-service-name'
+    """
     def __init__(self, global_config, *args, **kwargs):
         """
         :param global_config:
@@ -117,6 +129,11 @@ class IntegrationConfig(dict):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
         new.http = deepcopy(self.http)
         return new
+      
+    def __repr__(self):
+        cls = self.__class__
+        keys = ', '.join(self.keys())
+        return '{}.{}({})'.format(cls.__module__, cls.__name__, keys)
 
     def header_is_traced(self, header_name):
         """
@@ -127,7 +144,7 @@ class IntegrationConfig(dict):
         """
         return self.http.header_is_traced(header_name) \
             if self.http.is_header_tracing_configured \
-            else self.global_config.header_is_traced(header_name)
+            else self.global_config.header_is_traced(header_name)       
 
 
 class HttpConfig(object):
@@ -175,4 +192,10 @@ class HttpConfig(object):
         return normalized_header_name in self._whitelist_headers
 
     def __repr__(self):
-        return '<HttpConfig traced_headers={}>'.format(self._whitelist_headers)
+        cls = self.__class__
+        headers = ', '.join(self._whitelist_headers)
+        return '{}.{}({})>'.format(cls.__module__, cls.__name__, headers)
+
+
+# Configure our global configuration object
+config = Config()

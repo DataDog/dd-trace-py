@@ -32,11 +32,29 @@ class TraceBottleTest(TestCase):
     def _trace_app(self, tracer=None):
         self.app = webtest.TestApp(self.app)
 
+    def test_double_patch(self):
+        # test when we auto-instrument and then instrument manually
+        app = bottle.Bottle()
+        plugin = TracePlugin(service='my-web-app')
+        app.install(plugin)
+
+        @app.route('/hi/<name>')
+        def hi(name):
+            return 'hi {}'.format(name)
+        app = webtest.TestApp(app)
+        # make a request
+        app.get('/hi/dougie')
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        # service should be from the manual installed instrumentation
+        eq_(spans[0].service, 'my-web-app')
+
     def test_200(self):
         # setup our test app
         @self.app.route('/hi/<name>')
         def hi(name):
-            return 'hi %s' % name
+            return 'hi {}'.format(name)
         self._trace_app(self.tracer)
 
         # make a request
