@@ -1,15 +1,17 @@
 import os
 
+import pyramid.config
+from pyramid.path import caller_package
+import wrapt
+
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING
 from ...utils.formats import asbool
+from ...utils.wrappers import unwrap as _u
 
-import pyramid.config
-from pyramid.path import caller_package
-
-import wrapt
 
 DD_PATCH = '_datadog_patch'
+
 
 def patch():
     """
@@ -21,6 +23,16 @@ def patch():
     setattr(pyramid.config, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
     _w('pyramid.config', 'Configurator.__init__', traced_init)
+
+def unpatch():
+    """
+    Unpatch pyramid.config.Configurator if it has been patched.
+    """
+    if not getattr(pyramid.config, DD_PATCH, False):
+        return
+
+    setattr(pyramid.config, DD_PATCH, False)
+    _u(pyramid.config.Configurator, '__init__')
 
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})

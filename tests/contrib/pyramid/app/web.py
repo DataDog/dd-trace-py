@@ -1,13 +1,12 @@
 from ddtrace.contrib.pyramid import trace_pyramid
 
+import pyramid
 from pyramid.response import Response
-from pyramid.config import Configurator
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import (
     HTTPInternalServerError,
     HTTPFound,
     HTTPNotFound,
-    HTTPException,
     HTTPNoContent,
 )
 
@@ -45,7 +44,7 @@ def create_app(settings, instrument):
         else:
             return HTTPNotFound()
 
-    config = Configurator(settings=settings)
+    config = pyramid.config.Configurator(settings=settings)
     config.add_route('index', '/')
     config.add_route('error', '/error')
     config.add_route('exception', '/exception')

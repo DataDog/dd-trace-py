@@ -143,12 +143,23 @@ jobs:
       TOX_SKIP_DIST: False
     steps:
       - checkout
-      - *restore_cache_step
       - run: tox -e '{py27,py34,py35,py36}-ddtracerun' --result-json /tmp/ddtracerun.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - ddtracerun.results
+
+  test_utils:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_utils' --result-json /tmp/test_utils.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_utils.results
       - *save_cache_step
 
   asyncio:
@@ -213,13 +224,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'bottle_contrib-{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'bottle_contrib_autopatch-{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.2.results
+      - run: tox -e 'bottle_contrib{,_autopatch}-{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - bottle.1.results
-            - bottle.2.results
+            - bottle.results
       - *save_cache_step
 
   cassandra:
@@ -245,12 +254,14 @@ jobs:
 
   celery:
     docker:
-      - *test_runner
+      - <<: *test_runner
+        env:
+          TOX_SKIP_DIST: False
       - image: redis:3.2-alpine
     steps:
       - checkout
       - *restore_cache_step
-      - run: TOX_SKIP_DIST=False tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
+      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{31,40,41,42}-redis{210}' --result-json /tmp/celery.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -264,7 +275,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
+      - run: tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -277,13 +288,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'falcon_contrib-{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'falcon_contrib_autopatch-{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.2.results
+      - run: tox -e 'falcon_contrib{,_autopatch}-{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - falcon.1.results
-            - falcon.2.results
+            - falcon.results
       - *save_cache_step
 
   django:
@@ -299,12 +308,10 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'django_contrib-{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'django_contrib_autopatch-{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.2.results
-      - run: tox -e 'django_drf_contrib-{py27,py34,py35,py36}-django{111}-djangorestframework{34,37,38}' --result-json /tmp/django.3.results
-      - run: tox -e 'django_contrib-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.4.results
-      - run: TOX_SKIP_DIST=False tox -e 'django_contrib_autopatch-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.5.results
-      - run: tox -e 'django_drf_contrib-{py34,py35,py36}-django{200}-djangorestframework{37,38}' --result-json /tmp/django.6.results
+      - run: tox -e 'django_contrib{,_autopatch}-{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
+      - run: tox -e 'django_drf_contrib-{py27,py34,py35,py36}-django{111}-djangorestframework{34,37,38}' --result-json /tmp/django.2.results
+      - run: tox -e 'django_contrib{,_autopatch}-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.3.results
+      - run: tox -e 'django_drf_contrib-{py34,py35,py36}-django{200}-djangorestframework{37,38}' --result-json /tmp/django.4.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -312,8 +319,6 @@ jobs:
             - django.2.results
             - django.3.results
             - django.4.results
-            - django.5.results
-            - django.6.results
       - *save_cache_step
 
   flask:
@@ -324,12 +329,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'flask_contrib-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.2.results
-      - run: tox -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
-      - run: tox -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
+      - run: tox -e 'flask_contrib{,_autopatch}-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
+      - run: tox -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.2.results
+      - run: tox -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
+      - run: tox -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
+      - run: tox -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -338,7 +342,6 @@ jobs:
             - flask.3.results
             - flask.4.results
             - flask.5.results
-            - flask.6.results
       - *save_cache_step
 
   gevent:
@@ -347,7 +350,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'gevent_contrib-{py27,py34,py35,py36}-gevent{11,12}' --result-json /tmp/gevent.1.results
+      - run: tox -e 'gevent_contrib-{py27,py34,py35,py36}-gevent{11,12,13}' --result-json /tmp/gevent.1.results
       - run: tox -e 'gevent_contrib-{py27}-gevent{10}' --result-json /tmp/gevent.2.results
       - persist_to_workspace:
           root: /tmp
@@ -367,6 +370,19 @@ jobs:
           root: /tmp
           paths:
             - httplib.results
+      - *save_cache_step
+
+  grpc:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'grpc_contrib-{py27,py34,py35,py36}-grpc' --result-json /tmp/grpc.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - grpc.results
       - *save_cache_step
 
   mysqlconnector:
@@ -470,13 +486,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pymemcache_contrib-{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'pymemcache_contrib_autopatch-{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.2.results
+      - run: tox -e 'pymemcache_contrib{,_autopatch}-{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - pymemcache.1.results
-            - pymemcache.2.results
+            - pymemcache.results
       - *save_cache_step
 
   mongoengine:
@@ -513,13 +527,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pyramid_contrib-{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'pyramid_contrib_autopatch-{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.2.results
+      - run: tox -e 'pyramid_contrib{,_autopatch}-{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - pyramid.1.results
-            - pyramid.2.results
+            - pyramid.results
       - *save_cache_step
 
   requests:
@@ -529,7 +541,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'requests_contrib-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
+      - run: tox -e 'requests_contrib{,_autopatch}-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -724,6 +736,19 @@ jobs:
       - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
+  jinja2:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'jinja2_contrib-{py27,py34,py35,py36}-jinja{27,28,29,210}' --result-json /tmp/jinja2.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - jinja2.results
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -797,6 +822,7 @@ workflows:
       - futures
       - boto
       - ddtracerun
+      - test_utils
       - asyncio
       - pylons
       - aiohttp
@@ -810,6 +836,7 @@ workflows:
       - flask
       - gevent
       - httplib
+      - grpc
       - mongoengine
       - mysqlconnector
       - mysqlpython
@@ -830,6 +857,7 @@ workflows:
       - sqlite3
       - msgpack
       - vertica
+      - jinja2
       - build_docs
       - wait_all_tests:
           requires:
@@ -840,6 +868,7 @@ workflows:
             - futures
             - boto
             - ddtracerun
+            - test_utils
             - asyncio
             - pylons
             - aiohttp
@@ -852,6 +881,7 @@ workflows:
             - django
             - flask
             - gevent
+            - grpc
             - httplib
             - mongoengine
             - mysqlconnector
@@ -873,6 +903,7 @@ workflows:
             - sqlite3
             - msgpack
             - vertica
+            - jinja2
             - build_docs
       - deploy_dev:
           requires:
