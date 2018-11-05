@@ -446,11 +446,11 @@ API
 ``patch_all``
 ^^^^^^^^^^^^^
 
-.. autofunction:: ddtrace.install.patch_all
+.. autofunction:: ddtrace.monkey.patch_all
 
 ``patch``
 ^^^^^^^^^
-.. autofunction:: ddtrace.install.patch
+.. autofunction:: ddtrace.monkey.patch
 
 .. toctree::
    :maxdepth: 2
