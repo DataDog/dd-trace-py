@@ -8,17 +8,34 @@ def install_module_import_hook(modulename, modulehook):
     not instrumented more than once.
     """
     # wrap the module hook with an idempotence check
-    def checked_hook(module):
-        if getattr(module, '_datadog_patch', False):
+    def check_patched_hook(module):
+        if module_patched(module):
             return
-        setattr(module, '_datadog_patch', True)
+        mark_module_patched(module)
         modulehook(module)
 
-    register_post_import_hook(checked_hook, modulename)
+    register_post_import_hook(check_patched_hook, modulename)
 
 
-def uninstall_module_import_hooks(modulename):
+def mark_module_patched(module):
     """
-    TODO
+    Marks a module as being patched.
     """
-    raise NotImplementedError()
+    setattr(module, '_datadog_patch', True)
+
+
+def module_patched(module):
+    """
+    Returns whether a given module is patched.
+    """
+    return getattr(module, '_datadog_patch', False)
+
+
+def mark_module_unpatched(module):
+    """
+    Marks a module as being unpatched.
+    """
+    if not getattr(module, '_datadog_patch', False):
+        return
+
+    setattr(module, '_datadog_patch', False)
