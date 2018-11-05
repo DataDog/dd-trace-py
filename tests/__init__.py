@@ -1,6 +1,9 @@
+import contextlib
 import unittest
 
 import wrapt
+
+from ddtrace import config
 
 from .utils.tracer import DummyTracer
 from .utils.span import TestSpanContainer
@@ -29,6 +32,26 @@ class BaseTestCase(unittest.TestCase):
         :raises: AssertionError
         """
         self.assertTrue(isinstance(obj, wrapt.ObjectProxy))
+
+    @contextlib.contextmanager
+    def override_config(self, integration, values):
+        """
+        Temporarily override an integration configuration value
+        >>> with self.override_config('flask', dict(service_name='test-service')):
+            # Your test
+        """
+        options = getattr(config, integration)
+
+        original = dict(
+            (key, options.get(key))
+            for key in values.keys()
+        )
+
+        options.update(values)
+        try:
+            yield
+        finally:
+            options.update(original)
 
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
