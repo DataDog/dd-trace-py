@@ -4,7 +4,6 @@ from copy import deepcopy
 
 from .pin import Pin
 from .utils.merge import deepmerge
-from .utils.attrdict import AttrDict
 
 
 log = logging.getLogger(__name__)
@@ -80,7 +79,7 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-class IntegrationConfig(AttrDict):
+class IntegrationConfig(dict):
     """
     Integration specific configuration object.
 
@@ -104,9 +103,7 @@ class IntegrationConfig(AttrDict):
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
 
-        # DEV: Use `object.__setattr__` to get round the `AttrDict` custom `__setattr__` code
-        # DEV: We cannot use `super(IntegrationConfig, self).__setattr__` because `dict` doesn't have it
-        object.__setattr__(self, 'global_config', global_config)
+        self.global_config = global_config
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
