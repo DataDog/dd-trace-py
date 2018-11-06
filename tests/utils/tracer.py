@@ -56,13 +56,7 @@ class DummyWriter(AgentWriter):
 class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
-
-    This tracer will also wrap all started spans with a :class:`test.utils.span.TestSpan`
     """
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__(*args, **kwargs)
         self.writer = DummyWriter()
-
-    def start_span(self, *args, **kwargs):
-        span = super(DummyTracer, self).start_span(*args, **kwargs)
-        return TestSpan(span)

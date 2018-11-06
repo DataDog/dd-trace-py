@@ -166,10 +166,10 @@ class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
 
-    Subclasses of this class must implement a `spans` property::
+    Subclasses of this class must implement a `get_spans` method::
 
         @property
-        def spans(self):
+        def get_spans(self):
             return []
 
     This class provides methods and assertions over a list of spans::
@@ -200,6 +200,9 @@ class TestSpanContainer(object):
 
     @property
     def spans(self):
+        return self._ensure_test_spans(self.get_spans())
+
+    def get_spans(self):
         """subclass required property"""
         raise NotImplementedError
 
@@ -313,8 +316,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
         super(TestSpanNode, self).__init__(root)
         object.__setattr__(self, '_children', children or [])
 
-    @property
-    def spans(self):
+    def get_spans(self):
         """required subclass property, returns this spans children"""
         return self._children
 

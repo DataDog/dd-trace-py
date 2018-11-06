@@ -10,6 +10,7 @@ from ddtrace.ext import system
 from ddtrace.context import Context
 
 from . import BaseTracerTestCase
+from .utils.span import TestSpan
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
 
@@ -20,25 +21,25 @@ def get_dummy_tracer():
 
 class TracerTestCase(BaseTracerTestCase):
     def test_tracer_vars(self):
-        span = self.tracer.trace('a', service='s', resource='r', span_type='t')
+        span = self.trace('a', service='s', resource='r', span_type='t')
         span.assert_matches(name='a', service='s', resource='r', span_type='t')
         # DEV: Finish to ensure we don't leak `service` between spans
         span.finish()
 
-        span = self.tracer.trace('a')
+        span = self.trace('a')
         span.assert_matches(name='a', service=None, resource='a', span_type=None)
 
     def test_tracer(self):
         def _mix():
-            with self.tracer.trace('cake.mix'):
+            with self.trace('cake.mix'):
                 pass
 
         def _bake():
-            with self.tracer.trace('cake.bake'):
+            with self.trace('cake.bake'):
                 pass
 
         def _make_cake():
-            with self.tracer.trace('cake.make') as span:
+            with self.trace('cake.make') as span:
                 span.service = 'baker'
                 span.resource = 'cake'
                 _mix()
@@ -87,8 +88,8 @@ class TracerTestCase(BaseTracerTestCase):
         )
 
     def test_tracer_pid(self):
-        with self.tracer.trace('root') as root_span:
-            with self.tracer.trace('child') as child_span:
+        with self.trace('root') as root_span:
+            with self.trace('child') as child_span:
                 pass
 
         # Root span should contain the pid of the current process
@@ -148,7 +149,7 @@ class TracerTestCase(BaseTracerTestCase):
             root_span = self.tracer.current_root_span()
             self.assertEqual(root_span.name, 'outer')
 
-            with self.tracer.trace('mid'):
+            with self.trace('mid'):
                 root_span = self.tracer.current_root_span()
                 self.assertEqual(root_span.name, 'outer')
 
@@ -163,7 +164,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         @self.tracer.wrap('outer')
         def outer():
-            with self.tracer.trace('mid'):
+            with self.trace('mid'):
                 inner()
 
         outer()
@@ -248,7 +249,7 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(wrap_executor=wrap_executor)
 
         # call the function expecting that the custom tracing wrapper is used
-        with self.tracer.trace('wrap.parent', service='webserver'):
+        with self.trace('wrap.parent', service='webserver'):
             wrapped_function(42, kw_param=42)
 
         self.assert_structure(
@@ -267,14 +268,14 @@ class TracerTestCase(BaseTracerTestCase):
 
     def test_tracer_disabled(self):
         self.tracer.enabled = True
-        with self.tracer.trace('foo') as s:
+        with self.trace('foo') as s:
             s.set_tag('a', 'b')
 
         self.assert_has_spans()
         self.reset()
 
         self.tracer.enabled = False
-        with self.tracer.trace('foo') as s:
+        with self.trace('foo') as s:
             s.set_tag('a', 'b')
         self.assert_has_no_spans()
 
@@ -286,7 +287,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
-        with self.tracer.trace('parent') as span:
+        with self.trace('parent') as span:
             span.metrics['as'] = np.int64(1) # circumvent the data checks
             span.finish()
 
@@ -294,44 +295,44 @@ class TracerTestCase(BaseTracerTestCase):
         # ensure that if the tracer is disabled, we still remove things from the
         # span buffer upon finishing.
         self.tracer.enabled = False
-        s1 = self.tracer.trace('foo')
+        s1 = self.trace('foo')
         s1.finish()
 
         p1 = self.tracer.current_span()
-        s2 = self.tracer.trace('bar')
+        s2 = self.trace('bar')
 
         self.assertIsNone(s2._parent)
         s2.finish()
         self.assertIsNone(p1)
 
     def test_tracer_global_tags(self):
-        s1 = self.tracer.trace('brie')
+        s1 = self.trace('brie')
         s1.finish()
         self.assertIsNone(s1.get_tag('env'))
         self.assertIsNone(s1.get_tag('other'))
 
         self.tracer.set_tags({'env': 'prod'})
-        s2 = self.tracer.trace('camembert')
+        s2 = self.trace('camembert')
         s2.finish()
         self.assertEqual(s2.get_tag('env'), 'prod')
         self.assertIsNone(s2.get_tag('other'))
 
         self.tracer.set_tags({'env': 'staging', 'other': 'tag'})
-        s3 = self.tracer.trace('gruyere')
+        s3 = self.trace('gruyere')
         s3.finish()
         self.assertEqual(s3.get_tag('env'), 'staging')
         self.assertEqual(s3.get_tag('other'), 'tag')
 
     def test_global_context(self):
         # the tracer uses a global thread-local Context
-        span = self.tracer.trace('fake_span')
+        span = self.trace('fake_span')
         ctx = self.tracer.get_call_context()
         self.assertEqual(len(ctx._trace), 1)
         self.assertEqual(ctx._trace[0], span)
 
     def test_tracer_current_span(self):
         # the current span is in the local Context()
-        span = self.tracer.trace('fake_span')
+        span = self.trace('fake_span')
         self.assertEqual(self.tracer.current_span(), span)
 
     def test_default_provider_get(self):
@@ -346,20 +347,20 @@ class TracerTestCase(BaseTracerTestCase):
         # this could happen in distributed tracing
         ctx = Context(trace_id=42, span_id=100)
         self.tracer.context_provider.activate(ctx)
-        span = self.tracer.trace('web.request')
+        span = self.trace('web.request')
         span.assert_matches(name='web.request', trace_id=42, parent_id=100)
 
     def test_default_provider_trace(self):
         # Context handled by a default provider must be used
         # when creating a trace
-        span = self.tracer.trace('web.request')
+        span = self.trace('web.request')
         ctx = self.tracer.context_provider.active()
         self.assertEqual(len(ctx._trace), 1)
         self.assertEqual(span._context, ctx)
 
     def test_start_span(self):
         # it should create a root Span
-        span = self.tracer.start_span('web.request')
+        span = self.start_span('web.request')
         span.assert_matches(
             name='web.request',
             _tracer=self.tracer,
@@ -371,7 +372,7 @@ class TracerTestCase(BaseTracerTestCase):
 
     def test_start_span_optional(self):
         # it should create a root Span with arguments
-        span = self.tracer.start_span('web.request', service='web', resource='/', span_type='http')
+        span = self.start_span('web.request', service='web', resource='/', span_type='http')
         span.assert_matches(
             name='web.request',
             service='web',
@@ -381,8 +382,8 @@ class TracerTestCase(BaseTracerTestCase):
 
     def test_start_child_span(self):
         # it should create a child Span for the given parent
-        parent = self.tracer.start_span('web.request')
-        child = self.tracer.start_span('web.worker', child_of=parent)
+        parent = self.start_span('web.request')
+        child = self.start_span('web.worker', child_of=parent)
 
         parent.assert_matches(
             name='web.request',
@@ -403,15 +404,15 @@ class TracerTestCase(BaseTracerTestCase):
 
     def test_start_child_span_attributes(self):
         # it should create a child Span with parent's attributes
-        parent = self.tracer.start_span('web.request', service='web', resource='/', span_type='http')
-        child = self.tracer.start_span('web.worker', child_of=parent)
+        parent = self.start_span('web.request', service='web', resource='/', span_type='http')
+        child = self.start_span('web.worker', child_of=parent)
         child.assert_matches(name='web.worker', service='web')
 
     def test_start_child_from_context(self):
         # it should create a child span with a populated Context
-        root = self.tracer.start_span('web.request')
+        root = self.start_span('web.request')
         context = root.context
-        child = self.tracer.start_span('web.worker', child_of=context)
+        child = self.start_span('web.worker', child_of=context)
 
         child.assert_matches(
             name='web.worker',
