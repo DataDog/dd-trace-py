@@ -1,35 +1,32 @@
 """
-The Flask trace middleware will track request timings and templates. It
-requires the `Blinker <https://pythonhosted.org/blinker/>`_ library, which
-Flask uses for signalling.
+The `Flask <http://flask.pocoo.org/>`_ integration will add tracing to all requests to your Flask application.
 
-To install the middleware, add::
+This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
+signals, and templating rendering.
 
-    from ddtrace import tracer
-    from ddtrace.contrib.flask import TraceMiddleware
+To configure tracing manually::
 
-and create a `TraceMiddleware` object::
-
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
-
-Here is the end result, in a sample app::
+    from ddtrace import patch_all
+    patch_all()
 
     from flask import Flask
-    import blinker as _
-
-    from ddtrace import tracer
-    from ddtrace.contrib.flask import TraceMiddleware
 
     app = Flask(__name__)
 
-    traced_app = TraceMiddleware(app, tracer, service="my-flask-app", distributed_tracing=False)
 
-    @app.route("/")
-    def home():
-        return "hello world"
+    @app.route('/')
+    def index():
+        return 'hello world'
 
-Set `distributed_tracing=True` if this is called remotely from an instrumented application.
-We suggest to enable it only for internal services where headers are under your control.
+
+    if __name__ == '__main__':
+        app.run()
+
+
+You may also enable Flask tracing automatically via ddtrace-run::
+
+    ddtrace-run python app.py
+
 """
 
 from ...utils.importlib import require_modules
@@ -39,7 +36,11 @@ required_modules = ['flask']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        # DEV: We do this so we can `@mock.patch('ddtrace.contrib.flask._patch.<func>')` in tests
+        from . import patch as _patch
         from .middleware import TraceMiddleware
-        from .patch import patch
 
-        __all__ = ['TraceMiddleware', 'patch']
+        patch = _patch.patch
+        unpatch = _patch.unpatch
+
+        __all__ = ['TraceMiddleware', 'patch', 'unpatch']
