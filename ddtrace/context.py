@@ -2,15 +2,9 @@ import logging
 import threading
 
 from .constants import SAMPLING_PRIORITY_KEY
-from .settings import config
 from .utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
-
-config._add('tracer', dict(
-    partial_flush_enabled=asbool(get_env('tracer', 'partial_flush_enabled', 'false')),
-    partial_flush_min_spans=int(get_env('tracer', 'partial_flush_min_spans', 500)),
-))
 
 
 class Context(object):
@@ -200,8 +194,7 @@ class Context(object):
                 self._sampled = True
                 return trace, sampled
 
-            elif (config.tracer['partial_flush_enabled'] and
-                  self._finished_spans >= config.tracer['partial_flush_min_spans']):
+            elif self._partial_flush_enabled and self._finished_spans >= self._partial_flush_min_spans:
                 # partial flush when enabled and we have more than the minimal required spans
                 trace = self._trace
                 sampled = self._sampled
