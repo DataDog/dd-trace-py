@@ -19,41 +19,39 @@ log = logging.getLogger(__name__)
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     'asyncio': False,
+    'futures': False,  # experimental propagation
+    'kombu': False,
+
+    'aiobotocore': True,
+    'aiohttp': True,  # requires asyncio (Python 3.4+)
+    'aiopg': True,
     'boto': True,
     'botocore': True,
     'bottle': True,
     'cassandra': True,
     'celery': True,
+    'django': True,
     'elasticsearch': True,
-    'futures': False,  # experimental propagation
+    'falcon': True,
+    'flask': True,
     'grpc': True,
+    'httplib': True,
+    'jinja2': True,
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
-    'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
+    'pylons': True,
     'pymemcache': True,
     'pymongo': True,
+    'pymysql': True,
+    'pyramid': True,
     'redis': True,
     'requests': True,
     'sqlalchemy': True,
     'sqlite3': True,
-    'aiohttp': True,  # requires asyncio (Python 3.4+)
-    'aiopg': True,
-    'aiobotocore': True,
-    'httplib': True,
     'vertica': True,
-    'jinja2': True,
-    'kombu': False,
-
-    # Even though instrumentation for web frameworks can be installed manually,
-    # instrumenting should be done idempotently
-    'django': True,
-    'falcon': True,
-    'flask': True,
-    'pyramid': True,
-    'pylons': True,
 }
 
 _LOCK = threading.Lock()
@@ -65,10 +63,42 @@ _PATCHED_MODULES = set()
 # DEV: This ensures we do not patch a module until it is needed
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
+    'aiobotocore': ('aiobotocore.client', ),
+    'aiohttp': ('aiohttp', ),
+    'aiopg': ('aiopg', ),
+    'asyncio': ('asyncio', ),
+    'boto': ('boto.connection', ),
+    'botocore': ('botocore.client', ),
+    'bottle': ('bottle', ),
+    'cassandra': ('cassandra.cluster', ),
     'celery': ('celery', ),
+    'django': ('django', ),
+    'elasticsearch': ('elasticsearch', ),
+    'falcon': ('falcon', ),
     'flask': ('flask, '),
+    'futures': ('concurrent.futures', ),
     'gevent': ('gevent', ),
+    'grpc': ('grpc', ),
+    'httplib': ('httplib', 'http.client'),
+    'jinja2': ('jinja2', ),
+    'kombu': ('kombu', 'kombu.messaging'),
+    'mongoengine': ('mongoengine', ),
+    'mysql': ('mysql.connector', ),
+    'mysqldb': ('MySQLdb', ),
+    'psycopg': ('psycopg2', ),
+    'pylibmc': ('pylibmc', ),
+    'pylons': ('pylons.wsgiapp', ),
+    'pymemcache': ('pymemcache', ),
+    'pymongo': ('pymongo', ),
+    'pymysql': ('pymysql', ),
+    'pyramid': ('pyramid', ),
+    'redis': ('redis', 'redis.client'),
+    'rediscluster': ('rediscluster','rediscluster.client'),
     'requests': ('requests', ),
+    'sqlalchemy': ('sqlalchemy','sqlalchemy.event'),
+    'sqlite3': ('sqlite3', 'sqlite3.dbapi2'),
+    'tornado': ('tornado', ),
+    'vertica': ('vertica_python', ),
 }
 
 
