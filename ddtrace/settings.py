@@ -236,6 +236,7 @@ class Hooks(object):
             try:
                 func(span, *args, **kwargs)
             except Exception as e:
+                # DEV: Use log.debug instead of log.error until we have a throttled logger
                 log.debug('Failed to run hook {} function {}: {}'.format(hook, func, e))
 
     def __repr__(self):
