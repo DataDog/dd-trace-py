@@ -195,7 +195,7 @@ class FalconTestCase(object):
         eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
 
     def test_falcon_request_hook(self):
-        @config.falcon.hooks.request
+        @config.falcon.hooks.on('request')
         def on_falcon_request(span, request, response):
             span.set_tag('my.custom', 'tag')
 

@@ -38,7 +38,7 @@ Example::
 
     app = falcon.API()
 
-    @config.falcon.hooks.request
+    @config.falcon.hooks.on('request')
     def on_falcon_request(span, request, response):
         span.set_tag('my.custom', 'tag')
 """

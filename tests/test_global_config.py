@@ -102,7 +102,7 @@ class GlobalConfigTestCase(TestCase):
                 we call the hook as expected
         """
         # Setup our hook
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 
@@ -123,7 +123,7 @@ class GlobalConfigTestCase(TestCase):
                 we call the hook as expected
         """
         # Setup our hook
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request(span, request, response):
             span.set_tag('web.request', request)
             span.set_tag('web.response', response)
@@ -148,7 +148,7 @@ class GlobalConfigTestCase(TestCase):
         """
         # Setup our hook
         # DEV: We are missing the required "response" argument
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request(span, request):
             span.set_tag('web.request', request)
 
@@ -170,15 +170,15 @@ class GlobalConfigTestCase(TestCase):
                 we do not raise an exception
         """
         # Setup our hooks
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request2(span):
             span.set_tag('web.status', 200)
 
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request3(span):
             span.set_tag('web.method', 'GET')
 
@@ -235,7 +235,7 @@ class GlobalConfigTestCase(TestCase):
                 we do not raise an exception
         """
         # Setup our hooks
-        @self.config.web.hooks.request
+        @self.config.web.hooks.on('request')
         def on_web_request(span):
             span.set_tag('web.request', '/')
 

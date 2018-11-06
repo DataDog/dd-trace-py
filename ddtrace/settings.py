@@ -109,7 +109,7 @@ class IntegrationConfig(dict):
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
-        new.hooks = self.hooks
+        new.hooks = deepcopy(self.hooks)
         return new
 
     def __repr__(self):
@@ -124,39 +124,19 @@ class Hooks(object):
 
     Example::
 
-        @config.falcon.hooks.request
+        @config.falcon.hooks.on('request')
         def on_request(span, request, response):
             pass
     """
     __slots__ = ['_hooks']
 
     def __init__(self):
-        # DEV: We have a custom `__setattr__`, call the inherited `object.__setattr__`
-        super(Hooks, self).__setattr__('_hooks', collections.defaultdict(set))
+        self._hooks = collections.defaultdict(set)
 
-    def __getattr__(self, key):
-        """
-        Return a hook decorator for the attribute name provided
-
-        Example::
-
-            @config.falcon.hooks.request
-            def on_request(span, request, response):
-                pass
-
-
-        This is the same as::
-
-            @config.falcon.hooks.register('request')
-            def on_request(span, request, response):
-                pass
-
-        :param key: Hook name to register
-        :type key: str
-        :returns: A function decorator used to register a hook
-        :rtype: function
-        """
-        return self.register(key)
+    def __deepcopy__(self, memodict=None):
+        hooks = Hooks()
+        hooks._hooks = deepcopy(self._hooks)
+        return hooks
 
     def register(self, hook, func=None):
         """
@@ -191,13 +171,19 @@ class Hooks(object):
             return wrapper
         self._hooks[hook].add(func)
 
+    # Provide shorthand `on` method for `register`
+    # >>> @config.falcon.hooks.on('request')
+    #     def on_request(span, request, response):
+    #        pass
+    on = register
+
     def deregister(self, func):
         """
         Function to deregister a function from all hooks it was registered under
 
         Example::
 
-            @config.falcon.hooks.request
+            @config.falcon.hooks.on('request')
             def on_request(span, request, response):
                 pass
 
