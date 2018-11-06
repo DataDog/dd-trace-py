@@ -74,19 +74,19 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def fetchone(self, *args, **kwargs):
         """ Wraps the cursor.fetchone method"""
-        span_name = "{}.{}".format(self._self_datadog_name, 'fetchone')
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
         return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
                                   *args, **kwargs)
 
     def fetchall(self, *args, **kwargs):
         """ Wraps the cursor.fetchall method"""
-        span_name = "{}.{}".format(self._self_datadog_name, 'fetchall')
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchall')
         return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
                                   *args, **kwargs)
 
     def fetchmany(self, *args, **kwargs):
         """ Wraps the cursor.fetchmany method"""
-        span_name = "{}.{}".format(self._self_datadog_name, 'fetchmany')
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchmany')
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
         size_tag_key = 'db.fetch.size'

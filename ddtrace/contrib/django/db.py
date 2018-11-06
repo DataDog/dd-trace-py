@@ -56,11 +56,7 @@ def patch_conn(tracer, conn):
             if settings.DEFAULT_DATABASE_PREFIX else ''
         )
         alias = getattr(conn, 'alias', 'default')
-        service = "%s%s%s" % (
-            database_prefix,
-            alias,
-            "db"
-        )
+        service = '{}{}{}'.format(database_prefix, alias, 'db')
         vendor = getattr(conn, 'vendor', 'db')
         prefix = sqlx.normalize_vendor(vendor)
         tags = {
