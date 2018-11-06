@@ -45,6 +45,7 @@ PATCH_MODULES = {
     'httplib': True,
     'vertica': True,
     'jinja2': True,
+    'kombu': False,
 
     # Even though instrumentation for web frameworks can be installed manually,
     # instrumenting should be done idempotently
