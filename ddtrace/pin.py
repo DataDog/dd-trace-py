@@ -57,6 +57,25 @@ class Pin(object):
             self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
+    def _find(*objs):
+        """
+        Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
+
+
+            >>> pin = Pin._find(wrapper, instance, conn, app)
+
+        :param *objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :type objs: List of objects
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
+        """
+        for obj in objs:
+            pin = Pin.get_from(obj)
+            if pin:
+                return pin
+        return None
+
+    @staticmethod
     def get_from(obj):
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
@@ -64,6 +83,11 @@ class Pin(object):
         instance, avoiding that a specific instance overrides other pins values.
 
             >>> pin = Pin.get_from(conn)
+
+        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
+        :type obj: object
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
