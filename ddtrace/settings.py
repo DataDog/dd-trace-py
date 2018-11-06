@@ -275,7 +275,7 @@ class HttpConfig(object):
     """
 
     def __init__(self):
-        self._whitelist_headers = []
+        self._whitelist_headers = set()
 
     @property
     def is_header_tracing_configured(self):
@@ -297,7 +297,7 @@ class HttpConfig(object):
             normalized_header_name = normalize_header_name(whitelist_entry)
             if not normalized_header_name:
                 continue
-            self._whitelist_headers.append(normalized_header_name)
+            self._whitelist_headers.add(normalized_header_name)
 
         return self
 

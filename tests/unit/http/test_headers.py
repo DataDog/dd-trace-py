@@ -27,6 +27,16 @@ class TestHeaders(object):
         store_request_headers(list(), span, integration_config)
         store_response_headers(list(), span, integration_config)
 
+    def test_it_accept_headers_as_list_of_tuples(self, span, integration_config):
+        """
+        :type span: Span
+        :type integration_config: IntegrationConfig
+        """
+        integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
+        store_request_headers([('Content-Type', 'some;value;content_type')], span, integration_config)
+        assert span.get_tag('http.request.headers.content_type') == 'some;value;content_type'
+        assert None is span.get_tag('http.request.headers.other')
+
     def test_store_multiple_request_headers_as_dict(self, span, integration_config):
         """
         :type span: Span

@@ -86,10 +86,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
 
 def _wrap_putheader(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin:
-        return func(*args, **kwargs)
-
     span = getattr(instance, '_datadog_span', None)
     if span:
         store_request_headers({args[0]: args[1]}, span, config.httplib)

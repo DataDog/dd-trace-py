@@ -14,7 +14,7 @@ def store_request_headers(headers, span, integration_config):
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
-    :type headers: dict
+    :type headers: dict or list
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.Span
     :param integration_config: An integration specific config object.
@@ -27,7 +27,7 @@ def store_response_headers(headers, span, integration_config):
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
-    :type headers: dict
+    :type headers: dict or list
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.Span
     :param integration_config: An integration specific config object.
@@ -39,15 +39,17 @@ def store_response_headers(headers, span, integration_config):
 def _store_headers(headers, span, integration_config, request_or_response):
     """
     :param headers: A dict of http headers to be stored in the span
-    :type headers: dict
+    :type headers: dict or list
     :param span: The Span instance where tags will be stored
     :type span: ddtrace.span.Span
     :param integration_config: An integration specific config object.
     :type integration_config: ddtrace.settings.IntegrationConfig
     """
     if not isinstance(headers, dict):
-        log.debug('Skipping %s headers are not a dict: %s', request_or_response, headers)
-        return
+        try:
+            headers = dict(headers)
+        except:
+            return
 
     if integration_config is None:
         log.debug('Skipping headers tracing as no integration config was provided')
