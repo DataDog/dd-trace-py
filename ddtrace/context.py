@@ -28,6 +28,9 @@ class Context(object):
 
     This data structure is thread-safe.
     """
+    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
+    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
+
     def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
         """
         Initialize a new thread-safe ``Context``.
