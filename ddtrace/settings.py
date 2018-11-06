@@ -124,7 +124,7 @@ class Hooks(object):
     Example::
 
         @config.falcon.hooks.request
-        def on_reqiest(span, request, resposne):
+        def on_request(span, request, response):
             pass
     """
     __slots__ = ['_hooks']
