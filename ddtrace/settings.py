@@ -109,6 +109,7 @@ class IntegrationConfig(dict):
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
+        new.hooks = self.hooks
         return new
 
     def __repr__(self):
