@@ -46,7 +46,7 @@ PATCH_MODULES = {
     'vertica': True,
     'jinja2': True,
     'kombu': False,
-  
+
     # Even though instrumentation for web frameworks can be installed manually,
     # instrumenting should be done idempotently
     'django': True,
@@ -54,9 +54,6 @@ PATCH_MODULES = {
     'flask': True,
     'pyramid': True,
     'pylons': True,
-
-    # Ignore some web framework integrations that might be configured explicitly in code
-    "flask": False,
 }
 
 _LOCK = threading.Lock()
