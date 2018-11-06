@@ -16,7 +16,7 @@ def install_module_import_hook(modulename, modulehook):
     """
     # wrap the module hook with an idempotence check
     def check_patched_hook(module):
-        if _module_patched(module):
+        if module_patched(module):
             return
         _mark_module_patched(module)
         modulehook(module)
@@ -65,7 +65,7 @@ def _mark_module_patched(module):
     setattr(module, '_datadog_patch', True)
 
 
-def _module_patched(module):
+def module_patched(module):
     """
     Returns whether a given module is patched.
     """

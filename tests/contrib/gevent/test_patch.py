@@ -1,5 +1,7 @@
 import unittest
 
+from ddtrace import patch
+
 from tests.contrib import PatchMixin
 
 
@@ -28,14 +30,12 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         self.assertNotIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)
 
     def test_patch_before_import(self):
-        from ddtrace import patch
         patch(gevent=True)
         import gevent
         self.assert_patched(gevent)
 
     def test_patch_after_import(self):
         import gevent
-        from ddtrace import patch
         patch(gevent=True)
         self.assert_patched(gevent)
 
@@ -46,10 +46,16 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         """
         pass
 
-    def test_unpatch(self):
-        from ddtrace.contrib.gevent import patch, unpatch
-        patch()
+    def test_unpatch_before_import(self):
+        from ddtrace.contrib.gevent import unpatch
+        patch(gevent=True)
         unpatch()
-
         import gevent
+        self.assert_not_patched(gevent)
+
+    def test_unpatch_after_import(self):
+        from ddtrace.contrib.gevent import unpatch
+        patch(gevent=True)
+        import gevent
+        unpatch()
         self.assert_not_patched(gevent)

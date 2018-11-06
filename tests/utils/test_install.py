@@ -10,7 +10,7 @@ from ddtrace.utils.install import (
     uninstall_module_import_hook,
     _mark_module_patched,
     _mark_module_unpatched,
-    _module_patched,
+    module_patched,
 )
 
 
@@ -28,22 +28,22 @@ class TestInstallUtils(unittest.TestCase):
     def test_mark_module_patched(self):
         module = types.ModuleType('module')
         _mark_module_patched(module)
-        self.assertTrue(_module_patched(module))
+        self.assertTrue(module_patched(module))
 
     def test_mark_module_unpatched(self):
         module = types.ModuleType('module')
         _mark_module_unpatched(module)
-        self.assertFalse(_module_patched(module))
+        self.assertFalse(module_patched(module))
 
     def test_mark_module_unpatched_after_patch(self):
         module = types.ModuleType('module')
         _mark_module_patched(module)
         _mark_module_unpatched(module)
-        self.assertFalse(_module_patched(module))
+        self.assertFalse(module_patched(module))
 
     def test_install_module_import_hook_on_import(self):
         """
-        Tests that import hooks are called when the module is imported for the
+        Test that import hooks are called when the module is imported for the
         first time.
         """
         test_hook = mock.MagicMock()
@@ -79,7 +79,7 @@ class TestInstallUtils(unittest.TestCase):
 
     def test_install_module_import_hook_already_imported(self):
         """
-        Tests that import hooks are fired when the module is already imported.
+        Test that import hooks are fired when the module is already imported.
         """
         module = types.ModuleType('somewhere')
         sys.modules['some.module.somewhere'] = module
@@ -89,10 +89,22 @@ class TestInstallUtils(unittest.TestCase):
 
     def test_uninstall_module_import_hook(self):
         """
-        Tests that a module import hook can be uninstalled.
+        Test that a module import hook can be uninstalled.
         """
         test_hook = mock.MagicMock()
         install_module_import_hook('tests.utils.my_module', test_hook)
         uninstall_module_import_hook('tests.utils.my_module')
         import tests.utils.my_module  # noqa
         assert not test_hook.called, 'test_hook should not be called'
+
+    def test_install_uninstall_install(self):
+        """
+        Test that a module import hook can be installed, uninstalled and
+        reinstalled.
+        """
+        test_hook = mock.MagicMock()
+        install_module_import_hook('tests.utils.my_module', test_hook)
+        uninstall_module_import_hook('tests.utils.my_module')
+        install_module_import_hook('tests.utils.my_module', test_hook)
+        import tests.utils.my_module  # noqa
+        test_hook.assert_called_once()

@@ -36,7 +36,11 @@ from ddtrace import config
 
 
 from ...pin import Pin
-from ...utils.install import install_module_import_hook
+from ...utils.install import (
+    install_module_import_hook,
+    module_patched,
+    uninstall_module_import_hook,
+)
 from ...utils.formats import asbool, get_env
 from ...utils.wrappers import unwrap as _u
 from .legacy import _distributed_tracing, _distributed_tracing_setter
@@ -54,10 +58,6 @@ config._add('requests',{
 
 def _patch(requests):
     """Activate http calls tracing"""
-    if getattr(requests, '__datadog_patch', False):
-        return
-    setattr(requests, '__datadog_patch', True)
-
     _w('requests', 'Session.request', _wrap_request)
     Pin(
         service=config.requests['service_name'],
@@ -81,11 +81,12 @@ def patch():
 def unpatch():
     """Disable traced sessions"""
     import requests
-    if not getattr(requests, '__datadog_patch', False):
+
+    if not module_patched(requests):
         return
-    setattr(requests, '__datadog_patch', False)
 
     _u(requests.Session, 'request')
+    uninstall_module_import_hook('requests')
 
 
 # For backwards compatibility

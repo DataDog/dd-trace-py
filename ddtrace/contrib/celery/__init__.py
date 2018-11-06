@@ -37,6 +37,7 @@ from ddtrace import config
 
 from ...utils.install import (
     install_module_import_hook,
+    module_patched,
     uninstall_module_import_hook,
 )
 from ...utils.formats import get_env
@@ -73,6 +74,8 @@ def _patch(celery):
 def unpatch():
     """Disconnect all signals and remove Tracing capabilities"""
     import celery
+    if not module_patched(celery):
+        return
     unpatch_app(celery.Celery)
     uninstall_module_import_hook('celery')
 

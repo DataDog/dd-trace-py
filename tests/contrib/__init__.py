@@ -17,6 +17,17 @@ class PatchMixin(object):
         """
         pass
 
+    def reimport_module(self, module):
+        from ddtrace.compat import PY2
+        if PY2:
+            import imp
+            reload = imp.reload
+        else:
+            import importlib
+            reload = importlib.reload
+
+        reload(module)
+
     def delete_module(self, module):
         delete_module(module)
 
@@ -40,6 +51,14 @@ class PatchMixin(object):
         """
         self.assertTrue(hasattr(obj, '__wrapped__'), '{} is not wrapped'.format(obj))
         self.assert_not_wrapped(obj.__wrapped__)
+
+    def test_patched_library_not_imported(self):
+        """
+        TODO: this would be great to test, however we do not have a reliable
+        mechanism to "unimport" modules between each test case.
+        """
+        # raise NotImplementedError()
+        pass
 
     def test_patch_before_import(self):
         """
@@ -106,5 +125,19 @@ class PatchMixin(object):
             ddtrace.contrib.redis.patch()
             ddtrace.contrib.redis.patch()
             self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
+        """
+        raise NotImplementedError()
+
+    def test_unpatch_before_import(self):
+        """
+        To ensure that we can thoroughly test the installation/patching of an
+        integration we must be able to unpatch it before importing the library.
+        """
+        raise NotImplementedError()
+
+    def test_unpatch_after_import(self):
+        """
+        To ensure that we can thoroughly test the installation/patching of an
+        integration we must be able to unpatch it after importing the library.
         """
         raise NotImplementedError()
