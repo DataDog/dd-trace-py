@@ -25,23 +25,27 @@ def install_module_import_hook(modulename, modulehook):
 
 
 def _hook_matcher(hook):
+    """Matches functions that are hooks."""
     return hasattr(hook, '_datadog_hook')
 
 
 def uninstall_module_import_hook(modulename):
-    """
+    """Uninstalls a module import hook for a module given its name.
+
+    Note: any patching done on the module will still apply, this function
+    simply removed/disables the import hook.
     """
     if modulename in sys.modules:
         module = __import__(modulename)
         _mark_module_unpatched(module)
-    _unregister_post_import_hook(modulename, _hook_matcher)
+    _deregister_post_import_hook(modulename, _hook_matcher)
 
 
 @synchronized(_post_import_hooks_lock)
-def _unregister_post_import_hook(modulename, matcher):
+def _deregister_post_import_hook(modulename, matcher):
     """
-    Unregisters post import hooks for a module given the module name and a
-    matcher function.
+    Deregisters post import hooks for a module given the module name and a
+    matcher function. All hooks matching the matcher function will be removed.
     """
     hooks = _post_import_hooks.get(modulename, []) or []
     hooks = list(filter(lambda h: not matcher(h), hooks))
