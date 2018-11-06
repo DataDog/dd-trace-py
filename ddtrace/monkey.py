@@ -46,6 +46,7 @@ PATCH_MODULES = {
     'vertica': True,
     'jinja2': True,
     'flask': True,
+    'kombu': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     "django": False,
