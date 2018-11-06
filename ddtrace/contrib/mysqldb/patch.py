@@ -23,13 +23,13 @@ def patch():
         return
     setattr(MySQLdb, '__datadog_patch', True)
 
-    _w('MySQLdb', 'Connect', _connect)
     # `Connection` and `connect` are aliases for
     # `Connect`; patch them too
+    _w('MySQLdb', 'Connect', _connect)
     if hasattr(MySQLdb, 'Connection'):
-        MySQLdb.Connection = MySQLdb.Connect
+        _w('MySQLdb', 'Connection', _connect)
     if hasattr(MySQLdb, 'connect'):
-        MySQLdb.connect = MySQLdb.Connect
+        _w('MySQLdb', 'connect', _connect)
 
 
 def unpatch():
@@ -40,9 +40,9 @@ def unpatch():
     # unpatch MySQLdb
     _u(MySQLdb, 'Connect')
     if hasattr(MySQLdb, 'Connection'):
-        MySQLdb.Connection = MySQLdb.Connect
+        _u(MySQLdb, 'Connection')
     if hasattr(MySQLdb, 'connect'):
-        MySQLdb.connect = MySQLdb.Connect
+        _u(MySQLdb, 'connect')
 
 
 def _connect(func, instance, args, kwargs):

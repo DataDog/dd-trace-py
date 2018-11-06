@@ -42,7 +42,7 @@ class TraceMiddleware(object):
         span = self.tracer.current_span()
         if not span:
             return  # unexpected
-        span.resource = "%s %s" % (req.method, _name(resource))
+        span.resource = '{} {}'.format(req.method, _name(resource))
 
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeded is not a kwarg in the API, but we need that to support
@@ -58,7 +58,7 @@ class TraceMiddleware(object):
         # here. See https://github.com/falconry/falcon/issues/606
         if resource is None:
             status = '404'
-            span.resource = "%s 404" % req.method
+            span.resource = '{} 404'.format(req.method)
             span.set_tag(httpx.STATUS_CODE, status)
             span.finish()
             return
@@ -95,4 +95,4 @@ def _detect_and_set_status_error(err_type, span):
 
 
 def _name(r):
-    return "%s.%s" % (r.__module__, r.__class__.__name__)
+    return '{}.{}'.format(r.__module__, r.__class__.__name__)

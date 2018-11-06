@@ -2,17 +2,12 @@ import elasticsearch
 import wrapt
 from elasticsearch.exceptions import TransportError
 
-from . import metadata
 from .quantize import quantize
 
-from ...utils.wrappers import unwrap
 from ...compat import urlencode
+from ...ext import elasticsearch as elasticsearchx, http, AppTypes
 from ...pin import Pin
-from ...ext import http
-
-
-DEFAULT_SERVICE = 'elasticsearch'
-SPAN_TYPE = 'elasticsearch'
+from ...utils.wrappers import unwrap
 
 
 # NB: We are patching the default elasticsearch.transport module
@@ -22,7 +17,11 @@ def patch():
         return
     setattr(elasticsearch, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('elasticsearch.transport', 'Transport.perform_request', _perform_request)
-    Pin(service=DEFAULT_SERVICE, app="elasticsearch", app_type="db").onto(elasticsearch.transport.Transport)
+    Pin(
+        service=elasticsearchx.SERVICE,
+        app=elasticsearchx.APP,
+        app_type=AppTypes.db
+    ).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
@@ -45,12 +44,12 @@ def _perform_request(func, instance, args, kwargs):
         body = kwargs.get('body')
 
         span.service = pin.service
-        span.span_type = SPAN_TYPE
-        span.set_tag(metadata.METHOD, method)
-        span.set_tag(metadata.URL, url)
-        span.set_tag(metadata.PARAMS, urlencode(params))
+        span.span_type = elasticsearchx.TYPE
+        span.set_tag(elasticsearchx.METHOD, method)
+        span.set_tag(elasticsearchx.URL, url)
+        span.set_tag(elasticsearchx.PARAMS, urlencode(params))
         if method == "GET":
-            span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+            span.set_tag(elasticsearchx.BODY, instance.serializer.dumps(body))
         status = None
 
         span = quantize(span)
@@ -73,7 +72,7 @@ def _perform_request(func, instance, args, kwargs):
 
             took = data.get("took")
             if took:
-                span.set_metric(metadata.TOOK, int(took))
+                span.set_metric(elasticsearchx.TOOK, int(took))
         except Exception:
             pass
 

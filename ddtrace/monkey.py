@@ -21,12 +21,12 @@ PATCH_MODULES = {
     'asyncio': False,
     'boto': True,
     'botocore': True,
-    'bottle': False,
+    'bottle': True,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
-    'flask': True,
     'futures': False,  # experimental propagation
+    'grpc': True,
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
@@ -36,20 +36,23 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
-    'requests': False,  # Not ready yet
-    'sqlalchemy': False,  # Prefer DB client instrumentation
+    'requests': True,
+    'sqlalchemy': True,
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
     'aiopg': True,
-    'aiobotocore': False,
-    'httplib': False,
+    'aiobotocore': True,
+    'httplib': True,
     'vertica': True,
+    'jinja2': True,
 
-    # Ignore some web framework integrations that might be configured explicitly in code
-    "django": False,
-    "falcon": False,
-    "pylons": False,
-    "pyramid": False,
+    # Even though instrumentation for web frameworks can be installed manually,
+    # instrumenting should be done idempotently
+    'django': True,
+    'falcon': True,
+    'flask': True,
+    'pyramid': True,
+    'pylons': True,
 }
 
 _LOCK = threading.Lock()
