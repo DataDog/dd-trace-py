@@ -6,7 +6,6 @@ from unittest import TestCase
 from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer
 
-from ddtrace import config
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
