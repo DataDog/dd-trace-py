@@ -129,7 +129,7 @@ class IntegrationConfig(dict):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
         new.http = deepcopy(self.http)
         return new
-      
+
     def __repr__(self):
         cls = self.__class__
         keys = ', '.join(self.keys())
@@ -144,7 +144,7 @@ class IntegrationConfig(dict):
         """
         return self.http.header_is_traced(header_name) \
             if self.http.is_header_tracing_configured \
-            else self.global_config.header_is_traced(header_name)       
+            else self.global_config.header_is_traced(header_name)
 
 
 class HttpConfig(object):
@@ -154,7 +154,7 @@ class HttpConfig(object):
     """
 
     def __init__(self):
-        self._whitelist_headers = []
+        self._whitelist_headers = set()
 
     @property
     def is_header_tracing_configured(self):
@@ -176,7 +176,7 @@ class HttpConfig(object):
             normalized_header_name = normalize_header_name(whitelist_entry)
             if not normalized_header_name:
                 continue
-            self._whitelist_headers.append(normalized_header_name)
+            self._whitelist_headers.add(normalized_header_name)
 
         return self
 
