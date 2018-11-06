@@ -9,7 +9,7 @@ from unittest.case import SkipTest
 from ddtrace.ext import system
 from ddtrace.context import Context
 
-from . import BaseTracerTestCase
+from .base import BaseTracerTestCase
 from .utils.span import TestSpan
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
