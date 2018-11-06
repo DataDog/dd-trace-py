@@ -58,9 +58,6 @@ class TestInstallUtils(unittest.TestCase):
         Import hooks should only be called once if the hooked module is
         imported twice.
         """
-        # remove the test module if it exists in sys modules
-        # test_hook = mock.MagicMock()
-        # install_module_import_hook('tests.utils.my_module', test_hook)
         def hook(mod):
             def patch_fn(self):
                 return 2
@@ -69,13 +66,16 @@ class TestInstallUtils(unittest.TestCase):
 
         import tests.utils.my_module  # noqa
         assert tests.utils.my_module.A().fn() == 2
-        # test_hook.assert_called_once()
+
+        # TODO: the assert below should be
+        # >>> assert tests.utils.my_module.A().fn() == 2
+        # but wrapt uninstalls the import hooks after they are fired
+        # https://github.com/GrahamDumpleton/wrapt/blob/4bcd190457c89e993ffcfec6dad9e9969c033e9e/src/wrapt/importer.py#L127-L136
 
         # remove the module from sys.modules to force a reimport
         del sys.modules['tests.utils.my_module']
         import tests.utils.my_module  # noqa
         assert tests.utils.my_module.A().fn() == 1
-        # test_hook.assert_called_once()
 
     def test_install_module_import_hook_already_imported(self):
         """
