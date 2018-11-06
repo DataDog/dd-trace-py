@@ -183,6 +183,29 @@ class MySQLCore(object):
 
         eq_(fetch_span.name, 'mysql.query.fetchall')
 
+    def test_commit(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.commit()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'mysql.connection')
+        eq_(span.resource, 'commit')
+
+    def test_rollback(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'mysql.connection')
+        eq_(span.resource, 'rollback')
+
+
 class TestMysqlPatch(MySQLCore):
 
     def setUp(self):

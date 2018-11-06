@@ -203,6 +203,28 @@ class PsycopgCore(object):
         }
         eq_(service_meta, expected)
 
+    def test_commit(self):
+        conn, tracer = self._get_conn_and_tracer()
+        writer = tracer.writer
+        conn.commit()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'postgres.connection')
+        eq_(span.resource, 'commit')
+
+    def test_rollback(self):
+        conn, tracer = self._get_conn_and_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'postgres.connection')
+        eq_(span.resource, 'rollback')
+
 
 class TestPsycopgPatch(PsycopgCore):
 

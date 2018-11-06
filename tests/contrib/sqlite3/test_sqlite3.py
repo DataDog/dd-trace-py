@@ -238,6 +238,31 @@ class TestSQLite(object):
         ok_(fetchall_span.get_tag("sql.query") is None)
         eq_(fetchall_span.error, 0)
 
+    def test_commit(self):
+        tracer = get_dummy_tracer()
+        connection = self._given_a_traced_connection(tracer)
+        writer = tracer.writer
+        connection.commit()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, 'sqlite')
+        eq_(span.name, 'sqlite.connection')
+        eq_(span.resource, 'commit')
+
+    def test_rollback(self):
+        tracer = get_dummy_tracer()
+        connection = self._given_a_traced_connection(tracer)
+        writer = tracer.writer
+        connection.rollback()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, 'sqlite')
+        eq_(span.name, 'sqlite.connection')
+        eq_(span.resource, 'rollback')
+
+
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
         writer = tracer.writer
