@@ -45,13 +45,16 @@ PATCH_MODULES = {
     'httplib': True,
     'vertica': True,
     'jinja2': True,
-
+    'kombu': False,
+  
     # Even though instrumentation for web frameworks can be installed manually,
     # instrumenting should be done idempotently
     'django': True,
     'falcon': True,
+    'flask': True,
     'pyramid': True,
     'pylons': True,
+
     # Ignore some web framework integrations that might be configured explicitly in code
     "flask": False,
 }
@@ -66,6 +69,7 @@ _PATCHED_MODULES = set()
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
     'celery': ('celery', ),
+    'flask': ('flask, '),
     'gevent': ('gevent', ),
     'requests': ('requests', ),
 }
