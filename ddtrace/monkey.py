@@ -50,10 +50,9 @@ PATCH_MODULES = {
     # instrumenting should be done idempotently
     'django': True,
     'falcon': True,
+    'flask': True,
     'pyramid': True,
     'pylons': True,
-    # Ignore some web framework integrations that might be configured explicitly in code
-    "flask": False,
 }
 
 _LOCK = threading.Lock()
@@ -66,6 +65,7 @@ _PATCHED_MODULES = set()
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
     'celery': ('celery', ),
+    'flask': ('flask, '),
     'gevent': ('gevent', ),
     'requests': ('requests', ),
 }

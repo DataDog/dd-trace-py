@@ -329,11 +329,14 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'flask_contrib{,_autopatch}-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
-      - run: tox -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.2.results
-      - run: tox -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.3.results
-      - run: tox -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.4.results
-      - run: tox -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
+      - run: tox -e 'flask_contrib-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
+      - run: TOX_SKIP_DIST=False tox -e 'flask_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.2.results
+      - run: tox -e 'flask_contrib-{py27}-flask{09}-blinker' --result-json /tmp/flask.3.results
+      - run: TOX_SKIP_DIST=False tox -e 'flask_contrib_autopatch-{py27}-flask{09}-blinker' --result-json /tmp/flask.4.results
+      - run: tox -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
+      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
+      - run: tox -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.7.results
+      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.8.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -342,6 +345,9 @@ jobs:
             - flask.3.results
             - flask.4.results
             - flask.5.results
+            - flask.6.results
+            - flask.7.results
+            - flask.8.results
       - *save_cache_step
 
   gevent:
