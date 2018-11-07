@@ -30,8 +30,11 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         self.assertNotIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)
 
     def test_patch_before_import(self):
+        trigger_reload = self.module_imported('gevent')
         patch(gevent=True)
         import gevent
+        if trigger_reload:
+            self.reload_module(gevent)
         self.assert_patched(gevent)
 
     def test_patch_after_import(self):

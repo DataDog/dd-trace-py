@@ -1,6 +1,8 @@
 """
 TestCases that each integration should inherit.
 """
+import sys
+
 import wrapt
 
 from tests.utils import delete_module
@@ -17,7 +19,10 @@ class PatchMixin(object):
         """
         pass
 
-    def reimport_module(self, module):
+    def reload_module(self, module):
+        """
+        Reloads a module using the appropriate Python library function.
+        """
         from ddtrace.compat import PY2
         if PY2:
             import imp
@@ -28,24 +33,28 @@ class PatchMixin(object):
 
         reload(module)
 
+    def module_imported(self, modname):
+        """Returns whether the module, given its name is imported."""
+        return modname in sys.modules
+
     def delete_module(self, module):
         delete_module(module)
 
     def assert_wrapped(self, obj):
         """
-        Helper to assert that a given obj is properly wrapped by wrapt.
+        Helper to assert that a given object is properly wrapped by wrapt.
         """
         self.assertTrue(isinstance(obj, wrapt.ObjectProxy), '{} is not wrapped'.format(obj))
 
     def assert_not_wrapped(self, obj):
         """
-        Helper to assert that a given obj is not wrapped by wrapt.
+        Helper to assert that a given object is not wrapped by wrapt.
         """
         self.assertFalse(isinstance(obj, wrapt.ObjectProxy), '{} is wrapped'.format(obj))
 
     def assert_not_double_wrapped(self, obj):
         """
-        Helper to assert that a given already wrapped obj is not wrapped twice.
+        Helper to assert that a given already wrapped object is not wrapped twice.
 
         This is useful for asserting idempotence.
         """
@@ -57,8 +66,8 @@ class PatchMixin(object):
         TODO: this would be great to test, however we do not have a reliable
         mechanism to "unimport" modules between each test case.
         """
-        # raise NotImplementedError()
         pass
+        # raise NotImplementedError()
 
     def test_patch_before_import(self):
         """
@@ -75,17 +84,23 @@ class PatchMixin(object):
         - redis.client.BasePipeline.execute
         - redis.client.BasePipeline.immediate_execute_command
 
-        an appropriate ``test_patch`` would be::
+        an appropriate ``test_patch_before_import`` would be::
 
+            # If the module has been previously loaded then take note of it.
+            # We have to reload the module if it has already been loaded to ensure
+            # the patching works.
+            trigger_reload = self.module_imported('redis')
             ddtrace.patch(redis=True)
             import redis
+            if trigger_reload:
+                self.reload_module(redis)
             self.assert_wrapped(redis.StrictRedis.execute_command)
             self.assert_wrapped(redis.StrictRedis.pipeline)
             self.assert_wrapped(redis.Redis.pipeline)
             self.assert_wrapped(redis.client.BasePipeline.execute)
             self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
         """
-        raise NotImplementedError()
+        raise NotImplementedError(self.test_patch_before_import.__doc__)
 
     def test_patch_after_import(self):
         """
@@ -102,7 +117,7 @@ class PatchMixin(object):
         - redis.client.BasePipeline.execute
         - redis.client.BasePipeline.immediate_execute_command
 
-        an appropriate ``test_patch`` would be::
+        an appropriate ``test_patch_after_import`` would be::
 
             import redis
             ddtrace.patch(redis=True)
@@ -112,7 +127,7 @@ class PatchMixin(object):
             self.assert_wrapped(redis.client.BasePipeline.execute)
             self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
         """
-        raise NotImplementedError()
+        raise NotImplementedError(self.test_patch_after_import.__doc__)
 
     def test_patch_idempotent(self):
         """
@@ -126,18 +141,18 @@ class PatchMixin(object):
             ddtrace.contrib.redis.patch()
             self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
         """
-        raise NotImplementedError()
+        raise NotImplementedError(self.test_patch_idempotent.__doc__)
 
     def test_unpatch_before_import(self):
         """
         To ensure that we can thoroughly test the installation/patching of an
         integration we must be able to unpatch it before importing the library.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(self.test_unpatch_before_import.__doc__)
 
     def test_unpatch_after_import(self):
         """
         To ensure that we can thoroughly test the installation/patching of an
         integration we must be able to unpatch it after importing the library.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(self.test_unpatch_after_import.__doc__)

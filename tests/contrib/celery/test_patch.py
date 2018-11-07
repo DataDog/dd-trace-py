@@ -16,8 +16,11 @@ class CeleryPatchTest(PatchMixin, unittest.TestCase):
         ok_(Pin.get_from(app) is None)
 
     def test_patch_before_import(self):
+        trigger_reload = self.module_imported('celery')
         patch(celery=True)
         import celery
+        if trigger_reload:
+            self.reload_module(celery)
         self.assert_patched(celery)
 
     def test_patch_after_import(self):

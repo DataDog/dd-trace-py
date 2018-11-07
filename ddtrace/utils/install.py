@@ -51,7 +51,7 @@ def _deregister_post_import_hook(modulename, matcher):
     hooks = list(filter(lambda h: not matcher(h), hooks))
 
     # Work around for wrapt since wrapt assumes that if
-    # _post_import_hooks.get(modulename) is a list then the module must have
+    # _post_import_hooks.get(modulename) is not None then the module must have
     # been imported.
     if not len(hooks):
         hooks = None
