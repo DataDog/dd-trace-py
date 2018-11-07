@@ -4,6 +4,7 @@ from ddtrace.ext import http as httpx
 from ddtrace.propagation.http import HTTPPropagator
 from ...compat import iteritems
 from ...ext import AppTypes
+from ...settings import config
 
 
 class TraceMiddleware(object):
@@ -76,6 +77,12 @@ class TraceMiddleware(object):
                 status = _detect_and_set_status_error(err_type, span)
 
         span.set_tag(httpx.STATUS_CODE, status)
+
+        # Emit span hook for this response
+        # DEV: Emit before closing so they can overwrite `span.resource` if they want
+        config.falcon.hooks._emit('request', span, req, resp)
+
+        # Close the span
         span.finish()
 
 
