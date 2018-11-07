@@ -126,13 +126,13 @@ class TracedConnection(wrapt.ObjectProxy):
         db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
         db_pin.onto(self)
 
-    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             return method(*args, **kwargs)
         service = pin.service
 
-        with pin.tracer.trace(self._self_datadog_name, service=service, resource=resource) as s:
+        with pin.tracer.trace(name, service=service) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -146,10 +146,12 @@ class TracedConnection(wrapt.ObjectProxy):
         return TracedCursor(cursor, pin)
 
     def commit(self, *args, **kwargs):
-        self._trace_method(self.__wrapped__.commit, 'commit', {}, *args, **kwargs)
+        span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
+        self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
-        self._trace_method(self.__wrapped__.rollback, 'rollback', {}, *args, **kwargs)
+        span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
+        self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given

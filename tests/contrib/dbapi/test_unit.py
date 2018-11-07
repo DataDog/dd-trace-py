@@ -2,7 +2,7 @@ import mock
 import pytest
 
 from ddtrace import Pin, Span
-from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.contrib.dbapi import TracedCursor, TracedConnection
 from ddtrace.ext import AppTypes, sql
 from tests.test_tracer import get_dummy_tracer
 
@@ -183,3 +183,23 @@ class TestTracedCursor(object):
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+
+    @mock.patch('tests.contrib.dbapi.Connection')
+    def test_commit_is_traced(self, connection_class, tracer):
+        connection = connection_class()
+        connection.commit.return_value = None
+        pin = Pin('pin_name', tracer=tracer)
+        traced_connection = TracedConnection(connection, pin)
+        traced_connection.commit()
+        assert tracer.writer.pop()[0].name == 'mock.connection.commit'
+        connection.commit.assert_called_with()
+
+    @mock.patch('tests.contrib.dbapi.Connection')
+    def test_rollback_is_traced(self, connection_class, tracer):
+        connection = connection_class()
+        connection.rollback.return_value = None
+        pin = Pin('pin_name', tracer=tracer)
+        traced_connection = TracedConnection(connection, pin)
+        traced_connection.rollback()
+        assert tracer.writer.pop()[0].name == 'mock.connection.rollback'
+        connection.rollback.assert_called_with()
