@@ -21,7 +21,7 @@
 """
 from ...utils.importlib import require_modules
 
-required_modules = ['elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5', 'elasticsearch6']
+required_modules = ['elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5']
 
 with require_modules(required_modules) as missing_modules:
     # We were able to find one of the required modules
