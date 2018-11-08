@@ -1,5 +1,5 @@
+import unittest
 import mock
-import pytest
 
 from ddtrace import Pin, Span
 from ddtrace.contrib.dbapi import TracedCursor, TracedConnection
@@ -7,65 +7,59 @@ from ddtrace.ext import AppTypes, sql
 from tests.test_tracer import get_dummy_tracer
 
 
-class TestTracedCursor(object):
+class TestTracedCursor(unittest.TestCase):
 
-    @pytest.fixture
-    def tracer(self):
-        tracer = get_dummy_tracer()
-        yield tracer
-        tracer.writer.pop()
+    def setUp(self):
+        self.cursor = mock.Mock()
+        self.tracer = get_dummy_tracer()
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_execute_wrapped_is_called_and_returned(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_execute_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
         cursor.rowcount = 0
         pin = Pin('pin_name')
         traced_cursor = TracedCursor(cursor, pin)
         assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_executemany_wrapped_is_called_and_returned(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_executemany_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
         cursor.rowcount = 0
-        pin = Pin('pin_name', tracer=tracer)
+        pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
         assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_fetchone_wrapped_is_called_and_returned(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_fetchone_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchone.return_value = '__result__'
-        pin = Pin('pin_name', tracer=tracer)
+        pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
         assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
         cursor.fetchone.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_fetchall_wrapped_is_called_and_returned(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_fetchall_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
         cursor.rowcount = 0
         cursor.fetchall.return_value = '__result__'
-        pin = Pin('pin_name', tracer=tracer)
+        pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
         assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         cursor.fetchall.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_fetchmany_wrapped_is_called_and_returned(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_fetchmany_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        tracer = self.tracer
         cursor.rowcount = 0
         cursor.fetchmany.return_value = '__result__'
-        pin = Pin('pin_name', tracer=tracer)
+        pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
         assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
         cursor.fetchmany.assert_called_once_with('arg_1', kwarg1='kwarg1')
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_correct_span_names(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_correct_span_names(self):
+        cursor = self.cursor
+        tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
@@ -88,9 +82,9 @@ class TestTracedCursor(object):
         traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         assert tracer.writer.pop()[0].name == 'sql.query.fetchall'
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_correct_span_names_can_be_overridden_by_pin(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_correct_span_names_can_be_overridden_by_pin(self):
+        cursor = self.cursor
+        tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', app='changed', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
@@ -113,9 +107,9 @@ class TestTracedCursor(object):
         traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         assert tracer.writer.pop()[0].name == 'changed.query.fetchall'
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_when_pin_disabled_then_no_tracing(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_when_pin_disabled_then_no_tracing(self):
+        cursor = self.cursor
+        tracer = self.tracer
         cursor.rowcount = 0
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
@@ -143,9 +137,9 @@ class TestTracedCursor(object):
         assert 'fetchall' == traced_cursor.fetchall('arg_1', 'arg_2')
         assert len(tracer.writer.pop()) == 0
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_span_info(self, cursor_class, tracer):
-        cursor = cursor_class()
+    def test_span_info(self):
+        cursor = self.cursor
+        tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
         traced_cursor = TracedCursor(cursor, pin)
@@ -165,12 +159,12 @@ class TestTracedCursor(object):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
-    @mock.patch('tests.contrib.dbapi.Cursor')
-    def test_django_traced_cursor_backward_compatibility(self, cursor_class, tracer):
+    def test_django_traced_cursor_backward_compatibility(self):
+        cursor = self.cursor
+        tracer = self.tracer
         # Django integration used to have its own TracedCursor implementation. When we replaced such custom
         # implementation with the generic dbapi traced cursor, we had to make sure to add the tag 'sql.rows' that was
         # set by the legacy replaced implementation.
-        cursor = cursor_class()
         cursor.rowcount = 123
         pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
         traced_cursor = TracedCursor(cursor, pin)
@@ -184,9 +178,15 @@ class TestTracedCursor(object):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
-    @mock.patch('tests.contrib.dbapi.Connection')
-    def test_commit_is_traced(self, connection_class, tracer):
-        connection = connection_class()
+class TestTracedConnection(unittest.TestCase):
+
+    def setUp(self):
+        self.connection = mock.Mock()
+        self.tracer = get_dummy_tracer()
+
+    def test_commit_is_traced(self):
+        connection = self.connection
+        tracer = self.tracer
         connection.commit.return_value = None
         pin = Pin('pin_name', tracer=tracer)
         traced_connection = TracedConnection(connection, pin)
@@ -194,9 +194,9 @@ class TestTracedCursor(object):
         assert tracer.writer.pop()[0].name == 'mock.connection.commit'
         connection.commit.assert_called_with()
 
-    @mock.patch('tests.contrib.dbapi.Connection')
-    def test_rollback_is_traced(self, connection_class, tracer):
-        connection = connection_class()
+    def test_rollback_is_traced(self):
+        connection = self.connection
+        tracer = self.tracer
         connection.rollback.return_value = None
         pin = Pin('pin_name', tracer=tracer)
         traced_connection = TracedConnection(connection, pin)
