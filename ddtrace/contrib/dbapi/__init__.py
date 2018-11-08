@@ -48,7 +48,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 return method(*args, **kwargs)
             finally:
                 row_count = self.__wrapped__.rowcount
-                s.set_metric("db.rowcount", row_count)
+                s.set_metric('db.rowcount', row_count)
                 # Necessary for django integration backward compatibility. Django integration used to provide its own
                 # implementation of the TracedCursor, which used to store the row count into a tag instead of
                 # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
