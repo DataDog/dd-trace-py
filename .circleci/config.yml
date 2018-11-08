@@ -265,10 +265,16 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch1{100}' --result-json /tmp/elasticsearch1.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch2{50}' --result-json /tmp/elasticsearch2.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch5{50}' --result-json /tmp/elasticsearch5.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - elasticsearch.results
+            - elasticsearch1.results
+            - elasticsearch2.results
+            - elasticsearch5.results
       - *save_cache_step
 
   falcon:
