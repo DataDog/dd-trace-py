@@ -247,8 +247,7 @@ class TestSQLite(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, 'sqlite')
-        eq_(span.name, 'sqlite.connection')
-        eq_(span.resource, 'commit')
+        eq_(span.name, 'sqlite.connection.commit')
 
     def test_rollback(self):
         tracer = get_dummy_tracer()
@@ -259,8 +258,7 @@ class TestSQLite(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, 'sqlite')
-        eq_(span.name, 'sqlite.connection')
-        eq_(span.resource, 'rollback')
+        eq_(span.name, 'sqlite.connection.rollback')
 
 
     def test_patch_unpatch(self):

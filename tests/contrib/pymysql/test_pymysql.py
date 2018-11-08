@@ -202,8 +202,7 @@ class PyMySQLCore(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'pymysql.connection')
-        eq_(span.resource, 'commit')
+        eq_(span.name, 'pymysql.connection.commit')
 
     def test_rollback(self):
         conn, tracer = self._get_conn_tracer()
@@ -213,8 +212,7 @@ class PyMySQLCore(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'pymysql.connection')
-        eq_(span.resource, 'rollback')
+        eq_(span.name, 'pymysql.connection.rollback')
 
 class TestPyMysqlPatch(PyMySQLCore, TestCase):
     def _get_conn_tracer(self):

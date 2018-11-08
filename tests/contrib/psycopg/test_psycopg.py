@@ -211,8 +211,7 @@ class PsycopgCore(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'postgres.connection')
-        eq_(span.resource, 'commit')
+        eq_(span.name, 'postgres.connection.commit')
 
     def test_rollback(self):
         conn, tracer = self._get_conn_and_tracer()
@@ -222,8 +221,7 @@ class PsycopgCore(object):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'postgres.connection')
-        eq_(span.resource, 'rollback')
+        eq_(span.name, 'postgres.connection.rollback')
 
 
 class TestPsycopgPatch(PsycopgCore):
