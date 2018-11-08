@@ -15,7 +15,7 @@ class DdtraceRunTest(unittest.TestCase):
         """
         Clear DATADOG_* env vars between tests
         """
-        for k in ('DATADOG_ENV', 'DATADOG_TRACE_ENABLED', 'DATADOG_SERVICE_NAME', 'DATADOG_TRACE_DEBUG'):
+        for k in ('DATADOG_ENV', 'DATADOG_TRACE_ENABLED', 'DATADOG_SERVICE_NAME', 'DATADOG_TRACE_DEBUG', 'DD_TRACE_TAGS'):
             if k in os.environ:
                 del os.environ[k]
 
@@ -200,3 +200,15 @@ class DdtraceRunTest(unittest.TestCase):
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_app_name.py']
         )
         assert out.startswith(b"ddtrace_run_app_name.py")
+
+    def test_global_trace_tags(self):
+        """ Ensure global tags are passed in from environment
+        """
+
+
+        os.environ["DD_TRACE_TAGS"] = '{"dogfood": true}'
+
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_global_tags.py']
+        )
+        assert out.startswith(b"Test success")

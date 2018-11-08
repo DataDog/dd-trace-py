@@ -81,6 +81,12 @@ try:
     if 'DATADOG_ENV' in os.environ:
         tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
 
+    if 'DD_TRACE_TAGS' in os.environ:
+        import json
+        tags = json.loads(os.environ['DD_TRACE_TAGS'])
+        if tags:
+            tracer.set_tags(tags)
+
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search
     # * find a user `sitecustomize.py` module
