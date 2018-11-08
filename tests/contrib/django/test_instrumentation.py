@@ -52,3 +52,28 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         response = tracer.writer.api.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+
+    def test_idempotent_patch(self):
+        patch()
+        django.setup()
+
+        # ensures that the internals are properly traced
+        url = reverse('users-list')
+        response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check that spans are not duplicated
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 4)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        sp_fetch = spans[3]
+        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
+        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
+        eq_(sp_request.get_tag('http.status_code'), '200')
+        eq_(sp_request.get_tag('http.url'), '/users/')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
+        eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
+        eq_(sp_fetch.name, 'sqlite.query.fetchmany')
