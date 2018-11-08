@@ -18,8 +18,7 @@ from ...utils.wrappers import unwrap
 config._add('molten', dict(
     service_name=get_env('molten', 'service_name', 'molten'),
     app='molten',
-    app_type=AppTypes.web,
-    distributed_tracing_enabled=False,
+    app_type=AppTypes.web
 ))
 
 def patch():
@@ -135,12 +134,11 @@ def patch_app_call(wrapped, instance, args, kwargs):
     resource = u'{} {}'.format(method, path)
 
     # enable distributed tracing
-    distributed_tracing = asbool(os.environ.get(
-        'DATADOG_MOLTEN_DISTRIBUTED_TRACING')) or False
+    distributed_tracing = asbool(environ.get('DATADOG_MOLTEN_DISTRIBUTED_TRACING')) or False
     request = Request.from_environ(environ)
     if distributed_tracing:
         propagator = HTTPPropagator()
-        context = propagator.extract(request.headers)
+        context = propagator.extract(dict(request.headers))
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
 

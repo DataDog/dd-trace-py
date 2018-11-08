@@ -42,6 +42,28 @@ class TestMolten(TestCase):
         eq_(span.get_tag('http.method'), 'GET')
         eq_(span.get_tag('http.status_code'), '200')
 
+    def test_distributed_tracing(self):
+        def prepare_environ(environ):
+            environ.update({
+                'DATADOG_MOLTEN_DISTRIBUTED_TRACING': 'True',
+                'HTTP_X_DATADOG_TRACE_ID': '100',
+                'HTTP_X_DATADOG_PARENT_ID': '42',
+            })
+            return environ
+
+        client, tracer = self.get_client_and_tracer()
+        uri = self.app.reverse_uri('hello', name='Jim', age=24)
+        response = client.get(uri, prepare_environ=prepare_environ)
+        eq_(response.status_code, 200)
+        eq_(response.json(), 'Hello 24 year old named Jim!')
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'molten.request')
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+
     def get_client_and_tracer(self):
         tracer = get_dummy_tracer()
         client = TestClient(self.app)
