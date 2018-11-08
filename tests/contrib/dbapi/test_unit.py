@@ -16,7 +16,7 @@ class TestTracedCursor(unittest.TestCase):
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
-        pin = Pin('pin_name')
+        pin = Pin('pin_name', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
         assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
