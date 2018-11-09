@@ -243,7 +243,11 @@ class PymongoCore(object):
                 'query teams {"name": "?"}',
             ])
 
-        eq_(sorted(expected_resources), sorted(s.resource for s in spans))
+        eq_(expected_resources, list(s.resource for s in spans))
+
+        # confirm last two spans have query filter tags
+        eq_(spans[-2].get_tag('mongodb.query'), '{}')
+        eq_(spans[-1].get_tag('mongodb.query'), "{'name': '?'}")
 
     def test_update_ot(self):
         """OpenTracing version of test_update."""
