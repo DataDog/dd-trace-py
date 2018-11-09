@@ -44,7 +44,8 @@ def update_patched_modules():
 
 
 def add_global_tags(tracer):
-    for tag in os.environ.get("DD_TRACER_TAGS", '').split(','):
+    tags = {}
+    for tag in os.environ.get('DD_TRACE_TAGS', '').split(','):
         if len(tag.split(':')) != 2:
             log.debug("skipping malformed tracer tag")
             continue
@@ -54,6 +55,8 @@ def add_global_tags(tracer):
             tag_value = asbool(tag_value)
         elif tag_value.isdigit():
             tag_value = int(tag_value)
+        tags[tag_name] = tag_value
+    tracer.set_tags(tags)
 
 
 try:

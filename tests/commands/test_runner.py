@@ -206,7 +206,7 @@ class DdtraceRunTest(unittest.TestCase):
         """
 
 
-        os.environ["DD_TRACE_TAGS"] = '{"dogfood": true}'
+        os.environ["DD_TRACE_TAGS"] = 'a:True,b:0,c:C'
 
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_global_tags.py']
