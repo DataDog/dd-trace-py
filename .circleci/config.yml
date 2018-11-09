@@ -748,7 +748,7 @@ jobs:
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   deploy_experimental:
-    # build the develop branch releasing development docs
+    # build the *-dev branch releasing development docs
     docker:
       - image: circleci/python:3.6
     steps:
@@ -939,4 +939,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(develop)/
+              only: /(.*-dev)/
