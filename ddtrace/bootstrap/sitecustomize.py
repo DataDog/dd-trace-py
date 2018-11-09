@@ -43,6 +43,19 @@ def update_patched_modules():
         EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == 'true'})
 
 
+def add_global_tags(tracer):
+    for tag in os.environ.get("DD_TRACER_TAGS", '').split(','):
+        if len(tag.split(':')) != 2:
+            log.debug("skipping malformed tracer tag")
+            continue
+
+        tag_name, tag_value = tag.split(':')
+        if tag_value.lower() in ['true', 'false']:
+            tag_value = asbool(tag_value)
+        elif tag_value.isdigit():
+            tag_value = int(tag_value)
+
+
 try:
     from ddtrace import tracer
     patch = True
@@ -82,10 +95,7 @@ try:
         tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
 
     if 'DD_TRACE_TAGS' in os.environ:
-        import json
-        tags = json.loads(os.environ['DD_TRACE_TAGS'])
-        if tags:
-            tracer.set_tags(tags)
+        add_global_tags(tracer)
 
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search
