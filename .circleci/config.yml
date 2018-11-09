@@ -836,6 +836,7 @@ workflows:
 
   test:
     jobs:
+      - build_docs
       - flake8
       - aiobotocore:
           requires:
@@ -966,9 +967,9 @@ workflows:
       - vertica:
           requires:
             - flake8
-      - build_docs
       - wait_all_tests:
           requires:
+            - build_docs
             - flake8
             - aiobotocore
             - aiohttp
@@ -1013,7 +1014,6 @@ workflows:
             - tornado
             - tracer
             - vertica
-            - build_docs
       - deploy_dev:
           requires:
             - wait_all_tests
