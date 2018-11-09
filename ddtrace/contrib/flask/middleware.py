@@ -3,6 +3,7 @@ import logging
 from ... import compat
 from ...ext import http, errors, AppTypes
 from ...propagation.http import HTTPPropagator
+from ...utils.deprecation import deprecated
 
 import flask.templating
 from flask import g, request, signals
@@ -16,6 +17,7 @@ SPAN_NAME = 'flask.request'
 
 class TraceMiddleware(object):
 
+    @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         log.debug('flask: initializing trace middleware')
