@@ -2,4 +2,4 @@
 
 set -e
 
-docker-compose run --rm testrunner $*
+docker-compose run -e TOX_SKIP_DIST=False --rm testrunner $*
