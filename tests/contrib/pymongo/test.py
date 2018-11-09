@@ -229,9 +229,19 @@ class PymongoCore(object):
             "drop teams",
             "insert teams",
             "insert teams",
-            "query teams {}",
-            'query teams {"name": "?"}',
         ]
+
+        # query names should be used in >3.1
+        if pymongo.version_tuple >= (3, 1, 0):
+            expected_resources.extend([
+                'find teams {}',
+                'find teams {"name": "?"}',
+            ])
+        else:
+            expected_resources.extend([
+                'query teams {}',
+                'query teams {"name": "?"}',
+            ])
 
         eq_(sorted(expected_resources), sorted(s.resource for s in spans))
 
