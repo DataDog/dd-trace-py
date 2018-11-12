@@ -7,7 +7,7 @@ from nose.tools import eq_
 # project
 from ddtrace import Pin
 from ddtrace.ext import http
-from ddtrace.contrib.elasticsearch import get_traced_transport, metadata
+from ddtrace.contrib.elasticsearch import get_traced_transport
 from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 

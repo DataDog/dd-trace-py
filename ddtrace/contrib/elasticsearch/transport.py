@@ -1,4 +1,3 @@
-from . import metadata
 # DEV: This will import the first available module from:
 #   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
 from .elasticsearch import elasticsearch

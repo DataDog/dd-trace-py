@@ -5,7 +5,7 @@ from wrapt import wrap_function_wrapper as _w
 from .quantize import quantize
 
 from ...compat import urlencode
-from ...ext import elasticsearch as elasticsearchx, http, AppTypes
+from ...ext import elasticsearch as metadata, http, AppTypes
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 
@@ -30,7 +30,7 @@ def _patch(elasticsearch):
         return
     setattr(elasticsearch, '_datadog_patch', True)
     _w(elasticsearch.transport, 'Transport.perform_request', _get_perform_request(elasticsearch))
-    Pin(service=DEFAULT_SERVICE, app='elasticsearch', app_type='db').onto(elasticsearch.transport.Transport)
+    Pin(service=metadata.SERVICE, app=metadata.APP, app_type=AppTypes.db).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
@@ -60,7 +60,7 @@ def _get_perform_request(elasticsearch):
             body = kwargs.get('body')
 
             span.service = pin.service
-            span.span_type = SPAN_TYPE
+            span.span_type = metadata.TYPE
             span.set_tag(metadata.METHOD, method)
             span.set_tag(metadata.URL, url)
             span.set_tag(metadata.PARAMS, urlencode(params))
