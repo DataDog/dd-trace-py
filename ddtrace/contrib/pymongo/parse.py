@@ -127,7 +127,7 @@ def parse_query(query):
         coll = getattr(query, "coll", None)
         db = getattr(query, "db", None)
 
-    # pymongo < 3.1 _Query doesn't not have a name field, so default to 'query'
+    # pymongo < 3.1 _Query does not have a name field, so default to 'query'
     cmd = Command(getattr(query, 'name', 'query'), db, coll)
     cmd.query = query.spec
     return cmd
