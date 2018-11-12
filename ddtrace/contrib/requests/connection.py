@@ -1,19 +1,17 @@
 import logging
-import ddtrace
 
+import ddtrace
 from ddtrace import config
 
-from .constants import DEFAULT_SERVICE
-
-from ...ext import http
 from ...compat import parse
+from ...ext import http
 from ...propagation.http import HTTPPropagator
-
+from .constants import DEFAULT_SERVICE
 
 log = logging.getLogger(__name__)
 
 
-def _extract_service_name(session, span, netloc=None):
+def _extract_service_name(session, span, hostname=None):
     """Extracts the right service name based on the following logic:
     - `requests` is the default service name
     - users can change it via `session.service_name = 'clients'`
@@ -28,8 +26,8 @@ def _extract_service_name(session, span, netloc=None):
     Updated service name > parent service name > default to `requests`.
     """
     cfg = config.get_from(session)
-    if cfg['split_by_domain'] and netloc:
-        return netloc
+    if cfg['split_by_domain'] and hostname:
+        return hostname
 
     service_name = cfg['service_name']
     if (service_name == DEFAULT_SERVICE and
@@ -55,10 +53,22 @@ def _wrap_request(func, instance, args, kwargs):
     url = kwargs.get('url') or args[1]
     headers = kwargs.get('headers', {})
     parsed_uri = parse.urlparse(url)
+    # sanitize url of query
+    sanitized_url = parse.urlunparse((
+        parsed_uri.scheme,
+        parsed_uri.netloc,
+        parsed_uri.path,
+        parsed_uri.params,
+        None, # drop parsed_uri.query
+        parsed_uri.fragment
+    ))
 
     with tracer.trace("requests.request", span_type=http.TYPE) as span:
         # update the span service name before doing any action
-        span.service = _extract_service_name(instance, span, netloc=parsed_uri.netloc)
+        hostname = parsed_uri.hostname
+        if parsed_uri.port:
+            hostname += ':{}'.format(parsed_uri.port)
+        span.service = _extract_service_name(instance, span, hostname=hostname)
 
         # propagate distributed tracing headers
         if config.get_from(instance).get('distributed_tracing'):
@@ -73,7 +83,7 @@ def _wrap_request(func, instance, args, kwargs):
         finally:
             try:
                 span.set_tag(http.METHOD, method.upper())
-                span.set_tag(http.URL, url)
+                span.set_tag(http.URL, sanitized_url)
                 if response is not None:
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer

@@ -15,7 +15,7 @@ from .utils import (
 
 
 log = logging.getLogger(__name__)
-
+SPAN_TYPE = 'worker'
 
 def trace_prerun(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
@@ -33,7 +33,7 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name)
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SPAN_TYPE)
     attach_span(task, task_id, span)
 
 

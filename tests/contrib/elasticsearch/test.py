@@ -63,8 +63,8 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(span.name, "elasticsearch.query")
         eq_(span.span_type, "elasticsearch")
         eq_(span.error, 0)
-        eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
+        eq_(span.get_tag('elasticsearch.method'), "PUT")
+        eq_(span.get_tag('elasticsearch.url'), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
         # Put data
@@ -78,8 +78,8 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(len(spans), 3)
         span = spans[0]
         eq_(span.error, 0)
-        eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
+        eq_(span.get_tag('elasticsearch.method'), "PUT")
+        eq_(span.get_tag('elasticsearch.url'), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
         # Make the data available
@@ -90,8 +90,8 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
-        eq_(span.get_tag(metadata.METHOD), "POST")
-        eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
+        eq_(span.get_tag('elasticsearch.method'), "POST")
+        eq_(span.get_tag('elasticsearch.url'), "/%s/_refresh" % self.ES_INDEX)
 
         # Search data
         result = es.search(sort=['name:desc'], size=100,
@@ -105,13 +105,13 @@ class ElasticsearchTest(unittest.TestCase):
         span = spans[0]
         eq_(span.resource,
                 "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.get_tag(metadata.METHOD), "GET")
-        eq_(span.get_tag(metadata.URL),
+        eq_(span.get_tag('elasticsearch.method'), "GET")
+        eq_(span.get_tag('elasticsearch.url'),
                 "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
-        eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
+        eq_(span.get_tag('elasticsearch.body').replace(" ", ""), '{"query":{"match_all":{}}}')
+        eq_(set(span.get_tag('elasticsearch.params').split('&')), {'sort=name%3Adesc', 'size=100'})
 
-        self.assertTrue(span.get_metric(metadata.TOOK) > 0)
+        self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
@@ -179,8 +179,8 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(dd_span.name, "elasticsearch.query")
         eq_(dd_span.span_type, "elasticsearch")
         eq_(dd_span.error, 0)
-        eq_(dd_span.get_tag(metadata.METHOD), "PUT")
-        eq_(dd_span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
+        eq_(dd_span.get_tag('elasticsearch.method'), "PUT")
+        eq_(dd_span.get_tag('elasticsearch.url'), "/%s" % self.ES_INDEX)
         eq_(dd_span.resource, "PUT /%s" % self.ES_INDEX)
 
 
@@ -236,8 +236,8 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(span.name, "elasticsearch.query")
         eq_(span.span_type, "elasticsearch")
         eq_(span.error, 0)
-        eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(metadata.URL), "/%s" % self.ES_INDEX)
+        eq_(span.get_tag('elasticsearch.method'), "PUT")
+        eq_(span.get_tag('elasticsearch.url'), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
         # Put data
@@ -251,8 +251,8 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(len(spans), 3)
         span = spans[0]
         eq_(span.error, 0)
-        eq_(span.get_tag(metadata.METHOD), "PUT")
-        eq_(span.get_tag(metadata.URL), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
+        eq_(span.get_tag('elasticsearch.method'), "PUT")
+        eq_(span.get_tag('elasticsearch.url'), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
         # Make the data available
@@ -263,8 +263,8 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.resource, "POST /%s/_refresh" % self.ES_INDEX)
-        eq_(span.get_tag(metadata.METHOD), "POST")
-        eq_(span.get_tag(metadata.URL), "/%s/_refresh" % self.ES_INDEX)
+        eq_(span.get_tag('elasticsearch.method'), "POST")
+        eq_(span.get_tag('elasticsearch.url'), "/%s/_refresh" % self.ES_INDEX)
 
         # Search data
         result = es.search(sort=['name:desc'], size=100,
@@ -278,13 +278,13 @@ class ElasticsearchPatchTest(unittest.TestCase):
         span = spans[0]
         eq_(span.resource,
             "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.get_tag(metadata.METHOD), "GET")
-        eq_(span.get_tag(metadata.URL),
+        eq_(span.get_tag('elasticsearch.method'), "GET")
+        eq_(span.get_tag('elasticsearch.url'),
             "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
-        eq_(span.get_tag(metadata.BODY).replace(" ", ""), '{"query":{"match_all":{}}}')
-        eq_(set(span.get_tag(metadata.PARAMS).split('&')), {'sort=name%3Adesc', 'size=100'})
+        eq_(span.get_tag('elasticsearch.body').replace(" ", ""), '{"query":{"match_all":{}}}')
+        eq_(set(span.get_tag('elasticsearch.params').split('&')), {'sort=name%3Adesc', 'size=100'})
 
-        self.assertTrue(span.get_metric(metadata.TOOK) > 0)
+        self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}

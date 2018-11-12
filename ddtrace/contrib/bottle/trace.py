@@ -8,6 +8,8 @@ from ddtrace.ext import http, AppTypes
 # project
 from ...propagation.http import HTTPPropagator
 
+SPAN_TYPE = 'web'
+
 class TracePlugin(object):
     name = 'trace'
     api = 2
@@ -37,7 +39,7 @@ class TracePlugin(object):
                 if context.trace_id:
                     self.tracer.context_provider.activate(context)
 
-            with self.tracer.trace('bottle.request', service=self.service, resource=resource) as s:
+            with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
                 code = 0
                 try:
                     return callback(*args, **kwargs)

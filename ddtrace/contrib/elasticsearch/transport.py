@@ -2,11 +2,12 @@ from . import metadata
 # DEV: This will import the first available module from:
 #   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
 from .elasticsearch import elasticsearch
+
 from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http
+from ...ext import AppTypes, http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'

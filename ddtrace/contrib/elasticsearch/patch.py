@@ -2,17 +2,12 @@ from importlib import import_module
 
 from wrapt import wrap_function_wrapper as _w
 
-from . import metadata
 from .quantize import quantize
 
-from ...utils.wrappers import unwrap as _u
 from ...compat import urlencode
+from ...ext import elasticsearch as elasticsearchx, http, AppTypes
 from ...pin import Pin
-from ...ext import http
-
-
-DEFAULT_SERVICE = 'elasticsearch'
-SPAN_TYPE = 'elasticsearch'
+from ...utils.wrappers import unwrap as _u
 
 
 def _es_modules():
