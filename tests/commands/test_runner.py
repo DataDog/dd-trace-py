@@ -99,6 +99,18 @@ class DdtraceRunTest(unittest.TestCase):
         )
         assert out.startswith(b"Test success")
 
+    def test_host_port_from_env_dd(self):
+        """
+        DD_AGENT_HOST|DD_TRACE_AGENT_PORT point to the tracer
+        to the correct host/port for submission
+        """
+        os.environ['DD_AGENT_HOST'] = '172.10.0.1'
+        os.environ['DD_TRACE_AGENT_PORT'] = '8126'
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
+        )
+        assert out.startswith(b'Test success')
+
     def test_priority_sampling_from_env(self):
         """
         DATADOG_PRIORITY_SAMPLING enables Distributed Sampling
