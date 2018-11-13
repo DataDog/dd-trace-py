@@ -48,7 +48,7 @@ def add_global_tags(tracer):
     for tag in os.environ.get('DD_TRACE_GLOBAL_TAGS', '').split(','):
         tag_name, _, tag_value = tag.partition(':')
         if not tag_name or not tag_value:
-            log.debug("skipping malformed tracer tag")
+            log.debug('skipping malformed tracer tag')
             continue
 
         tags[tag_name] = tag_value
