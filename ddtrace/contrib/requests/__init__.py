@@ -45,7 +45,7 @@ from ...utils.formats import asbool, get_env
 from ...utils.wrappers import unwrap as _u
 from .legacy import _distributed_tracing, _distributed_tracing_setter
 from .constants import DEFAULT_SERVICE
-from .connection import _wrap_request
+from .connection import _wrap_send
 from ...ext import AppTypes
 
 # requests default settings
@@ -58,7 +58,7 @@ config._add('requests',{
 
 def _patch(requests):
     """Activate http calls tracing"""
-    _w('requests', 'Session.request', _wrap_request)
+    _w('requests', 'Session.send', _wrap_send)
     Pin(
         service=config.requests['service_name'],
         app='requests',
@@ -85,7 +85,7 @@ def unpatch():
     if not module_patched(requests):
         return
 
-    _u(requests.Session, 'request')
+    _u(requests.Session, 'send')
     uninstall_module_import_hook('requests')
 
 
@@ -94,5 +94,5 @@ def TracedSession(*args, **kwargs):
     import requests
 
     session = requests.Session(*args, **kwargs)
-    _w(session, 'request', _wrap_request)
+    _w(session, 'send', _wrap_send)
     return session

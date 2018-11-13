@@ -12,10 +12,10 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         def f():
             pass
         self.assertIsInstance(gevent.greenlet.Greenlet(), TracedGreenlet)
-        self.assertIsInstance(gevent.pool.Group.greenlet_class(), TracedGreenlet)
+        self.assertTrue(gevent.pool.Group.greenlet_class is TracedGreenlet)
         self.assertIsInstance(gevent.Greenlet(), TracedGreenlet)
-        self.assertIsInstance(gevent.pool.IMap(f, []), TracedIMap)
-        self.assertIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)
+        self.assertTrue(gevent.pool.IMap is TracedIMap)
+        self.assertTrue(gevent.pool.IMapUnordered is TracedIMapUnordered)
 
     def assert_not_patched(self, gevent):
         from ddtrace.contrib.gevent.greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered
@@ -24,10 +24,10 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
             pass
 
         self.assertNotIsInstance(gevent.greenlet.Greenlet(), TracedGreenlet)
-        self.assertNotIsInstance(gevent.pool.Group.greenlet_class(), TracedGreenlet)
+        self.assertFalse(gevent.pool.Group.greenlet_class is TracedGreenlet)
         self.assertNotIsInstance(gevent.Greenlet(), TracedGreenlet)
-        self.assertNotIsInstance(gevent.pool.IMap(f, []), TracedIMap)
-        self.assertNotIsInstance(gevent.pool.IMapUnordered(f, []), TracedIMapUnordered)
+        self.assertFalse(gevent.pool.IMap is TracedIMap)
+        self.assertFalse(gevent.pool.IMapUnordered is TracedIMapUnordered)
 
     def test_patch_before_import(self):
         trigger_reload = self.module_imported('gevent')

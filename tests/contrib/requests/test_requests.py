@@ -1,7 +1,5 @@
 import unittest
 
-from requests.exceptions import MissingSchema
-
 from ddtrace import config
 from ddtrace.contrib.requests import patch
 from ddtrace.ext import errors, http
@@ -81,6 +79,7 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.span_type, http.TYPE)
 
     def test_200_send(self):
+        import requests
         # when calling send directly
         req = requests.Request(url=URL_200, method='GET')
         req = self.session.prepare_request(req)
@@ -263,6 +262,7 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.service, 'httpbin.org')
 
     def test_split_by_domain_wrong(self):
+        from requests.exceptions import MissingSchema
         # ensure the split by domain doesn't crash in case of a wrong URL;
         # in that case, no spans are created
         cfg = config.get_from(self.session)

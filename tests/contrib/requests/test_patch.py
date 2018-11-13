@@ -20,10 +20,10 @@ class TestRequestsPatch(PatchMixin, unittest.TestCase):
             self.reload_module(requests)
 
     def assert_patched(self, requests):
-        self.assert_wrapped(requests.Session.request)
+        self.assert_wrapped(requests.Session.send)
 
     def assert_not_patched(self, requests):
-        self.assert_not_wrapped(requests.Session.request)
+        self.assert_not_wrapped(requests.Session.send)
 
     def test_patch_before_import(self):
         trigger_reload = self.module_imported('requests')
@@ -42,7 +42,7 @@ class TestRequestsPatch(PatchMixin, unittest.TestCase):
         patch(requests=True)
         patch(requests=True)
         import requests
-        self.assert_not_double_wrapped(requests.Session.request)
+        self.assert_not_double_wrapped(requests.Session.send)
 
     def test_unpatch_before_import(self):
         from ddtrace.contrib.requests import unpatch

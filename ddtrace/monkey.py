@@ -8,40 +8,41 @@ _BASE_MODULENAME = 'ddtrace.contrib'
 
 # Default set of modules to automatically patch or not
 DEFAULT_INTEGRATIONS = {
-    'aiobotocore': True,
-    'aiohttp': True,  # requires asyncio (Python 3.4+)
-    'aiopg': True,
     'asyncio': False,
     'boto': True,
     'botocore': True,
-    'bottle': True,
+    'bottle': False,
     'cassandra': True,
     'celery': True,
-    'django': True,
     'elasticsearch': True,
-    'falcon': True,
-    'futures': False,
+    'futures': False,  # experimental propagation
     'grpc': True,
-    'httplib': True,
-    'jinja2': True,
     'mongoengine': True,
     'mysql': True,
     'mysqldb': True,
     'pymysql': True,
     'psycopg': True,
     'pylibmc': True,
-    'pylons': True,
     'pymemcache': True,
     'pymongo': True,
-    'pyramid': True,
     'redis': True,
-    'requests': True,
-    'sqlalchemy': True,
+    'requests': False,  # Not ready yet
+    'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
+    'aiohttp': True,  # requires asyncio (Python 3.4+)
+    'aiopg': True,
+    'aiobotocore': False,
+    'httplib': False,
     'vertica': True,
+    'jinja2': True,
+    'flask': True,
+    'kombu': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
-    "flask": False,
+    "django": False,
+    "falcon": False,
+    "pylons": False,
+    "pyramid": False,
 }
 
 class PatchException(Exception):
