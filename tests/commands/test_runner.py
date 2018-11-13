@@ -93,7 +93,7 @@ class DdtraceRunTest(unittest.TestCase):
         to the correct host/port for submission
         """
         os.environ["DATADOG_TRACE_AGENT_HOSTNAME"] = "172.10.0.1"
-        os.environ["DATADOG_TRACE_AGENT_PORT"] = "8126"
+        os.environ["DATADOG_TRACE_AGENT_PORT"] = "8120"
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
         )
@@ -105,9 +105,15 @@ class DdtraceRunTest(unittest.TestCase):
         to the correct host/port for submission
         """
         os.environ['DD_AGENT_HOST'] = '172.10.0.1'
-        os.environ['DD_TRACE_AGENT_PORT'] = '8126'
+        os.environ['DD_TRACE_AGENT_PORT'] = '8120'
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
+        )
+        assert out.startswith(b'Test success')
+
+        # Do we get the same results without `ddtrace-run`?
+        out = subprocess.check_output(
+            ['python', 'tests/commands/ddtrace_run_hostname.py']
         )
         assert out.startswith(b'Test success')
 
