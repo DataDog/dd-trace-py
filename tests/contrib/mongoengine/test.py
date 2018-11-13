@@ -4,6 +4,7 @@ import time
 # 3p
 import mongoengine
 from nose.tools import eq_
+import pymongo
 
 # project
 from ddtrace import Tracer, Pin
@@ -71,7 +72,6 @@ class MongoEngineCore(object):
         eq_(artists[0].last_name, 'Mitchell')
 
         # query names should be used in pymongo>3.1
-        import pymongo
         name = 'find' if pymongo.version_tuple >= (3, 1, 0) else 'query'
 
         spans = tracer.writer.pop()
