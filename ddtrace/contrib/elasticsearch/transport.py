@@ -1,12 +1,11 @@
 from elasticsearch import Transport
 from elasticsearch.exceptions import TransportError
 
-from . import metadata
 from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http
+from ...ext import AppTypes, http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'

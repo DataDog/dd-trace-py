@@ -4,6 +4,7 @@ import mock
 import ddtrace
 
 from ddtrace import __file__ as root_file
+from ddtrace import config
 from nose.tools import ok_
 from contextlib import contextmanager
 
@@ -60,6 +61,27 @@ def override_global_tracer(tracer):
     ddtrace.tracer = tracer
     yield
     ddtrace.tracer = original_tracer
+
+
+@contextmanager
+def override_config(integration, values):
+    """
+    Temporarily override an integration configuration value
+    >>> with override_config('flask', dict(service_name='test-service')):
+        # Your test
+    """
+    options = getattr(config, integration)
+
+    original = dict(
+        (key, options.get(key))
+        for key in values.keys()
+    )
+
+    options.update(values)
+    try:
+        yield
+    finally:
+        options.update(original)
 
 
 @contextmanager

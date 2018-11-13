@@ -1,5 +1,5 @@
-import sys
 import platform
+import sys
 
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
