@@ -19,7 +19,7 @@ class TracedCursor(wrapt.ObjectProxy):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
         name = pin.app or 'sql'
-        self._self_datadog_name = '%s.query' % name
+        self._self_datadog_name = '{}.query'.format(name)
         self._self_last_execute_operation = None
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
@@ -122,7 +122,7 @@ class TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin=None):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
-        self._self_datadog_name = '%s.connection' % name
+        self._self_datadog_name = '{}.connection'.format(name)
         db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
         db_pin.onto(self)
 
