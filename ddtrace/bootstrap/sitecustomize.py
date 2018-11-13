@@ -51,10 +51,6 @@ def add_global_tags(tracer):
             continue
 
         tag_name, tag_value = tag.split(':')
-        if tag_value.lower() in ['true', 'false']:
-            tag_value = asbool(tag_value)
-        elif tag_value.isdigit():
-            tag_value = int(tag_value)
         tags[tag_name] = tag_value
     tracer.set_tags(tags)
 
