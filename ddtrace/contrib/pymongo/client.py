@@ -120,6 +120,7 @@ class TracedServer(ObjectProxy):
             span.set_tag(mongox.COLLECTION, cmd.coll)
             span.set_tags(cmd.tags)
 
+            # set `mongodb.query` tag and resource for span
             _set_query_metadata(span, cmd)
 
             result = self.__wrapped__.send_message_with_response(
@@ -198,7 +199,9 @@ class TracedSocket(ObjectProxy):
             s.set_tags(cmd.tags)
             s.set_metrics(cmd.metrics)
 
+        # set `mongodb.query` tag and resource for span
         _set_query_metadata(s, cmd)
+
         if self.address:
             _set_address_tags(s, self.address)
         return s
@@ -238,6 +241,7 @@ def _set_address_tags(span, address):
         span.set_tag(netx.TARGET_PORT, address[1])
 
 def _set_query_metadata(span, cmd):
+    """ Sets span `mongodb.query` tag and resource given command query """
     if cmd.query:
         nq = normalize_filter(cmd.query)
         span.set_tag('mongodb.query', nq)
