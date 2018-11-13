@@ -7,15 +7,14 @@ import unittest
 import wrapt
 
 # Project
-from ddtrace.compat import httplib, PY2
+from ddtrace.compat import PY2, httplib
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
-
 from tests.opentracer.utils import init_tracer
+
 from ...test_tracer import get_dummy_tracer
 from ...util import assert_dict_issuperset, override_global_tracer
-
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -221,7 +220,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
     def test_httplib_request_get_request_query_string(self):
         """
         When making a GET request with a query string via httplib.HTTPConnection.request
-            we capture a the entire url in the span
+            we capture the all of the url in the span except for the query string
         """
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -242,7 +241,8 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             {
                 'http.method': 'GET',
                 'http.status_code': '200',
-                'http.url': '{}?key=value&key2=value2'.format(URL_200),
+                # check url metadata lacks query string
+                'http.url': '{}'.format(URL_200),
             }
         )
 

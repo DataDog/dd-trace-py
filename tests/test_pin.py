@@ -25,6 +25,36 @@ class PinTestCase(TestCase):
         eq_(got.service, pin.service)
         ok_(got is pin)
 
+    def test_pin_find(self):
+        # ensure Pin will find the first available pin
+
+        # Override service
+        obj_a = self.Obj()
+        pin = Pin(service='service-a')
+        pin.onto(obj_a)
+
+        # Override service
+        obj_b = self.Obj()
+        pin = Pin(service='service-b')
+        pin.onto(obj_b)
+
+        # No Pin set
+        obj_c = self.Obj()
+
+        # We find the first pin (obj_b)
+        pin = Pin._find(obj_c, obj_b, obj_a)
+        ok_(pin is not None)
+        eq_(pin.service, 'service-b')
+
+        # We find the first pin (obj_a)
+        pin = Pin._find(obj_a, obj_b, obj_c)
+        ok_(pin is not None)
+        eq_(pin.service, 'service-a')
+
+        # We don't find a pin if none is there
+        pin = Pin._find(obj_c, obj_c, obj_c)
+        ok_(pin is None)
+
     def test_cant_pin_with_slots(self):
         # ensure a Pin can't be attached if the __slots__ is defined
         class Obj(object):
