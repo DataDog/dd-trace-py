@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+from collections import namedtuple
 import multiprocessing.dummy
 import unittest
 import subprocess
@@ -14,20 +15,7 @@ parser.add_argument('dir', metavar='directory', type=str,
 args = parser.parse_args()
 
 
-def _get_tests_from_suite(suite):
-    tests = []
-    suites_to_check = [suite]
-    while suites_to_check:
-        suite = suites_to_check.pop()
-        for s in suite:
-            if _iterable(s):
-                suites_to_check.append(s)
-            else:
-                tests.append(s)
-    return tests
-
-
-def _iterable(i):
+def is_iterable(i):
     try:
         iter(i)
     except TypeError:
@@ -36,23 +24,65 @@ def _iterable(i):
         return True
 
 
-def test_name(test):
-    return '{}.{}'.format(unittest.util.strclass(test.__class__), test._testMethodName)
+class FreshTestRunner(unittest.TextTestRunner):
+    TestResult = namedtuple('TestResult', 'test returncode output')
 
+    def __init__(self, modprefix='', *args, **kwargs):
+        self.modprefix = modprefix
+        super(FreshTestRunner, self).__init__(*args, **kwargs)
 
-def run_test(test):
-    name = test_name(test)
-    modprefix = args.dir.replace(os.path.sep, '.')
-    testcase = '{}.{}'.format(modprefix, name)
-    try:
-        out = subprocess.check_output(
-            ['python', '-m', 'unittest', '-v', testcase],
-            stderr=subprocess.STDOUT, # redirect stderr to stdout to collect and not output
+    def get_tests_from_suite(self, suite):
+        tests = []
+        suites_to_check = [suite]
+        while suites_to_check:
+            suite = suites_to_check.pop()
+            for s in suite:
+                if is_iterable(s):
+                    suites_to_check.append(s)
+                else:
+                    tests.append(s)
+        return tests
+
+    def test_name(self, test):
+        return '{}.{}'.format(
+            unittest.util.strclass(test.__class__),
+            test._testMethodName
         )
-        return (0, out)
-    except subprocess.CalledProcessError as err:
-        return (err.returncode, err.output)
 
+    def run_test(self, test):
+        name = self.test_name(test)
+        testcase_name = '{}.{}'.format(self.modprefix, name)
+        try:
+            out = subprocess.check_output(
+                ['python', '-m', 'unittest', testcase_name],
+                stderr=subprocess.STDOUT, # redirect stderr to stdout to collect and not output
+            )
+            return self.TestResult(test, 0, out.decode())
+        except subprocess.CalledProcessError as err:
+            return self.TestResult(test, err.returncode, err.output.decode())
+
+    def run(self, suite):
+        result = self._makeResult()
+        unittest.signals.registerResult(result)
+        tests = self.get_tests_from_suite(suite)
+
+        pool = multiprocessing.dummy.Pool(8)
+        test_results = pool.map(self.run_test, tests)
+
+        # DEV: sort the failures to the bottom of output for convenience
+        # ordering of the tests does not matter anyways since they are run in
+        # parallel.
+        test_results = sorted(test_results, key=lambda x: x.returncode)
+        for test, status, output in test_results:
+            # print to stderr since this is the convention for test runners
+            print(output, file=sys.stderr)
+            if status:
+                # can't get sys.exc_info tuple from the failed test case
+                result.addFailure(test, sys.exc_info())
+            else:
+                result.addSuccess(test)
+
+        return result
 
 
 if __name__ == '__main__':
@@ -60,15 +90,8 @@ if __name__ == '__main__':
     sys.path.pop(0)
     sys.path.insert(0, cwd)
     test_dir = os.path.join(cwd, args.dir)
+    modprefix = args.dir.replace(os.path.sep, '.')
     loader = unittest.TestLoader()
     suite = loader.discover(test_dir, pattern='test_patch.py')
-    tests = _get_tests_from_suite(suite)
-
-    pool = multiprocessing.dummy.Pool(8)
-    test_results = pool.map(run_test, tests)
-    for status, output in test_results:
-        # print to stderr since this is the convention for test runners
-        print(output, file=sys.stderr)
-
-    if sum(map(lambda x: x[0], test_results)):
-        sys.exit(1)
+    patch_tests_result = FreshTestRunner(modprefix).run(suite)
+    sys.exit(not patch_tests_result.wasSuccessful())
