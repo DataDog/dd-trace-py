@@ -5,8 +5,6 @@ import sys
 
 import wrapt
 
-from tests.utils import delete_module
-
 
 class PatchMixin(object):
     """
@@ -36,9 +34,6 @@ class PatchMixin(object):
     def module_imported(self, modname):
         """Returns whether the module, given its name is imported."""
         return modname in sys.modules
-
-    def delete_module(self, module):
-        delete_module(module)
 
     def assert_wrapped(self, obj):
         """
