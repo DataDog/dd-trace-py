@@ -634,6 +634,19 @@ jobs:
             - sqlalchemy.results
       - *save_cache_step
 
+  dbapi:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'dbapi_contrib-{py27,py34,py35,py36}' --result-json /tmp/dbapi.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - dbapi.results
+      - *save_cache_step
+
   psycopg:
     docker:
       - *test_runner
@@ -918,6 +931,9 @@ workflows:
       - celery:
           requires:
             - flake8
+      - dbapi:
+          requires:
+            - flake8
       - ddtracerun:
           requires:
             - flake8
@@ -1035,6 +1051,7 @@ workflows:
             - bottle
             - cassandra
             - celery
+            - dbapi
             - ddtracerun
             - django
             - elasticsearch
