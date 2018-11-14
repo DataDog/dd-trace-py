@@ -4,6 +4,7 @@ import time
 # 3p
 import mongoengine
 from nose.tools import eq_
+import pymongo
 
 # project
 from ddtrace import Tracer, Pin
@@ -70,10 +71,13 @@ class MongoEngineCore(object):
         eq_(artists[0].first_name, 'Joni')
         eq_(artists[0].last_name, 'Mitchell')
 
+        # query names should be used in pymongo>3.1
+        name = 'find' if pymongo.version_tuple >= (3, 1, 0) else 'query'
+
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.resource, 'query artist {}')
+        eq_(span.resource, '{} artist'.format(name))
         eq_(span.span_type, 'mongodb')
         eq_(span.service, self.TEST_SERVICE)
         _assert_timing(span, start, end)
@@ -90,7 +94,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.resource, 'query artist {"first_name": "?"}')
+        eq_(span.resource, '{} artist {{"first_name": "?"}}'.format(name))
         eq_(span.span_type, 'mongodb')
         eq_(span.service, self.TEST_SERVICE)
         _assert_timing(span, start, end)
