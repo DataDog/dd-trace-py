@@ -10,6 +10,8 @@ test_runner: &test_runner
   image: datadog/docker-library:ddtrace_py
   env:
     TOX_SKIP_DIST: True
+  resource_class:
+    small
 restore_cache_step: &restore_cache_step
   restore_cache:
     keys:
