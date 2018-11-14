@@ -10,8 +10,6 @@ test_runner: &test_runner
   image: datadog/docker-library:ddtrace_py
   env:
     TOX_SKIP_DIST: True
-  resource_class:
-    small
 restore_cache_step: &restore_cache_step
   restore_cache:
     keys:
@@ -24,6 +22,7 @@ restore_cache_step: &restore_cache_step
         #                              CACHE_EXPIRE_HASH in our CircleCI's repo settings. Please use the format
         #                              'YYYY-MM-DD'. This way a new push on the branch is not required.
         - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
     key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
@@ -41,6 +40,7 @@ jobs:
   flake8:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -54,6 +54,7 @@ jobs:
   tracer:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -67,6 +68,7 @@ jobs:
   opentracer:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -96,6 +98,7 @@ jobs:
             - DD_APM_ENABLED=true
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -110,6 +113,7 @@ jobs:
   futures:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -125,6 +129,7 @@ jobs:
   boto:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -143,6 +148,7 @@ jobs:
       - image: redis:3.2-alpine
     environment:
       TOX_SKIP_DIST: False
+    resource_class: *resource_class
     steps:
       - checkout
       - run: tox -e '{py27,py34,py35,py36}-ddtracerun' --result-json /tmp/ddtracerun.results
@@ -154,6 +160,7 @@ jobs:
   test_utils:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -167,6 +174,7 @@ jobs:
   asyncio:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -180,6 +188,7 @@ jobs:
   pylons:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -193,6 +202,7 @@ jobs:
   aiohttp:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -208,6 +218,7 @@ jobs:
   tornado:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -223,6 +234,7 @@ jobs:
   bottle:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -243,6 +255,7 @@ jobs:
         env:
           - MAX_HEAP_SIZE=1024M
           - HEAP_NEWSIZE=400M
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -260,6 +273,7 @@ jobs:
         env:
           TOX_SKIP_DIST: False
       - image: redis:3.2-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -274,6 +288,7 @@ jobs:
     docker:
       - *test_runner
       - image: elasticsearch:2.3
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -287,6 +302,7 @@ jobs:
   falcon:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -307,6 +323,7 @@ jobs:
             - DD_APM_ENABLED=true
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -328,6 +345,7 @@ jobs:
       - *test_runner
       - image: redis:3.2-alpine
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -355,6 +373,7 @@ jobs:
   gevent:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -370,6 +389,7 @@ jobs:
   httplib:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -383,6 +403,7 @@ jobs:
   grpc:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -402,6 +423,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -422,6 +444,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -442,6 +465,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -462,6 +486,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -477,6 +502,7 @@ jobs:
     docker:
       - *test_runner
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -491,6 +517,7 @@ jobs:
     docker:
       - *test_runner
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -505,6 +532,7 @@ jobs:
     docker:
       - *test_runner
       - image: mongo:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -519,6 +547,7 @@ jobs:
     docker:
       - *test_runner
       - image: mongo:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -532,6 +561,7 @@ jobs:
   pyramid:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -546,6 +576,7 @@ jobs:
     docker:
       - *test_runner
       - *httpbin_local
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -560,6 +591,7 @@ jobs:
     docker:
       - *test_runner
       - *httpbin_local
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -584,6 +616,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -603,6 +636,7 @@ jobs:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
             - POSTGRES_DB=postgres
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -618,6 +652,7 @@ jobs:
     docker:
       - *test_runner
       - image: palazzem/moto:1.0.1
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -636,6 +671,7 @@ jobs:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
             - POSTGRES_DB=postgres
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -651,6 +687,7 @@ jobs:
     docker:
       - *test_runner
       - image: redis:3.2-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -667,6 +704,7 @@ jobs:
       - image: grokzen/redis-cluster:4.0.9
         env:
           - IP=0.0.0.0
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -686,6 +724,7 @@ jobs:
           - VP_TEST_USER=dbadmin
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -701,6 +740,7 @@ jobs:
     docker:
     - *test_runner
     - image: rabbitmq:3.7-alpine
+    resource_class: *resource_class
     steps:
     - checkout
     - *restore_cache_step
@@ -715,6 +755,7 @@ jobs:
   sqlite3:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -728,6 +769,7 @@ jobs:
   msgpack:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -742,6 +784,7 @@ jobs:
     # build only the nightly package
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -753,6 +796,7 @@ jobs:
     # build the develop branch releasing development docs
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -762,6 +806,7 @@ jobs:
   jinja2:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -776,6 +821,7 @@ jobs:
     # deploy official documentation
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -793,6 +839,7 @@ jobs:
     # deploy official documentation
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -804,6 +851,7 @@ jobs:
     # this step ensures all `tox` environments are properly executed
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - attach_workspace:
           at: /tmp/workspace
