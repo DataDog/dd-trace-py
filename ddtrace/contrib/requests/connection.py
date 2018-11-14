@@ -53,7 +53,6 @@ def _wrap_send(func, instance, args, kwargs):
     request = kwargs.get('request') or args[0]
     if not request:
         return func(*args, **kwargs)
-    traced_headers_whitelist = config.http.get_integration_traced_headers('requests')
 
     # sanitize url of query
     parsed_uri = parse.urlparse(request.url)
@@ -79,7 +78,7 @@ def _wrap_send(func, instance, args, kwargs):
             propagator.inject(span.context, request.headers)
 
         # Storing request headers in the span
-        store_request_headers(request.headers, span, traced_headers_whitelist)
+        store_request_headers(request.headers, span, config.requests)
 
         response = None
         try:
@@ -88,7 +87,7 @@ def _wrap_send(func, instance, args, kwargs):
             # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
             # requests custom structure, that we convert to a dict
             if hasattr(response, 'headers'):
-                store_response_headers(dict(response.headers), span, traced_headers_whitelist)
+                store_response_headers(dict(response.headers), span, config.requests)
             return response
         finally:
             try:
