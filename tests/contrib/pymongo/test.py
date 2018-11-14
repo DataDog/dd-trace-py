@@ -229,11 +229,23 @@ class PymongoCore(object):
             "drop teams",
             "insert teams",
             "insert teams",
-            "query teams {}",
-            'query teams {"name": "?"}',
         ]
 
-        eq_(sorted(expected_resources), sorted(s.resource for s in spans))
+        # query names should be used in >3.1
+        name = 'find' if pymongo.version_tuple >= (3, 1, 0) else 'query'
+
+        expected_resources.extend([
+            '{} teams'.format(name),
+            '{} teams {{"name": "?"}}'.format(name),
+        ])
+
+        eq_(expected_resources, list(s.resource for s in spans))
+
+        # confirm query tag for find all
+        eq_(spans[-2].get_tag('mongodb.query'), None)
+
+        # confirm query tag find with query criteria on name
+        eq_(spans[-1].get_tag('mongodb.query'), "{'name': '?'}")
 
     def test_update_ot(self):
         """OpenTracing version of test_update."""
