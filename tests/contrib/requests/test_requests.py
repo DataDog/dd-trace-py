@@ -17,7 +17,6 @@ from ...util import override_global_tracer
 SOCKET = 'httpbin.org'
 URL_200 = 'http://{}/status/200'.format(SOCKET)
 URL_500 = 'http://{}/status/500'.format(SOCKET)
-URL_SERVICE_PORT = 'http://service.{}:8888/status/200'.format(SOCKET)
 
 
 class BaseRequestTestCase(unittest.TestCase):
