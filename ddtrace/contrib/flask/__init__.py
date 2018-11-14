@@ -1,5 +1,5 @@
 """
-The `Flask <http://flask.pocoo.org/>`_ integration will add tracing to all requests to your Flask application.
+The Flask__ integration will add tracing to all requests to your Flask application.
 
 This integration will track the entire Flask lifecycle including user-defined endpoints, hooks,
 signals, and templating rendering.
@@ -27,6 +27,7 @@ You may also enable Flask tracing automatically via ddtrace-run::
 
     ddtrace-run python app.py
 
+.. __: http://flask.pocoo.org/
 """
 
 from ...utils.importlib import require_modules
