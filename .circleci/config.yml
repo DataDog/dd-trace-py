@@ -905,9 +905,6 @@ workflows:
       - grpc:
           requires:
             - flake8
-      - http_tests:
-          requires:
-            - flake8
       - httplib:
           requires:
             - flake8
@@ -1012,7 +1009,6 @@ workflows:
             - futures
             - gevent
             - grpc
-            - http_tests
             - httplib
             - integration
             - jinja2
