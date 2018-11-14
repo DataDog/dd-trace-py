@@ -1,6 +1,5 @@
 import sys
 
-from ddtrace import config
 from ddtrace.ext import http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
