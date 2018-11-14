@@ -987,7 +987,7 @@ workflows:
           requires:
             - flake8
       - unit_tests:
-          required:
+          requires:
             - flake8
       - vertica:
           requires:
