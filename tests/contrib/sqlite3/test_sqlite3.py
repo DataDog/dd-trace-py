@@ -197,7 +197,7 @@ class TestSQLite(object):
         eq_(fetchmany_span.get_tag('db.fetch.size'), '123')
 
     def test_sqlite_ot(self):
-        '''Ensure sqlite works with the opentracer.'''
+        """Ensure sqlite works with the opentracer."""
         tracer = get_dummy_tracer()
         ot_tracer = init_tracer('sqlite_svc', tracer)
 
