@@ -17,6 +17,7 @@ from ...util import override_global_tracer
 SOCKET = 'httpbin.org'
 URL_200 = 'http://{}/status/200'.format(SOCKET)
 URL_500 = 'http://{}/status/500'.format(SOCKET)
+URL_SERVICE_PORT = 'http://service.{}:8888/status/200'.format(SOCKET)
 
 
 class BaseRequestTestCase(unittest.TestCase):
@@ -302,6 +303,19 @@ class TestRequests(BaseRequestTestCase):
         cfg = config.get_from(self.session)
         cfg['split_by_domain'] = True
         out = self.session.get('http://httpbin.org:80')
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'httpbin.org:80')
+
+    def test_split_by_domain_includes_port_path(self):
+        # ensure that port is included if present in URL but not path
+        cfg = config.get_from(self.session)
+        cfg['split_by_domain'] = True
+        out = self.session.get('http://httpbin.org:80/anything/v1/foo')
         eq_(out.status_code, 200)
 
         spans = self.tracer.writer.pop()
