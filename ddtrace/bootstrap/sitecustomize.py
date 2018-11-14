@@ -63,7 +63,7 @@ try:
     # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
-    hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+    hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
 
