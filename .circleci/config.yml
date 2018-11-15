@@ -138,7 +138,7 @@ jobs:
   ddtracerun:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     environment:
       TOX_SKIP_DIST: False
     steps:
@@ -257,7 +257,7 @@ jobs:
       - <<: *test_runner
         env:
           TOX_SKIP_DIST: False
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     steps:
       - checkout
       - *restore_cache_step
@@ -298,7 +298,7 @@ jobs:
   django:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
         env:
@@ -324,7 +324,7 @@ jobs:
   flask:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
     steps:
       - checkout
@@ -648,7 +648,7 @@ jobs:
   redis:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     steps:
       - checkout
       - *restore_cache_step
