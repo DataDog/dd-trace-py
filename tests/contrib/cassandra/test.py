@@ -266,11 +266,13 @@ class CassandraBase(object):
         s = spans[0]
         eq_(
             s.resource,
-            """INSERT INTO test.person_write (name, age, description) VALUES ('Joe', 1, 'a'); """
-            """INSERT INTO test.person_write (name, age, description) VALUES ('Jane', 2, 'b')"""
+            (
+                'INSERT INTO test.person_write (name, age, description) VALUES (\'Joe\', 1, \'a\'); '
+                'INSERT INTO test.person_write (name, age, description) VALUES (\'Jane\', 2, \'b\')'
+            )
         )
         eq_(s.get_metric('cassandra.batch_size'), 2)
-        assert 'test.person' in s.get_tag('cassandra.query')
+        assert 'test.person' in s.resource
 
 
 class TestCassPatchDefault(CassandraBase):
