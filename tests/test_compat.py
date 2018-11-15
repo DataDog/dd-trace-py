@@ -72,10 +72,10 @@ if PY2:
             get_connection_response(mock)
 
         def test_stringify_unicode(self):
-            # ensure stringify can handle decoding unicode values
-            stringify('€')
-            stringify('\xc3\xbf')
-            stringify('好')
+            # ensure stringify can handle decoding strings that have been to_unicode()'d
+            stringify(to_unicode('€'))
+            stringify(to_unicode('\xc3\xbf'))
+            stringify(to_unicode('好'))
 
 else:
     class TestCompatPY3(object):
