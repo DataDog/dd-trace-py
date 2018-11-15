@@ -223,14 +223,14 @@ class CassandraBase(object):
 
     def test_unicode_batch_statement(self):
         # ensure that unicode included in queries is properly handled
-        session, writer = self._traced_session()
+        session, tracer = self._traced_session()
 
         batch = BatchStatement()
         query = 'INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'
         batch.add(SimpleStatement(query), ('Joe', 1, '好'))
         session.execute(batch)
 
-        spans = writer.pop()
+        spans = tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
         eq_(s.resource, 'BatchStatement')
