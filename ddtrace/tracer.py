@@ -11,6 +11,7 @@ from .span import Span
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
+from .utils.deprecation import deprecated
 
 
 log = logging.getLogger(__name__)
@@ -333,35 +334,19 @@ class Tracer(object):
             # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans=spans)
 
+    @deprecated(message='Service info is now inferred from spans based upon span_type', version='1.0.0')
     def set_service_info(self, service, app, app_type):
         """Set the information about the given service.
+
+        Note: This method has been deprecated since the the app and service
+        info is now inferred from a span based upon the span_type and service
+        attributes, respectively.
 
         :param str service: the internal name of the service (e.g. acme_search, datadog_web)
         :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
         :param str app_type: the type of the application (e.g. db, web)
         """
-        try:
-            # don't bother sending the same services over and over.
-            info = (service, app, app_type)
-            if self._services.get(service, None) == info:
-                return
-            self._services[service] = info
-
-            if self.debug_logging:
-                log.debug("set_service_info: service:%s app:%s type:%s", service, app, app_type)
-
-            # If we had changes, send them to the writer.
-            if self.enabled and self.writer:
-
-                # translate to the form the server understands.
-                services = {}
-                for service, app, app_type in self._services.values():
-                    services[service] = {"app" : app, "app_type" : app_type}
-
-                # queue them for writes.
-                self.writer.write(services=services)
-        except Exception:
-            log.debug("error setting service info", exc_info=True)
+        pass
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """

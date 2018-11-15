@@ -26,22 +26,18 @@ class AgentWriter(object):
     def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
         self._pid = None
         self._traces = None
-        self._services = None
         self._worker = None
         self._filters = filters
         self._priority_sampler = priority_sampler
         priority_sampling = priority_sampler is not None
         self.api = api.API(hostname, port, priority_sampling=priority_sampling)
 
-    def write(self, spans=None, services=None):
+    def write(self, spans=None):
         # if the worker needs to be reset, do it.
         self._reset_worker()
 
         if spans:
             self._traces.add(spans)
-
-        if services:
-            self._services.add(services)
 
     def _reset_worker(self):
         # if this queue was created in a different process (i.e. this was
@@ -50,7 +46,6 @@ class AgentWriter(object):
         if self._pid != pid:
             log.debug("resetting queues. pids(old:%s new:%s)", self._pid, pid)
             self._traces = Q(max_size=MAX_TRACES)
-            self._services = Q(max_size=MAX_SERVICES)
             self._worker = None
             self._pid = pid
 
@@ -59,7 +54,6 @@ class AgentWriter(object):
             self._worker = AsyncWorker(
                 self.api,
                 self._traces,
-                self._services,
                 filters=self._filters,
                 priority_sampler=self._priority_sampler,
             )
@@ -67,10 +61,9 @@ class AgentWriter(object):
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT,
+    def __init__(self, api, trace_queue, shutdown_timeout=DEFAULT_TIMEOUT,
                  filters=None, priority_sampler=None):
         self._trace_queue = trace_queue
-        self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
@@ -128,7 +121,6 @@ class AsyncWorker(object):
 
     def _target(self):
         result_traces = None
-        result_services = None
 
         while True:
             traces = self._trace_queue.pop()
@@ -146,13 +138,6 @@ class AsyncWorker(object):
                 except Exception as err:
                     log.error("cannot send spans to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
-            services = self._service_queue.pop()
-            if services:
-                try:
-                    result_services = self.api.send_services(services)
-                except Exception as err:
-                    log.error("cannot send services to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
-
             if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
                 return
@@ -164,8 +149,6 @@ class AsyncWorker(object):
 
             self._log_error_status(result_traces, "traces")
             result_traces = None
-            self._log_error_status(result_services, "services")
-            result_services = None
 
             time.sleep(1)  # replace with a blocking pop.
 
