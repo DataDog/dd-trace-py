@@ -652,7 +652,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210}' --result-json /tmp/redis.results
+      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210,300}' --result-json /tmp/redis.results
       - persist_to_workspace:
           root: /tmp
           paths:
