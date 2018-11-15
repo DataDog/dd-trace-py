@@ -269,7 +269,7 @@ class TestSpanContainer(object):
         """
         Find a single span matches the provided filter parameters.
 
-        This function will find the first spans whose `TestSpan.matches` function return `True`
+        This function will find the first span whose `TestSpan.matches` function return `True`
 
         :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
         :type *args: list
