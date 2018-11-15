@@ -54,9 +54,6 @@ class Tracer(object):
         # globally set tags
         self.tags = {}
 
-        # a buffer for service info so we dont' perpetually send the same things
-        self._services = {}
-
     def get_call_context(self, *args, **kwargs):
         """
         Return the current active ``Context`` for this traced execution. This method is

@@ -78,7 +78,6 @@ class API(object):
             return
         self._version = version
         self._traces = _VERSIONS[version]['traces']
-        self._services = _VERSIONS[version]['services']
         self._fallback = _VERSIONS[version]['fallback']
         self._compatibility_mode = _VERSIONS[version]['compatibility_mode']
         if self._compatibility_mode:
@@ -111,24 +110,6 @@ class API(object):
             return self.send_traces(traces)
 
         log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
-        return response
-
-    def send_services(self, services):
-        if not services:
-            return
-        s = {}
-        for service in services:
-            s.update(service)
-        data = self._encoder.encode_services(s)
-        response = self._put(self._services, data)
-
-        # the API endpoint is not available so we should downgrade the connection and re-try the call
-        if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._services, response.status)
-            self._downgrade()
-            return self.send_services(services)
-
-        log.debug("reported %d services", len(services))
         return response
 
     def _put(self, endpoint, data, count=0):

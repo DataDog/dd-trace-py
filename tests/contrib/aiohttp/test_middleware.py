@@ -23,16 +23,6 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    def test_tracing_service(self):
-        # it should configure the aiohttp service
-        eq_(1, len(self.tracer._services))
-        service = self.tracer._services.get('aiohttp-web')
-        eq_('aiohttp-web', service[0])
-        eq_('aiohttp', service[1])
-        eq_('web', service[2])
-
-    @unittest_run_loop
-    @asyncio.coroutine
     def test_handler(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
