@@ -145,7 +145,7 @@ jobs:
   ddtracerun:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     environment:
       TOX_SKIP_DIST: False
     resource_class: *resource_class
@@ -272,7 +272,7 @@ jobs:
       - <<: *test_runner
         env:
           TOX_SKIP_DIST: False
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     resource_class: *resource_class
     steps:
       - checkout
@@ -322,7 +322,7 @@ jobs:
   django:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
         env:
@@ -349,7 +349,7 @@ jobs:
   flask:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
     resource_class: *resource_class
     steps:
@@ -705,12 +705,12 @@ jobs:
   redis:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210}' --result-json /tmp/redis.results
+      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210,300}' --result-json /tmp/redis.results
       - persist_to_workspace:
           root: /tmp
           paths:

@@ -6,7 +6,6 @@ that we expect to be implicitly traced via `ddtrace-run`
 from __future__ import print_function
 
 import redis
-import os
 
 from ddtrace import Pin
 from tests.contrib.config import REDIS_CONFIG
@@ -27,7 +26,11 @@ if __name__ == '__main__':
 
     eq_(len(spans), 1)
     eq_(spans[0].service, 'redis')
-    eq_(spans[0].resource, 'FLUSHALL')
+
+    if redis.VERSION < (3, 0, 0):
+        eq_(spans[0].resource, 'FLUSHALL')
+    else:
+        eq_(spans[0].resource, 'FLUSHALL ASYNC')
 
     long_cmd = "mget %s" % " ".join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
