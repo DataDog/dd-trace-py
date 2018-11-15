@@ -53,13 +53,6 @@ class TraceBottleTest(TestCase):
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
 
-        services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
-
     def test_500(self):
         @self.app.route('/hi')
         def hi():

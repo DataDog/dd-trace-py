@@ -59,13 +59,6 @@ class PyramidTestCase(PyramidBase):
         eq_(s.meta.get('http.url'), '/')
         eq_(s.meta.get('pyramid.route.name'), 'index')
 
-        # ensure services are set correctly
-        services = writer.pop_services()
-        expected = {
-            'foobar': {"app": "pyramid", "app_type": "web"}
-        }
-        eq_(services, expected)
-
     def test_404(self):
         self.app.get('/404', status=404)
 

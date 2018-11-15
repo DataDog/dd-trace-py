@@ -162,14 +162,6 @@ class SQLAlchemyTestMixin(object):
         eq_(span.error, 0)
         ok_(span.duration > 0)
 
-    def test_traced_service(self):
-        # ensures that the service is set as expected
-        services = self.tracer.writer.pop_services()
-        expected = {
-            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
-        }
-        eq_(services, expected)
-
     def test_opentracing(self):
         """Ensure that sqlalchemy works with the opentracer."""
         ot_tracer = init_tracer('sqlalch_svc', self.tracer)

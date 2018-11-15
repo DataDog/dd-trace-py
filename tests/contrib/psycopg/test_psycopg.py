@@ -195,14 +195,6 @@ class PsycopgCore(object):
             Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
             self.assert_conn_is_traced(tracer, conn, service)
 
-        # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
-        expected = {
-            "db" : {"app":"postgres", "app_type":"db"},
-            "another" : {"app":"postgres", "app_type":"db"},
-        }
-        eq_(service_meta, expected)
-
     def test_commit(self):
         conn, tracer = self._get_conn_and_tracer()
         writer = tracer.writer

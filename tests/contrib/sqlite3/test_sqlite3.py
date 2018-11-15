@@ -6,7 +6,6 @@ import time
 from nose.tools import eq_, ok_
 
 # project
-import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.sqlite3 import connection_factory
 from ddtrace.contrib.sqlite3.patch import patch, unpatch
@@ -34,22 +33,6 @@ class TestSQLite(object):
 
     def tearDown(self):
         unpatch()
-
-    def test_service_info(self):
-        tracer = get_dummy_tracer()
-        backup_tracer = ddtrace.tracer
-        ddtrace.tracer = tracer
-
-        db = sqlite3.connect(':memory:')
-
-        services = tracer.writer.pop_services()
-        eq_(len(services), 1)
-        expected = {
-            'sqlite': {'app': 'sqlite', 'app_type': 'db'}
-        }
-        eq_(expected, services)
-
-        ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):
         tracer = get_dummy_tracer()
@@ -259,7 +242,6 @@ class TestSQLite(object):
         span = spans[0]
         eq_(span.service, 'sqlite')
         eq_(span.name, 'sqlite.connection.rollback')
-
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()

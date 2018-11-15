@@ -114,12 +114,6 @@ class TestFlask(TestCase):
         eq_(s.meta.get(http.STATUS_CODE), '200')
         eq_(s.meta.get(http.METHOD), 'GET')
 
-        services = self.tracer.writer.pop_services()
-        expected = {
-            "test.flask.service": {"app":"flask", "app_type":"web"}
-        }
-        eq_(services, expected)
-
     def test_template(self):
         start = time.time()
         rv = self.app.get('/tmpl')
