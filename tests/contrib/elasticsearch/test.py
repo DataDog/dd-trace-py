@@ -2,14 +2,13 @@ import datetime
 import unittest
 
 # 3p
-from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import TransportError
 from nose.tools import eq_
 
 # project
 from ddtrace import Pin
 from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport
+from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
 from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 
 # testing
@@ -31,12 +30,12 @@ class ElasticsearchTest(unittest.TestCase):
 
     def setUp(self):
         """Prepare ES"""
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def tearDown(self):
         """Clean ES"""
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def test_elasticsearch(self):
@@ -50,7 +49,7 @@ class ElasticsearchTest(unittest.TestCase):
                 datadog_tracer=tracer,
                 datadog_service=self.TEST_SERVICE)
 
-        es = Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
 
         # Test index creation
         mapping = {"mapping": {"properties": {"created": {"type":"date", "format": "yyyy-MM-dd"}}}}
@@ -124,8 +123,8 @@ class ElasticsearchTest(unittest.TestCase):
         writer.pop()
         try:
             es.get(index="non_existent_index", id=100, doc_type="_all")
-            eq_("error_not_raised", "TransportError")
-        except TransportError as e:
+            eq_("error_not_raised", "elasticsearch.exceptions.TransportError")
+        except elasticsearch.exceptions.TransportError as e:
             spans = writer.pop()
             assert spans
             span = spans[0]
@@ -135,8 +134,8 @@ class ElasticsearchTest(unittest.TestCase):
         try:
             es.indices.create(index=10)
             es.indices.create(index=10)
-            eq_("error_not_raised", "TransportError")
-        except TransportError as e:
+            eq_("error_not_raised", "elasticsearch.exceptions.TransportError")
+        except elasticsearch.exceptions.TransportError as e:
             spans = writer.pop()
             assert spans
             span = spans[-1]
@@ -156,7 +155,7 @@ class ElasticsearchTest(unittest.TestCase):
                 datadog_tracer=tracer,
                 datadog_service=self.TEST_SERVICE)
 
-        es = Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(transport_class=transport_class, port=ELASTICSEARCH_CONFIG['port'])
 
         # Test index creation
         mapping = {"mapping": {"properties": {"created": {"type":"date", "format": "yyyy-MM-dd"}}}}
@@ -200,14 +199,14 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
     def setUp(self):
         """Prepare ES"""
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
         patch()
 
     def tearDown(self):
         """Clean ES"""
         unpatch()
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def test_elasticsearch(self):
@@ -218,7 +217,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         """Test the elasticsearch integration with patching
 
         """
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
 
         tracer = get_dummy_tracer()
         writer = tracer.writer
@@ -305,7 +304,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         patch()
         patch()
 
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es.transport)
 
         # Test index creation
@@ -318,7 +317,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         # Test unpatch
         unpatch()
 
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -329,7 +328,7 @@ class ElasticsearchPatchTest(unittest.TestCase):
         # Test patch again
         patch()
 
-        es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es.transport)
 
         # Test index creation
