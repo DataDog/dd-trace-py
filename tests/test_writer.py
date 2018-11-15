@@ -44,14 +44,13 @@ class AsyncWorkerTests(TestCase):
     def setUp(self):
         self.api = DummmyAPI()
         self.traces = Q()
-        self.services = Q()
         for i in range(N_TRACES):
             self.traces.add([Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j-1 or None) for j in range(7)])
 
     def test_filters_keep_all(self):
         filtr = KeepAllFilter()
         filters = [filtr]
-        worker = AsyncWorker(self.api, self.traces, self.services, filters=filters)
+        worker = AsyncWorker(self.api, self.traces, filters=filters)
         worker.stop()
         worker.join()
         self.assertEqual(len(self.api.traces), N_TRACES)
@@ -60,7 +59,7 @@ class AsyncWorkerTests(TestCase):
     def test_filters_remove_all(self):
         filtr = RemoveAllFilter()
         filters = [filtr]
-        worker = AsyncWorker(self.api, self.traces, self.services, filters=filters)
+        worker = AsyncWorker(self.api, self.traces, filters=filters)
         worker.stop()
         worker.join()
         self.assertEqual(len(self.api.traces), 0)
@@ -70,7 +69,7 @@ class AsyncWorkerTests(TestCase):
         tag_name = "Tag"
         filtr = AddTagFilter(tag_name)
         filters = [filtr]
-        worker = AsyncWorker(self.api, self.traces, self.services, filters=filters)
+        worker = AsyncWorker(self.api, self.traces, filters=filters)
         worker.stop()
         worker.join()
         self.assertEqual(len(self.api.traces), N_TRACES)
@@ -82,7 +81,7 @@ class AsyncWorkerTests(TestCase):
     def test_filters_short_circuit(self):
         filtr = KeepAllFilter()
         filters = [RemoveAllFilter(), filtr]
-        worker = AsyncWorker(self.api, self.traces, self.services, filters=filters)
+        worker = AsyncWorker(self.api, self.traces, filters=filters)
         worker.stop()
         worker.join()
         self.assertEqual(len(self.api.traces), 0)

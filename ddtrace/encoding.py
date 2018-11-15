@@ -46,14 +46,6 @@ class Encoder(object):
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
         return self._encode(normalized_traces)
 
-    def encode_services(self, services):
-        """
-        Encodes a dictionary of services.
-
-        :param services: A dictionary that contains one or more services
-        """
-        return self._encode(services)
-
     def _encode(self, obj):
         """
         Defines the underlying format used during traces or services encoding.
