@@ -71,10 +71,6 @@ if PY2:
             mock = MockConn()
             get_connection_response(mock)
 
-        def test_error(self):
-            unicode('€')
-            unicode('\xc3\xbf')
-
         def test_stringify_unicode(self):
             # ensure stringify can handle decoding unicode values
             stringify('€')
@@ -134,7 +130,7 @@ class TestPy2Py3Compat(object):
         with assert_raises(Exception) as ex:
             try:
                 raise Exception('Ouch!')
-            except Exception as e:
+            except Exception:
                 # original exception we want to re-raise
                 (typ, val, tb) = sys.exc_info()
                 try:
