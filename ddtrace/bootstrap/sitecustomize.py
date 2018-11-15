@@ -43,6 +43,18 @@ def update_patched_modules():
         EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == 'true'})
 
 
+def add_global_tags(tracer):
+    tags = {}
+    for tag in os.environ.get('DD_TRACE_GLOBAL_TAGS', '').split(','):
+        tag_name, _, tag_value = tag.partition(':')
+        if not tag_name or not tag_value:
+            log.debug('skipping malformed tracer tag')
+            continue
+
+        tags[tag_name] = tag_value
+    tracer.set_tags(tags)
+
+
 try:
     from ddtrace import tracer
     patch = True
@@ -51,7 +63,7 @@ try:
     # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
     enabled = os.environ.get("DATADOG_TRACE_ENABLED")
-    hostname = os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+    hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
 
@@ -80,6 +92,9 @@ try:
 
     if 'DATADOG_ENV' in os.environ:
         tracer.set_tags({"env": os.environ["DATADOG_ENV"]})
+
+    if 'DD_TRACE_GLOBAL_TAGS' in os.environ:
+        add_global_tags(tracer)
 
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search

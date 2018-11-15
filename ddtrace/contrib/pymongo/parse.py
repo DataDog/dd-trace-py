@@ -1,4 +1,3 @@
-
 import ctypes
 import logging
 import struct
@@ -128,9 +127,8 @@ def parse_query(query):
         coll = getattr(query, "coll", None)
         db = getattr(query, "db", None)
 
-    # FIXME[matt] mongo < 3.1 _Query doesn't not have a name field,
-    # so hardcode to query.
-    cmd = Command("query", db, coll)
+    # pymongo < 3.1 _Query does not have a name field, so default to 'query'
+    cmd = Command(getattr(query, 'name', 'query'), db, coll)
     cmd.query = query.spec
     return cmd
 
