@@ -3,8 +3,10 @@ import unittest
 from ddtrace import patch
 
 from tests.contrib import PatchMixin
+from tests.runner import run_clean
 
 
+@run_clean
 class TestGeventPatch(PatchMixin, unittest.TestCase):
     def assert_patched(self, gevent):
         from ddtrace.contrib.gevent.greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered
@@ -30,12 +32,8 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         self.assertFalse(gevent.pool.IMapUnordered is TracedIMapUnordered)
 
     def test_patch_before_import(self):
-        self.assert_module_not_imported('gevent')
-        trigger_reload = self.module_imported('gevent')
         patch(gevent=True)
         import gevent
-        if trigger_reload:
-            self.reload_module(gevent)
         self.assert_patched(gevent)
 
     def test_patch_after_import(self):

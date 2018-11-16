@@ -6,9 +6,8 @@ from ddtrace.ext import errors, http
 from nose.tools import assert_raises, eq_
 
 from tests.opentracer.utils import init_tracer
-
-from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
+from tests.test_tracer import get_dummy_tracer
+from tests.util import override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -181,6 +180,7 @@ class TestRequests(BaseRequestTestCase):
         cfg = config.get_from(self.session)
         cfg['service_name'] = 'clients'
         out = self.session.get(URL_200)
+        print(out.content)
         eq_(out.status_code, 200)
 
         spans = self.tracer.writer.pop()

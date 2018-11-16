@@ -54,7 +54,7 @@ def integration_modname(intname, basemodname=None):
     return '{}.{}'.format(basemodname, intname)
 
 
-def install_all(overrides={}, raise_errors=False):
+def install_all(overrides=None, raise_errors=False):
     """
     Installs all default enabled integrations allowing the defaults to be
     overridden.
@@ -64,6 +64,7 @@ def install_all(overrides={}, raise_errors=False):
     :param raise_errors: whether or not to raise errors when they occur
     :type raise_errors: bool
     """
+    overrides = overrides or {}
     integrations_to_install = DEFAULT_INTEGRATIONS.copy()
     integrations_to_install.update(overrides)
 
@@ -97,9 +98,7 @@ def install(integration, raise_errors=False):
             return
 
     if not hasattr(intmod, 'patch'):
-        log.error(
-            'install: integration {} does not have patch '
-            'attribute'.format(integration))
+        log.error('install: integration {} does not have patch attribute'.format(integration))
         return
 
     intmod.patch()

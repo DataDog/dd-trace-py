@@ -36,7 +36,7 @@ def uninstall_module_import_hook(modulename):
     simply removed/disables the import hook.
     """
     if modulename in sys.modules:
-        module = __import__(modulename)
+        module = sys.modules[modulename]
         _mark_module_unpatched(module)
     _deregister_post_import_hook(modulename, _hook_matcher)
 

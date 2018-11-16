@@ -3,7 +3,7 @@ from nose.tools import eq_, assert_in, assert_not_in
 
 from ddtrace import config
 
-from .test_requests import BaseRequestTestCase
+from tests.contrib.requests.test_requests import BaseRequestTestCase
 
 
 class TestRequestsDistributed(BaseRequestTestCase):

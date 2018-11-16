@@ -3,22 +3,15 @@ import unittest
 from ddtrace import patch
 
 from tests.contrib import PatchMixin
+from tests.cleantest import clean
 
 
+def test_something():
+    assert False
+
+
+@clean
 class TestRequestsPatch(PatchMixin, unittest.TestCase):
-    def setUp(self):
-        import sys
-        if 'requests' not in sys.modules:
-            import ddtrace.contrib.requests # noqa
-            assert 'requests' not in sys.modules, 'module should not be loaded when importing integration'
-
-    def tearDown(self):
-        if self.module_imported('requests'):
-            import requests
-            from ddtrace.contrib.requests import unpatch
-            unpatch()
-            self.reload_module(requests)
-
     def assert_patched(self, requests):
         self.assert_wrapped(requests.Session.send)
 
