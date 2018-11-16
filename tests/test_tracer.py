@@ -49,19 +49,18 @@ class TracerTestCase(BaseTracerTestCase):
         self.assert_has_no_spans()
         _make_cake()
 
-        root = self.get_root_span()
+        # Capture root's trace id to assert later
+        root_trace_id = self.get_root_span().trace_id
+
+        # Assert structure of this trace
         self.assert_structure(
             # Root span with 2 children
             dict(name='cake.make', resource='cake', service='baker', parent_id=None),
             (
-                (
-                    # Span with no children
-                    dict(name='cake.mix', resource='cake.mix', service='baker'), (),
-                ),
-                (
-                    # Span with no children
-                    dict(name='cake.bake', resource='cake.bake', service='baker'), (),
-                ),
+                # Span with no children
+                dict(name='cake.mix', resource='cake.mix', service='baker'),
+                # Span with no children
+                dict(name='cake.bake', resource='cake.bake', service='baker'),
             ),
         )
 
@@ -70,7 +69,7 @@ class TracerTestCase(BaseTracerTestCase):
         _make_cake()
         self.assert_span_count(3)
         for s in self.spans:
-            assert s.trace_id != root.trace_id
+            assert s.trace_id != root_trace_id
 
     def test_tracer_wrap(self):
         @self.tracer.wrap('decorated_function', service='s', resource='r', span_type='t')
@@ -105,7 +104,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         f()
 
-        self.assert_structure(dict(name='tests.test_tracer.f'), ())
+        self.assert_structure(dict(name='tests.test_tracer.f'))
 
     def test_tracer_wrap_exception(self):
         @self.tracer.wrap()
@@ -124,7 +123,6 @@ class TracerTestCase(BaseTracerTestCase):
                         'error.type': ex.__class__.__name__,
                     },
                 ),
-                (),
             )
 
     def test_tracer_wrap_multiple_calls(self):
@@ -176,7 +174,7 @@ class TracerTestCase(BaseTracerTestCase):
                 (
                     dict(name='mid'),
                     (
-                        (dict(name='inner'), ()),
+                        dict(name='inner'),
                     )
                 ),
             ),
@@ -255,13 +253,10 @@ class TracerTestCase(BaseTracerTestCase):
         self.assert_structure(
             dict(name='wrap.parent', service='webserver'),
             (
-                (
-                    dict(
-                        name='wrap.overwrite',
-                        service='webserver',
-                        meta=dict(args='(42,)', kwargs='{\'kw_param\': 42}')
-                    ),
-                    (),
+                dict(
+                    name='wrap.overwrite',
+                    service='webserver',
+                    meta=dict(args='(42,)', kwargs='{\'kw_param\': 42}')
                 ),
             ),
         )
