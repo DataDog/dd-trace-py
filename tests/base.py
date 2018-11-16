@@ -23,15 +23,6 @@ class BaseTestCase(unittest.TestCase):
             def test_case(self):
                 self.assert_is_wrapped(obj)
     """
-    def assert_is_wrapped(self, obj):
-        """
-        Assert that the provided ``obj`` is a ``wrapt.ObjectProxy`` instance
-
-        :param obj: Object to assert
-        :type obj: object
-        :raises: AssertionError
-        """
-        self.assertTrue(isinstance(obj, wrapt.ObjectProxy))
 
     @contextlib.contextmanager
     def override_config(self, integration, values):
