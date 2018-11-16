@@ -6,7 +6,7 @@ import wrapt
 from ddtrace import config
 
 from .utils.tracer import DummyTracer
-from .utils.span import TestSpanContainer, TestSpan
+from .utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
 class BaseTestCase(unittest.TestCase):
@@ -78,7 +78,7 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         """Helper for self.tracer.start_span that returns a TestSpan"""
         return TestSpan(self.tracer.start_span(*args, **kwargs))
 
-    def assert_structure(self, root, children):
+    def assert_structure(self, root, children=NO_CHILDREN):
         """Helper to call TestSpanNode.assert_structure on the current root span"""
         root_span = self.get_root_span()
         root_span.assert_structure(root, children)

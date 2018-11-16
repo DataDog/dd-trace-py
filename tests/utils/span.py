@@ -1,5 +1,8 @@
 from ddtrace.span import Span
 
+NO_CHILDREN = object()
+
+
 class TestSpan(Span):
     """
     Test wrapper for a :class:`ddtrace.span.Span` that provides additional functions and assertions
@@ -320,7 +323,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
         """required subclass property, returns this spans children"""
         return self._children
 
-    def assert_structure(self, root, children):
+    def assert_structure(self, root, children=NO_CHILDREN):
         """
         Assertion to assert on the structure of this node and it's children.
 
@@ -348,14 +351,12 @@ class TestSpanNode(TestSpan, TestSpanContainer):
 
                             # One requests.request span with no children
                             (
-                                dict(name='requests.request'), (),
+                                dict(name='requests.request'),
                             ),
                         ),
 
                         # Child span with no children
-                        (
-                            dict(name='child_span'), (),
-                        ),
+                        dict(name='child_span'),
                     ),
                 )
 
@@ -374,9 +375,15 @@ class TestSpanNode(TestSpan, TestSpanContainer):
         # Give them a way to ignore asserting on children
         if children is None:
             return
+        elif children is NO_CHILDREN:
+            children = ()
 
         spans = self.spans
         self.assert_span_count(len(children))
-        for i, (root, _children) in enumerate(children):
+        for i, child in enumerate(children):
+            if not isinstance(child, (list, tuple)):
+                child = (child, NO_CHILDREN)
+
+            root, _children = child
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
