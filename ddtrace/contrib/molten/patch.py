@@ -20,12 +20,36 @@ config._add('molten', dict(
     app_type=AppTypes.web
 ))
 
+def trace_wrapped(resource, wrapped, *args, **kwargs):
+    pin = Pin.get_from(molten)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
+        return wrapped(*args, **kwargs)
+
+class WrapperComponent(wrapt.ObjectProxy):
+    def can_handle_parameter(self, *args, **kwargs):
+        func = self.__wrapped__.can_handle_parameter
+        cname = self.__wrapped__.__class__.__name__
+        return trace_wrapped(cname, func, *args, **kwargs)
+
+    def resolve(self, *args, **kwargs):
+        func = self.__wrapped__.resolve
+        cname = self.__wrapped__.__class__.__name__
+        return trace_wrapped(cname, func, *args, **kwargs)
+
+
+class WrapperRenderer(wrapt.ObjectProxy):
+    def render(self, *args, **kwargs):
+        func = self.__wrapped__.render
+        cname = self.__wrapped__.__class__.__name__
+        return trace_wrapped(cname, func, *args, **kwargs)
+
 def patch():
     """Patch the instrumented methods
     """
-    print('patch:', getattr(molten, '_datadog_patch', False))
     if getattr(molten, '_datadog_patch', False):
-        print('already patched')
         return
     setattr(molten, '_datadog_patch', True)
 
@@ -46,9 +70,7 @@ def patch():
 def unpatch():
     """Remove instrumentation
     """
-    print('unpatch:', getattr(molten, '_datadog_patch', False))
     if getattr(molten, '_datadog_patch', False):
-        print('unpatching')
         setattr(molten, '_datadog_patch', False)
 
         pin = Pin.get_from(molten)
@@ -175,11 +197,19 @@ def patch_app_init(wrapped, instance, args, kwargs):
     ]
 
     # patch class methods of component instances
-    for component in instance.components:
-        component.__class__.can_handle_parameter = \
-            trace_func(component.__class__.__name__)(component.can_handle_parameter)
-        component.__class__.resolve = trace_func(component.__class__.__name__)(component.resolve)
+    instance.components = [
+        WrapperComponent(c)
+        for c in instance.components
+    ]
+
+    # re-init dependency injector with wrapped components
+    instance.injector = molten.DependencyInjector(
+        components=instance.components,
+        singletons={molten.BaseApp: instance},
+    )
 
     # patch renderers
-    for renderers in instance.renderers:
-        renderers.__class__.render = trace_func(renderers.__class__.__name__)(renderers.render)
+    instance.renderers = [
+        WrapperRenderer(r)
+        for r in instance.renderers
+    ]
