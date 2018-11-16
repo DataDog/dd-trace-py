@@ -547,7 +547,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'requests_contrib{,_autopatch}-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
+      - run: tox -e 'requests_contrib{,_patch,_autopatch}-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
       - persist_to_workspace:
           root: /tmp
           paths:

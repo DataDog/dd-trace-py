@@ -30,6 +30,7 @@ class TestGeventPatch(PatchMixin, unittest.TestCase):
         self.assertFalse(gevent.pool.IMapUnordered is TracedIMapUnordered)
 
     def test_patch_before_import(self):
+        self.assert_module_not_imported('gevent')
         trigger_reload = self.module_imported('gevent')
         patch(gevent=True)
         import gevent

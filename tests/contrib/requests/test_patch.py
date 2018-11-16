@@ -26,11 +26,9 @@ class TestRequestsPatch(PatchMixin, unittest.TestCase):
         self.assert_not_wrapped(requests.Session.send)
 
     def test_patch_before_import(self):
-        trigger_reload = self.module_imported('requests')
+        self.assert_module_not_imported('requests')
         patch(requests=True)
         import requests
-        if trigger_reload:
-            self.reload_module(requests)
         self.assert_patched(requests)
 
     def test_patch_after_import(self):
