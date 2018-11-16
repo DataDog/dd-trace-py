@@ -1,6 +1,17 @@
 """
 To trace the molten web framework, run ``patch``::
 
+    from ddtrace.contrib.molten import patch
+
+    from molten import App, Route
+
+    # run patching for molten components
+    patch()
+
+    def hello(name: str, age: int) -> str:
+        return f'Hello {age} year old named {name}!'
+    app = App(routes=[Route('/hello/{name}/{age}', hello)])
+
 
 To enable distributed tracing when using autopatching, set the
 ``DATADOG_MOLTEN_DISTRIBUTED_TRACING`` environment variable to ``True``.

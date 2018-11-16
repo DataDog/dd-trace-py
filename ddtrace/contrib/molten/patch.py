@@ -23,7 +23,9 @@ config._add('molten', dict(
 def patch():
     """Patch the instrumented methods
     """
+    print('patch:', getattr(molten, '_datadog_patch', False))
     if getattr(molten, '_datadog_patch', False):
+        print('already patched')
         return
     setattr(molten, '_datadog_patch', True)
 
@@ -37,16 +39,22 @@ def patch():
     pin.onto(molten)
 
     _w = wrapt.wrap_function_wrapper
-    _w('molten', 'App.__init__', patch_app_init)
+    _w('molten', 'BaseApp.__init__', patch_app_init)
     _w('molten', 'App.__call__', patch_app_call)
     _w('molten', 'Router.add_route', patch_add_route)
 
 def unpatch():
     """Remove instrumentation
     """
+    print('unpatch:', getattr(molten, '_datadog_patch', False))
     if getattr(molten, '_datadog_patch', False):
+        print('unpatching')
         setattr(molten, '_datadog_patch', False)
-        unwrap(molten.App, '__init__')
+
+        pin = Pin.get_from(molten)
+        pin.remove_from(molten)
+
+        unwrap(molten.BaseApp, '__init__')
         unwrap(molten.App, '__call__')
         unwrap(molten.Router, 'add_route')
 
