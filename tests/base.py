@@ -1,8 +1,6 @@
 import contextlib
 import unittest
 
-import wrapt
-
 from ddtrace import config
 
 from .utils.tracer import DummyTracer
