@@ -124,8 +124,7 @@ class CleanTestSuite(unittest.TestSuite):
             )
             result = pickle.loads(output)
         except subprocess.CalledProcessError as err:
-            result = unittest.TestResult()
-            result.addFailure(test, (None, err.output, None))
+            result = pickle.loads(err.output)
         return result
 
     def run(self, result, debug=False):

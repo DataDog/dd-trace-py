@@ -39,7 +39,7 @@ def main():
 
     suite = unittest.TestSuite([
             loader.discover(test_dir, top_level_dir=cwd),
-            patch_loader.discover(test_dir, pattern='test_patch.py', top_level_dir=cwd),
+            patch_loader.discover(test_dir, pattern='test_patch.py'),
     ])
     result = unittest.TextTestRunner().run(suite)
     sys.exit(not result.wasSuccessful())
