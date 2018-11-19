@@ -13,7 +13,9 @@ class TestRunner(object):
         # can't serialize file objects
         result._original_stderr = None
         result._original_stdout = None
+        # run the test
         test(result)
+        # serialize and write the results to stderr
         sys.stderr.write(pickle.dumps(result))
         return result
 

@@ -58,14 +58,14 @@ def is_iterable(i):
         return True
 
 
-def is_run_clean(test):
-    try:
-        if hasattr(test, '_test_clean'):
+def is_cleantest(test):
+    if hasattr(test, '_test_clean'):
+        return True
+    if hasattr(test, '_testMethodName'):
+        t = getattr(test, test._testMethodName)
+        if hasattr(t, '_test_clean'):
             return True
-        if hasattr(test.testCase, '_test_clean'):
-            return True
-    except AttributeError:
-        return False
+    return False
 
 
 class CleanTestSuite(unittest.TestSuite):
@@ -88,15 +88,21 @@ class CleanTestSuite(unittest.TestSuite):
     @staticmethod
     def get_tests_from_suite(suite):
         tests = []
+        clean_tests = []
         suites_to_check = [suite]
         while suites_to_check:
             suite = suites_to_check.pop()
-            for s in suite:
-                if is_iterable(s):
-                    suites_to_check.append(s)
+            for t in suite:
+                if is_iterable(t):
+                    if is_cleantest(t):
+                        suites_to_check.append([cleantest(s) for s in t])
+                    else:
+                        suites_to_check.append(t)
+                elif is_cleantest(t):
+                    clean_tests.append(t)
                 else:
-                    tests.append(s)
-        return tests
+                    tests.append(t)
+        return tests, clean_tests
 
     @staticmethod
     def test_name(test):
@@ -128,9 +134,15 @@ class CleanTestSuite(unittest.TestSuite):
         return result
 
     def run(self, result, debug=False):
-        tests = self.get_tests_from_suite(self._tests)
+        tests, clean_tests = self.get_tests_from_suite(self._tests)
         pool = multiprocessing.dummy.Pool(self.num_procs)
-        test_results = pool.map(self.run_test_in_subprocess, tests)
+
+        # run each regular test
+        for test in tests:
+            test(result)
+
+        # run the clean tests in a pool
+        test_results = pool.map(self.run_test_in_subprocess, clean_tests)
         for new_result in test_results:
             self.merge_result(result, new_result)
         return result
