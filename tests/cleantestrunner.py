@@ -1,3 +1,7 @@
+"""
+Runner required for cleantest to serialize and output the results of a single
+test case.
+"""
 import pickle
 import unittest
 import sys

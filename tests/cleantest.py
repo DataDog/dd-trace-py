@@ -1,3 +1,7 @@
+"""
+cleantest enables unittest test cases and suites to be run in separate python
+interpreter instances, in parallel.
+"""
 from collections import namedtuple
 import multiprocessing.dummy
 import pickle
@@ -5,7 +9,38 @@ import unittest
 import subprocess
 
 
-def clean(obj):
+def cleantest(obj):
+    """
+    Marks a test case that is to be run in its own 'clean' interpreter instance.
+
+    When applied to a TestCase class, each method will be run in a separate
+    interpreter instance, in parallel.
+
+    Usage on a class::
+
+        @clean
+        class PatchTests(object):
+            # will be run in new interpreter
+            def test_patch_before_import(self):
+                patch()
+                import module
+
+            # will be run in new interpreter as well
+            def test_patch_after_import(self):
+                import module
+                patch()
+
+
+    Usage on a test method::
+
+        class OtherTests(object):
+            @clean
+            def test_case(self):
+                pass
+
+    :param obj: method or class to run cleanly.
+    :return:
+    """
     setattr(obj, '_test_clean', True)
     return obj
 
@@ -25,7 +60,7 @@ def is_run_clean(test):
             return True
         if hasattr(test.testCase, '_test_clean'):
             return True
-    except Exception:
+    except AttributeError:
         return False
 
 
