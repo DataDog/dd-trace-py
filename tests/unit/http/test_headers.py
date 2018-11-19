@@ -33,8 +33,8 @@ class TestHeaders(object):
         :type integration_config: IntegrationConfig
         """
         integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
-        store_request_headers([('Content-Type', 'some;value;content_type')], span, integration_config)
-        assert span.get_tag('http.request.headers.content_type') == 'some;value;content_type'
+        store_request_headers([('Content-Type', 'some;value;content-type')], span, integration_config)
+        assert span.get_tag('http.request.headers.content-type') == 'some;value;content-type'
         assert None is span.get_tag('http.request.headers.other')
 
     def test_store_multiple_request_headers_as_dict(self, span, integration_config):
@@ -44,12 +44,12 @@ class TestHeaders(object):
         """
         integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
         store_request_headers({
-            'Content-Type': 'some;value;content_type',
+            'Content-Type': 'some;value;content-type',
             'Max-Age': 'some;value;max_age',
             'Other': 'some;value;other',
         }, span, integration_config)
-        assert span.get_tag('http.request.headers.content_type') == 'some;value;content_type'
-        assert span.get_tag('http.request.headers.max_age') == 'some;value;max_age'
+        assert span.get_tag('http.request.headers.content-type') == 'some;value;content-type'
+        assert span.get_tag('http.request.headers.max-age') == 'some;value;max_age'
         assert None is span.get_tag('http.request.headers.other')
 
     def test_store_multiple_response_headers_as_dict(self, span, integration_config):
@@ -59,12 +59,12 @@ class TestHeaders(object):
         """
         integration_config.http.trace_headers(['Content-Type', 'Max-Age'])
         store_response_headers({
-            'Content-Type': 'some;value;content_type',
+            'Content-Type': 'some;value;content-type',
             'Max-Age': 'some;value;max_age',
             'Other': 'some;value;other',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value;content_type'
-        assert span.get_tag('http.response.headers.max_age') == 'some;value;max_age'
+        assert span.get_tag('http.response.headers.content-type') == 'some;value;content-type'
+        assert span.get_tag('http.response.headers.max-age') == 'some;value;max_age'
         assert None is span.get_tag('http.response.headers.other')
 
     def test_numbers_in_headers_names_are_allowed(self, span, integration_config):
@@ -76,18 +76,44 @@ class TestHeaders(object):
         store_response_headers({
             'Content-Type123': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type123') == 'some;value'
+        assert span.get_tag('http.response.headers.content-type123') == 'some;value'
 
-    def test_blocks_of_non_letters_and_digits_to_underscore(self, span, integration_config):
+    def test_allowed_chars_not_replaced_in_tag_name(self, span, integration_config):
         """
         :type span: Span
         :type integration_config: IntegrationConfig
         """
-        integration_config.http.trace_headers('Content----T_%%y&%$pe')
+        # See: https://docs.datadoghq.com/tagging/#defining-tags
+        integration_config.http.trace_headers('C0n_t:e/nt-Type')
         store_response_headers({
-            'Content----T_%%y&%$pe': 'some;value',
+            'C0n_t:e/nt-Type': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_t_y_pe') == 'some;value'
+        assert span.get_tag('http.response.headers.c0n_t:e/nt-type') == 'some;value'
+
+    def test_period_is_replaced_by_underscore(self, span, integration_config):
+        """
+        :type span: Span
+        :type integration_config: IntegrationConfig
+        """
+        # Deviation from https://docs.datadoghq.com/tagging/#defining-tags in order to allow
+        # consistent representation of headers having the period in the name.
+        integration_config.http.trace_headers('api.token')
+        store_response_headers({
+            'api.token': 'some;value',
+        }, span, integration_config)
+        assert span.get_tag('http.response.headers.api_token') == 'some;value'
+
+    def test_non_allowed_chars_replaced(self, span, integration_config):
+        """
+        :type span: Span
+        :type integration_config: IntegrationConfig
+        """
+        # See: https://docs.datadoghq.com/tagging/#defining-tags
+        integration_config.http.trace_headers('C!#ontent-Type')
+        store_response_headers({
+            'C!#ontent-Type': 'some;value',
+        }, span, integration_config)
+        assert span.get_tag('http.response.headers.c__ontent-type') == 'some;value'
 
     def test_key_trim_leading_trailing_spaced(self, span, integration_config):
         """
@@ -98,7 +124,7 @@ class TestHeaders(object):
         store_response_headers({
             '   Content-Type   ': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
+        assert span.get_tag('http.response.headers.content-type') == 'some;value'
 
     def test_value_not_trim_leading_trailing_spaced(self, span, integration_config):
         """
@@ -109,7 +135,7 @@ class TestHeaders(object):
         store_response_headers({
             'Content-Type': '   some;value   ',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == '   some;value   '
+        assert span.get_tag('http.response.headers.content-type') == '   some;value   '
 
     def test_no_whitelist(self, span, integration_config):
         """
@@ -119,7 +145,7 @@ class TestHeaders(object):
         store_response_headers({
             'Content-Type': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') is None
+        assert span.get_tag('http.response.headers.content-type') is None
 
     def test_whitelist_exact(self, span, integration_config):
         """
@@ -130,7 +156,7 @@ class TestHeaders(object):
         store_response_headers({
             'Content-Type': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
+        assert span.get_tag('http.response.headers.content-type') == 'some;value'
 
     def test_whitelist_case_insensitive(self, span, integration_config):
         """
@@ -141,4 +167,4 @@ class TestHeaders(object):
         store_response_headers({
             'cOnTeNt-TyPe': 'some;value',
         }, span, integration_config)
-        assert span.get_tag('http.response.headers.content_type') == 'some;value'
+        assert span.get_tag('http.response.headers.content-type') == 'some;value'

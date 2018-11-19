@@ -7,7 +7,10 @@ log = logging.getLogger(__name__)
 REQUEST = 'request'
 RESPONSE = 'response'
 
-NORMALIZE_PATTERN = re.compile(r'([^a-z0-9])+')
+# Tag normalization based on: https://docs.datadoghq.com/tagging/#defining-tags
+# With the exception of '.' in header names which are replaced with '_' to avoid
+# starting a "new object" on the UI.
+NORMALIZE_PATTERN = re.compile(r'([^a-z0-9_\-:/]){1}')
 
 
 def store_request_headers(headers, span, integration_config):
