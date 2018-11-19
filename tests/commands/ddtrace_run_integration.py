@@ -26,11 +26,7 @@ if __name__ == '__main__':
 
     eq_(len(spans), 1)
     eq_(spans[0].service, 'redis')
-
-    if redis.VERSION < (3, 0, 0):
-        eq_(spans[0].resource, 'FLUSHALL')
-    else:
-        eq_(spans[0].resource, 'FLUSHALL ASYNC')
+    eq_(spans[0].resource, 'FLUSHALL')
 
     long_cmd = "mget %s" % " ".join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
