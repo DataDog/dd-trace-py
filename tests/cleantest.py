@@ -9,6 +9,9 @@ import unittest
 import subprocess
 
 
+DEFAULT_NUM_PROCS = 8
+
+
 def cleantest(obj):
     """
     Marks a test case that is to be run in its own 'clean' interpreter instance.
@@ -38,7 +41,8 @@ def cleantest(obj):
             def test_case(self):
                 pass
 
-    :param obj: method or class to run cleanly.
+
+    :param obj: method or class to run in a separate python interpreter.
     :return:
     """
     setattr(obj, '_test_clean', True)
@@ -69,6 +73,7 @@ class CleanTestSuite(unittest.TestSuite):
 
     def __init__(self, modprefix, *args, **kwargs):
         self.modprefix = modprefix
+        self.num_procs = kwargs.get('num_procs', DEFAULT_NUM_PROCS)
         super(CleanTestSuite, self).__init__(*args, **kwargs)
 
     @staticmethod
@@ -125,7 +130,7 @@ class CleanTestSuite(unittest.TestSuite):
 
     def run(self, result, debug=False):
         tests = self.get_tests_from_suite(self._tests)
-        pool = multiprocessing.dummy.Pool(8)
+        pool = multiprocessing.dummy.Pool(self.num_procs)
         test_results = pool.map(self.run_test_in_subprocess, tests)
         for new_result in test_results:
             self.merge_result(result, new_result)

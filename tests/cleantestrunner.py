@@ -20,4 +20,3 @@ class TestRunner(object):
 
 if __name__ == '__main__':
     unittest.TestProgram(module=None, testRunner=TestRunner)
-    sys.exit(1)
