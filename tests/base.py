@@ -19,7 +19,8 @@ class BaseTestCase(unittest.TestCase):
 
         class MyTestCase(BaseTestCase):
             def test_case(self):
-                self.assert_is_wrapped(obj)
+                with self.override_config('flask', dict(distributed_tracing_enabled=True):
+                    pass
     """
 
     @contextlib.contextmanager
