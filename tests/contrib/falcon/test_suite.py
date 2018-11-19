@@ -4,6 +4,7 @@ from ddtrace import config
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
+from ...util import override_config
 
 
 class FalconTestCase(object):
@@ -181,11 +182,13 @@ class FalconTestCase(object):
         eq_(span.get_tag('my.custom'), 'tag')
 
     def test_http_header_tracing(self):
-        config.falcon.http.trace_headers(['my-header', 'my-response-header'])
-        self.simulate_get('/200', headers={'my-header': 'my_value'})
-        traces = self.tracer.writer.pop_traces()
+        with override_config('falcon', {}):
+            config.falcon.http.trace_headers(['my-header', 'my-response-header'])
+            self.simulate_get('/200', headers={'my-header': 'my_value'})
+            traces = self.tracer.writer.pop_traces()
+
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
         span = traces[0][0]
-        eq_(span.get_tag('http.request.headers.my_header'), 'my_value')
-        eq_(span.get_tag('http.response.headers.my_response_header'), 'my_response_value')
+        eq_(span.get_tag('http.request.headers.my-header'), 'my_value')
+        eq_(span.get_tag('http.response.headers.my-response-header'), 'my_response_value')

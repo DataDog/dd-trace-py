@@ -100,7 +100,7 @@ def _wrap_send(func, instance, args, kwargs):
                     # Storing response headers in the span.
                     # Note that response.headers is not a dict, but an iterable
                     # requests custom structure, that we convert to a dict
-                    response_headers = dict(getattr(response, 'headers', {}).items())
+                    response_headers = dict(getattr(response, 'headers', {}))
                     store_response_headers(response_headers, span, config.requests)
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)

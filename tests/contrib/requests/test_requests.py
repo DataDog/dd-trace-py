@@ -12,7 +12,7 @@ from nose.tools import assert_raises, eq_
 from tests.opentracer.utils import init_tracer
 
 from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
+from ...util import override_global_tracer, override_config
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -371,15 +371,15 @@ class TestRequests(BaseRequestTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.get_tag('http.request.headers.my_header'), None)
-        eq_(s.get_tag('http.response.headers.access_control_allow_origin'), None)
+        eq_(s.get_tag('http.request.headers.my-header'), None)
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), None)
 
         # Enabled when explicitly configured
-        integration_config = config.requests  # type: IntegrationConfig
-        integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
-        self.session.get(URL_200, headers={'my-header': 'my_value'})
-        spans = self.tracer.writer.pop()
+        with override_config('requests', {}):
+            config.requests.http.trace_headers(['my-header', 'access-control-allow-origin'])
+            self.session.get(URL_200, headers={'my-header': 'my_value'})
+            spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.get_tag('http.request.headers.my_header'), 'my_value')
-        eq_(s.get_tag('http.response.headers.access_control_allow_origin'), '*')
+        eq_(s.get_tag('http.request.headers.my-header'), 'my_value')
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), '*')

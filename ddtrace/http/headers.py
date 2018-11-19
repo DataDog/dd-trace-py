@@ -51,7 +51,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
     if not isinstance(headers, dict):
         try:
             headers = dict(headers)
-        except:
+        except Exception:
             return
 
     if integration_config is None:

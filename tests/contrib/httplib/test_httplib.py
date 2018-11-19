@@ -16,7 +16,7 @@ from ddtrace.pin import Pin
 from tests.opentracer.utils import init_tracer
 
 from ...test_tracer import get_dummy_tracer
-from ...util import assert_dict_issuperset, override_global_tracer
+from ...util import assert_dict_issuperset, override_global_tracer, override_config
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -354,17 +354,17 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
 
         # Enabled when configured
-        integration_config = config.httplib  # type: IntegrationConfig
-        integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
-        conn = self.get_http_connection(SOCKET)
-        with contextlib.closing(conn):
-            conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
-            conn.getresponse()
-            spans = self.tracer.writer.pop()
-            s = spans[0]
-            print (s.meta)
-            self.assertEqual(s.get_tag('http.request.headers.my_header'), 'my_value')
-            self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), '*')
+        with override_config('hhtplib', {}):
+            integration_config = config.httplib  # type: IntegrationConfig
+            integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
+                conn.getresponse()
+                spans = self.tracer.writer.pop()
+        s = spans[0]
+        self.assertEqual(s.get_tag('http.request.headers.my-header'), 'my_value')
+        self.assertEqual(s.get_tag('http.response.headers.access-control-allow-origin'), '*')
 
     def test_urllib_request(self):
         """
