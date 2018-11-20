@@ -273,7 +273,6 @@ Examples::
 The following rules apply:
   - headers configuration is based on a whitelist. If a header does not appear in the whitelist, it won't be traced.
   - headers configuration is case-insensitive.
-  - headers configuration does not allow for wildcards.
   - if you configure a specific integration, e.g. 'requests', then such configuration overrides the default global
     configuration, only for the specific integration.
   - if you do not configure a specific integration, then the default global configuration applies, if any.
