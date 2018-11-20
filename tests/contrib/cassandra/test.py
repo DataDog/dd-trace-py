@@ -272,7 +272,6 @@ class CassandraBase(object):
             )
         )
         eq_(s.get_metric('cassandra.batch_size'), 2)
-        assert 'test.person' in s.resource
 
 
 class TestCassPatchDefault(CassandraBase):
