@@ -346,7 +346,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         # Disabled when not configured
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
-            conn.request('GET', '/status/200', headers={'my-eader': 'my_value'})
+            conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
             conn.getresponse()
             spans = self.tracer.writer.pop()
             s = spans[0]
