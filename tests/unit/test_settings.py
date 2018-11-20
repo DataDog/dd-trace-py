@@ -77,4 +77,5 @@ class TestIntegrationConfig(object):
 
         integration_config.http.trace_headers('integration_header')
         assert integration_config.header_is_traced('integration_header')
+        assert not integration_config.header_is_traced('global_header')
         assert not global_config.header_is_traced('integration_header')
