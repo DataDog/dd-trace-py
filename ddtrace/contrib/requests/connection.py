@@ -2,6 +2,7 @@ import logging
 
 import ddtrace
 from ddtrace import config
+from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...ext import http
@@ -76,9 +77,17 @@ def _wrap_send(func, instance, args, kwargs):
             propagator = HTTPPropagator()
             propagator.inject(span.context, request.headers)
 
+        # Storing request headers in the span
+        store_request_headers(request.headers, span, config.requests)
+
         response = None
         try:
             response = func(*args, **kwargs)
+
+            # Storing response headers in the span. Note that response.headers is not a dict, but an iterable
+            # requests custom structure, that we convert to a dict
+            if hasattr(response, 'headers'):
+                store_response_headers(dict(response.headers), span, config.requests)
             return response
         finally:
             try:
@@ -88,5 +97,10 @@ def _wrap_send(func, instance, args, kwargs):
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer
                     span.error = int(500 <= response.status_code)
+                    # Storing response headers in the span.
+                    # Note that response.headers is not a dict, but an iterable
+                    # requests custom structure, that we convert to a dict
+                    response_headers = dict(getattr(response, 'headers', {}))
+                    store_response_headers(response_headers, span, config.requests)
             except Exception:
                 log.debug("requests: error adding tags", exc_info=True)
