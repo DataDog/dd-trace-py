@@ -9,7 +9,7 @@ from ...utils.formats import asbool, get_env
 from ...utils.wrappers import unwrap as _u
 from .legacy import _distributed_tracing, _distributed_tracing_setter
 from .constants import DEFAULT_SERVICE
-from .connection import _wrap_request
+from .connection import _wrap_send
 from ...ext import AppTypes
 
 # requests default settings
@@ -26,7 +26,7 @@ def patch():
         return
     setattr(requests, '__datadog_patch', True)
 
-    _w('requests', 'Session.request', _wrap_request)
+    _w('requests', 'Session.send', _wrap_send)
     Pin(
         service=config.requests['service_name'],
         app='requests',
@@ -48,4 +48,4 @@ def unpatch():
         return
     setattr(requests, '__datadog_patch', False)
 
-    _u(requests.Session, 'request')
+    _u(requests.Session, 'send')

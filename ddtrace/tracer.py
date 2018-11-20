@@ -27,8 +27,8 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace("app.request", "web-server").finish()
     """
-    DEFAULT_HOSTNAME = environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost')
-    DEFAULT_PORT = 8126
+    DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
+    DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
 
     def __init__(self):
         """
