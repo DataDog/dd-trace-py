@@ -113,19 +113,22 @@ def trace_middleware(middleware):
     return _trace_middleware(middleware)
 
 
-def patch_start_response(start_response):
+@wrapt.function_wrapper
+def patch_start_response(wrapped, instance, args, kwargs):
     """Patch respond handling to set metadata
     """
-    @wrapt.function_wrapper
-    def _start_response(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(molten)
-        span = pin.tracer.current_root_span()
-        status, headers, exc_info = args
-        status_code, _, _ = status.partition(' ')
-        span.set_tag(http.STATUS_CODE, status_code)
+    pin = Pin.get_from(molten)
+    if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    return _start_response(start_response)
+    span = pin.tracer.current_root_span()
+    if not span:
+        return wrapped(*args, **kwargs)
+
+    status, headers, exc_info = args
+    status_code, _, _ = status.partition(' ')
+    span.set_tag(http.STATUS_CODE, status_code)
+    return wrapped(*args, **kwargs)
 
 
 def patch_add_route(wrapped, instance, args, kwargs):
