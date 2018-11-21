@@ -46,6 +46,7 @@ class WrapperRenderer(wrapt.ObjectProxy):
         cname = self.__wrapped__.__class__.__name__
         return trace_wrapped(cname, func, *args, **kwargs)
 
+
 def patch():
     """Patch the instrumented methods
     """
@@ -67,6 +68,7 @@ def patch():
     _w('molten', 'App.__call__', patch_app_call)
     _w('molten', 'Router.add_route', patch_add_route)
 
+
 def unpatch():
     """Remove instrumentation
     """
@@ -79,6 +81,7 @@ def unpatch():
         unwrap(molten.BaseApp, '__init__')
         unwrap(molten.App, '__call__')
         unwrap(molten.Router, 'add_route')
+
 
 def trace_func(resource):
     """Trace calls to function using provided resource name
@@ -94,6 +97,7 @@ def trace_func(resource):
             return wrapped(*args, **kwargs)
 
     return _trace_func
+
 
 def trace_middleware(middleware):
     """Trace calling of middleware function or object
@@ -114,6 +118,7 @@ def trace_middleware(middleware):
 
     return _trace_middleware(middleware)
 
+
 def patch_start_response(start_response):
     """Patch respond handling to set metadata
     """
@@ -127,6 +132,7 @@ def patch_start_response(start_response):
         return wrapped(*args, **kwargs)
 
     return _start_response(start_response)
+
 
 def patch_add_route(wrapped, instance, args, kwargs):
     """Patch adding routes to trace route handler
@@ -147,6 +153,7 @@ def patch_add_route(wrapped, instance, args, kwargs):
         return wrapped(route_like, prefix=prefix, namespace=namespace)
 
     return _wrap(*args, **kwargs)
+
 
 def patch_app_call(wrapped, instance, args, kwargs):
     """Patch wsgi interface for app
