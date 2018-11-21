@@ -8,10 +8,11 @@ from ddtrace import config
 from ddtrace.contrib.requests import patch, unpatch
 from ddtrace.ext import errors, http
 from nose.tools import assert_raises, eq_
+
 from tests.opentracer.utils import init_tracer
 
 from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
+from ...util import override_global_tracer, override_config
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -363,3 +364,22 @@ class TestRequests(BaseRequestTestCase):
         eq_(dd_span.get_tag(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
         eq_(dd_span.span_type, http.TYPE)
+
+    def test_request_and_response_headers(self):
+        # Disabled when not configured
+        self.session.get(URL_200, headers={'my-header': 'my_value'})
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my-header'), None)
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), None)
+
+        # Enabled when explicitly configured
+        with override_config('requests', {}):
+            config.requests.http.trace_headers(['my-header', 'access-control-allow-origin'])
+            self.session.get(URL_200, headers={'my-header': 'my_value'})
+            spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my-header'), 'my_value')
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), '*')

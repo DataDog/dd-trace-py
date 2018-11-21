@@ -9,7 +9,7 @@ import wrapt
 
 # project
 from ddtrace import Pin
-from ddtrace.compat import stringify
+from ddtrace.compat import stringify, to_unicode
 
 from ...utils.formats import deep_getattr
 from ...utils.deprecation import deprecated
@@ -169,7 +169,7 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
+    span = tracer.trace(cassx.QUERY, service=service, span_type=cassx.TYPE)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
@@ -240,8 +240,8 @@ def _sanitize_query(span, query):
         resource = getattr(query, "query_string", query)
     elif t == 'BatchStatement':
         q = "; ".join(q[1] for q in query._statements_and_parameters[:2])
-        resource = q
-        span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
+        resource = to_unicode(q)
+        span.set_metric(cassx.BATCH_SIZE, len(query._statements_and_parameters))
     elif t == 'BoundStatement':
         ps = getattr(query, 'prepared_statement', None)
         if ps:

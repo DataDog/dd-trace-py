@@ -728,7 +728,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e wait rediscluster
-      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
+      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135,136}-redis210' --result-json /tmp/rediscluster.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -797,6 +797,19 @@ jobs:
           root: /tmp
           paths:
             - msgpack.results
+      - *save_cache_step
+
+  unit_tests:
+    docker:
+      - *test_runner
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'unit_tests-{py27,py34,py35,py36}' --result-json /tmp/unit_tests.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - unit_tests.results
       - *save_cache_step
 
   deploy_dev:
@@ -1036,6 +1049,9 @@ workflows:
       - tracer:
           requires:
             - flake8
+      - unit_tests:
+          requires:
+            - flake8
       - vertica:
           requires:
             - flake8
@@ -1086,6 +1102,7 @@ workflows:
             - test_utils
             - tornado
             - tracer
+            - unit_tests
             - vertica
       - deploy_dev:
           requires:
