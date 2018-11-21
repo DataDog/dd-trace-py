@@ -142,7 +142,7 @@ def patch_add_route(wrapped, instance, args, kwargs):
 
         resource = '{} {}'.format(
             route_like.method,
-            route_like.name or route_like.template
+            route_like.template
         )
 
         # patch handler for route

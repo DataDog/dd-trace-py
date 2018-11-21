@@ -69,7 +69,7 @@ class TestMolten(TestCase):
             'molten.components.RequestDataComponent',
             'molten.components.SchemaComponent',
             'molten.components.UploadedFileComponent',
-            'GET hello',
+            'GET /hello/{name}/{age}',
             'molten.renderers.JSONRenderer'
         ]
 
