@@ -51,15 +51,16 @@ def run_in_subprocess(obj):
 
 
 class SubprocessTestCase(unittest.TestCase):
-    def _full_method_name(self, test):
+    def _full_method_name(self):
+        test = getattr(self, self._testMethodName)
         modpath = test.__module__
         clsname = self.__class__.__name__
         testname = test.__name__
         testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
         return testcase_name
 
-    def _run_test_in_subprocess(self, test, result):
-        full_testcase_name = self._full_method_name(test)
+    def _run_test_in_subprocess(self, result):
+        full_testcase_name = self._full_method_name()
 
         sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
         sp = subprocess.Popen(
@@ -67,7 +68,7 @@ class SubprocessTestCase(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        stdout, stderr = sp.communicate()
+        _, stderr = sp.communicate()
 
         if sp.returncode:
             try:
@@ -76,11 +77,11 @@ class SubprocessTestCase(unittest.TestCase):
             except Exception:
                 exc_info = sys.exc_info()
             sys.stderr.write(stderr)
-            result.addFailure(test, exc_info)
+            result.addFailure(self, exc_info)
         else:
-            result.addSuccess(test)
+            result.addSuccess(self)
 
-    def _in_subprocess(self, test):
+    def _in_subprocess(self):
         """Determines if the test is being run in a subprocess.
 
         This is done by checking the system arguments and seeing if the full
@@ -98,22 +99,27 @@ class SubprocessTestCase(unittest.TestCase):
         :return: whether the test is being run individually (with the assumption
                  that this is in a new subprocess)
         """
-        full_testcase_name = self._full_method_name(test)
+        full_testcase_name = self._full_method_name()
         for arg in sys.argv:
             if full_testcase_name in arg:
                 return True
         return False
 
-    def _is_subprocess_test(self, test):
-        return hasattr(self, SUBPROC_TEST_ATTR) or hasattr(test, SUBPROC_TEST_ATTR)
+    def _is_subprocess_test(self):
+        if hasattr(self, SUBPROC_TEST_ATTR):
+            return True
+
+        if hasattr(self, '_testMethodName'):
+            test = getattr(self, getattr(self, '_testMethodName'))
+            if hasattr(test, SUBPROC_TEST_ATTR):
+                return True
+        return False
 
     def run(self, result=None):
-        test_method = getattr(self, self._testMethodName)
-
-        if not self._is_subprocess_test(test_method):
+        if not self._is_subprocess_test():
             return super(SubprocessTestCase, self).run(result=result)
 
-        if self._in_subprocess(test_method):
+        if self._in_subprocess():
             return super(SubprocessTestCase, self).run(result=result)
         else:
-            self._run_test_in_subprocess(test_method, result)
+            self._run_test_in_subprocess(result)
