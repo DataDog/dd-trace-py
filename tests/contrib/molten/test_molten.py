@@ -81,7 +81,7 @@ class TestMolten(TestCase):
                 expected_resources)
         else:
             self.assertEqual([s.resource for s in spans],
-                [r for r in expected_resources if r != 'UploadedFileComponent'])
+                [r for r in expected_resources if r != 'molten.components.UploadedFileComponent'])
 
     def test_distributed_tracing(self):
         """ Tests whether span IDs are propogated when distributed tracing is on """
