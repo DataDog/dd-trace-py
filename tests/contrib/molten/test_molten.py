@@ -5,13 +5,8 @@ from molten.testing import TestClient
 
 from ddtrace import Pin
 from ddtrace.contrib.molten import patch, unpatch
-from nose.tools import eq_, ok_
-
-import pprint
-import inspect
 
 from ...test_tracer import get_dummy_tracer
-
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
 def hello(name: str, age: int) -> str:
@@ -24,6 +19,8 @@ def molten_client(prepare_environ=None):
     if prepare_environ:
         return client.get(uri, prepare_environ=prepare_environ)
     return client.get(uri)
+
+MOLTEN_VERSION =  tuple(map(int, molten.__version__.split()[0].split('.')))
 
 class TestMolten(TestCase):
     """"Ensures Molten is properly instrumented."""
@@ -42,17 +39,48 @@ class TestMolten(TestCase):
     def test_route_success(self):
         response = molten_client()
         spans = self.tracer.writer.pop()
-        eq_(response.status_code, 200)
-        eq_(response.json(), 'Hello 24 year old named Jim!')
-        print([s.to_dict() for s in spans])
-        eq_(1,2)
-        eq_(len(spans), 18)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'molten.request')
-        eq_(span.resource, 'GET /hello/Jim/24')
-        eq_(span.get_tag('http.method'), 'GET')
-        eq_(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.service, self.TEST_SERVICE)
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'GET /hello/Jim/24')
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.status_code'), '200')
+
+    def test_resources(self):
+        response = molten_client()
+        spans = self.tracer.writer.pop()
+
+        expected_resources = [
+            'GET /hello/Jim/24',
+            'ResponseRendererMiddleware',
+            'HeaderComponent',
+            'CookiesComponent',
+            'QueryParamComponent',
+            'RequestBodyComponent',
+            'RequestDataComponent',
+            'SchemaComponent',
+            'UploadedFileComponent',
+            'HeaderComponent',
+            'CookiesComponent',
+            'QueryParamComponent',
+            'RequestBodyComponent',
+            'RequestDataComponent',
+            'SchemaComponent',
+            'UploadedFileComponent',
+            'GET hello',
+            'JSONRenderer'
+        ]
+
+        if MOLTEN_VERSION >= (0, 7, 2):
+            # Addition of `UploadedFileComponent`
+            self.assertEqual([s.resource for s in spans],
+                expected_resources)
+        else:
+            # `UploadedFileComponent` not supported
+            self.assertEqual([s.resource for s in spans],
+                [r for r in expected_resources if r != 'UploadedFileComponent'])
 
     def test_distributed_tracing(self):
         def prepare_environ(environ):
@@ -65,46 +93,45 @@ class TestMolten(TestCase):
 
         response = molten_client(prepare_environ=prepare_environ)
         spans = self.tracer.writer.pop()
-        eq_(response.status_code, 200)
-        eq_(response.json(), 'Hello 24 year old named Jim!')
-        eq_(len(spans), 18)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'molten.request')
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
+        self.assertEqual(span.service, self.TEST_SERVICE)
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.trace_id, 100)
+        self.assertEqual(span.parent_id, 42)
 
     def test_unpatch_patch(self):
         unpatch()
-        ok_(Pin.get_from(molten) is None)
+        self.assertTrue(Pin.get_from(molten) is None)
         molten_client()
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        self.assertEqual(len(spans), 0)
 
         patch()
         Pin.override(molten, tracer=self.tracer)
-        ok_(Pin.get_from(molten) is not None)
+        self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 18)
+        self.assertEqual(len(spans), 18)
 
     def test_patch_unpatch(self):
         # Already patched in setUp
-        ok_(Pin.get_from(molten) is not None)
+        self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 18)
+        self.assertEqual(len(spans), 18)
 
         # Test unpatch
         unpatch()
-        ok_(Pin.get_from(molten) is None)
+        self.assertTrue(Pin.get_from(molten) is None)
         molten_client()
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        self.assertEqual(len(spans), 0)
 
     def test_patch_idempotence(self):
         # Patch multiple times
         patch()
         molten_client()
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 18)
+        self.assertEqual(len(spans), 18)
