@@ -1,4 +1,3 @@
-
 # stdlib
 import atexit
 import logging
@@ -10,6 +9,7 @@ import time
 from ddtrace import api
 
 from .api import _parse_response_json
+from .utils.deprecation import deprecation
 
 log = logging.getLogger(__name__)
 
@@ -32,12 +32,20 @@ class AgentWriter(object):
         priority_sampling = priority_sampler is not None
         self.api = api.API(hostname, port, priority_sampling=priority_sampling)
 
-    def write(self, spans=None):
+    def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.
         self._reset_worker()
 
         if spans:
             self._traces.add(spans)
+
+        if services is not None:
+            deprecation(
+                name='write(services)',
+                message='Writing services has been replaced with specifying the'
+                        'and span_type on each span. Services are no longer'
+                        'sent.',
+            )
 
     def _reset_worker(self):
         # if this queue was created in a different process (i.e. this was

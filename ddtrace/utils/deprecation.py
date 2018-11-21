@@ -13,7 +13,7 @@ def format_message(name, message, version):
 
         'fn' is deprecated and will be remove in future versions (1.0).
     """
-    return "'{}' is deprecated and will be remove in future versions{}. {}".format(
+    return "'{}' is deprecated and will be removed in future versions{}. {}".format(
         name,
         ' ({})'.format(version) if version else '',
         message,
@@ -48,7 +48,7 @@ def deprecated(message='', version=None):
         $ python -Wall script.py
 
     This approach is used by most of the frameworks, including Django
-    (ref: https://docs.djangoproject.com/en/2.0/howto/upgrade-version/#resolving-deprecation-warnings)
+    (ref: https://docs.djangoproject.com/en/2.0/howto/upgrade-version/#resolving-eprecation-warnings)
     """
     def decorator(func):
         @wraps(func)
