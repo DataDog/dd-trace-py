@@ -37,6 +37,7 @@ class TestMolten(TestCase):
         self.tracer.writer.pop()
 
     def test_route_success(self):
+        """ Tests request was a success with the expected span tags """
         response = molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 200)
@@ -49,6 +50,7 @@ class TestMolten(TestCase):
         self.assertEqual(span.get_tag('http.status_code'), '200')
 
     def test_resources(self):
+        """ Tests request has expected span resources """
         response = molten_client()
         spans = self.tracer.writer.pop()
 
@@ -73,16 +75,16 @@ class TestMolten(TestCase):
             'molten.renderers.JSONRenderer'
         ]
 
+        # Addition of `UploadedFileComponent` in 0.7.2 changes expected spans
         if MOLTEN_VERSION >= (0, 7, 2):
-            # Addition of `UploadedFileComponent`
             self.assertEqual([s.resource for s in spans],
                 expected_resources)
         else:
-            # `UploadedFileComponent` not supported
             self.assertEqual([s.resource for s in spans],
                 [r for r in expected_resources if r != 'UploadedFileComponent'])
 
     def test_distributed_tracing(self):
+        """ Tests whether span IDs are propogated when distributed tracing is on """
         def prepare_environ(environ):
             environ.update({
                 'DD_MOLTEN_DISTRIBUTED_TRACING': 'True',
@@ -102,6 +104,7 @@ class TestMolten(TestCase):
         self.assertEqual(span.parent_id, 42)
 
     def test_unpatch_patch(self):
+        """ Tests unpatch-patch cycle """
         unpatch()
         self.assertTrue(Pin.get_from(molten) is None)
         molten_client()
@@ -109,6 +112,7 @@ class TestMolten(TestCase):
         self.assertEqual(len(spans), 0)
 
         patch()
+        # Need to override Pin here as we do in setUp
         Pin.override(molten, tracer=self.tracer)
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
@@ -116,6 +120,7 @@ class TestMolten(TestCase):
         self.assertTrue(len(spans) > 0)
 
     def test_patch_unpatch(self):
+        """ Tests repatch-unpatch cycle """
         # Already patched in setUp
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
@@ -130,6 +135,7 @@ class TestMolten(TestCase):
         self.assertEqual(len(spans), 0)
 
     def test_patch_idempotence(self):
+        """ Tests repatching """
         # Patch multiple times
         patch()
         molten_client()
