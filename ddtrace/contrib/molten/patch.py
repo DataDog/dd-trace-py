@@ -31,19 +31,19 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 class WrapperComponent(wrapt.ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
-        cname = self.__wrapped__.__class__.__name__
+        cname = func_name(self.__wrapped__)
         return trace_wrapped(cname, func, *args, **kwargs)
 
     def resolve(self, *args, **kwargs):
         func = self.__wrapped__.resolve
-        cname = self.__wrapped__.__class__.__name__
+        cname = func_name(self.__wrapped__)
         return trace_wrapped(cname, func, *args, **kwargs)
 
 
 class WrapperRenderer(wrapt.ObjectProxy):
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
-        cname = self.__wrapped__.__class__.__name__
+        cname = func_name(self.__wrapped__)
         return trace_wrapped(cname, func, *args, **kwargs)
 
 
@@ -108,13 +108,7 @@ def trace_middleware(middleware):
         if not pin or not pin.enabled():
             return wrapped(*args, **kwargs)
 
-        resource = None
-        if inspect.isfunction(wrapped):
-            resource = wrapped.__name__
-        else:
-            resource = type(wrapped).__name__
-
-        return trace_func(resource)(wrapped(*args, **kwargs))
+        return trace_func(func_name(wrapped))(wrapped(*args, **kwargs))
 
     return _trace_middleware(middleware)
 

@@ -54,23 +54,23 @@ class TestMolten(TestCase):
 
         expected_resources = [
             'GET /hello/Jim/24',
-            'ResponseRendererMiddleware',
-            'HeaderComponent',
-            'CookiesComponent',
-            'QueryParamComponent',
-            'RequestBodyComponent',
-            'RequestDataComponent',
-            'SchemaComponent',
-            'UploadedFileComponent',
-            'HeaderComponent',
-            'CookiesComponent',
-            'QueryParamComponent',
-            'RequestBodyComponent',
-            'RequestDataComponent',
-            'SchemaComponent',
-            'UploadedFileComponent',
+            'molten.middleware.ResponseRendererMiddleware',
+            'molten.components.HeaderComponent',
+            'molten.components.CookiesComponent',
+            'molten.components.QueryParamComponent',
+            'molten.components.RequestBodyComponent',
+            'molten.components.RequestDataComponent',
+            'molten.components.SchemaComponent',
+            'molten.components.UploadedFileComponent',
+            'molten.components.HeaderComponent',
+            'molten.components.CookiesComponent',
+            'molten.components.QueryParamComponent',
+            'molten.components.RequestBodyComponent',
+            'molten.components.RequestDataComponent',
+            'molten.components.SchemaComponent',
+            'molten.components.UploadedFileComponent',
             'GET hello',
-            'JSONRenderer'
+            'molten.renderers.JSONRenderer'
         ]
 
         if MOLTEN_VERSION >= (0, 7, 2):
