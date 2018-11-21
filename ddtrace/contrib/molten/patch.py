@@ -1,5 +1,3 @@
-import inspect
-
 import wrapt
 
 import molten
