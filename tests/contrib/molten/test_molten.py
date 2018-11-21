@@ -44,8 +44,8 @@ class TestMolten(TestCase):
         span = spans[0]
         self.assertEqual(span.service, self.TEST_SERVICE)
         self.assertEqual(span.name, 'molten.request')
-        self.assertEqual(span.resource, 'GET /hello/Jim/24')
         self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.url'), '/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
 
     def test_resources(self):
@@ -53,7 +53,7 @@ class TestMolten(TestCase):
         spans = self.tracer.writer.pop()
 
         expected_resources = [
-            'GET /hello/Jim/24',
+            'molten.app.__call__',
             'molten.middleware.ResponseRendererMiddleware',
             'molten.components.HeaderComponent',
             'molten.components.CookiesComponent',

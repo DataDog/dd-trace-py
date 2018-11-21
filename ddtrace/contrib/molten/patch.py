@@ -165,7 +165,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     start_response = patch_start_response(start_response)
     method = environ.get('REQUEST_METHOD')
     path = environ.get('PATH_INFO')
-    resource = u'{} {}'.format(method, path)
+    resource = func_name(wrapped)
 
     request = Request.from_environ(environ)
     distributed_tracing = asbool(environ.get('DD_MOLTEN_DISTRIBUTED_TRACING')) or \
