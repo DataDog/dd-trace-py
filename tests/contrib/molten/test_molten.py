@@ -44,6 +44,7 @@ class TestMolten(TestCase):
         spans = self.tracer.writer.pop()
         eq_(response.status_code, 200)
         eq_(response.json(), 'Hello 24 year old named Jim!')
+        print(spans)
         eq_(len(spans), 18)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
