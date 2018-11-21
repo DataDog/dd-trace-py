@@ -85,7 +85,7 @@ class TestMolten(TestCase):
     def test_distributed_tracing(self):
         def prepare_environ(environ):
             environ.update({
-                'DATADOG_MOLTEN_DISTRIBUTED_TRACING': 'True',
+                'DD_MOLTEN_DISTRIBUTED_TRACING': 'True',
                 'HTTP_X_DATADOG_TRACE_ID': '100',
                 'HTTP_X_DATADOG_PARENT_ID': '42',
             })
