@@ -293,6 +293,7 @@ class CassandraBase(object):
             )
         )
         eq_(s.get_metric('cassandra.batch_size'), 2)
+        assert s.get_tag('cassandra.query') is None
 
 
 class TestCassPatchDefault(CassandraBase):
