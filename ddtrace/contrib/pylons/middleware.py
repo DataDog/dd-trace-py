@@ -28,12 +28,6 @@ class PylonsTraceMiddleware(object):
         # add template tracing
         trace_rendering()
 
-        self._tracer.set_service_info(
-            service=service,
-            app="pylons",
-            app_type=AppTypes.web,
-        )
-
     def __call__(self, environ, start_response):
         if self._distributed_tracing:
             # retrieve distributed tracing headers
