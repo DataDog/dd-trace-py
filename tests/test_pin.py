@@ -80,8 +80,6 @@ class PinTestCase(TestCase):
         # values are the same
         eq_(p1.service, 'metrics')
         eq_(p2.service, 'intake')
-        eq_(p1.app, 'flask')
-        eq_(p2.app, 'flask')
         # but it's a copy
         ok_(p1.tags is not p2.tags)
         ok_(p1._config is not p2._config)
@@ -105,11 +103,9 @@ class PinTestCase(TestCase):
         Pin(service='metrics', app='flask').onto(A)
         a = A()
         Pin.override(a, app='django')
-        eq_(Pin.get_from(a).app, 'django')
         eq_(Pin.get_from(a).service, 'metrics')
 
         b = A()
-        eq_(Pin.get_from(b).app, 'flask')
         eq_(Pin.get_from(b).service, 'metrics')
 
     def test_override_missing(self):

@@ -3,6 +3,8 @@ import logging
 import wrapt
 import ddtrace
 
+from ddtrace.utils.deprecation import deprecation
+
 
 log = logging.getLogger(__name__)
 
@@ -24,12 +26,13 @@ class Pin(object):
         >>> pin = Pin.override(conn, service="user-db")
         >>> conn = sqlite.connect("/tmp/image.db")
     """
-    __slots__ = ['app', 'app_type', 'tags', 'tracer', '_target', '_config', '_initialized']
+    __slots__ = ['tags', 'tracer', '_target', '_config', '_initialized']
 
     def __init__(self, service, app=None, app_type=None, tags=None, tracer=None, _config=None):
+        if app is not None or app_type is not None:
+            deprecation(message='app and app_type are deprecated in favour of '
+                                'using span_type on each span.')
         tracer = tracer or ddtrace.tracer
-        self.app = app
-        self.app_type = app_type
         self.tags = tags
         self.tracer = tracer
         self._target = None
@@ -53,8 +56,8 @@ class Pin(object):
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return "Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)" % (
-            self.service, self.app, self.app_type, self.tags, self.tracer)
+        return "Pin(service=%s, tags=%s, tracer=%s)" % (
+            self.service, self.tags, self.tracer)
 
     @staticmethod
     def _find(*objs):
@@ -113,6 +116,9 @@ class Pin(object):
         """
         if not obj:
             return
+        if app is not None or app_type is not None:
+            deprecation(message='app and app_type are deprecated in favour of '
+                                'using span_type on each span.')
 
         pin = cls.get_from(obj)
         if not pin:
@@ -120,8 +126,6 @@ class Pin(object):
 
         pin.clone(
             service=service,
-            app=app,
-            app_type=app_type,
             tags=tags,
             tracer=tracer,
         ).onto(obj)
@@ -163,8 +167,6 @@ class Pin(object):
 
         return Pin(
             service=service or self.service,
-            app=app or self.app,
-            app_type=app_type or self.app_type,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,
