@@ -59,12 +59,6 @@ def trace_tween_factory(handler, registry):
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
     distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
 
-    # set the service info
-    tracer.set_service_info(
-        service=service,
-        app="pyramid",
-        app_type=AppTypes.web)
-
     if enabled:
         # make a request tracing function
         def trace_tween(request):
