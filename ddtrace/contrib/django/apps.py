@@ -7,10 +7,8 @@ from django.apps import AppConfig, apps
 from .db import patch_db
 from .conf import settings
 from .cache import patch_cache
-from .templates import patch_template
 from .middleware import insert_exception_middleware, insert_trace_middleware
-
-from ...ext import AppTypes
+from .templates import patch_template
 
 
 log = logging.getLogger(__name__)
@@ -38,13 +36,6 @@ class TracerConfig(AppConfig):
         tracer.enabled = settings.ENABLED
         tracer.writer.api.hostname = settings.AGENT_HOSTNAME
         tracer.writer.api.port = settings.AGENT_PORT
-
-        # define the service details
-        tracer.set_service_info(
-            app='django',
-            app_type=AppTypes.web,
-            service=settings.DEFAULT_SERVICE,
-        )
 
         if settings.AUTO_INSTRUMENT:
             # trace Django internals
