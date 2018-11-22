@@ -12,16 +12,17 @@ from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
 
 # testing
-from tests.opentracer.utils import init_tracer
-from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_dummy_tracer
+from tests.base import BaseTracerTestCase
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from tests.contrib.config import POSTGRES_CONFIG
+from tests.opentracer.utils import init_tracer
+from tests.test_tracer import get_dummy_tracer
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-class TestPsycopgPatch(AsyncioTestCase):
+class TestPsycopgPatch(BaseTracerTestCase, AsyncioTestCase):
     # default service
     TEST_SERVICE = 'postgres'
 
@@ -122,6 +123,20 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.span_type, 'sql')
 
     @mark_asyncio
+    def test_execute_metadata(self):
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute('select \'blah\'')
+        conn.close()
+        span = self.spans[0]
+        span.assert_matches(
+            name='postgres.query',
+            service='postgres',
+            span_type='sql',
+            resource='select \'blah\'',
+        )
+
+    @mark_asyncio
     def test_disabled_execute(self):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
@@ -137,17 +152,6 @@ class TestPsycopgPatch(AsyncioTestCase):
         #   _ext.register_type(_ext.UUID, conn_or_curs)
         #   TypeError: argument 2 must be a connection, cursor or None
         extras.register_uuid(conn_or_curs=conn)
-
-    @mark_asyncio
-    def test_connect_factory(self):
-        tracer = get_dummy_tracer()
-
-        services = ['db', 'another']
-        for service in services:
-            conn, _ = yield from self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-            yield from self.assert_conn_is_traced(tracer, conn, service)
-            conn.close()
 
     @mark_asyncio
     def test_patch_unpatch(self):
