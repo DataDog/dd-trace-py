@@ -41,6 +41,8 @@ Example::
     @config.falcon.hooks.on('request')
     def on_falcon_request(span, request, response):
         span.set_tag('my.custom', 'tag')
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 
