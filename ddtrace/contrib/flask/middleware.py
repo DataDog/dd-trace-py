@@ -37,12 +37,6 @@ class TraceMiddleware(object):
             return
         setattr(app, '__dd_instrumentation', True)
 
-        self.app._tracer.set_service_info(
-            service=service,
-            app="flask",
-            app_type=AppTypes.web,
-        )
-
         # Install hooks which time requests.
         self.app.before_request(self._before_request)
         self.app.after_request(self._after_request)
