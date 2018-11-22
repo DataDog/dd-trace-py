@@ -24,12 +24,6 @@ def connection_factory(tracer, service="postgres"):
         >>> conn = pyscopg2.connect(..., connection_factory=factory)
     """
 
-    tracer.set_service_info(
-        service=service,
-        app="postgres",
-        app_type=AppTypes.db,
-    )
-
     return functools.partial(TracedConnection,
         datadog_tracer=tracer,
         datadog_service=service)
