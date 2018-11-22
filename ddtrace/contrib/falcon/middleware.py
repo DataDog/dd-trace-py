@@ -3,8 +3,8 @@ import sys
 from ddtrace.ext import http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
+
 from ...compat import iteritems
-from ...ext import AppTypes
 from ...settings import config
 
 
@@ -15,13 +15,6 @@ class TraceMiddleware(object):
         self.tracer = tracer
         self.service = service
         self._distributed_tracing = distributed_tracing
-
-        # configure Falcon service
-        self.tracer.set_service_info(
-            app='falcon',
-            app_type=AppTypes.web,
-            service=service,
-        )
 
     def process_request(self, req, resp):
         if self._distributed_tracing:
