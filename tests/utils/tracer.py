@@ -1,6 +1,7 @@
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
+from ddtrace.utils.deprecation import deprecation
 
 
 class DummyWriter(AgentWriter):
@@ -16,7 +17,7 @@ class DummyWriter(AgentWriter):
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = MsgpackEncoder()
 
-    def write(self, spans=None):
+    def write(self, spans=None, services=None):
         if spans:
             # the traces encoding expect a list of traces so we
             # put spans in a list like we do in the real execution path
@@ -26,6 +27,14 @@ class DummyWriter(AgentWriter):
             self.msgpack_encoder.encode_traces(trace)
             self.spans += spans
             self.traces += trace
+
+        if services:
+            deprecation(
+                name='write(services)',
+                message='Writing services has been replaced with specifying the'
+                        'and span_type on each span. Services are no longer'
+                        'sent.',
+            )
 
     def pop(self):
         # dummy method
