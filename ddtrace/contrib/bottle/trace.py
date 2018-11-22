@@ -18,11 +18,6 @@ class TracePlugin(object):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
         self.distributed_tracing = distributed_tracing
-        self.tracer.set_service_info(
-            service=service,
-            app='bottle',
-            app_type=AppTypes.web,
-        )
 
     def apply(self, callback, route):
 

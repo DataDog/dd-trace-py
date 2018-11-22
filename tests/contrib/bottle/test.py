@@ -2,8 +2,8 @@ import bottle
 import ddtrace
 import webtest
 
-from unittest import TestCase
 from nose.tools import eq_, ok_
+from tests.base import BaseTracerTestCase
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
@@ -14,13 +14,13 @@ from ddtrace.contrib.bottle import TracePlugin
 SERVICE = 'bottle-app'
 
 
-class TraceBottleTest(TestCase):
+class TraceBottleTest(BaseTracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
     def setUp(self):
+        super(TraceBottleTest, self).setUp()
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app
