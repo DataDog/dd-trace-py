@@ -23,6 +23,17 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
+    def test_tracing_metadata(self):
+        yield from self.client.request('GET', '/')
+        self.spans[0].assert_matches(
+            name='aiohttp.request',
+            service='aiohttp-web',
+            span_type='http',
+            resource='/',
+        )
+
+    @unittest_run_loop
+    @asyncio.coroutine
     def test_handler(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
