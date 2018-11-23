@@ -11,6 +11,7 @@ from ddtrace.context import Context
 
 from .base import BaseTracerTestCase
 from .utils.tracer import DummyTracer
+from .utils.tracer import DummyWriter  # noqa
 
 
 def get_dummy_tracer():
