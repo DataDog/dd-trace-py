@@ -103,6 +103,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.name, 'celery.run')
         eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task')
         eq_(span.service, 'celery-worker')
+        eq_(span.span_type, 'worker')
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')

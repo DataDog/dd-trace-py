@@ -5,11 +5,10 @@ import logging
 import wrapt
 
 # Project
-from ...compat import httplib, PY2
+from ...compat import PY2, httplib, parse
 from ...ext import http as ext_http
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
-
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
 
@@ -60,10 +59,23 @@ def _wrap_putrequest(func, instance, args, kwargs):
         method, path = args[:2]
         scheme = 'https' if isinstance(instance, httplib.HTTPSConnection) else 'http'
         port = ':{port}'.format(port=instance.port)
+
         if (scheme == 'http' and instance.port == 80) or (scheme == 'https' and instance.port == 443):
             port = ''
         url = '{scheme}://{host}{port}{path}'.format(scheme=scheme, host=instance.host, port=port, path=path)
-        span.set_tag(ext_http.URL, url)
+
+        # sanitize url
+        parsed = parse.urlparse(url)
+        sanitized_url = parse.urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            None, # drop query
+            parsed.fragment
+        ))
+
+        span.set_tag(ext_http.URL, sanitized_url)
         span.set_tag(ext_http.METHOD, method)
     except Exception:
         log.debug('error applying request tags', exc_info=True)

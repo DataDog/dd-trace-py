@@ -2,7 +2,7 @@ import logging
 
 # project
 from .conf import settings
-from .compat import user_is_authenticated
+from .compat import user_is_authenticated, get_resolver
 
 from ...ext import http
 from ...contrib import func_name
@@ -25,6 +25,18 @@ EXCEPTION_MIDDLEWARE = 'ddtrace.contrib.django.TraceExceptionMiddleware'
 TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'
 MIDDLEWARE = 'MIDDLEWARE'
 MIDDLEWARE_CLASSES = 'MIDDLEWARE_CLASSES'
+
+# Default views list available from:
+#   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/views/defaults.py
+# DEV: Django doesn't call `process_view` when falling back to one of these internal error handling views
+# DEV: We only use these names when `span.resource == 'unknown'` and we have one of these status codes
+_django_default_views = {
+    400: 'django.views.defaults.bad_request',
+    403: 'django.views.defaults.permission_denied',
+    404: 'django.views.defaults.page_not_found',
+    500: 'django.views.defaults.server_error',
+}
+
 
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
@@ -120,6 +132,32 @@ class TraceMiddleware(InstrumentationMixin):
                     # remove any existing stack trace since it must have been
                     # handled appropriately
                     span._remove_exc_info()
+
+                # If `process_view` was not called, try to determine the correct `span.resource` to set
+                # DEV: `process_view` won't get called if a middle `process_request` returns an HttpResponse
+                # DEV: `process_view` won't get called when internal error handlers are used (e.g. for 404 responses)
+                if span.resource == 'unknown':
+                    try:
+                        # Attempt to lookup the view function from the url resolver
+                        #   https://github.com/django/django/blob/38e2fdadfd9952e751deed662edf4c496d238f28/django/core/handlers/base.py#L104-L113  # noqa
+                        urlconf = None
+                        if hasattr(request, 'urlconf'):
+                            urlconf = request.urlconf
+                        resolver = get_resolver(urlconf)
+
+                        # Try to resolve the Django view for handling this request
+                        if getattr(request, 'request_match', None):
+                            request_match = request.request_match
+                        else:
+                            # This may raise a `django.urls.exceptions.Resolver404` exception
+                            request_match = resolver.resolve(request.path_info)
+                        span.resource = func_name(request_match.func)
+                    except Exception:
+                        log.debug('error determining request view function', exc_info=True)
+
+                        # If the view could not be found, try to set from a static list of
+                        # known internal error handler views
+                        span.resource = _django_default_views.get(response.status_code, 'unknown')
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
