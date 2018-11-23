@@ -7,7 +7,6 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config, Pin
 
-from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
@@ -26,8 +25,6 @@ config._add('flask', dict(
     # Flask service configuration
     # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
     service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
-    app='flask',
-    app_type=AppTypes.web,
 
     collect_view_args=True,
     distributed_tracing_enabled=False,
@@ -66,11 +63,7 @@ def patch():
     setattr(flask, '_datadog_patch', True)
 
     # Attach service pin to `flask.app.Flask`
-    Pin(
-        service=config.flask['service_name'],
-        app=config.flask['app'],
-        app_type=config.flask['app_type'],
-    ).onto(flask.Flask)
+    Pin(service=config.flask['service_name']).onto(flask.Flask)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
     _w('flask', 'Flask.wsgi_app', traced_wsgi_app)

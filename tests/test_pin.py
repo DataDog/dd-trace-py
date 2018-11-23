@@ -75,7 +75,7 @@ class PinTestCase(TestCase):
 
     def test_copy(self):
         # ensure a Pin is copied when using the clone methods
-        p1 = Pin(service='metrics', app='flask', tags={'key': 'value'})
+        p1 = Pin(service='metrics', tags={'key': 'value'})
         p2 = p1.clone(service='intake')
         # values are the same
         eq_(p1.service, 'metrics')
@@ -100,9 +100,9 @@ class PinTestCase(TestCase):
         class A(object):
             pass
 
-        Pin(service='metrics', app='flask').onto(A)
+        Pin(service='metrics').onto(A)
         a = A()
-        Pin.override(a, app='django')
+        Pin.override(a)
         eq_(Pin.get_from(a).service, 'metrics')
 
         b = A()

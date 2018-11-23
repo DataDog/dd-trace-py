@@ -1,4 +1,3 @@
-
 # 3p
 import logging
 import pyramid.renderers

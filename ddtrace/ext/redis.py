@@ -1,5 +1,4 @@
 # defaults
-APP = 'redis'
 DEFAULT_SERVICE = 'redis'
 
 # type of the spans

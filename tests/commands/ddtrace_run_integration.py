@@ -17,7 +17,6 @@ if __name__ == '__main__':
     r = redis.Redis(port=REDIS_CONFIG['port'])
     pin = Pin.get_from(r)
     ok_(pin)
-    eq_(pin.app, 'redis')
     eq_(pin.service, 'redis')
 
     pin.tracer.writer = DummyWriter()

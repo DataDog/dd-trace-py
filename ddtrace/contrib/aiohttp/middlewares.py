@@ -1,9 +1,8 @@
 import asyncio
 
 from ..asyncio import context_provider
-from ...ext import AppTypes, http
+from ...ext import http
 from ...compat import stringify
-from ...context import Context
 from ...propagation.http import HTTPPropagator
 
 

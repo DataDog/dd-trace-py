@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 def _wrap_init(func, instance, args, kwargs):
-    Pin(app='httplib', service=None, app_type=ext_http.TYPE).onto(instance)
+    Pin(service=None).onto(instance)
     return func(*args, **kwargs)
 
 

@@ -47,11 +47,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         "db.application" : dsn.get("application_name"),
     }
 
-    Pin(
-        service="postgres",
-        app="postgres",
-        app_type="db",
-        tags=tags).onto(c)
+    Pin(service="postgres", tags=tags).onto(c)
 
     return c
 

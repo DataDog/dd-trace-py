@@ -1,9 +1,8 @@
-import unittest
 import mock
+import unittest
 
 from ddtrace import Pin, Span
 from ddtrace.contrib.dbapi import TracedCursor, TracedConnection
-from ddtrace.ext import AppTypes, sql
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -86,7 +85,7 @@ class TestTracedCursor(unittest.TestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
-        pin = Pin('pin_name', app='changed', tracer=tracer)
+        pin = Pin('pin_name', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
@@ -141,7 +140,7 @@ class TestTracedCursor(unittest.TestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 123
-        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        pin = Pin('my_service', tracer=tracer, tags={'pin1': 'value_pin1'})
         traced_cursor = TracedCursor(cursor, pin)
 
         def method():
@@ -166,7 +165,7 @@ class TestTracedCursor(unittest.TestCase):
         # implementation with the generic dbapi traced cursor, we had to make sure to add the tag 'sql.rows' that was
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
-        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        pin = Pin('my_service', tracer=tracer, tags={'pin1': 'value_pin1'})
         traced_cursor = TracedCursor(cursor, pin)
 
         def method():

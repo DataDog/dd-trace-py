@@ -14,8 +14,6 @@ TASK_APPLY_ASYNC = 'apply_async'
 TASK_RUN = 'run'
 TASK_RETRY_REASON_KEY = 'celery.retry.reason'
 
-# Service info
-APP = 'celery'
 # `getenv()` call must be kept for backward compatibility; we may remove it
 # later when we do a full migration to the `Config` class
 PRODUCER_SERVICE = getenv('DATADOG_SERVICE_NAME') or 'celery-producer'

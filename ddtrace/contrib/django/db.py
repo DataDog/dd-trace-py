@@ -1,14 +1,10 @@
-
 import logging
 
 from django.db import connections
 
-# project
-from ...ext import sql as sqlx
-
+from ddtrace import Pin
 from .conf import settings
 from ..dbapi import TracedCursor as DbApiTracedCursor
-from ddtrace import Pin
 
 log = logging.getLogger(__name__)
 
@@ -57,13 +53,13 @@ def patch_conn(tracer, conn):
         alias = getattr(conn, 'alias', 'default')
         service = '{}{}{}'.format(database_prefix, alias, 'db')
         vendor = getattr(conn, 'vendor', 'db')
-        prefix = sqlx.normalize_vendor(vendor)
         tags = {
             'django.db.vendor': vendor,
             'django.db.alias': alias,
         }
-        pin = Pin(service, tags=tags, tracer=tracer, app=prefix)
-        return DbApiTracedCursor(conn._datadog_original_cursor(), pin)
+
+        pin = Pin(service, tags=tags, tracer=tracer)
+        return DbApiTracedCursor(conn._datadog_original_cursor(), pin, prefix)
 
     conn.cursor = cursor
 

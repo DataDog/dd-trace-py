@@ -2,9 +2,7 @@ from celery import signals
 
 from ddtrace import Pin, config
 from ddtrace.pin import _DD_PIN_NAME
-from ddtrace.ext import AppTypes
 
-from .constants import APP
 from .signals import (
     trace_prerun,
     trace_postrun,
@@ -26,8 +24,6 @@ def patch_app(app, pin=None):
     # attach the PIN object
     pin = pin or Pin(
         service=config.celery['worker_service_name'],
-        app=APP,
-        app_type=AppTypes.worker,
         _config=config.celery,
     )
     pin.onto(app)

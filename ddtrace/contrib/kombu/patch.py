@@ -9,7 +9,6 @@ from ...pin import Pin
 from ...utils.formats import get_env
 from .constants import DEFAULT_SERVICE
 from ...ext import kombu as kombux
-from ...ext import AppTypes
 from ...utils.wrappers import unwrap
 from ...propagation.http import HTTPPropagator
 from .utils import (
@@ -45,17 +44,9 @@ def patch():
     # *  extracts/normalizes things like exchange
     _w(kombux.TYPE, 'Producer._publish', traced_publish)
     _w(kombux.TYPE, 'Consumer.receive', traced_receive)
-    Pin(
-        service=config.kombu['service_name'],
-        app='kombu',
-        app_type=AppTypes.worker,
-    ).onto(kombu.messaging.Producer)
+    Pin(service=config.kombu['service_name']).onto(kombu.messaging.Producer)
 
-    Pin(
-        service=config.kombu['service_name'],
-        app='kombu',
-        app_type=AppTypes.worker,
-    ).onto(kombu.messaging.Consumer)
+    Pin(service=config.kombu['service_name']).onto(kombu.messaging.Consumer)
 
 
 def unpatch():

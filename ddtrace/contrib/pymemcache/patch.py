@@ -15,9 +15,7 @@ def patch():
     setattr(pymemcache.client.base, "Client", WrappedClient)
 
     # Create a global pin with default configuration for our pymemcache clients
-    Pin(
-        app=memcachedx.SERVICE, service=memcachedx.SERVICE, app_type=memcachedx.TYPE
-    ).onto(pymemcache)
+    Pin(service=memcachedx.SERVICE).onto(pymemcache)
 
 
 def unpatch():

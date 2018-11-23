@@ -7,7 +7,7 @@ import logging
 import wrapt
 
 from ddtrace import Pin
-from ddtrace.ext import AppTypes, sql
+from ddtrace.ext import sql
 
 log = logging.getLogger(__name__)
 
@@ -15,10 +15,9 @@ log = logging.getLogger(__name__)
 class TracedCursor(wrapt.ObjectProxy):
     """ TracedCursor wraps a psql cursor and traces it's queries. """
 
-    def __init__(self, cursor, pin):
+    def __init__(self, cursor, pin, name='sql'):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
-        name = pin.app or 'sql'
         self._self_datadog_name = '{}.query'.format(name)
         self._self_last_execute_operation = None
 
@@ -123,7 +122,7 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = '{}.connection'.format(name)
-        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin = pin or Pin(service=name)
         db_pin.onto(self)
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):

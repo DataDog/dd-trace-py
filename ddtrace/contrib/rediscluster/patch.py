@@ -4,7 +4,7 @@ import wrapt
 
 # project
 from ...pin import Pin
-from ...ext import AppTypes, redis as redisx
+from ...ext import redis as redisx
 from ...utils.wrappers import unwrap
 from ..redis.patch import traced_execute_command, traced_pipeline
 from ..redis.util import format_command_args
@@ -21,7 +21,7 @@ def patch():
     _w('rediscluster', 'StrictRedisCluster.execute_command', traced_execute_command)
     _w('rediscluster', 'StrictRedisCluster.pipeline', traced_pipeline)
     _w('rediscluster', 'StrictClusterPipeline.execute', traced_execute_pipeline)
-    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP, app_type=AppTypes.db).onto(rediscluster.StrictRedisCluster)
+    Pin(service=redisx.DEFAULT_SERVICE).onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():

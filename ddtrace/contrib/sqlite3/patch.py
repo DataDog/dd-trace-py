@@ -7,7 +7,6 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 
-from ...ext import AppTypes
 
 # Original connect method
 _connect = sqlite3.connect
@@ -28,7 +27,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(service="sqlite", app="sqlite", app_type=AppTypes.db).onto(wrapped)
+    Pin(service='sqlite').onto(wrapped)
     return wrapped
 
 class TracedSQLite(TracedConnection):

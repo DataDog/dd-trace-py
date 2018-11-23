@@ -11,7 +11,6 @@ from wrapt import ObjectProxy
 import ddtrace
 from ...utils.deprecation import deprecated
 from ...compat import iteritems
-from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from .parse import parse_spec, parse_query, parse_msg
@@ -60,7 +59,7 @@ class TracedMongoClient(ObjectProxy):
         client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
+        ddtrace.Pin(service=mongox.TYPE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)

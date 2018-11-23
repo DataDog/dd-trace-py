@@ -1,6 +1,5 @@
 TYPE = 'elasticsearch'
 SERVICE = 'elasticsearch'
-APP = 'elasticsearch'
 
 # standard tags
 URL = 'elasticsearch.url'
