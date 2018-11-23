@@ -14,7 +14,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
-        self._datadog_name = 'sql.query'
 
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
@@ -24,7 +23,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             return result
         service = pin.service
 
-        with pin.tracer.trace(self._datadog_name, service=service,
+        with pin.tracer.trace('postgres.query', service=service,
                               resource=resource) as s:
             s.span_type = sql.TYPE
             s.set_tag(sql.QUERY, resource)
