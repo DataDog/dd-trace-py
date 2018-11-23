@@ -637,6 +637,7 @@ jobs:
   dbapi:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -802,6 +803,7 @@ jobs:
   unit_tests:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
