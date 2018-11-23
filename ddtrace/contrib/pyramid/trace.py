@@ -8,7 +8,7 @@ import wrapt
 
 # project
 import ddtrace
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from .constants import (
     SETTINGS_TRACER,

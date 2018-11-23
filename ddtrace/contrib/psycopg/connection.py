@@ -8,7 +8,6 @@ import functools
 from ...ext import db
 from ...ext import net
 from ...ext import sql
-from ...ext import AppTypes
 from ...utils.deprecation import deprecated
 
 # 3p

@@ -6,7 +6,7 @@ from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http, elasticsearch as metadata
+from ...ext import http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'

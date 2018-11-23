@@ -1,7 +1,7 @@
 import logging
 
 from ... import compat
-from ...ext import http, errors, AppTypes
+from ...ext import http, errors
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 

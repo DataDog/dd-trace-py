@@ -8,7 +8,7 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 
 log = logging.getLogger(__name__)

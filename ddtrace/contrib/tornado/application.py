@@ -5,8 +5,6 @@ from tornado import template
 from . import decorators, context_provider
 from .constants import CONFIG_KEY
 
-from ...ext import AppTypes
-
 
 def tracer_config(__init__, app, args, kwargs):
     """

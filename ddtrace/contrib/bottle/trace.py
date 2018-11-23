@@ -3,7 +3,7 @@ from bottle import response, request
 
 # stdlib
 import ddtrace
-from ddtrace.ext import http, AppTypes
+from ddtrace.ext import http
 
 # project
 from ...propagation.http import HTTPPropagator
