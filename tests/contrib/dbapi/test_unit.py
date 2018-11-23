@@ -81,12 +81,12 @@ class TestTracedCursor(unittest.TestCase):
         traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
         assert tracer.writer.pop()[0].name == 'sql.query.fetchall'
 
-    def test_correct_span_names_can_be_overridden_by_pin(self):
+    def test_correct_span_names_can_be_overridden(self):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
         pin = Pin('pin_name', tracer=tracer)
-        traced_cursor = TracedCursor(cursor, pin)
+        traced_cursor = TracedCursor(cursor, pin, 'changed')
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert tracer.writer.pop()[0].name == 'changed.query'
