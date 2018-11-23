@@ -118,9 +118,10 @@ class TracedCursor(wrapt.ObjectProxy):
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None):
+    def __init__(self, conn, pin=None, name=None):
         super(TracedConnection, self).__init__(conn)
-        name = _get_vendor(conn)
+        name = name if name is not None else _get_vendor(conn)
+        self._self_name = name
         self._self_datadog_name = '{}.connection'.format(name)
         db_pin = pin or Pin(service=name)
         db_pin.onto(self)
@@ -142,7 +143,7 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return TracedCursor(cursor, pin)
+        return TracedCursor(cursor, pin, self._self_name)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
@@ -159,7 +160,7 @@ def _get_vendor(conn):
     try:
         name = _get_module_name(conn)
     except Exception:
-        log.debug("couldnt parse module name", exc_info=True)
+        log.debug("couldn't parse module name", exc_info=True)
         name = "sql"
     return sql.normalize_vendor(name)
 
