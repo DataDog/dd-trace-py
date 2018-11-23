@@ -196,7 +196,6 @@ class TestSQLite(object):
         spans = tracer.writer.pop()
         assert spans
 
-        print(spans)
         eq_(len(spans), 3)
         ot_span, dd_span, fetchall_span = spans
 
