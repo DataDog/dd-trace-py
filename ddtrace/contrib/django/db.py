@@ -3,6 +3,8 @@ import logging
 from django.db import connections
 
 from ddtrace import Pin
+from ...ext import sql as sqlx
+
 from .conf import settings
 from ..dbapi import TracedCursor as DbApiTracedCursor
 
@@ -53,6 +55,7 @@ def patch_conn(tracer, conn):
         alias = getattr(conn, 'alias', 'default')
         service = '{}{}{}'.format(database_prefix, alias, 'db')
         vendor = getattr(conn, 'vendor', 'db')
+        prefix = sqlx.normalize_vendor(vendor)
         tags = {
             'django.db.vendor': vendor,
             'django.db.alias': alias,
