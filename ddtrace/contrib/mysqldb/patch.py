@@ -58,6 +58,6 @@ def patch_conn(conn, *args, **kwargs):
     pin = Pin(service='mysql', tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin)
+    wrapped = TracedConnection(conn, pin=pin, name='mysql')
     pin.onto(wrapped)
     return wrapped

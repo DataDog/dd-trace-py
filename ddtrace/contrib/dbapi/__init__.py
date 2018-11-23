@@ -120,8 +120,8 @@ class TracedConnection(wrapt.ObjectProxy):
 
     def __init__(self, conn, pin=None, name=None):
         super(TracedConnection, self).__init__(conn)
-        name = name if name is not None else _get_vendor(conn)
         self._self_name = name
+        name = _get_vendor(conn)
         self._self_datadog_name = '{}.connection'.format(name)
         db_pin = pin or Pin(service=name)
         db_pin.onto(self)
@@ -143,7 +143,7 @@ class TracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return TracedCursor(cursor, pin, self._self_name)
+        return TracedCursor(cursor, pin, name=self._self_name)
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')

@@ -35,7 +35,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
-    c = traced_conn_cls(conn)
+    c = traced_conn_cls(conn, name='postgres')
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)

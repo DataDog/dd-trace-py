@@ -34,6 +34,6 @@ def patch_conn(conn):
     pin = Pin(service='pymysql', tags=tags)
 
     # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin)
+    wrapped = TracedConnection(conn, pin=pin, name='pymysql')
     pin.onto(wrapped)
     return wrapped
