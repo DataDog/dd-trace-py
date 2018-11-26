@@ -1,9 +1,10 @@
+import unittest
 import sys
 
 import wrapt
 
 
-class PatchMixin(object):
+class PatchMixin(unittest.TestCase):
     """
     TestCase for testing the patch logic of an integration.
     """
@@ -47,9 +48,11 @@ class PatchMixin(object):
 
         This is useful for asserting idempotence.
         """
-        self.assertTrue(hasattr(obj, '__wrapped__'), '{} is not wrapped'.format(obj))
+        self.assert_wrapped(obj)
         self.assert_not_wrapped(obj.__wrapped__)
 
+
+class BasePatchTestCase(PatchMixin):
     def test_patch_before_import(self):
         """
         The integration should test that each class, method or function that
@@ -117,3 +120,83 @@ class PatchMixin(object):
             self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
         """
         raise NotImplementedError(self.test_patch_idempotent.__doc__)
+
+    def test_unpatch_before_import(self):
+        """
+        To ensure that we can thoroughly test the installation/patching of an
+        integration we must be able to unpatch it before importing the library.
+
+        For example::
+
+            ddtrace.patch(redis=True)
+            from ddtrace.contrib.redis import unpatch
+            unpatch()
+            import redis
+            self.assert_not_wrapped(redis.StrictRedis.execute_command)
+            self.assert_not_wrapped(redis.StrictRedis.pipeline)
+            self.assert_not_wrapped(redis.Redis.pipeline)
+            self.assert_not_wrapped(redis.client.BasePipeline.execute)
+            self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+        """
+        raise NotImplementedError(self.test_unpatch_before_import.__doc__)
+
+    def test_unpatch_after_import(self):
+        """
+        To ensure that we can thoroughly test the installation/patching of an
+        integration we must be able to unpatch it after importing the library.
+
+        For example::
+
+            import redis
+            from ddtrace.contrib.redis import unpatch
+            ddtrace.patch(redis=True)
+            unpatch()
+            self.assert_not_wrapped(redis.StrictRedis.execute_command)
+            self.assert_not_wrapped(redis.StrictRedis.pipeline)
+            self.assert_not_wrapped(redis.Redis.pipeline)
+            self.assert_not_wrapped(redis.client.BasePipeline.execute)
+            self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+        """
+        raise NotImplementedError(self.test_unpatch_after_import.__doc__)
+
+    def test_unpatch_patch(self):
+        """
+        To ensure that we can thoroughly test the installation/patching of an
+        integration we must be able to unpatch it and then subsequently patch it
+        again.
+
+        For example::
+
+            import redis
+            from ddtrace.contrib.redis import unpatch
+
+            ddtrace.patch(redis=True)
+            unpatch()
+            ddtrace.patch(redis=True)
+            self.assert_wrapped(redis.StrictRedis.execute_command)
+            self.assert_wrapped(redis.StrictRedis.pipeline)
+            self.assert_wrapped(redis.Redis.pipeline)
+            self.assert_wrapped(redis.client.BasePipeline.execute)
+            self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
+        """
+        raise NotImplementedError(self.test_unpatch_patch.__doc__)
+
+    def test_unpatch_idempotent(self):
+        """
+        Unpatching twice should be a no-op.
+
+        For example::
+
+            import redis
+            from ddtrace.contrib.redis import unpatch
+
+            ddtrace.patch(redis=True)
+            unpatch()
+            unpatch()
+            self.assert_not_wrapped(redis.StrictRedis.execute_command)
+            self.assert_not_wrapped(redis.StrictRedis.pipeline)
+            self.assert_not_wrapped(redis.Redis.pipeline)
+            self.assert_not_wrapped(redis.client.BasePipeline.execute)
+            self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+        """
+        raise NotImplementedError(self.test_unpatch_idempotent.__doc__)
