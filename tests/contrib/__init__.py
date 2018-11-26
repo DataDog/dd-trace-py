@@ -1,6 +1,7 @@
-from .patch import PatchMixin
+from .patch import PatchMixin, PatchTestCase
 
 
 __all__ = [
     'PatchMixin',
+    'PatchTestCase',
 ]

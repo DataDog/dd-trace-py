@@ -52,7 +52,7 @@ class PatchMixin(unittest.TestCase):
         self.assert_not_wrapped(obj.__wrapped__)
 
 
-class BasePatchTestCase(PatchMixin):
+class PatchTestCase(PatchMixin):
     def test_patch_before_import(self):
         """
         The integration should test that each class, method or function that
