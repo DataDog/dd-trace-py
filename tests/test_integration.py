@@ -152,38 +152,6 @@ class TestWorkers(TestCase):
         eq_(payload[0][0]['name'], 'client.testing')
         eq_(payload[0][1]['name'], 'client.testing')
 
-    def test_worker_single_service(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('client.service', 'django', 'web')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 1)
-        eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
-
-    def test_worker_service_called_multiple_times(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('backend', 'django', 'web')
-        tracer.set_service_info('database', 'postgres', 'db')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 2)
-        eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
-        eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
-
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
