@@ -78,7 +78,7 @@ setup(
     author='Datadog, Inc.',
     author_email='dev@datadoghq.com',
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type='text/markdown',
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
