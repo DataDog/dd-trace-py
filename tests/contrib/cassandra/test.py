@@ -233,9 +233,9 @@ class CassandraBase(object):
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(s.resource, 'BatchStatement')
         eq_(s.get_metric('cassandra.batch_size'), 1)
-        eq_(s.get_tag(cassx.QUERY), to_unicode('INSERT INTO test.person_write (name, age, description) VALUES (\'Joe\', 1, \'好\')'))
+        eq_(s.resource, to_unicode('INSERT INTO test.person_write (name, age, description) VALUES (\'Joe\', 1, \'好\')'))
+        eq_(s.get_tag(cassx.QUERY), None)
 
     def test_trace_error(self):
         session, tracer = self._traced_session()
