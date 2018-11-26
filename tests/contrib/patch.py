@@ -26,8 +26,7 @@ class PatchMixin(unittest.TestCase):
         """
         assert not self.module_imported(modname), '{} module is imported'.format(modname)
 
-    @staticmethod
-    def is_wrapped(obj):
+    def is_wrapped(self, obj):
         return isinstance(obj, wrapt.ObjectProxy)
 
     def assert_wrapped(self, obj):
