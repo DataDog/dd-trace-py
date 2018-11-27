@@ -46,6 +46,15 @@ Celery
 
 .. automodule:: ddtrace.contrib.celery
 
+
+.. _kombu:
+
+Kombu
+------
+
+.. automodule:: ddtrace.contrib.kombu
+
+
 .. _httplib:
 
 httplib

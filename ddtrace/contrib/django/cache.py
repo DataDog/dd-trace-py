@@ -41,7 +41,7 @@ def patch_cache(tracer):
           Django supported cache servers (Redis, Memcached, Database, Custom)
     """
     # discover used cache backends
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
 
     def _trace_operation(fn, method_name):
         """
@@ -102,7 +102,7 @@ def unpatch_method(cls, method_name):
     delattr(cls, DATADOG_NAMESPACE.format(method=method_name))
 
 def unpatch_cache():
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
     for cache_module in cache_backends:
         cache = import_from_string(cache_module, cache_module)
 
