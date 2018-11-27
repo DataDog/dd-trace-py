@@ -1,16 +1,18 @@
 """
 subprocesstest enables unittest test cases and suites to be run in separate
-python interpreter instances, in parallel.
+python interpreter instances.
 
 A base class SubprocessTestCase is provided that, when extended, will run test
 cases marked with @run_in_subprocess in a separate python interpreter.
 """
-import unittest
+import os
 import subprocess
 import sys
+import unittest
 
 
 SUBPROC_TEST_ATTR = '_subproc_test'
+SUBPROC_ENV_VAR = '_SP_TEST'
 
 
 def run_in_subprocess(obj):
@@ -18,12 +20,14 @@ def run_in_subprocess(obj):
     Marks a test case that is to be run in its own 'clean' interpreter instance.
 
     When applied to a TestCase class, each method will be run in a separate
-    interpreter instance, in parallel.
+    interpreter instance.
 
     Usage on a class::
 
+        from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+
         @run_in_subprocess
-        class PatchTests(object):
+        class PatchTests(SubprocessTestCase):
             # will be run in new interpreter
             def test_patch_before_import(self):
                 patch()
@@ -37,7 +41,7 @@ def run_in_subprocess(obj):
 
     Usage on a test method::
 
-        class OtherTests(object):
+        class OtherTests(SubprocessTestCase):
             @run_in_subprocess
             def test_case(self):
                 pass
@@ -62,11 +66,14 @@ class SubprocessTestCase(unittest.TestCase):
     def _run_test_in_subprocess(self, result):
         full_testcase_name = self._full_method_name()
 
+        sp_test_env = os.environ.copy()
+        sp_test_env[SUBPROC_ENV_VAR] = 'True'
         sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
         sp = subprocess.Popen(
             sp_test_cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=sp_test_env,
         )
         _, stderr = sp.communicate()
 
@@ -84,35 +91,21 @@ class SubprocessTestCase(unittest.TestCase):
     def _in_subprocess(self):
         """Determines if the test is being run in a subprocess.
 
-        This is done by checking the system arguments and seeing if the full
-        module method name is contained in any of the arguments. This method
-        assumes that the test case is being run in a subprocess if invoked with
-        a test command specifying only this test case.
+        This is done by checking for an environment variable that we call the
+        subprocess test with.
 
-        For example the command:
-        $ python -m unittest tests.contrib.gevent.test_patch.TestGeventPatch.test_patch_before_import
-
-        will have _in_subprocess return True for the test_patch_before_import
-        test case for gevent.
-
-        :param test: the test case being run
-        :return: whether the test is being run individually (with the assumption
-                 that this is in a new subprocess)
+        :return: whether the test is a subprocess test
         """
-        full_testcase_name = self._full_method_name()
-        for arg in sys.argv:
-            if full_testcase_name in arg:
-                return True
-        return False
+        return bool(os.getenv(SUBPROC_ENV_VAR, False))
 
     def _is_subprocess_test(self):
         if hasattr(self, SUBPROC_TEST_ATTR):
             return True
 
-        if hasattr(self, '_testMethodName'):
-            test = getattr(self, getattr(self, '_testMethodName'))
-            if hasattr(test, SUBPROC_TEST_ATTR):
-                return True
+        test = getattr(self, getattr(self, '_testMethodName'))
+        if hasattr(test, SUBPROC_TEST_ATTR):
+            return True
+
         return False
 
     def run(self, result=None):
