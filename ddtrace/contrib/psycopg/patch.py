@@ -15,6 +15,7 @@ PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
 if PSYCOPG_VERSION >= (2, 7):
     from psycopg2.sql import Composable
 
+
 def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
@@ -32,6 +33,7 @@ def unpatch():
         setattr(psycopg2, '_datadog_patch', False)
         psycopg2.connect = _connect
 
+
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """ TracedCursor for psycopg2 """
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
@@ -41,24 +43,14 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
 
         return super(Psycopg2TracedCursor, self)._trace_method(method, resource, extra_tags, *args, **kwargs)
 
-class Psycopg2TracedConnection(dbapi.TracedConnection):
-    """ TracedConnection that wraps cursor for psycopg2 """
 
-    def cursor(self, *args, **kwargs):
-        cursor = self.__wrapped__.cursor(*args, **kwargs)
-        pin = Pin.get_from(self)
-        if not pin:
-            return cursor
-
-        return Psycopg2TracedCursor(cursor, pin)
-
-def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
+def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
-    c = traced_conn_cls(conn)
+    c = traced_conn_cls(conn, cursor_cls=Psycopg2TracedCursor)
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
