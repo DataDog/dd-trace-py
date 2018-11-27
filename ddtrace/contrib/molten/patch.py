@@ -16,7 +16,7 @@ config._add('molten', dict(
     service_name=get_env('molten', 'service_name', 'molten'),
     app='molten',
     app_type=AppTypes.web,
-    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False))
+    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False)),
 ))
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
