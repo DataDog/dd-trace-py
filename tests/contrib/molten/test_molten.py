@@ -4,20 +4,22 @@ import molten
 from molten.testing import TestClient
 
 from ddtrace import Pin
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 
 from ...test_tracer import get_dummy_tracer
+from ...util import override_config
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
 def hello(name: str, age: int) -> str:
     return f'Hello {age} year old named {name}!'
 
-def molten_client(prepare_environ=None):
+def molten_client(headers=None):
     app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
     client = TestClient(app)
     uri = app.reverse_uri('hello', name='Jim', age=24)
-    if prepare_environ:
-        return client.get(uri, prepare_environ=prepare_environ)
+    if headers:
+        return client.request('GET', uri, headers=headers)
     return client.get(uri)
 
 MOLTEN_VERSION =  tuple(map(int, molten.__version__.split()[0].split('.')))
@@ -85,18 +87,15 @@ class TestMolten(TestCase):
 
     def test_distributed_tracing(self):
         """ Tests whether span IDs are propogated when distributed tracing is on """
-        def prepare_environ(environ):
-            environ.update({
-                'DD_MOLTEN_DISTRIBUTED_TRACING': 'True',
-                'HTTP_X_DATADOG_TRACE_ID': '100',
-                'HTTP_X_DATADOG_PARENT_ID': '42',
+        with override_config('molten', dict(distributed_tracing=True)):
+            response = molten_client(headers={
+                HTTP_HEADER_TRACE_ID: '100',
+                HTTP_HEADER_PARENT_ID: '42',
             })
-            return environ
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
 
-        response = molten_client(prepare_environ=prepare_environ)
         spans = self.tracer.writer.pop()
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
         span = spans[0]
         self.assertEqual(span.service, self.TEST_SERVICE)
         self.assertEqual(span.name, 'molten.request')

@@ -118,8 +118,8 @@ def trace_func(resource):
 
 @wrapt.function_wrapper
 def patch_start_response(wrapped, instance, args, kwargs):
-    """Patch respond handling to set metadata
-    """
+    """ Patch respond handling to set metadata """
+
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
@@ -173,25 +173,27 @@ def patch_app_call(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    # destruct arguments to wsgi app
+    # DEV: This is safe before this is the args for a WSGI handler
+    #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
+
+    # patching for setting metadata on span
     start_response = patch_start_response(start_response)
-    method = environ.get('REQUEST_METHOD')
-    path = environ.get('PATH_INFO')
-    resource = func_name(wrapped)
 
     request = Request.from_environ(environ)
-    distributed_tracing = asbool(environ.get('DD_MOLTEN_DISTRIBUTED_TRACING')) or \
-        config.get_from(instance).get('distributed_tracing')
-    if distributed_tracing:
+    resource = func_name(wrapped)
+
+    # Configure distributed tracing
+    if config.molten.get('distributed_tracing', False):
         propagator = HTTPPropagator()
         context = propagator.extract(dict(request.headers))
+        # Only need to activate the new context if something was propagated
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
-        span.set_tag(http.METHOD, method)
-        span.set_tag(http.URL, path)
+        span.set_tag(http.METHOD, request.method)
+        span.set_tag(http.URL, request.path)
         span.set_tag('molten.version', molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
