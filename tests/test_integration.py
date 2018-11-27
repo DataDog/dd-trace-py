@@ -152,6 +152,27 @@ class TestWorkers(TestCase):
         eq_(payload[0][0]['name'], 'client.testing')
         eq_(payload[0][1]['name'], 'client.testing')
 
+    def test_worker_single_service(self):
+        # service must be sent correctly
+        tracer = self.tracer
+        tracer.set_service_info('client.service', 'django', 'web')
+        tracer.trace('client.testing').finish()
+
+        # expect a call for traces and services
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 0)
+
+    def test_worker_service_called_multiple_times(self):
+        # service must be sent correctly
+        tracer = self.tracer
+        tracer.set_service_info('backend', 'django', 'web')
+        tracer.set_service_info('database', 'postgres', 'db')
+        tracer.trace('client.testing').finish()
+
+        # expect a call for traces and services
+        self._wait_thread_flush()
+        eq_(self.api._put.call_count, 0)
+
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
