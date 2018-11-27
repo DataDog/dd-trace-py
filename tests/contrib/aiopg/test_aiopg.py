@@ -128,7 +128,7 @@ class TestPsycopgPatch(BaseTracerTestCase, AsyncioTestCase):
         Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         conn.close()
-        span = self.spans[0]
+        span = self.get_root_span()
         span.assert_matches(
             name='postgres.query',
             service='postgres',

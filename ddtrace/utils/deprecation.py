@@ -48,7 +48,7 @@ def deprecated(message='', version=None):
         $ python -Wall script.py
 
     This approach is used by most of the frameworks, including Django
-    (ref: https://docs.djangoproject.com/en/2.0/howto/upgrade-version/#resolving-eprecation-warnings)
+    (ref: https://docs.djangoproject.com/en/2.0/howto/upgrade-version/#resolving-deprecation-warnings)
     """
     def decorator(func):
         @wraps(func)

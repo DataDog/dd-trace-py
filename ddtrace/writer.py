@@ -42,9 +42,11 @@ class AgentWriter(object):
         if services is not None:
             deprecation(
                 name='write(services)',
-                message='Writing services has been replaced with specifying the'
-                        'service and span_type on each span. Services are no'
-                        'longer sent.',
+                message=(
+                    'Writing services has been replaced with specifying the'
+                    'service and span_type on each span. Services are no longer'
+                    'sent.'
+                ),
             )
 
     def _reset_worker(self):
@@ -69,8 +71,9 @@ class AgentWriter(object):
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, shutdown_timeout=DEFAULT_TIMEOUT,
-                 filters=None, priority_sampler=None):
+    def __init__(self, api, trace_queue, service_queue=None,
+                 shutdown_timeout=DEFAULT_TIMEOUT, filters=None,
+                 priority_sampler=None):
         self._trace_queue = trace_queue
         self._lock = threading.Lock()
         self._thread = None
@@ -80,6 +83,15 @@ class AsyncWorker(object):
         self._last_error_ts = 0
         self.api = api
         self.start()
+
+        if service_queue:
+            deprecation(
+                name='AsyncWorker(service_queue)',
+                message=(
+                    'service_queue has been removed as services are no longer'
+                    'required to be sent to the agent via a separate endpoint.'
+                ),
+            )
 
     def is_alive(self):
         return self._thread.is_alive()

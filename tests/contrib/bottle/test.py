@@ -5,7 +5,6 @@ import webtest
 from nose.tools import eq_, ok_
 from tests.base import BaseTracerTestCase
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
 
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
@@ -27,6 +26,7 @@ class TraceBottleTest(BaseTracerTestCase):
         self.app = bottle.Bottle()
 
     def tearDown(self):
+        super(TraceBottleTest, self).tearDown()
         # restore the tracer
         ddtrace.tracer = self._original_tracer
 

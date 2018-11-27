@@ -31,9 +31,11 @@ class DummyWriter(AgentWriter):
         if services:
             deprecation(
                 name='write(services)',
-                message='Writing services has been replaced with specifying the'
-                        'and span_type on each span. Services are no longer'
-                        'sent.',
+                message=(
+                    'Writing services has been replaced with specifying the'
+                    'service and span_type on each span. Services are no longer'
+                    'sent.'
+                ),
             )
 
     def pop(self):

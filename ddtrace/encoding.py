@@ -1,6 +1,7 @@
 import json
 import logging
 
+from ddtrace.utils.deprecation import deprecation
 
 # check msgpack CPP implementation; if the import fails, we're using the
 # pure Python implementation that is really slow, so the ``Encoder`` should use
@@ -23,7 +24,7 @@ log = logging.getLogger(__name__)
 
 class Encoder(object):
     """
-    Encoder interface that provides the logic to encode traces and service.
+    Encoder interface that provides the logic to encode traces.
     """
     def __init__(self):
         """
@@ -45,6 +46,23 @@ class Encoder(object):
         """
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
         return self._encode(normalized_traces)
+
+    def encode_services(self, services):
+        """
+        Encodes a dictionary of services.
+
+        Note: this method is deprecated and will be removed in a future release.
+
+         :param services: A dictionary that contains one or more services
+        """
+        deprecation(
+            name='encode_services',
+            message=(
+                'The services endpoint has been deprecated and so it is no'
+                'longer necessary to encode services.'
+            ),
+        )
+        return self._encode(services)
 
     def _encode(self, obj):
         """
