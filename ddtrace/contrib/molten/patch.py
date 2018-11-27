@@ -129,8 +129,19 @@ def patch_start_response(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     status, headers, exc_info = args
-    status_code, _, _ = status.partition(' ')
-    span.set_tag(http.STATUS_CODE, status_code)
+    code, _, _ = status.partition(' ')
+
+    try:
+        code = int(code)
+    except ValueError:
+        pass
+
+    span.set_tag(http.STATUS_CODE, code)
+
+    # mark 5xx spans as error
+    if 500 <= code < 600:
+        span.error = 1
+
     return wrapped(*args, **kwargs)
 
 
