@@ -57,22 +57,22 @@ class TestMolten(TestCase):
         expected_resources = [
             'molten.app.__call__',
             'molten.middleware.ResponseRendererMiddleware',
-            'molten.components.HeaderComponent',
-            'molten.components.CookiesComponent',
-            'molten.components.QueryParamComponent',
-            'molten.components.RequestBodyComponent',
-            'molten.components.RequestDataComponent',
-            'molten.components.SchemaComponent',
-            'molten.components.UploadedFileComponent',
-            'molten.components.HeaderComponent',
-            'molten.components.CookiesComponent',
-            'molten.components.QueryParamComponent',
-            'molten.components.RequestBodyComponent',
-            'molten.components.RequestDataComponent',
-            'molten.components.SchemaComponent',
-            'molten.components.UploadedFileComponent',
+            'molten.components.HeaderComponent.can_handle_parameter',
+            'molten.components.CookiesComponent.can_handle_parameter',
+            'molten.components.QueryParamComponent.can_handle_parameter',
+            'molten.components.RequestBodyComponent.can_handle_parameter',
+            'molten.components.RequestDataComponent.can_handle_parameter',
+            'molten.components.SchemaComponent.can_handle_parameter',
+            'molten.components.UploadedFileComponent.can_handle_parameter',
+            'molten.components.HeaderComponent.can_handle_parameter',
+            'molten.components.CookiesComponent.can_handle_parameter',
+            'molten.components.QueryParamComponent.can_handle_parameter',
+            'molten.components.RequestBodyComponent.can_handle_parameter',
+            'molten.components.RequestDataComponent.can_handle_parameter',
+            'molten.components.SchemaComponent.can_handle_parameter',
+            'molten.components.UploadedFileComponent.can_handle_parameter',
             'GET /hello/{name}/{age}',
-            'molten.renderers.JSONRenderer'
+            'molten.renderers.JSONRenderer.render'
         ]
 
         # Addition of `UploadedFileComponent` in 0.7.2 changes expected spans

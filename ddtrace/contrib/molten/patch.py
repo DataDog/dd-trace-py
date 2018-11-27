@@ -31,19 +31,22 @@ class WrapperComponent(wrapt.ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
         cname = func_name(self.__wrapped__)
-        return trace_wrapped(cname, func, *args, **kwargs)
+        resource = '{}.{}'.format(cname, func.__name__)
+        return trace_wrapped(resource, func, *args, **kwargs)
 
     def resolve(self, *args, **kwargs):
         func = self.__wrapped__.resolve
         cname = func_name(self.__wrapped__)
-        return trace_wrapped(cname, func, *args, **kwargs)
+        resource = '{}.{}'.format(cname, func.__name__)
+        return trace_wrapped(resource, func, *args, **kwargs)
 
 
 class WrapperRenderer(wrapt.ObjectProxy):
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
         cname = func_name(self.__wrapped__)
-        return trace_wrapped(cname, func, *args, **kwargs)
+        resource = '{}.{}'.format(cname, func.__name__)
+        return trace_wrapped(resource, func, *args, **kwargs)
 
 
 def patch():
