@@ -12,7 +12,7 @@ import unittest
 
 
 SUBPROC_TEST_ATTR = '_subproc_test'
-SUBPROC_ENV_VAR = '_SP_TEST'
+SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
 
 
 def run_in_subprocess(obj):
@@ -66,6 +66,8 @@ class SubprocessTestCase(unittest.TestCase):
     def _run_test_in_subprocess(self, result):
         full_testcase_name = self._full_method_name()
 
+        # copy the environment and include the special subprocess environment
+        # variable for the subprocess to detect
         sp_test_env = os.environ.copy()
         sp_test_env[SUBPROC_ENV_VAR] = 'True'
         sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
@@ -96,13 +98,13 @@ class SubprocessTestCase(unittest.TestCase):
 
         :return: whether the test is a subprocess test
         """
-        return bool(os.getenv(SUBPROC_ENV_VAR, False))
+        return os.getenv(SUBPROC_ENV_VAR, None) is not None
 
     def _is_subprocess_test(self):
         if hasattr(self, SUBPROC_TEST_ATTR):
             return True
 
-        test = getattr(self, getattr(self, '_testMethodName'))
+        test = getattr(self, self._testMethodName)
         if hasattr(test, SUBPROC_TEST_ATTR):
             return True
 
