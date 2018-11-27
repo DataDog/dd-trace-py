@@ -148,7 +148,7 @@ def patch_start_response(wrapped, instance, args, kwargs):
 def patch_add_route(wrapped, instance, args, kwargs):
     """Patch adding routes to trace route handler
     """
-    def _wrap(route_like, prefix="", namespace=None):
+    def _wrap(route_like, prefix='', namespace=None):
         # avoid patching non-Route, e.g. Include
         if not isinstance(route_like, molten.Route):
             return wrapped(*args, **kwargs)
