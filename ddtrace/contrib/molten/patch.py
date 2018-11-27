@@ -29,6 +29,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 
 
 class WrapperComponent(wrapt.ObjectProxy):
+    """ Tracing of components """
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
         cname = func_name(self.__wrapped__)
@@ -43,10 +44,21 @@ class WrapperComponent(wrapt.ObjectProxy):
 
 
 class WrapperRenderer(wrapt.ObjectProxy):
+    """ Tracing of renderers """
     def render(self, *args, **kwargs):
         func = self.__wrapped__.render
         cname = func_name(self.__wrapped__)
         resource = '{}.{}'.format(cname, func.__name__)
+        return trace_wrapped(resource, func, *args, **kwargs)
+
+
+class WrapperMiddleware(wrapt.ObjectProxy):
+    """ Tracing of middleware function or callable """
+    def __call__(self, *args, **kwargs):
+        func = self.__wrapped__.__call__
+        cname = func_name(self.__wrapped__)
+        # only use callable class name for resource name
+        resource = '{}'.format(cname)
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
@@ -102,20 +114,6 @@ def trace_func(resource):
             return wrapped(*args, **kwargs)
 
     return _trace_func
-
-
-def trace_middleware(middleware):
-    """Trace calling of middleware function or object
-    """
-    @wrapt.function_wrapper
-    def _trace_middleware(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        return trace_func(func_name(wrapped))(wrapped(*args, **kwargs))
-
-    return _trace_middleware(middleware)
 
 
 @wrapt.function_wrapper
@@ -201,7 +199,7 @@ def patch_app_init(wrapped, instance, args, kwargs):
 
     # trace middleware in instance
     instance.middleware = [
-        trace_middleware(mw)
+        WrapperMiddleware(mw)
         for mw in instance.middleware
     ]
 
