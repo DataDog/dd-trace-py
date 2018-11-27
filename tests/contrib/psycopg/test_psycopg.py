@@ -107,7 +107,7 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(span.name, "postgres.query")
         self.assertEquals(span.resource, q)
         self.assertEquals(span.service, service)
-        self.assertTrue(span.get_tag("sql.query") is None)
+        self.assertIsNone(span.get_tag("sql.query"))
         self.assertEquals(span.error, 0)
         self.assertEquals(span.span_type, "sql")
         assert start <= span.start <= end
@@ -129,7 +129,7 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(span.name, "postgres.query")
         self.assertEquals(span.resource, q)
         self.assertEquals(span.service, service)
-        self.assertTrue(span.get_tag("sql.query") is None)
+        self.assertIsNone(span.get_tag("sql.query"))
         self.assertEquals(span.error, 1)
         self.assertEquals(span.meta["out.host"], "localhost")
         self.assertEquals(span.meta["out.port"], TEST_PORT)
@@ -160,7 +160,7 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(dd_span.name, "postgres.query")
         self.assertEquals(dd_span.resource, query)
         self.assertEquals(dd_span.service, 'postgres')
-        self.assertTrue(dd_span.get_tag("sql.query") is None)
+        self.assertIsNone(dd_span.get_tag("sql.query"))
         self.assertEquals(dd_span.error, 0)
         self.assertEquals(dd_span.span_type, "sql")
 
