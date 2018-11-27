@@ -27,6 +27,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
     with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
         return wrapped(*args, **kwargs)
 
+
 class WrapperComponent(wrapt.ObjectProxy):
     def can_handle_parameter(self, *args, **kwargs):
         func = self.__wrapped__.can_handle_parameter
