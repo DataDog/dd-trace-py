@@ -78,8 +78,10 @@ def unpatch():
     if getattr(molten, '_datadog_patch', False):
         setattr(molten, '_datadog_patch', False)
 
+        # remove pin
         pin = Pin.get_from(molten)
-        pin.remove_from(molten)
+        if pin:
+            pin.remove_from(molten)
 
         unwrap(molten.BaseApp, '__init__')
         unwrap(molten.App, '__call__')
