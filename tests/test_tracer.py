@@ -10,7 +10,6 @@ from ddtrace.ext import system
 from ddtrace.context import Context
 
 from .base import BaseTracerTestCase
-from .utils.span import TestSpan
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
 

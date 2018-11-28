@@ -1,4 +1,3 @@
-import time
 import timeit
 
 from ddtrace import Tracer

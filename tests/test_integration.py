@@ -48,8 +48,6 @@ class FlawedAPI(API):
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
-
-
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -138,7 +136,7 @@ class TestWorkers(TestCase):
         # make a single send() if a single trace with multiple spans is created before the flush
         tracer = self.tracer
         parent = tracer.trace('client.testing')
-        child = tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
         parent.finish()
 
         # one send is expected
@@ -253,7 +251,7 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_traces(traces)
+        self.api_msgpack.send_traces(traces)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 
@@ -283,7 +281,7 @@ class TestAPITransport(TestCase):
         }]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_services(services)
+        self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 

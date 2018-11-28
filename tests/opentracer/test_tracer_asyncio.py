@@ -1,3 +1,4 @@
+# flake8: noqa
 import asyncio
 import pytest
 from opentracing.scope_managers.asyncio import AsyncioScopeManager

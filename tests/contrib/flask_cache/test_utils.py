@@ -1,3 +1,9 @@
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
 import unittest
 
 from nose.tools import eq_, ok_

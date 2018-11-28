@@ -1,3 +1,16 @@
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
 import gevent
 import pytest
 from opentracing.scope_managers.gevent import GeventScopeManager

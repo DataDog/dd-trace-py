@@ -38,7 +38,9 @@ class DummmyAPI():
         for trace in traces:
             self.traces.append(trace)
 
+
 N_TRACES = 11
+
 
 class AsyncWorkerTests(TestCase):
     def setUp(self):
@@ -46,7 +48,10 @@ class AsyncWorkerTests(TestCase):
         self.traces = Q()
         self.services = Q()
         for i in range(N_TRACES):
-            self.traces.add([Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j-1 or None) for j in range(7)])
+            self.traces.add([
+                Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
+                for j in range(7)
+            ])
 
     def test_filters_keep_all(self):
         filtr = KeepAllFilter()

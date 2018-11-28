@@ -24,8 +24,9 @@ def try_until_timeout(exception):
 
     """
     def wrap(fn):
-        err = None
         def wrapper(*args, **kwargs):
+            err = None
+
             for i in range(100):
                 try:
                     fn()

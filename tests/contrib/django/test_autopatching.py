@@ -1,3 +1,5 @@
+# flake8: noqa
+# flake8: noqa
 import django
 
 from ddtrace.monkey import patch

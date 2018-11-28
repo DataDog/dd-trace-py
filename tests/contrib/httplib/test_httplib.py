@@ -1,3 +1,4 @@
+# flake8: noqa
 # Standard library
 import contextlib
 import sys

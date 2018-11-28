@@ -1,3 +1,6 @@
+# flake8: noqa
+# flake8: noqa
+# flake8: noqa
 
 # stdlib
 import time

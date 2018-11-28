@@ -1,3 +1,5 @@
+# flake8: noqa
+# flake8: noqa
 import mock
 
 import flask

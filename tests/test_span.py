@@ -19,6 +19,7 @@ def test_ids():
     eq_(s2.span_id, 2)
     eq_(s2.parent_id, 1)
 
+
 def test_tags():
     s = Span(tracer=None, name="test.span")
     s.set_tag("a", "a")
@@ -31,6 +32,7 @@ def test_tags():
         "c" : "1",
     }
     eq_(d["meta"], expected)
+
 
 def test_set_valid_metrics():
     s = Span(tracer=None, name="test.span")
@@ -48,6 +50,7 @@ def test_set_valid_metrics():
         "e": 12.34,
     }
     eq_(d["metrics"], expected)
+
 
 def test_set_invalid_metric():
     s = Span(tracer=None, name="test.span")
@@ -68,6 +71,7 @@ def test_set_invalid_metric():
         s.set_metric(k, m)
         eq_(s.get_metric(k), None)
 
+
 def test_set_numpy_metric():
     try:
         import numpy as np
@@ -78,6 +82,7 @@ def test_set_numpy_metric():
     eq_(s.get_metric("a"), 1)
     eq_(type(s.get_metric("a")), float)
 
+
 def test_tags_not_string():
     # ensure we can cast as strings
     class Foo(object):
@@ -86,6 +91,7 @@ def test_tags_not_string():
 
     s = Span(tracer=None, name="test.span")
     s.set_tag("a", Foo())
+
 
 def test_finish():
     # ensure finish will record a span
@@ -108,6 +114,7 @@ def test_finish_no_tracer():
     s = Span(tracer=None, name="test.span")
     s.finish()
 
+
 def test_finish_called_multiple_times():
     # we should only record a span the first time finish is called on it
     dt = DummyTracer()
@@ -127,6 +134,7 @@ def test_finish_set_span_duration():
     s.finish()
     assert s.duration == 1337.0
 
+
 def test_traceback_with_error():
     s = Span(None, "test.span")
     try:
@@ -140,6 +148,7 @@ def test_traceback_with_error():
     assert 'by zero' in s.get_tag(errors.ERROR_MSG)
     assert "ZeroDivisionError" in s.get_tag(errors.ERROR_TYPE)
 
+
 def test_traceback_without_error():
     s = Span(None, "test.span")
     s.set_traceback()
@@ -147,6 +156,7 @@ def test_traceback_without_error():
     assert not s.get_tag(errors.ERROR_MSG)
     assert not s.get_tag(errors.ERROR_TYPE)
     assert "in test_traceback_without_error" in s.get_tag(errors.ERROR_STACK)
+
 
 def test_ctx_mgr():
     dt = DummyTracer()
@@ -170,6 +180,7 @@ def test_ctx_mgr():
     else:
         assert 0, "should have failed"
 
+
 def test_span_to_dict():
     s = Span(tracer=None, name="test.span", service="s", resource="r")
     s.span_type = "foo"
@@ -186,6 +197,7 @@ def test_span_to_dict():
     eq_(d["type"], "foo")
     eq_(d["error"], 0)
     eq_(type(d["error"]), int)
+
 
 def test_span_to_dict_sub():
     parent = Span(tracer=None, name="test.span", service="s", resource="r")
@@ -206,6 +218,7 @@ def test_span_to_dict_sub():
     eq_(d["error"], 0)
     eq_(type(d["error"]), int)
 
+
 def test_span_boolean_err():
     s = Span(tracer=None, name="foo.bar", service="s", resource="r")
     s.error = True
@@ -216,22 +229,6 @@ def test_span_boolean_err():
     eq_(d["error"], 1)
     eq_(type(d["error"]), int)
 
-def test_span_to_dict():
-    s = Span(tracer=None, name="test.span", service="s", resource="r")
-    s.span_type = "foo"
-    s.set_tag("a", "1")
-    s.set_meta("b", "2")
-    s.finish()
-
-    d = s.to_dict()
-    assert d
-    eq_(d["span_id"], s.span_id)
-    eq_(d["trace_id"], s.trace_id)
-    eq_(d["parent_id"], s.parent_id)
-    eq_(d["meta"], {"a": "1", "b": "2"})
-    eq_(d["type"], "foo")
-    eq_(d["error"], 0)
-    eq_(type(d["error"]), int)
 
 class DummyTracer(object):
     def __init__(self):
