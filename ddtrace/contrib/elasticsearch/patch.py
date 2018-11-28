@@ -97,3 +97,13 @@ def _get_perform_request(elasticsearch):
 
             return result
     return _perform_request
+
+
+# Backwards compatibility for anyone who decided to import `ddtrace.contrib.elasticsearch.patch._perform_request`
+# DEV: `_perform_request` is a `wrapt.FunctionWrapper`
+try:
+    # DEV: Import as `es` to not shadow loop variables above
+    import elasticsearch as es
+    _perform_request = _get_perform_request(es)
+except ImportError:
+    pass
