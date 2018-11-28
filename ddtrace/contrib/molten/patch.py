@@ -53,7 +53,7 @@ class WrapperRenderer(wrapt.ObjectProxy):
 
 
 class WrapperMiddleware(wrapt.ObjectProxy):
-    """ Tracing of middleware function or callable """
+    """ Tracing of callable functional-middleware """
     def __call__(self, *args, **kwargs):
         func = self.__wrapped__.__call__
         cname = func_name(self.__wrapped__)
@@ -177,7 +177,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
 
-    # patching for setting metadata on span
+    # patching for extracting response code
     start_response = patch_start_response(start_response)
 
     request = Request.from_environ(environ)
@@ -186,7 +186,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     # Configure distributed tracing
     if config.molten.get('distributed_tracing', False):
         propagator = HTTPPropagator()
-        # cast headers of type Iterable[Tuple[str, str]] to dictionary
+        # request.headers is type Iterable[Tuple[str, str]]
         context = propagator.extract(dict(request.headers))
         # Only need to activate the new context if something was propagated
         if context.trace_id:
@@ -202,7 +202,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 def patch_app_init(wrapped, instance, args, kwargs):
     """Patch app initialization of middleware, components and renderers
     """
-    # allow instance to be initialized with middleware
+    # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
 
     # add Pin to instance
@@ -211,25 +211,33 @@ def patch_app_init(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return
 
-    # trace middleware in instance
+    # Wrappers here allow us to trace objects without altering class or instance
+    # attributes, which presents a problem when classes in molten use
+    # ``__slots__``
+
+    # wrap middleware functions/callables
     instance.middleware = [
         WrapperMiddleware(mw)
         for mw in instance.middleware
     ]
 
-    # patch class methods of component instances
+    # wrap components objects
     instance.components = [
         WrapperComponent(c)
         for c in instance.components
     ]
 
-    # re-init dependency injector with wrapped components
-    instance.injector = molten.DependencyInjector(
-        components=instance.components,
-        singletons={molten.BaseApp: instance},
-    )
+    # wrap components list and singletons dict (component -> resolver) in dependency injector
+    instance.injector.components = [
+        WrapperComponent(c)
+        for c in instance.injector.components
+    ]
+    instance.injector.singletons = dict([
+        (WrapperComponent(c), r)
+        for (c,r) in instance.injector.singletons.items()
+    ])
 
-    # patch renderers
+    # wrap renderers objects
     instance.renderers = [
         WrapperRenderer(r)
         for r in instance.renderers
