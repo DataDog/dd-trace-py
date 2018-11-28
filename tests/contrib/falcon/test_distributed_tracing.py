@@ -1,7 +1,4 @@
 # flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.ext import errors as errx, http as httpx, AppTypes
 from falcon import testing

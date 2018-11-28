@@ -1,11 +1,4 @@
 # flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
 # Standard library
 import time
 import unittest

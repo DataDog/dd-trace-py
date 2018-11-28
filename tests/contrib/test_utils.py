@@ -1,5 +1,4 @@
 # flake8: noqa
-# flake8: noqa
 from nose.tools import eq_
 
 from functools import partial

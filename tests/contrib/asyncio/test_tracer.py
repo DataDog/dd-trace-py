@@ -1,5 +1,4 @@
 # flake8: noqa
-# flake8: noqa
 import asyncio
 
 from asyncio import BaseEventLoop

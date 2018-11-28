@@ -1,6 +1,4 @@
 # flake8: noqa
-# flake8: noqa
-# flake8: noqa
 from django.conf.urls import url, include
 from django.contrib.auth.models import User, Group
 from django.http import HttpResponse

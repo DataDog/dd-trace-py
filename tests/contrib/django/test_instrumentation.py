@@ -1,7 +1,4 @@
 # flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
 import os
 import time
 

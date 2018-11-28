@@ -1,10 +1,4 @@
 # flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
-# flake8: noqa
 # stdlib
 import sys
 import webtest
