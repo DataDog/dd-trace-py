@@ -61,6 +61,33 @@ class TestIntegrationConfig(object):
         integration_config = IntegrationConfig(Config())
         assert isinstance(integration_config, dict)
 
+    def test_allow_item_access(self):
+        config = IntegrationConfig(Config())
+        config['setting'] = 'value'
+
+        # Can be accessed both as item and attr accessor
+        assert config.setting == 'value'
+        assert config['setting'] == 'value'
+
+    def test_allow_attr_access(self):
+        config = IntegrationConfig(Config())
+        config.setting = 'value'
+
+        # Can be accessed both as item and attr accessor
+        assert config.setting == 'value'
+        assert config['setting'] == 'value'
+
+    def test_allow_both_access(self):
+        config = IntegrationConfig(Config())
+
+        config.setting = 'value'
+        assert config['setting'] == 'value'
+        assert config.setting == 'value'
+
+        config['setting'] = 'new-value'
+        assert config.setting == 'new-value'
+        assert config['setting'] == 'new-value'
+
     def test_allow_configuring_http(self):
         global_config = Config()
         integration_config = IntegrationConfig(global_config)
