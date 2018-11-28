@@ -14,6 +14,7 @@ from ...util import override_config
 def hello(name: str, age: int) -> str:
     return f'Hello {age} year old named {name}!'
 
+
 def molten_client(headers=None):
     app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
     client = TestClient(app)
