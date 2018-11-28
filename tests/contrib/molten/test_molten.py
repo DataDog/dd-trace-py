@@ -23,6 +23,7 @@ def molten_client(headers=None):
         return client.request('GET', uri, headers=headers)
     return client.get(uri)
 
+
 MOLTEN_VERSION =  tuple(map(int, molten.__version__.split()[0].split('.')))
 
 class TestMolten(TestCase):
