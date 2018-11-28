@@ -20,21 +20,35 @@ def patch():
     setattr(redis, '_datadog_patch', True)
 
     _w = wrapt.wrap_function_wrapper
-    _w('redis', 'StrictRedis.execute_command', traced_execute_command)
-    _w('redis', 'StrictRedis.pipeline', traced_pipeline)
-    _w('redis', 'Redis.pipeline', traced_pipeline)
-    _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
-    _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
+
+    if redis.VERSION < (3, 0, 0):
+        _w('redis', 'StrictRedis.execute_command', traced_execute_command)
+        _w('redis', 'StrictRedis.pipeline', traced_pipeline)
+        _w('redis', 'Redis.pipeline', traced_pipeline)
+        _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
+        _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
+    else:
+        _w('redis', 'Redis.execute_command', traced_execute_command)
+        _w('redis', 'Redis.pipeline', traced_pipeline)
+        _w('redis.client', 'Pipeline.execute', traced_execute_pipeline)
+        _w('redis.client', 'Pipeline.immediate_execute_command', traced_execute_command)
     Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP, app_type=AppTypes.db).onto(redis.StrictRedis)
 
 def unpatch():
     if getattr(redis, '_datadog_patch', False):
         setattr(redis, '_datadog_patch', False)
-        unwrap(redis.StrictRedis, 'execute_command')
-        unwrap(redis.StrictRedis, 'pipeline')
-        unwrap(redis.Redis, 'pipeline')
-        unwrap(redis.client.BasePipeline, 'execute')
-        unwrap(redis.client.BasePipeline, 'immediate_execute_command')
+
+        if redis.VERSION < (3, 0, 0):
+            unwrap(redis.StrictRedis, 'execute_command')
+            unwrap(redis.StrictRedis, 'pipeline')
+            unwrap(redis.Redis, 'pipeline')
+            unwrap(redis.client.BasePipeline, 'execute')
+            unwrap(redis.client.BasePipeline, 'immediate_execute_command')
+        else:
+            unwrap(redis.Redis, 'execute_command')
+            unwrap(redis.Redis, 'pipeline')
+            unwrap(redis.client.Pipeline, 'execute')
+            unwrap(redis.client.Pipeline, 'immediate_execute_command')
 
 #
 # tracing functions
