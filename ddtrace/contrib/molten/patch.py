@@ -20,6 +20,7 @@ config._add('molten', dict(
     distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False)),
 ))
 
+
 def trace_wrapped(resource, wrapped, *args, **kwargs):
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
@@ -27,6 +28,22 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
 
     with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
         return wrapped(*args, **kwargs)
+
+
+def trace_func(resource):
+    """Trace calls to function using provided resource name
+    """
+    @wrapt.function_wrapper
+    def _trace_func(wrapped, instance, args, kwargs):
+        pin = Pin.get_from(molten)
+
+        if not pin or not pin.enabled():
+            return wrapped(*args, **kwargs)
+
+        with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
+            return wrapped(*args, **kwargs)
+
+    return _trace_func
 
 
 class WrapperComponent(wrapt.ObjectProxy):
@@ -62,6 +79,36 @@ class WrapperMiddleware(wrapt.ObjectProxy):
         resource = '{}'.format(cname)
         return trace_wrapped(resource, func, *args, **kwargs)
 
+class WrapperRouter(wrapt.ObjectProxy):
+    """ Tracing of router on the way back from a matched route """
+    def match(self, *args, **kwargs):
+        # catch matched route and wrap tracer around its handler and set root span resource
+        func = self.__wrapped__.match
+        route_and_params = func(*args, **kwargs)
+
+        pin = Pin.get_from(molten)
+        if not pin or not pin.enabled():
+            return route_and_params
+
+        if route_and_params is not None:
+            route, params = route_and_params
+
+            resource = '{} {}'.format(
+                route.method,
+                route.template,
+            )
+
+            route.handler = trace_func(resource)(route.handler)
+
+            # update root span resource while we know the matched route
+            root_span = pin.tracer.current_root_span()
+            if root_span:
+                root_span.resource = resource
+
+            return route, params
+
+        return route_and_params
+
 
 def patch():
     """Patch the instrumented methods
@@ -82,7 +129,6 @@ def patch():
     _w = wrapt.wrap_function_wrapper
     _w('molten', 'BaseApp.__init__', patch_app_init)
     _w('molten', 'App.__call__', patch_app_call)
-    _w('molten', 'Router.add_route', patch_add_route)
 
 
 def unpatch():
@@ -99,22 +145,6 @@ def unpatch():
         unwrap(molten.BaseApp, '__init__')
         unwrap(molten.App, '__call__')
         unwrap(molten.Router, 'add_route')
-
-
-def trace_func(resource):
-    """Trace calls to function using provided resource name
-    """
-    @wrapt.function_wrapper
-    def _trace_func(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(molten)
-
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
-            return wrapped(*args, **kwargs)
-
-    return _trace_func
 
 
 @wrapt.function_wrapper
@@ -144,27 +174,6 @@ def patch_start_response(wrapped, instance, args, kwargs):
         span.error = 1
 
     return wrapped(*args, **kwargs)
-
-
-def patch_add_route(wrapped, instance, args, kwargs):
-    """Patch adding routes to trace route handler
-    """
-    def _wrap(route_like, prefix='', namespace=None):
-        # avoid patching non-Route, e.g. Include
-        if not isinstance(route_like, molten.Route):
-            return wrapped(*args, **kwargs)
-
-        resource = '{} {}'.format(
-            route_like.method,
-            route_like.template,
-        )
-
-        # patch handler for route
-        route_like.handler = trace_func(resource)(route_like.handler)
-
-        return wrapped(route_like, prefix=prefix, namespace=namespace)
-
-    return _wrap(*args, **kwargs)
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
@@ -215,6 +224,8 @@ def patch_app_init(wrapped, instance, args, kwargs):
     # Wrappers here allow us to trace objects without altering class or instance
     # attributes, which presents a problem when classes in molten use
     # ``__slots__``
+
+    instance.router = WrapperRouter(instance.router)
 
     # wrap middleware functions/callables
     instance.middleware = [

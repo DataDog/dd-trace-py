@@ -57,7 +57,7 @@ class TestMolten(TestCase):
         spans = self.tracer.writer.pop()
 
         expected = [
-            'molten.app.__call__',
+            'GET /hello/{name}/{age}',
             'molten.middleware.ResponseRendererMiddleware',
             'molten.components.HeaderComponent.can_handle_parameter',
             'molten.components.CookiesComponent.can_handle_parameter',
