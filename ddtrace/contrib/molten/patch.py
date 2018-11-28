@@ -10,6 +10,7 @@ from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap
 
+MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
 
 # Configure default configuration
 config._add('molten', dict(

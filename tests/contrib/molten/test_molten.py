@@ -5,7 +5,7 @@ from molten.testing import TestClient
 
 from ddtrace import Pin
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from ddtrace.contrib.molten import patch, unpatch
+from ddtrace.contrib.molten import patch, unpatch, MOLTEN_VERSION
 
 from ...test_tracer import get_dummy_tracer
 from ...util import override_config
@@ -22,9 +22,6 @@ def molten_client(headers=None):
     if headers:
         return client.request('GET', uri, headers=headers)
     return client.get(uri)
-
-
-MOLTEN_VERSION =  tuple(map(int, molten.__version__.split()[0].split('.')))
 
 
 class TestMolten(TestCase):
