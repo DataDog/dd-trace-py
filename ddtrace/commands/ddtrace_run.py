@@ -33,6 +33,7 @@ Available environment variables:
     DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
 """ # noqa
 
+
 def _ddtrace_root():
     from ddtrace import __file__
     return os.path.dirname(__file__)

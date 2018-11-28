@@ -115,6 +115,7 @@ def parse_msg(msg_bytes):
     cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
+
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
     db, coll = None, None
@@ -131,6 +132,7 @@ def parse_query(query):
     cmd = Command(getattr(query, 'name', 'query'), db, coll)
     cmd.query = query.spec
     return cmd
+
 
 def parse_spec(spec, db=None):
     """ Return a Command that has parsed the relevant detail for the given
@@ -165,9 +167,11 @@ def parse_spec(spec, db=None):
 
     return cmd
 
+
 def _cstring(raw):
     """ Return the first null terminated cstring from the bufffer. """
     return ctypes.create_string_buffer(raw).value
+
 
 def _split_namespace(ns):
     """ Return a tuple of (db, collecton) from the "db.coll" string. """

@@ -12,10 +12,10 @@ from ...ext import http
 # 3p
 from django.template import Template
 
-
 log = logging.getLogger(__name__)
 
 RENDER_ATTR = '_datadog_original_render'
+
 
 def patch_template(tracer):
     """ will patch django's template rendering function to include timing
@@ -41,6 +41,7 @@ def patch_template(tracer):
                 span.set_tag('django.template_name', template_name)
 
     Template.render = traced_render
+
 
 def unpatch_template():
     render = getattr(Template, RENDER_ATTR, None)

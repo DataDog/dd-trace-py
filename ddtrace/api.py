@@ -26,6 +26,7 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'compatibility_mode': True,
                       'fallback': None}}
 
+
 def _parse_response_json(response):
     """
     Parse the content of a response object, and return the right type,
@@ -47,6 +48,7 @@ def _parse_response_json(response):
             return content
         except (ValueError, TypeError) as err:
             log.debug("unable to load JSON '%s': %s" % (body, err))
+
 
 class API(object):
     """

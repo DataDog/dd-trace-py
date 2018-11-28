@@ -14,6 +14,7 @@ MSG = ERROR_MSG
 TYPE = ERROR_TYPE
 STACK = ERROR_STACK
 
+
 def get_traceback(tb=None, error=None):
     t = None
     if error:

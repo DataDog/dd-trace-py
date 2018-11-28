@@ -3,6 +3,7 @@ import grpc
 from ddtrace import Pin
 from .propagation import inject_span
 
+
 class GrpcClientInterceptor(
         grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
         grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):

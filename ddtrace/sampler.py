@@ -15,6 +15,7 @@ MAX_TRACE_ID = 2 ** 64
 # Has to be the same factor and key as the Agent to allow chained sampling
 KNUTH_FACTOR = 1111111111111111111
 
+
 class AllSampler(object):
     """Sampler sampling all the traces"""
 
@@ -57,6 +58,7 @@ def _key(service=None, env=None):
 
 
 _default_key = _key()
+
 
 class RateByServiceSampler(object):
     """Sampler based on a rate, by service

@@ -80,6 +80,7 @@ class MsgpackEncoder(Encoder):
     def _encode(self, obj):
         return msgpack.packb(obj, **MSGPACK_PARAMS)
 
+
 def get_encoder():
     """
     Switching logic that choose the best encoder for the API transport.

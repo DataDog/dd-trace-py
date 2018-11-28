@@ -15,11 +15,13 @@ CONN_ATTR_BY_TAG = {
     db.NAME: 'database',
 }
 
+
 def patch():
     wrapt.wrap_function_wrapper('mysql.connector', 'connect', _connect)
     # `Connect` is an alias for `connect`, patch it too
     if hasattr(mysql.connector, 'Connect'):
         mysql.connector.Connect = mysql.connector.connect
+
 
 def unpatch():
     if isinstance(mysql.connector.connect, wrapt.ObjectProxy):
@@ -27,9 +29,11 @@ def unpatch():
         if hasattr(mysql.connector, 'Connect'):
             mysql.connector.Connect = mysql.connector.connect
 
+
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
     return patch_conn(conn)
+
 
 def patch_conn(conn):
 

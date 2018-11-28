@@ -93,6 +93,7 @@ def patch_cache(tracer):
         for method in TRACED_METHODS:
             _wrap_method(cache, method)
 
+
 def unpatch_method(cls, method_name):
     method = getattr(cls, DATADOG_NAMESPACE.format(method=method_name), None)
     if method is None:
@@ -100,6 +101,7 @@ def unpatch_method(cls, method_name):
         return
     setattr(cls, method_name, method)
     delattr(cls, DATADOG_NAMESPACE.format(method=method_name))
+
 
 def unpatch_cache():
     cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
