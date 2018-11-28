@@ -165,7 +165,7 @@ class Pin(object):
             if pin is not None:
                 delattr(obj, pin_name)
         except AttributeError:
-            log.debug("can't remove pin from object. skipping", exc_info=True)
+            log.debug('can\'t remove pin from object. skipping', exc_info=True)
 
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""
