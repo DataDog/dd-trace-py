@@ -56,7 +56,7 @@ class TestMolten(TestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
 
-        expected_resources = [
+        expected = [
             'molten.app.__call__',
             'molten.middleware.ResponseRendererMiddleware',
             'molten.components.HeaderComponent.can_handle_parameter',
@@ -78,12 +78,14 @@ class TestMolten(TestCase):
         ]
 
         # Addition of `UploadedFileComponent` in 0.7.2 changes expected spans
-        if MOLTEN_VERSION >= (0, 7, 2):
-            self.assertEqual([s.resource for s in spans],
-                expected_resources)
-        else:
-            self.assertEqual([s.resource for s in spans],
-                [r for r in expected_resources if r != 'molten.components.UploadedFileComponent'])
+        if MOLTEN_VERSION < (0, 7, 2):
+            expected = [
+                r
+                for r in expected
+                if not r.startswith('molten.components.UploadedFileComponent')
+            ]
+
+        self.assertEqual([s.resource for s in spans], expected)
 
     def test_distributed_tracing(self):
         """ Tests whether span IDs are propogated when distributed tracing is on """
