@@ -13,19 +13,21 @@ from tests.test_tracer import get_dummy_tracer
 TEST_TABLE = "test_table"
 
 
-@pytest.fixture
-def test_tracer():
-    return get_dummy_tracer()
+@pytest.fixture(scope='function')
+def test_tracer(request):
+    request.cls.test_tracer = get_dummy_tracer()
+    return request.cls.test_tracer
 
 
-@pytest.fixture
-def test_conn(test_tracer):
+@pytest.fixture(scope='function')
+def test_conn(request, test_tracer):
     ddtrace.tracer = test_tracer
     patch()
 
     import vertica_python  # must happen AFTER installing with patch()
 
     conn = vertica_python.connect(**VERTICA_CONFIG)
+
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
     cur.execute(
@@ -38,4 +40,6 @@ def test_conn(test_tracer):
         )
     )
     test_tracer.writer.pop()
+
+    request.cls.test_conn = (conn, cur)
     return conn, cur
