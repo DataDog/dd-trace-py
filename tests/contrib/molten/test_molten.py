@@ -26,6 +26,7 @@ def molten_client(headers=None):
 
 MOLTEN_VERSION =  tuple(map(int, molten.__version__.split()[0].split('.')))
 
+
 class TestMolten(TestCase):
     """"Ensures Molten is properly instrumented."""
 
