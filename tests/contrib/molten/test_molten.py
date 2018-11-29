@@ -32,7 +32,7 @@ class TestMolten(TestCase):
     def setUp(self):
         patch()
         self.tracer = get_dummy_tracer()
-        Pin.override(molten, tracer=self.tracer, service=self.TEST_SERVICE)
+        Pin.override(molten, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
@@ -45,11 +45,17 @@ class TestMolten(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
         span = spans[0]
-        self.assertEqual(span.service, self.TEST_SERVICE)
+        self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.url'), '/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
+
+        # test override of service name
+        Pin.override(molten, service=self.TEST_SERVICE)
+        response = molten_client()
+        spans = self.tracer.writer.pop()
+        self.assertEqual(spans[0].service, 'molten-patch')
 
     def test_resources(self):
         """ Tests request has expected span resources """
@@ -103,7 +109,6 @@ class TestMolten(TestCase):
 
         spans = self.tracer.writer.pop()
         span = spans[0]
-        self.assertEqual(span.service, self.TEST_SERVICE)
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.trace_id, 100)
         self.assertEqual(span.parent_id, 42)
