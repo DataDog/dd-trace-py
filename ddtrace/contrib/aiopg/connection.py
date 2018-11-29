@@ -63,11 +63,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None):
+    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
         db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
         db_pin.onto(self)
+        # wrapt requires prefix of `_self` for attributes that are only in the
+        # proxy (since some of our source objects will use `__slots__`)
+        self._self_cursor_cls = cursor_cls
 
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
@@ -81,4 +84,4 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return AIOTracedCursor(cursor, pin)
+        return self._self_cursor_cls(cursor, pin)
