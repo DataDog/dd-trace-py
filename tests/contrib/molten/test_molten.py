@@ -61,6 +61,20 @@ class TestMolten(TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(spans[0].service, 'molten-patch')
 
+    def test_route_failure(self):
+        app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
+        client = TestClient(app)
+        response = client.get('/goodbye')
+        spans = self.tracer.writer.pop()
+        self.assertEqual(response.status_code, 404)
+        span = spans[0]
+        self.assertEqual(span.service, 'molten')
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'molten.app.__call__')
+        self.assertEqual(span.get_tag('http.url'), '/goodbye')
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.status_code'), '404')
+
     def test_resources(self):
         """ Tests request has expected span resources """
         response = molten_client()
