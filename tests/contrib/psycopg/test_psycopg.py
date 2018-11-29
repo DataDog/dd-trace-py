@@ -101,7 +101,7 @@ class PsycopgCore(unittest.TestCase):
         assert rows
         spans = writer.pop()
         assert spans
-        self.assertEquals(len(spans), 1)
+        self.assertEquals(len(spans), 2)
         span = spans[0]
         self.assertEquals(span.name, 'postgres.query')
         self.assertEquals(span.resource, q)
@@ -111,6 +111,9 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(span.span_type, 'sql')
         assert start <= span.start <= end
         assert span.duration <= end - start
+
+        fetch_span = spans[1]
+        self.assertEquals(fetch_span.name, "postgres.query.fetchall")
 
         # run a query with an error and ensure all is well
         q = """select * from some_non_existant_table"""
@@ -147,21 +150,23 @@ class PsycopgCore(unittest.TestCase):
 
         self.assertEquals(rows, [('tracing',)])
         spans = tracer.writer.pop()
-        self.assertEquals(len(spans), 2)
-        ot_span, dd_span = spans
+        self.assertEquals(len(spans), 3)
+        ot_span, dd_span, fetch_span = spans
         # confirm the parenting
         self.assertEquals(ot_span.parent_id, None)
         self.assertEquals(dd_span.parent_id, ot_span.span_id)
         # check the OpenTracing span
-        self.assertEquals(ot_span.name, 'db.access')
-        self.assertEquals(ot_span.service, 'psycopg-svc')
+        self.assertEquals(ot_span.name, "db.access")
+        self.assertEquals(ot_span.service, "psycopg-svc")
         # make sure the Datadog span is unaffected by OpenTracing
-        self.assertEquals(dd_span.name, 'postgres.query')
+        self.assertEquals(dd_span.name, "postgres.query")
         self.assertEquals(dd_span.resource, query)
         self.assertEquals(dd_span.service, 'postgres')
-        self.assertIsNone(dd_span.get_tag('sql.query'))
+        self.assertTrue(dd_span.get_tag("sql.query") is None)
         self.assertEquals(dd_span.error, 0)
-        self.assertEquals(dd_span.span_type, 'sql')
+        self.assertEquals(dd_span.span_type, "sql")
+
+        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
@@ -177,9 +182,10 @@ class PsycopgCore(unittest.TestCase):
             assert rows[0][0] == 'blah'
 
         spans = tracer.writer.pop()
-        assert len(spans) == 1
-        span = spans[0]
+        assert len(spans) == 2
+        span, fetch_span = spans
         self.assertEquals(span.name, 'postgres.query')
+        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
 
     def test_disabled_execute(self):
         conn, tracer = self._get_conn_and_tracer()
@@ -246,6 +252,26 @@ class PsycopgCore(unittest.TestCase):
         }
         self.assertEquals(service_meta, expected)
 
+    def test_commit(self):
+        conn, tracer = self._get_conn_and_tracer()
+        writer = tracer.writer
+        conn.commit()
+        spans = writer.pop()
+        self.assertEquals(len(spans), 1)
+        span = spans[0]
+        self.assertEquals(span.service, self.TEST_SERVICE)
+        self.assertEquals(span.name, 'postgres.connection.commit')
+
+    def test_rollback(self):
+        conn, tracer = self._get_conn_and_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        self.assertEquals(len(spans), 1)
+        span = spans[0]
+        self.assertEquals(span.service, self.TEST_SERVICE)
+        self.assertEquals(span.name, 'postgres.connection.rollback')
+
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
     def test_composed_query(self):
@@ -261,7 +287,6 @@ class PsycopgCore(unittest.TestCase):
             assert len(rows) == 2, rows
             assert rows[0][0] == 'one'
             assert rows[1][0] == 'two'
-
 
         spans = tracer.writer.pop()
         assert len(spans) == 1

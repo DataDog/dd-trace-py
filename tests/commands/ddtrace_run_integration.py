@@ -6,7 +6,6 @@ that we expect to be implicitly traced via `ddtrace-run`
 from __future__ import print_function
 
 import redis
-import os
 
 from ddtrace import Pin
 from tests.contrib.config import REDIS_CONFIG
