@@ -1,4 +1,3 @@
-
 # 3p
 import logging
 import pyramid.renderers
@@ -27,6 +26,7 @@ DD_SPAN = '_datadog_span'
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
 
+
 def includeme(config):
     # Add our tween just before the default exception handler
     config.add_tween(DD_TWEEN_NAME, over=pyramid.tweens.EXCVIEW)
@@ -50,6 +50,7 @@ def trace_render(func, instance, args, kwargs):
     with tracer.trace('pyramid.render') as span:
         span.span_type = http.TEMPLATE
         return func(*args, **kwargs)
+
 
 def trace_tween_factory(handler, registry):
     # configuration

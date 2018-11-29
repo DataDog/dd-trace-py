@@ -11,7 +11,7 @@ try:
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
     from msgpack._version import version
     # use_bin_type kwarg only exists since msgpack-python v0.4.0
-    MSGPACK_PARAMS = { 'use_bin_type': True } if version >= (0, 4, 0) else {}
+    MSGPACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
     MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
@@ -79,6 +79,7 @@ class MsgpackEncoder(Encoder):
 
     def _encode(self, obj):
         return msgpack.packb(obj, **MSGPACK_PARAMS)
+
 
 def get_encoder():
     """
