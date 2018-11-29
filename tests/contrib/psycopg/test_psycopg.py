@@ -288,11 +288,13 @@ class PsycopgCore(unittest.TestCase):
             assert rows[0][0] == 'one'
             assert rows[1][0] == 'two'
 
+
         spans = tracer.writer.pop()
-        assert len(spans) == 1
-        span = spans[0]
+        assert len(spans) == 2
+        span, fetch_span = spans
         self.assertEquals(span.name, 'postgres.query')
         self.assertEquals(span.resource, query.as_string(db))
+        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
 
 
 def test_backwards_compatibilty_v3():
