@@ -39,9 +39,6 @@ class AgentWriter(object):
         if spans:
             self._traces.add(spans)
 
-        if services:
-            self._services.add(services)
-
     def _reset_worker(self):
         # if this queue was created in a different process (i.e. this was
         # forked) reset everything so that we can safely work from it.

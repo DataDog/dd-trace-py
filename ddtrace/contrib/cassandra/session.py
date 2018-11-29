@@ -114,7 +114,7 @@ def traced_start_fetching_next_page(func, instance, args, kwargs):
     setattr(instance, CURRENT_SPAN, span)
     try:
         return func(*args, **kwargs)
-    except:
+    except Exception:
         with span:
             span.set_exc_info(*sys.exc_info())
         raise
@@ -170,7 +170,7 @@ def traced_execute_async(func, instance, args, kwargs):
         )
         result.clear_callbacks()
         return result
-    except:
+    except Exception:
         with span:
             span.set_exc_info(*sys.exc_info())
         raise

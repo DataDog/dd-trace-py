@@ -35,7 +35,7 @@ class GrpcClientInterceptor(
             new_details = inject_span(span, client_call_details)
             try:
                 return continuation(new_details, request)
-            except:
+            except Exception:
                 span.set_traceback()
                 raise
 
@@ -49,6 +49,6 @@ class GrpcClientInterceptor(
             new_details = inject_span(span, client_call_details)
             try:
                 return continuation(new_details, request_iterator)
-            except:
+            except Exception:
                 span.set_traceback()
                 raise
