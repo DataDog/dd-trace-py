@@ -150,11 +150,12 @@ class TracedConnection(wrapt.ObjectProxy):
 
     def commit(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
-        self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
+        return self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
         span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
-        self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
+        return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
+
 
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given

@@ -34,6 +34,7 @@ def patch():
         _w('redis.client', 'Pipeline.immediate_execute_command', traced_execute_command)
     Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP, app_type=AppTypes.db).onto(redis.StrictRedis)
 
+
 def unpatch():
     if getattr(redis, '_datadog_patch', False):
         setattr(redis, '_datadog_patch', False)
@@ -50,10 +51,10 @@ def unpatch():
             unwrap(redis.client.Pipeline, 'execute')
             unwrap(redis.client.Pipeline, 'immediate_execute_command')
 
+
 #
 # tracing functions
 #
-
 def traced_execute_command(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -70,12 +71,14 @@ def traced_execute_command(func, instance, args, kwargs):
         # run the command
         return func(*args, **kwargs)
 
+
 def traced_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
         pin.onto(pipeline)
     return pipeline
+
 
 def traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
@@ -92,6 +95,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.set_tags(_get_tags(instance))
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         return func(*args, **kwargs)
+
 
 def _get_tags(conn):
     return _extract_conn_tags(conn.connection_pool.connection_kwargs)

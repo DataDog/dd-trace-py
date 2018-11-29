@@ -33,6 +33,7 @@ Available environment variables:
     DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
 """ # noqa
 
+
 def _ddtrace_root():
     from ddtrace import __file__
     return os.path.dirname(__file__)
@@ -46,8 +47,7 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
     python_path = os.environ.get('PYTHONPATH', '')
 
     if python_path:
-        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep,
-                os.environ['PYTHONPATH'])
+        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep, os.environ['PYTHONPATH'])
         os.environ['PYTHONPATH'] = new_path
     else:
         os.environ['PYTHONPATH'] = bootstrap_dir
