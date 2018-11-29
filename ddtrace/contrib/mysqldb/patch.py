@@ -10,12 +10,12 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ...ext import net, db, AppTypes
 from ...utils.wrappers import unwrap as _u
 
-
 KWPOS_BY_TAG = {
     net.TARGET_HOST: ('host', 0),
     db.USER: ('user', 1),
     db.NAME: ('db', 3),
 }
+
 
 def patch():
     # patch only once

@@ -6,7 +6,7 @@ import sys
 from nose.tools import eq_, ok_, assert_raises
 
 # Project
-from ddtrace.compat import to_unicode, PY2, reraise, get_connection_response, stringify
+from ddtrace.compat import to_unicode, PY2, reraise, get_connection_response
 
 
 # Use different test suites for each Python version, this allows us to test the expected
@@ -71,12 +71,6 @@ if PY2:
             mock = MockConn()
             get_connection_response(mock)
 
-        def test_stringify_unicode(self):
-            # ensure stringify can handle decoding strings that have been to_unicode()'d
-            stringify(to_unicode('€'))
-            stringify(to_unicode('\xc3\xbf'))
-            stringify(to_unicode('好'))
-
 else:
     class TestCompatPY3(object):
         def test_to_unicode_string(self):
@@ -130,7 +124,7 @@ class TestPy2Py3Compat(object):
         with assert_raises(Exception) as ex:
             try:
                 raise Exception('Ouch!')
-            except Exception:
+            except Exception as e:
                 # original exception we want to re-raise
                 (typ, val, tb) = sys.exc_info()
                 try:

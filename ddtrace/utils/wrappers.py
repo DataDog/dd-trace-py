@@ -62,4 +62,3 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         setattr(patchable, key, dest)
     elif hasattr(patchable, '__class__'):
         setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
-
