@@ -43,7 +43,9 @@ class TestMolten(TestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
+        # TestResponse from TestClient is wrapper around Response so we must
+        # access data property
+        self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
         span = spans[0]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
