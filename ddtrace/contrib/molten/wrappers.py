@@ -54,9 +54,7 @@ class WrapperMiddleware(wrapt.ObjectProxy):
     """ Tracing of callable functional-middleware """
     def __call__(self, *args, **kwargs):
         func = self.__wrapped__.__call__
-        cname = func_name(self.__wrapped__)
-        # only use callable class name for resource name
-        resource = '{}'.format(cname)
+        resource = func_name(self.__wrapped__)
         return trace_wrapped(resource, func, *args, **kwargs)
 
 
