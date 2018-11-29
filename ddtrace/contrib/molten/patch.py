@@ -144,23 +144,15 @@ def patch_app_init(wrapped, instance, args, kwargs):
         for mw in instance.middleware
     ]
 
-    # wrap components objects
-    instance.components = [
-        WrapperComponent(c)
-        for c in instance.components
-    ]
-
-    # wrap components in injector in dependency injector
+    # wrap components objects within injector
+    # NOTE: the app instance also contains a list of components but it does not
+    # appear to be used for anything passing along to the dependency injector
     instance.injector.components = [
         WrapperComponent(c)
         for c in instance.injector.components
     ]
-    # instance.injector.singletons = dict([
-    #     (WrapperComponent(c), r)
-    #     for (c,r) in instance.injector.singletons.items()
-    # ])
 
-    # wrap renderers objects
+    # but renderers objects
     instance.renderers = [
         WrapperRenderer(r)
         for r in instance.renderers

@@ -37,6 +37,7 @@ class TestMolten(TestCase):
     def tearDown(self):
         unpatch()
         self.tracer.writer.pop()
+        delattr(self, 'tracer')
 
     def test_route_success(self):
         """ Tests request was a success with the expected span tags """
