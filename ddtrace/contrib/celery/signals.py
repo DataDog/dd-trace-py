@@ -13,9 +13,9 @@ from .utils import (
     retrieve_span,
 )
 
-
 log = logging.getLogger(__name__)
 SPAN_TYPE = 'worker'
+
 
 def trace_prerun(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API

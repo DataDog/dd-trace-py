@@ -44,7 +44,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
-        "db.application" : dsn.get("application_name"),
+        "db.application": dsn.get("application_name"),
     }
 
     Pin(
@@ -93,6 +93,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
     return func(obj, scope) if scope else func(obj)
 
+
 def _extensions_quote_ident(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
@@ -104,6 +105,7 @@ def _extensions_quote_ident(func, _, args, kwargs):
         scope = scope.__wrapped__
 
     return func(obj, scope) if scope else func(obj)
+
 
 def _extensions_adapt(func, _, args, kwargs):
     adapt = func(*args, **kwargs)
@@ -151,7 +153,6 @@ if getattr(psycopg2, '_json', None):
 # `quote_ident` attribute is only available for psycopg >= 2.7
 if getattr(psycopg2, 'extensions', None) and getattr(psycopg2.extensions,
                                                      'quote_ident', None):
-    _psycopg2_extensions += [(psycopg2.extensions.quote_ident,
-     psycopg2.extensions, 'quote_ident',
-     _extensions_quote_ident),
+    _psycopg2_extensions += [
+        (psycopg2.extensions.quote_ident, psycopg2.extensions, 'quote_ident', _extensions_quote_ident),
     ]

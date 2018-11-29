@@ -177,6 +177,7 @@ class TraceMiddleware(object):
         span.set_tag(http.METHOD, method)
         span.finish()
 
+
 def _set_error_on_span(span, exception):
     # The 3 next lines might not be strictly required, since `set_traceback`
     # also get the exception from the sys.exc_info (and fill the error meta).
@@ -187,6 +188,7 @@ def _set_error_on_span(span, exception):
     # The provided `exception` object doesn't have a stack trace attached,
     # so attach the stack trace with `set_traceback`.
     span.set_traceback()
+
 
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """
