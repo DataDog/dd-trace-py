@@ -111,7 +111,7 @@ class TestMolten(TestCase):
     def test_unpatch_patch(self):
         """ Tests unpatch-patch cycle """
         unpatch()
-        self.assertTrue(Pin.get_from(molten) is None)
+        self.assertIsNone(Pin.get_from(molten))
         molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 0)
@@ -126,7 +126,7 @@ class TestMolten(TestCase):
 
     def test_patch_unpatch(self):
         """ Tests repatch-unpatch cycle """
-        # Already patched in setUp
+        # Already call patch in setUp
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
         spans = self.tracer.writer.pop()
@@ -141,7 +141,7 @@ class TestMolten(TestCase):
 
     def test_patch_idempotence(self):
         """ Tests repatching """
-        # Patch multiple times
+        # Already call patch in setUp but patch again
         patch()
         molten_client()
         spans = self.tracer.writer.pop()
