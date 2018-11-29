@@ -80,7 +80,6 @@ class PsycopgCore(unittest.TestCase):
         assert spans, spans
         self.assertEquals(len(spans), 1)
 
-
     def assert_conn_is_traced(self, tracer, db, service):
 
         # ensure the trace pscyopg client doesn't add non-standard
