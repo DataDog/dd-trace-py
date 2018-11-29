@@ -94,7 +94,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    # DEV: This is safe before this is the args for a WSGI handler
+    # DEV: This is safe because this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
 
