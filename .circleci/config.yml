@@ -22,6 +22,7 @@ restore_cache_step: &restore_cache_step
         #                              CACHE_EXPIRE_HASH in our CircleCI's repo settings. Please use the format
         #                              'YYYY-MM-DD'. This way a new push on the branch is not required.
         - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
     key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
@@ -39,6 +40,7 @@ jobs:
   flake8:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -52,6 +54,7 @@ jobs:
   tracer:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -65,6 +68,7 @@ jobs:
   opentracer:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -94,6 +98,7 @@ jobs:
             - DD_APM_ENABLED=true
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -108,6 +113,7 @@ jobs:
   futures:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -123,6 +129,7 @@ jobs:
   boto:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -138,9 +145,10 @@ jobs:
   ddtracerun:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
     environment:
       TOX_SKIP_DIST: False
+    resource_class: *resource_class
     steps:
       - checkout
       - run: tox -e '{py27,py34,py35,py36}-ddtracerun' --result-json /tmp/ddtracerun.results
@@ -152,6 +160,7 @@ jobs:
   test_utils:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -165,6 +174,7 @@ jobs:
   asyncio:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -178,6 +188,7 @@ jobs:
   pylons:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -191,6 +202,7 @@ jobs:
   aiohttp:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -206,6 +218,7 @@ jobs:
   tornado:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -221,6 +234,7 @@ jobs:
   bottle:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -241,6 +255,7 @@ jobs:
         env:
           - MAX_HEAP_SIZE=1024M
           - HEAP_NEWSIZE=400M
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -257,7 +272,8 @@ jobs:
       - <<: *test_runner
         env:
           TOX_SKIP_DIST: False
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -272,19 +288,27 @@ jobs:
     docker:
       - *test_runner
       - image: elasticsearch:2.3
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' --result-json /tmp/elasticsearch.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch1{100}' --result-json /tmp/elasticsearch1.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch2{50}' --result-json /tmp/elasticsearch2.results
+      - run: TOX_SKIP_DIST=False tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch5{50}' --result-json /tmp/elasticsearch5.results
       - persist_to_workspace:
           root: /tmp
           paths:
             - elasticsearch.results
+            - elasticsearch1.results
+            - elasticsearch2.results
+            - elasticsearch5.results
       - *save_cache_step
 
   falcon:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -298,13 +322,14 @@ jobs:
   django:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
       - image: datadog/docker-dd-agent
         env:
             - DD_APM_ENABLED=true
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -324,8 +349,9 @@ jobs:
   flask:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -353,6 +379,7 @@ jobs:
   gevent:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -368,6 +395,7 @@ jobs:
   httplib:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -381,6 +409,7 @@ jobs:
   grpc:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -394,6 +423,7 @@ jobs:
   molten:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -413,6 +443,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -433,6 +464,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -453,6 +485,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -473,6 +506,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -488,6 +522,7 @@ jobs:
     docker:
       - *test_runner
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -502,6 +537,7 @@ jobs:
     docker:
       - *test_runner
       - image: memcached:1.5-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -516,6 +552,7 @@ jobs:
     docker:
       - *test_runner
       - image: mongo:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -530,6 +567,7 @@ jobs:
     docker:
       - *test_runner
       - image: mongo:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -543,6 +581,7 @@ jobs:
   pyramid:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -557,6 +596,7 @@ jobs:
     docker:
       - *test_runner
       - *httpbin_local
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -571,6 +611,7 @@ jobs:
     docker:
       - *test_runner
       - *httpbin_local
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -595,6 +636,7 @@ jobs:
             - MYSQL_PASSWORD=test
             - MYSQL_USER=test
             - MYSQL_DATABASE=test
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -606,6 +648,20 @@ jobs:
             - sqlalchemy.results
       - *save_cache_step
 
+  dbapi:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'dbapi_contrib-{py27,py34,py35,py36}' --result-json /tmp/dbapi.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - dbapi.results
+      - *save_cache_step
+
   psycopg:
     docker:
       - *test_runner
@@ -614,6 +670,7 @@ jobs:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
             - POSTGRES_DB=postgres
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -629,6 +686,7 @@ jobs:
     docker:
       - *test_runner
       - image: palazzem/moto:1.0.1
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -647,6 +705,7 @@ jobs:
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_USER=postgres
             - POSTGRES_DB=postgres
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -661,11 +720,12 @@ jobs:
   redis:
     docker:
       - *test_runner
-      - image: redis:3.2-alpine
+      - image: redis:4.0-alpine
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210}' --result-json /tmp/redis.results
+      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210,300}' --result-json /tmp/redis.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -678,11 +738,12 @@ jobs:
       - image: grokzen/redis-cluster:4.0.9
         env:
           - IP=0.0.0.0
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
       - run: tox -e wait rediscluster
-      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135}' --result-json /tmp/rediscluster.results
+      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135,136}-redis210' --result-json /tmp/rediscluster.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -697,6 +758,7 @@ jobs:
           - VP_TEST_USER=dbadmin
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -712,6 +774,7 @@ jobs:
     docker:
     - *test_runner
     - image: rabbitmq:3.7-alpine
+    resource_class: *resource_class
     steps:
     - checkout
     - *restore_cache_step
@@ -726,6 +789,7 @@ jobs:
   sqlite3:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -739,6 +803,7 @@ jobs:
   msgpack:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -749,10 +814,25 @@ jobs:
             - msgpack.results
       - *save_cache_step
 
+  unit_tests:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'unit_tests-{py27,py34,py35,py36}' --result-json /tmp/unit_tests.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - unit_tests.results
+      - *save_cache_step
+
   deploy_dev:
     # build only the nightly package
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -761,9 +841,10 @@ jobs:
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   deploy_experimental:
-    # build the develop branch releasing development docs
+    # build the *-dev branch releasing development docs
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -773,6 +854,7 @@ jobs:
   jinja2:
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
@@ -787,6 +869,7 @@ jobs:
     # deploy official documentation
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -804,6 +887,7 @@ jobs:
     # deploy official documentation
     docker:
       - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
@@ -815,6 +899,7 @@ jobs:
     # this step ensures all `tox` environments are properly executed
     docker:
       - *test_runner
+    resource_class: *resource_class
     steps:
       - attach_workspace:
           at: /tmp/workspace
@@ -849,100 +934,196 @@ workflows:
 
   test:
     jobs:
-      - flake8
-      - tracer
-      - opentracer
-      - integration
-      - futures
-      - boto
-      - ddtracerun
-      - test_utils
-      - asyncio
-      - pylons
-      - aiohttp
-      - tornado
-      - bottle
-      - cassandra
-      - celery
-      - elasticsearch
-      - falcon
-      - django
-      - flask
-      - gevent
-      - grpc
-      - httplib
-      - molten
-      - mongoengine
-      - mysqlconnector
-      - mysqlpython
-      - mysqldb
-      - pymemcache
-      - pymysql
-      - pylibmc
-      - pymongo
-      - pyramid
-      - requests
-      - requestsgevent
-      - sqlalchemy
-      - psycopg
-      - aiobotocore
-      - aiopg
-      - redis
-      - rediscluster
-      - kombu
-      - sqlite3
-      - msgpack
-      - vertica
-      - jinja2
       - build_docs
-      - wait_all_tests:
+      - flake8
+      - aiobotocore:
           requires:
             - flake8
-            - tracer
-            - opentracer
-            - integration
-            - futures
-            - boto
-            - ddtracerun
-            - test_utils
-            - asyncio
-            - pylons
+      - aiohttp:
+          requires:
+            - flake8
+      - aiopg:
+          requires:
+            - flake8
+      - asyncio:
+          requires:
+            - flake8
+      - boto:
+          requires:
+            - flake8
+      - bottle:
+          requires:
+            - flake8
+      - cassandra:
+          requires:
+            - flake8
+      - celery:
+          requires:
+            - flake8
+      - dbapi:
+          requires:
+            - flake8
+      - ddtracerun:
+          requires:
+            - flake8
+      - django:
+          requires:
+            - flake8
+      - elasticsearch:
+          requires:
+            - flake8
+      - falcon:
+          requires:
+            - flake8
+      - flask:
+          requires:
+            - flake8
+      - futures:
+          requires:
+            - flake8
+      - gevent:
+          requires:
+            - flake8
+      - grpc:
+          requires:
+            - flake8
+      - httplib:
+          requires:
+            - flake8
+      - integration:
+          requires:
+            - flake8
+      - jinja2:
+          requires:
+            - flake8
+      - kombu:
+          requires:
+            - flake8
+      - molten:
+          requires:
+            - flake8
+      - mongoengine:
+          requires:
+            - flake8
+      - msgpack:
+          requires:
+            - flake8
+      - mysqlconnector:
+          requires:
+            - flake8
+      - mysqldb:
+          requires:
+            - flake8
+      - mysqlpython:
+          requires:
+            - flake8
+      - opentracer:
+          requires:
+            - flake8
+      - psycopg:
+          requires:
+            - flake8
+      - pylibmc:
+          requires:
+            - flake8
+      - pylons:
+          requires:
+            - flake8
+      - pymemcache:
+          requires:
+            - flake8
+      - pymongo:
+          requires:
+            - flake8
+      - pymysql:
+          requires:
+            - flake8
+      - pyramid:
+          requires:
+            - flake8
+      - redis:
+          requires:
+            - flake8
+      - rediscluster:
+          requires:
+            - flake8
+      - requests:
+          requires:
+            - flake8
+      - requestsgevent:
+          requires:
+            - flake8
+      - sqlalchemy:
+          requires:
+            - flake8
+      - sqlite3:
+          requires:
+            - flake8
+      - test_utils:
+          requires:
+            - flake8
+      - tornado:
+          requires:
+            - flake8
+      - tracer:
+          requires:
+            - flake8
+      - unit_tests:
+          requires:
+            - flake8
+      - vertica:
+          requires:
+            - flake8
+      - wait_all_tests:
+          requires:
+            - build_docs
+            - flake8
+            - aiobotocore
             - aiohttp
-            - tornado
+            - aiopg
+            - asyncio
+            - boto
             - bottle
             - cassandra
             - celery
+            - dbapi
+            - ddtracerun
+            - django
             - elasticsearch
             - falcon
-            - django
             - flask
+            - futures
             - gevent
             - grpc
             - httplib
+            - integration
+            - jinja2
+            - kombu
             - molten
             - mongoengine
+            - msgpack
             - mysqlconnector
-            - mysqlpython
             - mysqldb
-            - pymysql
+            - mysqlpython
+            - opentracer
+            - psycopg
             - pylibmc
+            - pylons
             - pymemcache
             - pymongo
+            - pymysql
             - pyramid
+            - redis
+            - rediscluster
             - requests
             - requestsgevent
             - sqlalchemy
-            - psycopg
-            - aiobotocore
-            - aiopg
-            - redis
-            - rediscluster
-            - kombu
             - sqlite3
-            - msgpack
+            - test_utils
+            - tornado
+            - tracer
+            - unit_tests
             - vertica
-            - jinja2
-            - build_docs
       - deploy_dev:
           requires:
             - wait_all_tests
@@ -954,4 +1135,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(develop)/
+              only: /(.*-dev)/
