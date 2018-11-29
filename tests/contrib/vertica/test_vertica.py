@@ -11,13 +11,12 @@ from ddtrace.ext import errors
 from ddtrace.utils.merge import deepmerge
 
 # testing
-import pytest
 from tests.base import BaseTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
-from .fixtures import test_conn, test_tracer, TEST_TABLE
+from .fixtures import TEST_TABLE
 
 
 class TestVerticaPatching(BaseTestCase):
