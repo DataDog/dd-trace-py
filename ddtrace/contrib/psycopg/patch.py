@@ -44,7 +44,7 @@ def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
         net.TARGET_PORT: dsn.get("port"),
         db.NAME: dsn.get("dbname"),
         db.USER: dsn.get("user"),
-        "db.application" : dsn.get("application_name"),
+        "db.application": dsn.get("application_name"),
     }
 
     Pin(
@@ -153,7 +153,6 @@ if getattr(psycopg2, '_json', None):
 # `quote_ident` attribute is only available for psycopg >= 2.7
 if getattr(psycopg2, 'extensions', None) and getattr(psycopg2.extensions,
                                                      'quote_ident', None):
-    _psycopg2_extensions += [(psycopg2.extensions.quote_ident,
-     psycopg2.extensions, 'quote_ident',
-     _extensions_quote_ident),
+    _psycopg2_extensions += [
+        (psycopg2.extensions.quote_ident, psycopg2.extensions, 'quote_ident', _extensions_quote_ident),
     ]

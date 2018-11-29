@@ -264,7 +264,7 @@ def _sanitize_query(span, query):
     elif t == 'str':
         resource = query
     else:
-        resource = 'unknown-query-type' # FIXME[matt] what else do to here?
+        resource = 'unknown-query-type'  # FIXME[matt] what else do to here?
 
     span.resource = stringify(resource)[:RESOURCE_MAX_LENGTH]
 

@@ -18,17 +18,17 @@ log = logging.getLogger(__name__)
 # MongoDB wire protocol commands
 # http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
 OP_CODES = {
-    1    : "reply",
-    1000 : "msg",
-    2001 : "update",
-    2002 : "insert",
-    2003 : "reserved",
-    2004 : "query",
-    2005 : "get_more",
-    2006 : "delete",
-    2007 : "kill_cursors",
-    2010 : "command",
-    2011 : "command_reply",
+    1: "reply",
+    1000: "msg",
+    2001: "update",
+    2002: "insert",
+    2003: "reserved",
+    2004: "query",
+    2005: "get_more",
+    2006: "delete",
+    2007: "kill_cursors",
+    2010: "command",
+    2011: "command_reply",
 }
 
 # The maximum message length we'll try to parse
@@ -146,7 +146,7 @@ def parse_spec(spec, db=None):
     name, coll = items[0]
     cmd = Command(name, db, coll)
 
-    if 'ordered' in spec: # in insert and update
+    if 'ordered' in spec:  # in insert and update
         cmd.tags['mongodb.ordered'] = spec['ordered']
 
     if cmd.name == 'insert':

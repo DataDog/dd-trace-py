@@ -126,10 +126,12 @@ def patch(raise_errors=True, **patch_modules):
             patch_module(module, raise_errors=raise_errors)
 
     patched_modules = get_patched_modules()
-    log.info("patched %s/%s modules (%s)",
+    log.info(
+        "patched %s/%s modules (%s)",
         len(patched_modules),
         len(modules),
-        ",".join(patched_modules))
+        ",".join(patched_modules),
+    )
 
 
 def patch_module(module, raise_errors=True):

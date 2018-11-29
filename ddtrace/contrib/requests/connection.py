@@ -64,7 +64,7 @@ def _wrap_send(func, instance, args, kwargs):
         parsed_uri.netloc,
         parsed_uri.path,
         parsed_uri.params,
-        None, # drop parsed_uri.query
+        None,  # drop parsed_uri.query
         parsed_uri.fragment
     ))
 

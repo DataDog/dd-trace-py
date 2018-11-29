@@ -18,11 +18,11 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'compatibility_mode': False,
                       'fallback': 'v0.3'},
              'v0.3': {'traces': '/v0.3/traces',
-                     'services': '/v0.3/services',
+                      'services': '/v0.3/services',
                       'compatibility_mode': False,
                       'fallback': 'v0.2'},
              'v0.2': {'traces': '/v0.2/traces',
-                     'services': '/v0.2/services',
+                      'services': '/v0.2/services',
                       'compatibility_mode': True,
                       'fallback': None}}
 
