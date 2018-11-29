@@ -50,6 +50,7 @@ class TestMolten(TestCase):
         span = spans[0]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.url'), '/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
