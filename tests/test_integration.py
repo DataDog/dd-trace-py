@@ -160,12 +160,7 @@ class TestWorkers(TestCase):
 
         # expect a call for traces and services
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 1)
-        eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
+        eq_(self.api._put.call_count, 1)
 
     def test_worker_service_called_multiple_times(self):
         # service must be sent correctly
@@ -176,13 +171,7 @@ class TestWorkers(TestCase):
 
         # expect a call for traces and services
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 2)
-        eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
-        eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
+        eq_(self.api._put.call_count, 1)
 
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
