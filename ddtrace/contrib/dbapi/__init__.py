@@ -153,6 +153,7 @@ class TracedConnection(wrapt.ObjectProxy):
         span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
+
 def _get_vendor(conn):
     """ Return the vendor (e.g postgres, mysql) of the given
         database.

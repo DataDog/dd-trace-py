@@ -234,11 +234,13 @@ def normalize_filter(f=None):
         # least it won't crash.
         return {}
 
+
 def _set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
         span.set_tag(netx.TARGET_HOST, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
+
 
 def _set_query_metadata(span, cmd):
     """ Sets span `mongodb.query` tag and resource given command query """
