@@ -170,7 +170,7 @@ class PsycopgCore(unittest.TestCase):
         conn, tracer = self._get_conn_and_tracer()
         t = type(conn.cursor())
         with conn.cursor() as cur:
-            assert t == type(cur), '%s != %s' % (t, type(cur))
+            assert t == type(cur), '{} != {}'.format(t, type(cur))
             cur.execute(query="""select 'blah'""")
             rows = cur.fetchall()
             assert len(rows) == 1, row
