@@ -4,8 +4,6 @@ import unittest
 
 import wrapt
 
-from ddtrace import patch
-
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 
 
@@ -120,6 +118,10 @@ class PatchTestCase(object):
         """
         MODULES = []
 
+        def patch(self, *args, **kwargs):
+            from ddtrace import patch
+            return patch(*args, **kwargs)
+
         def assert_patched(self, module):
             """
             Asserts that the given module is patched.
@@ -212,7 +214,7 @@ class PatchTestCase(object):
             """
             for module_name, integration_name, _ in self.MODULES:
                 self.assert_module_not_imported(module_name)
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 module = importlib.import_module(module_name)
                 self.assert_patched(module)
 
@@ -232,7 +234,7 @@ class PatchTestCase(object):
             for module_name, integration_name, _ in self.MODULES:
                 self.assert_module_not_imported(module_name)
                 module = importlib.import_module(module_name)
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 self.assert_patched(module)
 
         @require_modules
@@ -251,8 +253,8 @@ class PatchTestCase(object):
             for module_name, integration_name, _ in self.MODULES:
                 self.assert_module_not_imported(module_name)
                 # Patch the module twice.
-                patch(**{module_name: True})
-                patch(**{module_name: True})
+                self.patch(**{module_name: True})
+                self.patch(**{module_name: True})
                 module = importlib.import_module(module_name)
                 self.assert_patched(module)
                 self.assert_not_double_patched(module)
@@ -280,9 +282,9 @@ class PatchTestCase(object):
             """
             for module_name, integration_name, unpatch in self.MODULES:
                 self.assert_module_not_imported(module_name)
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 unpatch()
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 module = importlib.import_module(module_name)
                 self.assert_patched(module)
 
@@ -303,7 +305,7 @@ class PatchTestCase(object):
             """
             for module_name, integration_name, unpatch in self.MODULES:
                 self.assert_module_not_imported(module_name)
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 unpatch()
                 module = importlib.import_module(module_name)
                 self.assert_not_patched(module)
@@ -328,7 +330,7 @@ class PatchTestCase(object):
             """
             for module_name, integration_name, unpatch in self.MODULES:
                 self.assert_module_not_imported(module_name)
-                patch(**{integration_name: True})
+                self.patch(**{integration_name: True})
                 module = importlib.import_module(module_name)
                 unpatch()
                 self.assert_not_patched(module)
