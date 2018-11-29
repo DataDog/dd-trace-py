@@ -5,6 +5,7 @@ import pytest
 import wrapt
 
 # project
+import ddtrace
 from ddtrace import Pin, config
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
@@ -16,7 +17,39 @@ from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
 
-from .fixtures import TEST_TABLE
+TEST_TABLE = "test_table"
+
+
+@pytest.fixture(scope='function')
+def test_tracer(request):
+    request.cls.test_tracer = get_dummy_tracer()
+    return request.cls.test_tracer
+
+
+@pytest.fixture(scope='function')
+def test_conn(request, test_tracer):
+    ddtrace.tracer = test_tracer
+    patch()
+
+    import vertica_python  # must happen AFTER installing with patch()
+
+    conn = vertica_python.connect(**VERTICA_CONFIG)
+
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS {}".format(TEST_TABLE))
+    cur.execute(
+        """CREATE TABLE {} (
+        a INT,
+        b VARCHAR(32)
+        )
+        """.format(
+            TEST_TABLE
+        )
+    )
+    test_tracer.writer.pop()
+
+    request.cls.test_conn = (conn, cur)
+    return conn, cur
 
 
 class TestVerticaPatching(BaseTestCase):
