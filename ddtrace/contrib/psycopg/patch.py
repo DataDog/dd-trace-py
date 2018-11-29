@@ -12,7 +12,7 @@ _connect = psycopg2.connect
 
 # psycopg2 versions can end in `-betaN` where `N` is a number
 # in such cases we simply skip version specific patching
-PSYCOPG2_VERSION = (0,0,0)
+PSYCOPG2_VERSION = (0, 0, 0)
 
 try:
     PSYCOPG2_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
@@ -49,6 +49,7 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
             resource = resource.as_string(self.__wrapped__)
 
         return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
+
 
 class Psycopg2TracedConnection(dbapi.TracedConnection):
     """ TracedConnection wraps a Connection with tracing code. """
