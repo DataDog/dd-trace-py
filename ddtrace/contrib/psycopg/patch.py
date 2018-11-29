@@ -10,9 +10,15 @@ from ddtrace.ext import sql, net, db
 # Original connect method
 _connect = psycopg2.connect
 
-PSYCOPG_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
+# psycopg2 versions can end in `-betaN` where `N` is a number
+# in such cases we simply drop that designation for purposes of our
+# supported functionality
+PSYCOPG2_VERSION = psycopg2.__version__.split()[0]
+if '-beta' in PSYCOPG2_VERSION:
+    PSYCOPG2_VERSION = PSYCOPG2_VERSION[:PSYCOPG2_VERSION.index('-beta')]
+PSYCOPG2_VERSION = tuple(map(int, PSYCOPG2_VERSION.split('.')))
 
-if PSYCOPG_VERSION >= (2, 7):
+if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import Composable
 
 
@@ -38,7 +44,7 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
     """ TracedCursor for psycopg2 """
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
-        if PSYCOPG_VERSION >= (2, 7) and isinstance(resource, Composable):
+        if PSYCOPG2_VERSION >= (2, 7) and isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
 
         return super(Psycopg2TracedCursor, self)._trace_method(method, resource, extra_tags, *args, **kwargs)

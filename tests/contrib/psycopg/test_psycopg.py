@@ -11,10 +11,10 @@ from unittest import skipIf
 
 # project
 from ddtrace.contrib.psycopg import connection_factory
-from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG_VERSION
+from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
 from ddtrace import Pin
 
-if PSYCOPG_VERSION >= (2, 7):
+if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL
 
 # testing
@@ -164,7 +164,7 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(dd_span.error, 0)
         self.assertEquals(dd_span.span_type, 'sql')
 
-    @skipIf(PSYCOPG_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
+    @skipIf(PSYCOPG2_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
@@ -190,7 +190,7 @@ class PsycopgCore(unittest.TestCase):
         conn.cursor().execute("""select 'blah'""")
         assert not tracer.writer.pop()
 
-    @skipIf(PSYCOPG_VERSION < (2, 5), '_json is not available in psycopg2==2.4')
+    @skipIf(PSYCOPG2_VERSION < (2, 5), '_json is not available in psycopg2==2.4')
     def test_manual_wrap_extension_types(self):
         conn, _ = self._get_conn_and_tracer()
         # NOTE: this will crash if it doesn't work.
@@ -219,7 +219,7 @@ class PsycopgCore(unittest.TestCase):
         binary = extensions.adapt(b'12345')
         binary.prepare(conn)
 
-    @skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
+    @skipIf(PSYCOPG2_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
     def test_manual_wrap_extension_quote_ident(self):
         from ddtrace import patch_all
         patch_all()
@@ -248,7 +248,7 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(service_meta, expected)
 
 
-    @skipIf(PSYCOPG_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
+    @skipIf(PSYCOPG2_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
     def test_composed_query(self):
         """ Checks whether execution of composed SQL string is traced """
         query = SQL(' union all ' ).join(
@@ -276,7 +276,7 @@ def test_backwards_compatibilty_v3():
     conn.cursor().execute("""select 'blah'""")
 
 
-@skipIf(PSYCOPG_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
+@skipIf(PSYCOPG2_VERSION < (2, 7), 'quote_ident not available in psycopg2<2.7')
 def test_manual_wrap_extension_quote_ident_standalone():
     from ddtrace import patch_all
     patch_all()
