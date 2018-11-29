@@ -115,6 +115,21 @@ class TestMolten(TestCase):
         self.assertEqual(span.trace_id, 100)
         self.assertEqual(span.parent_id, 42)
 
+        # Now without tracing on
+        with override_config('molten', dict(distributed_tracing=False)):
+            response = molten_client(headers={
+                HTTP_HEADER_TRACE_ID: '100',
+                HTTP_HEADER_PARENT_ID: '42',
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), 'Hello 24 year old named Jim!')
+
+        spans = self.tracer.writer.pop()
+        span = spans[0]
+        self.assertEqual(span.name, 'molten.request')
+        self.assertNotEqual(span.trace_id, 100)
+        self.assertNotEqual(span.parent_id, 42)
+
     def test_unpatch_patch(self):
         """ Tests unpatch-patch cycle """
         unpatch()
