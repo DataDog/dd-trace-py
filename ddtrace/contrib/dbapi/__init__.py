@@ -75,6 +75,8 @@ class TracedConnection(wrapt.ObjectProxy):
         name = _get_vendor(conn)
         db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
         db_pin.onto(self)
+        # wrapt requires prefix of `_self` for attributes that are only in the
+        # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
 
     def cursor(self, *args, **kwargs):
