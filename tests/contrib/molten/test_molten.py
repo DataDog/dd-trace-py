@@ -56,6 +56,9 @@ class TestMolten(TestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
 
+        # `can_handle_parameter` appears twice since two parameters are in request
+        # TODO[tahir]: missing ``resolve` method for components
+
         expected = [
             'GET /hello/{name}/{age}',
             'molten.middleware.ResponseRendererMiddleware',
@@ -85,6 +88,7 @@ class TestMolten(TestCase):
                 if not r.startswith('molten.components.UploadedFileComponent')
             ]
 
+        self.assertEqual(len(spans), len(expected))
         self.assertEqual([s.resource for s in spans], expected)
 
     def test_distributed_tracing(self):

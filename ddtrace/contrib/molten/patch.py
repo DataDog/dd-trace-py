@@ -1,14 +1,16 @@
 import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 import molten
-from molten.http import Request
 
 from ... import Pin, config
 from ...ext import AppTypes, http
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
-from ...utils.wrappers import unwrap
+from ...utils.wrappers import unwrap as _u
+
+from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter
 
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
 
@@ -19,95 +21,6 @@ config._add('molten', dict(
     app_type=AppTypes.web,
     distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False)),
 ))
-
-
-def trace_wrapped(resource, wrapped, *args, **kwargs):
-    pin = Pin.get_from(molten)
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
-        return wrapped(*args, **kwargs)
-
-
-def trace_func(resource):
-    """Trace calls to function using provided resource name
-    """
-    @wrapt.function_wrapper
-    def _trace_func(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(molten)
-
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        with pin.tracer.trace(func_name(wrapped), service=pin.service, resource=resource):
-            return wrapped(*args, **kwargs)
-
-    return _trace_func
-
-
-class WrapperComponent(wrapt.ObjectProxy):
-    """ Tracing of components """
-    def can_handle_parameter(self, *args, **kwargs):
-        func = self.__wrapped__.can_handle_parameter
-        cname = func_name(self.__wrapped__)
-        resource = '{}.{}'.format(cname, func.__name__)
-        return trace_wrapped(resource, func, *args, **kwargs)
-
-    def resolve(self, *args, **kwargs):
-        func = self.__wrapped__.resolve
-        cname = func_name(self.__wrapped__)
-        resource = '{}.{}'.format(cname, func.__name__)
-        return trace_wrapped(resource, func, *args, **kwargs)
-
-
-class WrapperRenderer(wrapt.ObjectProxy):
-    """ Tracing of renderers """
-    def render(self, *args, **kwargs):
-        func = self.__wrapped__.render
-        cname = func_name(self.__wrapped__)
-        resource = '{}.{}'.format(cname, func.__name__)
-        return trace_wrapped(resource, func, *args, **kwargs)
-
-
-class WrapperMiddleware(wrapt.ObjectProxy):
-    """ Tracing of callable functional-middleware """
-    def __call__(self, *args, **kwargs):
-        func = self.__wrapped__.__call__
-        cname = func_name(self.__wrapped__)
-        # only use callable class name for resource name
-        resource = '{}'.format(cname)
-        return trace_wrapped(resource, func, *args, **kwargs)
-
-class WrapperRouter(wrapt.ObjectProxy):
-    """ Tracing of router on the way back from a matched route """
-    def match(self, *args, **kwargs):
-        # catch matched route and wrap tracer around its handler and set root span resource
-        func = self.__wrapped__.match
-        route_and_params = func(*args, **kwargs)
-
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
-            return route_and_params
-
-        if route_and_params is not None:
-            route, params = route_and_params
-
-            resource = '{} {}'.format(
-                route.method,
-                route.template,
-            )
-
-            route.handler = trace_func(resource)(route.handler)
-
-            # update root span resource while we know the matched route
-            root_span = pin.tracer.current_root_span()
-            if root_span:
-                root_span.resource = resource
-
-            return route, params
-
-        return route_and_params
 
 
 def patch():
@@ -126,9 +39,8 @@ def patch():
     # add pin to module since many classes use __slots__
     pin.onto(molten)
 
-    _w = wrapt.wrap_function_wrapper
-    _w('molten', 'BaseApp.__init__', patch_app_init)
-    _w('molten', 'App.__call__', patch_app_call)
+    _w(molten.BaseApp, '__init__', patch_app_init)
+    _w(molten.App, '__call__', patch_app_call)
 
 
 def unpatch():
@@ -142,44 +54,43 @@ def unpatch():
         if pin:
             pin.remove_from(molten)
 
-        unwrap(molten.BaseApp, '__init__')
-        unwrap(molten.App, '__call__')
-        unwrap(molten.Router, 'add_route')
-
-
-@wrapt.function_wrapper
-def patch_start_response(wrapped, instance, args, kwargs):
-    """ Patch respond handling to set metadata """
-
-    pin = Pin.get_from(molten)
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    span = pin.tracer.current_root_span()
-    if not span:
-        return wrapped(*args, **kwargs)
-
-    status, headers, exc_info = args
-    code, _, _ = status.partition(' ')
-
-    try:
-        code = int(code)
-    except ValueError:
-        pass
-
-    span.set_tag(http.STATUS_CODE, code)
-
-    # mark 5xx spans as error
-    if 500 <= code < 600:
-        span.error = 1
-
-    return wrapped(*args, **kwargs)
+        _u(molten.BaseApp, '__init__')
+        _u(molten.App, '__call__')
+        _u(molten.Router, 'add_route')
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
     """Patch wsgi interface for app
     """
+    @wrapt.function_wrapper
+    def _w_start_response(wrapped, instance, args, kwargs):
+        """ Patch respond handling to set metadata """
+
+        pin = Pin.get_from(molten)
+        if not pin or not pin.enabled():
+            return wrapped(*args, **kwargs)
+
+        span = pin.tracer.current_root_span()
+        if not span:
+            return wrapped(*args, **kwargs)
+
+        status, headers, exc_info = args
+        code, _, _ = status.partition(' ')
+
+        try:
+            code = int(code)
+        except ValueError:
+            pass
+
+        span.set_tag(http.STATUS_CODE, code)
+
+        # mark 5xx spans as error
+        if 500 <= code < 600:
+            span.error = 1
+
+        return wrapped(*args, **kwargs)
     pin = Pin.get_from(molten)
+
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
@@ -188,9 +99,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
     environ, start_response = args
 
     # patching for extracting response code
-    start_response = patch_start_response(start_response)
+    start_response = _w_start_response(start_response)
 
-    request = Request.from_environ(environ)
+    request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
 
     # Configure distributed tracing
@@ -239,15 +150,15 @@ def patch_app_init(wrapped, instance, args, kwargs):
         for c in instance.components
     ]
 
-    # wrap components list and singletons dict (component -> resolver) in dependency injector
+    # wrap components in injector in dependency injector
     instance.injector.components = [
         WrapperComponent(c)
         for c in instance.injector.components
     ]
-    instance.injector.singletons = dict([
-        (WrapperComponent(c), r)
-        for (c,r) in instance.injector.singletons.items()
-    ])
+    # instance.injector.singletons = dict([
+    #     (WrapperComponent(c), r)
+    #     for (c,r) in instance.injector.singletons.items()
+    # ])
 
     # wrap renderers objects
     instance.renderers = [
