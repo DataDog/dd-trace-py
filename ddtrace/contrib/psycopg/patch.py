@@ -50,14 +50,23 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
 
         return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
 
+class Psycopg2TracedConnection(dbapi.TracedConnection):
+    """ TracedConnection wraps a Connection with tracing code. """
 
-def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
+    def __init__(self, conn, pin=None, cursor_cls=Psycopg2TracedCursor):
+        super(Psycopg2TracedConnection, self).__init__(conn, pin)
+        # wrapt requires prefix of `_self` for attributes that are only in the
+        # proxy (since some of our source objects will use `__slots__`)
+        self._self_cursor_cls = cursor_cls
+
+
+def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
-    c = traced_conn_cls(conn, cursor_cls=Psycopg2TracedCursor)
+    c = traced_conn_cls(conn)
 
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
