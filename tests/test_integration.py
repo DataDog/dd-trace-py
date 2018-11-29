@@ -160,7 +160,7 @@ class TestWorkers(TestCase):
 
         # expect a call for traces and services
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 0)
+        eq_(self.api._put.call_count, 1)
 
     def test_worker_service_called_multiple_times(self):
         # service must be sent correctly
@@ -171,7 +171,7 @@ class TestWorkers(TestCase):
 
         # expect a call for traces and services
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 0)
+        eq_(self.api._put.call_count, 1)
 
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
