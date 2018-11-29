@@ -11,12 +11,13 @@ from ddtrace.ext import sql, net, db
 _connect = psycopg2.connect
 
 # psycopg2 versions can end in `-betaN` where `N` is a number
-# in such cases we simply drop that designation for purposes of our
-# supported functionality
-PSYCOPG2_VERSION = psycopg2.__version__.split()[0]
-if '-beta' in PSYCOPG2_VERSION:
-    PSYCOPG2_VERSION = PSYCOPG2_VERSION[:PSYCOPG2_VERSION.index('-beta')]
-PSYCOPG2_VERSION = tuple(map(int, PSYCOPG2_VERSION.split('.')))
+# in such cases we simply skip version specific patching
+PSYCOPG2_VERSION = (0,0,0)
+
+try:
+    PSYCOPG2_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
+except Exception:
+    pass
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import Composable
