@@ -1,4 +1,3 @@
-
 from ddtrace.ext import AppTypes
 
 
@@ -22,6 +21,7 @@ def normalize_vendor(vendor):
         return "postgres"
     else:
         return vendor
+
 
 def parse_pg_dsn(dsn):
     """
