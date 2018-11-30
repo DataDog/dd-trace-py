@@ -47,7 +47,7 @@ class MetricsComponent:
 
 
 class DB:
-    __slots__ = ["settings", "metrics"]
+    __slots__ = ['settings', 'metrics']
 
     def __init__(self, settings: Settings, metrics: Metrics) -> None:
         self.settings = settings
