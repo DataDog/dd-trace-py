@@ -8,7 +8,8 @@ The molten web framework is automatically traced by ``ddtrace`` when calling ``p
         return f'Hello {age} year old named {name}!'
     app = App(routes=[Route('/hello/{name}/{age}', hello)])
 
-You may also enable molten tracing automatically via ``ddtrace-run``:
+
+You may also enable molten tracing automatically via ``ddtrace-run``::
 
     ddtrace-run python app.py
 
