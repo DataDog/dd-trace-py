@@ -24,7 +24,7 @@ class PatchMixin(unittest.TestCase):
         """
         assert self.module_imported(modname), '{} module not imported'.format(modname)
 
-    def assert_module_not_imported(self, modname):
+    def assert_not_module_imported(self, modname):
         """
         Asserts that the module, given its name is not imported.
         """
@@ -113,17 +113,17 @@ class PatchTestCase(object):
                     # assert patching logic
                     # self.assert_wrapped(...)
 
-                def assert_module_not_patched(self, redis):
+                def assert_not_module_patched(self, redis):
                     # assert patching logic
                     # self.assert_not_wrapped(...)
 
-                def assert_module_not_double_patched(self, redis):
+                def assert_not_module_double_patched(self, redis):
                     # assert patching logic
                     # self.assert_not_double_wrapped(...)
 
                 # override this particular test case
-                def test_patch_before_import(self):
-                    # my custom patch before import check
+                def test_patch_import(self):
+                    # custom patch before import check
 
                 # optionally override other test methods...
         """
@@ -139,6 +139,7 @@ class PatchTestCase(object):
             # that will absorb the unpatch function.
             if self.__unpatch_func__:
                 unpatch_func = self.__unpatch_func__.__func__
+
                 def unpatch():
                     unpatch_func()
                 self.__unpatch_func__ = unpatch
@@ -147,6 +148,48 @@ class PatchTestCase(object):
         def patch(self, *args, **kwargs):
             from ddtrace import patch
             return patch(*args, **kwargs)
+
+        def _gen_test_attrs(self, ops):
+            """
+            A helper to return test names for tests given a list of different
+            operations.
+            :return:
+            """
+            from itertools import permutations
+            return [
+                'test_{}'.format('_'.join(c)) for c in permutations(ops, len(ops))
+            ]
+
+        def test_averify_test_coverage(self):
+            """
+            This TestCase should cover a variety of combinations of importing,
+            patching and unpatching.
+            """
+            tests = []
+            tests += self._gen_test_attrs(['import', 'patch'])
+            tests += self._gen_test_attrs(['import', 'patch', 'patch'])
+            tests += self._gen_test_attrs(['import', 'patch', 'unpatch'])
+            tests += self._gen_test_attrs(['import', 'patch', 'unpatch', 'unpatch'])
+
+            # TODO: it may be possible to generate test cases dynamically. For
+            # now focus on the important ones.
+            test_ignore = {
+                'test_unpatch_import_patch',
+                'test_import_unpatch_patch_unpatch',
+                'test_import_unpatch_unpatch_patch',
+                'test_patch_import_unpatch_unpatch',
+                'test_unpatch_import_patch_unpatch',
+                'test_unpatch_import_unpatch_patch',
+                'test_unpatch_patch_import_unpatch',
+                'test_unpatch_patch_unpatch_import',
+                'test_unpatch_unpatch_import_patch',
+                'test_unpatch_unpatch_patch_import',
+            }
+
+            for test_attr in tests:
+                if test_attr in test_ignore:
+                    continue
+                assert hasattr(self, test_attr), '{} not found in expected test attrs'.format(test_attr)
 
         def assert_module_patched(self, module):
             """
@@ -173,7 +216,7 @@ class PatchTestCase(object):
             """
             raise NotImplementedError(self.assert_module_patched.__doc__)
 
-        def assert_module_not_patched(self, module):
+        def assert_not_module_patched(self, module):
             """
             Asserts that the given module is not patched.
 
@@ -184,9 +227,9 @@ class PatchTestCase(object):
                 - redis.client.BasePipeline.execute
                 - redis.client.BasePipeline.immediate_execute_command
 
-            So an appropriate assert_module_not_patched would look like::
+            So an appropriate assert_not_module_patched would look like::
 
-            def assert_module_not_patched(self, redis):
+            def assert_not_module_patched(self, redis):
                 self.assert_not_wrapped(redis.StrictRedis.execute_command)
                 self.assert_not_wrapped(redis.StrictRedis.pipeline)
                 self.assert_not_wrapped(redis.Redis.pipeline)
@@ -196,9 +239,9 @@ class PatchTestCase(object):
             :param module:
             :return: None
             """
-            raise NotImplementedError(self.assert_module_not_patched.__doc__)
+            raise NotImplementedError(self.assert_not_module_patched.__doc__)
 
-        def assert_module_not_double_patched(self, module):
+        def assert_not_module_double_patched(self, module):
             """
             Asserts that the given module is not patched twice.
 
@@ -209,9 +252,9 @@ class PatchTestCase(object):
                 - redis.client.BasePipeline.execute
                 - redis.client.BasePipeline.immediate_execute_command
 
-            So an appropriate assert_module_not_double_patched would look like::
+            So an appropriate assert_not_module_double_patched would look like::
 
-            def assert_module_not_double_patched(self, redis):
+            def assert_not_module_double_patched(self, redis):
                 self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
                 self.assert_not_double_wrapped(redis.StrictRedis.pipeline)
                 self.assert_not_double_wrapped(redis.Redis.pipeline)
@@ -221,10 +264,10 @@ class PatchTestCase(object):
             :param module: module to check
             :return: None
             """
-            raise NotImplementedError(self.assert_module_not_double_patched.__doc__)
+            raise NotImplementedError(self.assert_not_module_double_patched.__doc__)
 
         @raise_if_no_attrs
-        def test_patch_before_import(self):
+        def test_import_patch(self):
             """
             The integration should test that each class, method or function that
             is to be patched is in fact done so when ddtrace.patch() is called
@@ -232,59 +275,103 @@ class PatchTestCase(object):
 
             For example:
 
-            an appropriate ``test_patch_before_import`` would be::
+            an appropriate ``test_patch_import`` would be::
 
-                ddtrace.patch(redis=True)
                 import redis
+                ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
-            self.patch(**{self.__integration_name__: True})
+            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
             self.assert_module_patched(module)
 
         @raise_if_no_attrs
-        def test_patch_after_import(self):
+        def test_patch_import(self):
             """
             The integration should test that each class, method or function that
             is to be patched is in fact done so when ddtrace.patch() is called
             after the module is imported.
 
-            an appropriate ``test_patch_after_import`` would be::
+            an appropriate ``test_patch_import`` would be::
 
                 import redis
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
+            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
-            self.patch(**{self.__integration_name__: True})
-            self.assert_module_patched(module)
             self.patch(**{self.__integration_name__: True})
             self.assert_module_patched(module)
 
         @raise_if_no_attrs
-        def test_patch_idempotent(self):
+        def test_import_patch_patch(self):
             """
             Proper testing should be done to ensure that multiple calls to the
             integration.patch() method are idempotent. That is, that the
             integration does not patch its library more than once.
 
-            An example for what this might look like is again for the redis
-            integration::
-                ddtrace.contrib.redis.patch()
-                ddtrace.contrib.redis.patch()
+            An example for what this might look like for the redis integration::
+
+                import redis
+                ddtrace.patch(redis=True)
+                self.assert_module_patched(redis)
+                ddtrace.patch(redis=True)
+                self.assert_not_module_double_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__module_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+            self.patch(**{self.__module_name__: True})
+            self.assert_not_module_double_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_import_patch(self):
+            """
+            Proper testing should be done to ensure that multiple calls to the
+            integration.patch() method are idempotent. That is, that the
+            integration does not patch its library more than once.
+
+            An example for what this might look like for the redis integration::
+
+                ddtrace.patch(redis=True)
+                import redis
+                self.assert_module_patched(redis)
+                ddtrace.patch(redis=True)
+                self.assert_not_module_double_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__module_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+            self.patch(**{self.__module_name__: True})
+            self.assert_not_module_double_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_patch_import(self):
+            """
+            Proper testing should be done to ensure that multiple calls to the
+            integration.patch() method are idempotent. That is, that the
+            integration does not patch its library more than once.
+
+            An example for what this might look like for the redis integration::
+
+                ddtrace.patch(redis=True)
+                ddtrace.patch(redis=True)
+                import redis
                 self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
             """
-            self.assert_module_not_imported(self.__module_name__)
+            self.assert_not_module_imported(self.__module_name__)
             self.patch(**{self.__module_name__: True})
             self.patch(**{self.__module_name__: True})
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
-            self.assert_module_not_double_patched(module)
+            self.assert_not_module_double_patched(module)
 
         @raise_if_no_attrs
-        def test_patch_unpatch_patch(self):
+        def test_import_patch_unpatch_patch(self):
             """
             To ensure that we can thoroughly test the installation/patching of
             an integration we must be able to unpatch it and then subsequently
@@ -298,13 +385,86 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 unpatch()
                 ddtrace.patch(redis=True)
-                self.assert_wrapped(redis.StrictRedis.execute_command)
-                self.assert_wrapped(redis.StrictRedis.pipeline)
-                self.assert_wrapped(redis.Redis.pipeline)
-                self.assert_wrapped(redis.client.BasePipeline.execute)
-                self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                self.assert_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
+            self.assert_not_module_imported(self.__module_name__)
+            module = importlib.import_module(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_import_unpatch_patch(self):
+            """
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it and then subsequently
+            patch it again.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+
+                ddtrace.patch(redis=True)
+                import redis
+                unpatch()
+                ddtrace.patch(redis=True)
+                self.assert_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_unpatch_import_patch(self):
+            """
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it and then subsequently
+            patch it again.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+
+                ddtrace.patch(redis=True)
+                import redis
+                unpatch()
+                ddtrace.patch(redis=True)
+                self.assert_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.__unpatch_func__()
+            module = importlib.import_module(self.__module_name__)
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_unpatch_patch_import(self):
+            """
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it and then subsequently
+            patch it again.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+
+                ddtrace.patch(redis=True)
+                unpatch()
+                ddtrace.patch(redis=True)
+                import redis
+                self.assert_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
             self.patch(**{self.__integration_name__: True})
             self.__unpatch_func__()
             self.patch(**{self.__integration_name__: True})
@@ -312,7 +472,26 @@ class PatchTestCase(object):
             self.assert_module_patched(module)
 
         @raise_if_no_attrs
-        def test_unpatch_before_import(self):
+        def test_unpatch_patch_import(self):
+            """
+            Make sure unpatching before patch does not break patching.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+                unpatch()
+                ddtrace.patch(redis=True)
+                import redis
+                self.assert_not_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.__unpatch_func__()
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_unpatch_import(self):
             """
             To ensure that we can thoroughly test the installation/patching of
             an integration we must be able to unpatch it before importing the
@@ -324,19 +503,19 @@ class PatchTestCase(object):
                 from ddtrace.contrib.redis import unpatch
                 unpatch()
                 import redis
-                self.assert_module_not_patched(redis)
+                self.assert_not_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
+            self.assert_not_module_imported(self.__module_name__)
             self.patch(**{self.__integration_name__: True})
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
-            self.assert_module_not_patched(module)
+            self.assert_not_module_patched(module)
 
         @raise_if_no_attrs
-        def test_unpatch_after_import(self):
+        def test_import_unpatch_patch(self):
             """
-            To ensure that we can thoroughly test the installation/patching of an
-            integration we must be able to unpatch it after importing the library.
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it before patching.
 
             For example::
 
@@ -344,20 +523,60 @@ class PatchTestCase(object):
                 from ddtrace.contrib.redis import unpatch
                 ddtrace.patch(redis=True)
                 unpatch()
-                self.assert_not_wrapped(redis.StrictRedis.execute_command)
-                self.assert_not_wrapped(redis.StrictRedis.pipeline)
-                self.assert_not_wrapped(redis.Redis.pipeline)
-                self.assert_not_wrapped(redis.client.BasePipeline.execute)
-                self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                self.assert_not_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
-            self.patch(**{self.__integration_name__: True})
+            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.__unpatch_func__()
-            self.assert_module_not_patched(module)
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
 
         @raise_if_no_attrs
-        def test_unpatch_idempotent(self):
+        def test_import_patch_unpatch(self):
+            """
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it after patching.
+
+            For example::
+
+                import redis
+                from ddtrace.contrib.redis import unpatch
+                ddtrace.patch(redis=True)
+                unpatch()
+                self.assert_not_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            module = importlib.import_module(self.__module_name__)
+            self.assert_not_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_import_unpatch(self):
+            """
+            To ensure that we can thoroughly test the installation/patching of
+            an integration we must be able to unpatch it after patching.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+                ddtrace.patch(redis=True)
+                import redis
+                unpatch()
+                self.assert_not_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_import_patch_unpatch_unpatch(self):
             """
             Unpatching twice should be a no-op.
 
@@ -367,15 +586,63 @@ class PatchTestCase(object):
                 from ddtrace.contrib.redis import unpatch
 
                 ddtrace.patch(redis=True)
+                self.assert_module_patched(redis)
                 unpatch()
+                self.assert_not_module_patched(redis)
                 unpatch()
-                self.assert_not_wrapped(redis.StrictRedis.execute_command)
-                self.assert_not_wrapped(redis.StrictRedis.pipeline)
-                self.assert_not_wrapped(redis.Redis.pipeline)
-                self.assert_not_wrapped(redis.client.BasePipeline.execute)
-                self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                self.assert_not_module_patched(redis)
             """
-            self.assert_module_not_imported(self.__module_name__)
+            self.assert_not_module_imported(self.__module_name__)
+            module = importlib.import_module(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_unpatch_import_unpatch(self):
+            """
+            Unpatching twice should be a no-op.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+
+                ddtrace.patch(redis=True)
+                unpatch()
+                import redis
+                self.assert_not_module_patched(redis)
+                unpatch()
+                self.assert_not_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
-            self.assert_module_not_patched(module)
+            self.assert_not_module_patched(module)
+            self.__unpatch_func__()
+            self.assert_not_module_patched(module)
+
+        @raise_if_no_attrs
+        def test_patch_unpatch_unpatch_import(self):
+            """
+            Unpatching twice should be a no-op.
+
+            For example::
+
+                from ddtrace.contrib.redis import unpatch
+
+                ddtrace.patch(redis=True)
+                unpatch()
+                unpatch()
+                import redis
+                self.assert_not_module_patched(redis)
+            """
+            self.assert_not_module_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.__unpatch_func__()
+            self.__unpatch_func__()
+            module = importlib.import_module(self.__module_name__)
+            self.assert_not_module_patched(module)
