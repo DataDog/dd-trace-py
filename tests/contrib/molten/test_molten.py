@@ -55,6 +55,12 @@ class TestMolten(TestCase):
         self.assertEqual(span.get_tag('http.url'), '/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
 
+        # See test_resources below for specifics of this difference
+        if MOLTEN_VERSION >= (0, 7, 2):
+            self.assertEqual(len(spans), 18)
+        else:
+            self.assertEqual(len(spans), 16)
+
         # test override of service name
         Pin.override(molten, service=self.TEST_SERVICE)
         response = molten_client()
