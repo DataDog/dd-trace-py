@@ -5,7 +5,8 @@ from molten.testing import TestClient
 
 from ddtrace import Pin
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from ddtrace.contrib.molten import patch, unpatch, MOLTEN_VERSION
+from ddtrace.contrib.molten import patch, unpatch
+from ddtrace.contrib.molten.patch import MOLTEN_VERSION, MOLTEN_ROUTE
 
 from ...test_tracer import get_dummy_tracer
 from ...util import override_config
@@ -76,7 +77,7 @@ class TestMolten(TestCase):
         span = spans[0]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
-        self.assertEqual(span.resource, 'molten.app.__call__')
+        self.assertEqual(span.resource, 'GET 404')
         self.assertEqual(span.get_tag('http.url'), '/goodbye')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.status_code'), '404')

@@ -10,9 +10,10 @@ from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
 
-from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter
-
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
+MOLTEN_ROUTE = 'molten.route'
+
+from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter
 
 # Configure default configuration
 config._add('molten', dict(
@@ -62,33 +63,6 @@ def unpatch():
 def patch_app_call(wrapped, instance, args, kwargs):
     """Patch wsgi interface for app
     """
-    @wrapt.function_wrapper
-    def _w_start_response(wrapped, instance, args, kwargs):
-        """ Patch respond handling to set metadata """
-
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
-
-        span = pin.tracer.current_root_span()
-        if not span:
-            return wrapped(*args, **kwargs)
-
-        status, headers, exc_info = args
-        code, _, _ = status.partition(' ')
-
-        try:
-            code = int(code)
-        except ValueError:
-            pass
-
-        span.set_tag(http.STATUS_CODE, code)
-
-        # mark 5xx spans as error
-        if 500 <= code < 600:
-            span.error = 1
-
-        return wrapped(*args, **kwargs)
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():
@@ -97,9 +71,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
     # DEV: This is safe because this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-
-    # patching for extracting response code
-    start_response = _w_start_response(start_response)
 
     request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
@@ -114,6 +85,41 @@ def patch_app_call(wrapped, instance, args, kwargs):
             pin.tracer.context_provider.activate(context)
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
+        @wrapt.function_wrapper
+        def _w_start_response(wrapped, instance, args, kwargs):
+            """ Patch respond handling to set metadata """
+
+            pin = Pin.get_from(molten)
+            if not pin or not pin.enabled():
+                return wrapped(*args, **kwargs)
+
+            span = pin.tracer.current_root_span()
+            if not span:
+                return wrapped(*args, **kwargs)
+
+            status, headers, exc_info = args
+            code, _, _ = status.partition(' ')
+
+            try:
+                code = int(code)
+            except ValueError:
+                pass
+
+            if not span.get_tag(MOLTEN_ROUTE):
+                # if route never resolve, update root resource
+                span.resource = u'{} {}'.format(request.method, code)
+
+            span.set_tag(http.STATUS_CODE, code)
+
+            # mark 5xx spans as error
+            if 500 <= code < 600:
+                span.error = 1
+
+            return wrapped(*args, **kwargs)
+
+        # patching for extracting response code
+        start_response = _w_start_response(start_response)
+
         span.set_tag(http.METHOD, request.method)
         span.set_tag(http.URL, request.path)
         span.set_tag('molten.version', molten.__version__)

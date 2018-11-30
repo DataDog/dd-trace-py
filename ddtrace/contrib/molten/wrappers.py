@@ -4,6 +4,8 @@ import molten
 from ... import Pin
 from ...utils.importlib import func_name
 
+from .patch import MOLTEN_ROUTE
+
 def trace_wrapped(resource, wrapped, *args, **kwargs):
     pin = Pin.get_from(molten)
     if not pin or not pin.enabled():
@@ -81,8 +83,12 @@ class WrapperRouter(wrapt.ObjectProxy):
 
             # update root span resource while we know the matched route
             root_span = pin.tracer.current_root_span()
-            if root_span:
-                root_span.resource = resource
+            root_span.resource = resource
+
+            # if no root route set make sure we record it based on this resolved
+            # route
+            if root_span and not root_span.get_tag(MOLTEN_ROUTE):
+                root_span.set_tag(MOLTEN_ROUTE, route.name)
 
             return route, params
 
