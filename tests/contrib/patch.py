@@ -1,3 +1,4 @@
+import functools
 import importlib
 import sys
 import unittest
@@ -54,16 +55,24 @@ class PatchMixin(unittest.TestCase):
         self.assert_not_wrapped(obj.__wrapped__)
 
 
-def require_modules(f):
+def raise_if_no_attrs(f):
     """
     A helper for PatchTestCase test methods that will check if there are any
     modules to use else raise a NotImplementedError.
 
     :param f: method to wrap with a check
     """
+    required_attrs = [
+        '__module_name__',
+        '__integration_name__',
+        '__unpatch_func__',
+    ]
+
+    @functools.wraps(f)
     def checked_method(self, *args, **kwargs):
-        if not self.MODULES:
-            raise NotImplementedError(f.__doc__)
+        for attr in required_attrs:
+            if not getattr(self, attr):
+                raise NotImplementedError(f.__doc__)
         return f(self, *args, **kwargs)
     return checked_method
 
@@ -77,16 +86,17 @@ class PatchTestCase(object):
     @run_in_subprocess
     class Base(SubprocessTestCase, PatchMixin):
         """PatchTestCase provides default test methods to be used for testing
-        common patching logic. Each test method provides a default
-        implementation which will use `self.MODULES` if it exists.
+        common integration patching logic.
 
-        If `self.MODULES` is not provided and the test method is not overridden,
-        a NotImplementedError will be raised encouraging the user to implement
-        the test.
+        Each test method provides a default implementation which will use the
+        provided attributes (described below). If the attributes are not
+        provided a NotImplementedError will be raised for each method that is
+        not overridden.
 
         Attributes:
-            MODULES: A list of tuples of the form
-                    (module_name, integration_name, unpatch_method)
+            __integration_name__ the name of the integration.
+            __module_name__ module which the integration patches.
+            __unpatch_func__ unpatch function from the integration.
 
         Example:
 
@@ -95,34 +105,50 @@ class PatchTestCase(object):
             from ddtrace.contrib.redis import unpatch
 
             class RedisPatchTestCase(PatchTestCase.Base):
-                # 'redis' module, 'redis' integration, redis unpatch method
-                MODULES = [('redis', 'redis', unpatch)]
+                __integration_name__ = 'redis'
+                __module_name__ 'redis'
+                __unpatch_func__ = unpatch
 
-                def assert_patched(self, redis):
+                def assert_module_patched(self, redis):
                     # assert patching logic
                     # self.assert_wrapped(...)
 
-                def assert_not_patched(self, redis):
+                def assert_module_not_patched(self, redis):
                     # assert patching logic
                     # self.assert_not_wrapped(...)
 
-                def assert_not_double_patched(self, redis):
+                def assert_module_not_double_patched(self, redis):
                     # assert patching logic
                     # self.assert_not_double_wrapped(...)
 
+                # override this particular test case
                 def test_patch_before_import(self):
-                    # defer to parent test case logic
-                    super(RedisPatchTestCase, self).test_patch_before_import()
+                    # my custom patch before import check
 
-                # implement the rest of the methods...
+                # optionally override other test methods...
         """
-        MODULES = []
+        __integration_name__ = None
+        __module_name__ = None
+        __unpatch_func__ = None
+
+        def __init__(self, *args, **kwargs):
+            # DEV: Python will wrap a function when assigning to a class as an
+            # attribute. So we cannot call self.__unpatch_func__() as the `self`
+            # reference will be passed as an argument.
+            # So we need to unwrap the function and then wrap it in a function
+            # that will absorb the unpatch function.
+            if self.__unpatch_func__:
+                unpatch_func = self.__unpatch_func__.__func__
+                def unpatch():
+                    unpatch_func()
+                self.__unpatch_func__ = unpatch
+            super(PatchTestCase.Base, self).__init__(*args, **kwargs)
 
         def patch(self, *args, **kwargs):
             from ddtrace import patch
             return patch(*args, **kwargs)
 
-        def assert_patched(self, module):
+        def assert_module_patched(self, module):
             """
             Asserts that the given module is patched.
 
@@ -133,9 +159,9 @@ class PatchTestCase(object):
                 - redis.client.BasePipeline.execute
                 - redis.client.BasePipeline.immediate_execute_command
 
-            So an appropriate assert_patched would look like::
+            So an appropriate assert_module_patched would look like::
 
-            def assert_patched(self, redis):
+            def assert_module_patched(self, redis):
                 self.assert_wrapped(redis.StrictRedis.execute_command)
                 self.assert_wrapped(redis.StrictRedis.pipeline)
                 self.assert_wrapped(redis.Redis.pipeline)
@@ -145,9 +171,9 @@ class PatchTestCase(object):
             :param module: module to check
             :return: None
             """
-            raise NotImplementedError(self.assert_patched.__doc__)
+            raise NotImplementedError(self.assert_module_patched.__doc__)
 
-        def assert_not_patched(self, module):
+        def assert_module_not_patched(self, module):
             """
             Asserts that the given module is not patched.
 
@@ -158,9 +184,9 @@ class PatchTestCase(object):
                 - redis.client.BasePipeline.execute
                 - redis.client.BasePipeline.immediate_execute_command
 
-            So an appropriate assert_not_patched would look like::
+            So an appropriate assert_module_not_patched would look like::
 
-            def assert_not_patched(self, redis):
+            def assert_module_not_patched(self, redis):
                 self.assert_not_wrapped(redis.StrictRedis.execute_command)
                 self.assert_not_wrapped(redis.StrictRedis.pipeline)
                 self.assert_not_wrapped(redis.Redis.pipeline)
@@ -170,9 +196,9 @@ class PatchTestCase(object):
             :param module:
             :return: None
             """
-            raise NotImplementedError(self.assert_not_patched.__doc__)
+            raise NotImplementedError(self.assert_module_not_patched.__doc__)
 
-        def assert_not_double_patched(self, module):
+        def assert_module_not_double_patched(self, module):
             """
             Asserts that the given module is not patched twice.
 
@@ -183,9 +209,9 @@ class PatchTestCase(object):
                 - redis.client.BasePipeline.execute
                 - redis.client.BasePipeline.immediate_execute_command
 
-            So an appropriate assert_not_double_patched would look like::
+            So an appropriate assert_module_not_double_patched would look like::
 
-            def assert_not_double_patched(self, redis):
+            def assert_module_not_double_patched(self, redis):
                 self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
                 self.assert_not_double_wrapped(redis.StrictRedis.pipeline)
                 self.assert_not_double_wrapped(redis.Redis.pipeline)
@@ -195,9 +221,9 @@ class PatchTestCase(object):
             :param module: module to check
             :return: None
             """
-            raise NotImplementedError(self.assert_not_double_patched.__doc__)
+            raise NotImplementedError(self.assert_module_not_double_patched.__doc__)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_patch_before_import(self):
             """
             The integration should test that each class, method or function that
@@ -210,15 +236,14 @@ class PatchTestCase(object):
 
                 ddtrace.patch(redis=True)
                 import redis
-                self.assert_patched(redis)
+                self.assert_module_patched(redis)
             """
-            for module_name, integration_name, _ in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                self.patch(**{integration_name: True})
-                module = importlib.import_module(module_name)
-                self.assert_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_patch_after_import(self):
             """
             The integration should test that each class, method or function that
@@ -229,15 +254,16 @@ class PatchTestCase(object):
 
                 import redis
                 ddtrace.patch(redis=True)
-                self.assert_patched(redis)
+                self.assert_module_patched(redis)
             """
-            for module_name, integration_name, _ in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                module = importlib.import_module(module_name)
-                self.patch(**{integration_name: True})
-                self.assert_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            module = importlib.import_module(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
+            self.patch(**{self.__integration_name__: True})
+            self.assert_module_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_patch_idempotent(self):
             """
             Proper testing should be done to ensure that multiple calls to the
@@ -250,16 +276,14 @@ class PatchTestCase(object):
                 ddtrace.contrib.redis.patch()
                 self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
             """
-            for module_name, integration_name, _ in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                # Patch the module twice.
-                self.patch(**{module_name: True})
-                self.patch(**{module_name: True})
-                module = importlib.import_module(module_name)
-                self.assert_patched(module)
-                self.assert_not_double_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.patch(**{self.__module_name__: True})
+            self.patch(**{self.__module_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
+            self.assert_module_not_double_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_patch_unpatch_patch(self):
             """
             To ensure that we can thoroughly test the installation/patching of
@@ -280,15 +304,14 @@ class PatchTestCase(object):
                 self.assert_wrapped(redis.client.BasePipeline.execute)
                 self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
             """
-            for module_name, integration_name, unpatch in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                self.patch(**{integration_name: True})
-                unpatch()
-                self.patch(**{integration_name: True})
-                module = importlib.import_module(module_name)
-                self.assert_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.__unpatch_func__()
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_unpatch_before_import(self):
             """
             To ensure that we can thoroughly test the installation/patching of
@@ -301,16 +324,15 @@ class PatchTestCase(object):
                 from ddtrace.contrib.redis import unpatch
                 unpatch()
                 import redis
-                self.assert_not_patched(redis)
+                self.assert_module_not_patched(redis)
             """
-            for module_name, integration_name, unpatch in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                self.patch(**{integration_name: True})
-                unpatch()
-                module = importlib.import_module(module_name)
-                self.assert_not_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            self.__unpatch_func__()
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_not_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_unpatch_after_import(self):
             """
             To ensure that we can thoroughly test the installation/patching of an
@@ -328,14 +350,13 @@ class PatchTestCase(object):
                 self.assert_not_wrapped(redis.client.BasePipeline.execute)
                 self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
             """
-            for module_name, integration_name, unpatch in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                self.patch(**{integration_name: True})
-                module = importlib.import_module(module_name)
-                unpatch()
-                self.assert_not_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.patch(**{self.__integration_name__: True})
+            module = importlib.import_module(self.__module_name__)
+            self.__unpatch_func__()
+            self.assert_module_not_patched(module)
 
-        @require_modules
+        @raise_if_no_attrs
         def test_unpatch_idempotent(self):
             """
             Unpatching twice should be a no-op.
@@ -354,9 +375,7 @@ class PatchTestCase(object):
                 self.assert_not_wrapped(redis.client.BasePipeline.execute)
                 self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
             """
-            for module_name, integration_name, unpatch in self.MODULES:
-                self.assert_module_not_imported(module_name)
-                unpatch()
-                unpatch()
-                module = importlib.import_module(module_name)
-                self.assert_not_patched(module)
+            self.assert_module_not_imported(self.__module_name__)
+            self.__unpatch_func__()
+            module = importlib.import_module(self.__module_name__)
+            self.assert_module_not_patched(module)

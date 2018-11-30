@@ -57,8 +57,8 @@ def run_in_subprocess(obj):
 class SubprocessTestCase(unittest.TestCase):
     def _full_method_name(self):
         test = getattr(self, self._testMethodName)
-        modpath = test.__module__
-        clsname = self.__class__.__name__
+        modpath = test.__self__.__class__.__module__
+        clsname = test.__self__.__class__.__name__
         testname = test.__name__
         testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
         return testcase_name
