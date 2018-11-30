@@ -1,4 +1,3 @@
-
 # stdlib
 import atexit
 import logging
@@ -39,9 +38,6 @@ class AgentWriter(object):
 
         if spans:
             self._traces.add(spans)
-
-        if services:
-            self._services.add(services)
 
     def _reset_worker(self):
         # if this queue was created in a different process (i.e. this was
@@ -119,8 +115,11 @@ class AsyncWorker(object):
             size = self._trace_queue.size()
             if size:
                 key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
-                log.debug("Waiting %ss for traces to be sent. Hit %s to quit.",
-                        self._shutdown_timeout, key)
+                log.debug(
+                    "Waiting %ss for traces to be sent. Hit %s to quit.",
+                    self._shutdown_timeout,
+                    key,
+                )
                 timeout = time.time() + self._shutdown_timeout
                 while time.time() < timeout and self._trace_queue.size():
                     # FIXME[matt] replace with a queue join
