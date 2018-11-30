@@ -91,10 +91,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
             if not pin or not pin.enabled():
                 return wrapped(*args, **kwargs)
 
-            span = pin.tracer.current_root_span()
-            if not span:
-                return wrapped(*args, **kwargs)
-
             status, headers, exc_info = args
             code, _, _ = status.partition(' ')
 

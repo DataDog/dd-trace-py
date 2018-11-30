@@ -4,6 +4,7 @@ import molten
 from molten.testing import TestClient
 
 from ddtrace import Pin
+from ddtrace.ext import errors
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION, MOLTEN_ROUTE
@@ -83,18 +84,22 @@ class TestMolten(TestCase):
         self.assertEqual(span.get_tag('http.status_code'), '404')
 
     def test_route_exception(self):
-        def error() -> str:
+        def route_error() -> str:
             raise Exception('Error message')
-        app = molten.App(routes=[molten.Route('/error', error)])
+        app = molten.App(routes=[molten.Route('/error', route_error)])
         client = TestClient(app)
         response = client.get('/error')
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 500)
         span = spans[0]
+        route_error_span = spans[-1]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET /error')
         self.assertEqual(span.error, 1)
+        # error tags only set for route function span and not root span
+        self.assertIsNone(span.get_tag(errors.ERROR_MSG))
+        self.assertEqual(route_error_span.get_tag(errors.ERROR_MSG), 'Error message')
 
     def test_resources(self):
         """ Tests request has expected span resources """
