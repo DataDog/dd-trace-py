@@ -52,6 +52,12 @@ Flask
 
 .. automodule:: ddtrace.contrib.flask
 
+.. _molten:
+
+Molten
+^^^^^^
+
+.. automodule:: ddtrace.contrib.molten
 
 .. _pylons:
 

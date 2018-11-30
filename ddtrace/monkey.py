@@ -44,6 +44,7 @@ PATCH_MODULES = {
     'aiobotocore': False,
     'httplib': False,
     'vertica': True,
+    'molten': True,
     'jinja2': True,
     'flask': True,
     'kombu': False,
