@@ -82,6 +82,20 @@ class TestMolten(TestCase):
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.status_code'), '404')
 
+    def test_route_exception(self):
+        def error() -> str:
+            raise Exception('Error message')
+        app = molten.App(routes=[molten.Route('/error', error)])
+        client = TestClient(app)
+        response = client.get('/error')
+        spans = self.tracer.writer.pop()
+        self.assertEqual(response.status_code, 500)
+        span = spans[0]
+        self.assertEqual(span.service, 'molten')
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'GET /error')
+        self.assertEqual(span.error, 1)
+
     def test_resources(self):
         """ Tests request has expected span resources """
         response = molten_client()
