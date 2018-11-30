@@ -30,7 +30,7 @@ class SettingsComponent:
 
 
 class Metrics:
-    __slots__ = ["settings"]
+    __slots__ = ['settings']
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
