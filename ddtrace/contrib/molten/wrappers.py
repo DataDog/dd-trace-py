@@ -74,14 +74,13 @@ class WrapperRouter(wrapt.ObjectProxy):
         if route_and_params is not None:
             route, params = route_and_params
 
+            route.handler = trace_func(func_name(route.handler))(route.handler)
+
+            # update root span resource while we know the matched route
             resource = '{} {}'.format(
                 route.method,
                 route.template,
             )
-
-            route.handler = trace_func(resource)(route.handler)
-
-            # update root span resource while we know the matched route
             root_span = pin.tracer.current_root_span()
             root_span.resource = resource
 

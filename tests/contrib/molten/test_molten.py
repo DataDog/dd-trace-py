@@ -107,7 +107,7 @@ class TestMolten(TestCase):
             'molten.components.RequestDataComponent.can_handle_parameter',
             'molten.components.SchemaComponent.can_handle_parameter',
             'molten.components.UploadedFileComponent.can_handle_parameter',
-            'GET /hello/{name}/{age}',
+            'tests.contrib.molten.test_molten.hello',
             'molten.renderers.JSONRenderer.render'
         ]
 
