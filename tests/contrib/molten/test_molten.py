@@ -1,3 +1,5 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from annotations
 from unittest import TestCase
 
 import molten
@@ -7,10 +9,11 @@ from ddtrace import Pin
 from ddtrace.ext import errors
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
-from ddtrace.contrib.molten.patch import MOLTEN_VERSION, MOLTEN_ROUTE
+from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...test_tracer import get_dummy_tracer
 from ...util import override_config
+
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
 def hello(name: str, age: int) -> str:

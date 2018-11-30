@@ -1,5 +1,6 @@
 from webob import Request, Response
 
+
 class ExceptionMiddleware(object):
     """A middleware which raises an exception."""
     def __init__(self, app):
@@ -7,6 +8,7 @@ class ExceptionMiddleware(object):
 
     def __call__(self, environ, start_response):
         raise Exception('Middleware exception')
+
 
 class ExceptionToSuccessMiddleware(object):
     """A middleware which catches any exceptions that occur in a later

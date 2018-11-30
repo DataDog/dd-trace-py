@@ -1,3 +1,4 @@
+# flake8: noqa
 from nose.tools import eq_, ok_, assert_raises
 from botocore.errorfactory import ClientError
 

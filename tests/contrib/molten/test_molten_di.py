@@ -1,19 +1,19 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from annotations
 from unittest import TestCase
 
 # Test base adapted from molten/tests/test_dependency_injection.py
 
 from inspect import Parameter
-from itertools import permutations
-from typing import NewType
 
 import molten
-from molten import DependencyInjector, DIError
+from molten import DependencyInjector
 
 from ddtrace import Pin
 from ddtrace.contrib.molten import patch, unpatch
 
 from ...test_tracer import get_dummy_tracer
-from ...util import override_config
+
 
 class Settings(dict):
     pass
