@@ -91,7 +91,7 @@ class PymongoCore(object):
 
         result = db.songs.update_many(
             {'artist': 'Neil'},
-            {'$Set': {'artist': 'Shakey'}},
+            {'$set': {'artist': 'Shakey'}},
         )
 
         eq_(result.matched_count, 2)
@@ -111,7 +111,7 @@ class PymongoCore(object):
 
         expected_resources = set([
             'drop songs',
-            'update songs {\'artist\': \'?\'}',
+            'update songs {"artist": "?"}',
             'insert songs',
         ])
 
@@ -164,8 +164,8 @@ class PymongoCore(object):
             'count here.are.songs',
             'count here.are.songs',
             'count here.are.songs',
-            'delete here.are.songs {\'artist\': \'?\'}',
-            'delete here.are.songs {\'artist\': \'?\'}',
+            'delete here.are.songs {"artist": "?"}',
+            'delete here.are.songs {"artist": "?"}',
             'insert here.are.songs',
         ]
 
@@ -294,7 +294,7 @@ class PymongoCore(object):
 
         expected_resources = set([
             'drop songs',
-            'update songs {\'artist\': \'?\'}',
+            'update songs {"artist": "?"}',
             'insert songs',
         ])
 
