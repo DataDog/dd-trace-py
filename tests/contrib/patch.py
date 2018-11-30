@@ -160,7 +160,7 @@ class PatchTestCase(object):
                 'test_{}'.format('_'.join(c)) for c in permutations(ops, len(ops))
             ]
 
-        def test_averify_test_coverage(self):
+        def test_verify_test_coverage(self):
             """
             This TestCase should cover a variety of combinations of importing,
             patching and unpatching.
@@ -173,7 +173,7 @@ class PatchTestCase(object):
 
             # TODO: it may be possible to generate test cases dynamically. For
             # now focus on the important ones.
-            test_ignore = {
+            test_ignore = set([
                 'test_unpatch_import_patch',
                 'test_import_unpatch_patch_unpatch',
                 'test_import_unpatch_unpatch_patch',
@@ -184,7 +184,7 @@ class PatchTestCase(object):
                 'test_unpatch_patch_unpatch_import',
                 'test_unpatch_unpatch_import_patch',
                 'test_unpatch_unpatch_patch_import',
-            }
+            ])
 
             for test_attr in tests:
                 if test_attr in test_ignore:
