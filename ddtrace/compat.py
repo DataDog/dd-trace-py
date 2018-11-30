@@ -53,7 +53,7 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 4):
     import asyncio
 
 
-    def _make_async_decorator(tracer, coro, *params, **kw_params):
+    def make_async_decorator(tracer, coro, *params, **kw_params):
         \"\"\"
         Decorator factory that creates an asynchronous wrapper that yields
         a coroutine result. This factory is required to handle Python 2
