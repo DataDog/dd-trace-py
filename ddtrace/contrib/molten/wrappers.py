@@ -4,7 +4,8 @@ import molten
 from ... import Pin
 from ...utils.importlib import func_name
 
-from .patch import MOLTEN_ROUTE
+MOLTEN_ROUTE = 'molten.route'
+
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
     pin = Pin.get_from(molten)

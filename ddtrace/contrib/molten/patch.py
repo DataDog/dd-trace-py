@@ -9,11 +9,9 @@ from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
+from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter, MOLTEN_ROUTE
 
 MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
-MOLTEN_ROUTE = 'molten.route'
-
-from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter
 
 # Configure default configuration
 config._add('molten', dict(
