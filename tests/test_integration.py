@@ -213,6 +213,7 @@ class TestWorkers(TestCase):
         eq_(len(payload), 1)
         eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -428,6 +429,7 @@ class TestAPITransport(TestCase):
         ok_(response)
         eq_(response.status, 200)
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -471,6 +473,7 @@ class TestAPIDowngrade(TestCase):
         eq_(response.status, 200)
         ok_(isinstance(api._encoder, JSONEncoder))
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -509,6 +512,7 @@ class TestRateByService(TestCase):
         ok_(response)
         eq_(response.status, 200)
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -519,7 +523,7 @@ class TestConfigure(TestCase):
     previous overrides have been kept.
     """
     def test_configure_keeps_api_hostname_and_port(self):
-        tracer = Tracer() # use real tracer with real api
+        tracer = Tracer()  # use real tracer with real api
         eq_('localhost', tracer.writer.api.hostname)
         eq_(8126, tracer.writer.api.port)
         tracer.configure(hostname='127.0.0.1', port=8127)

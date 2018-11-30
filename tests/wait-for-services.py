@@ -56,6 +56,7 @@ def check_cassandra():
     with Cluster(**CASSANDRA_CONFIG).connect() as conn:
         conn.execute("SELECT now() FROM system.local")
 
+
 @try_until_timeout(Exception)
 def check_mysql():
     conn = mysql.connector.connect(**MYSQL_CONFIG)
@@ -63,6 +64,7 @@ def check_mysql():
         conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
+
 
 @try_until_timeout(Exception)
 def check_rediscluster():
@@ -75,6 +77,7 @@ def check_rediscluster():
     r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
     r.flushall()
 
+
 @try_until_timeout(Exception)
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
@@ -82,6 +85,7 @@ def check_vertica():
         conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
+
 
 @try_until_timeout(Exception)
 def check_rabbitmq():

@@ -133,7 +133,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         for case in cases:
             priority_sampler.set_sample_rate_by_service(case)
             rates = {}
-            for k,v in iteritems(priority_sampler._by_service_samplers):
+            for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
             assert case == rates, "%s != %s" % (case, rates)
         # It's important to also test in reverse mode for we want to make sure key deletion
@@ -142,6 +142,6 @@ class RateByServiceSamplerTest(unittest.TestCase):
         for case in cases:
             priority_sampler.set_sample_rate_by_service(case)
             rates = {}
-            for k,v in iteritems(priority_sampler._by_service_samplers):
+            for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
             assert case == rates, "%s != %s" % (case, rates)

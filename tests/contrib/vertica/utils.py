@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+
 # https://stackoverflow.com/a/7205107
 def merge(a, b, path=None):
     """merges b into a"""

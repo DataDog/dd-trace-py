@@ -22,6 +22,7 @@ class Artist(mongoengine.Document):
     first_name = mongoengine.StringField(max_length=50)
     last_name = mongoengine.StringField(max_length=50)
 
+
 class MongoEngineCore(object):
 
     # Define the service at the class level, so that each test suite can use a different service

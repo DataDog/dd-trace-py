@@ -3,6 +3,7 @@ from unittest import TestCase
 from ddtrace.span import Span
 from ddtrace.writer import AsyncWorker, Q
 
+
 class RemoveAllFilter():
     def __init__(self):
         self.filtered_traces = 0
@@ -11,6 +12,7 @@ class RemoveAllFilter():
         self.filtered_traces += 1
         return None
 
+
 class KeepAllFilter():
     def __init__(self):
         self.filtered_traces = 0
@@ -18,6 +20,7 @@ class KeepAllFilter():
     def process_trace(self, trace):
         self.filtered_traces += 1
         return trace
+
 
 class AddTagFilter():
     def __init__(self, tag_name):
@@ -29,6 +32,7 @@ class AddTagFilter():
         for span in trace:
             span.set_tag(self.tag_name, "A value")
         return trace
+
 
 class DummmyAPI():
     def __init__(self):

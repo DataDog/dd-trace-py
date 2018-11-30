@@ -42,25 +42,28 @@ class APITests(TestCase):
             '[]': {'js': []},
             '{"rate_by_service": {"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}': {  # noqa
                 'js': {
-                    "rate_by_service": {
-                        "service:,env:":0.5,
-                        "service:mcnulty,env:test":0.9,
-                        "service:postgres,env:test":0.6,
+                    'rate_by_service': {
+                        'service:,env:': 0.5,
+                        'service:mcnulty,env:test': 0.9,
+                        'service:postgres,env:test': 0.6,
                     },
                 },
             },
-            ' [4,2,1] ': {'js': [4,2,1]},
+            ' [4,2,1] ': {'js': [4, 2, 1]},
         }
 
-        for k,v in iteritems(test_cases):
+        for k, v in iteritems(test_cases):
             r = ResponseMock(k)
             js = _parse_response_json(r)
             eq_(v['js'], js)
             if 'log' in v:
-                ok_(1 <= len(log.call_args_list), "not enough elements in call_args_list: %s" % log.call_args_list)
+                ok_(
+                    1 <= len(log.call_args_list),
+                    'not enough elements in call_args_list: {}'.format(log.call_args_list),
+                )
                 print(log.call_args_list)
-                l = log.call_args_list[-1][0][0]
-                ok_(v['log'] in l, "unable to find %s in %s" % (v['log'], l))
+                args = log.call_args_list[-1][0][0]
+                ok_(v['log'] in args, 'unable to find {} in {}'.format(v['log'], args))
 
     @mock.patch('ddtrace.compat.httplib.HTTPConnection')
     def test_put_connection_close(self, HTTPConnection):
