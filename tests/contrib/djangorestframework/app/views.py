@@ -1,10 +1,7 @@
-# flake8: noqa
 from django.conf.urls import url, include
-from django.contrib.auth.models import User, Group
-from django.http import HttpResponse
+from django.contrib.auth.models import User
 
 from rest_framework import viewsets, routers, serializers
-from rest_framework.exceptions import APIException
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):

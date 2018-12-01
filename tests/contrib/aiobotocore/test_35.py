@@ -1,6 +1,6 @@
 # flake8: noqa
-from nose.tools import eq_, ok_, assert_raises
-from botocore.errorfactory import ClientError
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
+from nose.tools import eq_
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 
