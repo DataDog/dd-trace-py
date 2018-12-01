@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import sys
-from ddtrace import tracer
 from nose.tools import ok_
 
 

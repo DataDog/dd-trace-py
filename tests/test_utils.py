@@ -61,7 +61,10 @@ class TestUtilities(unittest.TestCase):
             'use something else instead',
             '1.0.0',
         )
-        expected = "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). use something else instead"
+        expected = (
+            '\'deprecated_function\' is deprecated and will be remove in future versions (1.0.0). '
+            'use something else instead'
+        )
         eq_(msg, expected)
 
     def test_deprecation(self):

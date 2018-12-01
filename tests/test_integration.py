@@ -48,8 +48,6 @@ class FlawedAPI(API):
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
-
-
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -138,7 +136,7 @@ class TestWorkers(TestCase):
         # make a single send() if a single trace with multiple spans is created before the flush
         tracer = self.tracer
         parent = tracer.trace('client.testing')
-        child = tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
         parent.finish()
 
         # one send is expected
@@ -215,6 +213,7 @@ class TestWorkers(TestCase):
         eq_(len(payload), 1)
         eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -242,7 +241,7 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_traces(traces)
+        self.api_msgpack.send_traces(traces)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 
@@ -272,7 +271,7 @@ class TestAPITransport(TestCase):
         }]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_services(services)
+        self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 
@@ -430,6 +429,7 @@ class TestAPITransport(TestCase):
         ok_(response)
         eq_(response.status, 200)
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -473,6 +473,7 @@ class TestAPIDowngrade(TestCase):
         eq_(response.status, 200)
         ok_(isinstance(api._encoder, JSONEncoder))
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -511,6 +512,7 @@ class TestRateByService(TestCase):
         ok_(response)
         eq_(response.status, 200)
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -521,7 +523,7 @@ class TestConfigure(TestCase):
     previous overrides have been kept.
     """
     def test_configure_keeps_api_hostname_and_port(self):
-        tracer = Tracer() # use real tracer with real api
+        tracer = Tracer()  # use real tracer with real api
         eq_('localhost', tracer.writer.api.hostname)
         eq_(8126, tracer.writer.api.port)
         tracer.configure(hostname='127.0.0.1', port=8127)

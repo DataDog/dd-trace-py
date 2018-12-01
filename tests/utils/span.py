@@ -164,7 +164,6 @@ class TestSpan(Span):
                 )
 
 
-
 class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
@@ -287,7 +286,6 @@ class TestSpanContainer(object):
             .format(args, kwargs, len(self.spans))
         )
         return span
-
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):

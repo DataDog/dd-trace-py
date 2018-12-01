@@ -1,3 +1,4 @@
+# flake8: noqa
 # 3p
 import mysql
 from nose.tools import eq_, ok_
