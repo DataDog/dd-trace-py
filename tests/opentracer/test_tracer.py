@@ -1,4 +1,3 @@
-# flake8: noqa
 import opentracing
 from opentracing import (
     child_of,
@@ -16,7 +15,6 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
 
 import pytest
-from .utils import ot_tracer_factory, ot_tracer, writer
 
 
 class TestTracerConfig(object):
