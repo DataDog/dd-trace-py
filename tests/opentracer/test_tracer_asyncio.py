@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
-from .utils import ot_tracer_factory, dd_tracer, writer
 
 
 @pytest.fixture()
