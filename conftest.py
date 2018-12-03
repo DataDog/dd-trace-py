@@ -32,10 +32,10 @@ def pytest_ignore_collect(path, config):
         Python 3.4: Skip
         Python 3.5: Collect
         Python 3.6: Collect
-
-    :rtype: bool
-    :returns: ``True`` to skip the directory, ``False`` to collect
     """
+    # Execute original behavior first
+    # DEV: We need to set `outcome.force_result(True)` if we need to override
+    #      these results and skip this directory
     outcome = yield
 
     # Was not ignored by default behavior
@@ -51,6 +51,6 @@ def pytest_ignore_collect(path, config):
             # Split out version numbers into a tuple: `py35` -> `(3, 5)`
             min_required = tuple((int(v) for v in dirname.strip('py')))
 
-            # if the current Python version does not meet the minimum required, skip this directory
+            # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
                 outcome.force_result(True)
