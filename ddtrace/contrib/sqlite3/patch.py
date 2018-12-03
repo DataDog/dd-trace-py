@@ -1,7 +1,7 @@
 # 3p
 import sqlite3
 import sqlite3.dbapi2
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin

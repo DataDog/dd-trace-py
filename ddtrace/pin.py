@@ -1,6 +1,6 @@
 import logging
 
-import wrapt
+from ddtrace.vendor import wrapt
 import ddtrace
 
 

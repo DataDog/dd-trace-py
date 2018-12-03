@@ -1,5 +1,5 @@
 import os
-import wrapt
+from ddtrace.vendor import wrapt
 import falcon
 
 from ddtrace import tracer

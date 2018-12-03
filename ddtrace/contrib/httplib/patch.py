@@ -2,7 +2,7 @@
 import logging
 
 # Third party
-import wrapt
+from ddtrace.vendor import wrapt
 
 # Project
 from ...compat import PY2, httplib, parse

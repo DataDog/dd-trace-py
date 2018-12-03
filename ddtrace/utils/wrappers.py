@@ -1,4 +1,4 @@
-import wrapt
+from ddtrace.vendor import wrapt
 import inspect
 
 from .deprecation import deprecated

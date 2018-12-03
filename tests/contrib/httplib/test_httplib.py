@@ -5,7 +5,7 @@ import sys
 import unittest
 
 # Third party
-import wrapt
+from ddtrace.vendor import wrapt
 
 # Project
 from ddtrace import config

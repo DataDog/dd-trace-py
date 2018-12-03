@@ -7,7 +7,7 @@ from ...utils.formats import asbool
 import pyramid.config
 from pyramid.path import caller_package
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 DD_PATCH = '_datadog_patch'
 
