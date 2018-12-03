@@ -83,6 +83,9 @@ def on_prepare(request, response):
         elif res_info.get('prefix'):
             resource = res_info.get('prefix')
 
+        # prefix the resource name by the http method
+        resource = '{} {}'.format(request.method, resource)
+
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)
     request_span.set_tag('http.status_code', response.status)
