@@ -3,7 +3,7 @@
 
 # 3p
 import pytest
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 # project
 import ddtrace

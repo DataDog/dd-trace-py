@@ -1,5 +1,5 @@
 # 3p
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 import mysql.connector
 
 # project

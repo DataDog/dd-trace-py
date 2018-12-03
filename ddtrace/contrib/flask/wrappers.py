@@ -1,4 +1,4 @@
-from ddtrace.vendor.wrapt import function_wrapper
+from ddtrace_vendor.wrapt import function_wrapper
 
 from ...pin import Pin
 from ...utils.importlib import func_name

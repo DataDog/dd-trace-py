@@ -1,5 +1,5 @@
 import grpc
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 from ddtrace import Pin
 from ...utils.wrappers import unwrap

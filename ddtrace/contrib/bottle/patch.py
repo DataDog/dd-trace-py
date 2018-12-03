@@ -4,7 +4,7 @@ from .trace import TracePlugin
 
 import bottle
 
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 
 def patch():

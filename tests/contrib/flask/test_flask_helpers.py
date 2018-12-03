@@ -1,6 +1,6 @@
 # flake8: noqa
 import flask
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch

@@ -3,7 +3,7 @@ import unittest
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch, unpatch
 import flask
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 from ...test_tracer import get_dummy_tracer
 

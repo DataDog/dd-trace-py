@@ -5,7 +5,7 @@ import json
 
 # 3p
 import pymongo
-from ddtrace.vendor.wrapt import ObjectProxy
+from ddtrace_vendor.wrapt import ObjectProxy
 
 # project
 import ddtrace

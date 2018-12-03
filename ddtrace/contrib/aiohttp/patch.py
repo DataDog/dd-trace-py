@@ -1,4 +1,4 @@
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 from ...pin import Pin
 from ...utils.wrappers import unwrap

@@ -4,7 +4,7 @@ import logging
 import random
 
 # 3p
-from ddtrace.vendor.wrapt import ObjectProxy
+from ddtrace_vendor.wrapt import ObjectProxy
 import pylibmc
 
 # project

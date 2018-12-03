@@ -3,7 +3,7 @@ import os
 
 import flask
 import werkzeug
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace_vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config, Pin
 

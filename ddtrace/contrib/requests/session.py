@@ -1,6 +1,6 @@
 import requests
 
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace_vendor.wrapt import wrap_function_wrapper as _w
 
 from .connection import _wrap_send
 

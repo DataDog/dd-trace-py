@@ -1,4 +1,4 @@
-from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
+from ddtrace_vendor.wrapt import wrap_function_wrapper as wrap
 
 from rest_framework.views import APIView
 

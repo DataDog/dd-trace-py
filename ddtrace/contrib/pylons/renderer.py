@@ -2,7 +2,7 @@ import pylons
 
 from pylons import config
 
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace_vendor.wrapt import wrap_function_wrapper as _w
 
 from .compat import legacy_pylons
 from .constants import CONFIG_MIDDLEWARE

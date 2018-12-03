@@ -5,7 +5,7 @@ import sys
 import logging
 # 3p
 import cassandra.cluster
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 
 # project
 from ddtrace import Pin

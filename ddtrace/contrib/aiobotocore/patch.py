@@ -1,5 +1,5 @@
 import asyncio
-from ddtrace.vendor import wrapt
+from ddtrace_vendor import wrapt
 import aiobotocore.client
 
 from aiobotocore.endpoint import ClientResponseContentProxy
