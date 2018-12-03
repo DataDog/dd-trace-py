@@ -5,7 +5,7 @@ import re
 
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, Extension
 from setuptools.command.test import test as TestCommand
 
 
