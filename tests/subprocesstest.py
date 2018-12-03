@@ -10,6 +10,8 @@ import subprocess
 import sys
 import unittest
 
+from ddtrace.compat import stringify
+
 
 SUBPROC_TEST_ATTR = '_subproc_test'
 SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
@@ -84,7 +86,7 @@ class SubprocessTestCase(unittest.TestCase):
             stderr=subprocess.PIPE,
             env=sp_test_env,
         )
-        _, stderr = sp.communicate()
+        stdout, stderr = sp.communicate()
 
         if sp.returncode:
             try:
@@ -92,7 +94,8 @@ class SubprocessTestCase(unittest.TestCase):
                 raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
             except Exception:
                 exc_info = sys.exc_info()
-            sys.stderr.write(stderr)
+            sys.stderr.write(stderr.decode())
+            sys.stdout.write(stdout.decode())
             result.addFailure(self, exc_info)
         else:
             result.addSuccess(self)

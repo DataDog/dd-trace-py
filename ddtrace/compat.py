@@ -3,6 +3,7 @@ import sys
 
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] == 3
 
 # Infos about python passed to the trace agent through the header
 PYTHON_VERSION = platform.python_version()
@@ -121,6 +122,7 @@ __all__ = [
     'httplib',
     'iteritems',
     'PY2',
+    'PY3',
     'Queue',
     'stringify',
     'StringIO',
