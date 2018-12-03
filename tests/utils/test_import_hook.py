@@ -4,7 +4,7 @@ import types
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 
-from ddtrace.utils.install import (
+from ddtrace.utils.import_hook import (
     install_module_import_hook,
     uninstall_module_import_hook,
     _mark_module_patched,
@@ -38,7 +38,7 @@ class TestInstallUtils(SubprocessTestCase):
         """
         test_hook = mock.MagicMock()
         install_module_import_hook('tests.utils.test_module', test_hook)
-        self.assertEqual(test_hook.called, 0, 'test_hook should not be called until module import')
+        assert not test_hook.called, 'test_hook should not be called until module import'
 
         import tests.utils.test_module  # noqa
         test_hook.assert_called_once()
@@ -57,24 +57,17 @@ class TestInstallUtils(SubprocessTestCase):
         import tests.utils.test_module  # noqa
         self.assertEqual(tests.utils.test_module.A().fn(), 2)
 
-        # TODO: the assert below should be
-        # >>> assert tests.utils.test_module.A().fn() == 2
-        # but wrapt uninstalls the import hooks after they are fired
-        # https://github.com/GrahamDumpleton/wrapt/blob/4bcd190457c89e993ffcfec6dad9e9969c033e9e/src/wrapt/importer.py#L127-L136
-
-        # remove the module from sys.modules to force a reimport
         del sys.modules['tests.utils.test_module']
         import tests.utils.test_module  # noqa
-        self.assertEqual(tests.utils.test_module.A().fn(), 1)
+        self.assertEqual(tests.utils.test_module.A().fn(), 2)
 
     def test_install_module_import_hook_already_imported(self):
         """
         Test that import hooks are fired when the module is already imported.
         """
-        module = types.ModuleType('somewhere')
-        sys.modules['some.module.somewhere'] = module
+        import tests.utils.test_module  # noqa
         test_hook = mock.MagicMock()
-        install_module_import_hook('some.module.somewhere', test_hook)
+        install_module_import_hook('tests.utils.test_module', test_hook)
         test_hook.assert_called_once()
 
     def test_uninstall_module_import_hook(self):

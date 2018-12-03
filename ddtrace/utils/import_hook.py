@@ -1,11 +1,9 @@
 import sys
 
-from wrapt.importer import (
+from .hook import (
     register_post_import_hook,
-    _post_import_hooks,
-    _post_import_hooks_lock,
+    deregister_post_import_hook,
 )
-from wrapt.decorators import synchronized
 
 
 def install_module_import_hook(modulename, modulehook):
@@ -33,29 +31,12 @@ def uninstall_module_import_hook(modulename):
     """Uninstalls a module import hook for a module given its name.
 
     Note: any patching done on the module will still apply, this function
-    simply removed/disables the import hook.
+    simply removes/disables the import hook.
     """
     if modulename in sys.modules:
         module = sys.modules[modulename]
         _mark_module_unpatched(module)
-    _deregister_post_import_hook(modulename, _hook_matcher)
-
-
-@synchronized(_post_import_hooks_lock)
-def _deregister_post_import_hook(modulename, matcher):
-    """
-    Deregisters post import hooks for a module given the module name and a
-    matcher function. All hooks matching the matcher function will be removed.
-    """
-    hooks = _post_import_hooks.get(modulename, []) or []
-    hooks = list(filter(lambda h: not matcher(h), hooks))
-
-    # Work around for wrapt since wrapt assumes that if
-    # _post_import_hooks.get(modulename) is not None then the module must have
-    # been imported.
-    if not len(hooks):
-        hooks = None
-    _post_import_hooks[modulename] = hooks
+    deregister_post_import_hook(modulename, _hook_matcher)
 
 
 def _mark_module_patched(module):
