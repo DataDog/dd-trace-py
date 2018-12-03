@@ -214,6 +214,7 @@ class PyMySQLCore(object):
         eq_(span.service, self.TEST_SERVICE)
         eq_(span.name, 'pymysql.connection.rollback')
 
+
 class TestPyMysqlPatch(PyMySQLCore, TestCase):
     def _get_conn_tracer(self):
         if not self.conn:

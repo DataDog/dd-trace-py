@@ -1,23 +1,22 @@
-# -*- coding: utf-8 -*-
+# flake8: noqa
 # stdlib
 import logging
 import unittest
 from threading import Event
 
 # 3p
+from nose.tools import eq_, ok_
+from nose.plugins.attrib import attr
 from cassandra.cluster import Cluster, ResultSet
 from cassandra.query import BatchStatement, SimpleStatement
 
 # project
-from ddtrace.compat import to_unicode
 from ddtrace.contrib.cassandra.patch import patch, unpatch
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
 from ddtrace.ext import net, cassandra as cassx, errors
 from ddtrace import Pin
 
 # testing
-from nose.tools import eq_, ok_
-from nose.plugins.attrib import attr
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
@@ -31,7 +30,6 @@ from tests.test_tracer import get_dummy_tracer
 CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
-
 
 def setUpModule():
     # skip all the modules if the Cluster is not available
@@ -48,7 +46,6 @@ def setUpModule():
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
-
 
 def tearDownModule():
     # destroy the KEYSPACE
@@ -156,7 +153,6 @@ class CassandraBase(object):
             event = Event()
             result = []
             future = session.execute_async(query)
-
             def callback(results):
                 result.append(ResultSet(future, results))
                 event.set()
@@ -184,7 +180,7 @@ class CassandraBase(object):
         writer = tracer.writer
         statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
         result = session.execute(statement)
-        # iterate over all pages
+        #iterate over all pages
         results = list(result)
         eq_(len(results), 3)
 
@@ -209,7 +205,7 @@ class CassandraBase(object):
                 eq_(query.get_tag(cassx.ROW_COUNT), '1')
             eq_(query.get_tag(net.TARGET_HOST), '127.0.0.1')
             eq_(query.get_tag(cassx.PAGINATED), 'True')
-            eq_(query.get_tag(cassx.PAGE_NUMBER), str(i + 1))
+            eq_(query.get_tag(cassx.PAGE_NUMBER), str(i+1))
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
@@ -220,22 +216,6 @@ class CassandraBase(object):
         eq_(len(spans), 1)
         query = spans[0]
         eq_(query.service, self.TEST_SERVICE)
-
-    def test_unicode_batch_statement(self):
-        # ensure that unicode included in queries is properly handled
-        session, tracer = self._traced_session()
-
-        batch = BatchStatement()
-        query = 'INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'
-        batch.add(SimpleStatement(query), ('Joe', 1, '好'))
-        session.execute(batch)
-
-        spans = tracer.writer.pop()
-        eq_(len(spans), 1)
-        s = spans[0]
-        eq_(s.resource, 'BatchStatement')
-        eq_(s.get_metric('cassandra.batch_size'), 1)
-        eq_(s.get_tag(cassx.QUERY), to_unicode('INSERT INTO test.person_write (name, age, description) VALUES (\'Joe\', 1, \'好\')'))
 
     def test_trace_error(self):
         session, tracer = self._traced_session()

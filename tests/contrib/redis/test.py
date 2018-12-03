@@ -175,6 +175,7 @@ def _assert_pipeline_immediate(conn, tracer, service):
     eq_(span.get_tag('out.redis_db'), '0')
     eq_(span.get_tag('out.host'), 'localhost')
 
+
 def _assert_pipeline_traced(conn, tracer, service):
     writer = tracer.writer
 
@@ -196,6 +197,7 @@ def _assert_pipeline_traced(conn, tracer, service):
     eq_(span.get_tag('out.host'), 'localhost')
     eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
     eq_(span.get_metric('redis.pipeline_length'), 3)
+
 
 def _assert_conn_traced(conn, tracer, service):
     us = conn.get('cheese')

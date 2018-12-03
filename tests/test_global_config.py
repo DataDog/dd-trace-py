@@ -226,9 +226,8 @@ class GlobalConfigTestCase(TestCase):
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
         self.config.web.hooks._emit('request', span)
-        on_web_request.assert_called()
 
-    def test_settings_no_hook(self):
+    def test_settings_no_span(self):
         """
         When calling `Hooks._emit()`
             When no span is provided

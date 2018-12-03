@@ -1,3 +1,4 @@
+# flake8: noqa
 #!/usr/bin/env python
 import os
 import sys

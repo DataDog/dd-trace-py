@@ -286,7 +286,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
         @celery.shared_task
-        def add(x ,y):
+        def add(x, y):
             return x + y
 
         res = add.apply([2, 2])

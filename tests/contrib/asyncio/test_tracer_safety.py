@@ -1,3 +1,4 @@
+# flake8: noqa
 import asyncio
 
 from nose.tools import eq_, ok_
