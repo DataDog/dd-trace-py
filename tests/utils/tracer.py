@@ -32,9 +32,9 @@ class DummyWriter(AgentWriter):
             deprecation(
                 name='write(services)',
                 message=(
-                    'Writing services has been replaced with specifying the'
-                    'service and span_type on each span. Services are no longer'
-                    'sent.'
+                    'Writing services has been replaced with specifying the '
+                    'service and span_type on each span. Services are no '
+                    'longer sent.'
                 ),
             )
 

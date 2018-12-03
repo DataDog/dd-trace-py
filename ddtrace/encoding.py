@@ -58,7 +58,7 @@ class Encoder(object):
         deprecation(
             name='encode_services',
             message=(
-                'The services endpoint has been deprecated and so it is no'
+                'The services endpoint has been deprecated and so it is no '
                 'longer necessary to encode services.'
             ),
         )
