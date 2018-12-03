@@ -9,6 +9,8 @@ import os
 import re
 import sys
 
+import pytest
+
 PY_DIR_PATTERN = re.compile(r'^py[23][0-9]$')
 
 
@@ -16,6 +18,9 @@ PY_DIR_PATTERN = re.compile(r'^py[23][0-9]$')
 # https://docs.pytest.org/en/3.10.1/reference.html#_pytest.hookspec.pytest_ignore_collect
 # DEV: We can only ignore folders/modules, we cannot ignore individual files
 # TODO: Should this be `pytest_collect_directory`? or `pytest_collect_file`?
+# DEV: We must wrap with `@pytest.mark.hookwrapper` to inherit from default (e.g. honor `--ignore`)
+#      https://github.com/pytest-dev/pytest/issues/846#issuecomment-122129189
+@pytest.mark.hookwrapper
 def pytest_ignore_collect(path, config):
     """
     Skip directories defining a required minimum Python version
@@ -31,15 +36,21 @@ def pytest_ignore_collect(path, config):
     :rtype: bool
     :returns: ``True`` to skip the directory, ``False`` to collect
     """
-    # DEV: `path` is a `LocalPath`
-    path = str(path)
-    if not os.path.isdir(path):
-        path = os.path.dirname(path)
-    dirname = os.path.basename(path)
+    outcome = yield
 
-    if len(dirname) == 4 and PY_DIR_PATTERN.match(dirname):
-        min_required = tuple((int(v) for v in dirname.strip('py')))
-        if sys.version_info[0:2] < min_required:
-            return True
+    # Was not ignored by default behavior
+    if not outcome.get_result():
+        # DEV: `path` is a `LocalPath`
+        path = str(path)
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
+        dirname = os.path.basename(path)
 
-    return False
+        # Directory name match `py[23][0-9]`
+        if PY_DIR_PATTERN.match(dirname):
+            # Split out version numbers into a tuple: `py35` -> `(3, 5)`
+            min_required = tuple((int(v) for v in dirname.strip('py')))
+
+            # if the current Python version does not meet the minimum required, skip this directory
+            if sys.version_info[0:2] < min_required:
+                outcome.force_result(True)
