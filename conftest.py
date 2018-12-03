@@ -17,7 +17,6 @@ PY_DIR_PATTERN = re.compile(r'^py[23][0-9]$')
 # Determine if the folder should be ignored
 # https://docs.pytest.org/en/3.10.1/reference.html#_pytest.hookspec.pytest_ignore_collect
 # DEV: We can only ignore folders/modules, we cannot ignore individual files
-# TODO: Should this be `pytest_collect_directory`? or `pytest_collect_file`?
 # DEV: We must wrap with `@pytest.mark.hookwrapper` to inherit from default (e.g. honor `--ignore`)
 #      https://github.com/pytest-dev/pytest/issues/846#issuecomment-122129189
 @pytest.mark.hookwrapper
