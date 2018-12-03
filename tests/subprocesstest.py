@@ -57,8 +57,15 @@ def run_in_subprocess(obj):
 class SubprocessTestCase(unittest.TestCase):
     def _full_method_name(self):
         test = getattr(self, self._testMethodName)
-        modpath = test.__module__
-        clsname = self.__class__.__name__
+        # DEV: we have to use the internal self reference of the bound test
+        # method to pull out the class and module since using a mix of `self`
+        # and the test attributes will result in inconsistencies when the test
+        # method is defined on another class.
+        # A concrete case of this is a parent and child TestCase where the child
+        # doesn't override a parent test method. The full_method_name we want
+        # is that of the child test method (even though it exists on the parent)
+        modpath = test.__self__.__class__.__module__
+        clsname = test.__self__.__class__.__name__
         testname = test.__name__
         testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
         return testcase_name
