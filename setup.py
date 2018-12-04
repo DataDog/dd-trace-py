@@ -5,7 +5,7 @@ import re
 
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
-from setuptools import setup, Extension
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 
@@ -84,7 +84,7 @@ setup_kwargs = dict(
     long_description=long_description,
     long_description_content_type='text/markdown',
     license='BSD',
-    packages=['ddtrace'],
+    packages=find_packages(exclude=['tests*']),
     install_requires=[
         'msgpack-python',
     ],
