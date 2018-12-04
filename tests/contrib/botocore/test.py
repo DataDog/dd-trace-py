@@ -1,5 +1,6 @@
 # stdlib
 from unittest import TestCase
+import json
 
 # 3p
 import botocore.session
@@ -100,7 +101,9 @@ class BotocoreTest(TestCase):
         self.assertEquals(span.resource, "s3.createbucket")
         self.assertEquals(spans[1].get_tag('aws.operation'), 'PutObject')
         self.assertEquals(spans[1].resource, "s3.putobject")
-        self.assertEquals(spans[1].get_tag('params'), "{'Key': 'foo', 'Bucket': 'mybucket'}")
+        self.assertIsNotNone(spans[1].get_tag('params'))
+        params = json.loads(spans[1].get_tag('params'))
+        self.assertDictEquals(params, dict(Key='foo', Bucket='mybucket'))
 
     @mock_sqs
     def test_sqs_client(self):
