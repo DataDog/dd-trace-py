@@ -6,6 +6,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
+from .constants import NUMERIC_TAGS
 from .ext import errors
 
 
@@ -129,6 +130,9 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+        if key in NUMERIC_TAGS:
+            return self.set_metric(key, value)
+
         try:
             self.meta[key] = stringify(value)
         except Exception:

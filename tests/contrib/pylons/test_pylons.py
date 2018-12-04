@@ -8,7 +8,7 @@ from paste import fixture
 from paste.deploy import loadapp
 
 from ddtrace.ext import http, errors
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
@@ -337,3 +337,13 @@ class PylonsTestCase(TestCase):
         eq_(dd_span.resource, 'root.index')
         eq_(dd_span.meta.get(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
+
+    def test_event_sample_rate(self):
+        self.app.get(url_for(controller='root', action='index'))
+
+        spans = self.tracer.writer.pop()
+        ok_(spans, spans)
+        eq_(len(spans), 1)
+        span = spans[0]
+
+        eq_(span.get_metric(EVENT_SAMPLE_RATE_KEY), 1.0)
