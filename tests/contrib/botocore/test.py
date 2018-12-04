@@ -1,6 +1,5 @@
 # stdlib
 from unittest import TestCase
-from io import BytesIO
 
 # 3p
 import botocore.session
