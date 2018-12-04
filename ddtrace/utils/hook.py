@@ -1,16 +1,27 @@
+"""
+This module is based off of wrapt.importer (wrapt==1.11.0)
+https://github.com/GrahamDumpleton/wrapt/blob/4bcd190457c89e993ffcfec6dad9e9969c033e9e/src/wrapt/importer.py#L127-L136
+
+The reasoning for this is that wrapt.importer does not provide a mechanism to
+remove the import hooks and that wrapt removes the hooks after they are fired.
+
+So this module differs from wrapt.importer in that:
+    - deregister_post_import_hook is introduced to remove hooks
+    - notify_module_loaded is modified to not remove the hooks when they are
+      fired.
+"""
 import sys
 import threading
 
 from wrapt.decorators import synchronized
 
+from ddtrace.compat import string_type
+
 
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 
-if PY3:
-    string_types = str,
-else:
-    string_types = basestring,
+string_types = string_type,
 
 
 # The dictionary registering any post import hooks to be triggered once
