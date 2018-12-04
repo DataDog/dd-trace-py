@@ -1,5 +1,5 @@
 """
-ddtrace_vendor
+ddtrace.vendor
 ==============
 Install vendored dependencies under a different top level package to avoid importing `ddtrace/__init__.py`
 whenever a dependency is imported. Doing this allows us to have a little more control over import order.

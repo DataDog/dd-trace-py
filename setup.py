@@ -84,7 +84,7 @@ setup_kwargs = dict(
     long_description=long_description,
     long_description_content_type='text/markdown',
     license='BSD',
-    packages=['ddtrace', 'ddtrace_vendor'],
+    packages=['ddtrace'],
     install_requires=[
         'msgpack-python',
     ],
@@ -140,7 +140,7 @@ class optional_build_ext(build_ext):
 try:
     kwargs = copy.deepcopy(setup_kwargs)
     kwargs['ext_modules'] = [
-        Extension('ddtrace_vendor.wrapt._wrappers', ['ddtrace_vendor/wrapt/_wrappers.c']),
+        Extension('ddtrace.vendor.wrapt._wrappers', ['ddtrace.vendor/wrapt/_wrappers.c']),
     ]
     kwargs['cmdclass']['build_ext'] = optional_build_ext
     setup(**kwargs)
