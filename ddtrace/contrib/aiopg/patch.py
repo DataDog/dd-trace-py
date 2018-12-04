@@ -3,7 +3,7 @@ import asyncio
 
 import aiopg.connection
 import psycopg2.extensions
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 
 from .connection import AIOTracedConnection
 from ..psycopg.patch import _patch_extensions, \

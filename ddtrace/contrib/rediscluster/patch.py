@@ -1,6 +1,6 @@
 # 3p
 import rediscluster
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 from ...pin import Pin

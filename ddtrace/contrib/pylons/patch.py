@@ -1,5 +1,5 @@
 import os
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 import pylons.wsgiapp
 
 from ddtrace import tracer, Pin

@@ -2,7 +2,7 @@
 Trace queries to aws api done via botocore client
 """
 # 3p
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 import botocore.client
 
 # project

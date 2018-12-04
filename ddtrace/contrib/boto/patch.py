@@ -1,5 +1,5 @@
 import boto.connection
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 import inspect
 
 from ...pin import Pin

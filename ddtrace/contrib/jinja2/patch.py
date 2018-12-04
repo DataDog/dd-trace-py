@@ -1,5 +1,5 @@
 import jinja2
-from ddtrace_vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 

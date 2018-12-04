@@ -1,5 +1,5 @@
-from ddtrace_vendor import wrapt
-from ddtrace_vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 import molten
 

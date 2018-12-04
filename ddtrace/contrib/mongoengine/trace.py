@@ -1,6 +1,6 @@
 
 # 3p
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 import ddtrace

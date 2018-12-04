@@ -7,7 +7,7 @@ import unittest
 import grpc
 from grpc.framework.foundation import logging_pool
 from nose.tools import eq_
-from ddtrace_vendor import wrapt
+from ddtrace.vendor import wrapt
 
 # Internal
 from ddtrace.contrib.grpc import patch, unpatch
