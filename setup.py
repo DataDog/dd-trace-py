@@ -82,8 +82,8 @@ setup(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        "wrapt",
-        "msgpack-python",
+        "wrapt==1.10.11",
+        "msgpack-python==0.5.4",
     ],
     extras_require={
         # users can include opentracing by having:
