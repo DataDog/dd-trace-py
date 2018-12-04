@@ -58,6 +58,15 @@ class AIOBotocoreTest(AsyncioTestCase):
         eq_(span.name, 's3.command')
 
     @mark_asyncio
+    def test_s3_client_put_object(self):
+        with aiobotocore_client('s3', self.tracer) as s3:
+            s3.create_bucket(Bucket='mybucket')
+            s3.put_object(Bucket='mybucket', Key='foo', Body=b'bar')
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 2)
+
+    @mark_asyncio
     def test_s3_client_error(self):
         with aiobotocore_client('s3', self.tracer) as s3:
             with assert_raises(ClientError):
