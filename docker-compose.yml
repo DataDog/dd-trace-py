@@ -94,6 +94,7 @@ services:
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
+            - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
             - ./.ddtox:/src/.tox
         command: bash

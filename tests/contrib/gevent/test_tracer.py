@@ -1,3 +1,4 @@
+# flake8: noqa
 import gevent
 import gevent.pool
 import ddtrace

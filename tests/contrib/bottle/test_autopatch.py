@@ -1,3 +1,4 @@
+# flake8: noqa
 import bottle
 import ddtrace
 import webtest

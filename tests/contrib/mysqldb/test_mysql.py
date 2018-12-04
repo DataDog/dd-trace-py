@@ -112,8 +112,8 @@ class MySQLCore(object):
 
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
         data = [
-            ("foo","this is foo"),
-            ("bar","this is bar"),
+            ('foo', 'this is foo'),
+            ('bar', 'this is bar'),
         ]
         cursor.executemany(stmt, data)
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"

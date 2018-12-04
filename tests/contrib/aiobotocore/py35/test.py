@@ -1,11 +1,12 @@
-from nose.tools import eq_, ok_, assert_raises
-from botocore.errorfactory import ClientError
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
+from nose.tools import eq_
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 
-from .utils import aiobotocore_client
-from ..asyncio.utils import AsyncioTestCase, mark_asyncio
-from ...test_tracer import get_dummy_tracer
+from ..utils import aiobotocore_client
+from ...asyncio.utils import AsyncioTestCase, mark_asyncio
+from ....test_tracer import get_dummy_tracer
 
 
 class AIOBotocoreTest(AsyncioTestCase):

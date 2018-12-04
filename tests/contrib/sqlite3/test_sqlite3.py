@@ -1,3 +1,4 @@
+# flake8: noqa
 # stdlib
 import sqlite3
 import time

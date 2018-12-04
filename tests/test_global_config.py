@@ -4,7 +4,7 @@ from unittest import TestCase
 from nose.tools import eq_, ok_, assert_raises
 
 from ddtrace import config as global_config
-from ddtrace.settings import Config, ConfigException
+from ddtrace.settings import Config
 
 from .test_tracer import get_dummy_tracer
 
@@ -40,14 +40,14 @@ class GlobalConfigTestCase(TestCase):
         ok_(self.config.requests['distributed_tracing'] is True)
         ok_(self.config.requests['experimental']['request_enqueuing'] is True)
 
-    def test_missing_integration(self):
+    def test_missing_integration_key(self):
         # ensure a meaningful exception is raised when an integration
         # that is not available is retrieved in the configuration
         # object
-        with assert_raises(ConfigException) as e:
+        with assert_raises(KeyError) as e:
             self.config.new_integration['some_key']
 
-        ok_(isinstance(e.exception, ConfigException))
+        ok_(isinstance(e.exception, KeyError))
 
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module
@@ -226,9 +226,8 @@ class GlobalConfigTestCase(TestCase):
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
         self.config.web.hooks._emit('request', span)
-        on_web_request.assert_called()
 
-    def test_settings_no_hook(self):
+    def test_settings_no_span(self):
         """
         When calling `Hooks._emit()`
             When no span is provided

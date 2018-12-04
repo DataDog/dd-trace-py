@@ -1,3 +1,4 @@
+# flake8: noqa
 from ddtrace.contrib.pyramid import trace_pyramid
 
 from pyramid.response import Response
