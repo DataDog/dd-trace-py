@@ -1,8 +1,8 @@
 # stdlib
-import unittest
+from unittest import TestCase
+from io import BytesIO
 
 # 3p
-from nose.tools import eq_
 import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms
 
@@ -16,7 +16,7 @@ from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
-class BotocoreTest(unittest.TestCase):
+class BotocoreTest(TestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = "test-botocore-tracing"
@@ -24,6 +24,7 @@ class BotocoreTest(unittest.TestCase):
     def setUp(self):
         patch()
         self.session = botocore.session.get_session()
+        self.session.set_credentials(access_key='access-key', secret_key='secret-key')
 
     def tearDown(self):
         unpatch()
@@ -41,16 +42,16 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.agent'), "botocore")
-        eq_(span.get_tag('aws.region'), 'us-west-2')
-        eq_(span.get_tag('aws.operation'), 'DescribeInstances')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.get_tag('retry_attempts'), '0')
-        eq_(span.service, "test-botocore-tracing.ec2")
-        eq_(span.resource, "ec2.describeinstances")
-        eq_(span.name, "ec2.command")
-        eq_(span.span_type, 'http')
+        self.assertEquals(len(spans), 1)
+        self.assertEquals(span.get_tag('aws.agent'), "botocore")
+        self.assertEquals(span.get_tag('aws.region'), 'us-west-2')
+        self.assertEquals(span.get_tag('aws.operation'), 'DescribeInstances')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.get_tag('retry_attempts'), '0')
+        self.assertEquals(span.service, "test-botocore-tracing.ec2")
+        self.assertEquals(span.resource, "ec2.describeinstances")
+        self.assertEquals(span.name, "ec2.command")
+        self.assertEquals(span.span_type, 'http')
 
     @mock_s3
     def test_s3_client(self):
@@ -65,11 +66,11 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 2)
-        eq_(span.get_tag('aws.operation'), 'ListBuckets')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.service, "test-botocore-tracing.s3")
-        eq_(span.resource, "s3.listbuckets")
+        self.assertEquals(len(spans), 2)
+        self.assertEquals(span.get_tag('aws.operation'), 'ListBuckets')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.s3")
+        self.assertEquals(span.resource, "s3.listbuckets")
 
         # testing for span error
         try:
@@ -78,8 +79,29 @@ class BotocoreTest(unittest.TestCase):
             spans = writer.pop()
             assert spans
             span = spans[0]
-            eq_(span.error, 1)
-            eq_(span.resource, "s3.listobjects")
+            self.assertEquals(span.error, 1)
+            self.assertEquals(span.resource, "s3.listobjects")
+
+    @mock_s3
+    def test_s3_put_object(self):
+        s3 = self.session.create_client('s3', region_name='us-west-2')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+        s3.create_bucket(Bucket='mybucket')
+        s3.put_object(Bucket='mybucket', Key='foo', Body=b'bar')
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        self.assertEquals(len(spans), 2)
+        self.assertEquals(span.get_tag('aws.operation'), 'CreateBucket')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.s3")
+        self.assertEquals(span.resource, "s3.createbucket")
+        self.assertEquals(spans[1].get_tag('aws.operation'), 'PutObject')
+        self.assertEquals(spans[1].resource, "s3.putobject")
+        self.assertEquals(spans[1].get_tag('params'), "{'Key': 'foo', 'Bucket': 'mybucket'}")
 
     @mock_sqs
     def test_sqs_client(self):
@@ -93,12 +115,12 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.region'), 'us-east-1')
-        eq_(span.get_tag('aws.operation'), 'ListQueues')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.service, "test-botocore-tracing.sqs")
-        eq_(span.resource, "sqs.listqueues")
+        self.assertEquals(len(spans), 1)
+        self.assertEquals(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEquals(span.get_tag('aws.operation'), 'ListQueues')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.sqs")
+        self.assertEquals(span.resource, "sqs.listqueues")
 
     @mock_kinesis
     def test_kinesis_client(self):
@@ -112,12 +134,12 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.region'), 'us-east-1')
-        eq_(span.get_tag('aws.operation'), 'ListStreams')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.service, "test-botocore-tracing.kinesis")
-        eq_(span.resource, "kinesis.liststreams")
+        self.assertEquals(len(spans), 1)
+        self.assertEquals(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEquals(span.get_tag('aws.operation'), 'ListStreams')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.kinesis")
+        self.assertEquals(span.resource, "kinesis.liststreams")
 
     @mock_kinesis
     def test_unpatch(self):
@@ -146,7 +168,7 @@ class BotocoreTest(unittest.TestCase):
 
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 1)
+        self.assertEquals(len(spans), 1)
 
     @mock_lambda
     def test_lambda_client(self):
@@ -160,12 +182,12 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.region'), 'us-east-1')
-        eq_(span.get_tag('aws.operation'), 'ListFunctions')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.service, "test-botocore-tracing.lambda")
-        eq_(span.resource, "lambda.listfunctions")
+        self.assertEquals(len(spans), 1)
+        self.assertEquals(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEquals(span.get_tag('aws.operation'), 'ListFunctions')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.lambda")
+        self.assertEquals(span.resource, "lambda.listfunctions")
 
     @mock_kms
     def test_kms_client(self):
@@ -179,15 +201,15 @@ class BotocoreTest(unittest.TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        eq_(len(spans), 1)
-        eq_(span.get_tag('aws.region'), 'us-east-1')
-        eq_(span.get_tag('aws.operation'), 'ListKeys')
-        eq_(span.get_tag(http.STATUS_CODE), '200')
-        eq_(span.service, "test-botocore-tracing.kms")
-        eq_(span.resource, "kms.listkeys")
+        self.assertEquals(len(spans), 1)
+        self.assertEquals(span.get_tag('aws.region'), 'us-east-1')
+        self.assertEquals(span.get_tag('aws.operation'), 'ListKeys')
+        self.assertEquals(span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(span.service, "test-botocore-tracing.kms")
+        self.assertEquals(span.resource, "kms.listkeys")
 
         # checking for protection on sts against security leak
-        eq_(span.get_tag('params'), None)
+        self.assertIsNone(span.get_tag('params'))
 
     @mock_ec2
     def test_traced_client_ot(self):
@@ -203,25 +225,25 @@ class BotocoreTest(unittest.TestCase):
 
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 2)
+        self.assertEquals(len(spans), 2)
 
         ot_span, dd_span = spans
 
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        self.assertIsNone(ot_span.parent_id)
+        self.assertEquals(dd_span.parent_id, ot_span.span_id)
 
-        eq_(ot_span.name, 'ec2_op')
-        eq_(ot_span.service, 'ec2_svc')
+        self.assertEquals(ot_span.name, 'ec2_op')
+        self.assertEquals(ot_span.service, 'ec2_svc')
 
-        eq_(dd_span.get_tag('aws.agent'), "botocore")
-        eq_(dd_span.get_tag('aws.region'), 'us-west-2')
-        eq_(dd_span.get_tag('aws.operation'), 'DescribeInstances')
-        eq_(dd_span.get_tag(http.STATUS_CODE), '200')
-        eq_(dd_span.get_tag('retry_attempts'), '0')
-        eq_(dd_span.service, "test-botocore-tracing.ec2")
-        eq_(dd_span.resource, "ec2.describeinstances")
-        eq_(dd_span.name, "ec2.command")
+        self.assertEquals(dd_span.get_tag('aws.agent'), "botocore")
+        self.assertEquals(dd_span.get_tag('aws.region'), 'us-west-2')
+        self.assertEquals(dd_span.get_tag('aws.operation'), 'DescribeInstances')
+        self.assertEquals(dd_span.get_tag(http.STATUS_CODE), '200')
+        self.assertEquals(dd_span.get_tag('retry_attempts'), '0')
+        self.assertEquals(dd_span.service, "test-botocore-tracing.ec2")
+        self.assertEquals(dd_span.resource, "ec2.describeinstances")
+        self.assertEquals(dd_span.name, "ec2.command")
 
 
 if __name__ == '__main__':
