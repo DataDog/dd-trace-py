@@ -1,23 +1,13 @@
-"""Patch librairies to be automatically instrumented.
-
-It can monkey patch supported standard libraries and third party modules.
-A patched module will automatically report spans with its default configuration.
-
-A library instrumentation can be configured (for instance, to report as another service)
-using Pin. For that, check its documentation.
-"""
 import importlib
 import logging
-import sys
-import threading
-
-from wrapt.importer import when_imported
 
 
 log = logging.getLogger(__name__)
 
+_BASE_MODULENAME = 'ddtrace.contrib'
+
 # Default set of modules to automatically patch or not
-PATCH_MODULES = {
+DEFAULT_INTEGRATIONS = {
     'asyncio': False,
     'boto': True,
     'botocore': True,
@@ -56,127 +46,96 @@ PATCH_MODULES = {
     "pyramid": False,
 }
 
-_LOCK = threading.Lock()
-_PATCHED_MODULES = set()
-
-# Modules which are patched on first use
-# DEV: These modules are patched when the user first imports them, rather than
-#      explicitly importing and patching them on application startup `ddtrace.patch_all(module=True)`
-# DEV: This ensures we do not patch a module until it is needed
-# DEV: <contrib name> => <list of module names that trigger a patch>
-_PATCH_ON_IMPORT = {
-    'celery': ('celery', ),
-    'flask': ('flask, '),
-    'gevent': ('gevent', ),
-    'requests': ('requests', ),
-}
-
 
 class PatchException(Exception):
-    """Wraps regular `Exception` class when patching modules"""
     pass
 
 
-def _on_import_factory(module, raise_errors=True):
-    """Factory to create an import hook for the provided module name"""
-    def on_import(hook):
-        # Import and patch module
-        path = 'ddtrace.contrib.%s' % module
-        imported_module = importlib.import_module(path)
-        imported_module.patch()
-
-    return on_import
+def integration_modname(intname, basemodname=None):
+    basemodname = basemodname or _BASE_MODULENAME
+    return '{}.{}'.format(basemodname, intname)
 
 
-def patch_all(**patch_modules):
-    """Automatically patches all available modules.
-
-    :param dict \**patch_modules: Override whether particular modules are patched or not.
-
-        >>> patch_all(redis=False, cassandra=False)
+def install_all(overrides=None, raise_errors=False):
     """
-    modules = PATCH_MODULES.copy()
-    modules.update(patch_modules)
+    Installs all default enabled integrations allowing the defaults to be
+    overridden.
 
-    patch(raise_errors=False, **modules)
-
-
-def patch(raise_errors=True, **patch_modules):
-    """Patch only a set of given modules.
-
-    :param bool raise_errors: Raise error if one patch fail.
-    :param dict \**patch_modules: List of modules to patch.
-
-        >>> patch(psycopg=True, elasticsearch=True)
+    :param overrides: particular integrations to override
+    :type overrides: dict
+    :param raise_errors: whether or not to raise errors when they occur
+    :type raise_errors: bool
     """
-    modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
-    for module in modules:
-        if module in _PATCH_ON_IMPORT:
-            # If the module has already been imported then patch immediately
-            if module in sys.modules:
-                patch_module(module, raise_errors=raise_errors)
+    overrides = overrides or {}
+    integrations_to_install = DEFAULT_INTEGRATIONS.copy()
+    integrations_to_install.update(overrides)
 
-            # Otherwise, add a hook to patch when it is imported for the first time
-            else:
-                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-                when_imported(module)(_on_import_factory(module, raise_errors))
-
-                # manually add module to patched modules
-                _PATCHED_MODULES.add(module)
-        else:
-            patch_module(module, raise_errors=raise_errors)
-
-    patched_modules = get_patched_modules()
-    log.info(
-        "patched %s/%s modules (%s)",
-        len(patched_modules),
-        len(modules),
-        ",".join(patched_modules),
-    )
+    for integration, enabled in integrations_to_install.items():
+        if not enabled:
+            log.info(
+                'install: skipping disabled integration "{}"'.format(integration)
+            )
+            continue
+        install(integration, raise_errors)
 
 
-def patch_module(module, raise_errors=True):
-    """Patch a single module
+def install(integration, raise_errors=False):
+    """Installs an integration using its ``patch()`` function.
 
-    Returns if the module got properly patched.
+    :param integration: the integration to install
+    :type integration: str
+    :param raise_errors: whether or not to raise errors if they occur
+    :type raise_errors: bool
     """
+    intmodname = integration_modname(integration)
+
     try:
-        return _patch_module(module)
-    except Exception as exc:
+        intmod = importlib.import_module(intmodname)
+    except ImportError:
+        log_msg = 'install: integration "{}" not found'.format(integration)
         if raise_errors:
-            raise
-        log.debug("failed to patch %s: %s", module, exc)
-        return False
+            raise PatchException(log_msg)
+        else:
+            log.error(log_msg)
+            return
+
+    if not hasattr(intmod, 'patch'):
+        log.error('install: integration "{}" does not have patch attribute'.format(integration))
+        return
+
+    intmod.patch()
 
 
-def get_patched_modules():
-    """Get the list of patched modules"""
-    with _LOCK:
-        return sorted(_PATCHED_MODULES)
+def patch_all(**integrations):
+    """Patch all default enabled integrations.
 
+    :param **integrations: override default enabled integrations.
+    :type integrations: dict
 
-def _patch_module(module):
-    """_patch_module will attempt to monkey patch the module.
+    To patch all the default enabled integrations::
 
-    Returns if the module got patched.
-    Can also raise errors if it fails.
+        patch_all()
+
+    To patch all the default enabled integrations, but  specific ones::
+
+        patch_all(redis=False, futures=True)
     """
-    path = 'ddtrace.contrib.%s' % module
-    with _LOCK:
-        if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
-            log.debug("already patched: %s", path)
-            return False
+    install_all(overrides=integrations, raise_errors=False)
 
-        try:
-            imported_module = importlib.import_module(path)
-            imported_module.patch()
-        except ImportError:
-            # if the import fails, the integration is not available
-            raise PatchException('integration not available')
-        except AttributeError:
-            # if patch() is not available in the module, it means
-            # that the library is not installed in the environment
-            raise PatchException('module not installed')
 
-        _PATCHED_MODULES.add(module)
-        return True
+def patch(raise_errors=True, **integrations):
+    """Patch specified integrations.
+
+    :param raise_errors: whether or not to raise errors if they occur
+    :type raise_errors: bool
+
+    :param **integrations: integrations to patch.
+    :type integrations: dict
+
+    To patch a particular integration::
+
+        patch(celery=True)
+    """
+    integrations_to_install = [i for i, enabled in integrations.items() if enabled]
+    for integration in integrations_to_install:
+        install(integration, raise_errors=raise_errors)

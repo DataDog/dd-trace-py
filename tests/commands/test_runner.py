@@ -62,15 +62,6 @@ class DdtraceRunTest(unittest.TestCase):
         )
         assert out.startswith(b"Test success")
 
-    def test_patched_modules(self):
-        """
-        Using `ddtrace-run` registers some generic patched modules
-        """
-        out = subprocess.check_output(
-            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_patched_modules.py']
-        )
-        assert out.startswith(b"Test success")
-
     def test_integration(self):
         out = subprocess.check_output(
             ['ddtrace-run', 'python', '-m', 'tests.commands.ddtrace_run_integration']
