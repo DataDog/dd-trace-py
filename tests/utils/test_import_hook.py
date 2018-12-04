@@ -91,3 +91,21 @@ class TestInstallUtils(SubprocessTestCase):
         install_module_import_hook('tests.utils.test_module', test_hook)
         import tests.utils.test_module  # noqa
         test_hook.assert_called_once()
+
+    def test_hook_exception(self):
+        """
+        When a hook raises an exception
+            the exception should be caught and logged
+        """
+        def err_hook(module):
+            raise Exception('module hook failed')
+
+        with mock.patch('ddtrace.utils.hook.log') as log_mock:
+            install_module_import_hook('tests.utils.test_module', err_hook)
+            import tests.utils.test_module  # noqa
+            calls = [
+                mock.call('failed to call hook for module "tests.utils.test_module": module hook failed'),
+            ]
+            import sys
+            sys.stderr.write(str(log_mock.warn.mock_calls))
+            log_mock.warn.assert_has_calls(calls, any_order=True)

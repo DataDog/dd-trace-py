@@ -144,7 +144,7 @@ def notify_module_loaded(module):
         try:
             hook(module)
         except Exception as err:
-            log.warn('failed to call hook for module {}: {}'.format(name, err))
+            log.warn('failed to call hook for module "{}": {}'.format(name, err))
 
 
 class _ImportHookLoader(object):
