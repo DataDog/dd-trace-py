@@ -16,13 +16,10 @@ import threading
 
 from wrapt.decorators import synchronized
 
-from ddtrace.compat import string_type
+from ddtrace.compat import PY3, string_type
 
 
 log = logging.getLogger(__name__)
-
-PY2 = sys.version_info[0] == 2
-PY3 = sys.version_info[0] == 3
 
 string_types = string_type,
 
