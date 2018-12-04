@@ -10,6 +10,7 @@ So this module differs from wrapt.importer in that:
     - notify_module_loaded is modified to not remove the hooks when they are
       fired.
 """
+import logging
 import sys
 import threading
 
@@ -17,6 +18,8 @@ from wrapt.decorators import synchronized
 
 from ddtrace.compat import string_type
 
+
+log = logging.getLogger(__name__)
 
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
@@ -126,16 +129,22 @@ def _create_import_hook_from_entrypoint(entrypoint):
 def notify_module_loaded(module):
     """
     Indicate that a module has been loaded. Any post import hooks which
-    were registered against the target module will be invoked. If an
-    exception is raised in any of the post import hooks, that will cause
-    the import of the target module to fail.
+    were registered against the target module will be invoked.
+
+    Any raised exceptions will be caught and an error message indicating
+    a module import hook failure will be displayed.
     """
     name = getattr(module, '__name__', None)
     hooks = _post_import_hooks.get(name, None)
 
-    if hooks:
-        for hook in hooks:
+    if not hooks:
+        return
+
+    for hook in hooks:
+        try:
             hook(module)
+        except Exception as err:
+            log.warn('failed to call hook for module {}: {}'.format(name, err))
 
 
 class _ImportHookLoader(object):
