@@ -156,6 +156,17 @@ class Pin(object):
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 
+    def remove_from(self, obj):
+        # Remove pin from the object.
+        try:
+            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+
+            pin = Pin.get_from(obj)
+            if pin is not None:
+                delattr(obj, pin_name)
+        except AttributeError:
+            log.debug('can\'t remove pin from object. skipping', exc_info=True)
+
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts

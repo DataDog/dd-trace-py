@@ -272,7 +272,6 @@ class TestTracingContext(TestCase):
             set([span.name for span in ctx._trace]),
         )
 
-
     def test_finished(self):
         # a Context is finished if all spans inside are finished
         ctx = Context()

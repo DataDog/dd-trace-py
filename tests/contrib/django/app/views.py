@@ -1,3 +1,4 @@
+# flake8: noqa
 """
 Class based views used for Django tests.
 """

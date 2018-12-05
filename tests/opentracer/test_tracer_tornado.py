@@ -1,3 +1,4 @@
+# flake8: noqa
 import pytest
 from opentracing.scope_managers.tornado import TornadoScopeManager
 

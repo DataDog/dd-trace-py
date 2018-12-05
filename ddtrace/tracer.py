@@ -356,7 +356,7 @@ class Tracer(object):
                 # translate to the form the server understands.
                 services = {}
                 for service, app, app_type in self._services.values():
-                    services[service] = {"app" : app, "app_type" : app_type}
+                    services[service] = {"app": app, "app_type": app_type}
 
                 # queue them for writes.
                 self.writer.write(services=services)

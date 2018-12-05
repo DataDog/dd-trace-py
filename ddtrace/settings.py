@@ -4,6 +4,7 @@ import logging
 
 from .pin import Pin
 from .span import Span
+from .utils.attrdict import AttrDict
 from .utils.merge import deepmerge
 from .utils.http import normalize_header_name
 
@@ -102,7 +103,7 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-class IntegrationConfig(dict):
+class IntegrationConfig(AttrDict):
     """
     Integration specific configuration object.
 
@@ -113,8 +114,9 @@ class IntegrationConfig(dict):
         # This is an `IntegrationConfig`
         config.flask
 
-        # `IntegrationConfig` supports item accessors
+        # `IntegrationConfig` supports both attribute and item accessors
         config.flask['service_name'] = 'my-service-name'
+        config.flask.service_name = 'my-service-name'
     """
     def __init__(self, global_config, *args, **kwargs):
         """

@@ -2,8 +2,6 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 
-from .span import TestSpan
-
 
 class DummyWriter(AgentWriter):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""

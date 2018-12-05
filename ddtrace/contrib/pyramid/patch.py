@@ -11,6 +11,7 @@ import wrapt
 
 DD_PATCH = '_datadog_patch'
 
+
 def patch():
     """
     Patch pyramid.config.Configurator
@@ -21,6 +22,7 @@ def patch():
     setattr(pyramid.config, DD_PATCH, True)
     _w = wrapt.wrap_function_wrapper
     _w('pyramid.config', 'Configurator.__init__', traced_init)
+
 
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
@@ -44,6 +46,7 @@ def traced_init(wrapped, instance, args, kwargs):
 
     wrapped(*args, **kwargs)
     trace_pyramid(instance)
+
 
 def insert_tween_if_needed(settings):
     tweens = settings.get('pyramid.tweens')

@@ -1,3 +1,4 @@
+# flake8: noqa
 # stdib
 import time
 
@@ -20,6 +21,7 @@ from ...test_tracer import get_dummy_tracer
 class Artist(mongoengine.Document):
     first_name = mongoengine.StringField(max_length=50)
     last_name = mongoengine.StringField(max_length=50)
+
 
 class MongoEngineCore(object):
 
