@@ -264,15 +264,9 @@ class CassandraBase(object):
         spans = writer.pop()
         eq_(len(spans), 1)
         s = spans[0]
-        eq_(
-            s.resource,
-            (
-                'INSERT INTO test.person_write (name, age, description) VALUES (\'Joe\', 1, \'a\'); '
-                'INSERT INTO test.person_write (name, age, description) VALUES (\'Jane\', 2, \'b\')'
-            )
-        )
+        eq_(s.resource, 'BatchStatement')
         eq_(s.get_metric('cassandra.batch_size'), 2)
-        assert s.get_tag('cassandra.query') is None
+        assert 'test.person' in s.get_tag('cassandra.query')
 
 
 class TestCassPatchDefault(CassandraBase):
