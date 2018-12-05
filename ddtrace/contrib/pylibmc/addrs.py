@@ -1,5 +1,3 @@
-
-
 translate_server_specs = None
 
 try:
@@ -8,6 +6,7 @@ try:
     from pylibmc.client import translate_server_specs
 except ImportError:
     pass
+
 
 def parse_addresses(addrs):
     if not translate_server_specs:
