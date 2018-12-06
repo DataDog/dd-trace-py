@@ -82,13 +82,14 @@ setup(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        "wrapt",
-        "msgpack-python",
+        'msgpack-python',
+        'six',
+        'wrapt',
     ],
     extras_require={
         # users can include opentracing by having:
-        # install_requires=["ddtrace[opentracing]", ...]
-        "opentracing": ["opentracing>=2.0.0"],
+        # install_requires=['ddtrace[opentracing]', ...]
+        'opentracing': ['opentracing>=2.0.0'],
     },
     # plugin tox
     tests_require=['tox', 'flake8'],

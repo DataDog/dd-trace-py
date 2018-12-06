@@ -2,7 +2,7 @@ import platform
 import sys
 import textwrap
 
-from ddtrace.vendor import six
+import six
 
 __all__ = [
     'httplib',
