@@ -1,6 +1,5 @@
 # stdlib
-from unittest import TestCase
-import json
+import unittest
 
 # 3p
 import botocore.session
@@ -17,7 +16,7 @@ from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
-class BotocoreTest(TestCase):
+class BotocoreTest(unittest.TestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = "test-botocore-tracing"
@@ -248,7 +247,3 @@ class BotocoreTest(TestCase):
         self.assertEqual(dd_span.service, "test-botocore-tracing.ec2")
         self.assertEqual(dd_span.resource, "ec2.describeinstances")
         self.assertEqual(dd_span.name, "ec2.command")
-
-
-if __name__ == '__main__':
-    unittest.main()
