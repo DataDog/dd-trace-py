@@ -3,6 +3,8 @@ from nose.tools import eq_, ok_, assert_raises
 from botocore.errorfactory import ClientError
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
+from ddtrace.ext import http
+from ddtrace.compat import stringify
 
 from .utils import aiobotocore_client
 from ..asyncio.utils import AsyncioTestCase, mark_asyncio
@@ -59,13 +61,25 @@ class AIOBotocoreTest(AsyncioTestCase):
         eq_(span.name, 's3.command')
 
     @mark_asyncio
-    def test_s3_client_put_object(self):
-        with aiobotocore_client('s3', self.tracer) as s3:
-            s3.create_bucket(Bucket='mybucket')
-            s3.put_object(Bucket='mybucket', Key='foo', Body=b'bar')
+    def test_s3_put(self):
+        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
 
-        traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 2)
+        with aiobotocore_client('s3', self.tracer) as s3:
+            yield from s3.create_bucket(Bucket='mybucket')
+            yield from s3.put_object(**params)
+
+        spans = [trace[0] for trace in self.tracer.writer.pop_traces()]
+        assert spans
+        self.assertEqual(len(spans), 2)
+        self.assertEqual(spans[0].get_tag('aws.operation'), 'CreateBucket')
+        self.assertEqual(spans[0].get_tag(http.STATUS_CODE), '200')
+        self.assertEqual(spans[0].service, 'aws.s3')
+        self.assertEqual(spans[0].resource, "s3.createbucket")
+        self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
+        self.assertEqual(spans[1].resource, "s3.putobject")
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Key'), stringify(params['Key']))
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Bucket'), stringify(params['Bucket']))
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Body'), stringify(params['Body']))
 
     @mark_asyncio
     def test_s3_client_error(self):

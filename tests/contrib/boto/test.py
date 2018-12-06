@@ -17,6 +17,7 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
 from ddtrace import Pin
 from ddtrace.contrib.boto.patch import patch, unpatch
 from ddtrace.ext import http
+from ddtrace.compat import stringify
 
 # testing
 from unittest import skipUnless
@@ -88,7 +89,7 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "PUT")
-        eq_(span.get_tag('path'), '/')
+        eq_(span.get_tag('s3.put.path'), '/')
         eq_(span.get_tag('aws.operation'), "create_bucket")
 
         # Get the created bucket
@@ -112,6 +113,34 @@ class BotoTest(unittest.TestCase):
             assert spans
             span = spans[0]
             eq_(span.resource, "s3.head")
+
+    @mock_s3
+    def test_s3_put(self):
+        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
+        s3 = boto.s3.connect_to_region('us-east-1')
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+        s3.create_bucket('mybucket')
+        bucket = s3.get_bucket('mybucket')
+        k = boto.s3.key.Key(bucket)
+        k.key = 'foo'
+        k.set_contents_from_string('bar')
+
+        spans = writer.pop()
+        assert spans
+        # create bucket
+        self.assertEqual(len(spans), 3)
+        self.assertEqual(spans[0].get_tag('aws.operation'), 'create_bucket')
+        self.assertEqual(spans[0].get_tag(http.STATUS_CODE), '200')
+        self.assertEqual(spans[0].service, 'test-boto-tracing.s3')
+        self.assertEqual(spans[0].resource, 's3.put')
+        # get bucket
+        self.assertEqual(spans[1].get_tag('aws.operation'), 'head_bucket')
+        self.assertEqual(spans[1].resource, 's3.head')
+        # put object
+        self.assertEqual(spans[2].get_tag('aws.operation'), '_send_file_internal')
+        self.assertEqual(spans[2].resource, 's3.put')
 
     @mock_lambda
     def test_unpatch(self):

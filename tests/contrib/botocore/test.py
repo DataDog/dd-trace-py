@@ -84,13 +84,14 @@ class BotocoreTest(TestCase):
             self.assertEqual(span.resource, "s3.listobjects")
 
     @mock_s3
-    def test_s3_put_object(self):
+    def test_s3_put(self):
+        params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
         s3 = self.session.create_client('s3', region_name='us-west-2')
         tracer = get_dummy_tracer()
         writer = tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
         s3.create_bucket(Bucket='mybucket')
-        s3.put_object(Bucket='mybucket', Key='foo', Body=b'bar')
+        s3.put_object(**params)
 
         spans = writer.pop()
         assert spans
@@ -102,8 +103,9 @@ class BotocoreTest(TestCase):
         self.assertEqual(span.resource, "s3.createbucket")
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
         self.assertEqual(spans[1].resource, "s3.putobject")
-        self.assertIsNotNone(spans[1].get_tag('params'))
-        self.assertEqual(spans[1].get_tag('params'), stringify(dict(Key='foo', Bucket='mybucket')))
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Key'), stringify(params['Key']))
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Bucket'), stringify(params['Bucket']))
+        self.assertEqual(spans[1].get_tag('s3.putobject.params.Body'), stringify(params['Body']))
 
     @mock_sqs
     def test_sqs_client(self):

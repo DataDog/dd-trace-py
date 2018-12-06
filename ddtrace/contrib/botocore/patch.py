@@ -18,7 +18,6 @@ _Botocore_client = botocore.client.BaseClient
 SPAN_TYPE = 'http'
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
-PARAMS_BLACKLIST = ['Body']
 
 
 def patch():
@@ -58,12 +57,9 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         # Adding the args in TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
-            for (key, value) in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
-                if key == 'params':
-                    for blacklist in PARAMS_BLACKLIST:
-                        if blacklist in value:
-                            del value[blacklist]
-                span.set_tag(key, value)
+            operation_args = aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS)
+            for (key, value) in aws.flatten_args(operation_args):
+                span.set_tag('{}.{}'.format(span.resource, key), value)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

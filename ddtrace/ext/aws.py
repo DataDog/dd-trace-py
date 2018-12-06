@@ -1,5 +1,6 @@
-BLACKLIST_ENDPOINT = ["kms", "sts"]
+from itertools import chain
 
+BLACKLIST_ENDPOINT = ["kms", "sts"]
 
 def is_blacklist(endpoint_name):
     """Protecting the args sent to kms, sts to avoid security leaks
@@ -17,7 +18,8 @@ def unpacking_args(args, args_name, traced_args_list):
         traced_args_list: list of names of the args we want to trace
     Returns a list of (arg name, arg) of the args we want to trace
     The number of args being variable from one call to another, this function
-    will parse t"""
+    will parse t
+    """
     index = 0
     response = []
     for arg in args:
@@ -26,6 +28,31 @@ def unpacking_args(args, args_name, traced_args_list):
         index += 1
     return response
 
+
+def flatten_args(args):
+    """Filter operation arguments based on list of arguments to be traced
+    """
+
+    # unnest structure for argument values that are not simple/atomic
+    def _unnest(t):
+        key, value = t
+        if isinstance(value, dict):
+            return [
+                ('{}.{}'.format(key, inner_key), inner_value)
+                for (inner_key, inner_value) in value.items()
+            ]
+        else:
+            return (key, value)
+
+    # append elements from unnesting
+    combined = []
+    for e in args:
+        if isinstance(e, list):
+            combined.extend(e)
+        else:
+            combined.append(e)
+
+    return combined
 
 REGION = "aws.region"
 AGENT = "aws.agent"

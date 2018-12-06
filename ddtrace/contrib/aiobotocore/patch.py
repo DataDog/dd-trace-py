@@ -98,10 +98,11 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
         # add args in TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
-            for name, value in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
-                if name == 'params':
-                    value = {k: truncate_arg_value(v) for k, v in value.items()}
-                span.set_tag(name, (value))
+            operation_args = aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS)
+            for (key, value) in aws.flatten_args(operation_args):
+                # TODO: standardize across botocore on how values are stored
+                span.set_tag('{}.{}'.format(span.resource, key),
+                             truncate_arg_value(value))
 
         region_name = deep_getattr(instance, 'meta.region_name')
 

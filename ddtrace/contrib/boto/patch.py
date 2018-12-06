@@ -80,10 +80,9 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         # Adding the args in AWS_QUERY_TRACED_ARGS if exist to the span
         if not aws.is_blacklist(endpoint_name):
-            for arg in aws.unpacking_args(
-                args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS
-            ):
-                span.set_tag(arg[0], arg[1])
+            operation_args = aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS)
+            for (key, value) in aws.flatten_args(operation_args):
+                span.set_tag('{}.{}'.format(span.resource, key), value)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)
@@ -127,18 +126,17 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span_type=SPAN_TYPE,
     ) as span:
 
-        # Adding the args in AWS_AUTH_TRACED_ARGS if exist to the span
-        if not aws.is_blacklist(endpoint_name):
-            for arg in aws.unpacking_args(
-                args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS
-            ):
-                span.set_tag(arg[0], arg[1])
-
         if args:
             http_method = args[0]
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())
         else:
             span.resource = endpoint_name
+
+        # Adding the args in AWS_AUTH_TRACED_ARGS if exist to the span
+        if not aws.is_blacklist(endpoint_name):
+            operation_args = aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
+            for (key, value) in aws.flatten_args(operation_args):
+                span.set_tag('{}.{}'.format(span.resource, key), value)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)
