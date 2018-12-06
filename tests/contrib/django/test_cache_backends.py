@@ -1,8 +1,7 @@
-# flake8: noqa
 import time
 
 # 3rd party
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from django.core.cache import caches
 
 # testing
@@ -21,7 +20,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -50,7 +49,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
@@ -79,7 +78,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -108,7 +107,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
@@ -137,7 +136,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -166,7 +165,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
@@ -195,7 +194,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -224,7 +223,7 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
