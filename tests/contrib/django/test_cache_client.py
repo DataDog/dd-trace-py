@@ -1,4 +1,3 @@
-# flake8: noqa
 import time
 
 # 3rd party
@@ -20,7 +19,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -49,7 +48,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         cache = caches['default']
 
         # (trace) the cache miss
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
 
         # tests
         spans = self.tracer.writer.pop()
@@ -64,9 +63,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         cache = caches['default']
 
         # (trace) the cache miss
-        start = time.time()
-        hit = cache.get('missing_key')
-        end = time.time()
+        cache.get('missing_key')
 
         # tests
         spans = self.tracer.writer.pop()
@@ -78,7 +75,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.set('a_new_key', 50)
+        cache.set('a_new_key', 50)
         end = time.time()
 
         # tests
@@ -107,7 +104,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.add('a_new_key', 50)
+        cache.add('a_new_key', 50)
         end = time.time()
 
         # tests
@@ -136,7 +133,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.delete('an_existing_key')
+        cache.delete('an_existing_key')
         end = time.time()
 
         # tests
@@ -167,7 +164,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.incr('value')
+        cache.incr('value')
         end = time.time()
 
         # tests
@@ -207,7 +204,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.decr('value')
+        cache.decr('value')
         end = time.time()
 
         # tests
@@ -252,7 +249,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
@@ -295,7 +292,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.set_many({'first_key': 1, 'second_key': 2})
+        cache.set_many({'first_key': 1, 'second_key': 2})
         end = time.time()
 
         # tests
@@ -334,7 +331,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.delete_many(['missing_key', 'another_key'])
+        cache.delete_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests

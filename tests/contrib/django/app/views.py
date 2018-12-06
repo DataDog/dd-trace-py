@@ -1,4 +1,3 @@
-# flake8: noqa
 """
 Class based views used for Django tests.
 """
@@ -33,6 +32,7 @@ class ForbiddenView(TemplateView):
 def function_view(request):
     return HttpResponse(status=200)
 
+
 def error_500(request):
     raise Exception('Error 500')
 
@@ -53,6 +53,7 @@ class FeedView(Feed):
 
     def item_description(self, item):
         return 'empty'
+
 
 partial_view = partial(function_view)
 

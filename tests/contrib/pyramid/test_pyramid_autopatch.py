@@ -1,18 +1,5 @@
-# flake8: noqa
-# stdlib
-import sys
-import webtest
-import ddtrace
-
 from nose.tools import eq_
 from pyramid.config import Configurator
-
-# 3p
-from wsgiref.simple_server import make_server
-
-# project
-from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
 
 from .test_pyramid import PyramidTestCase, PyramidBase
 
@@ -41,7 +28,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
         }
-        res = self.app.get('/', headers=headers, status=200)
+        self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
