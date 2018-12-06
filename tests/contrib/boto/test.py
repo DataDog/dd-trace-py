@@ -89,7 +89,7 @@ class BotoTest(unittest.TestCase):
         span = spans[0]
         eq_(span.get_tag(http.STATUS_CODE), "200")
         eq_(span.get_tag(http.METHOD), "PUT")
-        eq_(span.get_tag('s3.put.path'), '/')
+        eq_(span.get_tag('path'), '/')
         eq_(span.get_tag('aws.operation'), "create_bucket")
 
         # Get the created bucket

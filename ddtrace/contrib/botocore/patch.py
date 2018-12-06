@@ -59,7 +59,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         if not aws.is_blacklist(endpoint_name):
             operation_args = aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS)
             for (key, value) in aws.flatten_args(operation_args):
-                span.set_tag('{}.{}'.format(span.resource, key), value)
+                span.set_tag(key, value)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

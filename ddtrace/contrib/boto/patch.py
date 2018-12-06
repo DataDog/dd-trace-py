@@ -82,7 +82,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         if not aws.is_blacklist(endpoint_name):
             operation_args = aws.unpacking_args(args, AWS_QUERY_ARGS_NAME, AWS_QUERY_TRACED_ARGS)
             for (key, value) in aws.flatten_args(operation_args):
-                span.set_tag('{}.{}'.format(span.resource, key), value)
+                span.set_tag(key, value)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)
@@ -136,7 +136,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         if not aws.is_blacklist(endpoint_name):
             operation_args = aws.unpacking_args(args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
             for (key, value) in aws.flatten_args(operation_args):
-                span.set_tag('{}.{}'.format(span.resource, key), value)
+                span.set_tag(key, value)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)

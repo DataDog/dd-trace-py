@@ -44,8 +44,9 @@ def flatten_args(args):
             return (key, value)
 
     # append elements from unnesting
+    unnested = [_unnest(t) for t in args]
     combined = []
-    for e in args:
+    for e in unnested:
         if isinstance(e, list):
             combined.extend(e)
         else:

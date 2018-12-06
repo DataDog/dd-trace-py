@@ -77,9 +77,9 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(spans[0].resource, "s3.createbucket")
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
         self.assertEqual(spans[1].resource, "s3.putobject")
-        self.assertEqual(spans[1].get_tag('s3.putobject.params.Key'), stringify(params['Key']))
-        self.assertEqual(spans[1].get_tag('s3.putobject.params.Bucket'), stringify(params['Bucket']))
-        self.assertEqual(spans[1].get_tag('s3.putobject.params.Body'), stringify(params['Body']))
+        self.assertEqual(spans[1].get_tag('params.Key'), stringify(params['Key']))
+        self.assertEqual(spans[1].get_tag('params.Bucket'), stringify(params['Bucket']))
+        self.assertEqual(spans[1].get_tag('params.Body'), stringify(params['Body']))
 
     @mark_asyncio
     def test_s3_client_error(self):
