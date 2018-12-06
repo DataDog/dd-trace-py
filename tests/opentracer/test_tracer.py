@@ -70,6 +70,25 @@ class TestTracerConfig(object):
             assert ["enabeld", "setttings"] in str(ce_info)
             assert tracer is not None
 
+    def test_global_tags(self):
+        """Global tags should be passed from the opentracer to the tracer."""
+        config = {
+            'global_tags': {
+                'tag1': 'value1',
+                'tag2': 2,
+            },
+        }
+
+        tracer = Tracer(service_name='mysvc', config=config)
+        with tracer.start_span('myop') as span:
+            # global tags should be attached to generated all datadog spans
+            assert span._dd_span.get_tag('tag1') == 'value1'
+            assert span._dd_span.get_tag('tag2') == '2'
+
+            with tracer.start_span('myop2') as span2:
+                assert span2._dd_span.get_tag('tag1') == 'value1'
+                assert span2._dd_span.get_tag('tag2') == '2'
+
 
 class TestTracer(object):
     def test_start_span(self, ot_tracer, writer):
