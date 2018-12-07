@@ -62,7 +62,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         eq_(span.name, 's3.command')
 
     @mark_asyncio
-    def _test_s3_put(self):
+    def test_s3_put(self):
         params = dict(Key='foo', Bucket='mybucket', Body=b'bar')
 
         with aiobotocore_client('s3', self.tracer) as s3:
