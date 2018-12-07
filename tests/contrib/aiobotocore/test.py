@@ -86,6 +86,7 @@ class AIOBotocoreTest(AsyncioTestCase):
     def test_s3_client_error(self):
         with aiobotocore_client('s3', self.tracer) as s3:
             with assert_raises(ClientError):
+                # FIXME: add proper clean-up to tearDown
                 yield from s3.list_objects(Bucket='doesnotexist')
 
         traces = self.tracer.writer.pop_traces()
