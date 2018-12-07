@@ -27,6 +27,15 @@ def unpacking_args(args, args_name, traced_args_list):
         index += 1
     return response
 
+def truncate_arg_value(value, max_len=1024):
+    """Truncate values which are bytes and greater than `max_len`.
+    Useful for parameters like 'Body' in `put_object` operations.
+    """
+    if isinstance(value, bytes) and len(value) > max_len:
+        return b'...'
+
+    return value
+
 
 def flatten_args(args):
     """Filter operation arguments based on list of arguments to be traced
@@ -53,6 +62,14 @@ def flatten_args(args):
             combined.append(e)
 
     return combined
+
+
+def add_span_arg_tags(span, endpoint_name, args, args_names, args_traced):
+    # Adding the args in TRACED_ARGS if exist to the span
+    if not is_blacklist(endpoint_name):
+        operation_args = unpacking_args(args, args_names, args_traced)
+        for (key, value) in flatten_args(operation_args):
+            span.set_tag(key, truncate_arg_value(value))
 
 
 REGION = "aws.region"

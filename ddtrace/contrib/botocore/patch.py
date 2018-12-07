@@ -55,11 +55,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        # Adding the args in TRACED_ARGS if exist to the span
-        if not aws.is_blacklist(endpoint_name):
-            operation_args = aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS)
-            for (key, value) in aws.flatten_args(operation_args):
-                span.set_tag(key, value)
+        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
