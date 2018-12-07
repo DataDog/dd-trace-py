@@ -17,8 +17,7 @@ def unpacking_args(args, args_name, traced_args_list):
         traced_args_list: list of names of the args we want to trace
     Returns a list of (arg name, arg) of the args we want to trace
     The number of args being variable from one call to another, this function
-    will parse t
-    """
+    will parse it"""
     index = 0
     response = []
     for arg in args:
