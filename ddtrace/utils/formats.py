@@ -70,7 +70,9 @@ def asbool(value):
 def flatten_dict(d, sep='.', prefix=''):
     """
     Returns a normalized dict of depth 1 with keys in order of embedding
+
     """
+    # adapted from https://stackoverflow.com/a/19647596
     return {
         prefix + sep + k if prefix else k: v
         for kk, vv in d.items()
