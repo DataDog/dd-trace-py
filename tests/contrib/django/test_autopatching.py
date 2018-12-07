@@ -1,4 +1,3 @@
-# flake8: noqa
 import django
 
 from ddtrace.monkey import patch
@@ -20,7 +19,6 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
         ok_('ddtrace.contrib.django' in settings.INSTALLED_APPS)
         eq_(settings.MIDDLEWARE_CLASSES[0], 'ddtrace.contrib.django.TraceMiddleware')
         eq_(settings.MIDDLEWARE_CLASSES[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
-
 
     @skipIf(django.VERSION >= (1, 10), 'skip if version above 1.10')
     def test_autopatching_twice_middleware_classes(self):
@@ -51,7 +49,6 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
         eq_(settings.MIDDLEWARE[-1], 'ddtrace.contrib.django.TraceExceptionMiddleware')
         ok_(not getattr(settings, 'MIDDLEWARE_CLASSES', None) or
             'ddtrace.contrib.django.TraceExceptionMiddleware' not in settings.MIDDLEWARE_CLASSES)
-
 
     @skipIf(django.VERSION < (1, 10), 'skip if version is below 1.10')
     def test_autopatching_twice_middleware(self):
