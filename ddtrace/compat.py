@@ -35,7 +35,7 @@ parse = six.moves.urllib.parse
 Queue = six.moves.queue.Queue
 iteritems = six.iteritems
 reraise = six.reraise
-reload_module = six.reload_module
+reload_module = six.moves.reload_module
 
 stringify = six.text_type
 string_type = six.string_types[0]
