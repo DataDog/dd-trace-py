@@ -117,6 +117,12 @@ else:
             value = None
             tb = None
 
+if PY2:
+    reload_module = reload
+else:
+    import importlib
+    reload_module = importlib.reload
+
 
 __all__ = [
     'httplib',
@@ -129,4 +135,5 @@ __all__ = [
     'urlencode',
     'parse',
     'reraise',
+    'reload_module',
 ]

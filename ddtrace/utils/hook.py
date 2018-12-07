@@ -41,7 +41,7 @@ def register_post_import_hook(name, hook):
     Registers a module import hook, ``hook`` for a module with name ``name``.
 
     If the module is already imported the hook is called immediately and a
-    warning is logged since this should not be expected.
+    debug message is logged since this should not be expected in our use-case.
 
     :param name: Name of the module (full dotted path)
     :param hook: Call-able to be invoked with the module when it is imported.
@@ -58,9 +58,9 @@ def register_post_import_hook(name, hook):
     hooks = _post_import_hooks.get(name, [])
     module = sys.modules.get(name, None)
 
-    # If the module has been imported already fire the hook and log a warning.
+    # If the module has been imported already fire the hook and log a debug msg.
     if module:
-        log.warn('module "{}" already imported, firing hook'.format(name))
+        log.debug('module "{}" already imported, firing hook'.format(name))
         hook(module)
 
     hooks.append(hook)
@@ -96,7 +96,7 @@ def notify_module_loaded(module):
         try:
             hook(module)
         except Exception as err:
-            log.warn('failed to call hook for module "{}": {}'.format(name, err))
+            log.warn('hook for module "{}" failed: {}'.format(name, err))
 
 
 class _ImportHookLoader(object):
