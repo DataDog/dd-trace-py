@@ -1,4 +1,3 @@
-# flake8: noqa
 # stdlib
 import time
 
@@ -15,16 +14,17 @@ from ddtrace.contrib.psycopg import connection_factory
 from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
 from ddtrace import Pin
 
-if PSYCOPG2_VERSION >= (2, 7):
-    from psycopg2.sql import SQL
-
 # testing
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 
+if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import SQL
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
+
+
 class PsycopgCore(unittest.TestCase):
 
     # default service
@@ -179,7 +179,7 @@ class PsycopgCore(unittest.TestCase):
             assert t == type(cur), '{} != {}'.format(t, type(cur))
             cur.execute(query="""select 'blah'""")
             rows = cur.fetchall()
-            assert len(rows) == 1, row
+            assert len(rows) == 1, rows
             assert rows[0][0] == 'blah'
 
         spans = tracer.writer.pop()
@@ -248,8 +248,8 @@ class PsycopgCore(unittest.TestCase):
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {
-            'db' : {'app':'postgres', 'app_type':'db'},
-            'another' : {'app':'postgres', 'app_type':'db'},
+            'db': {'app': 'postgres', 'app_type': 'db'},
+            'another': {'app': 'postgres', 'app_type': 'db'},
         }
         self.assertEquals(service_meta, expected)
 
@@ -273,11 +273,10 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(span.service, self.TEST_SERVICE)
         self.assertEquals(span.name, 'postgres.connection.rollback')
 
-
     @skipIf(PSYCOPG2_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
     def test_composed_query(self):
         """ Checks whether execution of composed SQL string is traced """
-        query = SQL(' union all ' ).join(
+        query = SQL(' union all ').join(
             [SQL("""select 'one' as x"""),
              SQL("""select 'two' as x""")])
         db, tracer = self._get_conn_and_tracer()
@@ -288,7 +287,6 @@ class PsycopgCore(unittest.TestCase):
             assert len(rows) == 2, rows
             assert rows[0][0] == 'one'
             assert rows[1][0] == 'two'
-
 
         spans = tracer.writer.pop()
         assert len(spans) == 2

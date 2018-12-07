@@ -1,11 +1,8 @@
-# flake8: noqa
 import ddtrace
 import opentracing
 from opentracing import Format
 
 from ddtrace.opentracer.span_context import SpanContext
-
-from tests.opentracer.utils import ot_tracer_factory, ot_tracer, dd_tracer, writer, global_tracer
 
 
 class TestTracerCompatibility(object):
@@ -179,7 +176,7 @@ class TestTracerCompatibility(object):
 
         # extract should activate the span so that a subsequent start_span
         # will inherit from the propagated span context
-        ext_span_ctx = ot_tracer.extract(Format.HTTP_HEADERS, carrier)
+        ot_tracer.extract(Format.HTTP_HEADERS, carrier)
 
         with dd_tracer.trace('test') as span:
             pass

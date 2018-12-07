@@ -1,8 +1,4 @@
-# flake8: noqa
-import mock
-
 import flask
-import wrapt
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch
