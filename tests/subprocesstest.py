@@ -10,8 +10,6 @@ import subprocess
 import sys
 import unittest
 
-from ddtrace.compat import stringify
-
 
 SUBPROC_TEST_ATTR = '_subproc_test'
 SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
