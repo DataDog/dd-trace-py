@@ -80,7 +80,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(spans[1].resource, 's3.putobject')
         self.assertEqual(spans[1].get_tag('params.Key'), stringify(params['Key']))
         self.assertEqual(spans[1].get_tag('params.Bucket'), stringify(params['Bucket']))
-        self.assertIsNone(spans[1].get_tag('params.Body'), stringify(params['Body']))
+        self.assertIsNone(spans[1].get_tag('params.Body'))
 
     @mark_asyncio
     def test_s3_client_error(self):

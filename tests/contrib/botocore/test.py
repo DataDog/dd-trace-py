@@ -1,6 +1,5 @@
 # stdlib
 from unittest import TestCase
-import json
 
 # 3p
 import botocore.session
@@ -96,7 +95,6 @@ class BotocoreTest(TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        import pdb; pdb.set_trace()
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'CreateBucket')
         self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
@@ -106,7 +104,8 @@ class BotocoreTest(TestCase):
         self.assertEqual(spans[1].resource, 's3.putobject')
         self.assertEqual(spans[1].get_tag('params.Key'), stringify(params['Key']))
         self.assertEqual(spans[1].get_tag('params.Bucket'), stringify(params['Bucket']))
-        self.assertEqual(spans[1].get_tag('params.Body'), stringify(params['Body']))
+        # confirm blacklisted
+        self.assertIsNone(spans[1].get_tag('params.Body'))
 
     @mock_sqs
     def test_sqs_client(self):

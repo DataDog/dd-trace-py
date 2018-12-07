@@ -18,7 +18,6 @@ _Botocore_client = botocore.client.BaseClient
 SPAN_TYPE = 'http'
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
-BLACKLIST = dict('s3': ['params.Body'])
 
 
 def patch():
