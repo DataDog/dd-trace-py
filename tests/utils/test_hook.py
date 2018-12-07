@@ -1,6 +1,6 @@
 import mock
 
-from ddtrace.compat import PY2, reload_module
+from ddtrace.compat import reload_module
 from ddtrace.utils.hook import (
     register_post_import_hook,
     deregister_post_import_hook,
@@ -170,7 +170,7 @@ class TestHook(SubprocessTestCase):
         register_post_import_hook('tests.utils.test_module', test_hook)
 
         with mock.patch('ddtrace.utils.hook.log') as log_mock:
-            import tests.utils.test_module
+            import tests.utils.test_module  # noqa
             calls = [
                 mock.call('hook for module "tests.utils.test_module" failed: test_hook_failed')
             ]
