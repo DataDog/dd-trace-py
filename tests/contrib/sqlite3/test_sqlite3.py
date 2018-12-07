@@ -1,4 +1,3 @@
-# flake8: noqa
 # stdlib
 import sqlite3
 import time
@@ -29,6 +28,7 @@ def test_backwards_compat():
     assert not rows.fetchall()
     assert not tracer.writer.pop()
 
+
 class TestSQLite(object):
     def setUp(self):
         patch()
@@ -41,7 +41,7 @@ class TestSQLite(object):
         backup_tracer = ddtrace.tracer
         ddtrace.tracer = tracer
 
-        db = sqlite3.connect(':memory:')
+        sqlite3.connect(':memory:')
 
         services = tracer.writer.pop_services()
         eq_(len(services), 1)
@@ -122,10 +122,10 @@ class TestSQLite(object):
         spans = tracer.writer.pop()
 
         eq_(len(spans), 2)
-        
+
         execute_span = spans[0]
         fetchall_span = spans[1]
-        
+
         # Execute span
         eq_(execute_span.name, 'sqlite.query')
         eq_(execute_span.span_type, 'sql')
@@ -260,7 +260,6 @@ class TestSQLite(object):
         span = spans[0]
         eq_(span.service, 'sqlite')
         eq_(span.name, 'sqlite.connection.rollback')
-
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()

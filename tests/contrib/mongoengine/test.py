@@ -1,4 +1,3 @@
-# flake8: noqa
 # stdib
 import time
 
@@ -8,7 +7,7 @@ from nose.tools import eq_
 import pymongo
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 
@@ -210,6 +209,7 @@ class TestMongoEnginePatchClientDefault(MongoEngineCore):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return tracer
+
 
 class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     """Test suite with a Pin local to a specific client with custom service"""

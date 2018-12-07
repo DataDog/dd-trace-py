@@ -1,4 +1,3 @@
-# flake8: noqa
 # stdlib
 import unittest
 
@@ -214,7 +213,9 @@ class BotoTest(unittest.TestCase):
 
     @skipUnless(
         False,
-    "Test to reproduce the case where args sent to patched function are None, can't be mocked: needs AWS crendentials")
+        ('Test to reproduce the case where args sent to patched function are None,'
+         'can\'t be mocked: needs AWS crendentials'),
+    )
     def test_elasticache_client(self):
         elasticache = boto.elasticache.connect_to_region('us-west-2')
         tracer = get_dummy_tracer()
