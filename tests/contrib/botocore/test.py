@@ -1,5 +1,5 @@
 # stdlib
-import unittest
+from unittest import TestCase
 
 # 3p
 import botocore.session
@@ -16,7 +16,7 @@ from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
 
 
-class BotocoreTest(unittest.TestCase):
+class BotocoreTest(TestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = "test-botocore-tracing"
@@ -104,7 +104,8 @@ class BotocoreTest(unittest.TestCase):
         self.assertEqual(spans[1].resource, 's3.putobject')
         self.assertEqual(spans[1].get_tag('params.Key'), stringify(params['Key']))
         self.assertEqual(spans[1].get_tag('params.Bucket'), stringify(params['Bucket']))
-        self.assertEqual(spans[1].get_tag('params.Body'), stringify(params['Body']))
+        # confirm blacklisted
+        self.assertIsNone(spans[1].get_tag('params.Body'))
 
     @mock_sqs
     def test_sqs_client(self):
