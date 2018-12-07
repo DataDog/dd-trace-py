@@ -96,6 +96,7 @@ class BotocoreTest(TestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
+        import pdb; pdb.set_trace()
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'CreateBucket')
         self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
