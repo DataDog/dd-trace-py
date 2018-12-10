@@ -80,9 +80,12 @@ class TestHook(SubprocessTestCase):
             register_post_import_hook('tests.utils.test_module', test_hook)
             import tests.utils.test_module  # noqa
 
+            # Since the log message will contain the id (non-deterministic) of the hook
+            # we just check to see if the important parts of the log message are included
+            # in the message. Those being the name and the module to be hooked.
             class Matcher(object):
                 def __eq__(self, other):
-                    return 'already exists on module "tests.utils.test_module"'
+                    return 'MagicMock' in other and 'already exists on module "tests.utils.test_module"' in other
 
             calls = [
                 mock.call(Matcher())
