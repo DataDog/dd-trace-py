@@ -58,3 +58,8 @@ class DummyTracer(Tracer):
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__(*args, **kwargs)
         self.writer = DummyWriter()
+
+    def configure(self, *args, **kwargs):
+        super(DummyTracer, self).configure(*args, **kwargs)
+        # `.configure()` may reset the writer
+        self.writer = DummyWriter()

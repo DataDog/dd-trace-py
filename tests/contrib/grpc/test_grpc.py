@@ -63,7 +63,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         _check_span(span)
 
     def test_priority_sampling(self):
-        self._tracer.configure(priority_sampling=True)
+        # DEV: Priority sampling is enabled by default
         # Setting priority sampling reset the writer, we need to re-override it
         self._tracer.writer = DummyWriter()
 

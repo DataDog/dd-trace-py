@@ -80,7 +80,7 @@ class Tracer(object):
         return self._context_provider
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                  context_provider=None, wrap_executor=None, priority_sampling=None,
+                  context_provider=None, wrap_executor=None, priority_sampling=True,
                   settings=None):
         """
         Configure an existing Tracer the easy way.
@@ -98,7 +98,7 @@ class Tracer(object):
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
         :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support.
+            complete distributed tracing support. Enabled by default.
         """
         if enabled is not None:
             self.enabled = enabled
