@@ -2,7 +2,6 @@ from nose.tools import eq_
 
 from functools import partial
 from ddtrace.utils.importlib import func_name
-from ddtrace.utils.formats import asbool
 
 
 class SomethingCallable(object):
@@ -32,13 +31,16 @@ def some_function():
     """
     return 'nothing'
 
-def minus(a,b):
+
+def minus(a, b):
     return a - b
 
-minus_two = partial(minus, b=2) # partial funcs need special handling (no module)
+
+minus_two = partial(minus, b=2)  # partial funcs need special handling (no module)
 
 # disabling flake8 test below, yes, declaring a func like this is bad, we know
-plus_three = lambda x : x + 3  # NOQA
+plus_three = lambda x : x + 3  # noqa
+
 
 class TestContrib(object):
     """
@@ -55,7 +57,7 @@ class TestContrib(object):
 
         eq_(f, f.me())
         eq_('tests.contrib.test_utils.me', func_name(f.me))
-        eq_(3, f.add(1,2))
+        eq_(3, f.add(1, 2))
         eq_('tests.contrib.test_utils.add', func_name(f.add))
         eq_(42, f.answer())
         eq_('tests.contrib.test_utils.answer', func_name(f.answer))

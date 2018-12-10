@@ -167,7 +167,7 @@ class TestTornadoExecutor(TornadoTestCase):
     def test_futures_double_instrumentation(self):
         # it should not double wrap `ThreadpPoolExecutor.submit` method if
         # `futures` is already instrumented
-        from ddtrace import patch; patch(futures=True)
+        from ddtrace import patch; patch(futures=True)  # noqa
         from concurrent.futures import ThreadPoolExecutor
         from wrapt import BoundFunctionWrapper
 

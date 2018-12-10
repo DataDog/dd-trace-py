@@ -1,8 +1,6 @@
 import collections
 import socket
 
-from ddtrace import Pin
-
 
 class MockSocket(object):
     def __init__(self, recv_bufs, connect_failure=None):
@@ -60,12 +58,3 @@ def _str(s):
         return s.decode()
     else:
         return str(s)
-
-
-def check_spans(client):
-    pin = Pin.get_from(client)
-    tracer = pin.tracer
-    spans = tracer.writer.pop()
-    for span in spans:
-        assert span.service_name is memcachedx.CMD
-    return spans

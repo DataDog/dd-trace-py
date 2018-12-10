@@ -1,3 +1,4 @@
+# flake8: noqa
 import asyncio
 
 from nose.tools import eq_, ok_
@@ -49,7 +50,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_('aiohttp.request', span.name)
         eq_('aiohttp-web', span.service)
         eq_('http', span.span_type)
-        eq_('/', span.resource)
+        eq_('GET /', span.resource)
         eq_('/', span.get_tag('http.url'))
         eq_('GET', span.get_tag('http.method'))
         eq_('200', span.get_tag('http.status_code'))
@@ -69,7 +70,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # with the right fields
-        eq_('/echo/{name}', span.resource)
+        eq_('GET /echo/{name}', span.resource)
         eq_('/echo/team', span.get_tag('http.url'))
         eq_('200', span.get_tag('http.status_code'))
 
@@ -107,7 +108,7 @@ class TestTraceMiddleware(TraceTestCase):
         coroutine = traces[0][2]
         # root span created in the middleware
         eq_('aiohttp.request', root.name)
-        eq_('/chaining/', root.resource)
+        eq_('GET /chaining/', root.resource)
         eq_('/chaining/', root.get_tag('http.url'))
         eq_('GET', root.get_tag('http.method'))
         eq_('200', root.get_tag('http.status_code'))
@@ -135,7 +136,7 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # root span created in the middleware
         eq_('aiohttp.request', span.name)
-        eq_('/statics', span.resource)
+        eq_('GET /statics', span.resource)
         eq_('/statics/empty.txt', span.get_tag('http.url'))
         eq_('GET', span.get_tag('http.method'))
         eq_('200', span.get_tag('http.status_code'))
@@ -171,7 +172,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(spans))
         span = spans[0]
         eq_(1, span.error)
-        eq_('/exception', span.resource)
+        eq_('GET /exception', span.resource)
         eq_('error', span.get_tag('error.msg'))
         ok_('Exception: error' in span.get_tag('error.stack'))
 
@@ -188,7 +189,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(spans))
         span = spans[0]
         eq_(1, span.error)
-        eq_('/async_exception', span.resource)
+        eq_('GET /async_exception', span.resource)
         eq_('error', span.get_tag('error.msg'))
         ok_('Exception: error' in span.get_tag('error.stack'))
 
@@ -205,7 +206,7 @@ class TestTraceMiddleware(TraceTestCase):
         spans = traces[0]
         eq_(2, len(spans))
         span = spans[0]
-        eq_('/wrapped_coroutine', span.resource)
+        eq_('GET /wrapped_coroutine', span.resource)
         span = spans[1]
         eq_('nested', span.name)
         ok_(span.duration > 0.25,
@@ -366,7 +367,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_('aiohttp.request', inner_span.name)
         eq_('aiohttp-web', inner_span.service)
         eq_('http', inner_span.span_type)
-        eq_('/', inner_span.resource)
+        eq_('GET /', inner_span.resource)
         eq_('/', inner_span.get_tag('http.url'))
         eq_('GET', inner_span.get_tag('http.method'))
         eq_('200', inner_span.get_tag('http.status_code'))
