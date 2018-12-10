@@ -289,9 +289,7 @@ class PylonsTestCase(TestCase):
 
         ok_(span.trace_id != 100)
         ok_(span.parent_id != 42)
-
-        # Priority sampling is enabled by default
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 1)
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), None)
 
     def test_distributed_tracing_enabled(self):
         # ensure distributed tracing propagator is working
