@@ -56,6 +56,11 @@ def register_post_import_hook(name, hook):
         sys.meta_path.insert(0, ImportHookFinder())
 
     hooks = _post_import_hooks.get(name, [])
+
+    if hook in hooks:
+        log.debug('hook "{}" already exists on module "{}"'.format(hook, name))
+        return
+
     module = sys.modules.get(name, None)
 
     # If the module has been imported already fire the hook and log a debug msg.

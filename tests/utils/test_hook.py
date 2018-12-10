@@ -75,10 +75,20 @@ class TestHook(SubprocessTestCase):
         Test that a function can be registered as a hook twice.
         """
         test_hook = mock.MagicMock()
-        register_post_import_hook('tests.utils.test_module', test_hook)
-        register_post_import_hook('tests.utils.test_module', test_hook)
-        import tests.utils.test_module  # noqa
-        self.assertEqual(test_hook.call_count, 2)
+        with mock.patch('ddtrace.utils.hook.log') as log_mock:
+            register_post_import_hook('tests.utils.test_module', test_hook)
+            register_post_import_hook('tests.utils.test_module', test_hook)
+            import tests.utils.test_module  # noqa
+
+            class Matcher(object):
+                def __eq__(self, other):
+                    return 'already exists on module "tests.utils.test_module"'
+
+            calls = [
+                mock.call(Matcher())
+            ]
+            self.assertEqual(test_hook.call_count, 1)
+            log_mock.debug.assert_has_calls(calls)
 
     def test_deregister_post_import_hook_no_register(self):
         """
@@ -128,8 +138,9 @@ class TestHook(SubprocessTestCase):
         """
         Test that only specified import hooks can be deregistered after being registered.
         """
-        test_hook = mock.MagicMock()
-        test_hook2 = mock.MagicMock()
+        # Enforce a spec so that hasattr doesn't vacuously return True.
+        test_hook = mock.MagicMock(spec=[])
+        test_hook2 = mock.MagicMock(spec=[])
         setattr(test_hook, '_test', True)
         setattr(test_hook2, '_test2', True)
         register_post_import_hook('tests.utils.test_module', test_hook)
@@ -141,7 +152,7 @@ class TestHook(SubprocessTestCase):
         deregister_post_import_hook('tests.utils.test_module', matcher)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
-        self.assertEqual(test_hook2.call_count, 0, 'hook has been deregistered and should be removed')
+        self.assertEqual(test_hook2.call_count, 1, 'hook should have been called')
 
     def test_deregister_post_import_hook_after_import(self):
         """

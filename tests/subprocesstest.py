@@ -92,6 +92,7 @@ class SubprocessTestCase(unittest.TestCase):
                 raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
             except Exception:
                 exc_info = sys.exc_info()
+
             sys.stderr.write(stderr.decode())
             sys.stdout.write(stdout.decode())
             result.addFailure(self, exc_info)
