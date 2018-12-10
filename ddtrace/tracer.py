@@ -110,11 +110,12 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        if priority_sampling is not None:
-            if priority_sampling:
-                self.priority_sampler = RateByServiceSampler()
-            else:
-                self.priority_sampler = None
+        # If priority sampling is not set or is True and no priority sampler is set yet
+        if priority_sampling in (None, True) and not self.priority_sampler:
+            self.priority_sampler = RateByServiceSampler()
+        # Explicitly disable priority sampling
+        elif priority_sampling is False:
+            self.priority_sampler = None
 
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
