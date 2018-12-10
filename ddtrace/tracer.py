@@ -80,7 +80,7 @@ class Tracer(object):
         return self._context_provider
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                  context_provider=None, wrap_executor=None, priority_sampling=True,
+                  context_provider=None, wrap_executor=None, priority_sampling=None,
                   settings=None):
         """
         Configure an existing Tracer the easy way.
@@ -110,8 +110,11 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        if priority_sampling:
-            self.priority_sampler = RateByServiceSampler()
+        if priority_sampling is not None:
+            if priority_sampling:
+                self.priority_sampler = RateByServiceSampler()
+            else:
+                self.priority_sampler = None
 
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:

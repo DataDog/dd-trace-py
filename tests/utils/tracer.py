@@ -6,9 +6,10 @@ from ddtrace.writer import AgentWriter
 class DummyWriter(AgentWriter):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         # original call
-        super(DummyWriter, self).__init__()
+        super(DummyWriter, self).__init__(*args, **kwargs)
+
         # dummy components
         self.spans = []
         self.traces = []
@@ -57,9 +58,17 @@ class DummyTracer(Tracer):
     """
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__(*args, **kwargs)
-        self.writer = DummyWriter()
+        self._update_writer()
+
+    def _update_writer(self):
+        self.writer = DummyWriter(
+                hostname=self.writer.api.hostname,
+                port=self.writer.api.port,
+                filters=self.writer._filters,
+                priority_sampler=self.writer._priority_sampler,
+        )
 
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
-        self.writer = DummyWriter()
+        self._update_writer()
