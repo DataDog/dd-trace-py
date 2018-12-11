@@ -17,7 +17,7 @@ class TestHeaders(object):
 
     @pytest.fixture()
     def integration_config(self, config):
-        yield IntegrationConfig(config)
+        yield IntegrationConfig(config, '')
 
     def test_it_does_not_break_if_no_headers(self, span, integration_config):
         store_request_headers(None, span, integration_config)

@@ -119,6 +119,7 @@ class TestIntegrationConfig(unittest.TestCase):
         with self.assertRaises(AttributeError):
             test = config.dne  # noqa
 
+    '''
     @mock.patch.dict(os.environ, {'DD_REDIS_SERVICE_NAME': 'redis_service_name'})
     def test_environment_variable_default(self):
         global_config = Config()
@@ -130,3 +131,17 @@ class TestIntegrationConfig(unittest.TestCase):
         global_config = Config()
         integration_config = global_config.redis
         self.assertEqual(integration_config.service_name, 'redis_service_name')
+    '''
+
+    def test_usage(self):
+        global_config = Config()
+        global_config._add('redis', {
+            'service_name': 'dd_service_name',
+        })
+        redis_config = global_config.redis
+        self.assertEqual(redis_config.service_name, 'dd_service_name')
+
+        with mock.patch.dict(os.environ, {'DATADOG_REDIS_SERVICE_NAME': 'ude_service_name'}):
+            self.assertEqual(redis_config.service_name, 'ude_service_name')
+            redis_config.service_name = 'ud_service_name'
+            self.assertEqual(redis_config.service_name, 'ud_service_name')

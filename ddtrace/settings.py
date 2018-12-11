@@ -104,6 +104,18 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
+class IntegrationConfigSettings(object):
+    def __init__(self, config, key, default_value=None, env_var_name=None):
+        self.config = config
+        self.default_value = default_value
+        self.env_var_name = env_var_name
+        self.key = key
+        # Flag indicating whether the value has been defined by the user or not,
+        # by default it is not.
+        self.user_defined = False
+
+
+
 class IntegrationConfig(AttrDict):
     """
     Integration specific configuration object.
@@ -127,40 +139,86 @@ class IntegrationConfig(AttrDict):
         :param kwargs:
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
-        self.integration_name = integration_name
+        self._attrs = set([
+            'global_config',
+            'hooks',
+            'http',
+            '_integration_name',
+            '_settings',
+        ])
+        self._settings = {}
+        self._integration_name = integration_name
         self.global_config = global_config
         self.hooks = Hooks()
         self.http = HttpConfig()
+        # self._attrs = set(self.__dict__.keys())
 
-    def __getattribute__(self, item):
+    def __getattribute__(self, key):
         """
-        If an attribute is not found (AttributeError raised from AttrDict) then
-        try to find and return the corresponding environment variable for the
-        item.
+        Determine the value for the given key with the following precedence:
+        [high]
+        1) user-overridden value
+        2) environment variable
+        3) default value
+        [low]
         """
 
         # DEV: this is necessary to avoid infinite recursion. This will need to
-        #      be done for all self attributes on the IntegrationConfig.
+        # be done for all self attributes on the IntegrationConfig.
         # TODO: is there a better way to check for self attributes?
-        if item == 'integration_name':
-            return object.__getattribute__(self, 'integration_name')
 
-        try:
-            # return object.__getattribute__(self, item)
-            return super(IntegrationConfig, self).__getattribute__(item)
-        except AttributeError:
-            # Try to find an environment variable for this integration and item.
-            # If it is not found then re-raise the AttributeError.
-            val = get_env(self.integration_name, item)
-            if not val:
-                raise
-            return val
+        if key == 'integration_name' or key == '_settings':
+            return super(IntegrationConfig, self).__getattribute__(key)
+
+        settings = self._settings.get(key, None)
+
+        # If the value is user defined then use it.
+        if settings.user_defined:
+            return super(IntegrationConfig, self).__getattribute__(key)
+
+        # Then check the environment for an override
+        env_val = get_env(self._integration_name, key)
+        if env_val:
+            return env_val
+
+        # Finally, in the last case return the default value.
+        return super(IntegrationConfig, self).__getattribute__(key)
+
+    def __setattr__(self, key, value):
+        if key in set(['_attrs', '_settings']):
+            return super(IntegrationConfig, self).__setattr__(key, value)
+
+        # If a given key is not in the special _attrs then update the settings
+        # for the key to indicate that the user has overridden the value.
+        if key not in self._attrs:
+            settings = self._settings.get(key, None)
+            if not settings:
+                settings = IntegrationConfigSettings(self, key)
+                self._settings[key] = settings
+            settings.user_defined = True
+        return super(IntegrationConfig, self).__setattr__(key, value)
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self)))
         new.hooks = deepcopy(self.hooks)
         new.http = deepcopy(self.http)
         return new
+
+    def set_default(self, key, value, env_var_name='', docstring=''):
+        """
+
+        :param key:
+        :param value:
+        :param env_var_name:
+        :param docstring:
+        :return:
+        """
+        settings = self._settings.get(key, None)
+        if not settings:
+            settings = IntegrationConfigSettings(self, key)
+            self._settings[key] = settings
+        settings.call()
+
 
     def header_is_traced(self, header_name):
         """
