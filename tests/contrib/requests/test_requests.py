@@ -8,10 +8,11 @@ from ddtrace import config
 from ddtrace.contrib.requests import patch, unpatch
 from ddtrace.ext import errors, http
 from nose.tools import assert_raises, eq_
+
 from tests.opentracer.utils import init_tracer
 
 from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
+from ...util import override_global_tracer, override_config
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -95,6 +96,22 @@ class TestRequests(BaseRequestTestCase):
 
     def test_200(self):
         out = self.session.get(URL_200)
+        eq_(out.status_code, 200)
+        # validation
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag(http.METHOD), 'GET')
+        eq_(s.get_tag(http.STATUS_CODE), '200')
+        eq_(s.error, 0)
+        eq_(s.span_type, http.TYPE)
+
+    def test_200_send(self):
+        # when calling send directly
+        req = requests.Request(url=URL_200, method='GET')
+        req = self.session.prepare_request(req)
+
+        out = self.session.send(req)
         eq_(out.status_code, 200)
         # validation
         spans = self.tracer.writer.pop()
@@ -272,17 +289,15 @@ class TestRequests(BaseRequestTestCase):
 
     def test_split_by_domain_wrong(self):
         # ensure the split by domain doesn't crash in case of a wrong URL;
-        # in that case, the default service name must be used
+        # in that case, no spans are created
         cfg = config.get_from(self.session)
         cfg['split_by_domain'] = True
         with assert_raises(MissingSchema):
             self.session.get('http:/some>thing')
 
+        # We are wrapping `requests.Session.send` and this error gets thrown before that function
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
-        s = spans[0]
-
-        eq_(s.service, 'requests')
+        eq_(len(spans), 0)
 
     def test_split_by_domain_remove_auth_in_url(self):
         # ensure that auth details are stripped from URL
@@ -302,6 +317,19 @@ class TestRequests(BaseRequestTestCase):
         cfg = config.get_from(self.session)
         cfg['split_by_domain'] = True
         out = self.session.get('http://httpbin.org:80')
+        eq_(out.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+
+        eq_(s.service, 'httpbin.org:80')
+
+    def test_split_by_domain_includes_port_path(self):
+        # ensure that port is included if present in URL but not path
+        cfg = config.get_from(self.session)
+        cfg['split_by_domain'] = True
+        out = self.session.get('http://httpbin.org:80/anything/v1/foo')
         eq_(out.status_code, 200)
 
         spans = self.tracer.writer.pop()
@@ -336,3 +364,22 @@ class TestRequests(BaseRequestTestCase):
         eq_(dd_span.get_tag(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
         eq_(dd_span.span_type, http.TYPE)
+
+    def test_request_and_response_headers(self):
+        # Disabled when not configured
+        self.session.get(URL_200, headers={'my-header': 'my_value'})
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my-header'), None)
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), None)
+
+        # Enabled when explicitly configured
+        with override_config('requests', {}):
+            config.requests.http.trace_headers(['my-header', 'access-control-allow-origin'])
+            self.session.get(URL_200, headers={'my-header': 'my_value'})
+            spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+        s = spans[0]
+        eq_(s.get_tag('http.request.headers.my-header'), 'my_value')
+        eq_(s.get_tag('http.response.headers.access-control-allow-origin'), '*')

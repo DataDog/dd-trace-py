@@ -41,7 +41,7 @@ def patch_cache(tracer):
           Django supported cache servers (Redis, Memcached, Database, Custom)
     """
     # discover used cache backends
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
 
     def _trace_operation(fn, method_name):
         """
@@ -54,8 +54,7 @@ def patch_cache(tracer):
         def wrapped(self, *args, **kwargs):
             # get the original function method
             method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
-            with tracer.trace('django.cache',
-                    span_type=TYPE, service=cache_service_name) as span:
+            with tracer.trace('django.cache', span_type=TYPE, service=cache_service_name) as span:
                 # update the resource name and tag the cache backend
                 span.resource = _resource_from_cache_prefix(method_name, self)
                 cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)
@@ -93,6 +92,7 @@ def patch_cache(tracer):
         for method in TRACED_METHODS:
             _wrap_method(cache, method)
 
+
 def unpatch_method(cls, method_name):
     method = getattr(cls, DATADOG_NAMESPACE.format(method=method_name), None)
     if method is None:
@@ -101,8 +101,9 @@ def unpatch_method(cls, method_name):
     setattr(cls, method_name, method)
     delattr(cls, DATADOG_NAMESPACE.format(method=method_name))
 
+
 def unpatch_cache():
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
     for cache_module in cache_backends:
         cache = import_from_string(cache_module, cache_module)
 

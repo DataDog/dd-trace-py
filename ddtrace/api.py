@@ -18,13 +18,14 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'compatibility_mode': False,
                       'fallback': 'v0.3'},
              'v0.3': {'traces': '/v0.3/traces',
-                     'services': '/v0.3/services',
+                      'services': '/v0.3/services',
                       'compatibility_mode': False,
                       'fallback': 'v0.2'},
              'v0.2': {'traces': '/v0.2/traces',
-                     'services': '/v0.2/services',
+                      'services': '/v0.2/services',
                       'compatibility_mode': True,
                       'fallback': None}}
+
 
 def _parse_response_json(response):
     """
@@ -47,6 +48,7 @@ def _parse_response_json(response):
             return content
         except (ValueError, TypeError) as err:
             log.debug("unable to load JSON '%s': %s" % (body, err))
+
 
 class API(object):
     """

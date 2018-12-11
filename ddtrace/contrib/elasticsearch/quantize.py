@@ -11,6 +11,7 @@ ID_PLACEHOLDER = r'/?\2'
 INDEX_REGEXP = re.compile(r'[0-9]{2,}')
 INDEX_PLACEHOLDER = r'?'
 
+
 def quantize(span):
     """Quantize an elasticsearch span
 

@@ -477,7 +477,7 @@ def traced_signal_receivers_for(signal):
         app = None
         if isinstance(sender, flask.Flask):
             app = sender
-        for receiver in wrapped(*args ,**kwargs):
+        for receiver in wrapped(*args, **kwargs):
             yield wrap_signal(app, signal, receiver)
     return outer
 
