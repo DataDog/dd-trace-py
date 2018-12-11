@@ -1,3 +1,5 @@
+# DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
+#    `context_provider` will just not be set and we'll get an `AttributeError` instead
 import ddtrace.contrib.asyncio
 import ddtrace.contrib.gevent
 
