@@ -3,7 +3,7 @@ import os
 from .deprecation import deprecation
 
 
-def get_env(integration, variable, default=None):
+def get_env(integration='', variable='', default=None):
     """Retrieves environment variables value for the given integration. It must be used
     for consistency between integrations. The implementation is backward compatible
     with legacy nomenclature:
@@ -13,7 +13,8 @@ def get_env(integration, variable, default=None):
           arguments
         * return `default` otherwise
     """
-    key = '{}_{}'.format(integration, variable).upper()
+    key = '{}_{}'.format(integration, variable) if integration else variable
+    key = key.upper()
     legacy_env = 'DATADOG_{}'.format(key)
     env = 'DD_{}'.format(key)
 

@@ -5,6 +5,7 @@ import logging
 from .pin import Pin
 from .span import Span
 from .utils.attrdict import AttrDict
+from .utils.formats import get_env
 from .utils.merge import deepmerge
 from .utils.http import normalize_header_name
 
@@ -32,7 +33,7 @@ class Config(object):
 
     def __getattr__(self, name):
         if name not in self._config:
-            self._config[name] = IntegrationConfig(self)
+            self._config[name] = IntegrationConfig(self, name)
         return self._config[name]
 
     def get_from(self, obj):
@@ -73,9 +74,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
         else:
-            self._config[integration] = IntegrationConfig(self, settings)
+            self._config[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """
@@ -118,7 +119,7 @@ class IntegrationConfig(AttrDict):
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
-    def __init__(self, global_config, *args, **kwargs):
+    def __init__(self, global_config, integration_name, *args, **kwargs):
         """
         :param global_config:
         :type global_config: Config
@@ -126,12 +127,37 @@ class IntegrationConfig(AttrDict):
         :param kwargs:
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
+        self.integration_name = integration_name
         self.global_config = global_config
         self.hooks = Hooks()
         self.http = HttpConfig()
 
+    def __getattribute__(self, item):
+        """
+        If an attribute is not found (AttributeError raised from AttrDict) then
+        try to find and return the corresponding environment variable for the
+        item.
+        """
+
+        # DEV: this is necessary to avoid infinite recursion. This will need to
+        #      be done for all self attributes on the IntegrationConfig.
+        # TODO: is there a better way to check for self attributes?
+        if item == 'integration_name':
+            return object.__getattribute__(self, 'integration_name')
+
+        try:
+            # return object.__getattribute__(self, item)
+            return super(IntegrationConfig, self).__getattribute__(item)
+        except AttributeError:
+            # Try to find an environment variable for this integration and item.
+            # If it is not found then re-raise the AttributeError.
+            val = get_env(self.integration_name, item)
+            if not val:
+                raise
+            return val
+
     def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
+        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self)))
         new.hooks = deepcopy(self.hooks)
         new.http = deepcopy(self.http)
         return new

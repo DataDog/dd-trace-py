@@ -1,3 +1,7 @@
+import mock
+import os
+import unittest
+
 from ddtrace.settings import Config, IntegrationConfig, HttpConfig
 
 
@@ -55,14 +59,14 @@ class TestHttpConfig(object):
         assert not http_config.header_is_traced(None)
 
 
-class TestIntegrationConfig(object):
+class TestIntegrationConfig(unittest.TestCase):
 
     def test_is_a_dict(self):
-        integration_config = IntegrationConfig(Config())
+        integration_config = IntegrationConfig(Config(), '')
         assert isinstance(integration_config, dict)
 
     def test_allow_item_access(self):
-        config = IntegrationConfig(Config())
+        config = IntegrationConfig(Config(), '')
         config['setting'] = 'value'
 
         # Can be accessed both as item and attr accessor
@@ -70,7 +74,7 @@ class TestIntegrationConfig(object):
         assert config['setting'] == 'value'
 
     def test_allow_attr_access(self):
-        config = IntegrationConfig(Config())
+        config = IntegrationConfig(Config(), '')
         config.setting = 'value'
 
         # Can be accessed both as item and attr accessor
@@ -78,7 +82,7 @@ class TestIntegrationConfig(object):
         assert config['setting'] == 'value'
 
     def test_allow_both_access(self):
-        config = IntegrationConfig(Config())
+        config = IntegrationConfig(Config(), '')
 
         config.setting = 'value'
         assert config['setting'] == 'value'
@@ -90,14 +94,14 @@ class TestIntegrationConfig(object):
 
     def test_allow_configuring_http(self):
         global_config = Config()
-        integration_config = IntegrationConfig(global_config)
+        integration_config = IntegrationConfig(global_config, '')
         integration_config.http.trace_headers('integration_header')
         assert integration_config.http.header_is_traced('integration_header')
         assert not integration_config.http.header_is_traced('other_header')
 
     def test_allow_exist_both_global_and_integration_config(self):
         global_config = Config()
-        integration_config = IntegrationConfig(global_config)
+        integration_config = IntegrationConfig(global_config, '')
 
         global_config.trace_headers('global_header')
         assert integration_config.header_is_traced('global_header')
@@ -106,3 +110,23 @@ class TestIntegrationConfig(object):
         assert integration_config.header_is_traced('integration_header')
         assert not integration_config.header_is_traced('global_header')
         assert not global_config.header_is_traced('integration_header')
+
+    def test_no_attr(self):
+        """
+        An AttributeError should be raised if an item is not stored in the config.
+        """
+        config = IntegrationConfig(Config(), '')
+        with self.assertRaises(AttributeError):
+            test = config.dne  # noqa
+
+    @mock.patch.dict(os.environ, {'DD_REDIS_SERVICE_NAME': 'redis_service_name'})
+    def test_environment_variable_default(self):
+        global_config = Config()
+        integration_config = global_config.redis
+        self.assertEqual(integration_config.service_name, 'redis_service_name')
+
+    @mock.patch.dict(os.environ, {'DATADOG_REDIS_SERVICE_NAME': 'redis_service_name'})
+    def test_environment_variable_default_legacy(self):
+        global_config = Config()
+        integration_config = global_config.redis
+        self.assertEqual(integration_config.service_name, 'redis_service_name')
