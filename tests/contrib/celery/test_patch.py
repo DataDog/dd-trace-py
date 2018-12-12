@@ -19,4 +19,3 @@ class CeleryPatchTest(unittest.TestCase):
 
         app = celery.Celery()
         ok_(Pin.get_from(app) is not None)
-

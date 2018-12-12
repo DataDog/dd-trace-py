@@ -41,13 +41,17 @@ def patch_time():
 
 
 def assert_dict_issuperset(a, b):
-    ok_(set(a.items()).issuperset(set(b.items())),
-            msg="{a} is not a superset of {b}".format(a=a, b=b))
+    ok_(
+        set(a.items()).issuperset(set(b.items())),
+        msg="{a} is not a superset of {b}".format(a=a, b=b),
+    )
 
 
 def assert_list_issuperset(a, b):
-    ok_(set(a).issuperset(set(b)),
-            msg="{a} is not a superset of {b}".format(a=a, b=b))
+    ok_(
+        set(a).issuperset(set(b)),
+        msg="{a} is not a superset of {b}".format(a=a, b=b),
+    )
 
 
 @contextmanager

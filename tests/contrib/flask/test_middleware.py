@@ -70,7 +70,7 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
 
-        spans_by_name = {s.name:s for s in spans}
+        spans_by_name = {s.name: s for s in spans}
 
         s = spans_by_name['flask.request']
         assert s.span_id
@@ -116,7 +116,7 @@ class TestFlask(TestCase):
 
         services = self.tracer.writer.pop_services()
         expected = {
-            "test.flask.service": {"app":"flask", "app_type":"web"}
+            'test.flask.service': {'app': 'flask', 'app_type': 'web'},
         }
         eq_(services, expected)
 
@@ -133,7 +133,7 @@ class TestFlask(TestCase):
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
         spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
-        by_name = {s.name:s for s in spans}
+        by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
         eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl")
@@ -185,7 +185,7 @@ class TestFlask(TestCase):
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
         spans = self.tracer.writer.pop()
         eq_(len(spans), 1)
-        by_name = {s.name:s for s in spans}
+        by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
         eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl_err")
@@ -210,7 +210,7 @@ class TestFlask(TestCase):
         assert not self.tracer.current_span(), self.tracer.current_span().pprint()
         spans = self.tracer.writer.pop()
         eq_(len(spans), 2)
-        by_name = {s.name:s for s in spans}
+        by_name = {s.name: s for s in spans}
         s = by_name["flask.request"]
         eq_(s.service, "test.flask.service")
         eq_(s.resource, "tmpl_render_err")

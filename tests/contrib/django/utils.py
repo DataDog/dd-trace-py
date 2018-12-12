@@ -43,6 +43,7 @@ class DjangoTraceTestCase(TestCase):
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
 
+
 class override_ddtrace_settings(object):
     def __init__(self, *args, **kwargs):
         self.items = list(kwargs.items())

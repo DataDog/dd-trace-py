@@ -98,7 +98,7 @@ class Tracer(object):
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
         :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support.
+            complete distributed tracing support. Enabled by default.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -110,8 +110,12 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        if priority_sampling:
+        # If priority sampling is not set or is True and no priority sampler is set yet
+        if priority_sampling in (None, True) and not self.priority_sampler:
             self.priority_sampler = RateByServiceSampler()
+        # Explicitly disable priority sampling
+        elif priority_sampling is False:
+            self.priority_sampler = None
 
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
@@ -356,7 +360,7 @@ class Tracer(object):
                 # translate to the form the server understands.
                 services = {}
                 for service, app, app_type in self._services.values():
-                    services[service] = {"app" : app, "app_type" : app_type}
+                    services[service] = {"app": app, "app_type": app_type}
 
                 # queue them for writes.
                 self.writer.write(services=services)

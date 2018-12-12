@@ -134,7 +134,10 @@ class SQLAlchemyTestMixin(object):
         # span fields
         eq_(span.name, '{}.query'.format(self.VENDOR))
         eq_(span.service, self.SERVICE)
-        ok_('SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name' in span.resource)
+        ok_(
+            'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name'
+            in span.resource
+        )
         eq_(span.get_tag('sql.db'), self.SQL_DB)
         self.check_meta(span)
         eq_(span.span_type, 'sql')

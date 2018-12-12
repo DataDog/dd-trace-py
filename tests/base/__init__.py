@@ -3,8 +3,8 @@ import unittest
 
 from ddtrace import config
 
-from .utils.tracer import DummyTracer
-from .utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
+from ..utils.tracer import DummyTracer
+from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
 class BaseTestCase(unittest.TestCase):

@@ -10,6 +10,7 @@ from ...propagation.http import HTTPPropagator
 
 SPAN_TYPE = 'web'
 
+
 class TracePlugin(object):
     name = 'trace'
     api = 2

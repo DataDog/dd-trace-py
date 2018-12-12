@@ -15,9 +15,9 @@ from ...utils.wrappers import unwrap
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
 
-SPAN_TYPE = "http"
-ARGS_NAME = ("action", "params", "path", "verb")
-TRACED_ARGS = ["params", "path", "verb"]
+SPAN_TYPE = 'http'
+ARGS_NAME = ('action', 'params', 'path', 'verb')
+TRACED_ARGS = ['params', 'path', 'verb']
 
 
 def patch():
@@ -55,10 +55,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        # Adding the args in TRACED_ARGS if exist to the span
-        if not aws.is_blacklist(endpoint_name):
-            for arg in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
-                span.set_tag(arg[0], arg[1])
+        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

@@ -1,25 +1,23 @@
 # Standard library
-import time
 import unittest
 
 # Thirdparty
 import grpc
 from grpc.framework.foundation import logging_pool
 from nose.tools import eq_
-import wrapt
 
 # Internal
 from ddtrace.contrib.grpc import patch, unpatch
-from ddtrace.contrib.grpc import client_interceptor
 from ddtrace import Pin
 
 
 from ...test_tracer import get_dummy_tracer, DummyWriter
 
 from .hello_pb2 import HelloRequest, HelloReply
-from .hello_pb2_grpc import add_HelloServicer_to_server, HelloServicer, HelloStub
+from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub
 
 GRPC_PORT = 50531
+
 
 class GrpcBaseMixin(object):
     def setUp(self):
@@ -47,7 +45,14 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         spans = writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' % (span.trace_id, span.span_id))
+        eq_(
+            response.message,
+            (
+                # DEV: Priority sampling is enabled by default
+                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
+                (span.trace_id, span.span_id)
+            ),
+        )
         _check_span(span)
 
     def test_secure_channel(self):
@@ -59,13 +64,20 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         writer = self._tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
-        
+
         span = spans[0]
-        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' % (span.trace_id, span.span_id))
+        eq_(
+            response.message,
+            (
+                # DEV: Priority sampling is enabled by default
+                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
+                (span.trace_id, span.span_id)
+            ),
+        )
         _check_span(span)
 
     def test_priority_sampling(self):
-        self._tracer.configure(priority_sampling=True)
+        # DEV: Priority sampling is enabled by default
         # Setting priority sampling reset the writer, we need to re-override it
         self._tracer.writer = DummyWriter()
 
@@ -81,7 +93,10 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
 
         eq_(
             response.message,
-            'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' % (span.trace_id, span.span_id),
+            (
+                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
+                (span.trace_id, span.span_id)
+            ),
         )
         _check_span(span)
 
@@ -89,15 +104,13 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         # Create a channel and send one request to the server
         with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
-            try:
+            with self.assertRaises(Exception):
                 stub.SayError(HelloRequest(name='test'))
-            except:
-                pass # excepted to throw
 
         writer = self._tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)
-        
+
         span = spans[0]
         eq_(span.error, 1)
         self.assertIsNotNone(span.meta['error.stack'])
@@ -139,7 +152,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
 
         writer = self._tracer.writer
         spans = writer.pop()
-        
+
         eq_(len(spans), 2)
         span1 = spans[0]
         span2 = spans[1]
