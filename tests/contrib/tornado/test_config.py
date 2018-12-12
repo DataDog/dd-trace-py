@@ -1,4 +1,3 @@
-# flake8: noqa
 from nose.tools import eq_, ok_
 
 from ddtrace.filters import FilterRequestsOnUrl

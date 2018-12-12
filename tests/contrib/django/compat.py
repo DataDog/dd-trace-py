@@ -1,4 +1,5 @@
-# flake8: noqa
+__all__ = ['reverse']
+
 try:
     from django.core.urlresolvers import reverse
 except ImportError:
