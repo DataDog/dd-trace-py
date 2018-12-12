@@ -128,13 +128,10 @@ priority to the following values:
 - ``AUTO_REJECT``: the sampler automatically rejects the trace
 - ``AUTO_KEEP``: the sampler automatically keeps the trace
 
-Priority sampling is enabled by default. Enabling it ensures that your sampled
-distributed traces will be complete. To disable priority sampling::
-
-    tracer.configure(priority_sampling=False)
-
+Priority sampling is enabled by default.
 When enabled, the sampler will automatically assign a priority to your traces,
 depending on their service and volume.
+This ensures that your sampled distributed traces will be complete.
 
 You can also set this priority manually to either drop an uninteresting trace or
 to keep an important one.
