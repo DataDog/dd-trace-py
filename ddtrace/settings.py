@@ -213,7 +213,6 @@ class IntegrationConfig(AttrDict):
         if key in self._attrs:
             return super(IntegrationConfig, self).__setattr__(key, value)
 
-        # if not hasattr(self, key):
         if not hasattr(super(IntegrationConfig, self), key):
             item = IntegrationConfigItem(self, key)
         else:
