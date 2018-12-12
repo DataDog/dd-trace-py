@@ -104,16 +104,53 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-class IntegrationConfigSettings(object):
-    def __init__(self, config, key, default_value=None, env_var_name=None):
+class IntegrationConfigItem(object):
+    """
+    A wrapper for items stored in an IntegrationConfig which is responsible for
+    determining what the value of the item stored in the config should be.
+
+    The precedence for determining the value for a config item is:
+
+    [high]
+        1) user-overridden value (indicated via `update_value`)
+        2) environment variable  (of the form DD_{INTEGRATION}_{KEY})
+        3) default value         (specified in the initializer)
+    [low]
+
+    TODO:
+        - env_var_names param to allow custom environment variables to be checked
+        - docstring param to allow the item to be described by the integration
+        - provide a method for the item to be reset back to the default after a
+          user has overridden and wants to remove their override.
+        - global config fallback when no default is provided.
+    """
+    def __init__(self, config, key, default_value=None):
         self.config = config
         self.default_value = default_value
-        self.env_var_name = env_var_name
         self.key = key
+        self._value = None
         # Flag indicating whether the value has been defined by the user or not,
         # by default it is not.
         self.user_defined = False
 
+    def update_value(self, value):
+        self.user_defined = True
+        self._value = value
+
+    def _get_from_env(self):
+        env_val = get_env(self.config._integration_name, self.key)
+        return env_val
+
+    @property
+    def value(self):
+        if self.user_defined:
+            return self._value
+
+        env_val = self._get_from_env()
+        if env_val:
+            return env_val
+
+        return self.default_value
 
 
 class IntegrationConfig(AttrDict):
@@ -131,6 +168,16 @@ class IntegrationConfig(AttrDict):
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
+
+    # DEV: Need to explicitly declare the attributes as to ignore them when
+    #      wrapping values stored in the config with an IntegrationConfigValue.
+    _attrs = set([
+        'global_config',
+        'hooks',
+        'http',
+        '_integration_name',
+    ])
+
     def __init__(self, global_config, integration_name, *args, **kwargs):
         """
         :param global_config:
@@ -139,64 +186,43 @@ class IntegrationConfig(AttrDict):
         :param kwargs:
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
-        self._attrs = set([
-            'global_config',
-            'hooks',
-            'http',
-            '_integration_name',
-            '_settings',
-        ])
-        self._settings = {}
-        self._integration_name = integration_name
         self.global_config = global_config
         self.hooks = Hooks()
         self.http = HttpConfig()
-        # self._attrs = set(self.__dict__.keys())
+        self._integration_name = integration_name
 
     def __getattribute__(self, key):
-        """
-        Determine the value for the given key with the following precedence:
-        [high]
-        1) user-overridden value
-        2) environment variable
-        3) default value
-        [low]
-        """
+        item = super(IntegrationConfig, self).__getattribute__(key)
+        if key == '_attrs':
+            return item
+        return item if key in self._attrs else item.value
 
-        # DEV: this is necessary to avoid infinite recursion. This will need to
-        # be done for all self attributes on the IntegrationConfig.
-        # TODO: is there a better way to check for self attributes?
-
-        if key == 'integration_name' or key == '_settings':
-            return super(IntegrationConfig, self).__getattribute__(key)
-
-        settings = self._settings.get(key, None)
-
-        # If the value is user defined then use it.
-        if settings.user_defined:
-            return super(IntegrationConfig, self).__getattribute__(key)
-
-        # Then check the environment for an override
-        env_val = get_env(self._integration_name, key)
-        if env_val:
-            return env_val
-
-        # Finally, in the last case return the default value.
-        return super(IntegrationConfig, self).__getattribute__(key)
+    def __getitem__(self, key):
+        item = super(IntegrationConfig, self).__getitem__(key)
+        if isinstance(item, IntegrationConfigItem):
+            return item.value
+        else:
+            return item
 
     def __setattr__(self, key, value):
-        if key in set(['_attrs', '_settings']):
+        if key == '_attrs':
             return super(IntegrationConfig, self).__setattr__(key, value)
 
-        # If a given key is not in the special _attrs then update the settings
-        # for the key to indicate that the user has overridden the value.
-        if key not in self._attrs:
-            settings = self._settings.get(key, None)
-            if not settings:
-                settings = IntegrationConfigSettings(self, key)
-                self._settings[key] = settings
-            settings.user_defined = True
-        return super(IntegrationConfig, self).__setattr__(key, value)
+        # Ignore self attributes that we don't want to encapsulate with an
+        # IntegrationConfigItem.
+        if key in self._attrs:
+            return super(IntegrationConfig, self).__setattr__(key, value)
+
+        # if not hasattr(self, key):
+        if not hasattr(super(IntegrationConfig, self), key):
+            item = IntegrationConfigItem(self, key)
+        else:
+            # Have to use the super getattribute since ours will unwrap the
+            # IntegrationConfigValue.
+            item = super(IntegrationConfig, self).__getattribute__(key)
+        item.update_value(value)
+        item = super(IntegrationConfig, self).__setattr__(key, item)
+        return item.value if item else item
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self)))
@@ -204,21 +230,16 @@ class IntegrationConfig(AttrDict):
         new.http = deepcopy(self.http)
         return new
 
-    def set_default(self, key, value, env_var_name='', docstring=''):
-        """
+    def _add_default(self, key, value):
+        """Adds a default key and value to the configuration.
 
-        :param key:
-        :param value:
-        :param env_var_name:
-        :param docstring:
+        Note: for internal integration usage only.
+        :param key: key of the item
+        :param value: value of the item
         :return:
         """
-        settings = self._settings.get(key, None)
-        if not settings:
-            settings = IntegrationConfigSettings(self, key)
-            self._settings[key] = settings
-        settings.call()
-
+        item = IntegrationConfigItem(self, key, default_value=value)
+        return super(IntegrationConfig, self).__setattr__(key, item)
 
     def header_is_traced(self, header_name):
         """
