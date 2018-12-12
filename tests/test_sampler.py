@@ -74,7 +74,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = get_dummy_tracer()
             writer = tracer.writer
-            tracer.configure(sampler=AllSampler(), priority_sampling=True)
+            tracer.configure(sampler=AllSampler())
             # We need to set the writer because tracer.configure overrides it,
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
@@ -128,7 +128,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         ]
 
         tracer = get_dummy_tracer()
-        tracer.configure(sampler=AllSampler(), priority_sampling=True)
+        tracer.configure(sampler=AllSampler())
         priority_sampler = tracer.priority_sampler
         for case in cases:
             priority_sampler.set_sample_rate_by_service(case)
