@@ -80,6 +80,7 @@ class Tracer(opentracing.Tracer):
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
+        self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
         self._dd_tracer.configure(enabled=self._enabled,
                                   hostname=self._config.get(keys.AGENT_HOSTNAME),
                                   port=self._config.get(keys.AGENT_PORT),

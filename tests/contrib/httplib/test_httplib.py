@@ -497,6 +497,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             }
         )
 
+
 # Additional Python2 test cases for urllib
 if PY2:
     import urllib

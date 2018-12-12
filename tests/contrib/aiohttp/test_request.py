@@ -1,3 +1,4 @@
+# flake8: noqa
 import threading
 import asyncio
 import aiohttp_jinja2
@@ -45,7 +46,7 @@ class TestRequestTracing(TraceTestCase):
         # request
         eq_('aiohttp-web', request_span.service)
         eq_('aiohttp.request', request_span.name)
-        eq_('/template/', request_span.resource)
+        eq_('GET /template/', request_span.resource)
         # template
         eq_('aiohttp-web', template_span.service)
         eq_('aiohttp.template', template_span.name)

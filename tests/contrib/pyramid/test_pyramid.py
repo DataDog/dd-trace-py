@@ -12,7 +12,6 @@ from .app import create_app
 
 from tests.opentracer.utils import init_tracer
 from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer
 
 
 class PyramidBase(object):
@@ -38,6 +37,7 @@ class PyramidBase(object):
 
     def override_settings(self, settings):
         self.create_app(settings)
+
 
 class PyramidTestCase(PyramidBase):
     """Pyramid TestCase that includes tests for automatic instrumentation"""
@@ -224,7 +224,10 @@ class PyramidTestCase(PyramidBase):
     def test_insert_tween_if_needed_excview(self):
         settings = {'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'}
         insert_tween_if_needed(settings)
-        eq_(settings['pyramid.tweens'], 'ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory')
+        eq_(
+            settings['pyramid.tweens'],
+            'ddtrace.contrib.pyramid:trace_tween_factory\npyramid.tweens.excview_tween_factory',
+        )
 
     def test_insert_tween_if_needed_excview_and_other(self):
         settings = {'pyramid.tweens': 'a.first.tween\npyramid.tweens.excview_tween_factory\na.last.tween\n'}
@@ -277,6 +280,7 @@ class PyramidTestCase(PyramidBase):
         eq_(dd_span.meta.get('http.url'), '/')
         eq_(dd_span.meta.get('pyramid.route.name'), 'index')
 
+
 def includeme(config):
     pass
 
@@ -314,7 +318,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
         }
-        res = self.app.get('/', headers=headers, status=200)
+        self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
         eq_(len(spans), 1)

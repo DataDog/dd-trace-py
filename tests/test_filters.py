@@ -4,6 +4,7 @@ from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.span import Span
 from ddtrace.ext.http import URL
 
+
 class FilterRequestOnUrlTests(TestCase):
     def test_is_match(self):
         span = Span(name='Name', tracer=None)

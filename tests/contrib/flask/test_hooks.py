@@ -2,6 +2,7 @@ from flask import Blueprint
 
 from . import BaseFlaskTestCase
 
+
 class FlaskHookTestCase(BaseFlaskTestCase):
     def setUp(self):
         super(FlaskHookTestCase, self).setUp()
@@ -11,6 +12,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
             return 'Hello Flask', 200
 
         self.bp = Blueprint(__name__, 'bp')
+
         @self.bp.route('/bp')
         def bp():
             return 'Hello Blueprint', 200
@@ -304,7 +306,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         # Assert correct parent span
         self.assertEqual(parent.name, 'flask.preprocess_request')
 
-    def test_before_first_request(self):
+    def test_before_app_first_request(self):
         """
         When Blueprint before_first_request hook is registered
             We create the expected spans
@@ -341,7 +343,11 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 8)
 
-        span = self.find_span_by_name(spans, 'tests.contrib.flask.test_hooks.bp_before_app_first_request', required=False)
+        span = self.find_span_by_name(
+            spans,
+            'tests.contrib.flask.test_hooks.bp_before_app_first_request',
+            required=False,
+        )
         self.assertIsNone(span)
 
     def test_bp_after_request(self):

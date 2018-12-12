@@ -5,6 +5,7 @@ from ddtrace.opentracer.utils import (
     get_context_provider_for_scope_manager,
 )
 
+
 class TestOpentracerUtils(object):
     def test_get_context_provider_for_scope_manager_thread(self):
         scope_manager = ThreadLocalScopeManager()

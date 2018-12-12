@@ -7,7 +7,6 @@ from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace import compat
-from ddtrace.contrib.bottle import TracePlugin
 
 
 SERVICE = 'bottle-app'

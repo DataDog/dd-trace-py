@@ -8,7 +8,7 @@ if __name__ == "__main__":
     app_to_test = "tests/contrib/djangorestframework"
 
     # project_root is the path of dd-trace-py (ex: ~/go/src/DataDog/dd-trace-py/)
-    # We need to append the project_root path to the PYTHONPATH 
+    # We need to append the project_root path to the PYTHONPATH
     # in order to specify all our modules import from the project_root.
     current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     project_root = os.path.join(current_dir, '..', '..')
