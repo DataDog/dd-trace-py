@@ -119,8 +119,6 @@ class IntegrationConfigItem(object):
     TODO:
         - env_var_names param to allow custom environment variables to be checked
         - docstring param to allow the item to be described by the integration
-        - provide a method for the item to be reset back to the default after a
-          user has overridden and wants to remove their override.
         - global config fallback when no default is provided.
     """
     def __init__(self, config, key, default_value=None):
@@ -150,6 +148,11 @@ class IntegrationConfigItem(object):
             return env_val
 
         return self.default_value
+
+    def copy(self):
+        new = IntegrationConfigItem(self.config, self.key, self.default_value)
+        new.user_defined = self.user_defined
+        return new
 
 
 class IntegrationConfig(object):
@@ -183,9 +186,9 @@ class IntegrationConfig(object):
         self._items = dict()
 
         # Add the default items to the config if they are specified
-        defaults = defaults or {}
-        for key in defaults:
-            self._add_default(key, defaults[key])
+        self._defaults = defaults or {}
+        for key in self._defaults:
+            self._add_default(key, self._defaults[key])
 
         # This flag is for the __setattr__ to know when we have finished setting
         # attributes on the class.
@@ -193,8 +196,8 @@ class IntegrationConfig(object):
 
     def __getattr__(self, item):
         # Use the .items() of the config items (stored in self.items)
-        if item == 'items':
-            return self._items.items
+        if item in set(['items', 'update']):
+            return getattr(self._items, item)
 
         if item not in self._items:
             # This will intentionally raise an AttributeError for the config
@@ -209,7 +212,7 @@ class IntegrationConfig(object):
     def __setattr__(self, key, value):
         # If the class attributes have not yet been initialized or the key is
         # an attribute on this class then just use the normal object.__setattr__
-        if not self._initialized or hasattr(super(IntegrationConfig, self), key):
+        if not self._initialized or key in object.__getattribute__(self, '__dict__'):
             return object.__setattr__(self, key, value)
 
         # Else we have either a new attribute or an attribute to be stored as a
@@ -234,6 +237,15 @@ class IntegrationConfig(object):
         new.http = deepcopy(self.http)
         return new
 
+    def copy(self):
+        new = IntegrationConfig(self.global_config, self._integration_name, defaults=self._defaults)
+        for key, val in self.items():
+            new._items[key] = val.copy()
+        return new
+
+    def get(self, *args, **kwargs):
+        return self._items.get(*args, **kwargs)
+
     def _add_default(self, key, value):
         """Adds a default key and value to the configuration.
 
@@ -242,6 +254,7 @@ class IntegrationConfig(object):
         :return: the IntegrationConfigItem for the config item
         """
         item = IntegrationConfigItem(self, key, default_value=value)
+
         if key in self._items:
             log.warning('_add_default key already exists')
         self._items[key] = item

@@ -114,6 +114,13 @@ class TestIntegrationConfig(unittest.TestCase):
         config.service_name = 'test2'
         self.assertEqual(config.service_name, 'test2')
 
+    def test_multiple_set_item(self):
+        config = IntegrationConfig(Config(), '')
+        config['service_name'] = 'test'
+        self.assertEqual(config.service_name, 'test')
+        config['service_name'] = 'test2'
+        self.assertEqual(config.service_name, 'test2')
+
     def test_no_attr(self):
         """
         An AttributeError should be raised if an item is not stored in the config.
@@ -241,3 +248,18 @@ class TestIntegrationConfig(unittest.TestCase):
         redis_config = config.redis
         self.assertEqual(redis_config.key1, 'val1')
         self.assertEqual(redis_config.key2, 'val2')
+
+    def test_copy(self):
+        """
+        Test the _add method of adding configuration with multiple items.
+        """
+        config = Config()
+        config._add('redis', {
+            'service_name': 'default',
+        })
+
+        new = config.redis.copy()
+        self.assertEqual(new.service_name, 'default')
+        new.service_name = 'custom'
+        self.assertEqual(new.service_name, 'custom')
+        self.assertEqual(config.redis.service_name, 'default')
