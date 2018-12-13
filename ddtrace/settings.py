@@ -4,7 +4,6 @@ import logging
 
 from .pin import Pin
 from .span import Span
-from .utils.attrdict import AttrDict
 from .utils.formats import get_env
 from .utils.merge import deepmerge
 from .utils.http import normalize_header_name
@@ -74,9 +73,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, defaults=deepmerge(existing, settings))
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            self._config[integration] = IntegrationConfig(self, integration, defaults=settings)
 
     def trace_headers(self, whitelist):
         """
@@ -153,7 +152,7 @@ class IntegrationConfigItem(object):
         return self.default_value
 
 
-class IntegrationConfig(AttrDict):
+class IntegrationConfig(object):
     """
     Integration specific configuration object.
 
@@ -168,60 +167,66 @@ class IntegrationConfig(AttrDict):
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
+    _initialized = False
 
-    # DEV: Need to explicitly declare the attributes as to ignore them when
-    #      wrapping values stored in the config with an IntegrationConfigValue.
-    _attrs = set([
-        'global_config',
-        'hooks',
-        'http',
-        '_integration_name',
-    ])
-
-    def __init__(self, global_config, integration_name, *args, **kwargs):
+    def __init__(self, global_config, integration_name, defaults=None):
         """
-        :param global_config:
-        :type global_config: Config
-        :param args:
-        :param kwargs:
+        :param global_config: a reference back to the global config
+        :param integration_name: the name of the integration for this config
+        :param defaults: default key, value pairs to add
+        :type defaults: dict
         """
-        super(IntegrationConfig, self).__init__(*args, **kwargs)
         self.global_config = global_config
         self.hooks = Hooks()
         self.http = HttpConfig()
         self._integration_name = integration_name
+        self._items = dict()
 
-    def __getattribute__(self, key):
-        item = super(IntegrationConfig, self).__getattribute__(key)
-        if key == '_attrs':
-            return item
-        return item if key in self._attrs else item.value
+        # Add the default items to the config if they are specified
+        defaults = defaults or {}
+        for key in defaults:
+            self._add_default(key, defaults[key])
 
-    def __getitem__(self, key):
-        item = super(IntegrationConfig, self).__getitem__(key)
-        if isinstance(item, IntegrationConfigItem):
-            return item.value
-        else:
-            return item
+        # This flag is for the __setattr__ to know when we have finished setting
+        # attributes on the class.
+        self._initialized = True
+
+    def __getattr__(self, item):
+        # Use the .items() of the config items (stored in self.items)
+        if item == 'items':
+            return self._items.items
+
+        if item not in self._items:
+            # This will intentionally raise an AttributeError for the config
+            return object.__getattribute__(self, item)
+
+        item = self._items[item]
+        return item.value
+
+    def __getitem__(self, item):
+        return getattr(self, item)
 
     def __setattr__(self, key, value):
-        if key == '_attrs':
-            return super(IntegrationConfig, self).__setattr__(key, value)
+        # If the class attributes have not yet been initialized or the key is
+        # an attribute on this class then just use the normal object.__setattr__
+        if not self._initialized or hasattr(super(IntegrationConfig, self), key):
+            return object.__setattr__(self, key, value)
 
-        # Ignore self attributes that we don't want to encapsulate with an
-        # IntegrationConfigItem.
-        if key in self._attrs:
-            return super(IntegrationConfig, self).__setattr__(key, value)
+        # Else we have either a new attribute or an attribute to be stored as a
+        # config item.
 
-        if not hasattr(super(IntegrationConfig, self), key):
-            item = IntegrationConfigItem(self, key)
+        if not hasattr(self, key):
+            # If the attribute does not exist, add it as a default config item.
+            # TODO: should this be a no-op with a log message instead?
+            item = self._add_default(key, value)
         else:
-            # Have to use the super getattribute since ours will unwrap the
-            # IntegrationConfigValue.
-            item = super(IntegrationConfig, self).__getattribute__(key)
-        item.update_value(value)
-        item = super(IntegrationConfig, self).__setattr__(key, item)
-        return item.value if item else item
+            item = self._items[key]
+            item.update_value(value)
+            self._items[key] = item
+        return item.value
+
+    def __setitem__(self, key, value):
+        return setattr(self, key, value)
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self)))
@@ -232,13 +237,15 @@ class IntegrationConfig(AttrDict):
     def _add_default(self, key, value):
         """Adds a default key and value to the configuration.
 
-        Note: for internal integration usage only.
         :param key: key of the item
         :param value: value of the item
-        :return:
+        :return: the IntegrationConfigItem for the config item
         """
         item = IntegrationConfigItem(self, key, default_value=value)
-        return super(IntegrationConfig, self).__setattr__(key, item)
+        if key in self._items:
+            log.warning('_add_default key already exists')
+        self._items[key] = item
+        return item
 
     def header_is_traced(self, header_name):
         """

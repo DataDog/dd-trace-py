@@ -61,10 +61,6 @@ class TestHttpConfig(object):
 
 class TestIntegrationConfig(unittest.TestCase):
 
-    def test_is_a_dict(self):
-        integration_config = IntegrationConfig(Config(), '')
-        assert isinstance(integration_config, dict)
-
     def test_allow_item_access(self):
         config = IntegrationConfig(Config(), '')
         config['setting'] = 'value'
@@ -198,16 +194,50 @@ class TestIntegrationConfig(unittest.TestCase):
             redis_config.service_name = 'ud2_service_name'
             self.assertEqual(redis_config.service_name, 'ud2_service_name')
 
-    def test_del_key(self):
+    def test_precedence_add(self):
         """
-        Test that a user override can be deleted.
-
-        TODO: is this the behaviour we want?
+        Test using the config with defaults, environment variables and user
+        overrides when the config is initialized using _add().
         """
-        redis_config = Config().redis
-        redis_config._add_default('service_name', 'dd_service_name')
-        redis_config.service_name = 'custom_service_name'
-        self.assertEqual(redis_config.service_name, 'custom_service_name')
+        config = Config()
+        config._add('redis', {
+            'service_name': 'dd_service_name',
+        })
 
-        del redis_config['service_name']
-        self.assertEqual(redis_config.service_name, 'custom_service_name')
+        self.assertEqual(config.redis.service_name, 'dd_service_name')
+
+        # Check the environment variable.
+        with mock.patch.dict(os.environ, {'DATADOG_REDIS_SERVICE_NAME': 'ude_service_name'}):
+            self.assertEqual(config.redis.service_name, 'ude_service_name')
+
+            # Manual user override while still having the environment variable.
+            config.redis.service_name = 'ud_service_name'
+            self.assertEqual(config.redis.service_name, 'ud_service_name')
+
+            # Check a second manual override.
+            config.redis.service_name = 'ud2_service_name'
+            self.assertEqual(config.redis.service_name, 'ud2_service_name')
+
+    def test__add(self):
+        """
+        Test the _add method of adding configuration.
+        """
+        config = Config()
+        config._add('redis', {
+            'service_name': 'dd_service_name',
+        })
+        redis_config = config.redis
+        self.assertEqual(redis_config.service_name, 'dd_service_name')
+
+    def test__add_multiple(self):
+        """
+        Test the _add method of adding configuration with multiple items.
+        """
+        config = Config()
+        config._add('redis', {
+            'key1': 'val1',
+            'key2': 'val2',
+        })
+        redis_config = config.redis
+        self.assertEqual(redis_config.key1, 'val1')
+        self.assertEqual(redis_config.key2, 'val2')
