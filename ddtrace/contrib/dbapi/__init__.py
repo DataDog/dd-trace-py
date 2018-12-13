@@ -8,8 +8,15 @@ import wrapt
 
 from ddtrace import Pin
 from ddtrace.ext import AppTypes, sql
+from ddtrace.settings import config
 
 log = logging.getLogger(__name__)
+
+config._add('_dbapi2', dict(
+    connection_trace_commit=True,
+    connection_trace_rollback=True,
+    cursor_trace_fetch=True,
+))
 
 
 class TracedCursor(wrapt.ObjectProxy):
@@ -74,18 +81,27 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def fetchone(self, *args, **kwargs):
         """ Wraps the cursor.fetchone method"""
+        if not config._dbapi2.cursor_trace_fetch:
+            return self.__wrapped__.fetchone(*args, **kwargs)
+
         span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
         return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
                                   *args, **kwargs)
 
     def fetchall(self, *args, **kwargs):
         """ Wraps the cursor.fetchall method"""
+        if not config._dbapi2.cursor_trace_fetch:
+            return self.__wrapped__.fetchall(*args, **kwargs)
+
         span_name = '{}.{}'.format(self._self_datadog_name, 'fetchall')
         return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
                                   *args, **kwargs)
 
     def fetchmany(self, *args, **kwargs):
         """ Wraps the cursor.fetchmany method"""
+        if not config._dbapi2.cursor_trace_fetch:
+            return self.__wrapped__.fetchmany(*args, **kwargs)
+
         span_name = '{}.{}'.format(self._self_datadog_name, 'fetchmany')
         # We want to trace the information about how many rows were requested. Note that this number may be larger
         # the number of rows actually returned if less then requested are available from the query.
@@ -149,10 +165,16 @@ class TracedConnection(wrapt.ObjectProxy):
         return self._self_cursor_cls(cursor, pin)
 
     def commit(self, *args, **kwargs):
+        if not config._dbapi2.connection_trace_commit:
+            return self.__wrapped__.commit(*args, **kwargs)
+
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
         return self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
+        if not config._dbapi2.connection_trace_rollback:
+            return self.__wrapped__.rollback(*args, **kwargs)
+
         span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
