@@ -1,3 +1,5 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
 
 from nose.tools import eq_, ok_

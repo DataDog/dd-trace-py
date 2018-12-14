@@ -134,7 +134,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'boto_contrib-{py27,py34}-boto' --result-json /tmp/boto.1.results
-      - run: tox -e 'botocore_contrib-{py27,py34}-botocore' --result-json /tmp/boto.2.results
+      - run: tox -e 'botocore_contrib-{py27,py34,py35,py36}-botocore' --result-json /tmp/boto.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -418,6 +418,20 @@ jobs:
           root: /tmp
           paths:
             - grpc.results
+      - *save_cache_step
+
+  molten:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'molten_contrib-{py36}-molten{070,072}' --result-json /tmp/molten.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - molten.results
       - *save_cache_step
 
   mysqlconnector:
@@ -985,6 +999,9 @@ workflows:
       - kombu:
           requires:
             - flake8
+      - molten:
+          requires:
+            - flake8
       - mongoengine:
           requires:
             - flake8
@@ -1082,6 +1099,7 @@ workflows:
             - integration
             - jinja2
             - kombu
+            - molten
             - mongoengine
             - msgpack
             - mysqlconnector

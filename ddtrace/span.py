@@ -193,12 +193,12 @@ class Span(object):
 
     def to_dict(self):
         d = {
-            'trace_id' : self.trace_id,
-            'parent_id' : self.parent_id,
-            'span_id' : self.span_id,
+            'trace_id': self.trace_id,
+            'parent_id': self.parent_id,
+            'span_id': self.span_id,
             'service': self.service,
-            'resource' : self.resource,
-            'name' : self.name,
+            'resource': self.resource,
+            'name': self.name,
             'error': self.error,
         }
 
@@ -241,7 +241,7 @@ class Span(object):
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
-            return # nothing to do
+            return  # nothing to do
 
         self.error = 1
 
@@ -314,6 +314,7 @@ class Span(object):
             self.parent_id,
             self.name,
         )
+
 
 def _new_id():
     """Generate a random trace_id or span_id"""

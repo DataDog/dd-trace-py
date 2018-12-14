@@ -124,7 +124,7 @@ class TestPy2Py3Compat(object):
         with assert_raises(Exception) as ex:
             try:
                 raise Exception('Ouch!')
-            except Exception as e:
+            except Exception:
                 # original exception we want to re-raise
                 (typ, val, tb) = sys.exc_info()
                 try:

@@ -7,7 +7,7 @@ from nose.tools import eq_
 import pymongo
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 
@@ -20,6 +20,7 @@ from ...test_tracer import get_dummy_tracer
 class Artist(mongoengine.Document):
     first_name = mongoengine.StringField(max_length=50)
     last_name = mongoengine.StringField(max_length=50)
+
 
 class MongoEngineCore(object):
 
@@ -208,6 +209,7 @@ class TestMongoEnginePatchClientDefault(MongoEngineCore):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return tracer
+
 
 class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     """Test suite with a Pin local to a specific client with custom service"""

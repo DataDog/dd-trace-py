@@ -10,7 +10,6 @@ from ddtrace.ext import system
 from ddtrace.context import Context
 
 from .base import BaseTracerTestCase
-from .utils.span import TestSpan
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
 
@@ -283,7 +282,7 @@ class TracerTestCase(BaseTracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace('parent') as span:
-            span.metrics['as'] = np.int64(1) # circumvent the data checks
+            span.metrics['as'] = np.int64(1)  # circumvent the data checks
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):

@@ -23,7 +23,7 @@ class MySQLCore(object):
         if self.conn:
             try:
                 self.conn.ping()
-            except MySQLdb.InterfaceError:
+            except mysql.InterfaceError:
                 pass
             else:
                 self.conn.close()
@@ -85,8 +85,10 @@ class MySQLCore(object):
         tracer.enabled = True
 
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
-        data = [("foo","this is foo"),
-                ("bar","this is bar")]
+        data = [
+            ('foo', 'this is foo'),
+            ('bar', 'this is bar'),
+        ]
         cursor.executemany(stmt, data)
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)

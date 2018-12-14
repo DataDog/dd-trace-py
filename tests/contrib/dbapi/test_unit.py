@@ -1,9 +1,8 @@
 import unittest
 import mock
 
-from ddtrace import Pin, Span
+from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedCursor, TracedConnection
-from ddtrace.ext import AppTypes, sql
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -49,7 +48,6 @@ class TestTracedCursor(unittest.TestCase):
 
     def test_fetchmany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
-        tracer = self.tracer
         cursor.rowcount = 0
         cursor.fetchmany.return_value = '__result__'
         pin = Pin('pin_name', tracer=self.tracer)
@@ -178,8 +176,8 @@ class TestTracedCursor(unittest.TestCase):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
-class TestTracedConnection(unittest.TestCase):
 
+class TestTracedConnection(unittest.TestCase):
     def setUp(self):
         self.connection = mock.Mock()
         self.tracer = get_dummy_tracer()

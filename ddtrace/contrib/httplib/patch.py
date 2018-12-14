@@ -74,7 +74,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             parsed.netloc,
             parsed.path,
             parsed.params,
-            None, # drop query
+            None,  # drop query
             parsed.fragment
         ))
 
