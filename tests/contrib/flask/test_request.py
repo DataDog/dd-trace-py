@@ -102,7 +102,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         )
 
         for span in self.spans:
-            if span is root:
+            if span == root:
                 continue
             self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
