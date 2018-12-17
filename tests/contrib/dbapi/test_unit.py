@@ -2,15 +2,16 @@ import unittest
 import mock
 
 from ddtrace import Pin
-from ddtrace.contrib.dbapi import TracedCursor, TracedConnection
+from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class TestTracedCursor(unittest.TestCase):
+class TestTracedCursor(BaseTracerTestCase):
 
     def setUp(self):
+        super(TestTracedCursor, self).setUp()
         self.cursor = mock.Mock()
-        self.tracer = get_dummy_tracer()
 
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -63,22 +64,25 @@ class TestTracedCursor(unittest.TestCase):
         traced_cursor = TracedCursor(cursor, pin)
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'sql.query'
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
 
         traced_cursor.executemany('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'sql.query'
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
 
         traced_cursor.callproc('arg_1', 'arg2')
-        assert tracer.writer.pop()[0].name == 'sql.query'
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
 
         traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'sql.query.fetchone'
+        self.assert_has_no_spans()
 
         traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'sql.query.fetchmany'
+        self.assert_has_no_spans()
 
         traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'sql.query.fetchall'
+        self.assert_has_no_spans()
 
     def test_correct_span_names_can_be_overridden_by_pin(self):
         cursor = self.cursor
@@ -88,22 +92,25 @@ class TestTracedCursor(unittest.TestCase):
         traced_cursor = TracedCursor(cursor, pin)
 
         traced_cursor.execute('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'changed.query'
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
 
         traced_cursor.executemany('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'changed.query'
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
 
         traced_cursor.callproc('arg_1', 'arg2')
-        assert tracer.writer.pop()[0].name == 'changed.query'
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
 
         traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'changed.query.fetchone'
+        self.assert_has_no_spans()
 
         traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'changed.query.fetchmany'
+        self.assert_has_no_spans()
 
         traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
-        assert tracer.writer.pop()[0].name == 'changed.query.fetchall'
+        self.assert_has_no_spans()
 
     def test_when_pin_disabled_then_no_tracing(self):
         cursor = self.cursor
@@ -177,10 +184,210 @@ class TestTracedCursor(unittest.TestCase):
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
 
-class TestTracedConnection(unittest.TestCase):
+class TestFetchTracedCursor(BaseTracerTestCase):
+
     def setUp(self):
+        super(TestFetchTracedCursor, self).setUp()
+        self.cursor = mock.Mock()
+
+    def test_execute_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+        assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+        cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
+
+    def test_executemany_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+        assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
+        cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
+
+    def test_fetchone_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.fetchone.return_value = '__result__'
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+        assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
+        cursor.fetchone.assert_called_once_with('arg_1', kwarg1='kwarg1')
+
+    def test_fetchall_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.fetchall.return_value = '__result__'
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+        assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
+        cursor.fetchall.assert_called_once_with('arg_1', kwarg1='kwarg1')
+
+    def test_fetchmany_wrapped_is_called_and_returned(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.fetchmany.return_value = '__result__'
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+        assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
+        cursor.fetchmany.assert_called_once_with('arg_1', kwarg1='kwarg1')
+
+    def test_correct_span_names(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 0
+        pin = Pin('pin_name', tracer=tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+
+        traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
+
+        traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
+
+        traced_cursor.callproc('arg_1', 'arg2')
+        self.assert_structure(dict(name='sql.query'))
+        self.reset()
+
+        traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='sql.query.fetchone'))
+        self.reset()
+
+        traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='sql.query.fetchmany'))
+        self.reset()
+
+        traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='sql.query.fetchall'))
+        self.reset()
+
+    def test_correct_span_names_can_be_overridden_by_pin(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 0
+        pin = Pin('pin_name', app='changed', tracer=tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+
+        traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
+
+        traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
+
+        traced_cursor.callproc('arg_1', 'arg2')
+        self.assert_structure(dict(name='changed.query'))
+        self.reset()
+
+        traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='changed.query.fetchone'))
+        self.reset()
+
+        traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='changed.query.fetchmany'))
+        self.reset()
+
+        traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
+        self.assert_structure(dict(name='changed.query.fetchall'))
+        self.reset()
+
+    def test_when_pin_disabled_then_no_tracing(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 0
+        tracer.enabled = False
+        pin = Pin('pin_name', tracer=tracer)
+        traced_cursor = FetchTracedCursor(cursor, pin)
+
+        assert traced_cursor is traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        assert len(tracer.writer.pop()) == 0
+
+        assert traced_cursor is traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        assert len(tracer.writer.pop()) == 0
+
+        cursor.callproc.return_value = 'callproc'
+        assert 'callproc' == traced_cursor.callproc('arg_1', 'arg_2')
+        assert len(tracer.writer.pop()) == 0
+
+        cursor.fetchone.return_value = 'fetchone'
+        assert 'fetchone' == traced_cursor.fetchone('arg_1', 'arg_2')
+        assert len(tracer.writer.pop()) == 0
+
+        cursor.fetchmany.return_value = 'fetchmany'
+        assert 'fetchmany' == traced_cursor.fetchmany('arg_1', 'arg_2')
+        assert len(tracer.writer.pop()) == 0
+
+        cursor.fetchall.return_value = 'fetchall'
+        assert 'fetchall' == traced_cursor.fetchall('arg_1', 'arg_2')
+        assert len(tracer.writer.pop()) == 0
+
+    def test_span_info(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        cursor.rowcount = 123
+        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        traced_cursor = FetchTracedCursor(cursor, pin)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        assert span.meta['pin1'] == 'value_pin1', 'Pin tags are preserved'
+        assert span.meta['extra1'] == 'value_extra1', 'Extra tags are merged into pin tags'
+        assert span.name == 'my_name', 'Span name is respected'
+        assert span.service == 'my_service', 'Service from pin'
+        assert span.resource == 'my_resource', 'Resource is respected'
+        assert span.span_type == 'sql', 'Span has the correct span type'
+        # Row count
+        assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+
+    def test_django_traced_cursor_backward_compatibility(self):
+        cursor = self.cursor
+        tracer = self.tracer
+        # Django integration used to have its own FetchTracedCursor implementation. When we replaced such custom
+        # implementation with the generic dbapi traced cursor, we had to make sure to add the tag 'sql.rows' that was
+        # set by the legacy replaced implementation.
+        cursor.rowcount = 123
+        pin = Pin('my_service', app='my_app', tracer=tracer, tags={'pin1': 'value_pin1'})
+        traced_cursor = FetchTracedCursor(cursor, pin)
+
+        def method():
+            pass
+
+        traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
+        span = tracer.writer.pop()[0]  # type: Span
+        # Row count
+        assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+
+
+class TestTracedConnection(BaseTracerTestCase):
+    def setUp(self):
+        super(TestTracedConnection, self).setUp()
         self.connection = mock.Mock()
-        self.tracer = get_dummy_tracer()
+
+    def test_cursor_class(self):
+        pin = Pin('pin_name', tracer=self.tracer)
+
+        # Default
+        traced_connection = TracedConnection(self.connection, pin=pin)
+        self.assertTrue(traced_connection._self_cursor_cls is TracedCursor)
+
+        # Trace fetched methods
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            traced_connection = TracedConnection(self.connection, pin=pin)
+            self.assertTrue(traced_connection._self_cursor_cls is FetchTracedCursor)
+
+        # Manually provided cursor class
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            traced_connection = TracedConnection(self.connection, pin=pin, cursor_cls=TracedCursor)
+            self.assertTrue(traced_connection._self_cursor_cls is TracedCursor)
 
     def test_commit_is_traced(self):
         connection = self.connection
