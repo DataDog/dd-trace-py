@@ -8,7 +8,8 @@ import imp
 import sys
 import logging
 
-from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.logs import patch_log_inspection
 
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
@@ -66,6 +67,7 @@ try:
     hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
+    logs_injection = get_env('DD_LOGS_INJECTION')
 
     opts = {}
 
@@ -85,6 +87,9 @@ try:
     if patch:
         update_patched_modules()
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
+
+    if logs_injection:
+        patch_log_injection()
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
     if debug and debug.lower() == "true":
