@@ -2,10 +2,10 @@ import unittest
 import logging
 import sys
 import wrapt
-from StringIO import StringIO
 
 from ddtrace import correlation
 from ddtrace import tracer
+from ddtrace.compat import StringIO
 from ddtrace.utils.logs import patch_log_injection, unpatch_log_injection
 
 logger = logging.getLogger()
