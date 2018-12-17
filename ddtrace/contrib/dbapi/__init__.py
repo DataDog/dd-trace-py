@@ -13,7 +13,7 @@ from ddtrace.settings import config
 log = logging.getLogger(__name__)
 
 config._add('dbapi2', dict(
-    cursor_trace_fetch=False,
+    trace_fetch_methods=False,
 ))
 
 
@@ -136,7 +136,7 @@ class TracedConnection(wrapt.ObjectProxy):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedCursor
-            if config.dbapi2.cursor_trace_fetch:
+            if config.dbapi2.trace_fetch_methods:
                 cursor_cls = FetchTracedCursor
 
         super(TracedConnection, self).__init__(conn)
