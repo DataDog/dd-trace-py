@@ -24,7 +24,6 @@ def get_correlation_ids():
     # At the time of writing, it's enough to support our Datadog Tracer.
     tracer = ddtrace.tracer
     span = tracer.current_span()
-    import pdb; pdb.set_trace()
     if span is None:
         return None, None
     return span.trace_id, span.span_id
