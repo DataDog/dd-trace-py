@@ -1,9 +1,7 @@
-import unittest
 import mock
 
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
-from tests.test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
 
 
