@@ -6,7 +6,7 @@ from json import loads
 
 # project
 from .encoding import get_encoder, JSONEncoder
-from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER
+from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 
 
 log = logging.getLogger(__name__)
@@ -18,13 +18,14 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'compatibility_mode': False,
                       'fallback': 'v0.3'},
              'v0.3': {'traces': '/v0.3/traces',
-                     'services': '/v0.3/services',
+                      'services': '/v0.3/services',
                       'compatibility_mode': False,
                       'fallback': 'v0.2'},
              'v0.2': {'traces': '/v0.2/traces',
-                     'services': '/v0.2/services',
+                      'services': '/v0.2/services',
                       'compatibility_mode': True,
                       'fallback': None}}
+
 
 def _parse_response_json(response):
     """
@@ -47,6 +48,7 @@ def _parse_response_json(response):
             return content
         except (ValueError, TypeError) as err:
             log.debug("unable to load JSON '%s': %s" % (body, err))
+
 
 class API(object):
     """
@@ -133,11 +135,13 @@ class API(object):
 
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
+        try:
+            headers = self._headers
+            if count:
+                headers = dict(self._headers)
+                headers[TRACE_COUNT_HEADER] = str(count)
 
-        headers = self._headers
-        if count:
-            headers = dict(self._headers)
-            headers[TRACE_COUNT_HEADER] = str(count)
-
-        conn.request("PUT", endpoint, data, headers)
-        return conn.getresponse()
+            conn.request("PUT", endpoint, data, headers)
+            return get_connection_response(conn)
+        finally:
+            conn.close()

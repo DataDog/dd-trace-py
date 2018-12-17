@@ -1,5 +1,3 @@
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.ext import errors as errx, http as httpx, AppTypes
 from falcon import testing
 from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer

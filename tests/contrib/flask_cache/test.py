@@ -13,6 +13,7 @@ from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 from flask import Flask
 
 # testing
+from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 from ...test_tracer import DummyWriter
 from ...util import assert_dict_issuperset
@@ -295,3 +296,44 @@ class FlaskCacheTest(unittest.TestCase):
             eq_(span.meta[CACHE_BACKEND], "memcached")
             eq_(span.meta[net.TARGET_HOST], "127.0.0.1")
             eq_(span.meta[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)
+
+    def test_simple_cache_get_ot(self):
+        """OpenTracing version of test_simple_cache_get."""
+        # initialize the dummy writer
+        writer = DummyWriter()
+        tracer = Tracer()
+        tracer.writer = writer
+
+        ot_tracer = init_tracer("my_svc", tracer)
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(tracer, service=self.SERVICE)
+        app = Flask(__name__)
+        cache = Cache(app, config={"CACHE_TYPE": "simple"})
+
+        with ot_tracer.start_active_span("ot_span"):
+            cache.get(u"á_complex_operation")
+
+        spans = writer.pop()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.resource, "ot_span")
+        eq_(ot_span.service, "my_svc")
+
+        eq_(dd_span.service, self.SERVICE)
+        eq_(dd_span.resource, "get")
+        eq_(dd_span.name, "flask_cache.cmd")
+        eq_(dd_span.span_type, "cache")
+        eq_(dd_span.error, 0)
+
+        expected_meta = {
+            "flask_cache.key": u"á_complex_operation",
+            "flask_cache.backend": "simple",
+        }
+
+        assert_dict_issuperset(dd_span.meta, expected_meta)

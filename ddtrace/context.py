@@ -2,7 +2,7 @@ import logging
 import threading
 
 from .constants import SAMPLING_PRIORITY_KEY
-
+from .utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +22,9 @@ class Context(object):
 
     This data structure is thread-safe.
     """
+    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
+    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
+
     def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
         """
         Initialize a new thread-safe ``Context``.
@@ -83,6 +86,12 @@ class Context(object):
             )
             new_ctx._current_span = self._current_span
             return new_ctx
+
+    def get_current_root_span(self):
+        """
+        Return the root span of the context or None if it does not exist.
+        """
+        return self._trace[0] if len(self._trace) > 0 else None
 
     def get_current_span(self):
         """
@@ -184,6 +193,31 @@ class Context(object):
                 self._sampling_priority = None
                 self._sampled = True
                 return trace, sampled
+
+            elif self._partial_flush_enabled and self._finished_spans >= self._partial_flush_min_spans:
+                # partial flush when enabled and we have more than the minimal required spans
+                trace = self._trace
+                sampled = self._sampled
+                sampling_priority = self._sampling_priority
+                # attach the sampling priority to the context root span
+                if sampled and sampling_priority is not None and trace:
+                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+
+                # Any open spans will remain as `self._trace`
+                # Any finished spans will get returned to be flushed
+                opened_spans = []
+                closed_spans = []
+                for span in trace:
+                    if span._finished:
+                        closed_spans.append(span)
+                    else:
+                        opened_spans.append(span)
+
+                # Update trace spans and stats
+                self._trace = opened_spans
+                self._finished_spans = 0
+
+                return closed_spans, sampled
             else:
                 return None, None
 

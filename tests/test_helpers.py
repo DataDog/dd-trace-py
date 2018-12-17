@@ -6,6 +6,7 @@ from nose.tools import eq_, ok_
 from .util import override_global_tracer
 from .test_tracer import get_dummy_tracer
 
+
 class HelpersTestCase(TestCase):
     """Test suite for ``ddtrace`` helpers"""
     def setUp(self):

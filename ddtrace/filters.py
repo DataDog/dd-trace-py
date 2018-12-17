@@ -2,6 +2,7 @@ import re
 
 from .ext import http
 
+
 class FilterRequestsOnUrl(object):
     """Filter out traces from incoming http requests based on the request's url.
     This class takes as argument a list of regular expression patterns

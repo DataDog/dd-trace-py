@@ -1,6 +1,10 @@
 from nose.tools import eq_, ok_
 
+from ddtrace import config
 from ddtrace.ext import errors as errx, http as httpx
+
+from tests.opentracer.utils import init_tracer
+from ...util import override_config
 
 
 class FalconTestCase(object):
@@ -65,6 +69,7 @@ class FalconTestCase(object):
         eq_(span.get_tag(httpx.STATUS_CODE), '200')
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/200')
         eq_(span.parent_id, None)
+        eq_(span.span_type, 'http')
 
     def test_201(self):
         out = self.simulate_post('/201')
@@ -127,3 +132,63 @@ class FalconTestCase(object):
         eq_(span.get_tag(httpx.STATUS_CODE), '404')
         ok_(span.get_tag(errx.ERROR_TYPE) is None)
         eq_(span.parent_id, None)
+
+    def test_200_ot(self):
+        """OpenTracing version of test_200."""
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        with ot_tracer.start_active_span('ot_span'):
+            out = self.simulate_get('/200')
+
+        eq_(out.status_code, 200)
+        eq_(out.content.decode('utf-8'), 'Success')
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, 'my_svc')
+        eq_(ot_span.resource, 'ot_span')
+
+        eq_(dd_span.name, 'falcon.request')
+        eq_(dd_span.service, self._service)
+        eq_(dd_span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
+        eq_(dd_span.get_tag(httpx.STATUS_CODE), '200')
+        eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
+
+    def test_falcon_request_hook(self):
+        @config.falcon.hooks.on('request')
+        def on_falcon_request(span, request, response):
+            span.set_tag('my.custom', 'tag')
+
+        out = self.simulate_get('/200')
+        eq_(out.status_code, 200)
+        eq_(out.content.decode('utf-8'), 'Success')
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.get_tag('http.request.headers.my_header'), None)
+        eq_(span.get_tag('http.response.headers.my_response_header'), None)
+
+        eq_(span.name, 'falcon.request')
+
+        eq_(span.get_tag('my.custom'), 'tag')
+
+    def test_http_header_tracing(self):
+        with override_config('falcon', {}):
+            config.falcon.http.trace_headers(['my-header', 'my-response-header'])
+            self.simulate_get('/200', headers={'my-header': 'my_value'})
+            traces = self.tracer.writer.pop_traces()
+
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 1)
+        span = traces[0][0]
+        eq_(span.get_tag('http.request.headers.my-header'), 'my_value')
+        eq_(span.get_tag('http.response.headers.my-response-header'), 'my_response_value')

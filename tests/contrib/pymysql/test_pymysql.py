@@ -10,6 +10,8 @@ from ddtrace.compat import PY2
 from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
 
+# testing
+from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
 from ...test_tracer import get_dummy_tracer
 from ...contrib.config import MYSQL_CONFIG
@@ -55,7 +57,7 @@ class PyMySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -66,6 +68,9 @@ class PyMySQLCore(object):
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
 
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
+
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
@@ -75,7 +80,10 @@ class PyMySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 3)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
+
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -104,8 +112,11 @@ class PyMySQLCore(object):
         eq_(rows[1][1], "this is foo")
 
         spans = writer.pop()
-        eq_(len(spans), 2)
+        eq_(len(spans), 3)
         cursor.execute("drop table if exists dummy")
+
+        fetch_span = spans[2]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
 
     def test_query_proc(self):
         conn, tracer = self._get_conn_tracer()
@@ -151,6 +162,58 @@ class PyMySQLCore(object):
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
 
+    def test_simple_query_ot(self):
+        """OpenTracing version of test_simple_query."""
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        ot_tracer = init_tracer('mysql_svc', tracer)
+        with ot_tracer.start_active_span('mysql_op'):
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+
+        spans = writer.pop()
+        eq_(len(spans), 3)
+        ot_span, dd_span, fetch_span = spans
+
+        # confirm parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.service, 'mysql_svc')
+        eq_(ot_span.name, 'mysql_op')
+
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, 'pymysql.query')
+        eq_(dd_span.span_type, 'sql')
+        eq_(dd_span.error, 0)
+        meta = {}
+        meta.update(self.DB_INFO)
+        assert_dict_issuperset(dd_span.meta, meta)
+
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
+
+    def test_commit(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.commit()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'pymysql.connection.commit')
+
+    def test_rollback(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'pymysql.connection.rollback')
+
 
 class TestPyMysqlPatch(PyMySQLCore, TestCase):
     def _get_conn_tracer(self):
@@ -190,7 +253,7 @@ class TestPyMysqlPatch(PyMySQLCore, TestCase):
             rows = cursor.fetchall()
             eq_(len(rows), 1)
             spans = writer.pop()
-            eq_(len(spans), 1)
+            eq_(len(spans), 2)
 
             span = spans[0]
             eq_(span.service, self.TEST_SERVICE)
@@ -201,6 +264,9 @@ class TestPyMysqlPatch(PyMySQLCore, TestCase):
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.meta, meta)
+
+            fetch_span = spans[1]
+            eq_(fetch_span.name, 'pymysql.query.fetchall')
 
         finally:
             unpatch()

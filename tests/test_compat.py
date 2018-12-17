@@ -3,10 +3,10 @@
 import sys
 
 # Third party
-from nose.tools import eq_, assert_raises
+from nose.tools import eq_, ok_, assert_raises
 
 # Project
-from ddtrace.compat import to_unicode, PY2, reraise
+from ddtrace.compat import to_unicode, PY2, reraise, get_connection_response
 
 
 # Use different test suites for each Python version, this allows us to test the expected
@@ -61,6 +61,16 @@ if PY2:
             eq_(to_unicode(None), u'None')
             eq_(to_unicode(dict(key='value')), u'{\'key\': \'value\'}')
 
+        def test_get_connection_response(self):
+            """Ensure that buffering is in kwargs."""
+
+            class MockConn(object):
+                def getresponse(self, *args, **kwargs):
+                    ok_('buffering' in kwargs)
+
+            mock = MockConn()
+            get_connection_response(mock)
+
 else:
     class TestCompatPY3(object):
         def test_to_unicode_string(self):
@@ -94,6 +104,16 @@ else:
             eq_(to_unicode(None), 'None')
             eq_(to_unicode(dict(key='value')), '{\'key\': \'value\'}')
 
+        def test_get_connection_response(self):
+            """Ensure that buffering is NOT in kwargs."""
+
+            class MockConn(object):
+                def getresponse(self, *args, **kwargs):
+                    ok_('buffering' not in kwargs)
+
+            mock = MockConn()
+            get_connection_response(mock)
+
 
 class TestPy2Py3Compat(object):
     """Common tests to ensure functions are both Python 2 and
@@ -104,7 +124,7 @@ class TestPy2Py3Compat(object):
         with assert_raises(Exception) as ex:
             try:
                 raise Exception('Ouch!')
-            except Exception as e:
+            except Exception:
                 # original exception we want to re-raise
                 (typ, val, tb) = sys.exc_info()
                 try:

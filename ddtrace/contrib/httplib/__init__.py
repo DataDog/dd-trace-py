@@ -26,6 +26,7 @@ Usage::
     Pin.override(http.client, service='httplib')
     resp = urllib.request.urlopen('http://www.datadog.com/')
 
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from .patch import patch, unpatch
 __all__ = ['patch', 'unpatch']

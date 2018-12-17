@@ -1,3 +1,4 @@
+# flake8: noqa
 import asyncio
 
 from nose.tools import eq_, ok_
@@ -7,6 +8,8 @@ from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
 from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 
+from opentracing.scope_managers.asyncio import AsyncioScopeManager
+from tests.opentracer.utils import init_tracer
 from .utils import TraceTestCase
 from .app.web import setup_app, noop_middleware
 
@@ -47,7 +50,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_('aiohttp.request', span.name)
         eq_('aiohttp-web', span.service)
         eq_('http', span.span_type)
-        eq_('/', span.resource)
+        eq_('GET /', span.resource)
         eq_('/', span.get_tag('http.url'))
         eq_('GET', span.get_tag('http.method'))
         eq_('200', span.get_tag('http.status_code'))
@@ -67,7 +70,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(traces[0]))
         span = traces[0][0]
         # with the right fields
-        eq_('/echo/{name}', span.resource)
+        eq_('GET /echo/{name}', span.resource)
         eq_('/echo/team', span.get_tag('http.url'))
         eq_('200', span.get_tag('http.status_code'))
 
@@ -105,7 +108,7 @@ class TestTraceMiddleware(TraceTestCase):
         coroutine = traces[0][2]
         # root span created in the middleware
         eq_('aiohttp.request', root.name)
-        eq_('/chaining/', root.resource)
+        eq_('GET /chaining/', root.resource)
         eq_('/chaining/', root.get_tag('http.url'))
         eq_('GET', root.get_tag('http.method'))
         eq_('200', root.get_tag('http.status_code'))
@@ -133,7 +136,7 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # root span created in the middleware
         eq_('aiohttp.request', span.name)
-        eq_('/statics', span.resource)
+        eq_('GET /statics', span.resource)
         eq_('/statics/empty.txt', span.get_tag('http.url'))
         eq_('GET', span.get_tag('http.method'))
         eq_('200', span.get_tag('http.status_code'))
@@ -169,7 +172,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(spans))
         span = spans[0]
         eq_(1, span.error)
-        eq_('/exception', span.resource)
+        eq_('GET /exception', span.resource)
         eq_('error', span.get_tag('error.msg'))
         ok_('Exception: error' in span.get_tag('error.stack'))
 
@@ -186,7 +189,7 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(1, len(spans))
         span = spans[0]
         eq_(1, span.error)
-        eq_('/async_exception', span.resource)
+        eq_('GET /async_exception', span.resource)
         eq_('error', span.get_tag('error.msg'))
         ok_('Exception: error' in span.get_tag('error.stack'))
 
@@ -203,7 +206,7 @@ class TestTraceMiddleware(TraceTestCase):
         spans = traces[0]
         eq_(2, len(spans))
         span = spans[0]
-        eq_('/wrapped_coroutine', span.resource)
+        eq_('GET /wrapped_coroutine', span.resource)
         span = spans[1]
         eq_('nested', span.name)
         ok_(span.duration > 0.25,
@@ -339,3 +342,60 @@ class TestTraceMiddleware(TraceTestCase):
         eq_(100, sub_span.trace_id)
         eq_(span.span_id, sub_span.parent_id)
         eq_(None, sub_span.get_metric(SAMPLING_PRIORITY_KEY))
+
+    def _assert_200_parenting(self, traces):
+        """Helper to assert parenting when handling aiohttp requests.
+
+        This is used to ensure that parenting is consistent between Datadog
+        and OpenTracing implementations of tracing.
+        """
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+
+        # the inner span will be the first trace since it completes before the
+        # outer span does
+        inner_span = traces[0][0]
+        outer_span = traces[1][0]
+
+        # confirm the parenting
+        eq_(outer_span.parent_id, None)
+        eq_(inner_span.parent_id, None)
+
+        eq_(outer_span.name, 'aiohttp_op')
+
+        # with the right fields
+        eq_('aiohttp.request', inner_span.name)
+        eq_('aiohttp-web', inner_span.service)
+        eq_('http', inner_span.span_type)
+        eq_('GET /', inner_span.resource)
+        eq_('/', inner_span.get_tag('http.url'))
+        eq_('GET', inner_span.get_tag('http.method'))
+        eq_('200', inner_span.get_tag('http.status_code'))
+        eq_(0, inner_span.error)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_parenting_200_dd(self):
+        with self.tracer.trace('aiohttp_op'):
+            request = yield from self.client.request('GET', '/')
+            eq_(200, request.status)
+            text = yield from request.text()
+
+        eq_("What's tracing?", text)
+        traces = self.tracer.writer.pop_traces()
+        self._assert_200_parenting(traces)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_parenting_200_ot(self):
+        """OpenTracing version of test_handler."""
+        ot_tracer = init_tracer('aiohttp_svc', self.tracer, scope_manager=AsyncioScopeManager())
+
+        with ot_tracer.start_active_span('aiohttp_op'):
+            request = yield from self.client.request('GET', '/')
+            eq_(200, request.status)
+            text = yield from request.text()
+
+        eq_("What's tracing?", text)
+        traces = self.tracer.writer.pop_traces()
+        self._assert_200_parenting(traces)
