@@ -12,10 +12,8 @@ from ddtrace.settings import config
 
 log = logging.getLogger(__name__)
 
-config._add('_dbapi2', dict(
-    connection_trace_commit=True,
-    connection_trace_rollback=True,
-    cursor_trace_fetch=True,
+config._add('dbapi2', dict(
+    cursor_trace_fetch=False,
 ))
 
 
@@ -79,44 +77,6 @@ class TracedCursor(wrapt.ObjectProxy):
         self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
         return self
 
-    def fetchone(self, *args, **kwargs):
-        """ Wraps the cursor.fetchone method"""
-        if not config._dbapi2.cursor_trace_fetch:
-            return self.__wrapped__.fetchone(*args, **kwargs)
-
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
-        return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
-                                  *args, **kwargs)
-
-    def fetchall(self, *args, **kwargs):
-        """ Wraps the cursor.fetchall method"""
-        if not config._dbapi2.cursor_trace_fetch:
-            return self.__wrapped__.fetchall(*args, **kwargs)
-
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchall')
-        return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
-                                  *args, **kwargs)
-
-    def fetchmany(self, *args, **kwargs):
-        """ Wraps the cursor.fetchmany method"""
-        if not config._dbapi2.cursor_trace_fetch:
-            return self.__wrapped__.fetchmany(*args, **kwargs)
-
-        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchmany')
-        # We want to trace the information about how many rows were requested. Note that this number may be larger
-        # the number of rows actually returned if less then requested are available from the query.
-        size_tag_key = 'db.fetch.size'
-        if 'size' in kwargs:
-            extra_tags = {size_tag_key: kwargs.get('size')}
-        elif len(args) == 1 and isinstance(args[0], int):
-            extra_tags = {size_tag_key: args[0]}
-        else:
-            default_array_size = getattr(self.__wrapped__, 'arraysize', None)
-            extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
-
-        return self._trace_method(self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags,
-                                  *args, **kwargs)
-
     def callproc(self, proc, args):
         """ Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
@@ -132,10 +92,53 @@ class TracedCursor(wrapt.ObjectProxy):
         return self
 
 
+class FetchTracedCursor(TracedCursor):
+    """
+    Sub-class of :class:`TracedCursor` that also instruments `fetchone`, `fetchall`, and `fetchmany` methods.
+
+    We do not trace these functions by default since they can get very noisy (e.g. `fetchone` with 100k rows).
+    """
+    def fetchone(self, *args, **kwargs):
+        """ Wraps the cursor.fetchone method"""
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
+        return self._trace_method(self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {},
+                                  *args, **kwargs)
+
+    def fetchall(self, *args, **kwargs):
+        """ Wraps the cursor.fetchall method"""
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchall')
+        return self._trace_method(self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {},
+                                  *args, **kwargs)
+
+    def fetchmany(self, *args, **kwargs):
+        """ Wraps the cursor.fetchmany method"""
+        span_name = '{}.{}'.format(self._self_datadog_name, 'fetchmany')
+        # We want to trace the information about how many rows were requested. Note that this number may be larger
+        # the number of rows actually returned if less then requested are available from the query.
+        size_tag_key = 'db.fetch.size'
+        if 'size' in kwargs:
+            extra_tags = {size_tag_key: kwargs.get('size')}
+        elif len(args) == 1 and isinstance(args[0], int):
+            extra_tags = {size_tag_key: args[0]}
+        else:
+            default_array_size = getattr(self.__wrapped__, 'arraysize', None)
+            extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
+
+        return self._trace_method(self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags,
+                                  *args, **kwargs)
+
+
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cursor_cls=TracedCursor):
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        # Set default cursor class if one was not provided
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = TracedCursor
+            if config.dbapi2.cursor_trace_fetch:
+                cursor_cls = FetchTracedCursor
+
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = '{}.connection'.format(name)
@@ -165,16 +168,10 @@ class TracedConnection(wrapt.ObjectProxy):
         return self._self_cursor_cls(cursor, pin)
 
     def commit(self, *args, **kwargs):
-        if not config._dbapi2.connection_trace_commit:
-            return self.__wrapped__.commit(*args, **kwargs)
-
         span_name = '{}.{}'.format(self._self_datadog_name, 'commit')
         return self._trace_method(self.__wrapped__.commit, span_name, {}, *args, **kwargs)
 
     def rollback(self, *args, **kwargs):
-        if not config._dbapi2.connection_trace_rollback:
-            return self.__wrapped__.rollback(*args, **kwargs)
-
         span_name = '{}.{}'.format(self._self_datadog_name, 'rollback')
         return self._trace_method(self.__wrapped__.rollback, span_name, {}, *args, **kwargs)
 
