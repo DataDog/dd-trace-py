@@ -4,9 +4,11 @@ import logging
 from .conf import settings
 from .compat import user_is_authenticated, get_resolver
 
-from ...ext import http
+from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...contrib import func_name
+from ...ext import http
 from ...propagation.http import HTTPPropagator
+from ...settings import config
 
 # 3p
 from django.core.exceptions import MiddlewareNotUsed
@@ -117,6 +119,10 @@ class TraceMiddleware(InstrumentationMixin):
                 resource='unknown',  # will be filled by process view
                 span_type=http.TYPE,
             )
+
+            # Configure trace search sample rate
+            if config.django.event_sample_rate is not None:
+                span.set_tag(EVENT_SAMPLE_RATE_KEY, config.django.event_sample_rate)
 
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, request.path)
