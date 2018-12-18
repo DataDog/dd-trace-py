@@ -10,17 +10,20 @@ def _w_makeRecord(func, instance, args, kwargs):
     if trace_id:
         record.trace_id = trace_id
         record.span_id = span_id
+    else:
+        record.trace_id = None
+        record.span_id = None
 
     return record
 
-def patch_log_injection():
+def patch_logging():
     if getattr(logging, '_datadog_patch', False):
         return
     setattr(logging, '_datadog_patch', True)
 
     _w(logging.Logger, 'makeRecord', _w_makeRecord)
 
-def unpatch_log_injection():
+def unpatch_logging():
     if getattr(logging, '_datadog_patch', False):
         setattr(logging, '_datadog_patch', False)
 
