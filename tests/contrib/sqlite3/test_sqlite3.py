@@ -2,9 +2,6 @@
 import sqlite3
 import time
 
-# 3p
-from nose.tools import eq_, ok_
-
 # project
 import ddtrace
 from ddtrace import Pin
@@ -14,58 +11,54 @@ from ddtrace.ext import errors
 
 # testing
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-def test_backwards_compat():
-    # a small test to ensure that if the previous interface is used
-    # things still work
-    tracer = get_dummy_tracer()
-    factory = connection_factory(tracer, service='my_db_service')
-    conn = sqlite3.connect(':memory:', factory=factory)
-    q = 'select * from sqlite_master'
-    rows = conn.execute(q)
-    assert not rows.fetchall()
-    assert not tracer.writer.pop()
-
-
-class TestSQLite(object):
+class TestSQLite(BaseTracerTestCase):
     def setUp(self):
+        super(TestSQLite, self).setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super(TestSQLite, self).tearDown()
+
+    def test_backwards_compat(self):
+        # a small test to ensure that if the previous interface is used
+        # things still work
+        factory = connection_factory(self.tracer, service='my_db_service')
+        conn = sqlite3.connect(':memory:', factory=factory)
+        q = 'select * from sqlite_master'
+        rows = conn.execute(q)
+        assert not rows.fetchall()
+        assert not self.spans
 
     def test_service_info(self):
-        tracer = get_dummy_tracer()
         backup_tracer = ddtrace.tracer
-        ddtrace.tracer = tracer
+        ddtrace.tracer = self.tracer
 
         sqlite3.connect(':memory:')
 
-        services = tracer.writer.pop_services()
-        eq_(len(services), 1)
+        services = self.tracer.writer.pop_services()
+        self.assertEqual(len(services), 1)
         expected = {
             'sqlite': {'app': 'sqlite', 'app_type': 'db'}
         }
-        eq_(expected, services)
+        self.assertEqual(expected, services)
 
         ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # ensure we can trace multiple services without stomping
         services = ['db', 'another']
         for service in services:
             db = sqlite3.connect(':memory:')
             pin = Pin.get_from(db)
             assert pin
-            eq_('db', pin.app_type)
+            self.assertEqual('db', pin.app_type)
             pin.clone(
                 service=service,
-                tracer=tracer).onto(db)
+                tracer=self.tracer).onto(db)
 
             # Ensure we can run a query and it's correctly traced
             q = 'select * from sqlite_master'
@@ -74,21 +67,14 @@ class TestSQLite(object):
             rows = cursor.fetchall()
             end = time.time()
             assert not rows
-            spans = writer.pop()
-            assert spans
-            eq_(len(spans), 2)
-            span = spans[0]
-            eq_(span.name, 'sqlite.query')
-            eq_(span.span_type, 'sql')
-            eq_(span.resource, q)
-            eq_(span.service, service)
-            ok_(span.get_tag('sql.query') is None)
-            eq_(span.error, 0)
-            assert start <= span.start <= end
-            assert span.duration <= end - start
-
-            fetch_span = spans[1]
-            eq_(fetch_span.name, 'sqlite.query.fetchall')
+            self.assert_structure(
+                dict(name='sqlite.query', span_type='sql', resource=q, service=service, error=0),
+            )
+            root = self.get_root_span()
+            self.assertIsNone(root.get_tag('sql.query'))
+            assert start <= root.start <= end
+            assert root.duration <= end - start
+            self.reset()
 
             # run a query with an error and ensure all is well
             q = 'select * from some_non_existant_table'
@@ -98,109 +84,110 @@ class TestSQLite(object):
                 pass
             else:
                 assert 0, 'should have an error'
-            spans = writer.pop()
-            assert spans
-            eq_(len(spans), 1)
-            span = spans[0]
-            eq_(span.name, 'sqlite.query')
-            eq_(span.resource, q)
-            eq_(span.service, service)
-            ok_(span.get_tag('sql.query') is None)
-            eq_(span.error, 1)
-            eq_(span.span_type, 'sql')
-            assert span.get_tag(errors.ERROR_STACK)
-            assert 'OperationalError' in span.get_tag(errors.ERROR_TYPE)
-            assert 'no such table' in span.get_tag(errors.ERROR_MSG)
+
+            self.assert_structure(
+                dict(name='sqlite.query', span_type='sql', resource=q, service=service, error=1),
+            )
+            root = self.get_root_span()
+            self.assertIsNone(root.get_tag('sql.query'))
+            self.assertIsNotNone(root.get_tag(errors.ERROR_STACK))
+            self.assertIn('OperationalError', root.get_tag(errors.ERROR_TYPE))
+            self.assertIn('no such table', root.get_tag(errors.ERROR_MSG))
+            self.reset()
 
     def test_sqlite_fetchall_is_traced(self):
-        tracer = get_dummy_tracer()
-        connection = self._given_a_traced_connection(tracer)
         q = 'select * from sqlite_master'
+
+        # Not traced by default
+        connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
         cursor.fetchall()
+        self.assert_structure(dict(name='sqlite.query', resource=q))
+        self.reset()
 
-        spans = tracer.writer.pop()
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            connection = self._given_a_traced_connection(self.tracer)
+            cursor = connection.execute(q)
+            cursor.fetchall()
 
-        eq_(len(spans), 2)
+            # We have two spans side by side
+            query_span, fetchall_span = self.get_root_spans()
 
-        execute_span = spans[0]
-        fetchall_span = spans[1]
+            # Assert query
+            query_span.assert_structure(dict(name='sqlite.query', resource=q))
 
-        # Execute span
-        eq_(execute_span.name, 'sqlite.query')
-        eq_(execute_span.span_type, 'sql')
-        eq_(execute_span.resource, q)
-        ok_(execute_span.get_tag('sql.query') is None)
-        eq_(execute_span.error, 0)
-        # Fetchall span
-        eq_(fetchall_span.parent_id, None)
-        eq_(fetchall_span.name, 'sqlite.query.fetchall')
-        eq_(fetchall_span.span_type, 'sql')
-        eq_(fetchall_span.resource, q)
-        ok_(fetchall_span.get_tag('sql.query') is None)
-        eq_(fetchall_span.error, 0)
+            # Assert fetchall
+            fetchall_span.assert_structure(dict(name='sqlite.query.fetchall', resource=q, span_type='sql', error=0))
+            self.assertIsNone(fetchall_span.get_tag('sql.query'))
 
     def test_sqlite_fetchone_is_traced(self):
-        tracer = get_dummy_tracer()
-        connection = self._given_a_traced_connection(tracer)
         q = 'select * from sqlite_master'
+
+        # Not traced by default
+        connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
         cursor.fetchone()
+        self.assert_structure(dict(name='sqlite.query', resource=q))
+        self.reset()
 
-        spans = tracer.writer.pop()
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            connection = self._given_a_traced_connection(self.tracer)
+            cursor = connection.execute(q)
+            cursor.fetchone()
 
-        eq_(len(spans), 2)
+            # We have two spans side by side
+            query_span, fetchone_span = self.get_root_spans()
 
-        execute_span = spans[0]
-        fetchone_span = spans[1]
+            # Assert query
+            query_span.assert_structure(dict(name='sqlite.query', resource=q))
 
-        # Execute span
-        eq_(execute_span.name, 'sqlite.query')
-        eq_(execute_span.span_type, 'sql')
-        eq_(execute_span.resource, q)
-        ok_(execute_span.get_tag('sql.query') is None)
-        eq_(execute_span.error, 0)
-        # Fetchone span
-        eq_(fetchone_span.parent_id, None)
-        eq_(fetchone_span.name, 'sqlite.query.fetchone')
-        eq_(fetchone_span.span_type, 'sql')
-        eq_(fetchone_span.resource, q)
-        ok_(fetchone_span.get_tag('sql.query') is None)
-        eq_(fetchone_span.error, 0)
+            # Assert fetchone
+            fetchone_span.assert_structure(
+                dict(
+                    name='sqlite.query.fetchone',
+                    resource=q,
+                    span_type='sql',
+                    error=0,
+                ),
+            )
+            self.assertIsNone(fetchone_span.get_tag('sql.query'))
 
     def test_sqlite_fetchmany_is_traced(self):
-        tracer = get_dummy_tracer()
-        connection = self._given_a_traced_connection(tracer)
         q = 'select * from sqlite_master'
+
+        # Not traced by default
+        connection = self._given_a_traced_connection(self.tracer)
         cursor = connection.execute(q)
         cursor.fetchmany(123)
+        self.assert_structure(dict(name='sqlite.query', resource=q))
+        self.reset()
 
-        spans = tracer.writer.pop()
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            connection = self._given_a_traced_connection(self.tracer)
+            cursor = connection.execute(q)
+            cursor.fetchmany(123)
 
-        eq_(len(spans), 2)
+            # We have two spans side by side
+            query_span, fetchmany_span = self.get_root_spans()
 
-        execute_span = spans[0]
-        fetchmany_span = spans[1]
+            # Assert query
+            query_span.assert_structure(dict(name='sqlite.query', resource=q))
 
-        # Execute span
-        eq_(execute_span.name, 'sqlite.query')
-        eq_(execute_span.span_type, 'sql')
-        eq_(execute_span.resource, q)
-        ok_(execute_span.get_tag('sql.query') is None)
-        eq_(execute_span.error, 0)
-        # Fetchmany span
-        eq_(fetchmany_span.parent_id, None)
-        eq_(fetchmany_span.name, 'sqlite.query.fetchmany')
-        eq_(fetchmany_span.span_type, 'sql')
-        eq_(fetchmany_span.resource, q)
-        ok_(fetchmany_span.get_tag('sql.query') is None)
-        eq_(fetchmany_span.error, 0)
-        eq_(fetchmany_span.get_tag('db.fetch.size'), '123')
+            # Assert fetchmany
+            fetchmany_span.assert_structure(
+                dict(
+                    name='sqlite.query.fetchmany',
+                    resource=q,
+                    span_type='sql',
+                    error=0,
+                    meta={'db.fetch.size': '123'},
+                ),
+            )
+            self.assertIsNone(fetchmany_span.get_tag('sql.query'))
 
     def test_sqlite_ot(self):
         """Ensure sqlite works with the opentracer."""
-        tracer = get_dummy_tracer()
-        ot_tracer = init_tracer('sqlite_svc', tracer)
+        ot_tracer = init_tracer('sqlite_svc', self.tracer)
 
         # Ensure we can run a query and it's correctly traced
         q = 'select * from sqlite_master'
@@ -208,63 +195,55 @@ class TestSQLite(object):
             db = sqlite3.connect(':memory:')
             pin = Pin.get_from(db)
             assert pin
-            eq_('db', pin.app_type)
-            pin.clone(tracer=tracer).onto(db)
+            self.assertEqual('db', pin.app_type)
+            pin.clone(tracer=self.tracer).onto(db)
             cursor = db.execute(q)
             rows = cursor.fetchall()
         assert not rows
-        spans = tracer.writer.pop()
-        assert spans
 
-        print(spans)
-        eq_(len(spans), 3)
-        ot_span, dd_span, fetchall_span = spans
+        self.assert_structure(
+            dict(name='sqlite_op', service='sqlite_svc'),
+            (
+                dict(name='sqlite.query', span_type='sql', resource=q, error=0),
+            )
+        )
+        self.reset()
 
-        # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            with ot_tracer.start_active_span('sqlite_op'):
+                db = sqlite3.connect(':memory:')
+                pin = Pin.get_from(db)
+                assert pin
+                self.assertEqual('db', pin.app_type)
+                pin.clone(tracer=self.tracer).onto(db)
+                cursor = db.execute(q)
+                rows = cursor.fetchall()
+                assert not rows
 
-        eq_(ot_span.name, 'sqlite_op')
-        eq_(ot_span.service, 'sqlite_svc')
-
-        eq_(dd_span.name, 'sqlite.query')
-        eq_(dd_span.span_type, 'sql')
-        eq_(dd_span.resource, q)
-        ok_(dd_span.get_tag('sql.query') is None)
-        eq_(dd_span.error, 0)
-
-        eq_(fetchall_span.name, 'sqlite.query.fetchall')
-        eq_(fetchall_span.span_type, 'sql')
-        eq_(fetchall_span.resource, q)
-        ok_(fetchall_span.get_tag('sql.query') is None)
-        eq_(fetchall_span.error, 0)
+            self.assert_structure(
+                dict(name='sqlite_op', service='sqlite_svc'),
+                (
+                    dict(name='sqlite.query', span_type='sql', resource=q, error=0),
+                    dict(name='sqlite.query.fetchall', span_type='sql', resource=q, error=0),
+                ),
+            )
 
     def test_commit(self):
-        tracer = get_dummy_tracer()
-        connection = self._given_a_traced_connection(tracer)
-        writer = tracer.writer
+        connection = self._given_a_traced_connection(self.tracer)
         connection.commit()
-        spans = writer.pop()
-        eq_(len(spans), 1)
-        span = spans[0]
-        eq_(span.service, 'sqlite')
-        eq_(span.name, 'sqlite.connection.commit')
+        self.assertEqual(len(self.spans), 1)
+        span = self.spans[0]
+        self.assertEqual(span.service, 'sqlite')
+        self.assertEqual(span.name, 'sqlite.connection.commit')
 
     def test_rollback(self):
-        tracer = get_dummy_tracer()
-        connection = self._given_a_traced_connection(tracer)
-        writer = tracer.writer
+        connection = self._given_a_traced_connection(self.tracer)
         connection.rollback()
-        spans = writer.pop()
-        eq_(len(spans), 1)
-        span = spans[0]
-        eq_(span.service, 'sqlite')
-        eq_(span.name, 'sqlite.connection.rollback')
+        self.assert_structure(
+            dict(name='sqlite.connection.rollback', service='sqlite'),
+        )
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
@@ -272,12 +251,13 @@ class TestSQLite(object):
         db = sqlite3.connect(':memory:')
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=tracer).onto(db)
+        pin.clone(tracer=self.tracer).onto(db)
         db.cursor().execute('select \'blah\'').fetchall()
 
-        spans = writer.pop()
-        assert spans, spans
-        eq_(len(spans), 2)
+        self.assert_structure(
+            dict(name='sqlite.query'),
+        )
+        self.reset()
 
         # Test unpatch
         unpatch()
@@ -285,8 +265,7 @@ class TestSQLite(object):
         db = sqlite3.connect(':memory:')
         db.cursor().execute('select \'blah\'').fetchall()
 
-        spans = writer.pop()
-        assert not spans, spans
+        self.assert_has_no_spans()
 
         # Test patch again
         patch()
@@ -294,12 +273,12 @@ class TestSQLite(object):
         db = sqlite3.connect(':memory:')
         pin = Pin.get_from(db)
         assert pin
-        pin.clone(tracer=tracer).onto(db)
+        pin.clone(tracer=self.tracer).onto(db)
         db.cursor().execute('select \'blah\'').fetchall()
 
-        spans = writer.pop()
-        assert spans, spans
-        eq_(len(spans), 2)
+        self.assert_structure(
+            dict(name='sqlite.query'),
+        )
 
     def _given_a_traced_connection(self, tracer):
         db = sqlite3.connect(':memory:')

@@ -234,6 +234,20 @@ class TestSpanContainer(object):
 
         return self._build_tree(root)
 
+    def get_root_spans(self):
+        """
+        Helper to get all root spans from the list of spans in this container
+
+        :returns: The root spans if any were found, None if not
+        :rtype: list of :class:`tests.utils.span.TestSpanNode`, None
+        """
+        roots = []
+        for span in self.spans:
+            if span.parent_id is None:
+                roots.append(self._build_tree(span))
+
+        return sorted(roots, key=lambda s: s.start)
+
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
         assert len(self.spans) == count, 'Span count {0} != {1}'.format(len(self.spans), count)
