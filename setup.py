@@ -82,7 +82,7 @@ setup(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        'msgpack-python',
+        'msgpack',
         'six',
         'wrapt',
     ],
