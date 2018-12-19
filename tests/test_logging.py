@@ -28,23 +28,26 @@ class LoggingTestCase(unittest.TestCase):
         Check that a log entry from traced function includes correlation
         identifiers in log
         """
+        logger = logging.getLogger()
+        logger.level = logging.INFO
+
         @tracer.wrap()
         def traced_fn():
-            log = logging.getLogger()
-            log.info('Hello!')
+            logger.info('Hello!')
             return correlation.get_correlation_ids()
 
         def not_traced_fn():
-            log = logging.getLogger()
-            log.info('Hello!')
+            logger.info('Hello!')
             return correlation.get_correlation_ids()
 
-        def run_fn(fn):
+        def run_fn(fn, fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'):
             # add stream handler to capture output
             out = StringIO()
             sh = logging.StreamHandler(out)
 
             try:
+                formatter = logging.Formatter(fmt)
+                sh.setFormatter(formatter)
                 logger.addHandler(sh)
                 correlation_ids = fn()
             finally:
@@ -52,24 +55,22 @@ class LoggingTestCase(unittest.TestCase):
 
             return out.getvalue().strip(), correlation_ids
 
-        logging.basicConfig(format='%(asctime)-15s %(message)s')
-        logger = logging.getLogger()
-        logger.level = logging.INFO
-
         # with logging patched
         traced_fn_output, traced_ids = run_fn(traced_fn)
-        self.assertTrue(traced_fn_output.endswith('Hello! - dd.trace_id={} dd.span_id={}'.format(*traced_ids)))
+        self.assertEqual(
+            traced_fn_output,
+            'Hello! - dd.trace_id={} dd.span_id={}'.format(*traced_ids)
+        )
 
         not_traced_fn_output, not_traced_ids = run_fn(not_traced_fn)
         self.assertIsNone(not_traced_ids[0])
         self.assertIsNone(not_traced_ids[1])
-        self.assertFalse('dd.trace_id=' in not_traced_fn_output)
-        self.assertFalse('dd.span_id=' in not_traced_fn_output)
-        self.assertTrue(not_traced_fn_output.endswith('Hello!'))
+        self.assertEqual(
+            not_traced_fn_output,
+            'Hello! - dd.trace_id= dd.span_id='.format(*traced_ids)
+        )
 
-        # # logging without patching
+        # logging without patching and a format without relevant record attributes
         unpatch_logging()
-        traced_fn_output, _ = run_fn(traced_fn)
-        self.assertFalse('dd.trace_id=' in traced_fn_output)
-        self.assertFalse('dd.span_id=' in traced_fn_output)
-        self.assertTrue(traced_fn_output.endswith('Hello!'))
+        output, _ = run_fn(traced_fn, fmt='%(message)s')
+        self.assertEqual(output, 'Hello!')

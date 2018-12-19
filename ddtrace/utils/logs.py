@@ -7,7 +7,7 @@ Example::
     from ddtrace.utils.logs import patch_logging
 
     patch_logging()
-    logging.basicConfig(format='%(asctime)-15s %(message)s')
+    logging.basicConfig(format='%(asctime)-15s %(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
     log = logging.getLogger()
     log.level = logging.INFO
 
@@ -36,41 +36,10 @@ def _w_makeRecord(func, instance, args, kwargs):
         record.trace_id = trace_id
         record.span_id = span_id
     else:
-        record.trace_id = None
-        record.span_id = None
+        record.trace_id = ''
+        record.span_id = ''
 
     return record
-
-
-def _w_format(func, instance, args, kwargs):
-    fmt_traced_tmpl = '{} - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
-
-    record = args[0]
-
-    if getattr(record, 'trace_id', False) and getattr(record, 'span_id', False):
-        if PY2:
-            # only specify traced formatter once per instance
-            if not hasattr(instance, '_fmt__dd'):
-                setattr(instance, '_fmt__orig', instance._fmt)
-                setattr(instance, '_fmt__dd', fmt_traced_tmpl.format(instance._fmt))
-
-            instance._fmt = instance._fmt__dd
-            result = func(*args, **kwargs)
-            instance._fmt = instance._fmt__orig
-        else:
-            # only specify traced formatter once per instance
-            if not hasattr(instance, '_fmt__dd'):
-                setattr(instance, '_fmt__orig', instance._style._fmt)
-                setattr(instance, '_fmt__dd', fmt_traced_tmpl.format(instance._style._fmt))
-
-            instance._style._fmt = instance._fmt__dd
-            result = func(*args, **kwargs)
-            instance._style._fmt = instance._fmt__orig
-
-    else:
-        result = func(*args, **kwargs)
-
-    return result
 
 
 def patch_logging():
@@ -83,7 +52,7 @@ def patch_logging():
     setattr(logging, '_datadog_patch', True)
 
     _w(logging.Logger, 'makeRecord', _w_makeRecord)
-    _w(logging.Formatter, 'format', _w_format)
+    # _w(logging.Formatter, 'format', _w_format)
 
 
 def unpatch_logging():
