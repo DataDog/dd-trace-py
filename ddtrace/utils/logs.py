@@ -1,3 +1,24 @@
+"""
+The patching of standard library logging to inject tracing information
+
+Example::
+    import logging
+    from ddtrace import tracer
+    from ddtrace.utils.logs import patch_logging
+
+    patch_logging()
+    logging.basicConfig(format='%(asctime)-15s %(message)s')
+    log = logging.getLogger()
+    log.level = logging.INFO
+
+
+    @tracer.wrap()
+    def foo():
+        log.info('Hello!')
+
+    foo()
+"""
+
 import logging
 from wrapt import wrap_function_wrapper as _w
 
