@@ -8,10 +8,6 @@ from ddtrace import tracer
 from ddtrace.compat import StringIO
 from ddtrace.utils.logs import patch_logging, unpatch_logging
 
-logger = logging.getLogger()
-logger.level = logging.DEBUG
-
-
 class LoggingTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -48,12 +44,11 @@ class LoggingTestCase(unittest.TestCase):
             return correlation.get_correlation_ids()
 
         def run_fn(fn):
+            # add stream handler to capture output
             out = StringIO()
             sh = logging.StreamHandler(out)
 
             try:
-                fmt = '%(asctime)-15s %(name)-5s %(levelname)-8s dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s %(message)s'
-                sh.setFormatter(logging.Formatter(fmt))
                 logger.addHandler(sh)
                 correlation_ids = fn()
             finally:
@@ -61,20 +56,24 @@ class LoggingTestCase(unittest.TestCase):
 
             return out.getvalue().strip(), correlation_ids
 
+        logging.basicConfig(format='%(asctime)-15s %(message)s')
+        logger = logging.getLogger()
+        logger.level = logging.INFO
 
         # with logging patched
         traced_fn_output, traced_ids = run_fn(traced_fn)
-        self.assertTrue('dd.trace_id={}'.format(traced_ids[0]) in traced_fn_output)
-        self.assertTrue('dd.span_id={}'.format(traced_ids[1]) in traced_fn_output)
+        self.assertTrue(traced_fn_output.endswith('Hello! - dd.trace_id={} dd.span_id={}'.format(*traced_ids)))
 
         not_traced_fn_output, not_traced_ids = run_fn(not_traced_fn)
         self.assertIsNone(not_traced_ids[0])
         self.assertIsNone(not_traced_ids[1])
-        self.assertTrue('dd.trace_id= dd.span_id= Hello!' in not_traced_fn_output)
+        self.assertFalse('dd.trace_id=' in not_traced_fn_output)
+        self.assertFalse('dd.span_id=' in not_traced_fn_output)
+        self.assertTrue(not_traced_fn_output.endswith('Hello!'))
 
-        # logging without patching
+        # # logging without patching
         unpatch_logging()
         traced_fn_output, _ = run_fn(traced_fn)
         self.assertFalse('dd.trace_id=' in traced_fn_output)
         self.assertFalse('dd.span_id=' in traced_fn_output)
-
+        self.assertTrue(traced_fn_output.endswith('Hello!'))
