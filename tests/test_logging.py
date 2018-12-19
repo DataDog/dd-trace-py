@@ -6,7 +6,7 @@ import wrapt
 from ddtrace import correlation
 from ddtrace import tracer
 from ddtrace.compat import StringIO
-from ddtrace.utils.logs import patch_log_injection, unpatch_log_injection
+from ddtrace.utils.logs import patch_logging, unpatch_logging
 
 logger = logging.getLogger()
 logger.level = logging.DEBUG
@@ -15,18 +15,18 @@ logger.level = logging.DEBUG
 class LoggingTestCase(unittest.TestCase):
 
     def setUp(self):
-        patch_log_injection()
+        patch_logging()
 
 
     def tearDown(self):
-        unpatch_log_injection()
+        unpatch_logging()
 
 
     def test_patch(self):
         """
         Confirm patching was successful
         """
-        patch_log_injection()
+        patch_logging()
         log = logging.getLogger()
         self.assertTrue(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
 
@@ -70,11 +70,10 @@ class LoggingTestCase(unittest.TestCase):
         not_traced_fn_output, not_traced_ids = run_fn(not_traced_fn)
         self.assertIsNone(not_traced_ids[0])
         self.assertIsNone(not_traced_ids[1])
-        self.assertFalse('dd.trace_id=' in not_traced_fn_output)
-        self.assertFalse('dd.span_id=' in not_traced_fn_output)
+        self.assertTrue('dd.trace_id= dd.span_id= Hello!' in not_traced_fn_output)
 
         # logging without patching
-        unpatch_log_injection()
+        unpatch_logging()
         traced_fn_output, _ = run_fn(traced_fn)
         self.assertFalse('dd.trace_id=' in traced_fn_output)
         self.assertFalse('dd.span_id=' in traced_fn_output)
