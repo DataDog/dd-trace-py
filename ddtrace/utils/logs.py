@@ -23,7 +23,6 @@ import logging
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import correlation
-from ddtrace.compat import PY2
 from ddtrace.utils.wrappers import unwrap as _u
 
 
