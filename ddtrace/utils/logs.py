@@ -41,6 +41,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     return record
 
+
 def _w_format(func, instance, args, kwargs):
     fmt_traced_tmpl = '{} - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
 
@@ -83,6 +84,7 @@ def patch_logging():
 
     _w(logging.Logger, 'makeRecord', _w_makeRecord)
     _w(logging.Formatter, 'format', _w_format)
+
 
 def unpatch_logging():
     if getattr(logging, '_datadog_patch', False):

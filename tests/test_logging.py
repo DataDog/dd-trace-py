@@ -1,6 +1,5 @@
 import unittest
 import logging
-import sys
 import wrapt
 
 from ddtrace import correlation
@@ -8,15 +7,13 @@ from ddtrace import tracer
 from ddtrace.compat import StringIO
 from ddtrace.utils.logs import patch_logging, unpatch_logging
 
-class LoggingTestCase(unittest.TestCase):
 
+class LoggingTestCase(unittest.TestCase):
     def setUp(self):
         patch_logging()
 
-
     def tearDown(self):
         unpatch_logging()
-
 
     def test_patch(self):
         """
@@ -25,7 +22,6 @@ class LoggingTestCase(unittest.TestCase):
         patch_logging()
         log = logging.getLogger()
         self.assertTrue(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
-
 
     def test_patch_output(self):
         """
