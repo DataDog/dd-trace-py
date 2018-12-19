@@ -171,6 +171,20 @@ jobs:
             - test_utils.results
       - *save_cache_step
 
+  test_logging:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_logging' --result-json /tmp/test_logging.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_logging.results
+      - *save_cache_step
+
   asyncio:
     docker:
       - *test_runner
@@ -1062,6 +1076,9 @@ workflows:
       - test_utils:
           requires:
             - flake8
+      - test_logging:
+          requires:
+            - flake8
       - tornado:
           requires:
             - flake8
@@ -1120,6 +1137,7 @@ workflows:
             - sqlalchemy
             - sqlite3
             - test_utils
+            - test_logging
             - tornado
             - tracer
             - unit_tests
