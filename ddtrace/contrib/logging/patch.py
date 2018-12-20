@@ -1,7 +1,7 @@
 import logging
 from wrapt import wrap_function_wrapper as _w
 
-from ... import correlation
+from ...helpers import get_correlation_ids
 from ...utils.wrappers import unwrap as _u
 
 
@@ -9,7 +9,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     record = func(*args, **kwargs)
 
     # add correlation identifiers to LogRecord
-    trace_id, span_id = correlation.get_correlation_ids()
+    trace_id, span_id = get_correlation_ids()
     if trace_id and span_id:
         record.trace_id = trace_id
         record.span_id = span_id

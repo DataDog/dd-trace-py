@@ -1,7 +1,7 @@
 import logging
 import wrapt
 
-from ddtrace import correlation
+from ddtrace.helpers import get_correlation_ids
 from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
 
@@ -53,7 +53,7 @@ class LoggingTestCase(BaseTracerTestCase):
         @self.tracer.wrap()
         def func():
             logger.info('Hello!')
-            return correlation.get_correlation_ids()
+            return get_correlation_ids()
 
         with self.override_global_tracer():
             # with format string for trace info
@@ -82,7 +82,7 @@ class LoggingTestCase(BaseTracerTestCase):
         """
         def func():
             logger.info('Hello!')
-            return correlation.get_correlation_ids()
+            return get_correlation_ids()
 
         with self.override_global_tracer():
             # with format string for trace info
