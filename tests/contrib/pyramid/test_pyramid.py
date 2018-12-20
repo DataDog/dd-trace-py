@@ -4,6 +4,7 @@ import webtest
 from nose.tools import eq_, assert_raises
 
 from ddtrace import compat
+from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 
 from pyramid.httpexceptions import HTTPException
@@ -11,15 +12,13 @@ from pyramid.httpexceptions import HTTPException
 from .app import create_app
 
 from tests.opentracer.utils import init_tracer
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class PyramidBase(object):
+class PyramidBase(BaseTracerTestCase):
     """Base Pyramid test application"""
-    instrument = False
-
     def setUp(self):
-        self.tracer = get_dummy_tracer()
+        super(PyramidBase, self).setUp()
         self.create_app()
 
     def create_app(self, settings=None):
@@ -28,7 +27,7 @@ class PyramidBase(object):
         # always set the dummy tracer as a default tracer
         settings.update({'datadog_tracer': self.tracer})
 
-        app, renderer = create_app(settings, self.instrument)
+        app, renderer = create_app(settings, True)
         self.app = webtest.TestApp(app)
         self.renderer = renderer
 
@@ -41,6 +40,10 @@ class PyramidBase(object):
 
 class PyramidTestCase(PyramidBase):
     """Pyramid TestCase that includes tests for automatic instrumentation"""
+    def get_settings(self):
+        return {
+            'datadog_trace_service': 'foobar',
+        }
 
     def test_200(self):
         res = self.app.get('/', status=200)
@@ -65,6 +68,15 @@ class PyramidTestCase(PyramidBase):
             'foobar': {"app": "pyramid", "app_type": "web"}
         }
         eq_(services, expected)
+
+    def test_event_sample_rate(self):
+        with self.override_config('pyramid', dict(event_sample_rate=1)):
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
+
+            self.assert_structure(
+                dict(name='pyramid.request', metrics={EVENT_SAMPLE_RATE_KEY: 1}),
+            )
 
     def test_404(self):
         self.app.get('/404', status=404)
@@ -280,19 +292,6 @@ class PyramidTestCase(PyramidBase):
         eq_(dd_span.meta.get('http.url'), '/')
         eq_(dd_span.meta.get('pyramid.route.name'), 'index')
 
-
-def includeme(config):
-    pass
-
-
-class TestPyramid(PyramidTestCase):
-    instrument = True
-
-    def get_settings(self):
-        return {
-            'datadog_trace_service': 'foobar',
-        }
-
     def test_tween_overridden(self):
         # in case our tween is overriden by the user config we should
         # not log rendering
@@ -302,9 +301,11 @@ class TestPyramid(PyramidTestCase):
         eq_(len(spans), 0)
 
 
-class TestPyramidDistributedTracing(PyramidBase):
-    instrument = True
+def includeme(config):
+    pass
 
+
+class TestPyramidDistributedTracing(PyramidBase):
     def get_settings(self):
         return {
             'datadog_distributed_tracing': True,

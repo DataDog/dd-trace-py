@@ -79,8 +79,8 @@ def trace_tween_factory(handler, registry):
                     tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
                 # Configure trace search sample rate
-                if config.pryamid.event_sample_rate is not None:
-                    span.set_tag(EVENT_SAMPLE_RATE_KEY, config.pryamid.event_sample_rate)
+                if config.pyramid.event_sample_rate is not None:
+                    span.set_tag(EVENT_SAMPLE_RATE_KEY, config.pyramid.event_sample_rate)
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
