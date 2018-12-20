@@ -8,7 +8,7 @@ Example::
     patch_all(logging=True)
 
     logging.basicConfig(format='%(asctime)-15s %(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
-    log = logging.getLogger()
+    log = logging.getLogger(__name__)
     log.level = logging.INFO
 
 
