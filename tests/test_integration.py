@@ -106,8 +106,8 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -124,8 +124,8 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
         eq_(len(payload[1]), 1)
@@ -143,8 +143,8 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
         eq_(payload[0][0]['name'], 'client.testing')
@@ -208,8 +208,8 @@ class TestWorkers(TestCase):
         # Only the second trace should have been sent
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
 

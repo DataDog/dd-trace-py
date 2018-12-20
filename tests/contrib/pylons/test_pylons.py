@@ -289,7 +289,7 @@ class PylonsTestCase(TestCase):
 
         ok_(span.trace_id != 100)
         ok_(span.parent_id != 42)
-        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) is None)
+        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
 
     def test_distributed_tracing_enabled(self):
         # ensure distributed tracing propagator is working
