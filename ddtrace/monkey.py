@@ -46,6 +46,7 @@ PATCH_MODULES = {
     'vertica': True,
     'molten': True,
     'jinja2': True,
+    'mako': False,
     'flask': True,
     'kombu': False,
 
