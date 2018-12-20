@@ -241,6 +241,8 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+.. _`Logs Injection`:
+
 Logs Injection
 --------------
 
@@ -252,7 +254,7 @@ context.
 Before the trace information is injected into logs, the formatter has to be
 updated to include ``trace_id`` and ``span_id`` attributes from the log record.
 Furthermore, the integration with Logs occurs automatically as long as the
-format of logs is appended with `` - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s``.
+format of logs is appended with ``- dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s``.
 
 When using ``ddtrace-run``, set the environment variable
 ``DD_LOGS_INJECTION=true``. If you prefer to manual instrumentation::
