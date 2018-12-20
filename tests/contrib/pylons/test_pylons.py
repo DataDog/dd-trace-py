@@ -1,6 +1,5 @@
 import os
 
-from unittest import TestCase
 from nose.tools import eq_, ok_, assert_raises
 
 from routes import url_for
@@ -12,10 +11,10 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class PylonsTestCase(TestCase):
+class PylonsTestCase(BaseTracerTestCase):
     """Pylons Test Controller that is used to test specific
     cases defined in the Pylons controller. To test a new behavior,
     add a new action in the `app.controllers.root` module.
@@ -23,8 +22,8 @@ class PylonsTestCase(TestCase):
     conf_dir = os.path.dirname(os.path.abspath(__file__))
 
     def setUp(self):
+        super(PylonsTestCase, self).setUp()
         # initialize a real traced Pylons app
-        self.tracer = get_dummy_tracer()
         wsgiapp = loadapp('config:test.ini', relative_to=PylonsTestCase.conf_dir)
         self._wsgiapp = wsgiapp
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
@@ -166,6 +165,15 @@ class PylonsTestCase(TestCase):
         eq_(span.resource, 'root.index')
         eq_(span.meta.get(http.STATUS_CODE), '200')
         eq_(span.error, 0)
+
+    def test_event_sample_rate(self):
+        with self.override_config('pylons', dict(event_sample_rate=1)):
+            res = self.app.get(url_for(controller='root', action='index'))
+            self.assertEqual(res.status, 200)
+
+        self.assert_structure(
+            dict(name='pylons.request', metrics={EVENT_SAMPLE_RATE_KEY: 1})
+        )
 
     def test_template_render(self):
         res = self.app.get(url_for(controller='root', action='render'))
@@ -337,13 +345,3 @@ class PylonsTestCase(TestCase):
         eq_(dd_span.resource, 'root.index')
         eq_(dd_span.meta.get(http.STATUS_CODE), '200')
         eq_(dd_span.error, 0)
-
-    def test_event_sample_rate(self):
-        self.app.get(url_for(controller='root', action='index'))
-
-        spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
-        span = spans[0]
-
-        eq_(span.get_metric(EVENT_SAMPLE_RATE_KEY), 1.0)
