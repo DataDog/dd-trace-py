@@ -1,6 +1,7 @@
 import contextlib
 import unittest
 
+import ddtrace
 from ddtrace import config
 
 from ..utils.tracer import DummyTracer
@@ -52,14 +53,22 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
 
+        # swap out global tracer
+        self.global_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
+
         super(BaseTracerTestCase, self).setUp()
 
     def tearDown(self):
         """After each test case, reset and remove the dummy tracer"""
         super(BaseTracerTestCase, self).tearDown()
 
+        # swap out global tracer
+        ddtrace.tracer = self.global_tracer
+
         self.reset()
         delattr(self, 'tracer')
+        delattr(self, 'global_tracer')
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
