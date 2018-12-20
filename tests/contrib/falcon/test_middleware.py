@@ -1,11 +1,11 @@
 from falcon import testing
-from tests.test_tracer import get_dummy_tracer
 
 from .app import get_app
 from .test_suite import FalconTestCase
+from ...base import BaseTracerTestCase
 
 
-class MiddlewareTestCase(testing.TestCase, FalconTestCase):
+class MiddlewareTestCase(BaseTracerTestCase, testing.TestCase, FalconTestCase):
     """Executes tests using the manual instrumentation so a middleware
     is explicitly added.
     """
@@ -14,5 +14,4 @@ class MiddlewareTestCase(testing.TestCase, FalconTestCase):
 
         # build a test app with a dummy tracer
         self._service = 'falcon'
-        self.tracer = get_dummy_tracer()
         self.api = get_app(tracer=self.tracer)
