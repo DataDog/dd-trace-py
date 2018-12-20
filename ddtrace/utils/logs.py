@@ -51,7 +51,6 @@ def patch_logging():
     setattr(logging, '_datadog_patch', True)
 
     _w(logging.Logger, 'makeRecord', _w_makeRecord)
-    # _w(logging.Formatter, 'format', _w_format)
 
 
 def unpatch_logging():
