@@ -267,7 +267,10 @@ An example of logs injection with manual instrumentation::
     from ddtrace import patch_all; patch_all(logging=True)
     from ddtrace import tracer
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s' + \
+            '- dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
+    )
     log = logging.getLogger()
     log.level = logging.INFO
 
