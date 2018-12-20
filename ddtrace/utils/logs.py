@@ -35,7 +35,7 @@ def _w_makeRecord(func, instance, args, kwargs):
         record.trace_id = trace_id
         record.span_id = span_id
     else:
-        record.trace_id = ''
+        record.trace_id = 0
         record.span_id = ''
 
     return record
