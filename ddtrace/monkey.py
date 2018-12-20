@@ -54,6 +54,9 @@ PATCH_MODULES = {
     "falcon": False,
     "pylons": False,
     "pyramid": False,
+
+    # Standard library modules off by default
+    "logging": False,
 }
 
 _LOCK = threading.Lock()

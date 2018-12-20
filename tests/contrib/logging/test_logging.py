@@ -5,21 +5,21 @@ import wrapt
 from ddtrace import correlation
 from ddtrace import tracer
 from ddtrace.compat import StringIO
-from ddtrace.utils.logs import patch_logging, unpatch_logging
+from ddtrace.contrib.logging import patch, unpatch
 
 
 class LoggingTestCase(unittest.TestCase):
     def setUp(self):
-        patch_logging()
+        patch()
 
     def tearDown(self):
-        unpatch_logging()
+        unpatch()
 
     def test_patch(self):
         """
         Confirm patching was successful
         """
-        patch_logging()
+        patch()
         log = logging.getLogger()
         self.assertTrue(isinstance(log.makeRecord, wrapt.BoundFunctionWrapper))
 
@@ -70,6 +70,6 @@ class LoggingTestCase(unittest.TestCase):
         self.assertEqual(output, 'Hello! - dd.trace_id=0 dd.span_id=0')
 
         # logging without patching and formatter not including trace info
-        unpatch_logging()
+        unpatch()
         output, _ = run_fn(traced_fn, fmt='%(message)s')
         self.assertEqual(output, 'Hello!')

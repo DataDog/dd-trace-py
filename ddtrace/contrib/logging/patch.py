@@ -1,29 +1,8 @@
-"""
-The patching of standard library logging to inject tracing information
-
-Example::
-    import logging
-    from ddtrace import tracer
-    from ddtrace.utils.logs import patch_logging
-
-    patch_logging()
-    logging.basicConfig(format='%(asctime)-15s %(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
-    log = logging.getLogger()
-    log.level = logging.INFO
-
-
-    @tracer.wrap()
-    def foo():
-        log.info('Hello!')
-
-    foo()
-"""
-
 import logging
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace import correlation
-from ddtrace.utils.wrappers import unwrap as _u
+from ... import correlation
+from ...utils.wrappers import unwrap as _u
 
 
 def _w_makeRecord(func, instance, args, kwargs):
@@ -41,7 +20,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     return record
 
 
-def patch_logging():
+def patch():
     """
     Patch ``logging`` module in the Python Standard Library for injection of
     tracer information by wrapping the base factory method ``Logger.makeRecord``
@@ -53,7 +32,7 @@ def patch_logging():
     _w(logging.Logger, 'makeRecord', _w_makeRecord)
 
 
-def unpatch_logging():
+def unpatch():
     if getattr(logging, '_datadog_patch', False):
         setattr(logging, '_datadog_patch', False)
 
