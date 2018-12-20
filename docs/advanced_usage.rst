@@ -241,6 +241,41 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+Logs Injection
+--------------
+
+Datadog APM traces can be integrated with Logs by setting an opt-in flag and
+updating the log formatter used by an application. This feature enables the user
+to move from a trace to the specific log entry emitted within the same trace
+context.
+
+Before the trace information is injected into logs, the formatter has to be
+updated to include ``trace_id`` and ``span_id`` attributes from the log record.
+Furthermore, the integration with Logs occurs automatically as long as the
+format of logs is appended with `` - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s``.
+
+When using ``ddtrace-run``, set the environment variable
+``DD_LOGS_INJECTION=true``. If you prefer to manual instrumentation::
+
+    from ddtrace import patch_all; patch_all(logging=True)
+
+An example of logs injection with manual instrumentation::
+
+    import logging
+    from ddtrace import patch_all; patch_all(logging=True)
+    from ddtrace import tracer
+
+    logging.basicConfig(format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
+    log = logging.getLogger()
+    log.level = logging.INFO
+
+    @tracer.wrap()
+    def foo():
+        log.info('Hello!')
+
+    foo()
+
+
 Http layer
 ----------
 
@@ -450,6 +485,7 @@ The available environment variables for ``ddtrace-run`` are:
   will submit to  (default: 8126)
 * ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority
   Sampling`
+* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
