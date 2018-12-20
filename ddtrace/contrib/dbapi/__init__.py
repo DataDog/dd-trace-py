@@ -9,11 +9,12 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.ext import AppTypes, sql
 from ddtrace.settings import config
+from ddtrace.utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
 
 config._add('dbapi2', dict(
-    trace_fetch_methods=False,
+    trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),
 ))
 
 
