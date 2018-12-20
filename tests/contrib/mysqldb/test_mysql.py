@@ -308,7 +308,6 @@ class MySQLCore(object):
             'db.user': u'test',
         })
 
-
     def test_simple_query_ot_fetchall(self):
         """OpenTracing version of test_simple_query."""
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
