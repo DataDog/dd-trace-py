@@ -40,7 +40,7 @@ class LoggingTestCase(unittest.TestCase):
             logger.info('Hello!')
             return correlation.get_correlation_ids()
 
-        def run_fn(fn, fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'):
+        def run_fn(fn, fmt):
             # add stream handler to capture output
             out = StringIO()
             sh = logging.StreamHandler(out)
@@ -55,22 +55,21 @@ class LoggingTestCase(unittest.TestCase):
 
             return out.getvalue().strip(), correlation_ids
 
-        # with logging patched
-        traced_fn_output, traced_ids = run_fn(traced_fn)
-        self.assertEqual(
-            traced_fn_output,
-            'Hello! - dd.trace_id={} dd.span_id={}'.format(*traced_ids)
-        )
+        # with logging patched and formatter including trace info
+        output, correlation_ids = run_fn(traced_fn, fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
+        self.assertEqual(output, 'Hello! - dd.trace_id={} dd.span_id={}'.format(*correlation_ids))
 
-        not_traced_fn_output, not_traced_ids = run_fn(not_traced_fn)
-        self.assertIsNone(not_traced_ids[0])
-        self.assertIsNone(not_traced_ids[1])
-        self.assertEqual(
-            not_traced_fn_output,
-            'Hello! - dd.trace_id= dd.span_id='.format(*traced_ids)
-        )
+        # with logging patched and formatter not including trace info
+        output, _ = run_fn(traced_fn, fmt='%(message)s')
+        self.assertEqual(output, 'Hello!')
 
-        # logging without patching and a format without relevant record attributes
+        # with logging patched on an untraced function and formatter including trace info
+        output, correlation_ids = run_fn(not_traced_fn, fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s')
+        self.assertIsNone(correlation_ids[0])
+        self.assertIsNone(correlation_ids[1])
+        self.assertEqual(output, 'Hello! - dd.trace_id=0 dd.span_id=0')
+
+        # logging without patching and formatter not including trace info
         unpatch_logging()
         output, _ = run_fn(traced_fn, fmt='%(message)s')
         self.assertEqual(output, 'Hello!')

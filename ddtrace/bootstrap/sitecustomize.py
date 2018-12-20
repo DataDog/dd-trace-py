@@ -67,7 +67,7 @@ try:
     hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
-    logs_injection = get_env('logs', 'injection')
+    logs_injection = asbool(get_env('logs', 'injection'))
 
     opts = {}
 

@@ -31,7 +31,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     # add correlation identifiers to LogRecord
     trace_id, span_id = correlation.get_correlation_ids()
-    if trace_id:
+    if trace_id and span_id:
         record.trace_id = trace_id
         record.span_id = span_id
     else:
