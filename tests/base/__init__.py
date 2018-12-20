@@ -44,6 +44,19 @@ class BaseTestCase(unittest.TestCase):
         finally:
             options.update(original)
 
+    @contextlib.contextmanager
+    def override_global_tracer(self):
+        """
+        Helper functions that overrides the global tracer available in the
+        `ddtrace` package. This is required because in some `httplib` tests we
+        can't get easily the PIN object attached to the `HTTPConnection` to
+        replace the used tracer with a dummy tracer.
+        """
+        original_tracer = ddtrace.tracer
+        ddtrace.tracer = self.tracer
+        yield
+        ddtrace.tracer = original_tracer
+
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
     """
@@ -53,22 +66,14 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
 
-        # swap out global tracer
-        self.global_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
-
         super(BaseTracerTestCase, self).setUp()
 
     def tearDown(self):
         """After each test case, reset and remove the dummy tracer"""
         super(BaseTracerTestCase, self).tearDown()
 
-        # swap out global tracer
-        ddtrace.tracer = self.global_tracer
-
         self.reset()
         delattr(self, 'tracer')
-        delattr(self, 'global_tracer')
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
