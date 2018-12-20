@@ -84,7 +84,7 @@ try:
         tracer.configure(**opts)
 
     if logs_injection:
-        EXTRA_PATCHED_MODULES.update({"logging": True})
+        EXTRA_PATCHED_MODULES.update({'logging': True})
 
     if patch:
         update_patched_modules()
