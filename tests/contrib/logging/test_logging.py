@@ -1,10 +1,6 @@
-import unittest
 import logging
 import wrapt
 
-from ddtrace import correlation
-from ddtrace import Pin
-from ddtrace import tracer
 from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
 
@@ -30,8 +26,8 @@ class LoggingTestCase(BaseTracerTestCase):
 
     def test_patch_output(self):
         """
-        Check that a log entry from traced function includes correlation
-        identifiers in log
+        Check that a log entry from traced function includes trace identifiers
+        in log
         """
         logger = logging.getLogger()
         logger.level = logging.INFO

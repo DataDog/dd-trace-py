@@ -9,7 +9,6 @@ import sys
 import logging
 
 from ddtrace.utils.formats import asbool, get_env
-from ddtrace.utils.logs import patch_logging
 
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
@@ -84,12 +83,12 @@ try:
     if opts:
         tracer.configure(**opts)
 
+    if logs_injection:
+        EXTRA_PATCHED_MODULES.update({"logging": True})
+
     if patch:
         update_patched_modules()
         from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
-
-    if logs_injection:
-        patch_logging()
 
     debug = os.environ.get("DATADOG_TRACE_DEBUG")
     if debug and debug.lower() == "true":
