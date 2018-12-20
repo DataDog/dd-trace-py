@@ -1,17 +1,16 @@
 # flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from annotations
-from unittest import TestCase
 
 import molten
 from molten.testing import TestClient
 
 from ddtrace import Pin
+from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.ext import errors
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 from ...util import override_config
 
 
@@ -29,20 +28,19 @@ def molten_client(headers=None):
     return client.get(uri)
 
 
-class TestMolten(TestCase):
+class TestMolten(BaseTracerTestCase):
     """"Ensures Molten is properly instrumented."""
 
     TEST_SERVICE = 'molten-patch'
 
     def setUp(self):
+        super(TestMolten, self).setUp()
         patch()
-        self.tracer = get_dummy_tracer()
         Pin.override(molten, tracer=self.tracer)
 
     def tearDown(self):
+        super(TestMolten, self).setUp()
         unpatch()
-        self.tracer.writer.pop()
-        delattr(self, 'tracer')
 
     def test_route_success(self):
         """ Tests request was a success with the expected span tags """
@@ -71,6 +69,20 @@ class TestMolten(TestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(spans[0].service, 'molten-patch')
+
+    def test_event_sample_rate(self):
+        """ Tests request was a success with the expected span tags """
+        with self.override_config('molten', dict(event_sample_rate=1)):
+            response = molten_client()
+            self.assertEqual(response.status_code, 200)
+            # TestResponse from TestClient is wrapper around Response so we must
+            # access data property
+            self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+
+            root_span = self.get_root_span()
+            root_span.assert_matches(
+                name='molten.request', metrics={EVENT_SAMPLE_RATE_KEY: 1},
+            )
 
     def test_route_failure(self):
         app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
