@@ -259,6 +259,8 @@ class TestSpanContainer(object):
                     raise AssertionError('Multiple root spans found {0!r} {1!r}'.format(root, span))
                 root = span
 
+        assert root, 'No root span found in {0!r}'.format(self.spans)
+
         return self._build_tree(root)
 
     def assert_span_count(self, count):
