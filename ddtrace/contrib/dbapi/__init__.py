@@ -8,8 +8,14 @@ import wrapt
 
 from ddtrace import Pin
 from ddtrace.ext import AppTypes, sql
+from ddtrace.settings import config
+from ddtrace.utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
+
+config._add('dbapi2', dict(
+    trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),
+))
 
 
 class TracedCursor(wrapt.ObjectProxy):
@@ -72,6 +78,27 @@ class TracedCursor(wrapt.ObjectProxy):
         self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
         return self
 
+    def callproc(self, proc, args):
+        """ Wraps the cursor.callproc method"""
+        self._self_last_execute_operation = proc
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, args)
+
+    def __enter__(self):
+        # previous versions of the dbapi didn't support context managers. let's
+        # reference the func that would be called to ensure that errors
+        # messages will be the same.
+        self.__wrapped__.__enter__
+
+        # and finally, yield the traced cursor.
+        return self
+
+
+class FetchTracedCursor(TracedCursor):
+    """
+    Sub-class of :class:`TracedCursor` that also instruments `fetchone`, `fetchall`, and `fetchmany` methods.
+
+    We do not trace these functions by default since they can get very noisy (e.g. `fetchone` with 100k rows).
+    """
     def fetchone(self, *args, **kwargs):
         """ Wraps the cursor.fetchone method"""
         span_name = '{}.{}'.format(self._self_datadog_name, 'fetchone')
@@ -101,25 +128,18 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags,
                                   *args, **kwargs)
 
-    def callproc(self, proc, args):
-        """ Wraps the cursor.callproc method"""
-        self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, args)
-
-    def __enter__(self):
-        # previous versions of the dbapi didn't support context managers. let's
-        # reference the func that would be called to ensure that errors
-        # messages will be the same.
-        self.__wrapped__.__enter__
-
-        # and finally, yield the traced cursor.
-        return self
-
 
 class TracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cursor_cls=TracedCursor):
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        # Set default cursor class if one was not provided
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = TracedCursor
+            if config.dbapi2.trace_fetch_methods:
+                cursor_cls = FetchTracedCursor
+
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = '{}.connection'.format(name)

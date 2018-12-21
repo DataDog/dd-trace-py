@@ -6,7 +6,6 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
-import unittest
 from unittest import skipIf
 
 # project
@@ -17,7 +16,9 @@ from ddtrace import Pin
 # testing
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
+from ...utils.tracer import DummyTracer
+
 
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL
@@ -25,63 +26,56 @@ if PSYCOPG2_VERSION >= (2, 7):
 TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
-class PsycopgCore(unittest.TestCase):
+class PsycopgCore(BaseTracerTestCase):
 
     # default service
     TEST_SERVICE = 'postgres'
 
     def setUp(self):
+        super(PsycopgCore, self).setUp()
+
         patch()
 
     def tearDown(self):
+        super(PsycopgCore, self).tearDown()
+
         unpatch()
 
-    def _get_conn_and_tracer(self):
+    def _get_conn(self, service=None):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
-        tracer = get_dummy_tracer()
-        Pin.get_from(conn).clone(tracer=tracer).onto(conn)
+        pin = Pin.get_from(conn)
+        if pin:
+            pin.clone(service=service, tracer=self.tracer).onto(conn)
 
-        return conn, tracer
+        return conn
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
 
         service = 'fo'
 
-        conn = psycopg2.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        conn = self._get_conn(service=service)
         conn.cursor().execute("""select 'blah'""")
-
-        spans = writer.pop()
-        assert spans, spans
-        self.assertEquals(len(spans), 1)
+        self.assert_structure(dict(name='postgres.query', service=service))
+        self.reset()
 
         # Test unpatch
         unpatch()
 
-        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-
-        spans = writer.pop()
-        assert not spans, spans
+        self.assert_has_no_spans()
 
         # Test patch again
         patch()
 
-        conn = psycopg2.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+        conn = self._get_conn(service=service)
         conn.cursor().execute("""select 'blah'""")
+        self.assert_structure(dict(name='postgres.query', service=service))
 
-        spans = writer.pop()
-        assert spans, spans
-        self.assertEquals(len(spans), 1)
-
-    def assert_conn_is_traced(self, tracer, db, service):
+    def assert_conn_is_traced(self, db, service):
 
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
@@ -90,31 +84,25 @@ class PsycopgCore(unittest.TestCase):
         except AttributeError:
             pass
 
-        writer = tracer.writer
         # Ensure we can run a query and it's correctly traced
         q = """select 'foobarblah'"""
+
         start = time.time()
         cursor = db.cursor()
         cursor.execute(q)
         rows = cursor.fetchall()
         end = time.time()
-        self.assertEquals(rows, [('foobarblah',)])
-        assert rows
-        spans = writer.pop()
-        assert spans
-        self.assertEquals(len(spans), 2)
-        span = spans[0]
-        self.assertEquals(span.name, 'postgres.query')
-        self.assertEquals(span.resource, q)
-        self.assertEquals(span.service, service)
-        self.assertIsNone(span.get_tag('sql.query'))
-        self.assertEquals(span.error, 0)
-        self.assertEquals(span.span_type, 'sql')
-        assert start <= span.start <= end
-        assert span.duration <= end - start
 
-        fetch_span = spans[1]
-        self.assertEquals(fetch_span.name, "postgres.query.fetchall")
+        self.assertEquals(rows, [('foobarblah',)])
+
+        self.assert_structure(
+            dict(name='postgres.query', resource=q, service=service, error=0, span_type='sql'),
+        )
+        root = self.get_root_span()
+        self.assertIsNone(root.get_tag('sql.query'))
+        assert start <= root.start <= end
+        assert root.duration <= end - start
+        self.reset()
 
         # run a query with an error and ensure all is well
         q = """select * from some_non_existant_table"""
@@ -125,24 +113,30 @@ class PsycopgCore(unittest.TestCase):
             pass
         else:
             assert 0, 'should have an error'
-        spans = writer.pop()
-        assert spans, spans
-        self.assertEquals(len(spans), 1)
-        span = spans[0]
-        self.assertEquals(span.name, 'postgres.query')
-        self.assertEquals(span.resource, q)
-        self.assertEquals(span.service, service)
-        self.assertIsNone(span.get_tag('sql.query'))
-        self.assertEquals(span.error, 1)
-        self.assertEquals(span.meta['out.host'], 'localhost')
-        self.assertEquals(span.meta['out.port'], TEST_PORT)
-        self.assertEquals(span.span_type, 'sql')
+
+        self.assert_structure(
+            dict(
+                name='postgres.query',
+                resource=q,
+                service=service,
+                error=1,
+                span_type='sql',
+                meta={
+                    'out.host': 'localhost',
+                    'out.port': TEST_PORT,
+                },
+            ),
+        )
+        root = self.get_root_span()
+        self.assertIsNone(root.get_tag('sql.query'))
+        self.reset()
 
     def test_opentracing_propagation(self):
         # ensure OpenTracing plays well with our integration
         query = """SELECT 'tracing'"""
-        db, tracer = self._get_conn_and_tracer()
-        ot_tracer = init_tracer('psycopg-svc', tracer)
+
+        db = self._get_conn()
+        ot_tracer = init_tracer('psycopg-svc', self.tracer)
 
         with ot_tracer.start_active_span('db.access'):
             cursor = db.cursor()
@@ -150,30 +144,39 @@ class PsycopgCore(unittest.TestCase):
             rows = cursor.fetchall()
 
         self.assertEquals(rows, [('tracing',)])
-        spans = tracer.writer.pop()
-        self.assertEquals(len(spans), 3)
-        ot_span, dd_span, fetch_span = spans
-        # confirm the parenting
-        self.assertEquals(ot_span.parent_id, None)
-        self.assertEquals(dd_span.parent_id, ot_span.span_id)
-        # check the OpenTracing span
-        self.assertEquals(ot_span.name, "db.access")
-        self.assertEquals(ot_span.service, "psycopg-svc")
-        # make sure the Datadog span is unaffected by OpenTracing
-        self.assertEquals(dd_span.name, "postgres.query")
-        self.assertEquals(dd_span.resource, query)
-        self.assertEquals(dd_span.service, 'postgres')
-        self.assertTrue(dd_span.get_tag("sql.query") is None)
-        self.assertEquals(dd_span.error, 0)
-        self.assertEquals(dd_span.span_type, "sql")
 
-        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
+        self.assert_structure(
+            dict(name='db.access', service='psycopg-svc'),
+            (
+                dict(name='postgres.query', resource=query, service='postgres', error=0, span_type='sql'),
+            ),
+        )
+        self.reset()
+
+        with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
+            db = self._get_conn()
+            ot_tracer = init_tracer('psycopg-svc', self.tracer)
+
+            with ot_tracer.start_active_span('db.access'):
+                cursor = db.cursor()
+                cursor.execute(query)
+                rows = cursor.fetchall()
+
+            self.assertEquals(rows, [('tracing',)])
+
+            self.assert_structure(
+                dict(name='db.access', service='psycopg-svc'),
+                (
+                    dict(name='postgres.query', resource=query, service='postgres', error=0, span_type='sql'),
+                    dict(name='postgres.query.fetchall', resource=query, service='postgres', error=0, span_type='sql'),
+                ),
+            )
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), 'context manager not available in psycopg2==2.4')
     def test_cursor_ctx_manager(self):
         # ensure cursors work with context managers
         # https://github.com/DataDog/dd-trace-py/issues/228
-        conn, tracer = self._get_conn_and_tracer()
+        conn = self._get_conn()
         t = type(conn.cursor())
         with conn.cursor() as cur:
             assert t == type(cur), '{} != {}'.format(t, type(cur))
@@ -182,23 +185,21 @@ class PsycopgCore(unittest.TestCase):
             assert len(rows) == 1, rows
             assert rows[0][0] == 'blah'
 
-        spans = tracer.writer.pop()
-        assert len(spans) == 2
-        span, fetch_span = spans
-        self.assertEquals(span.name, 'postgres.query')
-        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
+        self.assert_structure(
+            dict(name='postgres.query'),
+        )
 
     def test_disabled_execute(self):
-        conn, tracer = self._get_conn_and_tracer()
-        tracer.enabled = False
+        conn = self._get_conn()
+        self.tracer.enabled = False
         # these calls were crashing with a previous version of the code.
         conn.cursor().execute(query="""select 'blah'""")
         conn.cursor().execute("""select 'blah'""")
-        assert not tracer.writer.pop()
+        self.assert_has_no_spans()
 
     @skipIf(PSYCOPG2_VERSION < (2, 5), '_json is not available in psycopg2==2.4')
     def test_manual_wrap_extension_types(self):
-        conn, _ = self._get_conn_and_tracer()
+        conn = self._get_conn()
         # NOTE: this will crash if it doesn't work.
         #   _ext.register_type(_ext.UUID, conn_or_curs)
         #   TypeError: argument 2 must be a connection, cursor or None
@@ -210,7 +211,7 @@ class PsycopgCore(unittest.TestCase):
         extras.register_default_json(conn)
 
     def test_manual_wrap_extension_adapt(self):
-        conn, _ = self._get_conn_and_tracer()
+        conn = self._get_conn()
         # NOTE: this will crash if it doesn't work.
         #   items = _ext.adapt([1, 2, 3])
         #   items.prepare(conn)
@@ -237,16 +238,13 @@ class PsycopgCore(unittest.TestCase):
         quote_ident('foo', conn)
 
     def test_connect_factory(self):
-        tracer = get_dummy_tracer()
-
         services = ['db', 'another']
         for service in services:
-            conn, _ = self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-            self.assert_conn_is_traced(tracer, conn, service)
+            conn = self._get_conn(service=service)
+            self.assert_conn_is_traced(conn, service)
 
         # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
+        service_meta = self.tracer.writer.pop_services()
         expected = {
             'db': {'app': 'postgres', 'app_type': 'db'},
             'another': {'app': 'postgres', 'app_type': 'db'},
@@ -254,24 +252,20 @@ class PsycopgCore(unittest.TestCase):
         self.assertEquals(service_meta, expected)
 
     def test_commit(self):
-        conn, tracer = self._get_conn_and_tracer()
-        writer = tracer.writer
+        conn = self._get_conn()
         conn.commit()
-        spans = writer.pop()
-        self.assertEquals(len(spans), 1)
-        span = spans[0]
-        self.assertEquals(span.service, self.TEST_SERVICE)
-        self.assertEquals(span.name, 'postgres.connection.commit')
+
+        self.assert_structure(
+            dict(name='postgres.connection.commit', service=self.TEST_SERVICE)
+        )
 
     def test_rollback(self):
-        conn, tracer = self._get_conn_and_tracer()
-        writer = tracer.writer
+        conn = self._get_conn()
         conn.rollback()
-        spans = writer.pop()
-        self.assertEquals(len(spans), 1)
-        span = spans[0]
-        self.assertEquals(span.service, self.TEST_SERVICE)
-        self.assertEquals(span.name, 'postgres.connection.rollback')
+
+        self.assert_structure(
+            dict(name='postgres.connection.rollback', service=self.TEST_SERVICE)
+        )
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), 'SQL string composition not available in psycopg2<2.7')
     def test_composed_query(self):
@@ -279,7 +273,7 @@ class PsycopgCore(unittest.TestCase):
         query = SQL(' union all ').join(
             [SQL("""select 'one' as x"""),
              SQL("""select 'two' as x""")])
-        db, tracer = self._get_conn_and_tracer()
+        db = self._get_conn()
 
         with db.cursor() as cur:
             cur.execute(query=query)
@@ -288,16 +282,13 @@ class PsycopgCore(unittest.TestCase):
             assert rows[0][0] == 'one'
             assert rows[1][0] == 'two'
 
-        spans = tracer.writer.pop()
-        assert len(spans) == 2
-        span, fetch_span = spans
-        self.assertEquals(span.name, 'postgres.query')
-        self.assertEquals(span.resource, query.as_string(db))
-        self.assertEquals(fetch_span.name, 'postgres.query.fetchall')
+        self.assert_structure(
+            dict(name='postgres.query', resource=query.as_string(db)),
+        )
 
 
 def test_backwards_compatibilty_v3():
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     factory = connection_factory(tracer, service='my-postgres-db')
     conn = psycopg2.connect(connection_factory=factory, **POSTGRES_CONFIG)
     conn.cursor().execute("""select 'blah'""")
