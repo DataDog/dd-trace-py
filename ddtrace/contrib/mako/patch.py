@@ -15,7 +15,7 @@ def patch():
         return
     setattr(mako, '__datadog_patch', True)
 
-    Pin(service="mako", app="mako", app_type=http.TEMPLATE).onto(Template)
+    Pin(service='mako', app='mako', app_type=http.TEMPLATE).onto(Template)
 
     _w(mako, 'template.Template.render', _wrap_render)
     _w(mako, 'template.Template.render_unicode', _wrap_render)
@@ -38,7 +38,6 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.filename or DEFAULT_TEMPLATE_NAME
-    print(func_name(wrapped))
     with pin.tracer.trace(func_name(wrapped), pin.service, span_type=http.TEMPLATE) as span:
         try:
             template = wrapped(*args, **kwargs)

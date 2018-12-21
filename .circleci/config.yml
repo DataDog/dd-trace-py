@@ -872,7 +872,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{100}' --result-json /tmp/mako.results
+      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{010,100}' --result-json /tmp/mako.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -1010,6 +1010,9 @@ workflows:
       - jinja2:
           requires:
             - flake8
+      - mako:
+          requires:
+            - flake8
       - kombu:
           requires:
             - flake8
@@ -1112,6 +1115,7 @@ workflows:
             - httplib
             - integration
             - jinja2
+            - mako
             - kombu
             - molten
             - mongoengine

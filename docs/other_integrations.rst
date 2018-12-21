@@ -82,3 +82,10 @@ Jinja2
 ------
 
 .. automodule:: ddtrace.contrib.jinja2
+
+.. _mako:
+
+Mako
+------
+
+.. automodule:: ddtrace.contrib.mako
