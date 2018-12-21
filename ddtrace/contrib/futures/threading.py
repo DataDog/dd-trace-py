@@ -16,6 +16,7 @@ def _wrap_submit(func, instance, args, kwargs):
     fn_args = args[1:]
     return func(_wrap_execution, current_ctx, fn, fn_args, kwargs)
 
+
 def _wrap_execution(ctx, fn, args, kwargs):
     """
     Intermediate target function that is executed in a new thread;

@@ -1,4 +1,3 @@
-import time
 import timeit
 
 from ddtrace import Tracer
@@ -72,6 +71,7 @@ def benchmark_tracer_wrap():
     timer = timeit.Timer(f.m)
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
     print("- method execution time: {:8.6f}".format(min(result)))
+
 
 def benchmark_getpid():
     timer = timeit.Timer(getpid)

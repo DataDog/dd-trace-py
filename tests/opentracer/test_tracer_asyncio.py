@@ -1,3 +1,5 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
 import pytest
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
@@ -6,7 +8,7 @@ import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
-from .utils import ot_tracer_factory, dd_tracer, writer
+from .conftest import dd_tracer, ot_tracer_factory, writer
 
 
 @pytest.fixture()

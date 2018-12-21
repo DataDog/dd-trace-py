@@ -47,6 +47,29 @@ if os.environ.get('VERSION_SUFFIX'):
         s=os.environ.get('VERSION_SUFFIX'),
     )
 
+long_description = """
+# dd-trace-py
+
+`ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
+as they flow across web servers, databases and microservices so that developers
+have great visiblity into bottlenecks and troublesome requests.
+
+## Getting Started
+
+For a basic product overview, installation and quick start, check out our
+[setup documentation][setup docs].
+
+For more advanced usage and configuration, check out our [API
+documentation][pypi docs].
+
+For descriptions of terminology used in APM, take a look at the [official
+documentation][visualization docs].
+
+[setup docs]: https://docs.datadoghq.com/tracing/setup/python/
+[pypi docs]: http://pypi.datadoghq.com/trace/docs/
+[visualization docs]: https://docs.datadoghq.com/tracing/visualization/
+"""
+
 setup(
     name='ddtrace',
     version=version,
@@ -54,16 +77,19 @@ setup(
     url='https://github.com/DataDog/dd-trace-py',
     author='Datadog, Inc.',
     author_email='dev@datadoghq.com',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        "wrapt",
-        "msgpack-python",
+        'msgpack-python',
+        'six',
+        'wrapt',
     ],
     extras_require={
         # users can include opentracing by having:
-        # install_requires=["ddtrace[opentracing]", ...]
-        "opentracing": ["opentracing>=2.0.0"],
+        # install_requires=['ddtrace[opentracing]', ...]
+        'opentracing': ['opentracing>=2.0.0'],
     },
     # plugin tox
     tests_require=['tox', 'flake8'],

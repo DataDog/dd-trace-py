@@ -7,15 +7,16 @@ import unittest
 import wrapt
 
 # Project
+from ddtrace import config
 from ddtrace.compat import httplib, PY2
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
-from ...test_tracer import get_dummy_tracer
-from ...util import assert_dict_issuperset, override_global_tracer
 
+from ...test_tracer import get_dummy_tracer
+from ...util import assert_dict_issuperset, override_global_tracer, override_config
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -221,7 +222,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
     def test_httplib_request_get_request_query_string(self):
         """
         When making a GET request with a query string via httplib.HTTPConnection.request
-            we capture a the entire url in the span
+            we capture the all of the url in the span except for the query string
         """
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
@@ -242,7 +243,8 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             {
                 'http.method': 'GET',
                 'http.status_code': '200',
-                'http.url': '{}?key=value&key2=value2'.format(URL_200),
+                # check url metadata lacks query string
+                'http.url': '{}'.format(URL_200),
             }
         )
 
@@ -338,6 +340,31 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
 
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 0)
+
+    def test_httplib_request_and_response_headers(self):
+
+        # Disabled when not configured
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
+            conn.getresponse()
+            spans = self.tracer.writer.pop()
+            s = spans[0]
+            self.assertEqual(s.get_tag('http.request.headers.my_header'), None)
+            self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
+
+        # Enabled when configured
+        with override_config('hhtplib', {}):
+            integration_config = config.httplib  # type: IntegrationConfig
+            integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200', headers={'my-header': 'my_value'})
+                conn.getresponse()
+                spans = self.tracer.writer.pop()
+        s = spans[0]
+        self.assertEqual(s.get_tag('http.request.headers.my-header'), 'my_value')
+        self.assertEqual(s.get_tag('http.response.headers.access-control-allow-origin'), '*')
 
     def test_urllib_request(self):
         """
@@ -469,6 +496,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 'http.url': URL_200,
             }
         )
+
 
 # Additional Python2 test cases for urllib
 if PY2:

@@ -136,7 +136,7 @@ class TestGeventTracer(TestCase):
         for func in funcs:
             with self.tracer.trace('outer', resource='base') as span:
                 # Use a list to force evaluation
-                list(func(greenlet, [0,1,2]))
+                list(func(greenlet, [0, 1, 2]))
             traces = self.tracer.writer.pop_traces()
 
             eq_(4, len(traces))
@@ -298,7 +298,7 @@ class TestGeventTracer(TestCase):
         self.tracer.context_provider.activate(ctx)
 
         def greenlet():
-            with self.tracer.trace('greenlet') as span:
+            with self.tracer.trace('greenlet'):
                 gevent.sleep(0.01)
 
         jobs = [gevent.spawn(greenlet) for x in range(1)]

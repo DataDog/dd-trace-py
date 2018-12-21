@@ -30,6 +30,7 @@ CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
+
 def setUpModule():
     # skip all the modules if the Cluster is not available
     if not Cluster:
@@ -39,12 +40,17 @@ def setUpModule():
     cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
     session = cluster.connect()
     session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
-    session.execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};")
+    session.execute(
+        "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"
+    )
     session.execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
     session.execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+    session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')"
+    )
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
+
 
 def tearDownModule():
     # destroy the KEYSPACE
@@ -152,9 +158,11 @@ class CassandraBase(object):
             event = Event()
             result = []
             future = session.execute_async(query)
+
             def callback(results):
                 result.append(ResultSet(future, results))
                 event.set()
+
             future.add_callback(callback)
             event.wait()
             return result[0]
@@ -179,7 +187,7 @@ class CassandraBase(object):
         writer = tracer.writer
         statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
         result = session.execute(statement)
-        #iterate over all pages
+        # iterate over all pages
         results = list(result)
         eq_(len(results), 3)
 
@@ -257,8 +265,14 @@ class CassandraBase(object):
         writer = tracer.writer
 
         batch = BatchStatement()
-        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Joe', 1, 'a'))
-        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Jane', 2, 'b'))
+        batch.add(
+            SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'),
+            ('Joe', 1, 'a'),
+        )
+        batch.add(
+            SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'),
+            ('Jane', 2, 'b'),
+        )
         session.execute(batch)
 
         spans = writer.pop()
@@ -285,6 +299,7 @@ class TestCassPatchDefault(CassandraBase):
         tracer = get_dummy_tracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
+
 
 class TestCassPatchAll(TestCassPatchDefault):
     """Test Cassandra instrumentation with patching and custom service on all clusters"""

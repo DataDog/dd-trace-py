@@ -57,7 +57,7 @@ class PyMySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
 
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -68,6 +68,9 @@ class PyMySQLCore(object):
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
 
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
+
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
@@ -77,7 +80,10 @@ class PyMySQLCore(object):
         rows = cursor.fetchall()
         eq_(len(rows), 3)
         spans = writer.pop()
-        eq_(len(spans), 1)
+        eq_(len(spans), 2)
+
+        fetch_span = spans[1]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -106,8 +112,11 @@ class PyMySQLCore(object):
         eq_(rows[1][1], "this is foo")
 
         spans = writer.pop()
-        eq_(len(spans), 2)
+        eq_(len(spans), 3)
         cursor.execute("drop table if exists dummy")
+
+        fetch_span = spans[2]
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
 
     def test_query_proc(self):
         conn, tracer = self._get_conn_tracer()
@@ -165,8 +174,8 @@ class PyMySQLCore(object):
             eq_(len(rows), 1)
 
         spans = writer.pop()
-        eq_(len(spans), 2)
-        ot_span, dd_span = spans
+        eq_(len(spans), 3)
+        ot_span, dd_span, fetch_span = spans
 
         # confirm parenting
         eq_(ot_span.parent_id, None)
@@ -182,6 +191,28 @@ class PyMySQLCore(object):
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(dd_span.meta, meta)
+
+        eq_(fetch_span.name, 'pymysql.query.fetchall')
+
+    def test_commit(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.commit()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'pymysql.connection.commit')
+
+    def test_rollback(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        conn.rollback()
+        spans = writer.pop()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'pymysql.connection.rollback')
 
 
 class TestPyMysqlPatch(PyMySQLCore, TestCase):
@@ -222,7 +253,7 @@ class TestPyMysqlPatch(PyMySQLCore, TestCase):
             rows = cursor.fetchall()
             eq_(len(rows), 1)
             spans = writer.pop()
-            eq_(len(spans), 1)
+            eq_(len(spans), 2)
 
             span = spans[0]
             eq_(span.service, self.TEST_SERVICE)
@@ -233,6 +264,9 @@ class TestPyMysqlPatch(PyMySQLCore, TestCase):
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.meta, meta)
+
+            fetch_span = spans[1]
+            eq_(fetch_span.name, 'pymysql.query.fetchall')
 
         finally:
             unpatch()

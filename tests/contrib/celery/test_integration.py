@@ -103,6 +103,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.name, 'celery.run')
         eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task')
         eq_(span.service, 'celery-worker')
+        eq_(span.span_type, 'worker')
         eq_(span.get_tag('celery.id'), t.task_id)
         eq_(span.get_tag('celery.action'), 'run')
         eq_(span.get_tag('celery.state'), 'SUCCESS')
@@ -285,7 +286,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
         @celery.shared_task
-        def add(x ,y):
+        def add(x, y):
             return x + y
 
         res = add.apply([2, 2])

@@ -6,8 +6,16 @@ from psycopg2 import connect, OperationalError
 from cassandra.cluster import Cluster, NoHostAvailable
 import rediscluster
 import vertica_python
+import kombu
 
-from contrib.config import POSTGRES_CONFIG, CASSANDRA_CONFIG, MYSQL_CONFIG, REDISCLUSTER_CONFIG, VERTICA_CONFIG
+from contrib.config import (
+    POSTGRES_CONFIG,
+    CASSANDRA_CONFIG,
+    MYSQL_CONFIG,
+    REDISCLUSTER_CONFIG,
+    VERTICA_CONFIG,
+    RABBITMQ_CONFIG
+)
 
 
 def try_until_timeout(exception):
@@ -16,8 +24,9 @@ def try_until_timeout(exception):
 
     """
     def wrap(fn):
-        err = None
         def wrapper(*args, **kwargs):
+            err = None
+
             for i in range(100):
                 try:
                     fn()
@@ -68,6 +77,7 @@ def check_rediscluster():
     r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
     r.flushall()
 
+
 @try_until_timeout(Exception)
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
@@ -77,6 +87,16 @@ def check_vertica():
         conn.close()
 
 
+@try_until_timeout(Exception)
+def check_rabbitmq():
+    url = "amqp://{user}:{password}@{host}:{port}//".format(**RABBITMQ_CONFIG)
+    conn = kombu.Connection(url)
+    try:
+        conn.connect()
+    finally:
+        conn.release()
+
+
 if __name__ == '__main__':
     check_functions = {
         'cassandra': check_cassandra,
@@ -84,6 +104,7 @@ if __name__ == '__main__':
         'mysql': check_mysql,
         'rediscluster': check_rediscluster,
         'vertica': check_vertica,
+        'rabbitmq': check_rabbitmq,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:

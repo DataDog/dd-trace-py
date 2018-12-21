@@ -8,6 +8,18 @@ from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
 from ...utils.wrappers import unwrap as _u
 
+# psycopg2 versions can end in `-betaN` where `N` is a number
+# in such cases we simply skip version specific patching
+PSYCOPG2_VERSION = (0, 0, 0)
+
+try:
+    PSYCOPG2_VERSION = tuple(map(int, psycopg2.__version__.split()[0].split('.')))
+except Exception:
+    pass
+
+if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import Composable
+
 
 def patch():
     """ Patch monkey patches psycopg's connection function
@@ -27,7 +39,27 @@ def unpatch():
         _u(psycopg2, 'connect')
 
 
-def patch_conn(conn, traced_conn_cls=dbapi.TracedConnection):
+class Psycopg2TracedCursor(dbapi.TracedCursor):
+    """ TracedCursor for psycopg2 """
+    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
+        # treat psycopg2.sql.Composable resource objects as strings
+        if PSYCOPG2_VERSION >= (2, 7) and isinstance(resource, Composable):
+            resource = resource.as_string(self.__wrapped__)
+
+        return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
+
+
+class Psycopg2TracedConnection(dbapi.TracedConnection):
+    """ TracedConnection wraps a Connection with tracing code. """
+
+    def __init__(self, conn, pin=None, cursor_cls=Psycopg2TracedCursor):
+        super(Psycopg2TracedConnection, self).__init__(conn, pin)
+        # wrapt requires prefix of `_self` for attributes that are only in the
+        # proxy (since some of our source objects will use `__slots__`)
+        self._self_cursor_cls = cursor_cls
+
+
+def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     """ Wrap will patch the instance so that it's queries are traced."""
     # ensure we've patched extensions (this is idempotent) in case we're
     # only tracing some connections.
@@ -153,7 +185,6 @@ if getattr(psycopg2, '_json', None):
 # `quote_ident` attribute is only available for psycopg >= 2.7
 if getattr(psycopg2, 'extensions', None) and getattr(psycopg2.extensions,
                                                      'quote_ident', None):
-    _psycopg2_extensions += [(psycopg2.extensions.quote_ident,
-     psycopg2.extensions, 'quote_ident',
-     _extensions_quote_ident),
+    _psycopg2_extensions += [
+        (psycopg2.extensions.quote_ident, psycopg2.extensions, 'quote_ident', _extensions_quote_ident),
     ]

@@ -57,6 +57,25 @@ class Pin(object):
             self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
+    def _find(*objs):
+        """
+        Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
+
+
+            >>> pin = Pin._find(wrapper, instance, conn, app)
+
+        :param *objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :type objs: List of objects
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
+        """
+        for obj in objs:
+            pin = Pin.get_from(obj)
+            if pin:
+                return pin
+        return None
+
+    @staticmethod
     def get_from(obj):
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
@@ -64,6 +83,11 @@ class Pin(object):
         instance, avoiding that a specific instance overrides other pins values.
 
             >>> pin = Pin.get_from(conn)
+
+        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
+        :type obj: object
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
@@ -131,6 +155,17 @@ class Pin(object):
             return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
+
+    def remove_from(self, obj):
+        # Remove pin from the object.
+        try:
+            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+
+            pin = Pin.get_from(obj)
+            if pin is not None:
+                delattr(obj, pin_name)
+        except AttributeError:
+            log.debug('can\'t remove pin from object. skipping', exc_info=True)
 
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""

@@ -18,19 +18,19 @@ CASSANDRA_CONFIG = {
 }
 
 POSTGRES_CONFIG = {
-    'host' : 'localhost',
+    'host': 'localhost',
     'port': int(os.getenv("TEST_POSTGRES_PORT", 5432)),
-    'user' : os.getenv("TEST_POSTGRES_USER", "postgres"),
-    'password' : os.getenv("TEST_POSTGRES_PASSWORD", "postgres"),
-    'dbname' : os.getenv("TEST_POSTGRES_DB", "postgres"),
+    'user': os.getenv("TEST_POSTGRES_USER", "postgres"),
+    'password': os.getenv("TEST_POSTGRES_PASSWORD", "postgres"),
+    'dbname': os.getenv("TEST_POSTGRES_DB", "postgres"),
 }
 
 MYSQL_CONFIG = {
-    'host' : '127.0.0.1',
-    'port' : int(os.getenv("TEST_MYSQL_PORT", 3306)),
-    'user' : os.getenv("TEST_MYSQL_USER", 'test'),
-    'password' : os.getenv("TEST_MYSQL_PASSWORD", 'test'),
-    'database' : os.getenv("TEST_MYSQL_DATABASE", 'test'),
+    'host': '127.0.0.1',
+    'port': int(os.getenv("TEST_MYSQL_PORT", 3306)),
+    'user': os.getenv("TEST_MYSQL_USER", 'test'),
+    'password': os.getenv("TEST_MYSQL_PASSWORD", 'test'),
+    'database': os.getenv("TEST_MYSQL_DATABASE", 'test'),
 }
 
 REDIS_CONFIG = {
@@ -47,7 +47,7 @@ MONGO_CONFIG = {
 }
 
 MEMCACHED_CONFIG = {
-    'host' : os.getenv('TEST_MEMCACHED_HOST', '127.0.0.1'),
+    'host': os.getenv('TEST_MEMCACHED_HOST', '127.0.0.1'),
     'port': int(os.getenv("TEST_MEMCACHED_PORT", 11211)),
 }
 
@@ -57,4 +57,11 @@ VERTICA_CONFIG = {
     'user': os.getenv('TEST_VERTICA_USER', 'dbadmin'),
     'password': os.getenv('TEST_VERTICA_PASSWORD', 'abc123'),
     'database': os.getenv('TEST_VERTICA_DATABASE', 'docker'),
+}
+
+RABBITMQ_CONFIG = {
+    'host': os.getenv('TEST_RABBITMQ_HOST', '127.0.0.1'),
+    'user': os.getenv('TEST_RABBITMQ_USER', 'guest'),
+    'password': os.getenv('TEST_RABBITMQ_PASSWORD', 'guest'),
+    'port': int(os.getenv("TEST_RABBITMQ_PORT", 5672)),
 }
