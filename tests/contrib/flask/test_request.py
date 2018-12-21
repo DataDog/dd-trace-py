@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ddtrace.compat import PY2
+from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
@@ -76,6 +77,34 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.index')
         self.assertEqual(handler_span.resource, '/')
         self.assertEqual(req_span.error, 0)
+
+    def test_event_sample_rate(self):
+        """
+        When making a request
+            When an event sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        @self.app.route('/')
+        def index():
+            return 'Hello Flask', 200
+
+        with self.override_config('flask', dict(event_sample_rate=1)):
+            res = self.client.get('/')
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.data, b'Hello Flask')
+
+        root = self.get_root_span()
+        root.assert_matches(
+            name='flask.request',
+            metrics={
+                EVENT_SAMPLE_RATE_KEY: 1,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
     def test_distributed_tracing(self):
         """

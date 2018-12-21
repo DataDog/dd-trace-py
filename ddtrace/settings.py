@@ -179,6 +179,11 @@ class IntegrationConfig(object):
         :param defaults: default key, value pairs to add
         :type defaults: dict
         """
+
+        # Set default keys/values
+        # DEV: Default to `None` which means do not set this key
+        self['event_sample_rate'] = None
+
         self.global_config = global_config
         self.hooks = Hooks()
         self.http = HttpConfig()
@@ -186,6 +191,7 @@ class IntegrationConfig(object):
         self._items = dict()
 
         # Add the default items to the config if they are specified
+        self._add_default('event_sample_rate', None)
         self._defaults = defaults or {}
         for key in self._defaults:
             self._add_default(key, self._defaults[key])
