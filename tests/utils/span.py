@@ -131,6 +131,8 @@ class TestSpan(Span):
             # Special case for `meta`
             if name == 'meta':
                 self.assert_meta(value)
+            elif name == 'metrics':
+                self.assert_metrics(value)
             else:
                 assert hasattr(self, name), '{0!r} does not have property {1!r}'.format(self, name)
                 assert getattr(self, name) == value, (
@@ -161,6 +163,31 @@ class TestSpan(Span):
                 assert self.meta[key] == value, (
                     '{0} meta property {1!r}: {2!r} != {3!r}'
                     .format(self, key, self.meta[key], value)
+                )
+
+    def assert_metrics(self, metrics, exact=False):
+        """
+        Assertion method to ensure this span's metrics match as expected
+
+        Example::
+
+            span = TestSpan(span)
+            span.assert_metrics({'_dd1.sr.eausr': 1})
+
+        :param metrics: Property/Value pairs to evaluate on this span
+        :type metrics: dict
+        :param exact: Whether to do an exact match on the metrics values or not, default: False
+        :type exact: bool
+        :raises: AssertionError
+        """
+        if exact:
+            assert self.metrics == metrics
+        else:
+            for key, value in metrics.items():
+                assert key in self.metrics, '{0} metrics does not have property {1!r}'.format(self, key)
+                assert self.metrics[key] == value, (
+                    '{0} metrics property {1!r}: {2!r} != {3!r}'
+                    .format(self, key, self.metrics[key], value)
                 )
 
 
@@ -231,6 +258,8 @@ class TestSpanContainer(object):
                 if root is not None:
                     raise AssertionError('Multiple root spans found {0!r} {1!r}'.format(root, span))
                 root = span
+
+        assert root, 'No root span found in {0!r}'.format(self.spans)
 
         return self._build_tree(root)
 

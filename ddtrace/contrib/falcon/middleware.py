@@ -3,7 +3,9 @@ import sys
 from ddtrace.ext import http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
+
 from ...compat import iteritems
+from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...settings import config
 
@@ -36,6 +38,10 @@ class TraceMiddleware(object):
             service=self.service,
             span_type=httpx.TYPE,
         )
+
+        # Configure trace search sample rate
+        if config.falcon.event_sample_rate is not None:
+            span.set_tag(EVENT_SAMPLE_RATE_KEY, config.falcon.event_sample_rate)
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)

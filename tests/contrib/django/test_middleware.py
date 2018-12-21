@@ -40,6 +40,28 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.span_type, 'http')
         eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
 
+    def test_event_sample_rate(self):
+        # ensures that the internals are properly traced
+        with self.override_config('django', dict(event_sample_rate=1)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
+        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
+        eq_(sp_request.get_tag('http.status_code'), '200')
+        eq_(sp_request.get_tag('http.url'), '/users/')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
+        eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
+        eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
+
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
         # to get repatched. However since django tests are a atomic transaction
