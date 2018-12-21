@@ -27,11 +27,10 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
-        sp_database_fetch = spans[3]
         eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
         eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
         eq_(sp_request.get_tag('http.status_code'), '200')
@@ -40,7 +39,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.method'), 'GET')
         eq_(sp_request.span_type, 'http')
         eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
-        eq_(sp_database_fetch.name, 'sqlite.query.fetchmany')
 
     def test_event_sample_rate(self):
         # ensures that the internals are properly traced
@@ -81,11 +79,10 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # We would be missing span #3, the database span, if the connection
         # wasn't patched.
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         eq_(spans[0].name, 'django.request')
         eq_(spans[1].name, 'django.template')
         eq_(spans[2].name, 'sqlite.query')
-        eq_(spans[3].name, 'sqlite.query.fetchmany')
 
     def test_middleware_trace_errors(self):
         # ensures that the internals are properly traced
@@ -190,7 +187,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         sp_request = spans[0]
         eq_(sp_request.get_tag('http.status_code'), '200')
         eq_(sp_request.get_tag('django.user.is_authenticated'), None)
@@ -209,7 +206,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         sp_request = spans[0]
 
         # Check for proper propagated attributes
@@ -230,7 +227,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         sp_request = spans[0]
 
         # Check that propagation didn't happen
@@ -302,12 +299,11 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 5)
+        eq_(len(spans), 4)
         ot_span = spans[0]
         sp_request = spans[1]
         sp_template = spans[2]
         sp_database = spans[3]
-        sp_database_fetch = spans[4]
 
         # confirm parenting
         eq_(ot_span.parent_id, None)
@@ -322,7 +318,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
-        eq_(sp_database_fetch.name, 'sqlite.query.fetchmany')
 
     def test_middleware_trace_request_404(self):
         """
