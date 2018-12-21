@@ -49,11 +49,10 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        eq_(len(spans), 3)
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
-        sp_database_fetch = spans[3]
         eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
         eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
         eq_(sp_request.get_tag('http.status_code'), '200')
@@ -62,7 +61,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.method'), 'GET')
         eq_(sp_request.span_type, 'http')
         eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
-        eq_(sp_database_fetch.name, 'sqlite.query.fetchmany')
 
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
