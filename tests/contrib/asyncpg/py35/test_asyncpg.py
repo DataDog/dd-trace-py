@@ -1,3 +1,5 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
 # stdlib
 import time
 
