@@ -81,9 +81,9 @@ def _patched_connect(connect_func, _, args, kwargs):
     return conn
 
 
-def _get_parsed_tags(*,
-        dsn=None, host=None, port=None, user=None, password=None,
-        database=None, ssl=None, connect_timeout=60, server_settings=None):
+def _get_parsed_tags(*, dsn=None, host=None, port=None, user=None,
+                     password=None, database=None, ssl=None,
+                     connect_timeout=60, server_settings=None):
     try:
         addrs, params = asyncpg.connect_utils._parse_connect_dsn_and_args(
             dsn=dsn, host=host, port=port, user=user, password=password,
@@ -97,7 +97,7 @@ def _get_parsed_tags(*,
             db.USER: params.user,
         }
         return tags
-    except:
+    except Exception:
         # This same exception will presumably be raised during the actual conn
         return {}
 
