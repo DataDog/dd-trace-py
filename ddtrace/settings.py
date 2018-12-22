@@ -4,6 +4,7 @@ import logging
 
 from .pin import Pin
 from .span import Span
+from .utils.attrdict import AttrDict
 from .utils.formats import get_env
 from .utils.merge import deepmerge
 from .utils.http import normalize_header_name
@@ -60,22 +61,12 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
-        # DEV: Use `getattr()` to call our `__getattr__` helper
         existing = getattr(self, integration)
-        settings = deepcopy(settings)
-
-        if merge:
-            # DEV: This may appear backwards keeping `existing` as the "source" and `settings` as
-            #   the "destination", but we do not want to let `_add(..., merge=True)` overwrite any
-            #   existing settings
-            #
-            # >>> config.requests['split_by_domain'] = True
-            # >>> config._add('requests', dict(split_by_domain=False))
-            # >>> config.requests['split_by_domain']
-            # True
-            self._config[integration] = IntegrationConfig(self, integration, defaults=deepmerge(existing, settings))
-        else:
-            self._config[integration] = IntegrationConfig(self, integration, defaults=settings)
+        for key, value in settings.items():
+            if not isinstance(value, ConfigItem):
+                value = ConfigItem(key, default_value=value)
+            existing[key] = value
+        self._config[integration] = existing
 
     def trace_headers(self, whitelist):
         """
@@ -103,168 +94,128 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-class IntegrationConfigItem(object):
-    """
-    A wrapper for items stored in an IntegrationConfig which is responsible for
-    determining what the value of the item stored in the config should be.
-
-    The precedence for determining the value for a config item is:
-
-    [high]
-        1) user-overridden value (indicated via `update_value`)
-        2) environment variable  (of the form DD_{INTEGRATION}_{KEY})
-        3) default value         (specified in the initializer)
-    [low]
-
-    TODO:
-        - env_var_names param to allow custom environment variables to be checked
-        - docstring param to allow the item to be described by the integration
-        - global config fallback when no default is provided.
-    """
-    def __init__(self, config, key, default_value=None):
-        self.config = config
-        self.default_value = default_value
-        self.key = key
-        self._value = None
-        # Flag indicating whether the value has been defined by the user or not,
-        # by default it is not.
-        self.user_defined = False
-
-    def update_value(self, value):
-        self.user_defined = True
-        self._value = value
-
-    def _get_from_env(self):
-        env_val = get_env(self.config._integration_name, self.key)
-        return env_val
-
-    @property
-    def value(self):
-        if self.user_defined:
-            return self._value
-
-        env_val = self._get_from_env()
-        if env_val:
-            return env_val
-
-        return self.default_value
-
-    def copy(self):
-        new = IntegrationConfigItem(self.config, self.key, self.default_value)
-        new.user_defined = self.user_defined
-        return new
+ITEM_UNSET = object()
 
 
-class IntegrationConfig(object):
-    """
-    Integration specific configuration object.
+class ConfigItem(object):
+    __slots__ = ('name', 'value', '_default')
 
-    This is what you will get when you do::
+    def __init__(self, name, default_value=None, doc=None):
+        self.name = name
+        self.value = ITEM_UNSET
+        self._default = default_value
 
-        from ddtrace import config
+        # TOOD: Set a default __doc__
+        if doc is not None:
+            self.__doc__ = doc
 
-        # This is an `IntegrationConfig`
-        config.flask
+    def __get__(self, config):
+        if self.value is ITEM_UNSET:
+            return get_env(config.integration_name, self.name, default=self._default)
+        return self.value
 
-        # `IntegrationConfig` supports both attribute and item accessors
-        config.flask['service_name'] = 'my-service-name'
-        config.flask.service_name = 'my-service-name'
-    """
-    _initialized = False
-
-    def __init__(self, global_config, integration_name, defaults=None):
-        """
-        :param global_config: a reference back to the global config
-        :param integration_name: the name of the integration for this config
-        :param defaults: default key, value pairs to add
-        :type defaults: dict
-        """
-
-        # Set default keys/values
-        # DEV: Default to `None` which means do not set this key
-        self['event_sample_rate'] = None
-
-        self.global_config = global_config
-        self.hooks = Hooks()
-        self.http = HttpConfig()
-        self._integration_name = integration_name
-        self._items = dict()
-
-        # Add the default items to the config if they are specified
-        self._add_default('event_sample_rate', None)
-        self._defaults = defaults or {}
-        for key in self._defaults:
-            self._add_default(key, self._defaults[key])
-
-        # This flag is for the __setattr__ to know when we have finished setting
-        # attributes on the class.
-        self._initialized = True
-
-    def __getattr__(self, item):
-        # Use the .items() of the config items (stored in self.items)
-        if item in set(['items', 'update']):
-            return getattr(self._items, item)
-
-        if item not in self._items:
-            # This will intentionally raise an AttributeError for the config
-            return object.__getattribute__(self, item)
-
-        item = self._items[item]
-        return item.value
-
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-    def __setattr__(self, key, value):
-        # If the class attributes have not yet been initialized or the key is
-        # an attribute on this class then just use the normal object.__setattr__
-        if not self._initialized or key in object.__getattribute__(self, '__dict__'):
-            return object.__setattr__(self, key, value)
-
-        # Else we have either a new attribute or an attribute to be stored as a
-        # config item.
-
-        if not hasattr(self, key):
-            # If the attribute does not exist, add it as a default config item.
-            # TODO: should this be a no-op with a log message instead?
-            item = self._add_default(key, value)
+    def __set__(self, config, value):
+        if isinstance(value, ConfigItem):
+            self._default = value._default
         else:
-            item = self._items[key]
-            item.update_value(value)
-            self._items[key] = item
-        return item.value
+            self.value = value
 
-    def __setitem__(self, key, value):
-        return setattr(self, key, value)
+    def set_default(self, default_value):
+        self._default = default_value
+
+    def __repr__(self):
+        value = self.value if self.value is not ITEM_UNSET else self._default
+
+        return '{0}(name={1!r}, value={2!r})'.format(
+            self.__class__.__name__,
+            self.name,
+            value,
+        )
+
+    def __depcopy__(self, memodict=None):
+        c = ConfigItem(self.name, default_value=self._default, doc=self.__doc__)
+        c.value = self.value
+        return c
+
+    def copy(self, memodict=None):
+        c = ConfigItem(self.name, default_value=self._default, doc=self.__doc__)
+        c.value = self.value
+        return c
+
+
+class IntegrationConfig(AttrDict):
+    __slots__ = ('integration_name', 'global_config', 'hooks', 'http')
+
+    def __init__(self, integration_name, global_config, defaults=None):
+        defaults = defaults or dict()
+        defaults['event_sample_rate'] = ConfigItem('event_sample_rate')
+        super(IntegrationConfig, self).__init__(**defaults)
+
+        attrs = dict(
+            integration_name=integration_name,
+            global_config=global_config,
+            # hooks=Hooks(),
+            # http=HttpConfig(),
+        )
+        for name, value in attrs.items():
+            object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        try:
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            pass
+
+        if name in self:
+            val = self[name]
+        else:
+            val = self[name] = ConfigItem(name)
+        if hasattr(val, '__get__'):
+            return val.__get__(self)
+        return val
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __getitem__(self, name):
+        try:
+            value = AttrDict.__getitem__(self, name)
+        except KeyError:
+            value = ConfigItem(name)
+            self[name] = value
+        if hasattr(value, '__get__'):
+            return value.__get__(self)
+        return value
+
+    def __setitem__(self, name, value):
+        try:
+            item = AttrDict.__getitem__(self, name)
+        except KeyError:
+            item = ConfigItem(name)
+            AttrDict.__setitem__(self, name, item)
+
+        item.__set__(self, value)
+
+    def __repr__(self):
+        items = ', '.join([
+            '{0}={1!r}'.format(key, value.__get__(self))
+            for key, value in self.items()
+        ])
+        if items:
+            items = ', {0}'.format(items)
+        return '{0}(integration_name={1!r}{2})'.format(self.__class__.__name__, self.integration_name, items)
 
     def __deepcopy__(self, memodict=None):
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self)))
+        # DEV: `dict(self)` will give us the values, calling `self.items()` will give us the `ConfigItem`s
+        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self.items())))
         new.hooks = deepcopy(self.hooks)
         new.http = deepcopy(self.http)
         return new
 
     def copy(self):
-        new = IntegrationConfig(self.global_config, self._integration_name, defaults=self._defaults)
-        for key, val in self.items():
-            new._items[key] = val.copy()
+        # DEV: `dict(self)` will give us the values, calling `self.items()` will give us the `ConfigItem`s
+        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self.items())))
         return new
-
-    def get(self, *args, **kwargs):
-        return self._items.get(*args, **kwargs)
-
-    def _add_default(self, key, value):
-        """Adds a default key and value to the configuration.
-
-        :param key: key of the item
-        :param value: value of the item
-        :return: the IntegrationConfigItem for the config item
-        """
-        item = IntegrationConfigItem(self, key, default_value=value)
-
-        if key in self._items:
-            log.warning('_add_default key already exists')
-        self._items[key] = item
-        return item
 
     def header_is_traced(self, header_name):
         """
@@ -278,11 +229,6 @@ class IntegrationConfig(object):
             if self.http.is_header_tracing_configured
             else self.global_config.header_is_traced(header_name)
         )
-
-    def __repr__(self):
-        cls = self.__class__
-        keys = ', '.join(self.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, keys)
 
 
 class Hooks(object):
