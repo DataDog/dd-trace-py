@@ -1010,10 +1010,10 @@ workflows:
       - jinja2:
           requires:
             - flake8
-      - mako:
+      - kombu:
           requires:
             - flake8
-      - kombu:
+      - mako:
           requires:
             - flake8
       - molten:
@@ -1115,8 +1115,8 @@ workflows:
             - httplib
             - integration
             - jinja2
-            - mako
             - kombu
+            - mako
             - molten
             - mongoengine
             - msgpack
