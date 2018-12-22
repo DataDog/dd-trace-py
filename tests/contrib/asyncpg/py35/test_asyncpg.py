@@ -125,7 +125,7 @@ class TestPsycopgPatch(AsyncioTestCase):
             await conn.execute(
                 '''INSERT INTO mytable (a) VALUES (100), (200), (300);''')
 
-            result = await conn.copy_from_query(
+            await conn.copy_from_query(
                 'SELECT * FROM mytable WHERE a > $1', 10, output=consumer,
                 format='csv')
         finally:
