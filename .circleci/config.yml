@@ -51,6 +51,25 @@ jobs:
             - flake8.results
       - *save_cache_step
 
+  # Test that we can build the package properly and package long description will render
+  test_build:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      # Install required dependencies
+      - run: pip install twine readme_renderer[md]
+      # Ensure we didn't cache from previous runs
+      - run: rm -rf dist/
+      # Ensure package will build
+      - run: python setup.py sdist
+      # Ensure package long description is valid and will render
+      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
+      - run: twine check dist/*
+      - *save_cache_step
+
   tracer:
     docker:
       - *test_runner
@@ -931,11 +950,11 @@ workflows:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
-
   test:
     jobs:
       - build_docs
       - flake8
+      - test_build
       - aiobotocore:
           requires:
             - flake8
@@ -1076,8 +1095,12 @@ workflows:
             - flake8
       - wait_all_tests:
           requires:
+            # Initial jobs
             - build_docs
             - flake8
+            - test_build
+
+            # flake8 dependent jobs
             - aiobotocore
             - aiohttp
             - aiopg
