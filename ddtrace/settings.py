@@ -64,7 +64,7 @@ class Config(object):
         existing = getattr(self, integration)
         for key, value in settings.items():
             if not isinstance(value, ConfigItem):
-                value = ConfigItem(key, default_value=value)
+                value = ConfigItem(key, default=value)
             existing[key] = value
         self._config[integration] = existing
 
@@ -94,23 +94,22 @@ class Config(object):
         return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
 
 
-ITEM_UNSET = object()
-
-
 class ConfigItem(object):
     __slots__ = ('name', 'value', '_default')
 
-    def __init__(self, name, default_value=None, doc=None):
+    UNSET = object()
+
+    def __init__(self, name, default=None, doc=None):
         self.name = name
-        self.value = ITEM_UNSET
-        self._default = default_value
+        self.value = ConfigItem.UNSET
+        self._default = default
 
         # TOOD: Set a default __doc__
         if doc is not None:
             self.__doc__ = doc
 
     def __get__(self, config):
-        if self.value is ITEM_UNSET:
+        if self.value is ConfigItem.UNSET:
             return get_env(config.integration_name, self.name, default=self._default)
         return self.value
 
@@ -120,11 +119,11 @@ class ConfigItem(object):
         else:
             self.value = value
 
-    def set_default(self, default_value):
-        self._default = default_value
+    def set_default(self, default):
+        self._default = default
 
     def __repr__(self):
-        value = self.value if self.value is not ITEM_UNSET else self._default
+        value = self.value if self.value is not ConfigItem.UNSET else self._default
 
         return '{0}(name={1!r}, value={2!r})'.format(
             self.__class__.__name__,
@@ -133,12 +132,12 @@ class ConfigItem(object):
         )
 
     def __depcopy__(self, memodict=None):
-        c = ConfigItem(self.name, default_value=self._default, doc=self.__doc__)
+        c = ConfigItem(self.name, default=self._default, doc=self.__doc__)
         c.value = self.value
         return c
 
     def copy(self, memodict=None):
-        c = ConfigItem(self.name, default_value=self._default, doc=self.__doc__)
+        c = ConfigItem(self.name, default=self._default, doc=self.__doc__)
         c.value = self.value
         return c
 
