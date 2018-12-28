@@ -1,4 +1,9 @@
-import ddtrace
+# DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
+#    `context_provider` will just not be set and we'll get an `AttributeError` instead
+import ddtrace.contrib.asyncio
+import ddtrace.contrib.gevent
+
+from ddtrace.provider import DefaultContextProvider
 
 
 def get_context_provider_for_scope_manager(scope_manager):
@@ -13,6 +18,6 @@ def get_context_provider_for_scope_manager(scope_manager):
     elif scope_manager_type == "GeventScopeManager":
         dd_context_provider = ddtrace.contrib.gevent.context_provider
     else:
-        dd_context_provider = ddtrace.provider.DefaultContextProvider()
+        dd_context_provider = DefaultContextProvider()
 
     return dd_context_provider

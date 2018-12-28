@@ -45,7 +45,14 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         spans = writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' % (span.trace_id, span.span_id))
+        eq_(
+            response.message,
+            (
+                # DEV: Priority sampling is enabled by default
+                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
+                (span.trace_id, span.span_id)
+            ),
+        )
         _check_span(span)
 
     def test_secure_channel(self):
@@ -59,11 +66,18 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         eq_(len(spans), 1)
 
         span = spans[0]
-        eq_(response.message, 'x-datadog-trace-id=%d;x-datadog-parent-id=%d' % (span.trace_id, span.span_id))
+        eq_(
+            response.message,
+            (
+                # DEV: Priority sampling is enabled by default
+                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
+                (span.trace_id, span.span_id)
+            ),
+        )
         _check_span(span)
 
     def test_priority_sampling(self):
-        self._tracer.configure(priority_sampling=True)
+        # DEV: Priority sampling is enabled by default
         # Setting priority sampling reset the writer, we need to re-override it
         self._tracer.writer = DummyWriter()
 

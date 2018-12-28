@@ -3,7 +3,7 @@ from nose.tools import eq_, ok_
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from tests.opentracer.utils import init_tracer
@@ -38,6 +38,16 @@ class TestTornadoWeb(TornadoTestCase):
         eq_('200', request_span.get_tag('http.status_code'))
         eq_('/success/', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
+
+    def test_event_sample_rate(self):
+        with self.override_config('tornado', dict(event_sample_rate=1)):
+            # it should trace a handler that returns 200
+            response = self.fetch('/success/')
+            self.assertEqual(200, response.code)
+
+            self.assert_structure(
+                dict(name='tornado.request', metrics={EVENT_SAMPLE_RATE_KEY: 1}),
+            )
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
