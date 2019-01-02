@@ -7,10 +7,10 @@ Example::
     from ddtrace import patch_all; patch_all(logging=True)
 
     logging.basicConfig(
-        format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s' + \
-            '- dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
+        format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
+                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
     )
-    log = logging.getLogger(__name__)
+    log = logging.getLogger()
     log.level = logging.INFO
 
 

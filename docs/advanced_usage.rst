@@ -246,33 +246,49 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 Logs Injection
 --------------
 
-Datadog APM traces can be integrated with Logs by setting an opt-in flag and
-updating the log formatter used by an application. This feature enables the user
-to move from a trace to the specific log entry emitted within the same trace
-context.
+Datadog APM traces can be integrated with Logs by first having the tracing
+library patch the standard library ``logging`` module and updating the log
+formatter used by an application. This feature enables the user to reference a
+trace from a log entry emitted within a trace context.
 
-Before the trace information is injected into logs, the formatter has to be
-updated to include ``trace_id`` and ``span_id`` attributes from the log record.
-Furthermore, the integration with Logs occurs automatically as long as the
-format of logs is appended with ``- dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s``.
+Before the trace information can be injected into logs, the formatter has to be
+updated to include ``dd.trace_id`` and ``dd.span_id`` attributes from the log record.
+The integration with Logs occurs automatically as long as the format of logs is
+appended with ``- dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s``.
 
-When using ``ddtrace-run``, set the environment variable
-``DD_LOGS_INJECTION=true``. If you prefer to manual instrumentation::
+ddtrace-run
+^^^^^^^^^^^
 
-    from ddtrace import patch_all; patch_all(logging=True)
-
-An example of logs injection with manual instrumentation::
+When using ``ddtrace-run``, enable patching by setting the environment variable
+``DD_LOGS_INJECTION=true`` then update the log formatter as in the following
+example::
 
     import logging
-    from ddtrace import patch_all; patch_all(logging=True)
     from ddtrace import tracer
 
     logging.basicConfig(
-        format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s' + \
-            '- dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s'
+        format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
+                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
+    )
+    log = logging.getLogger()
+
+Manual Instrumentation
+^^^^^^^^^^^^^^^^^^^^^^
+
+If you prefer to instrument manually, patch the logging library then update the
+log formatter as in the following example::
+
+    import logging
+    from ddtrace import tracer
+    from ddtrace import patch_all; patch_all(logging=True)
+
+    logging.basicConfig(
+        format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
+                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
     )
     log = logging.getLogger()
     log.level = logging.INFO
+
 
     @tracer.wrap()
     def foo():
