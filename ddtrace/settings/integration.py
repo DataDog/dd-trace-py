@@ -7,14 +7,14 @@ from .hooks import Hooks
 
 
 class IntegrationConfigItem(object):
-    __slots__ = ('name', 'value', '_default')
+    __slots__ = ('name', 'value', 'default')
 
     UNSET = object()
 
     def __init__(self, name, default=None, doc=None):
         self.name = name
         self.value = IntegrationConfigItem.UNSET
-        self._default = default
+        self.default = default
 
         # TOOD: Set a default __doc__
         if doc is not None:
@@ -27,15 +27,12 @@ class IntegrationConfigItem(object):
 
     def __set__(self, config, value):
         if isinstance(value, IntegrationConfigItem):
-            self._default = value._default
+            self.default = value.default
         else:
             self.value = value
 
-    def set_default(self, default):
-        self._default = default
-
     def __repr__(self):
-        value = self.value if self.value is not IntegrationConfigItem.UNSET else self._default
+        value = self.value if self.value is not IntegrationConfigItem.UNSET else self.default
 
         return '{0}(name={1!r}, value={2!r})'.format(
             self.__class__.__name__,
@@ -44,12 +41,12 @@ class IntegrationConfigItem(object):
         )
 
     def __depcopy__(self, memodict=None):
-        c = IntegrationConfigItem(self.name, default=self._default, doc=self.__doc__)
+        c = IntegrationConfigItem(self.name, default=self.default, doc=self.__doc__)
         c.value = self.value
         return c
 
     def copy(self, memodict=None):
-        c = IntegrationConfigItem(self.name, default=self._default, doc=self.__doc__)
+        c = IntegrationConfigItem(self.name, default=self.default, doc=self.__doc__)
         c.value = self.value
         return c
 
