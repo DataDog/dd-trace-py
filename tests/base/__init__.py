@@ -30,6 +30,8 @@ class BaseTestCase(unittest.TestCase):
         >>> with self.override_config('flask', dict(service_name='test-service')):
             # Your test
         """
+
+        # IntegrationConfig
         options = getattr(config, integration)
 
         original = dict(
