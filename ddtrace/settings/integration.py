@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from ..utils.attrdict import AttrDict
 from ..utils.formats import get_env
+from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .hooks import Hooks
 
@@ -25,11 +26,20 @@ class IntegrationConfigItem(object):
             return get_env(config.integration_name, self.name, default=self.default)
         return self.value
 
-    def __set__(self, config, value):
-        if isinstance(value, IntegrationConfigItem):
-            self.default = value.default
+    def __set__(self, config, new_value):
+        if isinstance(new_value, IntegrationConfigItem):
+            self.default = new_value.default
+
+            # If we are updating the default when a `dict` value is already set
+            # then merge the value and default dict together
+            if isinstance(self.value, dict) and isinstance(self.default, dict):
+                d = deepcopy(self.default)
+                self.value = deepmerge(self.value, d)
         else:
-            self.value = value
+            if isinstance(new_value, dict) and isinstance(self.default, dict):
+                d = deepcopy(self.default)
+                new_value = deepmerge(new_value, d)
+            self.value = new_value
 
     def __repr__(self):
         value = self.value if self.value is not IntegrationConfigItem.UNSET else self.default
@@ -40,7 +50,7 @@ class IntegrationConfigItem(object):
             value,
         )
 
-    def __depcopy__(self, memodict=None):
+    def __deepcopy__(self, memodict=None):
         c = IntegrationConfigItem(self.name, default=self.default, doc=self.__doc__)
         c.value = self.value
         return c
@@ -91,6 +101,22 @@ class IntegrationConfig(AttrDict):
     def __setattr__(self, name, value):
         self[name] = value
 
+    def update(self, values=None, **kwargs):
+        if hasattr(values, 'items'):
+            values = values.items()
+
+        for k, v in values:
+            self[k] = v
+
+        for k, v in kwargs.items():
+            self[k] = v
+
+    def get(self, name, default=None):
+        item = self.get_item(name)
+        if item:
+            return item.__get__(self)
+        return default
+
     def get_item(self, name):
         try:
             return dict.__getitem__(self, name)
@@ -111,11 +137,10 @@ class IntegrationConfig(AttrDict):
 
     def __setitem__(self, name, value):
         # Fetch the existing `IntegrationConfigItem` or create a new one if none was found
-        try:
-            item = AttrDict.__getitem__(self, name)
-        except KeyError:
+        item = self.get_item(name)
+        if not item:
             item = IntegrationConfigItem(name)
-            AttrDict.__setitem__(self, name, item)
+            dict.__setitem__(self, name, item)
 
         # DEV: We should always have an `IntegrationConfigItem` here
         item.__set__(self, value)
@@ -138,7 +163,11 @@ class IntegrationConfig(AttrDict):
 
     def copy(self):
         # DEV: `dict(self)` will give us the values, calling `self.items()` will give us the `IntegrationConfigItem`s
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self.items())))
+        new = IntegrationConfig(
+            self.global_config,
+            self.integration_name,
+            dict([(name, deepcopy(item)) for name, item in self.items()]),
+        )
         return new
 
     def header_is_traced(self, header_name):
