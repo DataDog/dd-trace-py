@@ -59,7 +59,7 @@ class LoggingTestCase(BaseTracerTestCase):
             # with format string for trace info
             output, result = capture_function_log(
                 func,
-                fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
+                fmt='%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s'
             )
             self.assertEqual(
                 output,
@@ -88,7 +88,7 @@ class LoggingTestCase(BaseTracerTestCase):
             # with format string for trace info
             output, _ = capture_function_log(
                 func,
-                fmt='%(message)s - dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
+                fmt='%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s'
             )
             self.assertEqual(
                 output,

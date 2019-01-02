@@ -4,6 +4,10 @@ from wrapt import wrap_function_wrapper as _w
 from ...helpers import get_correlation_ids
 from ...utils.wrappers import unwrap as _u
 
+RECORD_ATTR_TRACE_ID = 'dd.trace_id'
+RECORD_ATTR_SPAN_ID = 'dd.span_id'
+RECORD_ATTR_VALUE_NULL = 0
+
 
 def _w_makeRecord(func, instance, args, kwargs):
     record = func(*args, **kwargs)
@@ -11,11 +15,11 @@ def _w_makeRecord(func, instance, args, kwargs):
     # add correlation identifiers to LogRecord
     trace_id, span_id = get_correlation_ids()
     if trace_id and span_id:
-        record.trace_id = trace_id
-        record.span_id = span_id
+        setattr(record, RECORD_ATTR_TRACE_ID, trace_id)
+        setattr(record, RECORD_ATTR_SPAN_ID, span_id)
     else:
-        record.trace_id = 0
-        record.span_id = 0
+        setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_NULL)
+        setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_NULL)
 
     return record
 

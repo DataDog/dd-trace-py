@@ -254,7 +254,7 @@ context.
 Before the trace information is injected into logs, the formatter has to be
 updated to include ``trace_id`` and ``span_id`` attributes from the log record.
 Furthermore, the integration with Logs occurs automatically as long as the
-format of logs is appended with ``- dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s``.
+format of logs is appended with ``- dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s``.
 
 When using ``ddtrace-run``, set the environment variable
 ``DD_LOGS_INJECTION=true``. If you prefer to manual instrumentation::
@@ -269,7 +269,7 @@ An example of logs injection with manual instrumentation::
 
     logging.basicConfig(
         format='%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s' + \
-            '- dd.trace_id=%(trace_id)s dd.span_id=%(span_id)s'
+            '- dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s'
     )
     log = logging.getLogger()
     log.level = logging.INFO
