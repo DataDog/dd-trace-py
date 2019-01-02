@@ -54,7 +54,7 @@ class IntegrationConfigItem(object):
 class IntegrationConfig(AttrDict):
     __slots__ = ('integration_name', 'global_config', 'hooks', 'http')
 
-    def __init__(self, integration_name, global_config, defaults=None):
+    def __init__(self, global_config, integration_name, defaults=None):
         defaults = defaults or dict()
         defaults['event_sample_rate'] = IntegrationConfigItem('event_sample_rate')
         super(IntegrationConfig, self).__init__(**defaults)
