@@ -85,7 +85,7 @@ class GlobalConfigTestCase(BaseTracerTestCase):
 
         # We have the user supplied value properly set
         self.assertEqual(self.config.requests['a']['b']['c'], True)
-        self.assertNotIn('d', self.config.requests['a']['b'])
+        self.assertEqual(self.config.requests['a']['b']['d'], True)
 
         # We have the default value property set
         a_item = self.config.requests.get_item('a')

@@ -2,7 +2,7 @@ import mock
 import os
 import unittest
 
-from ddtrace.settings import Config, IntegrationConfig, HttpConfig
+from ddtrace.settings import Config, IntegrationConfig, IntegrationConfigItem, HttpConfig
 
 
 class TestHttpConfig(object):
@@ -123,29 +123,46 @@ class TestIntegrationConfig(unittest.TestCase):
 
     def test_no_attr(self):
         """
-        An AttributeError should be raised if an item is not stored in the config.
+        An AttributeError should not be raised if an item is not stored in the config.
         """
         config = IntegrationConfig(Config(), '')
-        with self.assertRaises(AttributeError):
-            test = config.dne  # noqa
+        self.assertIsNone(config.dne)
 
     def test_add_default(self):
         """
-        Test that _add_default adds a default value to the config.
+        Test that we can update the default value for an IntegrationConfigItem
         """
+        # IntegrationConfig
         redis_config = Config().redis
-        redis_config._add_default('key1', 'value1')
-        redis_config._add_default('key2', 'value2')
+
+        # Set default
+        redis_config.key1 = IntegrationConfigItem('key1', default='value1')
         self.assertEqual(redis_config.key1, 'value1')
-        self.assertEqual(redis_config.key2, 'value2')
+
+        # Update default on the IntegrationConfigItem
+        key1 = redis_config.get_item('key1')
+        key1.default = 'value2'
+        self.assertEqual(redis_config.key1, 'value2')
+
+        # Update default by resetting new IntegrationConfigItem
+        redis_config.key1 = IntegrationConfigItem('key1', default='value3')
+        self.assertEqual(redis_config.key1, 'value3')
 
     def test_default_override(self):
         """
         Test that a default can be overridden with a user specified value.
         """
         redis_config = Config().redis
-        redis_config._add_default('key1', 'value1')
+        redis_config.key1 = IntegrationConfigItem('key1', default='value1')
         redis_config.key1 = 'uservalue1'
+        self.assertEqual(redis_config.key1, 'uservalue1')
+
+        # Ensure the default is still there
+        item = redis_config.get_item('key1')
+        self.assertEqual(item.default, 'value1')
+
+        # Ensure updating the default does not override user supplied value
+        redis_config.key1 = IntegrationConfigItem('key1', default='value2')
         self.assertEqual(redis_config.key1, 'uservalue1')
 
     @mock.patch.dict(os.environ, {'DD_REDIS_SERVICE_NAME': 'env-redis'})
@@ -154,7 +171,7 @@ class TestIntegrationConfig(unittest.TestCase):
         Test that an environment variable overrides the default value.
         """
         redis_config = Config().redis
-        redis_config._add_default('service_name', 'my-redis-service')
+        redis_config.service_name = IntegrationConfigItem('service_name')
         self.assertEqual(redis_config.service_name, 'env-redis')
 
     @mock.patch.dict(os.environ, {'DATADOG_REDIS_SERVICE_NAME': 'env-redis'})
@@ -164,7 +181,7 @@ class TestIntegrationConfig(unittest.TestCase):
         """
         with mock.patch('warnings.warn') as mock_warn:
             redis_config = Config().redis
-            redis_config._add_default('service_name', 'my-redis-service')
+            redis_config.service_name = IntegrationConfigItem('service_name', default='default-service-name')
             self.assertEqual(redis_config.service_name, 'env-redis')
             self.assertTrue(mock_warn.call_count > 0)
 
@@ -172,11 +189,10 @@ class TestIntegrationConfig(unittest.TestCase):
     def test_no_default_environment_variable(self):
         """
         When no default is provided but an environment variable is set
-            An AttributeError should be raised
+            We shoudl fetch the environment variable value
         """
         integration_config = Config().redis
-        with self.assertRaises(AttributeError):
-            self.assertEqual(integration_config.service_name, 'redis_service_name')
+        self.assertEqual(integration_config.service_name, 'redis_service_name')
 
     def test_precedence(self):
         """
@@ -186,7 +202,7 @@ class TestIntegrationConfig(unittest.TestCase):
         redis_config = Config().redis
 
         # Sanity check the default.
-        redis_config._add_default('service_name', 'dd_service_name')
+        redis_config.service_name = IntegrationConfigItem('service_name', default='dd_service_name')
         self.assertEqual(redis_config.service_name, 'dd_service_name')
 
         # Check the environment variable.
@@ -254,9 +270,7 @@ class TestIntegrationConfig(unittest.TestCase):
         Test the _add method of adding configuration with multiple items.
         """
         config = Config()
-        config._add('redis', {
-            'service_name': 'default',
-        })
+        config._add('redis', dict(service_name='default'))
 
         new = config.redis.copy()
         self.assertEqual(new.service_name, 'default')
