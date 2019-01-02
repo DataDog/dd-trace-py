@@ -22,7 +22,7 @@ class IntegrationConfigItem(object):
 
     def __get__(self, config):
         if self.value is IntegrationConfigItem.UNSET:
-            return get_env(config.integration_name, self.name, default=self._default)
+            return get_env(config.integration_name, self.name, default=self.default)
         return self.value
 
     def __set__(self, config, value):
