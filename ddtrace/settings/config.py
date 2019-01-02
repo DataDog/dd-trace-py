@@ -1,3 +1,4 @@
+import copy
 import logging
 
 from ..pin import Pin
@@ -36,7 +37,7 @@ class Config(object):
 
         return pin._config
 
-    def _add(self, integration, settings, merge=True):
+    def _add(self, integration, settings):
         """Internal API that registers an integration with given default
         settings.
 
@@ -48,6 +49,8 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
+        settings = copy.deepcopy(settings)
+
         existing = getattr(self, integration)
         for key, value in settings.items():
             if not isinstance(value, IntegrationConfigItem):
