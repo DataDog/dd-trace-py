@@ -1,6 +1,6 @@
 from celery import Celery
 
-from ddtrace import Pin, config
+from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery import patch, unpatch
 
