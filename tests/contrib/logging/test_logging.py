@@ -13,7 +13,6 @@ logger.level = logging.INFO
 
 
 def capture_function_log(func, fmt):
-
     # add stream handler to capture output
     out = StringIO()
     sh = logging.StreamHandler(out)
@@ -53,9 +52,9 @@ class LoggingTestCase(BaseTracerTestCase):
         @self.tracer.wrap()
         def func():
             logger.info('Hello!')
-            return get_correlation_ids()
+            return get_correlation_ids(tracer=self.tracer)
 
-        with self.override_global_tracer():
+        with self.override_config('logging', dict(tracer=self.tracer)):
             # with format string for trace info
             output, result = capture_function_log(
                 func,
@@ -84,7 +83,7 @@ class LoggingTestCase(BaseTracerTestCase):
             logger.info('Hello!')
             return get_correlation_ids()
 
-        with self.override_global_tracer():
+        with self.override_config('logging', dict(tracer=self.tracer)):
             # with format string for trace info
             output, _ = capture_function_log(
                 func,

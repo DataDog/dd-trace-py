@@ -1,6 +1,8 @@
 import logging
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config
+
 from ...helpers import get_correlation_ids
 from ...utils.wrappers import unwrap as _u
 
@@ -8,12 +10,16 @@ RECORD_ATTR_TRACE_ID = 'dd.trace_id'
 RECORD_ATTR_SPAN_ID = 'dd.span_id'
 RECORD_ATTR_VALUE_NULL = 0
 
+config._add('logging', dict(
+    # tracer=None by default, override here for custom tracer
+))
+
 
 def _w_makeRecord(func, instance, args, kwargs):
     record = func(*args, **kwargs)
 
     # add correlation identifiers to LogRecord
-    trace_id, span_id = get_correlation_ids()
+    trace_id, span_id = get_correlation_ids(tracer=config.logging.tracer)
     if trace_id and span_id:
         setattr(record, RECORD_ATTR_TRACE_ID, trace_id)
         setattr(record, RECORD_ATTR_SPAN_ID, span_id)

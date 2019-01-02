@@ -1,7 +1,7 @@
 import ddtrace
 
 
-def get_correlation_ids():
+def get_correlation_ids(tracer=None):
     """Retrieves the Correlation Identifiers for the current active ``Trace``.
     This helper method can be achieved manually and should be considered
     only a shortcut. The main reason is to abstract the current ``Tracer``
@@ -22,7 +22,10 @@ def get_correlation_ids():
     # and we're doing the same here for ``ddtrace.tracer``. Because this helper
     # must work also with OpenTracing, we should take the right used ``Tracer``.
     # At the time of writing, it's enough to support our Datadog Tracer.
-    tracer = ddtrace.tracer
+
+    # If no tracer passed in, use global tracer
+    if not tracer:
+        tracer = ddtrace.tracer
     span = tracer.current_span()
     if span is None:
         return None, None

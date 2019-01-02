@@ -1,7 +1,6 @@
 import contextlib
 import unittest
 
-import ddtrace
 from ddtrace import config
 
 from ..utils.tracer import DummyTracer
@@ -43,19 +42,6 @@ class BaseTestCase(unittest.TestCase):
             yield
         finally:
             options.update(original)
-
-    @contextlib.contextmanager
-    def override_global_tracer(self):
-        """
-        Helper functions that overrides the global tracer available in the
-        `ddtrace` package. This is required because in some `httplib` tests we
-        can't get easily the PIN object attached to the `HTTPConnection` to
-        replace the used tracer with a dummy tracer.
-        """
-        original_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
-        yield
-        ddtrace.tracer = original_tracer
 
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
