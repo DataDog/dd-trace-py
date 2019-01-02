@@ -59,6 +59,7 @@ class IntegrationConfig(AttrDict):
         defaults['event_sample_rate'] = IntegrationConfigItem('event_sample_rate')
         super(IntegrationConfig, self).__init__(**defaults)
 
+        # Configure non-IntegrationConfigItem attributes
         attrs = dict(
             integration_name=integration_name,
             global_config=global_config,
@@ -69,39 +70,45 @@ class IntegrationConfig(AttrDict):
             object.__setattr__(self, name, value)
 
     def __getattr__(self, name):
+        # Look for non-dict properties on this IntegrationConfig first
+        # e.g. `hooks`, `http`, `__class__`, etc
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
             pass
 
+        # Get the existing `IntegrationConfigItem` or create a new one if none-exists
         if name in self:
             val = self[name]
         else:
             val = self[name] = IntegrationConfigItem(name)
-        if hasattr(val, '__get__'):
-            return val.__get__(self)
-        return val
+
+        # DEV: We should always have an `IntegrationConfigItem` here
+        return val.__get__(self)
 
     def __setattr__(self, name, value):
         self[name] = value
 
     def __getitem__(self, name):
+        # Fetch the existing `IntegrationConfigItem` or create a new one if none was found
         try:
-            value = AttrDict.__getitem__(self, name)
+            val = AttrDict.__getitem__(self, name)
         except KeyError:
-            value = IntegrationConfigItem(name)
-            self[name] = value
-        if hasattr(value, '__get__'):
-            return value.__get__(self)
-        return value
+            val = IntegrationConfigItem(name)
+            self[name] = val
+
+        # DEV: We should always have an `IntegrationConfigItem` here
+        return val.__get__(self)
 
     def __setitem__(self, name, value):
+        # Fetch the existing `IntegrationConfigItem` or create a new one if none was found
         try:
             item = AttrDict.__getitem__(self, name)
         except KeyError:
             item = IntegrationConfigItem(name)
             AttrDict.__setitem__(self, name, item)
 
+        # DEV: We should always have an `IntegrationConfigItem` here
         item.__set__(self, value)
 
     def __repr__(self):
