@@ -83,22 +83,31 @@ class IntegrationConfig(AttrDict):
         else:
             val = self[name] = IntegrationConfigItem(name)
 
-        # DEV: We should always have an `IntegrationConfigItem` here
-        return val.__get__(self)
+        # If we have a descriptor then fetch it's value
+        if hasattr(val, '__get__'):
+            return val.__get__(self)
+        return val
 
     def __setattr__(self, name, value):
         self[name] = value
 
+    def get_item(self, name):
+        try:
+            return dict.__getitem__(self, name)
+        except KeyError:
+            return None
+
     def __getitem__(self, name):
         # Fetch the existing `IntegrationConfigItem` or create a new one if none was found
-        try:
-            val = AttrDict.__getitem__(self, name)
-        except KeyError:
+        val = self.get_item(name)
+        if not val:
             val = IntegrationConfigItem(name)
             self[name] = val
 
-        # DEV: We should always have an `IntegrationConfigItem` here
-        return val.__get__(self)
+        # If we have a descriptor then fetch it's value
+        if hasattr(val, '__get__'):
+            return val.__get__(self)
+        return val
 
     def __setitem__(self, name, value):
         # Fetch the existing `IntegrationConfigItem` or create a new one if none was found
