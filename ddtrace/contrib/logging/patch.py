@@ -11,7 +11,7 @@ RECORD_ATTR_SPAN_ID = 'dd.span_id'
 RECORD_ATTR_VALUE_NULL = 0
 
 config._add('logging', dict(
-    # tracer=None by default, override here for custom tracer
+    tracer=None,  # by default, override here for custom tracer
 ))
 
 
