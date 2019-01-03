@@ -7,7 +7,6 @@ import ddtrace
 from ddtrace import Pin, config
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
-from ddtrace.utils.merge import deepmerge
 
 # testing
 from tests.base import BaseTestCase
@@ -170,11 +169,7 @@ class TestVertica(BaseTestCase):
             },
         )
 
-        # Make a copy of the vertica config first before we merge our settings over
-        # DEV: First argument gets merged into the second
-        copy = deepmerge(config.vertica, dict())
-        overrides = deepmerge(routine_config, copy)
-        with self.override_config('vertica', overrides):
+        with self.override_config('vertica', routine_config):
             patch()
             import vertica_python
 
