@@ -884,6 +884,20 @@ jobs:
             - jinja2.results
       - *save_cache_step
 
+  mako:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{010,100}' --result-json /tmp/mako.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mako.results
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -1018,6 +1032,9 @@ workflows:
       - kombu:
           requires:
             - flake8
+      - mako:
+          requires:
+            - flake8
       - molten:
           requires:
             - flake8
@@ -1122,6 +1139,7 @@ workflows:
             - integration
             - jinja2
             - kombu
+            - mako
             - molten
             - mongoengine
             - msgpack
