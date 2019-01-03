@@ -1,18 +1,17 @@
-import unittest
-
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch, unpatch
 import flask
 import wrapt
 
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class BaseFlaskTestCase(unittest.TestCase):
+class BaseFlaskTestCase(BaseTracerTestCase):
     def setUp(self):
+        super(BaseFlaskTestCase, self).setUp()
+
         patch()
 
-        self.tracer = get_dummy_tracer()
         self.app = flask.Flask(__name__, template_folder='test_templates/')
         self.client = self.app.test_client()
         Pin.override(self.app, tracer=self.tracer)
