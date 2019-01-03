@@ -1,9 +1,10 @@
 import copy
+import inspect
 import logging
 
 from ..pin import Pin
 from .http import HttpConfig
-from .integration import IntegrationConfig, IntegrationConfigItem
+from .integration import IntegrationConfig, IntegrationConfigItem, IntegrationConfigItemBase
 
 log = logging.getLogger(__name__)
 
@@ -38,25 +39,65 @@ class Config(object):
         return pin._config
 
     def _add(self, integration, settings):
-        """Internal API that registers an integration with given default
-        settings.
+        """Internal API that registers an integration with given default settings.
 
-        :param str integration: The integration name (i.e. `requests`)
-        :param dict settings: A dictionary that contains integration settings;
-            to preserve immutability of these values, the dictionary is copied
-            since it contains integration defaults.
-        :param bool merge: Whether to merge any existing settings with those provided,
-            or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
+        :param integration: The integration name (i.e. `requests`)
+        :type integration: str
+        :param settings: Either a class which defines `IntegrationConfigItem` properties
+            or a dictionary containing settings
+        :type settings: dict|class
         """
+        # Make a copy of `settings`
         settings = copy.deepcopy(settings)
 
+        # Fetch the existing integration settings (or a new `IntegrationConfig` if none exists)
         existing = getattr(self, integration)
-        for key, value in settings.items():
-            if not isinstance(value, IntegrationConfigItem):
-                value = IntegrationConfigItem(key, default=value)
-            existing[key] = value
+
+        # If we have a class, then iterate it's properties looking for integration config items
+        if inspect.isclass(settings):
+            # Only collect properites which inherit from `IntegrationConfigItemBase`
+            for key, value in settings.__dict__.items():
+                if isinstance(value, IntegrationConfigItemBase):
+                    existing[key] = value
+
+        # Otherwise, assume `settings` is a `dict`
+        else:
+            for key, value in settings.items():
+                # Ensure all items are `IntegrationConfigItem`s
+                if not isinstance(value, IntegrationConfigItemBase):
+                    value = IntegrationConfigItem(key, default=value)
+                existing[key] = value
+
+        # Update our integration settings
         self._config[integration] = existing
+
+    def _register(self, integration):
+        """
+        Decorator factory helper for registering a class as an integration config
+
+        Example::
+
+            @config._register('flask')
+            class FlaskConfig:
+                service_name = IntegrationConfigItem('service_name', default='flask')
+
+
+        This is the same as doing::
+
+            class FlaskConfig:
+                service_name = IntegrationConfigItem('service_name', default='flask')
+
+            config._add('flask', FlaskConfig)
+
+
+        :param integration: The name of the integration to register for
+        :type integration: str
+        :rtype: function
+        :returns: decorator for wrapping the configuration object
+        """
+        def wrapper(settings):
+            self._add(integration, settings)
+        return wrapper
 
     def trace_headers(self, whitelist):
         """

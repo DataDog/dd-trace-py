@@ -4,7 +4,7 @@ import wrapt
 
 # project
 import ddtrace
-from ddtrace import Pin, config
+from ddtrace import Pin
 from ddtrace.contrib.vertica.patch import patch, unpatch
 from ddtrace.ext import errors
 
