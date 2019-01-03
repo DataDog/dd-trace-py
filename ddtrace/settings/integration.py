@@ -73,8 +73,9 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
         return self.copy()
 
     def copy(self):
-        c = IntegrationConfigItem(self.name, default=self.default, doc=self.__doc__)
-        c.value = deepcopy(self.value)
+        c = IntegrationConfigItem(self.name, default=deepcopy(self.default), doc=self.__doc__)
+        if c.value is not IntegrationConfigItem.UNSET:
+            c.value = deepcopy(self.value)
         return c
 
 
@@ -197,6 +198,7 @@ class IntegrationConfig(AttrDict):
         if not item:
             if not isinstance(value, IntegrationConfigItemBase):
                 item = IntegrationConfigItem(name)
+                item.__set__(self, value)
                 dict.__setitem__(self, name, item)
             else:
                 dict.__setitem__(self, name, value)
