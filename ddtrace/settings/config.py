@@ -4,7 +4,8 @@ import logging
 
 from ..pin import Pin
 from .http import HttpConfig
-from .integration import IntegrationConfig, IntegrationConfigItem, IntegrationConfigItemBase
+from .integration import IntegrationConfig
+from .integration import IntegrationConfigItem, IntegrationConfigItemAlias, IntegrationConfigItemBase
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +16,17 @@ class Config(object):
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+    # Add these shorthand properties here to make our lives easier
+    # e.g.::
+    #
+    #     @config._register
+    #     class FlaskConfig:
+    #         __integration__ = 'flask'
+    #
+    #         service_name = config.Item('service_name', default='flask')
+    Item = IntegrationConfigItem
+    Alias = IntegrationConfigItemAlias
+
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
@@ -71,14 +83,16 @@ class Config(object):
         # Update our integration settings
         self._config[integration] = existing
 
-    def _register(self, integration):
+    def _register(self, integration=None):
         """
         Decorator factory helper for registering a class as an integration config
 
         Example::
 
-            @config._register('flask')
+            @config._register
             class FlaskConfig:
+                __integration__ = 'flask'
+
                 service_name = IntegrationConfigItem('service_name', default='flask')
 
 
@@ -90,14 +104,19 @@ class Config(object):
             config._add('flask', FlaskConfig)
 
 
-        :param integration: The name of the integration to register for
-        :type integration: str
-        :rtype: function
-        :returns: decorator for wrapping the configuration object
+        :param integration: The name of the integration to register for or the class to register
+        :type integration: str|class
+        :rtype: function|None
+        :returns: decorator for wrapping the configuration object if ``integration`` is a ``str``
+            otherwise register ``integration`` with ``integration.__integration__`` as it's name
         """
-        def wrapper(settings):
-            self._add(integration, settings)
-        return wrapper
+        if inspect.isclass(integration):
+            name = getattr(integration, '__integration__')
+            self._add(name, integration)
+        else:
+            def wrapper(settings):
+                self._add(integration, settings)
+            return wrapper
 
     def trace_headers(self, whitelist):
         """

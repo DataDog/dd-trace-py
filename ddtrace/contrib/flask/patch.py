@@ -10,7 +10,6 @@ from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
-from ...settings import IntegrationConfigItem
 from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
@@ -23,37 +22,39 @@ FLASK_URL_RULE = 'flask.url_rule'
 FLASK_VERSION = 'flask.version'
 
 
-@config._register('flask')
+@config._register
 class FlaskConfig:
+    __integration__ = 'flask'
+
     # Service name
     # Set an alias to the same name to get support for both `DATADOG_SERVICE_NAME` and `DD_FLASK_SERVICE_NAME`
     # DEV: `DD_FLASK_SERVICE_NAME` will take precedence over `DATADOG_SERVICE_NAME`
-    _service_name = IntegrationConfigItem('_service_name', default='flask', env_override='DATADOG_SERVICE_NAME')
+    _service_name = config.Item('_service_name', default='flask', env_override='DATADOG_SERVICE_NAME')
     service_name = _service_name.alias('service_name')
 
     # Application name and type
     # DEV: Do not allow overriding these from environment variables
-    app = IntegrationConfigItem('app', default='flask', env=False)
-    app_type = IntegrationConfigItem('app_type', default=AppTypes.web)
+    app = config.Item('app', default='flask', env=False)
+    app_type = config.Item('app_type', default=AppTypes.web)
 
     # Whether we should tag spans with view arguments
-    collect_view_args = IntegrationConfigItem('collect_view_args', default=True)
+    collect_view_args = config.Item('collect_view_args', default=True)
 
     # Whether to parse distributed tracing headers or not
     # DEV: We went with `distributed_tracing_enabled` first, but it should actually be `distributed_tracing`
     #      so we have an alias here to support both
-    distributed_tracing = IntegrationConfigItem('distributed_tracing', default=False)
+    distributed_tracing = config.Item('distributed_tracing', default=False)
     distributed_tracing_enabled = distributed_tracing.alias('distributed_tracing_enabled')
 
     # Default resource name when rendering an in-memory template
-    template_default_name = IntegrationConfigItem('template_default_name', default='<memory>')
+    template_default_name = config.Item('template_default_name', default='<memory>')
 
     # Whether to trace Flask signal calls
-    trace_signals = IntegrationConfigItem('trace_signals', default=True)
+    trace_signals = config.Item('trace_signals', default=True)
 
     # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
     # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
-    extra_error_codes = IntegrationConfigItem('extra_error_codes', default=set(), env=False)
+    extra_error_codes = config.Item('extra_error_codes', default=set(), env=False)
 
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
