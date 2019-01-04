@@ -62,7 +62,7 @@ class LoggingTestCase(BaseTracerTestCase):
             )
             self.assertEqual(
                 output,
-                'Hello! - dd.trace_id={} dd.span_id={}'.format(*result)
+                'Hello! - dd.trace_id={} dd.span_id={}'.format(*result),
             )
 
             # without format string
