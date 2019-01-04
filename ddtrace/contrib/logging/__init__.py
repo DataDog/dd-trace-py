@@ -12,7 +12,6 @@ record. The integration with Logs occurs as long as the log entry includes
 ddtrace-run
 -----------
 
-
 When using ``ddtrace-run``, enable patching by setting the environment variable
 ``DD_LOGS_INJECTION=true`` then update the log formatter as in the following
 example::
