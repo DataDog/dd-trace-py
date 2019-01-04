@@ -26,7 +26,12 @@ def get_correlation_ids(tracer=None):
     # If no tracer passed in, use global tracer
     if not tracer:
         tracer = ddtrace.tracer
+
+    # If tracer is disabled, skip
+    if not tracer.enabled:
+        return None, None
+
     span = tracer.current_span()
-    if not tracer.enabled or span is None:
+    if span is None:
         return None, None
     return span.trace_id, span.span_id
