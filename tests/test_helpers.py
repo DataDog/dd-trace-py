@@ -31,7 +31,7 @@ class HelpersTestCase(BaseTracerTestCase):
         # ensures `None` is returned if tracer is disabled
         with override_global_tracer(self.tracer):
             self.tracer.enabled = False
-            span = self.tracer.trace('MockSpan')
+            self.tracer.trace('MockSpan')
             trace_id, span_id = helpers.get_correlation_ids()
 
         ok_(trace_id is None)
