@@ -248,8 +248,8 @@ Logs Injection
 
 Datadog APM traces can be integrated with Logs by first having the tracing
 library patch the standard library ``logging`` module and updating the log
-formatter used by an application. This feature enables the user to reference a
-trace from a log entry emitted within a trace context.
+formatter used by an application. This feature enables you to inject the current
+trace information into a log entry.
 
 Before the trace information can be injected into logs, the formatter has to be
 updated to include ``dd.trace_id`` and ``dd.span_id`` attributes from the log record.
