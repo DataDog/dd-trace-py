@@ -72,7 +72,7 @@ class LoggingTestCase(BaseTracerTestCase):
             )
             self.assertEqual(
                 output,
-                'Hello!'
+                'Hello!',
             )
 
     def test_log_no_trace(self):
