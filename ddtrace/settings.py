@@ -126,9 +126,16 @@ class IntegrationConfig(AttrDict):
         :param kwargs:
         """
         super(IntegrationConfig, self).__init__(*args, **kwargs)
-        self.global_config = global_config
-        self.hooks = Hooks()
-        self.http = HttpConfig()
+
+        # Set internal properties for this `IntegrationConfig`
+        # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
+        object.__setattr__(self, 'global_config', global_config)
+        object.__setattr__(self, 'hooks', Hooks())
+        object.__setattr__(self, 'http', HttpConfig())
+
+        # Set default keys/values
+        # DEV: Default to `None` which means do not set this key
+        self['event_sample_rate'] = None
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
