@@ -91,5 +91,5 @@ class LoggingTestCase(BaseTracerTestCase):
             )
             self.assertEqual(
                 output,
-                'Hello! - dd.trace_id=0 dd.span_id=0'
+                'Hello! - dd.trace_id=0 dd.span_id=0',
             )
