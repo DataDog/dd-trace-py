@@ -68,7 +68,7 @@ class LoggingTestCase(BaseTracerTestCase):
             # without format string
             output, _ = capture_function_log(
                 func,
-                fmt='%(message)s'
+                fmt='%(message)s',
             )
             self.assertEqual(
                 output,
