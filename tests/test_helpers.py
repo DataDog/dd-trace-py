@@ -26,3 +26,13 @@ class HelpersTestCase(BaseTracerTestCase):
 
         ok_(trace_id is None)
         ok_(span_id is None)
+
+    def test_correlation_identifiers_with_disabled_trace(self):
+        # ensures `None` is returned if tracer is disabled
+        with override_global_tracer(self.tracer):
+            self.tracer.enabled = False
+            span = self.tracer.trace('MockSpan')
+            trace_id, span_id = helpers.get_correlation_ids()
+
+        ok_(trace_id is None)
+        ok_(span_id is None)
