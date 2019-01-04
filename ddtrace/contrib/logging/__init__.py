@@ -7,7 +7,7 @@ trace information into a log entry.
 Before the trace information can be injected into logs, the formatter has to be
 updated to include ``dd.trace_id`` and ``dd.span_id`` attributes from the log
 record. The integration with Logs occurs as long as the log entry includes
-``trace_id=%(dd.trace_id)s`` and ``span_id=%(dd.span_id)s``.
+``dd.trace_id=%(dd.trace_id)s`` and ``dd.span_id=%(dd.span_id)s``.
 
 ddtrace-run
 -----------
