@@ -11,9 +11,9 @@ def get_correlation_ids(tracer=None):
     OpenTracing users can still extract these values using the ``ScopeManager``
     API, though this shortcut is a simple one-liner. The usage is:
 
-        from ddtrace import correlation
+        from ddtrace import helpers
 
-        trace_id, span_id = correlation.get_correlation_ids()
+        trace_id, span_id = helpers.get_correlation_ids()
 
     :returns: a tuple containing the trace_id and span_id
     """
