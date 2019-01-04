@@ -10,7 +10,8 @@ record. The integration with Logs occurs as long as the log entry includes
 ``trace_id=%(dd.trace_id)s`` and ``span_id=%(dd.span_id)s``.
 
 ddtrace-run
-^^^^^^^^^^^
+-----------
+
 
 When using ``ddtrace-run``, enable patching by setting the environment variable
 ``DD_LOGS_INJECTION=true`` then update the log formatter as in the following
@@ -34,7 +35,7 @@ example::
     foo()
 
 Manual Instrumentation
-^^^^^^^^^^^^^^^^^^^^^^
+----------------------
 
 If you prefer to instrument manually, patch the logging library then update the
 log formatter as in the following example::
