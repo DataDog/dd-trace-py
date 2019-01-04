@@ -268,7 +268,7 @@ example::
 
     logging.basicConfig(
         format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
-                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
+                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s'),
     )
     log = logging.getLogger()
 
