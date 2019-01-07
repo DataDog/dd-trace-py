@@ -62,7 +62,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
-        rows = await db.fetch(q)
+        rows = await db.fetch(q, timeout=5)
         end = time.time()
         eq_(rows, [('foobarblah',)])
         assert rows
@@ -111,6 +111,15 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.meta['out.host'], 'localhost')
         eq_(span.meta['out.port'], TEST_PORT)
         eq_(span.span_type, 'sql')
+
+    @mark_sync
+    async def test_pool_dsn(self):
+        Pin(None, tracer=self.tracer).onto(asyncpg)
+        dsn = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s' % POSTGRES_CONFIG
+        async with asyncpg.create_pool(dsn,
+                                       min_size=1, max_size=1) as pool:
+            async with pool.acquire() as conn:
+                await conn.execute('select 1;')
 
     @mark_sync
     async def test_copy_from(self):
