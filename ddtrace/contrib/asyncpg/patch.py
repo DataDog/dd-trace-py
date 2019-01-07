@@ -114,10 +114,17 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
         }
     else:
         conn = instance._queue._queue[0]
-        kwargs_copy = dict(conn._connect_kwargs)
+        if hasattr(conn, '_connect_kwargs'):
+            kwargs_copy = dict(conn._connect_kwargs)
+            connect_args = conn._connect_args
+        else:
+            # this later got moved to the instance
+            kwargs_copy = dict(instance._connect_kwargs)
+            connect_args = instance._connect_args
+
         tags = {}
-        if len(conn._connect_args) == 1:
-            kwargs_copy['dsn'] = conn._connect_args[0]
+        if len(connect_args) == 1:
+            kwargs_copy['dsn'] = connect_args[0]
             tags = _get_parsed_tags(**kwargs_copy)
 
     pin = _create_pin(tags)

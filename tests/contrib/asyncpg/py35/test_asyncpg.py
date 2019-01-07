@@ -131,7 +131,7 @@ class TestPsycopgPatch(AsyncioTestCase):
                 'SELECT * FROM mytable WHERE a > $1', 10, output=consumer,
                 format='csv')
         finally:
-            conn.execute('DROP TABLE IF EXISTS mytable')
+            await conn.execute('DROP TABLE IF EXISTS mytable')
 
     @mark_sync
     async def test_pool(self):
