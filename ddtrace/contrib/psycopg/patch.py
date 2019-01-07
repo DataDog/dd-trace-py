@@ -3,7 +3,7 @@ import psycopg2.extensions
 import wrapt
 
 # project
-from ddtrace import Pin
+from ddtrace import Pin, config
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
 from ...utils.wrappers import unwrap as _u
@@ -49,14 +49,21 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
         return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
 
 
+class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
+    """ FetchTracedCursor for psycopg2 """
+
+
 class Psycopg2TracedConnection(dbapi.TracedConnection):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn, pin=None, cursor_cls=Psycopg2TracedCursor):
-        super(Psycopg2TracedConnection, self).__init__(conn, pin)
-        # wrapt requires prefix of `_self` for attributes that are only in the
-        # proxy (since some of our source objects will use `__slots__`)
-        self._self_cursor_cls = cursor_cls
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = Psycopg2TracedCursor
+            if config.dbapi2.trace_fetch_methods:
+                cursor_cls = Psycopg2FetchTracedCursor
+
+        super(Psycopg2TracedConnection, self).__init__(conn, pin, cursor_cls=cursor_cls)
 
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):

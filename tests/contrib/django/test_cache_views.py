@@ -18,12 +18,12 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
 
         # check the first call for a non-cached view
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 7)
+        eq_(len(spans), 6)
         # the cache miss
         eq_(spans[1].resource, 'get')
         # store the result in the cache
+        eq_(spans[4].resource, 'set')
         eq_(spans[5].resource, 'set')
-        eq_(spans[6].resource, 'set')
 
         # check if the cache hit is traced
         response = self.client.get(url)
@@ -69,11 +69,11 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
 
         # check the first call for a non-cached view
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 6)
+        eq_(len(spans), 5)
         # the cache miss
         eq_(spans[2].resource, 'get')
         # store the result in the cache
-        eq_(spans[5].resource, 'set')
+        eq_(spans[4].resource, 'set')
 
         # check if the cache hit is traced
         response = self.client.get(url)
