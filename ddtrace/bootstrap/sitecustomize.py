@@ -10,12 +10,20 @@ import logging
 
 from ddtrace.utils.formats import asbool, get_env
 
+logs_injection = asbool(get_env('logs', 'injection'))
+DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s'.format(
+    '[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] ' if logs_injection else ''
+)
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
+
+# Set here a default logging format for basicConfig since we would not be able
+# to change format later without jumping through hoops
+# See https://github.com/python/cpython/blob/2.7/Lib/logging/__init__.py#L1550
 if debug and debug.lower() == "true":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
 else:
-    logging.basicConfig()
+    logging.basicConfig(format=DD_LOG_FORMAT)
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +74,6 @@ try:
     hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
-    logs_injection = asbool(get_env('logs', 'injection'))
 
     opts = {}
 

@@ -13,25 +13,21 @@ ddtrace-run
 -----------
 
 When using ``ddtrace-run``, enable patching by setting the environment variable
-``DD_LOGS_INJECTION=true`` then update the log formatter as in the following
-example::
+``DD_LOGS_INJECTION=true``. The logger by default will have a format that
+includes trace information::
 
     import logging
     from ddtrace import tracer
 
-    logging.basicConfig(
-        format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
-                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
-    )
     log = logging.getLogger()
     log.level = logging.INFO
 
 
     @tracer.wrap()
-    def foo():
-        log.info('Hello!')
+    def hello():
+        log.info('Hello, World!')
 
-    foo()
+    hello()
 
 Manual Instrumentation
 ----------------------
@@ -43,19 +39,19 @@ log formatter as in the following example::
     import logging
     from ddtrace import tracer
 
-    logging.basicConfig(
-        format=('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s'
-                ' - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s')
-    )
+    FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] '
+              '[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] '
+              '- %(message)s')
+    logging.basicConfig(format=FORMAT)
     log = logging.getLogger()
     log.level = logging.INFO
 
 
     @tracer.wrap()
-    def foo():
-        log.info('Hello!')
+    def hello():
+        log.info('Hello, World!')
 
-    foo()
+    hello()
 """
 
 from ...utils.importlib import require_modules
