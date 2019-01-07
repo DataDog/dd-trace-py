@@ -102,8 +102,10 @@ class API(object):
     def send_traces(self, traces):
         if not traces:
             return
+
         start = time.time()
         data = self._encoder.encode_traces(traces)
+        log.debug('flushing %s traces', len(traces))
         response = self._put(self._traces, data, len(traces))
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
@@ -112,7 +114,7 @@ class API(object):
             self._downgrade()
             return self.send_traces(traces)
 
-        log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
+        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
         return response
 
     def send_services(self, services):
@@ -130,7 +132,7 @@ class API(object):
             self._downgrade()
             return self.send_services(services)
 
-        log.debug("reported %d services", len(services))
+        log.debug('reported %d services', len(services))
         return response
 
     def _put(self, endpoint, data, count=0):
@@ -141,7 +143,8 @@ class API(object):
                 headers = dict(self._headers)
                 headers[TRACE_COUNT_HEADER] = str(count)
 
-            conn.request("PUT", endpoint, data, headers)
+            log.debug('PUT %s:%s%s with payload %sb', self.hostname, self.port, endpoint, len(data))
+            conn.request('PUT', endpoint, data, headers)
             return get_connection_response(conn)
         finally:
             conn.close()
