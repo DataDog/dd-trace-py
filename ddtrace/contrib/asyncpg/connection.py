@@ -62,10 +62,10 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         return result
 
     @asyncio.coroutine
-    def prepare(self, stmt_name, query, timeout):
+    def prepare(self, stmt_name, query, timeout, *args, **kwargs):
         result = yield from self._trace_method(
             self.__wrapped__.prepare, query, None, {},
-            stmt_name, query, timeout)  # noqa: E999
+            stmt_name, query, timeout, *args, **kwargs)  # noqa: E999
         return result
 
     @asyncio.coroutine

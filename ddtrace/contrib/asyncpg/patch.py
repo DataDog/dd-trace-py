@@ -1,4 +1,6 @@
 import asyncio
+import inspect
+import warnings
 
 # 3p
 from asyncpg.protocol import Protocol as orig_Protocol
@@ -81,14 +83,29 @@ def _patched_connect(connect_func, _, args, kwargs):
     return conn
 
 
-def _get_parsed_tags(*, dsn=None, host=None, port=None, user=None,
-                     password=None, database=None, ssl=None,
-                     connect_timeout=60, server_settings=None):
+_connect_args = inspect.signature(asyncpg.connection.connect).parameters
+_parse_connect_dsn_and_args_params = \
+    inspect.signature(
+        asyncpg.connect_utils._parse_connect_dsn_and_args).parameters
+
+_connect_parse_arg_mapping = {
+    'connect_timeout': 'timeout'
+}
+
+
+def _get_parsed_tags(**connect_kwargs):
+    parse_args = dict()
+
+    for param_name, param in _parse_connect_dsn_and_args_params.items():
+        # Grab param from connect_kwargs
+        connect_param_name = _connect_parse_arg_mapping.get(
+            param_name, param_name)
+        default = _connect_args[connect_param_name].default
+        parse_args[param_name] = connect_kwargs.get(param_name, default)
+
     try:
-        addrs, params = asyncpg.connect_utils._parse_connect_dsn_and_args(
-            dsn=dsn, host=host, port=port, user=user, password=password,
-            database=database, ssl=ssl, connect_timeout=connect_timeout,
-            server_settings=server_settings)
+        addrs, params, *_ = asyncpg.connect_utils._parse_connect_dsn_and_args(
+            **parse_args)
 
         tags = {
             net.TARGET_HOST: addrs[0][0],
@@ -126,6 +143,8 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
         if len(connect_args) == 1:
             kwargs_copy['dsn'] = connect_args[0]
             tags = _get_parsed_tags(**kwargs_copy)
+        else:
+            warnings.warn("Unrecognized parameters to asyncpg connect")
 
     pin = _create_pin(tags)
 
