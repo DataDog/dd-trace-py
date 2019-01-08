@@ -17,9 +17,12 @@ DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
 
-# Set here a default logging format for basicConfig since we would not be able
-# to change format later without jumping through hoops
-# See https://github.com/python/cpython/blob/2.7/Lib/logging/__init__.py#L1550
+# Set here a default logging format for basicConfig
+
+# DEV: Once basicConfig is called here, future calls to it cannot be used to
+# change the formatter since it applies the formatter to the root handler only
+# upon initializing it the first time.
+# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 if debug and debug.lower() == "true":
     logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
 else:
