@@ -117,6 +117,30 @@ end
 namespace :pypi do
   RELEASE_DIR = '/tmp/dd-trace-py-release'
 
+  def get_version()
+    return `python setup.py --version`.strip
+  end
+
+  def get_branch()
+    return `git name-rev --name-only HEAD`.strip
+  end
+
+  task :confirm do
+    if get_branch.downcase != 'master'
+      print "WARNING: This task should only be run from 'master' branch, currently on '#{get_branch.downcase}', proceed anyways [y|N]? "
+      $stdout.flush
+
+      abort if $stdin.gets.to_s.strip.downcase != 'y'
+    end
+
+    ddtrace_version = get_version
+    puts "WARNING: This task will build and release a new wheel to https://pypi.org/project/ddtrace/, this action cannot be undone"
+    print "         To proceed please type the version '#{ddtrace_version}': "
+    $stdout.flush
+
+    abort if $stdin.gets.to_s.strip.downcase != ddtrace_version
+  end
+
   task :clean do
     FileUtils.rm_rf(RELEASE_DIR)
   end
@@ -130,7 +154,7 @@ namespace :pypi do
     sh "python setup.py -q sdist -d #{RELEASE_DIR}"
   end
 
-  task :release => [:install, :build] do
+  task :release => [:confirm, :install, :build] do
     builds = Dir.entries(RELEASE_DIR).reject {|f| f == '.' || f == '..'}
     if builds.length == 0
         fail "no build found in #{RELEASE_DIR}"
