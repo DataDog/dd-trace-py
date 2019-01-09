@@ -126,14 +126,15 @@ namespace :pypi do
   end
 
   task :confirm do
-    if get_branch.downcase != 'master'
-      print "WARNING: This task should only be run from 'master' branch, currently on '#{get_branch.downcase}', proceed anyways [y|N]? "
+    ddtrace_version = get_version
+
+    if get_branch.downcase != 'tags/v#{ddtrace_version}'
+      print "WARNING: Expected current commit to be tagged as 'tags/v#{ddtrace_version}, instead we are on '#{get_branch}', proceed anyways [y|N]? "
       $stdout.flush
 
       abort if $stdin.gets.to_s.strip.downcase != 'y'
     end
 
-    ddtrace_version = get_version
     puts "WARNING: This task will build and release a new wheel to https://pypi.org/project/ddtrace/, this action cannot be undone"
     print "         To proceed please type the version '#{ddtrace_version}': "
     $stdout.flush
