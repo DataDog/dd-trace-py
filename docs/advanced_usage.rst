@@ -238,6 +238,13 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+.. _`Logs Injection`:
+
+Logs Injection
+--------------
+
+.. automodule:: ddtrace.contrib.logging
+
 Http layer
 ----------
 
@@ -447,6 +454,7 @@ The available environment variables for ``ddtrace-run`` are:
   will submit to  (default: 8126)
 * ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
   Sampling`
+* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
