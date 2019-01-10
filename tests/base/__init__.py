@@ -1,4 +1,5 @@
 import contextlib
+import os
 import unittest
 
 from ddtrace import config
@@ -22,6 +23,24 @@ class BaseTestCase(unittest.TestCase):
                 with self.override_config('flask', dict(distributed_tracing_enabled=True):
                     pass
     """
+
+    @contextlib.contextmanager
+    def override_env(self, env):
+        """
+        Temporarily override ``os.environ`` with provided values
+        >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
+            # Your test
+        """
+        original = dict(
+            (key, os.environ.get(key))
+            for key in env.keys()
+        )
+
+        os.environ.update(env)
+        try:
+            yield
+        finally:
+            os.environ.update(original)
 
     @contextlib.contextmanager
     def override_config(self, integration, values):

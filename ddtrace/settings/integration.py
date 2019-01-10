@@ -1,6 +1,8 @@
 from copy import deepcopy
 import os
 
+import six
+
 from ..utils.attrdict import AttrDict
 from ..utils.formats import get_env
 from ..utils.merge import deepmerge
@@ -9,21 +11,23 @@ from .hooks import Hooks
 
 
 class IntegrationConfigItemBase(object):
-    pass
+    def _cast(self, value, allow_none=True):
+        return value
 
 
 class IntegrationConfigItem(IntegrationConfigItemBase):
-    __slots__ = ('name', 'value', 'default', 'env', 'env_override')
+    __slots__ = ('name', 'value', 'default', 'has_env_var', 'env_override', 'allow_none')
 
     UNSET = object()
 
-    def __init__(self, name, default=None, doc=None, env=True, env_override=None):
+    def __init__(self, name, default=None, doc=None, has_env_var=True, env_override=None, allow_none=True):
         self.name = name
         self.value = IntegrationConfigItem.UNSET
-        self.default = default
+        self.default = self._cast(default, allow_none)
+        self.allow_none = allow_none
         self.env_override = env_override
         # DEV: Force `env` to be True if `env_override` is set
-        self.env = env or bool(self.env_override)
+        self.has_env_var = has_env_var or bool(self.env_override)
 
         # TOOD: Set a default __doc__
         if doc is not None:
@@ -35,19 +39,22 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
     def __get__(self, config):
         if self.value is IntegrationConfigItem.UNSET:
             # Only fetch env variables if we should
-            if self.env:
+            if self.has_env_var:
                 # If an environment variable override is set, use that instead
                 if self.env_override:
-                    return os.environ.get(self.env_override, self.default)
+                    return self._cast(os.environ.get(self.env_override, self.default), allow_none=self.allow_none)
 
-                return get_env(config.integration_name, self.name, default=self.default)
+                return self._cast(get_env(config.integration_name, self.name, default=self.default), allow_none=self.allow_none)
             else:
+                # DEV: We case `self.default` when setting
                 return self.default
+
+        # DEV: We cast `self.value` when setting
         return self.value
 
     def __set__(self, config, new_value):
         if isinstance(new_value, IntegrationConfigItem):
-            self.default = new_value.default
+            self.default = self._cast(new_value.default, allow_none=self.allow_none)
 
             # If we are updating the default when a `dict` value is already set
             # then merge the value and default dict together
@@ -58,7 +65,7 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
             if isinstance(new_value, dict) and isinstance(self.default, dict):
                 d = deepcopy(self.default)
                 new_value = deepmerge(new_value, d)
-            self.value = new_value
+            self.value = self._cast(new_value, allow_none=self.allow_none)
 
     def __repr__(self):
         value = self.value if self.value is not IntegrationConfigItem.UNSET else self.default
@@ -75,7 +82,8 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
     def copy(self):
         c = IntegrationConfigItem(self.name, default=deepcopy(self.default), doc=self.__doc__)
         if c.value is not IntegrationConfigItem.UNSET:
-            c.value = deepcopy(self.value)
+            # DEV: This cast probably isn't necessary, but doesn't hurt
+            c.value = self._cast(deepcopy(self.value), allow_none=self.allow_none)
         return c
 
 
@@ -92,12 +100,12 @@ class IntegrationConfigItemAlias(IntegrationConfigItemBase):
     def __get__(self, config):
         item = config.get_item(self.alias)
         if not item:
-            return get_env(config.integration_name, self.name)
+            return self._cast(get_env(config.integration_name, self.name))
 
         if item.value is not IntegrationConfigItem.UNSET:
             return item.value
 
-        return get_env(config.integration_name, self.name, default=item.__get__(config))
+        return self._cast(get_env(config.integration_name, self.name, default=item.__get__(config)))
 
     def __set__(self, config, value):
         item = config.get_item(self.alias)
@@ -118,12 +126,45 @@ class IntegrationConfigItemAlias(IntegrationConfigItemBase):
         return IntegrationConfigItemAlias(self.name, self.alias)
 
 
+class BoolIntegrationConfigItem(IntegrationConfigItem):
+    def _cast(self, value, allow_none=True):
+        if value is None:
+            return None if allow_none else False
+        elif isinstance(value, bool):
+            return value
+        elif isinstance(value, six.string_types):
+            return value.strip().lower() in ('true', '1')
+        return bool(value)
+
+
+class FloatIntegrationConfigItem(IntegrationConfigItem):
+    def _cast(self, value, allow_none=True):
+        if value is None:
+            return None if allow_none else 0.0
+        elif isinstance(value, float):
+            return value
+        elif isinstance(value, six.string_types):
+            return float(value.strip())
+        return float(value)
+
+
+class IntIntegrationConfigItem(IntegrationConfigItem):
+    def _cast(self, value, allow_none=True):
+        if value is None:
+            return None if allow_none else 0
+        elif isinstance(value, int):
+            return value
+        elif isinstance(value, six.string_types):
+            return int(value.strip())
+        return int(value)
+
+
 class IntegrationConfig(AttrDict):
     __slots__ = ('integration_name', 'global_config', 'hooks', 'http')
 
     def __init__(self, global_config, integration_name, defaults=None):
         defaults = defaults or dict()
-        defaults['event_sample_rate'] = IntegrationConfigItem('event_sample_rate')
+        defaults['event_sample_rate'] = FloatIntegrationConfigItem('event_sample_rate')
         super(IntegrationConfig, self).__init__(**defaults)
 
         # Configure non-IntegrationConfigItem attributes

@@ -5,7 +5,10 @@ import logging
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
-from .integration import IntegrationConfigItem, IntegrationConfigItemAlias, IntegrationConfigItemBase
+from .integration import (
+    IntegrationConfigItem, IntegrationConfigItemAlias, IntegrationConfigItemBase,
+    BoolIntegrationConfigItem, IntIntegrationConfigItem, FloatIntegrationConfigItem,
+)
 
 log = logging.getLogger(__name__)
 
@@ -24,8 +27,13 @@ class Config(object):
     #         __integration__ = 'flask'
     #
     #         service_name = config.Item('service_name', default='flask')
+    #         is_enabled = config.Bool('is_enabled', default=True)
+    #         event_sample_rate = config.Float('event_sample_rate', default=1.0)
     Item = IntegrationConfigItem
     Alias = IntegrationConfigItemAlias
+    Bool = BoolIntegrationConfigItem
+    Int = IntIntegrationConfigItem
+    Float = FloatIntegrationConfigItem
 
     def __init__(self):
         # use a dict as underlying storing mechanism

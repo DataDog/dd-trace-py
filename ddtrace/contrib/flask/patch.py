@@ -34,27 +34,27 @@ class FlaskConfig:
 
     # Application name and type
     # DEV: Do not allow overriding these from environment variables
-    app = config.Item('app', default='flask', env=False)
+    app = config.Item('app', default='flask', has_env_var=False)
     app_type = config.Item('app_type', default=AppTypes.web)
 
     # Whether we should tag spans with view arguments
-    collect_view_args = config.Item('collect_view_args', default=True)
+    collect_view_args = config.Bool('collect_view_args', default=True)
 
     # Whether to parse distributed tracing headers or not
     # DEV: We went with `distributed_tracing_enabled` first, but it should actually be `distributed_tracing`
     #      so we have an alias here to support both
-    distributed_tracing = config.Item('distributed_tracing', default=False)
+    distributed_tracing = config.Bool('distributed_tracing', default=False)
     distributed_tracing_enabled = distributed_tracing.alias('distributed_tracing_enabled')
 
     # Default resource name when rendering an in-memory template
     template_default_name = config.Item('template_default_name', default='<memory>')
 
     # Whether to trace Flask signal calls
-    trace_signals = config.Item('trace_signals', default=True)
+    trace_signals = config.Bool('trace_signals', default=True)
 
     # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
     # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
-    extra_error_codes = config.Item('extra_error_codes', default=set(), env=False)
+    extra_error_codes = config.Item('extra_error_codes', default=set(), has_env_var=False)
 
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
