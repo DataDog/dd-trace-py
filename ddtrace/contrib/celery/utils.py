@@ -54,6 +54,9 @@ def attach_span(task, task_id, span, is_publish=False):
 
          Previously publishing the new task would overwrite the existing `celery.run` span
          in the `weak_dict` causing that span to be forgotten and never finished.
+
+         NOTE: We cannot test for this well yet, because we do not run a celery worker,
+         and cannot run `task.apply_async()`
     """
     weak_dict = getattr(task, CTX_KEY, None)
     if weak_dict is None:
