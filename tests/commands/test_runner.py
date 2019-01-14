@@ -20,6 +20,7 @@ class DdtraceRunTest(unittest.TestCase):
             'DATADOG_SERVICE_NAME',
             'DATADOG_TRACE_DEBUG',
             'DD_TRACE_GLOBAL_TAGS',
+            'DD_LOGS_INJECTION',
         )
         for k in keys:
             if k in os.environ:
@@ -232,5 +233,16 @@ class DdtraceRunTest(unittest.TestCase):
 
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_global_tags.py']
+        )
+        assert out.startswith(b"Test success")
+
+    def test_logs_injection(self):
+        """ Ensure logs injection works
+        """
+
+        os.environ['DD_LOGS_INJECTION'] = 'true'
+
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_logs_injection.py']
         )
         assert out.startswith(b"Test success")

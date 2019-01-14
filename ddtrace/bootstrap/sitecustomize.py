@@ -8,14 +8,25 @@ import imp
 import sys
 import logging
 
-from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import asbool, get_env
 
+logs_injection = asbool(get_env('logs', 'injection'))
+DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s'.format(
+    '[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] ' if logs_injection else ''
+)
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
+
+# Set here a default logging format for basicConfig
+
+# DEV: Once basicConfig is called here, future calls to it cannot be used to
+# change the formatter since it applies the formatter to the root handler only
+# upon initializing it the first time.
+# See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 if debug and debug.lower() == "true":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
 else:
-    logging.basicConfig()
+    logging.basicConfig(format=DD_LOG_FORMAT)
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +92,9 @@ try:
 
     if opts:
         tracer.configure(**opts)
+
+    if logs_injection:
+        EXTRA_PATCHED_MODULES.update({'logging': True})
 
     if patch:
         update_patched_modules()
