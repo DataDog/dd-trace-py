@@ -39,21 +39,34 @@ def tags_from_context(context):
     return tags
 
 
-def attach_span(task, task_id, span):
+def attach_span(task, task_id, span, is_publish=False):
     """Helper to propagate a `Span` for the given `Task` instance. This
     function uses a `WeakValueDictionary` that stores a Datadog Span using
-    the `task_id` as a key. This is useful when information must be
+    the `(task_id, is_publish)` as a key. This is useful when information must be
     propagated from one Celery signal to another.
+
+    DEV: We use (task_id, is_publish) for the key to ensure that publishing a
+         task from within another task does not cause any conflicts.
+
+         This mostly happens when either a task fails and a retry policy is in place,
+         or when a task is manually retries (e.g. `task.retry()`), we end up trying
+         to publish a task with the same id as the task currently running.
+
+         Previously publishing the new task would overwrite the existing `celery.run` span
+         in the `weak_dict` causing that span to be forgotten and never finished.
+
+         NOTE: We cannot test for this well yet, because we do not run a celery worker,
+         and cannot run `task.apply_async()`
     """
     weak_dict = getattr(task, CTX_KEY, None)
     if weak_dict is None:
         weak_dict = WeakValueDictionary()
         setattr(task, CTX_KEY, weak_dict)
 
-    weak_dict[task_id] = span
+    weak_dict[(task_id, is_publish)] = span
 
 
-def detach_span(task, task_id):
+def detach_span(task, task_id, is_publish=False):
     """Helper to remove a `Span` in a Celery task when it's propagated.
     This function handles tasks where the `Span` is not attached.
     """
@@ -61,10 +74,11 @@ def detach_span(task, task_id):
     if weak_dict is None:
         return
 
-    weak_dict.pop(task_id, None)
+    # DEV: See note in `attach_span` for key info
+    weak_dict.pop((task_id, is_publish), None)
 
 
-def retrieve_span(task, task_id):
+def retrieve_span(task, task_id, is_publish=False):
     """Helper to retrieve an active `Span` stored in a `Task`
     instance
     """
@@ -72,7 +86,8 @@ def retrieve_span(task, task_id):
     if weak_dict is None:
         return
     else:
-        return weak_dict.get(task_id)
+        # DEV: See note in `attach_span` for key info
+        return weak_dict.get((task_id, is_publish))
 
 
 def retrieve_task_id(context):
