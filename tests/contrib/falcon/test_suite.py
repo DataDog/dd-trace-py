@@ -1,6 +1,7 @@
 from nose.tools import eq_, ok_
 
 from ddtrace import config
+from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
@@ -70,6 +71,16 @@ class FalconTestCase(object):
         eq_(span.get_tag(httpx.URL), 'http://falconframework.org/200')
         eq_(span.parent_id, None)
         eq_(span.span_type, 'http')
+
+    def test_event_sample_key(self):
+        with self.override_config('falcon', dict(event_sample_rate=1)):
+            out = self.simulate_get('/200')
+            self.assertEqual(out.status_code, 200)
+            self.assertEqual(out.content.decode('utf-8'), 'Success')
+
+            self.assert_structure(
+                dict(name='falcon.request', metrics={EVENT_SAMPLE_RATE_KEY: 1})
+            )
 
     def test_201(self):
         out = self.simulate_post('/201')

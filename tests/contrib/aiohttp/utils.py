@@ -3,10 +3,10 @@ import asyncio
 from aiohttp.test_utils import AioHTTPTestCase
 
 from .app.web import setup_app
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class TraceTestCase(AioHTTPTestCase):
+class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
     """
     Base class that provides a valid ``aiohttp`` application with
     the async tracer.
@@ -33,6 +33,5 @@ class TraceTestCase(AioHTTPTestCase):
         self.app = setup_app(loop)
         asyncio.set_event_loop(loop)
         # trace the app
-        self.tracer = get_dummy_tracer()
         self.enable_tracing()
         return self.app

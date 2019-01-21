@@ -6,7 +6,9 @@ import ddtrace
 from ddtrace.ext import http, AppTypes
 
 # project
+from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...propagation.http import HTTPPropagator
+from ...settings import config
 
 SPAN_TYPE = 'web'
 
@@ -41,6 +43,10 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
+                # Configure trace search sample rate
+                if config.bottle.event_sample_rate is not None:
+                    s.set_tag(EVENT_SAMPLE_RATE_KEY, config.bottle.event_sample_rate)
+
                 code = 0
                 try:
                     return callback(*args, **kwargs)

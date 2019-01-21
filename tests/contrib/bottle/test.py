@@ -2,25 +2,25 @@ import bottle
 import ddtrace
 import webtest
 
-from unittest import TestCase
 from nose.tools import eq_, ok_
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 from ddtrace import compat
+from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
-
 
 SERVICE = 'bottle-app'
 
 
-class TraceBottleTest(TestCase):
+class TraceBottleTest(BaseTracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
     def setUp(self):
+        super(TraceBottleTest, self).setUp()
+
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app
@@ -104,6 +104,32 @@ class TraceBottleTest(TestCase):
         eq_(s.resource, 'GET /home/')
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
+
+    def test_event_sample_rate(self):
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        # make a request
+        with self.override_config('bottle', dict(event_sample_rate=1)):
+            resp = self.app.get('/hi/dougie')
+            eq_(resp.status_int, 200)
+            eq_(compat.to_unicode(resp.body), u'hi dougie')
+
+        root = self.get_root_span()
+        root.assert_matches(
+            name='bottle.request',
+            metrics={
+                EVENT_SAMPLE_RATE_KEY: 1,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
     def test_200_ot(self):
         ot_tracer = init_tracer('my_svc', self.tracer)
