@@ -166,9 +166,9 @@ class API(object):
 
             conn.request("PUT", endpoint, data, headers)
 
-            # Parse the HTTPResponse into a API.Response
-            # DEV: This will call `resp.read()` which must happen `conn.close()` below,
-            #      otherwise the if we `.close()` then all `.read()` calls will return `b''`
+            # Parse the HTTPResponse into an API.Response
+            # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,
+            #      if we call `.close()` then all future `.read()` calls will return `b''`
             resp = get_connection_response(conn)
             return API.Response.from_http_response(resp)
         finally:
