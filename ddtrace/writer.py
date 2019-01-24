@@ -8,8 +8,6 @@ import time
 
 from ddtrace import api
 
-from .api import _parse_response_json
-
 log = logging.getLogger(__name__)
 
 
@@ -156,8 +154,8 @@ class AsyncWorker(object):
                 # no traces and the queue is closed. our work is done
                 return
 
-            if self._priority_sampler:
-                result_traces_json = _parse_response_json(result_traces)
+            if self._priority_sampler and result_traces:
+                result_traces_json = result_traces.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
