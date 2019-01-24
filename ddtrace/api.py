@@ -1,8 +1,9 @@
 # stdlib
+import json
 import logging
 import time
+
 import ddtrace
-from json import loads
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -38,16 +39,19 @@ def _parse_response_json(response):
         try:
             if not isinstance(body, str) and hasattr(body, 'decode'):
                 body = body.decode('utf-8')
-            if hasattr(body, 'startswith') and body.startswith('OK'):
+
+            if not body:
+                log.debug('Empty reply from trace-agent status:%d', getattr(response, 'status', None))
+                return
+            elif hasattr(body, 'startswith') and body.startswith('OK'):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                log.debug('"OK" is not a valid JSON, please make sure trace-agent is up to date')
                 return
-            content = loads(body)
-            return content
+            return json.loads(body)
         except (ValueError, TypeError) as err:
-            log.debug("unable to load JSON '%s': %s" % (body, err))
+            log.debug('Unable to load JSON %r: %s', body, err)
 
 
 class API(object):
@@ -90,7 +94,7 @@ class API(object):
         # overwrite the Content-type with the one chosen in the Encoder
         self._headers.update({'Content-Type': self._encoder.content_type})
 
-    def _downgrade(self):
+    def _downgrade(self, payload):
         """
         Downgrades the used encoder and API level. This method must fallback to a safe
         encoder and API, so that it will success despite users' configurations. This action
@@ -99,40 +103,22 @@ class API(object):
         """
         self._set_version(self._fallback)
 
-    def send_traces(self, traces):
-        if not traces:
+    def send_traces(self, payload):
+        if not payload or payload.empty:
             return
 
         start = time.time()
-        data = self._encoder.encode_traces(traces)
-        log.debug('flushing %s traces', len(traces))
-        response = self._put(self._traces, data, len(traces))
+        data = payload.get_payload()
+        response = self._put(self._traces, data, payload.length)
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._traces, response.status)
+            log.debug('Calling endpoint "%s" but received %s; downgrading API', self._traces, response.status)
             self._downgrade()
-            return self.send_traces(traces)
+            payload.downgrade(self._encoder)
+            return self.send_traces(payload)
 
-        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
-        return response
-
-    def send_services(self, services):
-        if not services:
-            return
-        s = {}
-        for service in services:
-            s.update(service)
-        data = self._encoder.encode_services(s)
-        response = self._put(self._services, data)
-
-        # the API endpoint is not available so we should downgrade the connection and re-try the call
-        if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._services, response.status)
-            self._downgrade()
-            return self.send_services(services)
-
-        log.debug('reported %d services', len(services))
+        log.debug('Reported %d traces in %.5fs', payload.length, time.time() - start)
         return response
 
     def _put(self, endpoint, data, count=0):
@@ -145,6 +131,13 @@ class API(object):
 
             log.debug('PUT %s:%s%s with payload %sb', self.hostname, self.port, endpoint, len(data))
             conn.request('PUT', endpoint, data, headers)
-            return get_connection_response(conn)
+            resp = get_connection_response(conn)
+            log.debug(
+                'Response %d %s length:%d',
+                getattr(resp, 'status', None),
+                getattr(resp, 'reason', None),
+                getattr(resp, 'length', None),
+            )
+            return resp
         finally:
             conn.close()

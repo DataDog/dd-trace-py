@@ -2,7 +2,6 @@
 import atexit
 import logging
 import os
-import queue
 import random
 import threading
 import time
@@ -10,15 +9,30 @@ import time
 from ddtrace import api
 
 from .api import _parse_response_json
+from .compat import Queue
+from .payload import Payload
 
 log = logging.getLogger(__name__)
 
 
 MAX_TRACES = 1000
-PAYLOAD_MAX_TRACES = 500
 
 DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
+
+
+def _get_trace_info(trace):
+    if not trace and not len(trace):
+        return '<{0!r}>'.format(trace)
+
+    root = trace[0]
+    return 'Trace(id={0!r}, name={1!r}, service={2!r}, resource={3!r}, spans={4!r})'.format(
+        getattr(root, 'trace_id', None),
+        getattr(root, 'name', None),
+        getattr(root, 'service', None),
+        getattr(root, 'resource', None),
+        len(trace),
+    )
 
 
 class AgentWriter(object):
@@ -37,6 +51,7 @@ class AgentWriter(object):
         self._reset_worker()
 
         if spans:
+            log.debug('Queuing %s', _get_trace_info(spans))
             self._traces.put(spans)
 
     def _reset_worker(self):
@@ -44,7 +59,7 @@ class AgentWriter(object):
         # forked) reset everything so that we can safely work from it.
         pid = os.getpid()
         if self._pid != pid:
-            log.debug("resetting queues. pids(old:%s new:%s)", self._pid, pid)
+            log.debug('Resetting queues. pids(old:%s new:%s)', self._pid, pid)
             self._traces = Q(maxsize=MAX_TRACES)
             self._worker = None
             self._pid = pid
@@ -121,40 +136,50 @@ class AsyncWorker(object):
                 self._trace_queue.join()
 
     def _target(self):
+        next_flush = time.time() + 1
+        payload = Payload(filters=self._filters)
+
         while True:
-            # Get traces from the trace queue
-            # DEV: `Q.get()` will block for at least 1 second before returning
-            traces = self._trace_queue.get()
+            # DEV: Returns `None` or a Trace
+            trace = self._trace_queue.get()
 
-            if traces:
-                # Before sending the traces, make them go through the
-                # filters
-                try:
-                    traces = self._apply_filters(traces)
-                except Exception as err:
-                    log.error('error while filtering traces:{0}'.format(err))
+            if trace:
+                log.debug('Popped %s', _get_trace_info(trace))
+                payload.add_trace(trace)
 
-            # Send traces in payloads of max 200 traces per payloads
-            # TODO: Create payloads based on payload size instead (hint: this is hard to do)
-            if traces:
-                # Split list of traces into PAYLOAD_MAX_TRACES sized sub-lists
-                payloads = (traces[i:i+PAYLOAD_MAX_TRACES] for i in range(0, len(traces), PAYLOAD_MAX_TRACES))
-                for payload in payloads:
-                    self._send_traces(payload)
+            now = time.time()
+            # If the payload is large enough or enough time has passed, then flush
+            if payload.full or now >= next_flush:
+                if not payload.empty:
+                    log.debug('Attempting to flush %r', payload)
+                    self._flush(payload)
+                    payload.reset()
+                next_flush = now + 1
+            else:
+                remaining = max(0, next_flush - now)
+                self._trace_queue.wait(remaining)
+
+            # Wait up until the next flush for another trace to be added
+            self._trace_queue.wait(max(0, next_flush - time.time()))
 
             # no traces and the queue is closed. our work is done
             if self._trace_queue.closed() and self._trace_queue.qsize() == 0:
+                if not payload.empty:
+                    self._flush(payload)
+                    payload.reset()
+                log.debug('Trace queue closed and empty, exiting')
                 return
 
-    def _send_traces(self, traces):
+    def _flush(self, payload):
         # Nothing to do, return early
-        if not traces:
+        if payload.empty:
+            log.debug('Payload empty, not flushing %r', payload)
             return
 
-        log.debug('flushing %s traces', len(traces))
+        log.debug('Flushing payload %r', payload)
         # If we have data, let's try to send it.
         try:
-            response = self.api.send_traces(traces)
+            response = self.api.send_traces(payload)
 
             # Update priority sampling rates from the agent
             if self._priority_sampler:
@@ -178,26 +203,8 @@ class AsyncWorker(object):
                       getattr(result, 'status', None), getattr(result, 'reason', None),
                       getattr(result, 'msg', None))
 
-    def _apply_filters(self, traces):
-        """
-        Here we make each trace go through the filters configured in the
-        tracer. There is no need for a lock since the traces are owned by the
-        AsyncWorker at that point.
-        """
-        if self._filters is not None:
-            filtered_traces = []
-            for trace in traces:
-                for filtr in self._filters:
-                    trace = filtr.process_trace(trace)
-                    if trace is None:
-                        break
-                if trace is not None:
-                    filtered_traces.append(trace)
-            return filtered_traces
-        return traces
 
-
-class Q(queue.Queue):
+class Q(Queue, object):
     """
     Q is a threadsafe queue that let's you pop everything at once and
     will randomly overwrite elements when it's over the max size.
@@ -205,15 +212,6 @@ class Q(queue.Queue):
     def __init__(self, maxsize=1000):
         super(Q, self).__init__(maxsize=maxsize)
         self._closed = False
-        self._last_get = time.time()
-
-    def _init(self, maxsize):
-        self.queue = []
-
-    def _get(self):
-        # Remove and return the entire queue, resetting the queue
-        items, self.queue = self.queue, []
-        return items
 
     def close(self):
         with self.mutex:
@@ -246,35 +244,20 @@ class Q(queue.Queue):
     def get(self, block=True, timeout=None):
         # DEV: `with self.not_empty` will acquire a lock on `self.mutex`
         with self.not_empty:
-            # Start a buffer for all items popped
-            items = []
-
-            # Determine until when we we should collect items for
-            remaining = 1
-            end = time.time() + remaining
-
-            # While we do not have any items, or we still have time remaining
-            # DEV: We want to make sure we wait at least `remaining` seconds before returning any items
-            while not items or remaining > 0:
-                # Append latest items onto the buffer
-                # DEV: This will also reset the queue items
-                items += self._get()
-
-                # Determine how much longer we have to wait for
-                remaining = max(0, end - time.time())
-
-                # If our time has passed and we still don't have any items, wait another 1 second
-                if remaining <= 0 and not items:
-                    remaining = 1
-                    end = time.time() + remaining
-
-                # Wait up to `remaining` seconds for new items to be pushed onto the queue
-                # DEV: Calling `wait()` will release the lock on `self.mutex` until we are notified
-                self.not_empty.wait(remaining)
-
+            item = None
+            # DEV: `qsize()` aquires a lock, `_qsize()` does not
+            if self._qsize():
+                item = self._get()
+            # Notify anyone waiting on `self.not_full` that we have removed an item
             self.not_full.notify()
-            log.debug('queue get returning %s items', len(items))
-            return items
+            return item
+
+    def wait(self, seconds):
+        # DEV: `qsize()` aquires a lock, `_qsize()` does not
+        if not self.qsize():
+            # DEV: `with self.not_empty` will acquire a lock on `self.mutex`
+            with self.not_empty:
+                self.not_empty.wait(seconds)
 
     def join(self):
         # Wait until after all items have been removed from the queue
