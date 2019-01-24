@@ -42,15 +42,22 @@ class API(object):
         DEV: Calling `HTTPConnection.close()` before `HTTPResponse.read()` will result in
              `.read()` always returning back `b''`
         """
-        __slots__ = ['status', 'body']
+        __slots__ = ['status', 'body', 'reason', 'msg']
 
-        def __init__(self, status=None, body=None):
+        def __init__(self, status=None, body=None, reason=None, msg=None):
             self.status = status
             self.body = body
+            self.reason = reason
+            self.msg = msg
 
         @classmethod
         def from_http_response(cls, resp):
-            return cls(status=resp.status, body=resp.read())
+            return cls(
+                status=resp.status,
+                body=resp.read(),
+                reason=getattr(resp, 'reason', None),
+                msg=getattr(resp, 'msg', None),
+            )
 
         def get_json(self):
             """Helper to parse the body of this request as JSON"""
@@ -75,7 +82,12 @@ class API(object):
                 log.debug("unable to load JSON '%s': %s" % (body, err))
 
         def __repr__(self):
-            return 'API.Response(status={0!r}, body={1!r})'.format(self.status, self.body)
+            return 'API.Response(status={0!r}, body={1!r}, reason={2!r}, msg={3!r})'.format(
+                self.status,
+                self.body,
+                self.reason,
+                self.msg,
+            )
 
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
