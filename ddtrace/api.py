@@ -157,6 +157,9 @@ class API(object):
         log.debug('Reported %d traces in %.5fs', payload.length, time.time() - start)
         return response
 
+    def send_services(self, services):
+        return
+
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         try:
