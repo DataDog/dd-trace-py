@@ -188,7 +188,7 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)
-        ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
+        ok_('failed_to_send traces to Datadog Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
     def test_worker_filter_request(self):
