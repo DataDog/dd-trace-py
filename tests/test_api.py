@@ -50,7 +50,7 @@ class APITests(TestCase):
             ),
             42: dict(  # int as key to trigger TypeError
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: .*? not \'int\' 42',
+                log='Unable to parse Datadog Agent JSON response: .*? 42',
             ),
             '{}': dict(js={}),
             '[]': dict(js=[]),
