@@ -82,7 +82,7 @@ class API(object):
                     log.debug("'OK' is not a valid JSON, please make sure trace-agent is up to date")
                     return
 
-                return loads(body)
+                return json.loads(body)
             except (ValueError, TypeError) as err:
                 log.debug("unable to load JSON '%s': %s" % (body, err))
 
