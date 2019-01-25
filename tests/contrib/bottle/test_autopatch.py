@@ -3,7 +3,7 @@ import ddtrace
 import webtest
 
 from unittest import TestCase
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace import compat
