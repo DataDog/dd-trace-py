@@ -38,9 +38,9 @@ class DummmyAPI():
     def __init__(self):
         self.traces = []
 
-    def send_traces(self, traces):
-        for trace in traces:
-            self.traces.append(trace)
+    def send_traces(self, payload):
+        for trace in payload.traces:
+            self.traces.append(payload.encoder.decode(trace))
 
 
 N_TRACES = 11
@@ -52,7 +52,7 @@ class AsyncWorkerTests(TestCase):
         self.traces = Q()
         self.services = Q()
         for i in range(N_TRACES):
-            self.traces.add([
+            self.traces.put([
                 Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
                 for j in range(7)
             ])
@@ -86,7 +86,8 @@ class AsyncWorkerTests(TestCase):
         self.assertEqual(filtr.filtered_traces, N_TRACES)
         for trace in self.api.traces:
             for span in trace:
-                self.assertIsNotNone(span.get_tag(tag_name))
+                # DEV: Encoding and then decoding forces the strings to be bytes
+                self.assertIsNotNone(span[b'meta'].get(b'Tag'))
 
     def test_filters_short_circuit(self):
         filtr = KeepAllFilter()
