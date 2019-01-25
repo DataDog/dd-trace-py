@@ -124,8 +124,8 @@ class AsyncWorker(object):
                     time.sleep(0.05)
 
     def _target(self):
-        result_traces = None
-        result_services = None
+        traces_response = None
+        services_response = None
 
         while True:
             traces = self._trace_queue.pop()
@@ -139,14 +139,14 @@ class AsyncWorker(object):
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    result_traces = self.api.send_traces(traces)
+                    traces_response = self.api.send_traces(traces)
                 except Exception as err:
                     log.error("cannot send spans to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
             services = self._service_queue.pop()
             if services:
                 try:
-                    result_services = self.api.send_services(services)
+                    services_response = self.api.send_services(services)
                 except Exception as err:
                     log.error("cannot send services to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
@@ -154,28 +154,35 @@ class AsyncWorker(object):
                 # no traces and the queue is closed. our work is done
                 return
 
-            if self._priority_sampler and result_traces:
-                result_traces_json = result_traces.get_json()
+            if self._priority_sampler and traces_response:
+                result_traces_json = traces_response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-            self._log_error_status(result_traces, "traces")
-            result_traces = None
-            self._log_error_status(result_services, "services")
-            result_services = None
+            self._log_error_status(traces_response, "traces")
+            traces_response = None
+            self._log_error_status(services_response, "services")
+            services_response = None
 
             time.sleep(1)  # replace with a blocking pop.
 
-    def _log_error_status(self, result, result_name):
+    def _log_error_status(self, response, response_name):
+        if not isinstance(response, api.Response):
+            return
+
         log_level = log.debug
-        if result and getattr(result, "status", None) >= 400:
+        if response.status >= 400:
             now = time.time()
             if now > self._last_error_ts + LOG_ERR_INTERVAL:
                 log_level = log.error
                 self._last_error_ts = now
-            log_level("failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s", result_name,
-                      getattr(result, "status", None), getattr(result, "reason", None),
-                      getattr(result, "msg", None))
+            log_level(
+                'failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s',
+                response_name,
+                response.status,
+                response.reason,
+                response.msg,
+            )
 
     def _apply_filters(self, traces):
         """
