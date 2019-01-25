@@ -152,12 +152,9 @@ class TestPsycopgPatch(AsyncioTestCase):
             conn.close()
 
         # ensure we have the service types
-        service_meta = tracer.writer.pop_services()
-        expected = {
-            'db': {'app': 'postgres', 'app_type': 'db'},
-            'another': {'app': 'postgres', 'app_type': 'db'},
-        }
-        eq_(service_meta, expected)
+        services = tracer.writer.pop_services()
+        # DEV: Sending of services is a noop while we remove the API
+        eq_(len(services), 0)
 
     @mark_asyncio
     def test_patch_unpatch(self):

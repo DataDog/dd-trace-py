@@ -28,11 +28,6 @@ class DummyWriter(AgentWriter):
             self.spans += spans
             self.traces += trace
 
-        if services:
-            self.json_encoder.encode_services(services)
-            self.msgpack_encoder.encode_services(services)
-            self.services.update(services)
-
     def pop(self):
         # dummy method
         s = self.spans

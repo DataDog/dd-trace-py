@@ -115,10 +115,8 @@ class TestFlask(TestCase):
         eq_(s.meta.get(http.METHOD), 'GET')
 
         services = self.tracer.writer.pop_services()
-        expected = {
-            'test.flask.service': {'app': 'flask', 'app_type': 'web'},
-        }
-        eq_(services, expected)
+        # DEV: Sending of services is a noop while we remove the API
+        self.assertEqual(len(services), 0)
 
     def test_template(self):
         start = time.time()

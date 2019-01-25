@@ -40,12 +40,8 @@ class TestSQLite(BaseTracerTestCase):
         sqlite3.connect(':memory:')
 
         services = self.tracer.writer.pop_services()
-        self.assertEqual(len(services), 1)
-        expected = {
-            'sqlite': {'app': 'sqlite', 'app_type': 'db'}
-        }
-        self.assertEqual(expected, services)
-
+        # DEV: Sending of services is a noop while we remove the API
+        self.assertEqual(len(services), 0)
         ddtrace.tracer = backup_tracer
 
     def test_sqlite(self):
