@@ -67,7 +67,7 @@ class Response(object):
         try:
             body = self.body
             if not body:
-                log.debug('Empty reply from Datadog agent, %r', self)
+                log.debug('Empty reply from Datadog Agent, %r', self)
                 return
 
             if not isinstance(body, str) and hasattr(body, 'decode'):
