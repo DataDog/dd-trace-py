@@ -5,12 +5,13 @@ from unittest import TestCase
 from nose.tools import eq_, ok_
 
 from tests.test_tracer import get_dummy_tracer
-from ddtrace.api import _parse_response_json, API
+from ddtrace.api import API
 from ddtrace.compat import iteritems, httplib
 
 
 class ResponseMock:
-    def __init__(self, content):
+    def __init__(self, content, status=200):
+        self.status = status
         self.content = content
 
     def read(self):
@@ -53,8 +54,8 @@ class APITests(TestCase):
         }
 
         for k, v in iteritems(test_cases):
-            r = ResponseMock(k)
-            js = _parse_response_json(r)
+            r = API.Response.from_http_response(ResponseMock(k))
+            js = r.get_json()
             eq_(v['js'], js)
             if 'log' in v:
                 ok_(

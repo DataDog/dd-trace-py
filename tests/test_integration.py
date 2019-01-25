@@ -41,7 +41,7 @@ class FlawedAPI(API):
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request('HEAD', endpoint, data, self._headers)
-        return conn.getresponse()
+        return API.Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(

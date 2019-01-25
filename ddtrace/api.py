@@ -28,36 +28,72 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'fallback': None}}
 
 
-def _parse_response_json(response):
-    """
-    Parse the content of a response object, and return the right type,
-    can be a string if the output was plain text, or a dictionnary if
-    the output was a JSON.
-    """
-    if hasattr(response, 'read'):
-        body = response.read()
-        try:
-            if not isinstance(body, str) and hasattr(body, 'decode'):
-                body = body.decode('utf-8')
-
-            if not body:
-                log.debug('Empty reply from trace-agent status:%d', getattr(response, 'status', None))
-                return
-            elif hasattr(body, 'startswith') and body.startswith('OK'):
-                # This typically happens when using a priority-sampling enabled
-                # library with an outdated agent. It still works, but priority sampling
-                # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug('"OK" is not a valid JSON, please make sure trace-agent is up to date')
-                return
-            return json.loads(body)
-        except (ValueError, TypeError) as err:
-            log.debug('Unable to load JSON %r: %s', body, err)
-
-
 class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
     """
+    class Response(object):
+        """
+        Custom API Response object to represent a response from calling the API.
+
+        We do this to ensure we know expected properties will exist, and so we
+        can call `resp.read()` and load the body once into an instance before we
+        close the HTTPConnection used for the request.
+
+        DEV: Calling `HTTPConnection.close()` before `HTTPResponse.read()` will result in
+             `.read()` always returning back `b''`
+        """
+        __slots__ = ['status', 'body', 'reason', 'msg']
+
+        def __init__(self, status=None, body=None, reason=None, msg=None):
+            self.status = status
+            self.body = body
+            self.reason = reason
+            self.msg = msg
+
+        @classmethod
+        def from_http_response(cls, resp):
+            return cls(
+                status=resp.status,
+                body=resp.read(),
+                reason=getattr(resp, 'reason', None),
+                msg=getattr(resp, 'msg', None),
+            )
+
+        @property
+        def length(self):
+            return len(self.body)
+
+        def get_json(self):
+            """Helper to parse the body of this request as JSON"""
+            try:
+                body = self.body
+                if not body:
+                    log.debug('Empty reply from trace-agent, %r', self)
+                    return
+
+                if not isinstance(body, str) and hasattr(body, 'decode'):
+                    body = body.decode('utf-8')
+
+                if hasattr(body, 'startswith') and body.startswith('OK'):
+                    # This typically happens when using a priority-sampling enabled
+                    # library with an outdated agent. It still works, but priority sampling
+                    # will probably send too many traces, so the next step is to upgrade agent.
+                    log.debug("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                    return
+
+                return loads(body)
+            except (ValueError, TypeError) as err:
+                log.debug("unable to load JSON '%s': %s" % (body, err))
+
+        def __repr__(self):
+            return 'API.Response(status={0!r}, body={1!r}, reason={2!r}, msg={3!r})'.format(
+                self.status,
+                self.body,
+                self.reason,
+                self.msg,
+            )
+
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
         self.port = port
@@ -131,13 +167,14 @@ class API(object):
 
             log.debug('PUT %s:%s%s with payload %sb', self.hostname, self.port, endpoint, len(data))
             conn.request('PUT', endpoint, data, headers)
+            # Parse the HTTPResponse into an API.Response
+            # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,
+            #      if we call `.close()` then all future `.read()` calls will return `b''`
             resp = get_connection_response(conn)
             log.debug(
                 'Response %d %s length:%d',
-                getattr(resp, 'status', None),
-                getattr(resp, 'reason', None),
-                getattr(resp, 'length', None),
+                resp.status, resp.reason, resp.length,
             )
-            return resp
+            return API.Response.from_http_response(resp)
         finally:
             conn.close()

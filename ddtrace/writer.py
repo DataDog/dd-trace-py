@@ -6,9 +6,7 @@ import random
 import threading
 import time
 
-from ddtrace import api
-
-from .api import _parse_response_json
+from . import api
 from .compat import Queue
 from .payload import Payload
 
@@ -182,8 +180,8 @@ class AsyncWorker(object):
             response = self.api.send_traces(payload)
 
             # Update priority sampling rates from the agent
-            if self._priority_sampler:
-                response_json = _parse_response_json(response)
+            if self._priority_sampler and response:
+                response_json = response.get_json()
                 if response_json and 'rate_by_service' in response_json:
                     self._priority_sampler.set_sample_rate_by_service(response_json['rate_by_service'])
 
