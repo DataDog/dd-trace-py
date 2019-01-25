@@ -177,7 +177,7 @@ class AsyncWorker(object):
                 log_level = log.error
                 self._last_error_ts = now
             log_level(
-                'failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s',
+                'failed_to_send %s to Datadog Agent: HTTP error status %s, reason %s, message %s',
                 response_name,
                 response.status,
                 response.reason,
