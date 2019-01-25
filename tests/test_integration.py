@@ -16,6 +16,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.payload import Payload
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -233,15 +234,21 @@ class TestAPITransport(TestCase):
         self.api_json = API('localhost', 8126, encoder=JSONEncoder())
         self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
 
+    def build_payload(self, api, traces):
+        payload = Payload(encoder=api._encoder)
+        [payload.add_trace(trace) for trace in traces]
+        return payload
+
     @mock.patch('ddtrace.api.httplib.HTTPConnection')
     def test_send_presampler_headers(self, mocked_http):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace('client.testing').finish()
         trace = self.tracer.writer.pop()
         traces = [trace]
+        payload = self.build_payload(self.api_msgpack, traces)
 
         # make a call and retrieve the `conn` Mock object
-        self.api_msgpack.send_traces(traces)
+        self.api_msgpack.send_traces(payload)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 
@@ -273,26 +280,7 @@ class TestAPITransport(TestCase):
         # make a call and retrieve the `conn` Mock object
         self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
-        eq_(request_call.call_count, 1)
-
-        # retrieve the headers from the mocked request call
-        expected_headers = {
-                'Datadog-Meta-Lang': 'python',
-                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-                'Content-Type': 'application/msgpack'
-        }
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        eq_(len(expected_headers), len(headers))
-        for k, v in expected_headers.items():
-            eq_(v, headers[k])
-
-        # retrieve the headers from the mocked request call
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        ok_('X-Datadog-Trace-Count' not in headers.keys())
+        eq_(request_call.call_count, 0)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -301,12 +289,14 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
@@ -321,12 +311,14 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
@@ -339,12 +331,14 @@ class TestAPITransport(TestCase):
         traces = [trace_1, trace_2]
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
@@ -356,12 +350,14 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
@@ -378,12 +374,14 @@ class TestAPITransport(TestCase):
         traces = [trace_1, trace_2]
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
@@ -398,13 +396,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        eq_(response, None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        eq_(response, None)
 
     def test_send_service_called_multiple_times(self):
         # register some services and send them to the trace agent
@@ -421,13 +417,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        eq_(response, None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        eq_(response, None)
 
 
 @skipUnless(
@@ -491,6 +485,11 @@ class TestRateByService(TestCase):
         self.api_json = API('localhost', 8126, encoder=JSONEncoder())
         self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
 
+    def build_payload(self, api, traces):
+        payload = Payload(encoder=api._encoder)
+        [payload.add_trace(trace) for trace in traces]
+        return payload
+
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace('client.testing').finish()
@@ -503,12 +502,14 @@ class TestRateByService(TestCase):
         # - make sure the priority sampler (if enabled) is updated
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
+        payload = self.build_payload(self.api_json, traces)
+        response = self.api_json.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
+        payload = self.build_payload(self.api_msgpack, traces)
+        response = self.api_msgpack.send_traces(payload)
         ok_(response)
         eq_(response.status, 200)
 
