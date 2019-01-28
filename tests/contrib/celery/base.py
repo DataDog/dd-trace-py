@@ -20,6 +20,7 @@ class CeleryBaseTestCase(BaseTracerTestCase):
 
     def setUp(self):
         super(CeleryBaseTestCase, self).setUp()
+
         # instrument Celery and create an app with Broker and Result backends
         patch()
         self.pin = Pin(service='celery-unittest', tracer=self.tracer)
@@ -28,10 +29,11 @@ class CeleryBaseTestCase(BaseTracerTestCase):
         Pin.override(self.app, tracer=self.tracer)
 
     def tearDown(self):
-        super(CeleryBaseTestCase, self).tearDown()
         # remove instrumentation from Celery
         unpatch()
         self.app = None
+
+        super(CeleryBaseTestCase, self).tearDown()
 
     def assert_items_equal(self, a, b):
         if PY2:
