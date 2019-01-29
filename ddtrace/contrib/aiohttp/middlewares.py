@@ -13,17 +13,13 @@ REQUEST_CONTEXT_KEY = 'datadog_context'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
 
-@asyncio.coroutine
-def trace_middleware(app, handler):
-    """
-    ``aiohttp`` middleware that traces the handler execution.
-    Because handlers are run in different tasks for each request, we attach the Context
-    instance both to the Task and to the Request objects. In this way:
-        * the Task is used by the internal automatic instrumentation
-        * the ``Context`` attached to the request can be freely used in the application code
-    """
+try:
+    from aiohttp.web import middleware
+
     @asyncio.coroutine
-    def attach_context(request):
+    @middleware
+    def trace_middleware(request, handler):
+        app = request.app
         # application configs
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
@@ -60,7 +56,57 @@ def trace_middleware(app, handler):
         except Exception:
             request_span.set_traceback()
             raise
-    return attach_context
+except ImportError:
+    @asyncio.coroutine
+    def trace_middleware(app, handler):
+        @asyncio.coroutine
+        def attach_context(request):
+            # application configs
+            tracer = app[CONFIG_KEY]['tracer']
+            service = app[CONFIG_KEY]['service']
+            distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
+
+            context = tracer.context_provider.active()
+
+            # Create a new context based on the propagated information.
+            if distributed_tracing:
+                propagator = HTTPPropagator()
+                context = propagator.extract(request.headers)
+                # Only need to active the new context if something was propagated
+                if context.trace_id:
+                    tracer.context_provider.activate(context)
+
+            # trace the handler
+            request_span = tracer.trace(
+                'aiohttp.request',
+                service=service,
+                span_type=http.TYPE,
+            )
+
+            # Configure trace search sample rate
+            if config.aiohttp.event_sample_rate is not None:
+                request_span.set_tag(EVENT_SAMPLE_RATE_KEY, config.aiohttp.event_sample_rate)
+
+            # attach the context and the root span to the request; the Context
+            # may be freely used by the application code
+            request[REQUEST_CONTEXT_KEY] = request_span.context
+            request[REQUEST_SPAN_KEY] = request_span
+            try:
+                response = yield from handler(request)  # noqa: E999
+                return response
+            except Exception:
+                request_span.set_traceback()
+                raise
+
+        return attach_context
+
+trace_middleware.__doc__ = """
+``aiohttp`` middleware that traces the handler execution.
+Because handlers are run in different tasks for each request, we attach the Context
+instance both to the Task and to the Request objects. In this way:
+    * the Task is used by the internal automatic instrumentation
+    * the ``Context`` attached to the request can be freely used in the application code
+"""
 
 
 @asyncio.coroutine
