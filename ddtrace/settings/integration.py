@@ -77,10 +77,10 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
         """
         self.name = name
         self.value = IntegrationConfigItem.UNSET
-        self.default = self._cast(default, allow_none)
+        self.default = self._cast(default, allow_none=allow_none)
         self.allow_none = allow_none
         self.env_override = env_override
-        # DEV: Force `env` to be True if `env_override` is set
+        # DEV: Force `has_env_var` to be True if `env_override` is set
         self.has_env_var = has_env_var or bool(self.env_override)
 
         # TOOD: Set a default __doc__
@@ -195,7 +195,7 @@ class IntegrationConfigItem(IntegrationConfigItemBase):
             allow_none=self.allow_none,
         )
 
-        if c.value is not IntegrationConfigItem.UNSET:
+        if self.value is not IntegrationConfigItem.UNSET:
             # DEV: This cast probably isn't necessary, but doesn't hurt
             c.value = self._cast(deepcopy(self.value), allow_none=self.allow_none)
         return c
@@ -478,11 +478,12 @@ class IntegrationConfig(AttrDict):
         self[name] = value
 
     def update(self, values=None, **kwargs):
-        if hasattr(values, 'items'):
-            values = values.items()
+        if values is not None:
+            if hasattr(values, 'items'):
+                values = values.items()
 
-        for k, v in values:
-            self[k] = v
+            for k, v in values:
+                self[k] = v
 
         for k, v in kwargs.items():
             self[k] = v
@@ -553,19 +554,21 @@ class IntegrationConfig(AttrDict):
         return '{0}(integration_name={1!r}{2})'.format(self.__class__.__name__, self.integration_name, items)
 
     def __deepcopy__(self, memodict=None):
-        # DEV: `dict(self)` will give us the values, calling `self.items()` will give us the `IntegrationConfigItem`s
-        new = IntegrationConfig(self.global_config, self.integration_name, deepcopy(dict(self.items())))
-        new.hooks = deepcopy(self.hooks)
-        new.http = deepcopy(self.http)
-        return new
+        return self.copy()
 
     def copy(self):
         # DEV: `dict(self)` will give us the values, calling `self.items()` will give us the `IntegrationConfigItem`s
         new = IntegrationConfig(
             self.global_config,
             self.integration_name,
-            dict([(name, deepcopy(item)) for name, item in self.items()]),
+            defaults=dict([(name, deepcopy(item)) for name, item in self.items()]),
         )
+        attrs = dict(
+            hooks=deepcopy(self.hooks),
+            http=deepcopy(self.http),
+        )
+        for attr, value in attrs.items():
+            object.__setattr__(new, attr, value)
         return new
 
     def header_is_traced(self, header_name):
