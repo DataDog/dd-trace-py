@@ -27,27 +27,71 @@ _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'fallback': None}}
 
 
-def _parse_response_json(response):
+class Response(object):
     """
-    Parse the content of a response object, and return the right type,
-    can be a string if the output was plain text, or a dictionnary if
-    the output was a JSON.
+    Custom API Response object to represent a response from calling the API.
+
+    We do this to ensure we know expected properties will exist, and so we
+    can call `resp.read()` and load the body once into an instance before we
+    close the HTTPConnection used for the request.
     """
-    if hasattr(response, 'read'):
-        body = response.read()
+    __slots__ = ['status', 'body', 'reason', 'msg']
+
+    def __init__(self, status=None, body=None, reason=None, msg=None):
+        self.status = status
+        self.body = body
+        self.reason = reason
+        self.msg = msg
+
+    @classmethod
+    def from_http_response(cls, resp):
+        """
+        Build a ``Response`` from the provided ``HTTPResponse`` object.
+
+        This function will call `.read()` to consume the body of the ``HTTPResponse`` object.
+
+        :param resp: ``HTTPResponse`` object to build the ``Response`` from
+        :type resp: ``HTTPResponse``
+        :rtype: ``Response``
+        :returns: A new ``Response``
+        """
+        return cls(
+            status=resp.status,
+            body=resp.read(),
+            reason=getattr(resp, 'reason', None),
+            msg=getattr(resp, 'msg', None),
+        )
+
+    def get_json(self):
+        """Helper to parse the body of this request as JSON"""
         try:
+            body = self.body
+            if not body:
+                log.debug('Empty reply from Datadog Agent, %r', self)
+                return
+
             if not isinstance(body, str) and hasattr(body, 'decode'):
                 body = body.decode('utf-8')
+
             if hasattr(body, 'startswith') and body.startswith('OK'):
                 # This typically happens when using a priority-sampling enabled
                 # library with an outdated agent. It still works, but priority sampling
                 # will probably send too many traces, so the next step is to upgrade agent.
-                log.debug("'OK' is not a valid JSON, please make sure trace-agent is up to date")
+                log.debug('Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date')
                 return
-            content = loads(body)
-            return content
+
+            return loads(body)
         except (ValueError, TypeError) as err:
-            log.debug("unable to load JSON '%s': %s" % (body, err))
+            log.debug('Unable to parse Datadog Agent JSON response: %s %r', err, body)
+
+    def __repr__(self):
+        return '{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})'.format(
+            self.__class__.__name__,
+            self.status,
+            self.body,
+            self.reason,
+            self.msg,
+        )
 
 
 class API(object):
@@ -142,6 +186,11 @@ class API(object):
                 headers[TRACE_COUNT_HEADER] = str(count)
 
             conn.request("PUT", endpoint, data, headers)
-            return get_connection_response(conn)
+
+            # Parse the HTTPResponse into an API.Response
+            # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,
+            #      if we call `.close()` then all future `.read()` calls will return `b''`
+            resp = get_connection_response(conn)
+            return Response.from_http_response(resp)
         finally:
             conn.close()
