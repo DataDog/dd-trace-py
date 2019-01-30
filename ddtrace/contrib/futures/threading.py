@@ -1,5 +1,4 @@
 import ddtrace
-from ...provider import DefaultContextProvider
 
 
 def _wrap_submit(func, instance, args, kwargs):
@@ -8,7 +7,8 @@ def _wrap_submit(func, instance, args, kwargs):
     thread. This wrapper ensures that a new `Context` is created and
     properly propagated using an intermediate function.
     """
-    # If they are using the default context provider make sure we don't create a context if one doesn't exist
+    # If there isn't a currently active context, then do not create one
+    # DEV: Calling `.active()` when there isn't an active context will create a new context
     # DEV: We need to do this in case they are either:
     #        - Starting nested futures
     #        - Starting futures from outside of an existing context
@@ -17,17 +17,13 @@ def _wrap_submit(func, instance, args, kwargs):
     #
     #      The resolution is to not create/propagate a new context if one does not exist, but let the
     #      future's thread create the context instead.
-    # DEV: The `create_if_missing` param is currently only available on `DefaultContextProvider` do not
-    #      try to use if they are using another context provider.
-    if isinstance(ddtrace.tracer.context_provider, DefaultContextProvider):
-        current_ctx = ddtrace.tracer.context_provider.active(create_if_missing=False)
-    else:
+    current_ctx = None
+    if ddtrace.tracer.context_provider._has_active_context():
         current_ctx = ddtrace.tracer.context_provider.active()
 
-    # If we have a context then make sure we clone it
-    # DEV: We don't know if the future will finish executing before the parent span finishes
-    #      so we clone to ensure we properly collect/report the future's spans
-    if current_ctx is not None:
+        # If we have a context then make sure we clone it
+        # DEV: We don't know if the future will finish executing before the parent span finishes
+        #      so we clone to ensure we properly collect/report the future's spans
         current_ctx = current_ctx.clone()
 
     # extract the target function that must be executed in

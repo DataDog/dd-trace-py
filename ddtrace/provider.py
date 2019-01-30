@@ -10,6 +10,9 @@ class BaseContextProvider(object):
         * the ``active`` method, that returns the current active ``Context``
         * the ``activate`` method, that sets the current active ``Context``
     """
+    def _has_active_context(self):
+        raise NotImplementedError
+
     def activate(self, context):
         raise NotImplementedError
 
@@ -32,15 +35,24 @@ class DefaultContextProvider(BaseContextProvider):
     def __init__(self):
         self._local = ThreadLocalContext()
 
+    def _has_active_context(self):
+        """
+        Check whether we have a currently active context.
+
+        :returns: Whether we have an active context
+        :rtype: bool
+        """
+        return self._local._has_active_context()
+
     def activate(self, context):
         """Makes the given ``context`` active, so that the provider calls
         the thread-local storage implementation.
         """
         return self._local.set(context)
 
-    def active(self, create_if_missing=True):
+    def active(self):
         """Returns the current active ``Context`` for this tracer. Returned
         ``Context`` must be thread-safe or thread-local for this specific
         implementation.
         """
-        return self._local.get(create_if_missing=True)
+        return self._local.get()
