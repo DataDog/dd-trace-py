@@ -57,7 +57,7 @@ class TracerStackContext(DefaultContextProvider):
     def deactivate(self):
         self._active = False
 
-    def active(self):
+    def active(self, create_if_missing=True):
         """
         Return the ``Context`` from the current execution flow. This method can be
         used inside a Tornado coroutine to retrieve and use the current tracing context.
@@ -69,7 +69,7 @@ class TracerStackContext(DefaultContextProvider):
             # if a Tornado loop is not available, it means that this method
             # has been called from a synchronous code, so we can rely in a
             # thread-local storage
-            return self._local.get()
+            return self._local.get(create_if_missing=create_if_missing)
         else:
             # we're inside a Tornado loop so the TracerStackContext is used
             for stack in reversed(_state.contexts[0]):

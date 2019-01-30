@@ -1,4 +1,5 @@
 import ddtrace
+from ...provider import DefaultContextProvider
 
 
 def _wrap_submit(func, instance, args, kwargs):
@@ -7,8 +8,27 @@ def _wrap_submit(func, instance, args, kwargs):
     thread. This wrapper ensures that a new `Context` is created and
     properly propagated using an intermediate function.
     """
-    # propagate the same Context in the new thread
-    current_ctx = ddtrace.tracer.context_provider.active()
+    # If they are using the default context provider make sure we don't create a context if one doesn't exist
+    # DEV: We need to do this in case they are either:
+    #        - Starting nested futures
+    #        - Starting futures from outside of an existing context
+    #
+    #      In either of these cases we essentially will propagate the wrong context between futures
+    #
+    #      The resolution is to not create/propagate a new context if one does not exist, but let the
+    #      future's thread create the context instead.
+    # DEV: The `create_if_missing` param is currently only available on `DefaultContextProvider` do not
+    #      try to use if they are using another context provider.
+    if isinstance(ddtrace.tracer.context_provider, DefaultContextProvider):
+        current_ctx = ddtrace.tracer.context_provider.active(create_if_missing=False)
+    else:
+        current_ctx = ddtrace.tracer.context_provider.active()
+
+    # If we have a context then make sure we clone it
+    # DEV: We don't know if the future will finish executing before the parent span finishes
+    #      so we clone to ensure we properly collect/report the future's spans
+    if current_ctx is not None:
+        current_ctx = current_ctx.clone()
 
     # extract the target function that must be executed in
     # a new thread and the `target` arguments
@@ -25,5 +45,6 @@ def _wrap_execution(ctx, fn, args, kwargs):
     provider sets the Active context in a thread local storage
     variable because it's outside the asynchronous loop.
     """
-    ddtrace.tracer.context_provider.activate(ctx)
+    if ctx is not None:
+        ddtrace.tracer.context_provider.activate(ctx)
     return fn(*args, **kwargs)

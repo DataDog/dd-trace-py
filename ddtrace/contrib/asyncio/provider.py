@@ -35,7 +35,7 @@ class AsyncioContextProvider(DefaultContextProvider):
         setattr(task, CONTEXT_ATTR, context)
         return context
 
-    def active(self, loop=None):
+    def active(self, loop=None, create_if_missing=True):
         """
         Returns the scoped Context for this execution flow. The ``Context`` uses
         the current task as a carrier so if a single task is used for the entire application,
@@ -48,7 +48,7 @@ class AsyncioContextProvider(DefaultContextProvider):
             # it happens when it's not possible to get the current event loop.
             # It's possible that a different Executor is handling a different Thread that
             # works with blocking code. In that case, we fallback to a thread-local Context.
-            return self._local.get()
+            return self._local.get(create_if_missing=True)
 
         # the current unit of work (if tasks are used)
         task = asyncio.Task.current_task(loop=loop)
