@@ -29,7 +29,7 @@ class PropagationTestCase(BaseTracerTestCase):
 
         def fn():
             # an active context must be available
-            # DEV: With `ThreadLocalContext` `.active()` will never been `None`
+            # DEV: With `ThreadLocalContext` `.active()` will never be `None`
             self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace('executor.thread'):
                 return 42
@@ -55,7 +55,7 @@ class PropagationTestCase(BaseTracerTestCase):
 
         def fn(value, key=None):
             # an active context must be available
-            # DEV: With `ThreadLocalContext` `.active()` will never been `None`
+            # DEV: With `ThreadLocalContext` `.active()` will never be `None`
             self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace('executor.thread'):
                 return value, key
@@ -83,7 +83,7 @@ class PropagationTestCase(BaseTracerTestCase):
 
         def fn():
             # an active context must be available
-            # DEV: With `ThreadLocalContext` `.active()` will never been `None`
+            # DEV: With `ThreadLocalContext` `.active()` will never be `None`
             self.assertIsNotNone(self.tracer.context_provider.active())
             with self.tracer.trace('executor.thread'):
                 return 42
