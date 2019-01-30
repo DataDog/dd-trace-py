@@ -24,7 +24,7 @@ class GeventContextProvider(BaseContextProvider):
 
     def _has_active_context(self):
         """Helper to determine if we have a currently active context"""
-        return self._get_current_context() it not None
+        return self._get_current_context() is not None
 
     def activate(self, context):
         """Sets the scoped ``Context`` for the current running ``Greenlet``.
