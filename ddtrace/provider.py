@@ -38,9 +38,9 @@ class DefaultContextProvider(BaseContextProvider):
         """
         return self._local.set(context)
 
-    def active(self):
+    def active(self, create_if_missing=True):
         """Returns the current active ``Context`` for this tracer. Returned
         ``Context`` must be thread-safe or thread-local for this specific
         implementation.
         """
-        return self._local.get()
+        return self._local.get(create_if_missing=True)

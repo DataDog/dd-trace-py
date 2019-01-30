@@ -242,9 +242,9 @@ class ThreadLocalContext(object):
     def set(self, ctx):
         setattr(self._locals, 'context', ctx)
 
-    def get(self):
+    def get(self, create_if_missing=True):
         ctx = getattr(self._locals, 'context', None)
-        if not ctx:
+        if not ctx and create_if_missing:
             # create a new Context if it's not available
             ctx = Context()
             self._locals.context = ctx
