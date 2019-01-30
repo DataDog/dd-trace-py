@@ -9,7 +9,7 @@ import ddtrace
 from unittest import TestCase, skip, skipUnless
 from nose.tools import eq_, ok_
 
-from ddtrace.api import API
+from ddtrace.api import API, Response
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
@@ -41,7 +41,7 @@ class FlawedAPI(API):
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request('HEAD', endpoint, data, self._headers)
-        return conn.getresponse()
+        return Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(
@@ -188,7 +188,7 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)
-        ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
+        ok_('failed_to_send traces to Datadog Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
     def test_worker_filter_request(self):
@@ -488,8 +488,8 @@ class TestRateByService(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder(), priority_sampling=True)
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder(), priority_sampling=True)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -506,11 +506,13 @@ class TestRateByService(TestCase):
         response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
 
 
 @skipUnless(

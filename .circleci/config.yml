@@ -60,7 +60,9 @@ jobs:
       - checkout
       - *restore_cache_step
       # Install required dependencies
-      - run: pip install twine readme_renderer[md]
+      # DEV: `pyopenssl` needed until the following PR is released
+      #      https://github.com/pypa/twine/pull/447
+      - run: pip install twine readme_renderer[md] pyopenssl
       # Ensure we didn't cache from previous runs
       - run: rm -rf dist/
       # Ensure package will build
@@ -188,6 +190,20 @@ jobs:
           root: /tmp
           paths:
             - test_utils.results
+      - *save_cache_step
+
+  test_logging:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_logging' --result-json /tmp/test_logging.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_logging.results
       - *save_cache_step
 
   asyncio:
@@ -884,6 +900,20 @@ jobs:
             - jinja2.results
       - *save_cache_step
 
+  mako:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{010,100}' --result-json /tmp/mako.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mako.results
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -1018,6 +1048,9 @@ workflows:
       - kombu:
           requires:
             - flake8
+      - mako:
+          requires:
+            - flake8
       - molten:
           requires:
             - flake8
@@ -1081,6 +1114,9 @@ workflows:
       - test_utils:
           requires:
             - flake8
+      - test_logging:
+          requires:
+            - flake8
       - tornado:
           requires:
             - flake8
@@ -1122,6 +1158,7 @@ workflows:
             - integration
             - jinja2
             - kombu
+            - mako
             - molten
             - mongoengine
             - msgpack
@@ -1143,6 +1180,7 @@ workflows:
             - sqlalchemy
             - sqlite3
             - test_utils
+            - test_logging
             - tornado
             - tracer
             - unit_tests

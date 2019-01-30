@@ -4,7 +4,7 @@ from .span import Span
 from .tracer import Tracer
 from .settings import config
 
-__version__ = '0.19.0'
+__version__ = '0.20.2'
 
 # a global tracer instance with integration settings
 tracer = Tracer()
