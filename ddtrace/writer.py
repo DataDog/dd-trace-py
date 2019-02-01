@@ -190,16 +190,23 @@ class AsyncWorker(object):
         except Exception as err:
             log.error('cannot send spans to {1}:{2}: {0}'.format(err, self.api.hostname, self.api.port))
 
-    def _log_error_status(self, result, result_name):
+    def _log_error_status(self, response, response_name):
+        if not isinstance(response, api.Response):
+            return
+
         log_level = log.debug
-        if result and getattr(result, 'status', None) >= 400:
+        if response.status >= 400:
             now = time.time()
             if now > self._last_error_ts + LOG_ERR_INTERVAL:
                 log_level = log.error
                 self._last_error_ts = now
-            log_level('failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s', result_name,
-                      getattr(result, 'status', None), getattr(result, 'reason', None),
-                      getattr(result, 'msg', None))
+            log_level(
+                'failed_to_send %s to Datadog Agent: HTTP error status %s, reason %s, message %s',
+                response_name,
+                response.status,
+                response.reason,
+                response.msg,
+            )
 
 
 class Q(Queue, object):

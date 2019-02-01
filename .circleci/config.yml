@@ -60,7 +60,9 @@ jobs:
       - checkout
       - *restore_cache_step
       # Install required dependencies
-      - run: pip install twine readme_renderer[md]
+      # DEV: `pyopenssl` needed until the following PR is released
+      #      https://github.com/pypa/twine/pull/447
+      - run: pip install twine readme_renderer[md] pyopenssl
       # Ensure we didn't cache from previous runs
       - run: rm -rf dist/
       # Ensure package will build
