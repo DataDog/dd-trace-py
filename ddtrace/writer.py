@@ -133,13 +133,39 @@ class AsyncWorker(object):
                 # Block until all items have been removed from the queue
                 self._trace_queue.join()
 
+    def _filter_trace(self, trace):
+        if not trace:
+            return None
+
+        if not self._filters:
+            return trace
+
+        for f in self._filters:
+            trace = f.process_trace(trace)
+            if trace is None:
+                log.debug('filter %r filtered out trace %r', f, trace)
+                return None
+
+        return trace
+
     def _target(self):
         next_flush = time.time() + 1
-        payload = Payload(filters=self._filters)
+        payload = Payload()
 
         while True:
             # DEV: Returns `None` or a Trace
             trace = self._trace_queue.get()
+
+            # Filter the trace
+            # DEV: We set `trace` to `None` on an error because we want to continue the loop
+            #      since this loop needs to execute in order to flush a payload if enough time
+            #      has passed since the last flush.
+            try:
+                # DEV: Returns the trace or `None` if it was filtered
+                trace = self._filter_trace(trace)
+            except Exception as err:
+                log.error('Error raised while trying to filter trace %r: %s', trace, err)
+                trace = None
 
             if trace:
                 log.debug('Popped %s', _get_trace_info(trace))
@@ -151,7 +177,10 @@ class AsyncWorker(object):
                 if not payload.empty:
                     log.debug('Attempting to flush %r', payload)
                     self._flush(payload)
-                    payload.reset()
+
+                    # Clone/reset the payload
+                    # DEV: Cloning will keep the same encoder + max payload size in case we had to downgrade
+                    payload = payload.clone()
                 next_flush = now + 1
             else:
                 remaining = max(0, next_flush - now)
