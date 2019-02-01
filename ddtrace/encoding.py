@@ -107,7 +107,7 @@ class MsgpackEncoder(Encoder):
     def finish(self, objs):
         buf = b''.join(objs)
 
-        # Prepand array header to buffer
+        # Prepend array header to buffer
         # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
         count = len(objs)
         if count <= 0xf:
