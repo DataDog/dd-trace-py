@@ -1,7 +1,7 @@
 import grpc
 import wrapt
 
-from contrib.grpc.interceptors import intercept_server
+from .interceptors import intercept_server
 from ddtrace import Pin
 from ...utils.wrappers import unwrap
 
@@ -49,7 +49,7 @@ def _secure_channel_with_interceptor(wrapped, instance, args, kwargs):
 
 def _server_with_interceptor(wrapped, instance, args, kwargs):
     server = wrapped(*args, **kwargs)
-    return intercept_server(server, GrpcServerInterceptor)
+    return intercept_server(server, GrpcServerInterceptor())
 
 
 def _intercept_channel(channel, host, port):
