@@ -1,11 +1,9 @@
 import os
 import platform
-import time
 import logging
 import importlib
 from ddtrace import __version__
 
-from ddtrace.settings import config
 
 DEFAULT_AGENT_HOST = '127.0.0.1'
 DEFAULT_METRIC_AGENT_PORT = 8125
@@ -48,6 +46,7 @@ def interpreter_version(modules, keys):
         'datadog.tracer.lang_version': platform.python_version()
     }
 
+
 def tracer_version(modules, keys):
     """Returns the ddtrace version."""
     if 'datadog.tracer.version' not in keys:
@@ -57,10 +56,39 @@ def tracer_version(modules, keys):
     }
 
 
+def gc_count(modules, keys):
+    """Returns the gc count of the collections of the first 3 generations.
+    More information:
+        - https://docs.python.org/3/library/gc.html
+    """
+    gc = modules.get('gc')
+    metrics = {}
+
+    if set([
+        'datadog.tracer.runtime.gc.gen1_count',
+        'datadog.tracer.runtime.gc.gen2_count',
+        'datadog.tracer.runtime.gc.gen3_count',
+    ]).intersection(keys) == set():
+        return {}
+
+    count = gc.get_count()
+    if 'datadog.tracer.runtime.gc.gen1_count' in keys:
+        metrics['datadog.tracer.runtime.gc.gen1_count'] = count[0]
+    if 'datadog.tracer.runtime.gc.gen2_count' in keys:
+        metrics['datadog.tracer.runtime.gc.gen2_count'] = count[1]
+    if 'datadog.tracer.runtime.gc.gen3_count' in keys:
+        metrics['datadog.tracer.runtime.gc.gen3_count'] = count[2]
+
+    return metrics
+
+
 # Default metrics to collect
 DEFAULT_ENABLED_METRICS = set([
     'datadog.tracer.runtime.thread_count',
     'datadog.tracer.runtime.mem.rss',
+    'datadog.tracer.runtime.gc.gen1_count',
+    'datadog.tracer.runtime.gc.gen2_count',
+    'datadog.tracer.runtime.gc.gen3_count',
 ])
 
 # Default tags to apply to metrics
@@ -134,7 +162,11 @@ class ValueCollector(object):
         return self.value
 
     def __repr__(self):
-        return '<Collector(enabled={},periodic={},required_modules={})>'.format(self.enabled, self.periodic, self.required_modules)
+        return '<Collector(enabled={},periodic={},required_modules={})>'.format(
+            self.enabled,
+            self.periodic,
+            self.required_modules
+        )
 
 
 class PSUtilRuntimeMetricCollector(ValueCollector):
@@ -177,6 +209,11 @@ class RuntimeMetrics(object):
 
     METRIC_COLLECTORS = [
         PSUtilRuntimeMetricCollector(periodic=True),
+        RuntimeMetricCollector(
+            collect_fn=gc_count,
+            periodic=True,
+            required_modules=['gc'],
+        )
     ]
 
     TAG_COLLECTORS = [
@@ -236,4 +273,3 @@ class RuntimeMetrics(object):
         for metric_key, metric_value in metrics.items():
             log.info('Flushing metric {}:{}'.format(metric_key, metric_value))
             self.statsd.gauge(metric_key, metric_value)
-

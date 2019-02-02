@@ -115,8 +115,12 @@ class TestMetrics(unittest.TestCase):
         from time import sleep
 
         rtm = RuntimeMetrics()
-        l = []
+
+        class A(object):
+            pass
+
+        lst = []
         while True:
             rtm.flush()
-            l += [i for i in range(1000)]
+            lst += [A() for i in range(1000)]
             sleep(1)
