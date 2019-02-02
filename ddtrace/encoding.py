@@ -49,7 +49,7 @@ class Encoder(object):
 
     def encode_trace(self, trace):
         """
-        Encodes a traces, expecting a list of spans. Before dump the string in a
+        Encodes a trace, expecting a list of spans. Before dump the string in a
         serialized format all traces are normalized, calling the ``to_dict()`` method.
         The traces nesting is not changed.
 
