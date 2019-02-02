@@ -237,22 +237,54 @@ class AsyncWorker(object):
 
 class Q(Queue, object):
     """
-    Q is a threadsafe queue that let's you pop everything at once and
-    will randomly overwrite elements when it's over the max size.
+    Q is a custom subclass of ``queue.Queue`` that:
+
+      - Adds `.close()` and `.closed()` to support closing the queue
+      - Support non-blocking, and non-error popping (return ``None`` instead of an error)
+      - Support non-blocking, and non-error pushing (overwrite a random item in the queue when max size is reached)
+      - Add `.wait()` helper to supporting sleeping until a new item is available to pop
+      - Modify `.join()` to wait until all items are removed from the queue instead of all tasks being marked as done
     """
     def __init__(self, maxsize=1000):
+        """
+        Constructor for Q
+
+        :param maxsize: The max number of items to put into the queue
+        :type maxsize: int
+        """
         super(Q, self).__init__(maxsize=maxsize)
         self._closed = False
 
     def close(self):
+        """
+        Mark this queue as closed
+        """
         with self.mutex:
             self._closed = True
 
     def closed(self):
+        """
+        Return whether this queue is closed or not
+
+        :returns: Whether this queue is closed or not
+        :rtype: bool
+        """
         with self.mutex:
             return self._closed
 
     def put(self, item, block=True, timeout=None):
+        """
+        Push an item into the queue
+
+        This method overrides the base to be non-blocking and never raise an error.
+
+        If the queue is full we will overwrite a random item in the queue instead of appending.
+
+        :param item: The item to push into the queue
+        :type item: any
+        :param block: This param is not used, it is provided for compatibility with ``queue.Queue``
+        :param timeout: This param is not used, it is provided for compatibility with ``queue.Queue``
+        """
         # Append `item` onto the queue
         # We should never block or raise an exception from this function
         with self.mutex:
@@ -273,6 +305,16 @@ class Q(Queue, object):
             self.not_empty.notify()
 
     def get(self, block=True, timeout=None):
+        """
+        Get an item from the queue
+
+        This method overrides the base to always be non-blocking and to never raise an error.
+
+        :param block: This param is not used, it is provided for compatibility with ``queue.Queue``
+        :param timeout: This param is not used, it is provided for compatibility with ``queue.Queue``
+        :returns: The next item from the queue or ``None`` if the queue is empty
+        :rtype: None | any
+        """
         # DEV: `with self.not_empty` will acquire a lock on `self.mutex`
         with self.not_empty:
             item = None
@@ -284,6 +326,12 @@ class Q(Queue, object):
             return item
 
     def wait(self, seconds):
+        """
+        Wait up to ``seconds`` seconds for new items to be available
+
+        :param seconds: Number of seconds to wait for
+        :type seconds: float | int
+        """
         # DEV: `qsize()` aquires a lock, `_qsize()` does not
         if not self.qsize():
             # DEV: `with self.not_empty` will acquire a lock on `self.mutex`
@@ -291,6 +339,9 @@ class Q(Queue, object):
                 self.not_empty.wait(seconds)
 
     def join(self):
+        """
+        Block until all items are removed from the queue
+        """
         # Wait until after all items have been removed from the queue
         with self.not_full:
             # DEV: Do not use `self.empty()` or `self.qsize()` here since we already have a lock on `self.mutex`
