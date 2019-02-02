@@ -261,8 +261,8 @@ class Q(Queue, object):
             if self._closed:
                 return
 
-            # If we at the max size, then overwrite a random trace in the queue
-            # DEV: We cannot use `self.full()` since we will have contention around `wtih self.mutex:`
+            # If we're at the max size, then overwrite a random trace in the queue
+            # DEV: We cannot use `self.full()` since we will have contention around `with self.mutex:`
             if 0 < self.maxsize <= self._qsize():
                 idx = random.randrange(0, self._qsize())
                 self.queue[idx] = item
@@ -276,7 +276,7 @@ class Q(Queue, object):
         # DEV: `with self.not_empty` will acquire a lock on `self.mutex`
         with self.not_empty:
             item = None
-            # DEV: `qsize()` aquires a lock, `_qsize()` does not
+            # DEV: `qsize()` acquires a lock, `_qsize()` does not
             if self._qsize():
                 item = self._get()
             # Notify anyone waiting on `self.not_full` that we have removed an item
@@ -293,7 +293,7 @@ class Q(Queue, object):
     def join(self):
         # Wait until after all items have been removed from the queue
         with self.not_full:
-            # DEV: Do not use `self.empty()` or `self.qsize()` here sine we already have a lock on `self.mutex`
+            # DEV: Do not use `self.empty()` or `self.qsize()` here since we already have a lock on `self.mutex`
             while self._qsize():
                 # DEV: `not_full` is notified when we remove items from the queue
                 self.not_full.wait(0.05)
