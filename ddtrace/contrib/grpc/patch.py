@@ -1,10 +1,12 @@
 import grpc
 import wrapt
 
+from contrib.grpc.interceptors import intercept_server
 from ddtrace import Pin
 from ...utils.wrappers import unwrap
 
 from .client_interceptor import GrpcClientInterceptor
+from .server_interceptor import GrpcServerInterceptor
 
 
 def patch():
@@ -18,6 +20,7 @@ def patch():
 
     _w('grpc', 'insecure_channel', _insecure_channel_with_interceptor)
     _w('grpc', 'secure_channel', _secure_channel_with_interceptor)
+    _w('grpc', 'server', _server_with_interceptor)
 
 
 def unpatch():
@@ -44,6 +47,11 @@ def _secure_channel_with_interceptor(wrapped, instance, args, kwargs):
     return channel
 
 
+def _server_with_interceptor(wrapped, instance, args, kwargs):
+    server = wrapped(*args, **kwargs)
+    return intercept_server(server, GrpcServerInterceptor)
+
+
 def _intercept_channel(channel, host, port):
     return grpc.intercept_channel(channel, GrpcClientInterceptor(host, port))
 
@@ -51,4 +59,4 @@ def _intercept_channel(channel, host, port):
 def get_host_port(target):
     split = target.rsplit(':', 2)
 
-    return (split[0], split[1] if len(split) > 1 else None)
+    return split[0], split[1] if len(split) > 1 else None
