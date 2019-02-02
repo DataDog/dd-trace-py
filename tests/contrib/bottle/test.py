@@ -2,7 +2,7 @@ import bottle
 import ddtrace
 import webtest
 
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
 
