@@ -71,9 +71,8 @@ class Encoder(object):
         """
         raise NotImplementedError
 
-    def finish(self, objs):
-        """
-        """
+    def join_encoded(self, objs):
+        """Helper used to join a list of encoded objects into an encoded list of objects"""
         raise NotImplementedError
 
 
@@ -89,7 +88,8 @@ class JSONEncoder(Encoder):
     def decode(self, data):
         return json.loads(data)
 
-    def finish(self, objs):
+    def join_encoded(self, objs):
+        """Join a list of encoded objects together as a json array"""
         return '[' + ','.join(objs) + ']'
 
 
@@ -99,12 +99,13 @@ class MsgpackEncoder(Encoder):
         self.content_type = 'application/msgpack'
 
     def encode(self, obj):
-        return msgpack.packb(obj, **MSGPACK_PARAMS)
+        return msgpack.packb(obj)
 
     def decode(self, data):
         return msgpack.unpackb(data)
 
-    def finish(self, objs):
+    def join_encoded(self, objs):
+        """Join a list of encoded objects together as a msgpack array"""
         buf = b''.join(objs)
 
         # Prepend array header to buffer

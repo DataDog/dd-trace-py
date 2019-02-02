@@ -182,12 +182,9 @@ class AsyncWorker(object):
                     # DEV: Cloning will keep the same encoder + max payload size in case we had to downgrade
                     payload = payload.clone()
                 next_flush = now + 1
-            else:
-                remaining = max(0, next_flush - now)
-                self._trace_queue.wait(remaining)
 
             # Wait up until the next flush for another trace to be added
-            self._trace_queue.wait(max(0, next_flush - time.time()))
+            self._trace_queue.wait(max(0, next_flush - now))
 
             # no traces and the queue is closed. our work is done
             if self._trace_queue.closed() and self._trace_queue.qsize() == 0:
