@@ -164,8 +164,4 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(dd_span.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
+        eq_(services, {})
