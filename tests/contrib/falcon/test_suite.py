@@ -5,7 +5,6 @@ from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
-from ...util import override_config
 
 
 class FalconTestCase(object):
@@ -193,7 +192,7 @@ class FalconTestCase(object):
         eq_(span.get_tag('my.custom'), 'tag')
 
     def test_http_header_tracing(self):
-        with override_config('falcon', {}):
+        with self.override_config('falcon', {}):
             config.falcon.http.trace_headers(['my-header', 'my-response-header'])
             self.simulate_get('/200', headers={'my-header': 'my_value'})
             traces = self.tracer.writer.pop_traces()

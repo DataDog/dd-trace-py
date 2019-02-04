@@ -68,27 +68,6 @@ def override_global_tracer(tracer):
 
 
 @contextmanager
-def override_config(integration, values):
-    """
-    Temporarily override an integration configuration value
-    >>> with override_config('flask', dict(service_name='test-service')):
-        # Your test
-    """
-    options = getattr(config, integration)
-
-    original = dict(
-        (key, options.get(key))
-        for key in values.keys()
-    )
-
-    options.update(values)
-    try:
-        yield
-    finally:
-        options.update(original)
-
-
-@contextmanager
 def set_env(**environ):
     """
     Temporarily set the process environment variables.
