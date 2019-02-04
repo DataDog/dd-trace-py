@@ -1,5 +1,5 @@
 """
-Copyright (c) 2013-2017, Graham Dumpleton
+Copyright (c) 2013-2019, Graham Dumpleton
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -24,13 +24,13 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 """
-__version_info__ = ('1', '10', '11')
+__version_info__ = ('1', '11', '1')
 __version__ = '.'.join(__version_info__)
 
 from .wrappers import (ObjectProxy, CallableObjectProxy, FunctionWrapper,
-        BoundFunctionWrapper, WeakFunctionProxy, resolve_path, apply_patch,
-        wrap_object, wrap_object_attribute, function_wrapper,
-        wrap_function_wrapper, patch_function_wrapper,
+        BoundFunctionWrapper, WeakFunctionProxy, PartialCallableObjectProxy,
+        resolve_path, apply_patch, wrap_object, wrap_object_attribute,
+        function_wrapper, wrap_function_wrapper, patch_function_wrapper,
         transient_function_wrapper)
 
 from .decorators import (adapter_factory, AdapterFactory, decorator,
@@ -39,7 +39,4 @@ from .decorators import (adapter_factory, AdapterFactory, decorator,
 from .importer import (register_post_import_hook, when_imported,
         notify_module_loaded, discover_post_import_hooks)
 
-try:
-    from inspect import getcallargs
-except ImportError:
-    from .arguments import getcallargs
+from inspect import getcallargs

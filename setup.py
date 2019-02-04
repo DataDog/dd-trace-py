@@ -111,6 +111,10 @@ setup_kwargs = dict(
 )
 
 
+# The following from here to the end of the file is borrowed from wrapt's `setup.py`:
+#   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
+# These helpers are useful for attempting build a C-extension and then retrying without it if it fails
+
 if sys.platform == 'win32':
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
 else:
