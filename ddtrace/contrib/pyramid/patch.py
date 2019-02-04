@@ -42,7 +42,21 @@ def traced_init(wrapped, instance, args, kwargs):
     # to find the calling package. So if we let the original `__init__`
     # function call it, our wrapper will mess things up.
     if not kwargs.get('package', None):
-        kwargs['package'] = caller_package()
+        # Start at level 2 (default from `caller_package`) and traverse
+        # further up until we get a non-ddtrace package
+        # DEV: We have to do this to ensure we skip over `ddtrace.contrib.pyramid`
+        #      and anything from `ddtrace.vendor`
+        level = 2
+        pkg = caller_package(level=level)
+
+        # Keep traversing until we get a non-ddtrace package, or we have checked 3 times
+        # DEV: The `level < 5` limit is just to ensure we don't traverse the whole stack
+        #      we should really only have to call `caller_package` once or twice
+        while getattr(pkg, '__name__', '').startswith('ddtrace.') and level < 5:
+            level += 1
+            pkg = caller_package(level=level)
+
+        kwargs['package'] = pkg
 
     wrapped(*args, **kwargs)
     trace_pyramid(instance)
