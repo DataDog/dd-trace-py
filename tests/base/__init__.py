@@ -2,7 +2,7 @@ import contextlib
 import os
 import unittest
 
-from ddtrace import config
+import ddtrace
 
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
@@ -49,9 +49,7 @@ class BaseTestCase(unittest.TestCase):
         >>> with self.override_config('flask', dict(service_name='test-service')):
             # Your test
         """
-
-        # IntegrationConfig
-        options = getattr(config, integration)
+        options = getattr(ddtrace.config, integration)
 
         original = dict(
             (key, options.get(key))
@@ -102,3 +100,13 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         """Helper to call TestSpanNode.assert_structure on the current root span"""
         root_span = self.get_root_span()
         root_span.assert_structure(root, children)
+
+    @contextlib.contextmanager
+    def override_global_tracer(self, tracer=None):
+        original = ddtrace.tracer
+        tracer = tracer or self.tracer
+        setattr(ddtrace, 'tracer', tracer)
+        try:
+            yield
+        finally:
+            setattr(ddtrace, 'tracer', original)
