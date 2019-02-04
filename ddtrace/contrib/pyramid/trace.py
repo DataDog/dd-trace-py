@@ -7,8 +7,10 @@ from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
+from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...ext import http, AppTypes
 from ...propagation.http import HTTPPropagator
+from ...settings import config
 from .constants import (
     SETTINGS_TRACER,
     SETTINGS_SERVICE,
@@ -76,6 +78,10 @@ def trace_tween_factory(handler, registry):
                 if context.trace_id:
                     tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
+                # Configure trace search sample rate
+                if config.pyramid.event_sample_rate is not None:
+                    span.set_tag(EVENT_SAMPLE_RATE_KEY, config.pyramid.event_sample_rate)
+
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
                 try:

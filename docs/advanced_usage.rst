@@ -128,13 +128,10 @@ priority to the following values:
 - ``AUTO_REJECT``: the sampler automatically rejects the trace
 - ``AUTO_KEEP``: the sampler automatically keeps the trace
 
-Priority sampling is disabled by default. Enabling it ensures that your sampled
-distributed traces will be complete. To enable priority sampling::
-
-    tracer.configure(priority_sampling=True)
-
-Once enabled, the sampler will automatically assign a priority to your traces,
+Priority sampling is enabled by default.
+When enabled, the sampler will automatically assign a priority to your traces,
 depending on their service and volume.
+This ensures that your sampled distributed traces will be complete.
 
 You can also set this priority manually to either drop an uninteresting trace or
 to keep an important one.
@@ -241,6 +238,13 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+.. _`Logs Injection`:
+
+Logs Injection
+--------------
+
+.. automodule:: ddtrace.contrib.logging
+
 Http layer
 ----------
 
@@ -323,7 +327,7 @@ for usage.
 +---------------------+---------------------------------------------------------+---------------+
 | `sampler`           | see `Sampling`_                                         | `AllSampler`  |
 +---------------------+---------------------------------------------------------+---------------+
-| `priority_sampling` | see `Priority Sampling`_                                | `False`       |
+| `priority_sampling` | see `Priority Sampling`_                                | `True`        |
 +---------------------+---------------------------------------------------------+---------------+
 | `settings`          | see `Advanced Usage`_                                   | `{}`          |
 +---------------------+---------------------------------------------------------+---------------+
@@ -448,8 +452,9 @@ The available environment variables for ``ddtrace-run`` are:
   ``localhost``)
 * ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
   will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority
+* ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
   Sampling`
+* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 

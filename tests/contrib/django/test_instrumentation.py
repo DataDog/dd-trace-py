@@ -1,13 +1,8 @@
-# flake8: noqa
-import os
-import time
-
 # 3rd party
 from nose.tools import eq_, ok_
-from django.test import override_settings
 
 # project
-from ddtrace.contrib.django.conf import settings, DatadogSettings
+from ddtrace.contrib.django.conf import DatadogSettings
 
 # testing
 from .utils import DjangoTraceTestCase
@@ -30,7 +25,8 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         # environment strings are properly converted
         with set_env(
             DATADOG_TRACE_AGENT_HOSTNAME='agent.consul.local',
-            DATADOG_TRACE_AGENT_PORT='58126'):
+            DATADOG_TRACE_AGENT_PORT='58126'
+        ):
             settings = DatadogSettings()
             eq_(settings.AGENT_HOSTNAME, 'agent.consul.local')
             eq_(settings.AGENT_PORT, 58126)
@@ -41,15 +37,3 @@ class DjangoInstrumentationTest(DjangoTraceTestCase):
         with set_env(DATADOG_TRACE_AGENT_PORT='something'):
             settings = DatadogSettings()
             eq_(settings.AGENT_PORT, 8126)
-
-    def test_tracer_call(self):
-        # test that current Django configuration is correct
-        # to send traces to a real trace agent
-        tracer = settings.TRACER
-        tracer.trace('client.testing').finish()
-        trace = self.tracer.writer.pop()
-        traces = [trace]
-
-        response = tracer.writer.api.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)

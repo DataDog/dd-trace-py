@@ -239,6 +239,16 @@ class ThreadLocalContext(object):
     def __init__(self):
         self._locals = threading.local()
 
+    def _has_active_context(self):
+        """
+        Determine whether we have a currently active context for this thread
+
+        :returns: Whether an active context exists
+        :rtype: bool
+        """
+        ctx = getattr(self._locals, 'context', None)
+        return ctx is not None
+
     def set(self, ctx):
         setattr(self._locals, 'context', ctx)
 

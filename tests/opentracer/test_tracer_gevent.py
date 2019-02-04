@@ -1,4 +1,3 @@
-# flake8: noqa
 import gevent
 import pytest
 from opentracing.scope_managers.gevent import GeventScopeManager
@@ -6,8 +5,6 @@ from opentracing.scope_managers.gevent import GeventScopeManager
 import ddtrace
 from ddtrace.contrib.gevent import patch, unpatch
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
-
-from .utils import ot_tracer_factory, dd_tracer, writer
 
 
 @pytest.fixture()

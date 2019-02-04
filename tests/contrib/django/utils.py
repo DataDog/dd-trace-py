@@ -13,6 +13,7 @@ from ddtrace.contrib.django.templates import unpatch_template
 from ddtrace.contrib.django.middleware import remove_exception_middleware, remove_trace_middleware
 
 # testing
+from ...base import BaseTestCase
 from ...test_tracer import DummyWriter
 
 
@@ -21,7 +22,7 @@ tracer = Tracer()
 tracer.writer = DummyWriter()
 
 
-class DjangoTraceTestCase(TestCase):
+class DjangoTraceTestCase(BaseTestCase, TestCase):
     """
     Base class that provides an internal tracer according to given
     Datadog settings. This class ensures that the tracer spans are

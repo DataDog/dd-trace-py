@@ -1,5 +1,3 @@
-# flake8: noqa
-
 # stdlib
 import time
 from unittest.case import SkipTest
@@ -126,9 +124,9 @@ class PylibmcCore(object):
         client, tracer = self.get_client()
         # test
         start = time.time()
-        client.set_multi({"a":1, "b":2})
+        client.set_multi({'a': 1, 'b': 2})
         out = client.get_multi(["a", "c"])
-        eq_(out, {"a":1})
+        eq_(out, {'a': 1})
         client.delete_multi(["a", "c"])
         end = time.time()
         # verify
@@ -143,9 +141,9 @@ class PylibmcCore(object):
         client, tracer = self.get_client()
         # test
         start = time.time()
-        client.set_multi({"a":1, "b":2}, key_prefix='foo')
+        client.set_multi({'a': 1, 'b': 2}, key_prefix='foo')
         out = client.get_multi(["a", "c"], key_prefix='foo')
-        eq_(out, {"a":1})
+        eq_(out, {'a': 1})
         client.delete_multi(["a", "c"], key_prefix='foo')
         end = time.time()
         # verify
@@ -157,14 +155,13 @@ class PylibmcCore(object):
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
-
     def test_get_set_delete(self):
         client, tracer = self.get_client()
         # test
         k = u'cafe'
         v = "val-foo"
         start = time.time()
-        client.delete(k) # just in case
+        client.delete(k)  # just in case
         out = client.get(k)
         assert out is None, out
         client.set(k, v)
@@ -180,7 +177,6 @@ class PylibmcCore(object):
         resources = sorted(s.resource for s in spans)
         eq_(expected_resources, resources)
 
-
     def _verify_cache_span(self, s, start, end):
         assert s.start > start
         assert s.start + s.duration < end
@@ -189,7 +185,6 @@ class PylibmcCore(object):
         eq_(s.name, "memcached.cmd")
         eq_(s.get_tag("out.host"), cfg["host"])
         eq_(s.get_tag("out.port"), str(cfg["port"]))
-
 
 
 class TestPylibmcLegacy(PylibmcCore):
@@ -226,6 +221,7 @@ class TestPylibmcPatchDefault(PylibmcCore):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return client, tracer
+
 
 class TestPylibmcPatch(TestPylibmcPatchDefault):
     """Test suite for the tracing of pylibmc with a configured lib patching"""
@@ -278,4 +274,3 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         spans = writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
-

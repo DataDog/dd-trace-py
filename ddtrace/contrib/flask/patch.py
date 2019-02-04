@@ -7,6 +7,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config, Pin
 
+from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
@@ -284,6 +285,10 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
+        # Configure trace search sample rate
+        if config.flask.event_sample_rate is not None:
+            s.set_tag(EVENT_SAMPLE_RATE_KEY, config.flask.event_sample_rate)
+
         s.set_tag(FLASK_VERSION, flask_version_str)
 
         # Wrap the `start_response` handler to extract response code

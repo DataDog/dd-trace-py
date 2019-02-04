@@ -1,4 +1,3 @@
-# flake8: noqa
 # Standard library
 import contextlib
 import sys
@@ -497,6 +496,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 'http.url': URL_200,
             }
         )
+
 
 # Additional Python2 test cases for urllib
 if PY2:

@@ -51,6 +51,27 @@ jobs:
             - flake8.results
       - *save_cache_step
 
+  # Test that we can build the package properly and package long description will render
+  test_build:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      # Install required dependencies
+      # DEV: `pyopenssl` needed until the following PR is released
+      #      https://github.com/pypa/twine/pull/447
+      - run: pip install twine readme_renderer[md] pyopenssl
+      # Ensure we didn't cache from previous runs
+      - run: rm -rf dist/
+      # Ensure package will build
+      - run: python setup.py sdist
+      # Ensure package long description is valid and will render
+      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
+      - run: twine check dist/*
+      - *save_cache_step
+
   tracer:
     docker:
       - *test_runner
@@ -134,7 +155,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'boto_contrib-{py27,py34}-boto' --result-json /tmp/boto.1.results
-      - run: tox -e 'botocore_contrib-{py27,py34}-botocore' --result-json /tmp/boto.2.results
+      - run: tox -e 'botocore_contrib-{py27,py34,py35,py36}-botocore' --result-json /tmp/boto.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -169,6 +190,20 @@ jobs:
           root: /tmp
           paths:
             - test_utils.results
+      - *save_cache_step
+
+  test_logging:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e '{py27,py34,py35,py36}-test_logging' --result-json /tmp/test_logging.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - test_logging.results
       - *save_cache_step
 
   asyncio:
@@ -865,6 +900,20 @@ jobs:
             - jinja2.results
       - *save_cache_step
 
+  mako:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{010,100}' --result-json /tmp/mako.results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - mako.results
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -931,11 +980,11 @@ workflows:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
-
   test:
     jobs:
       - build_docs
       - flake8
+      - test_build
       - aiobotocore:
           requires:
             - flake8
@@ -997,6 +1046,9 @@ workflows:
           requires:
             - flake8
       - kombu:
+          requires:
+            - flake8
+      - mako:
           requires:
             - flake8
       - molten:
@@ -1062,6 +1114,9 @@ workflows:
       - test_utils:
           requires:
             - flake8
+      - test_logging:
+          requires:
+            - flake8
       - tornado:
           requires:
             - flake8
@@ -1076,8 +1131,12 @@ workflows:
             - flake8
       - wait_all_tests:
           requires:
+            # Initial jobs
             - build_docs
             - flake8
+            - test_build
+
+            # flake8 dependent jobs
             - aiobotocore
             - aiohttp
             - aiopg
@@ -1099,6 +1158,7 @@ workflows:
             - integration
             - jinja2
             - kombu
+            - mako
             - molten
             - mongoengine
             - msgpack
@@ -1120,6 +1180,7 @@ workflows:
             - sqlalchemy
             - sqlite3
             - test_utils
+            - test_logging
             - tornado
             - tracer
             - unit_tests

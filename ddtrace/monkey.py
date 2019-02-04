@@ -46,6 +46,7 @@ PATCH_MODULES = {
     'vertica': True,
     'molten': True,
     'jinja2': True,
+    'mako': True,
     'flask': True,
     'kombu': False,
 
@@ -54,6 +55,9 @@ PATCH_MODULES = {
     "falcon": False,
     "pylons": False,
     "pyramid": False,
+
+    # Standard library modules off by default
+    'logging': False,
 }
 
 _LOCK = threading.Lock()

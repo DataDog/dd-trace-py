@@ -1,6 +1,3 @@
-# flake8: noqa
-# stdlib
-
 # 3p
 import pytest
 from ddtrace.vendor import wrapt
