@@ -1,10 +1,9 @@
 import os
 import sys
 import mock
-import ddtrace
 
+import ddtrace
 from ddtrace import __file__ as root_file
-from ddtrace import config
 from nose.tools import ok_
 from contextlib import contextmanager
 
@@ -65,23 +64,6 @@ def override_global_tracer(tracer):
     ddtrace.tracer = tracer
     yield
     ddtrace.tracer = original_tracer
-
-
-@contextmanager
-def set_env(**environ):
-    """
-    Temporarily set the process environment variables.
-
-    >>> with set_env(DEFAULT_SERVICE='my-webapp'):
-            # your test
-    """
-    old_environ = dict(os.environ)
-    os.environ.update(environ)
-    try:
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(old_environ)
 
 
 def inject_sitecustomize(path):

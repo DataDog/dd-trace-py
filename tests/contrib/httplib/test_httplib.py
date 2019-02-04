@@ -1,7 +1,6 @@
 # Standard library
 import contextlib
 import sys
-import unittest
 
 # Third party
 import wrapt

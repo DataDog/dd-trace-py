@@ -1,5 +1,3 @@
-import unittest
-
 import requests
 from requests import Session
 from requests.exceptions import MissingSchema

@@ -3,7 +3,6 @@ from celery.exceptions import Retry
 
 from nose.tools import eq_, ok_
 
-from ddtrace import config
 from ddtrace.contrib.celery import patch, unpatch
 
 from .base import CeleryBaseTestCase
