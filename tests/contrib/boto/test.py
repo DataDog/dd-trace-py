@@ -1,6 +1,3 @@
-# stdlib
-import unittest
-
 # 3p
 import boto.ec2
 import boto.s3
