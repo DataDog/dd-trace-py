@@ -1,5 +1,3 @@
-import unittest
-
 import requests
 from requests import Session
 from requests.exceptions import MissingSchema
@@ -11,8 +9,8 @@ from nose.tools import assert_raises, eq_
 
 from tests.opentracer.utils import init_tracer
 
-from ...test_tracer import get_dummy_tracer
-from ...util import override_global_tracer, override_config
+from ...base import BaseTracerTestCase
+from ...util import override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -20,21 +18,24 @@ URL_200 = 'http://{}/status/200'.format(SOCKET)
 URL_500 = 'http://{}/status/500'.format(SOCKET)
 
 
-class BaseRequestTestCase(unittest.TestCase):
+class BaseRequestTestCase(object):
     """Create a traced Session, patching during the setUp and
     unpatching after the tearDown
     """
     def setUp(self):
+        super(BaseRequestTestCase, self).setUp()
+
         patch()
-        self.tracer = get_dummy_tracer()
         self.session = Session()
         setattr(self.session, 'datadog_tracer', self.tracer)
 
     def tearDown(self):
         unpatch()
 
+        super(BaseRequestTestCase, self).tearDown()
 
-class TestRequests(BaseRequestTestCase):
+
+class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
     def test_resource_path(self):
         out = self.session.get(URL_200)
         eq_(out.status_code, 200)
@@ -375,7 +376,7 @@ class TestRequests(BaseRequestTestCase):
         eq_(s.get_tag('http.response.headers.access-control-allow-origin'), None)
 
         # Enabled when explicitly configured
-        with override_config('requests', {}):
+        with self.override_config('requests', {}):
             config.requests.http.trace_headers(['my-header', 'access-control-allow-origin'])
             self.session.get(URL_200, headers={'my-header': 'my_value'})
             spans = self.tracer.writer.pop()
