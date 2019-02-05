@@ -335,7 +335,7 @@ class Tracer(object):
             # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans=spans)
 
-    @deprecated(message='Manually setting service info is not longer necessary', version='1.0.0')
+    @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
 
