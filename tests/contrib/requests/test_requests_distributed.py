@@ -3,10 +3,11 @@ from nose.tools import eq_, assert_in, assert_not_in
 
 from ddtrace import config
 
+from ...base import BaseTracerTestCase
 from .test_requests import BaseRequestTestCase
 
 
-class TestRequestsDistributed(BaseRequestTestCase):
+class TestRequestsDistributed(BaseRequestTestCase, BaseTracerTestCase):
     def headers_here(self, tracer, request, root_span):
         # Use an additional matcher to query the request headers.
         # This is because the parent_id can only been known within such a callback,

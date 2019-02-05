@@ -11,7 +11,6 @@ from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...base import BaseTracerTestCase
-from ...util import override_config
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -158,7 +157,7 @@ class TestMolten(BaseTracerTestCase):
 
     def test_distributed_tracing(self):
         """ Tests whether span IDs are propogated when distributed tracing is on """
-        with override_config('molten', dict(distributed_tracing=True)):
+        with self.override_config('molten', dict(distributed_tracing=True)):
             response = molten_client(headers={
                 HTTP_HEADER_TRACE_ID: '100',
                 HTTP_HEADER_PARENT_ID: '42',
@@ -173,7 +172,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.parent_id, 42)
 
         # Now without tracing on
-        with override_config('molten', dict(distributed_tracing=False)):
+        with self.override_config('molten', dict(distributed_tracing=False)):
             response = molten_client(headers={
                 HTTP_HEADER_TRACE_ID: '100',
                 HTTP_HEADER_PARENT_ID: '42',
