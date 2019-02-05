@@ -391,19 +391,21 @@ jobs:
       - checkout
       - *restore_cache_step
       - run:
+          # Run test suite in parallel
           command: |
-            detox -e 'flask_contrib-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' \
-                  -e 'flask_contrib-{py27}-flask{09}-blinker' \
-                  -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' \
-                  -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' \
-                  --result-json /tmp/flask.1.results
+            tox -p auto -e 'flask_contrib-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' \
+                        -e 'flask_contrib-{py27}-flask{09}-blinker' \
+                        -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' \
+                        -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' \
+                        --result-json /tmp/flask.1.results
       - run:
+          # Run test suite in parallel
           command: |
-            TOX_SKIP_DIST=False detox -e 'flask_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' \
-                                      -e 'flask_contrib_autopatch-{py27}-flask{09}-blinker' \
-                                      -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' \
-                                      -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' \
-                                      --result-json /tmp/flask.2.results
+            TOX_SKIP_DIST=False tox -p auto -e 'flask_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' \
+                                            -e 'flask_contrib_autopatch-{py27}-flask{09}-blinker' \
+                                            -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' \
+                                            -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' \
+                                            --result-json /tmp/flask.2.results
       - persist_to_workspace:
           root: /tmp
           paths:
