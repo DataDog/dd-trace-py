@@ -168,9 +168,7 @@ class SQLAlchemyTestMixin(object):
     def test_traced_service(self):
         # ensures that the service is set as expected
         services = self.tracer.writer.pop_services()
-        expected = {
-            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
-        }
+        expected = {}
         eq_(services, expected)
 
     def test_opentracing(self):

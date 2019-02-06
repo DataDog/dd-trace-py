@@ -9,7 +9,7 @@ from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
 from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config as ddconfig
 
@@ -30,12 +30,6 @@ class PylonsTraceMiddleware(object):
 
         # add template tracing
         trace_rendering()
-
-        self._tracer.set_service_info(
-            service=service,
-            app="pylons",
-            app_type=AppTypes.web,
-        )
 
     def __call__(self, environ, start_response):
         if self._distributed_tracing:

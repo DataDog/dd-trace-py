@@ -57,12 +57,6 @@ class EngineTracer(object):
         self.service = service or self.vendor
         self.name = "%s.query" % self.vendor
 
-        # set the service info.
-        self.tracer.set_service_info(
-            service=self.service,
-            app=self.vendor,
-            app_type=sqlx.APP_TYPE)
-
         # attach the PIN
         Pin(
             app=self.vendor,

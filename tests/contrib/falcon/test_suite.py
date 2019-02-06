@@ -12,14 +12,6 @@ class FalconTestCase(object):
     to add new tests, add them here so that they're shared across manual
     and automatic instrumentation.
     """
-    def test_falcon_service(self):
-        services = self.tracer._services
-        expected_service = (self._service, 'falcon', 'web')
-
-        # ensure users set service name is in the services list
-        ok_(self._service in services.keys())
-        eq_(services[self._service], expected_service)
-
     def test_404(self):
         out = self.simulate_get('/fake_endpoint')
         eq_(out.status_code, 404)
