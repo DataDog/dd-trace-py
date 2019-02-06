@@ -168,8 +168,8 @@ class SQLAlchemyTestMixin(object):
     def test_traced_service(self):
         # ensures that the service is set as expected
         services = self.tracer.writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        self.assertEqual(len(services), 0)
+        expected = {}
+        eq_(services, expected)
 
     def test_opentracing(self):
         """Ensure that sqlalchemy works with the opentracer."""

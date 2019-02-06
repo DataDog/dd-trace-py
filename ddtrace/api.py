@@ -8,6 +8,7 @@ import ddtrace
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .utils.deprecation import deprecated
 
 
 log = logging.getLogger(__name__)
@@ -163,7 +164,8 @@ class API(object):
         log.debug('Reported %d traces in %.5fs', payload.length, time.time() - start)
         return response
 
-    def send_services(self, services):
+    @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')
+    def send_services(self, *args, **kwargs):
         return
 
     def _put(self, endpoint, data, count=0):

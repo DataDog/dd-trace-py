@@ -57,8 +57,7 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(s.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        eq_(len(services), 0)
+        eq_(services, {})
 
     def test_500(self):
         @self.app.route('/hi')
@@ -161,5 +160,4 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(dd_span.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        eq_(len(services), 0)
+        eq_(services, {})

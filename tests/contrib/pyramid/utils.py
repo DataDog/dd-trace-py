@@ -65,8 +65,8 @@ class PyramidTestCase(PyramidBase):
 
         # ensure services are set correctly
         services = writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        self.assertEqual(len(services), 0)
+        expected = {}
+        eq_(services, expected)
 
     def test_event_sample_rate(self):
         with self.override_config('pyramid', dict(event_sample_rate=1)):

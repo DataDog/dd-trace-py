@@ -74,7 +74,7 @@ class AgentWriter(object):
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, shutdown_timeout=DEFAULT_TIMEOUT,
+    def __init__(self, api, trace_queue, service_queue=None, shutdown_timeout=DEFAULT_TIMEOUT,
                  filters=None, priority_sampler=None):
         self._trace_queue = trace_queue
         self._lock = threading.Lock()

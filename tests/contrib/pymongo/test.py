@@ -337,8 +337,7 @@ class TestPymongoPatchDefault(PymongoCore):
         db.drop_collection('songs')
 
         services = writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        eq_(len(services), 0)
+        eq_(services, {})
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client

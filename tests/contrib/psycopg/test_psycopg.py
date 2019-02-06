@@ -244,9 +244,9 @@ class PsycopgCore(BaseTracerTestCase):
             self.assert_conn_is_traced(conn, service)
 
         # ensure we have the service types
-        services = self.tracer.writer.pop_services()
-        # DEV: Sending of services is a noop while we remove the API
-        self.assertEquals(len(services), 0)
+        service_meta = self.tracer.writer.pop_services()
+        expected = {}
+        self.assertEquals(service_meta, expected)
 
     def test_commit(self):
         conn = self._get_conn()
