@@ -3,7 +3,7 @@ from bottle import response, request
 
 # stdlib
 import ddtrace
-from ddtrace.ext import http, AppTypes
+from ddtrace.ext import http
 
 # project
 from ...constants import EVENT_SAMPLE_RATE_KEY
@@ -21,11 +21,6 @@ class TracePlugin(object):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
         self.distributed_tracing = distributed_tracing
-        self.tracer.set_service_info(
-            service=service,
-            app='bottle',
-            app_type=AppTypes.web,
-        )
 
     def apply(self, callback, route):
 

@@ -337,11 +337,7 @@ class TestPymongoPatchDefault(PymongoCore):
         db.drop_collection('songs')
 
         services = writer.pop_services()
-        eq_(len(services), 1)
-        assert self.TEST_SERVICE in services
-        s = services[self.TEST_SERVICE]
-        assert s['app_type'] == 'db'
-        assert s['app'] == 'mongodb'
+        eq_(services, {})
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
