@@ -19,6 +19,7 @@ import threading
 from wrapt.decorators import synchronized
 
 from ddtrace.compat import PY3
+from ddtrace.utils import get_module_name
 
 
 log = logging.getLogger(__name__)
@@ -72,19 +73,6 @@ def register_post_import_hook(name, hook):
     _post_import_hooks[name] = hooks
 
 
-def _create_import_hook_from_entrypoint(entrypoint):
-    """
-    Register post import hooks defined as package entry points.
-    """
-    def import_hook(module):
-        __import__(entrypoint.module_name)
-        callback = sys.modules[entrypoint.module_name]
-        for attr in entrypoint.attrs:
-            callback = getattr(callback, attr)
-        return callback(module)
-    return import_hook
-
-
 @synchronized(_post_import_hooks_lock)
 def notify_module_loaded(module):
     """
@@ -94,14 +82,14 @@ def notify_module_loaded(module):
     Any raised exceptions will be caught and an error message indicating that
     the hook failed.
     """
-    name = getattr(module, '__name__', None)
+    name = get_module_name(module)
     hooks = _post_import_hooks.get(name, [])
 
     for hook in hooks:
         try:
             hook(module)
         except Exception as err:
-            log.warn('hook for module "{}" failed: {}'.format(name, err))
+            log.warn('hook "{}" for module "{}" failed: {}'.format(name, err))
 
 
 class _ImportHookLoader(object):
