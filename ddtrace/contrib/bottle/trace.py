@@ -17,7 +17,7 @@ class TracePlugin(object):
     name = 'trace'
     api = 2
 
-    def __init__(self, service='bottle', tracer=None, distributed_tracing=None):
+    def __init__(self, service='bottle', tracer=None, distributed_tracing=True):
         self.service = service
         self.tracer = tracer or ddtrace.tracer
         self.distributed_tracing = distributed_tracing

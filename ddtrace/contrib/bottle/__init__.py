@@ -10,9 +10,9 @@ plugin to your app::
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
 
-To enable distributed tracing::
+To disable distributed tracing::
 
-    plugin = TracePlugin(service="my-web-app", distributed_tracing=True)
+    plugin = TracePlugin(service="my-web-app", distributed_tracing=False)
 """
 
 from ...utils.importlib import require_modules
