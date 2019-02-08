@@ -83,6 +83,9 @@ def notify_module_loaded(module):
 
     Any raised exceptions will be caught and an error message indicating that
     the hook failed.
+    
+    :param module: The module being loaded
+    :type module: ``types.ModuleType``
     """
     name = get_module_name(module)
     hooks = _post_import_hooks.get(name, [])
