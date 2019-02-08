@@ -89,7 +89,7 @@ def notify_module_loaded(module):
         try:
             hook(module)
         except Exception as err:
-            log.warn('hook "{}" for module "{}" failed: {}'.format(name, err))
+            log.warn('hook "{}" for module "{}" failed: {}'.format(hook, name, err))
 
 
 class _ImportHookLoader(object):
@@ -174,11 +174,15 @@ class ImportHookFinder:
 
 
 @synchronized(_post_import_hooks_lock)
-def deregister_post_import_hook(modulename, matcher):
+def deregister_post_import_hook(modulename, hook):
     """
-    Deregisters post import hooks for a module given the module name and a
-    matcher function. All hooks matching the matcher function will be removed.
+    Deregisters post import hooks for a module given the module name and a hook
+    that was previously installed.
     """
-    hooks = _post_import_hooks.get(modulename, [])
-    hooks = list(filter(lambda h: not matcher(h), hooks))
-    _post_import_hooks[modulename] = hooks
+    if modulename not in _post_import_hooks:
+        return
+    hooks = _post_import_hooks[modulename]
+    try:
+        hooks.remove(hook)
+    except ValueError:
+        pass

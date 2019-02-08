@@ -4,6 +4,7 @@ from ddtrace.compat import reload_module
 from ddtrace.utils.hook import (
     register_post_import_hook,
     deregister_post_import_hook,
+    _post_import_hooks as hooks,
 )
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
@@ -97,10 +98,10 @@ class TestHook(SubprocessTestCase):
         """
         Test that deregistering import hooks that do not exist is a no-op.
         """
-        def matcher(hook):
-            return hasattr(hook, '_test')
+        def hook():
+            return
 
-        deregister_post_import_hook('tests.utils.test_module', matcher)
+        deregister_post_import_hook('tests.utils.test_module', hook)
         import tests.utils.test_module  # noqa
 
     def test_deregister_post_import_hook_after_register(self):
@@ -108,51 +109,39 @@ class TestHook(SubprocessTestCase):
         Test that import hooks can be deregistered after being registered.
         """
         test_hook = mock.MagicMock()
-        setattr(test_hook, '_test', True)
         register_post_import_hook('tests.utils.test_module', test_hook)
-
-        def matcher(hook):
-            return hasattr(hook, '_test')
-
-        deregister_post_import_hook('tests.utils.test_module', matcher)
+        print(hooks)
+        deregister_post_import_hook('tests.utils.test_module', test_hook)
+        print(hooks)
         import tests.utils.test_module  # noqa
-        self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
+        self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should have been removed')
 
-    def test_deregister_post_import_hook_after_register_multiple(self):
+    def test_deregister_post_import_hook_after_register_multiple_all(self):
         """
         Test that multiple import hooks can be deregistered.
         """
         test_hook = mock.MagicMock()
         test_hook2 = mock.MagicMock()
-        setattr(test_hook, '_test', True)
-        setattr(test_hook2, '_test', True)
         register_post_import_hook('tests.utils.test_module', test_hook)
         register_post_import_hook('tests.utils.test_module', test_hook2)
 
-        def matcher(hook):
-            return hasattr(hook, '_test')
-
-        deregister_post_import_hook('tests.utils.test_module', matcher)
+        deregister_post_import_hook('tests.utils.test_module', test_hook)
+        deregister_post_import_hook('tests.utils.test_module', test_hook2)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
         self.assertEqual(test_hook2.call_count, 0, 'hook has been deregistered and should be removed')
 
-    def test_deregister_post_import_hook_after_register_multiple_one_match(self):
+    def test_deregister_post_import_hook_after_register_multiple(self):
         """
-        Test that only specified import hooks can be deregistered after being registered.
+        Test that only the specified import hook can be deregistered after being registered.
         """
         # Enforce a spec so that hasattr doesn't vacuously return True.
         test_hook = mock.MagicMock(spec=[])
         test_hook2 = mock.MagicMock(spec=[])
-        setattr(test_hook, '_test', True)
-        setattr(test_hook2, '_test2', True)
         register_post_import_hook('tests.utils.test_module', test_hook)
         register_post_import_hook('tests.utils.test_module', test_hook2)
 
-        def matcher(hook):
-            return hasattr(hook, '_test')
-
-        deregister_post_import_hook('tests.utils.test_module', matcher)
+        deregister_post_import_hook('tests.utils.test_module', test_hook)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
         self.assertEqual(test_hook2.call_count, 1, 'hook should have been called')
@@ -162,15 +151,11 @@ class TestHook(SubprocessTestCase):
         Test that import hooks can be deregistered after being registered.
         """
         test_hook = mock.MagicMock()
-        setattr(test_hook, '_test', True)
         register_post_import_hook('tests.utils.test_module', test_hook)
-
-        def matcher(hook):
-            return hasattr(hook, '_test')
 
         import tests.utils.test_module
         test_hook.assert_called_once()
-        deregister_post_import_hook('tests.utils.test_module', matcher)
+        deregister_post_import_hook('tests.utils.test_module', test_hook)
         reload_module(tests.utils.test_module)
         self.assertEqual(test_hook.call_count, 1, 'hook should only be called once')
 
@@ -186,7 +171,7 @@ class TestHook(SubprocessTestCase):
         with mock.patch('ddtrace.utils.hook.log') as log_mock:
             import tests.utils.test_module  # noqa
             calls = [
-                mock.call('hook for module "tests.utils.test_module" failed: test_hook_failed')
+                mock.call('hook "{}" for module "tests.utils.test_module" failed: test_hook_failed'.format(test_hook))
             ]
             log_mock.warn.assert_has_calls(calls)
 
