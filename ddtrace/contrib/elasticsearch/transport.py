@@ -6,7 +6,7 @@ from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http, elasticsearch as metadata
+from ...ext import http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
@@ -14,12 +14,6 @@ SPAN_TYPE = 'elasticsearch'
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
-
-    datadog_tracer.set_service_info(
-        service=datadog_service,
-        app=SPAN_TYPE,
-        app_type=AppTypes.db,
-    )
 
     class TracedTransport(elasticsearch.Transport):
         """ Extend elasticseach transport layer to allow Datadog
