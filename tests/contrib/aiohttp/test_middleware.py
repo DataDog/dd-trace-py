@@ -215,8 +215,7 @@ class TestTraceMiddleware(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing(self):
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
+        # distributed tracing is enabled by default
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -241,8 +240,6 @@ class TestTraceMiddleware(TraceTestCase):
     def test_distributed_tracing_with_sampling_true(self):
         self.tracer.priority_sampler = RateSampler(0.1)
 
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -268,8 +265,6 @@ class TestTraceMiddleware(TraceTestCase):
     def test_distributed_tracing_with_sampling_false(self):
         self.tracer.priority_sampler = RateSampler(0.9)
 
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -292,8 +287,9 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    def test_distributed_tracing_disabled_default(self):
+    def test_distributed_tracing_disabled(self):
         # pass headers for distributed tracing
+        self.app['datadog_trace']['distributed_tracing_enabled'] = False
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -318,7 +314,6 @@ class TestTraceMiddleware(TraceTestCase):
         self.tracer.priority_sampler = RateSampler(1.0)
 
         # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
