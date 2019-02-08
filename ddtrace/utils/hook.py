@@ -45,7 +45,9 @@ def register_post_import_hook(name, hook):
     debug message is logged since this should not be expected in our use-case.
 
     :param name: Name of the module (full dotted path)
+    :type name: str
     :param hook: Call-able to be invoked with the module when it is imported.
+    :type hook: ``types.FunctionType``
     :return:
     """
     # Automatically install the import hook finder if it has not already
