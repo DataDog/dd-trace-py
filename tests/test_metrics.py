@@ -1,10 +1,10 @@
 import unittest
 import sys
 import mock
-from ddtrace.runtime_metrics import ValueCollector
+from ddtrace.runtime_metrics import MetricCollector
 
 
-class TestValueCollector(unittest.TestCase):
+class TestMetricCollector(unittest.TestCase):
     def test_default_usage(self):
         mock_collect = mock.MagicMock()
         mock_collect.side_effect = lambda m, k: {
@@ -12,7 +12,7 @@ class TestValueCollector(unittest.TestCase):
             'key2': 'value2',
         }
 
-        vc = ValueCollector(collect_fn=mock_collect)
+        vc = MetricCollector(collect_fn=mock_collect)
         self.assertEqual(vc.collect(keys=set(['key1'])), {
             'key1': 'value1',
             'key2': 'value2',
@@ -24,14 +24,14 @@ class TestValueCollector(unittest.TestCase):
 
     def test_enabled(self):
         collect = mock.MagicMock()
-        vc = ValueCollector(collect_fn=collect, enabled=False)
+        vc = MetricCollector(collect_fn=collect, enabled=False)
         collect.assert_not_called()
         vc.collect()
         collect.assert_not_called()
 
     def test_periodic(self):
         collect = mock.MagicMock()
-        vc = ValueCollector(collect_fn=collect, periodic=True)
+        vc = MetricCollector(collect_fn=collect, periodic=True)
         vc.collect()
         self.assertEqual(collect.call_count, 1)
         vc.collect()
@@ -39,7 +39,7 @@ class TestValueCollector(unittest.TestCase):
 
     def test_not_periodic(self):
         collect = mock.MagicMock()
-        vc = ValueCollector(collect_fn=collect)
+        vc = MetricCollector(collect_fn=collect)
         collect.assert_not_called()
         vc.collect()
         self.assertEqual(collect.call_count, 1)
@@ -59,7 +59,7 @@ class TestValueCollector(unittest.TestCase):
             a = modules.get('A')
             a.fn()
 
-        vc = ValueCollector(collect_fn=collect, required_modules=['A'])
+        vc = MetricCollector(collect_fn=collect, required_modules=['A'])
         vc.collect()
         mock_module.fn.assert_called_once()
         del sys.modules['A']
@@ -68,7 +68,7 @@ class TestValueCollector(unittest.TestCase):
         collect = mock.MagicMock()
         with mock.patch('ddtrace.runtime_metrics.log') as log_mock:
             # Should log a warning (tested below)
-            vc = ValueCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
+            vc = MetricCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
 
             # Collect should not be called as the collector should be disabled.
             collect.assert_not_called()
@@ -76,8 +76,10 @@ class TestValueCollector(unittest.TestCase):
             collect.assert_not_called()
 
         calls = [
-            mock.call(
-                'Could not import module "moduleshouldnotexist" for <Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>'
+            mock.call((
+                'Could not import module "moduleshouldnotexist" for '
+                '<Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>'
+            )
             )
         ]
         log_mock.warn.assert_has_calls(calls)
@@ -90,7 +92,7 @@ class TestValueCollector(unittest.TestCase):
             V.i += 1
             return {'i': V.i}
 
-        vc = ValueCollector(collect_fn=collect)
+        vc = MetricCollector(collect_fn=collect)
         self.assertEqual(vc.collect(), {'i': 1})
         self.assertEqual(vc.collect(), {'i': 1})
         self.assertEqual(vc.collect(), {'i': 1})
@@ -103,24 +105,16 @@ class TestValueCollector(unittest.TestCase):
             V.i += 1
             return {'i': V.i}
 
-        vc = ValueCollector(collect_fn=collect, periodic=True)
+        vc = MetricCollector(collect_fn=collect, periodic=True)
         self.assertEqual(vc.collect(), {'i': 1})
         self.assertEqual(vc.collect(), {'i': 2})
         self.assertEqual(vc.collect(), {'i': 3})
 
-
-class TestMetrics(unittest.TestCase):
-    def test_manual(self):
-        from ddtrace.runtime_metrics import RuntimeMetrics
-        from time import sleep
-
-        rtm = RuntimeMetrics()
-
-        class A(object):
-            pass
-
-        lst = []
-        while True:
-            rtm.flush()
-            lst += [A() for i in range(1000)]
-            sleep(1)
+    def test_failed_module_load_collect(self):
+        """Attempts to collect from a collector when it has failed to load its
+        module should return no metrics gracefully.
+        """
+        def collect(modules, keys):
+            return {'k': 'v'}
+        vc = MetricCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
+        self.assertIsNotNone(vc.collect(), 'collect should return valid metrics')

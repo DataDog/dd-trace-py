@@ -8,10 +8,23 @@ from ddtrace import __version__
 DEFAULT_AGENT_HOST = '127.0.0.1'
 DEFAULT_METRIC_AGENT_PORT = 8125
 
-logging.basicConfig(level=logging.DEBUG)
+# Default tags to apply to metrics
+DEFAULT_ENABLED_TAGS = set([
+    'datadog.tracer.lang',
+    'datadog.tracer.lang_interpreter',
+    'datadog.tracer.lang_version',
+    'datadog.tracer.version',
+])
 
-# TODO: look at gc
-# TODO: forking/multi-process app
+# Default metrics to collect
+DEFAULT_ENABLED_METRICS = set([
+    'datadog.tracer.runtime.thread_count',
+    'datadog.tracer.runtime.mem.rss',
+    'datadog.tracer.runtime.gc.gen1_count',
+    'datadog.tracer.runtime.gc.gen2_count',
+    'datadog.tracer.runtime.gc.gen3_count',
+])
+
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +77,8 @@ def gc_count(modules, keys):
     gc = modules.get('gc')
     metrics = {}
 
+    # DEV: short-cut to avoid the get_count() call if none of the metrics are
+    #      enabled.
     if set([
         'datadog.tracer.runtime.gc.gen1_count',
         'datadog.tracer.runtime.gc.gen2_count',
@@ -82,25 +97,7 @@ def gc_count(modules, keys):
     return metrics
 
 
-# Default metrics to collect
-DEFAULT_ENABLED_METRICS = set([
-    'datadog.tracer.runtime.thread_count',
-    'datadog.tracer.runtime.mem.rss',
-    'datadog.tracer.runtime.gc.gen1_count',
-    'datadog.tracer.runtime.gc.gen2_count',
-    'datadog.tracer.runtime.gc.gen3_count',
-])
-
-# Default tags to apply to metrics
-DEFAULT_ENABLED_TAGS = set([
-    'datadog.tracer.lang',
-    'datadog.tracer.lang_interpreter',
-    'datadog.tracer.lang_version',
-    'datadog.tracer.version',
-])
-
-
-class ValueCollector(object):
+class MetricCollector(object):
     """A basic state machine useful for collecting, caching and updating data
     obtained from different Python modules.
 
@@ -117,9 +114,8 @@ class ValueCollector(object):
         self.periodic = periodic
         self.required_modules = required_modules or []
 
-        self.value = None
-        self.value_loaded = False
-
+        self.metrics = {}  # the metrics to be collected and cached
+        self.metrics_loaded = False  # whether or not the metrics have been loaded
         self.modules = self._load_modules()
 
     def _load_modules(self):
@@ -136,6 +132,10 @@ class ValueCollector(object):
 
     def collect_fn(self, modules, keys):
         """Returns metrics given a set of keys and provided modules.
+
+        Note: this method has to be provided as an argument to the intializer
+        or overridden by a child class.
+
         :param modules: modules loaded from `required_modules`
         :param keys: set of keys to collect
         :return: collected metrics as a dict
@@ -150,16 +150,16 @@ class ValueCollector(object):
         :param keys: The keys of the metrics to collect.
         """
         if not self.enabled:
-            return self.value
+            return self.metrics
 
         keys = keys or set()
 
-        if not self.periodic and self.value_loaded:
-            return self.value
+        if not self.periodic and self.metrics_loaded:
+            return self.metrics
 
-        self.value = self.collect_fn(self.modules, keys)
-        self.value_loaded = True
-        return self.value
+        self.metrics = self.collect_fn(self.modules, keys)
+        self.metrics_loaded = True
+        return self.metrics
 
     def __repr__(self):
         return '<Collector(enabled={},periodic={},required_modules={})>'.format(
@@ -169,7 +169,7 @@ class ValueCollector(object):
         )
 
 
-class PSUtilRuntimeMetricCollector(ValueCollector):
+class PSUtilRuntimeMetricCollector(MetricCollector):
     """Collector for psutil metrics.
 
     Performs batched operations via proc.oneshot() to optimize the calls.
@@ -194,17 +194,18 @@ class PSUtilRuntimeMetricCollector(ValueCollector):
         return metrics
 
 
-class RuntimeMetricTagCollector(ValueCollector):
+class RuntimeMetricTagCollector(MetricCollector):
     pass
 
 
-class RuntimeMetricCollector(ValueCollector):
+class RuntimeMetricCollector(MetricCollector):
     pass
 
 
-class RuntimeMetrics(object):
+class RuntimeMetricsCollector(object):
     """
     TODO: configuration
+    TODO: support for forking/multi-process app (multiple pids)
     """
 
     METRIC_COLLECTORS = [
@@ -271,5 +272,5 @@ class RuntimeMetrics(object):
         metrics = self._collect_metrics()
 
         for metric_key, metric_value in metrics.items():
-            log.info('Flushing metric {}:{}'.format(metric_key, metric_value))
+            log.info('Flushing metric "{}:{}" to Datadog agent'.format(metric_key, metric_value))
             self.statsd.gauge(metric_key, metric_value)
