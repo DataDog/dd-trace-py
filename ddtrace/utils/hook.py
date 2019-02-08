@@ -46,8 +46,8 @@ def register_post_import_hook(name, hook):
 
     :param name: Name of the module (full dotted path)
     :type name: str
-    :param hook: Call-able to be invoked with the module when it is imported.
-    :type hook: ``types.FunctionType``
+    :param hook: Callable to be invoked with the module when it is imported.
+    :type hook: Callable
     :return:
     """
     # Automatically install the import hook finder if it has not already
@@ -83,7 +83,7 @@ def notify_module_loaded(module):
 
     Any raised exceptions will be caught and an error message indicating that
     the hook failed.
-    
+
     :param module: The module being loaded
     :type module: ``types.ModuleType``
     """
@@ -183,11 +183,20 @@ def deregister_post_import_hook(modulename, hook):
     """
     Deregisters post import hooks for a module given the module name and a hook
     that was previously installed.
+
+    :param modulename: Name of the module the hook is installed on.
+    :type: str
+    :param hook: The hook to remove (the function itself)
+    :type hook: Callable
+    :return: whether a hook was removed or not
     """
     if modulename not in _post_import_hooks:
-        return
+        return False
+
     hooks = _post_import_hooks[modulename]
+
     try:
         hooks.remove(hook)
+        return True
     except ValueError:
-        pass
+        return False

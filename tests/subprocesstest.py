@@ -93,6 +93,8 @@ class SubprocessTestCase(unittest.TestCase):
             except Exception:
                 exc_info = sys.exc_info()
 
+            # DEV: stderr, stdout are byte sequences so to print them nicely
+            #      back out they should be decoded.
             sys.stderr.write(stderr.decode())
             sys.stdout.write(stdout.decode())
             result.addFailure(self, exc_info)

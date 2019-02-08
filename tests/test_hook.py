@@ -4,7 +4,6 @@ from ddtrace.compat import reload_module
 from ddtrace.utils.hook import (
     register_post_import_hook,
     deregister_post_import_hook,
-    _post_import_hooks as hooks,
 )
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
@@ -101,7 +100,8 @@ class TestHook(SubprocessTestCase):
         def hook():
             return
 
-        deregister_post_import_hook('tests.utils.test_module', hook)
+        outcome = deregister_post_import_hook('tests.utils.test_module', hook)
+        self.assertFalse(outcome)
         import tests.utils.test_module  # noqa
 
     def test_deregister_post_import_hook_after_register(self):
@@ -110,9 +110,8 @@ class TestHook(SubprocessTestCase):
         """
         test_hook = mock.MagicMock()
         register_post_import_hook('tests.utils.test_module', test_hook)
-        print(hooks)
-        deregister_post_import_hook('tests.utils.test_module', test_hook)
-        print(hooks)
+        outcome = deregister_post_import_hook('tests.utils.test_module', test_hook)
+        self.assertTrue(outcome)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should have been removed')
 
@@ -125,8 +124,10 @@ class TestHook(SubprocessTestCase):
         register_post_import_hook('tests.utils.test_module', test_hook)
         register_post_import_hook('tests.utils.test_module', test_hook2)
 
-        deregister_post_import_hook('tests.utils.test_module', test_hook)
-        deregister_post_import_hook('tests.utils.test_module', test_hook2)
+        outcome = deregister_post_import_hook('tests.utils.test_module', test_hook)
+        self.assertTrue(outcome)
+        outcome = deregister_post_import_hook('tests.utils.test_module', test_hook2)
+        self.assertTrue(outcome)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
         self.assertEqual(test_hook2.call_count, 0, 'hook has been deregistered and should be removed')
@@ -141,7 +142,8 @@ class TestHook(SubprocessTestCase):
         register_post_import_hook('tests.utils.test_module', test_hook)
         register_post_import_hook('tests.utils.test_module', test_hook2)
 
-        deregister_post_import_hook('tests.utils.test_module', test_hook)
+        outcome = deregister_post_import_hook('tests.utils.test_module', test_hook)
+        self.assertTrue(outcome)
         import tests.utils.test_module  # noqa
         self.assertEqual(test_hook.call_count, 0, 'hook has been deregistered and should be removed')
         self.assertEqual(test_hook2.call_count, 1, 'hook should have been called')
@@ -155,7 +157,8 @@ class TestHook(SubprocessTestCase):
 
         import tests.utils.test_module
         test_hook.assert_called_once()
-        deregister_post_import_hook('tests.utils.test_module', test_hook)
+        outcome = deregister_post_import_hook('tests.utils.test_module', test_hook)
+        self.assertTrue(outcome)
         reload_module(tests.utils.test_module)
         self.assertEqual(test_hook.call_count, 1, 'hook should only be called once')
 
