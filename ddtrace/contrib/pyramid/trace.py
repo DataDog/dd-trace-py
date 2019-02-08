@@ -60,7 +60,7 @@ def trace_tween_factory(handler, registry):
     service = settings.get(SETTINGS_SERVICE) or 'pyramid'
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
-    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
+    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
     if enabled:
         # make a request tracing function
