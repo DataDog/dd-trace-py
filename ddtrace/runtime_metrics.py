@@ -319,8 +319,8 @@ class RuntimeMetricsCollectorWorker(object):
         while True:
             self.collector.flush()
             with self._lock:
-                 if self._stay_alive is False:
-                     break
+                if self._stay_alive is False:
+                    break
             time.sleep(self._flush_interval)
 
     def start(self):
