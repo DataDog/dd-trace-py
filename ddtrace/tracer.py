@@ -12,6 +12,7 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
+from .runtime_metrics import RuntimeMetricsCollectorWorker
 
 
 log = get_logger(__name__)
@@ -38,6 +39,7 @@ class Tracer(object):
         """
         self.sampler = None
         self.priority_sampler = None
+        self.rmc_worker = None
 
         # Apply the default configuration
         self.configure(
@@ -79,7 +81,7 @@ class Tracer(object):
 
     def configure(self, enabled=None, hostname=None, port=None, sampler=None,
                   context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None):
+                  settings=None, collect_metrics=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -135,6 +137,10 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
+
+        if self.rmc_worker is None:
+            self.rmc_worker = RuntimeMetricsCollectorWorker()
+            self.rmc_worker.start()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """

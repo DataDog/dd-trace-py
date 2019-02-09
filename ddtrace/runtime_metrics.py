@@ -1,15 +1,19 @@
+import importlib
+import logging
 import os
 import platform
-import logging
-import importlib
-from ddtrace import __version__
+import time
+import threading
+
+import ddtrace
 
 
-DEFAULT_AGENT_HOST = '127.0.0.1'
-DEFAULT_METRIC_AGENT_PORT = 8125
+FLUSH_INTERVAL = 1
+AGENT_HOST = '127.0.0.1'
+METRIC_AGENT_PORT = 8125
 
 # Default tags to apply to metrics
-DEFAULT_ENABLED_TAGS = set([
+ENABLED_TAGS = set([
     'datadog.tracer.lang',
     'datadog.tracer.lang_interpreter',
     'datadog.tracer.lang_version',
@@ -17,9 +21,15 @@ DEFAULT_ENABLED_TAGS = set([
 ])
 
 # Default metrics to collect
-DEFAULT_ENABLED_METRICS = set([
+ENABLED_METRICS = set([
     'datadog.tracer.runtime.thread_count',
     'datadog.tracer.runtime.mem.rss',
+    'datadog.tracer.runtime.mem.page_fault_count',
+    'datadog.tracer.runtime.ctx_switch.voluntary',
+    'datadog.tracer.runtime.ctx_switch.involuntary',
+    'datadog.tracer.runtime.cpu.time.sys',
+    'datadog.tracer.runtime.cpu.time.user',
+    'datadog.tracer.runtime.cpu.percent',
     'datadog.tracer.runtime.gc.gen1_count',
     'datadog.tracer.runtime.gc.gen2_count',
     'datadog.tracer.runtime.gc.gen3_count',
@@ -48,11 +58,7 @@ def interpreter_implementation(modules, keys):
 
 
 def interpreter_version(modules, keys):
-    """Returns the interpreter version as a string.
-
-    >>>> interpreter_version()
-    '2.7.13'
-    """
+    """Returns the interpreter version as a string."""
     if 'datadog.tracer.lang_version' not in keys:
         return {}
     return {
@@ -65,7 +71,7 @@ def tracer_version(modules, keys):
     if 'datadog.tracer.version' not in keys:
         return {}
     return {
-        'datadog.tracer.version': __version__
+        'datadog.tracer.version': ddtrace.__version__
     }
 
 
@@ -86,15 +92,26 @@ def gc_count(modules, keys):
     ]).intersection(keys) == set():
         return {}
 
-    count = gc.get_count()
+    count = LazyValue(lambda: gc.get_count())
     if 'datadog.tracer.runtime.gc.gen1_count' in keys:
-        metrics['datadog.tracer.runtime.gc.gen1_count'] = count[0]
+        metrics['datadog.tracer.runtime.gc.gen1_count'] = count()[0]
     if 'datadog.tracer.runtime.gc.gen2_count' in keys:
-        metrics['datadog.tracer.runtime.gc.gen2_count'] = count[1]
+        metrics['datadog.tracer.runtime.gc.gen2_count'] = count()[1]
     if 'datadog.tracer.runtime.gc.gen3_count' in keys:
-        metrics['datadog.tracer.runtime.gc.gen3_count'] = count[2]
+        metrics['datadog.tracer.runtime.gc.gen3_count'] = count()[2]
 
     return metrics
+
+
+class LazyValue(object):
+    def __init__(self, func):
+        self.func = func
+        self.value = None
+
+    def __call__(self):
+        if not self.value:
+            self.value = self.func()
+        return self.value
 
 
 class MetricCollector(object):
@@ -189,8 +206,24 @@ class PSUtilRuntimeMetricCollector(MetricCollector):
         with self.proc.oneshot():
             if 'datadog.tracer.runtime.thread_count' in keys:
                 metrics['datadog.tracer.runtime.thread_count'] = self.proc.num_threads()
+
+            mem_info = LazyValue(lambda: self.proc.memory_info())
             if 'datadog.tracer.runtime.mem.rss' in keys:
-                metrics['datadog.tracer.runtime.mem.rss'] = self.proc.memory_info().rss
+                metrics['datadog.tracer.runtime.mem.rss'] = mem_info().rss
+
+            ctx_switches = LazyValue(lambda: self.proc.num_ctx_switches())
+            if 'datadog.tracer.runtime.ctx_switch.voluntary' in keys:
+                metrics['datadog.tracer.runtime.ctx_switch.voluntary'] = ctx_switches().voluntary
+            if 'datadog.tracer.runtime.ctx_switch.involuntary' in keys:
+                metrics['datadog.tracer.runtime.ctx_switch.involuntary'] = ctx_switches().involuntary
+
+            cpu_time = LazyValue(lambda: self.proc.cpu_times())
+            if 'datadog.tracer.runtime.cpu.time.sys' in keys:
+                metrics['datadog.tracer.runtime.cpu.time.sys'] = cpu_time().user
+            if 'datadog.tracer.runtime.cpu.time.user' in keys:
+                metrics['datadog.tracer.runtime.cpu.time.user'] = cpu_time().system
+            if 'datadog.tracer.runtime.cpu.percent' in keys:
+                metrics['datadog.tracer.runtime.cpu.percent'] = self.proc.cpu_percent()
         return metrics
 
 
@@ -223,20 +256,18 @@ class RuntimeMetricsCollector(object):
         RuntimeMetricTagCollector(collect_fn=tracer_version),
     ]
 
-    def __init__(self, enabled_metrics=DEFAULT_ENABLED_METRICS, enabled_tags=DEFAULT_ENABLED_TAGS):
-        self.agent_host = DEFAULT_AGENT_HOST
-        self.agent_metric_port = DEFAULT_METRIC_AGENT_PORT
+    def __init__(self, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
+        self._agent_host = AGENT_HOST
+        self._agent_metric_port = METRIC_AGENT_PORT
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
-        self.statsd = None
-
+        self._statsd = None
         self._init_statsd()
 
     def _collect_constant_tags(self):
         """Collects tags to be sent to ddstatsd.
 
         Note: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        :return:
         """
         tags = []
         for tag_collector in self.TAG_COLLECTORS:
@@ -256,7 +287,7 @@ class RuntimeMetricsCollector(object):
         try:
             from datadog import DogStatsd
             tags = self._collect_constant_tags()
-            self.statsd = DogStatsd(host=self.agent_host, port=self.agent_metric_port, constant_tags=tags)
+            self._statsd = DogStatsd(host=self._agent_host, port=self._agent_metric_port, constant_tags=tags)
         except ImportError:
             log.info('Install the `datadog` package to enable runtime metrics.')
         except Exception:
@@ -265,7 +296,7 @@ class RuntimeMetricsCollector(object):
     def flush(self):
         """Collects and flushes enabled metrics to the Datadog Agent.
         """
-        if not self.statsd:
+        if not self._statsd:
             log.warn('Attempted flush with uninitialized or failed statsd client')
             return
 
@@ -273,4 +304,34 @@ class RuntimeMetricsCollector(object):
 
         for metric_key, metric_value in metrics.items():
             log.info('Flushing metric "{}:{}" to Datadog agent'.format(metric_key, metric_value))
-            self.statsd.gauge(metric_key, metric_value)
+            self._statsd.gauge(metric_key, metric_value)
+
+
+class RuntimeMetricsCollectorWorker(object):
+    def __init__(self, flush_interval=FLUSH_INTERVAL):
+        self._lock = threading.Lock()
+        self._stay_alive = None
+        self._thread = None
+        self._flush_interval = flush_interval
+        self.collector = RuntimeMetricsCollector()
+
+    def _target(self):
+        while True:
+            self.collector.flush()
+            with self._lock:
+                 if self._stay_alive is False:
+                     break
+            time.sleep(self._flush_interval)
+
+    def start(self):
+        if self._thread:
+            log.info('Ignoring start as worker already started')
+            return
+        self._stay_alive = True
+        self._thread = threading.Thread(target=self._target)
+        self._thread.setDaemon(True)
+        self._thread.start()
+
+    def stop(self):
+        with self._lock:
+            self._stay_alive = False
