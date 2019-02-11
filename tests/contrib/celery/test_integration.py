@@ -11,10 +11,15 @@ from .base import CeleryBaseTestCase
 from tests.opentracer.utils import init_tracer
 
 
+class MyException(Exception):
+    pass
+
+
 class CeleryIntegrationTask(CeleryBaseTestCase):
     """Ensures that the tracer works properly with a real Celery application
     without breaking the Application or Task API.
     """
+
     def test_concurrent_delays(self):
         # it should create one trace for each delayed execution
         @self.app.task
@@ -197,6 +202,28 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
         ok_('Task class is failing' in span.get_tag('error.stack'))
 
+    def test_fn_exception_expected(self):
+        # it should catch exceptions in task functions
+        @self.app.task(throws=(MyException,))
+        def fn_exception():
+            raise MyException('Task class is failing')
+
+        t = fn_exception.apply()
+        ok_(t.failed())
+        ok_('Task class is failing' in t.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_exception')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 0)
+
     def test_fn_retry_exception(self):
         # it should not catch retry exceptions in task functions
         @self.app.task
@@ -282,6 +309,36 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('error.msg'), 'Task class is failing')
         ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
         ok_('Task class is failing' in span.get_tag('error.stack'))
+
+    def test_class_task_exception_expected(self):
+        # it should catch exceptions in class based tasks
+        class BaseTask(self.app.Task):
+            throws = (MyException,)
+
+            def run(self):
+                raise MyException('Task class is failing')
+
+        t = BaseTask()
+        # register the Task class if it's available (required in Celery 4.0+)
+        register_task = getattr(self.app, 'register_task', None)
+        if register_task is not None:
+            register_task(t)
+
+        r = t.apply()
+        ok_(r.failed())
+        ok_('Task class is failing' in r.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.BaseTask')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), r.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 0)
 
     def test_shared_task(self):
         # Ensure Django Shared Task are supported
