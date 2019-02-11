@@ -105,6 +105,65 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 continue
             self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
+    def test_trace_search_enabled(self):
+        """
+        When making a request
+            When an event sample rate is not set or if globally trace search is off
+                We expect the root span to have the appropriate tag
+        """
+        @self.app.route('/')
+        def index():
+            return 'Hello Flask', 200
+
+        # turn on master switch
+        self.tracer.trace_search_enabled = True
+
+        # test without integration config
+        with self.override_global_tracer(self.tracer):
+            with self.override_config('flask', dict(event_sample_rate=None)):
+                res = self.client.get('/')
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.data, b'Hello Flask')
+
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+
+        # test with integration config
+        with self.override_global_tracer(self.tracer):
+            with self.override_config('flask', dict(event_sample_rate=1)):
+                res = self.client.get('/')
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.data, b'Hello Flask')
+        root = self.get_root_span()
+        self.assertEqual(root.get_metric(EVENT_SAMPLE_RATE_KEY), 1)
+
+    def test_trace_search_disabled(self):
+        @self.app.route('/')
+        def index():
+            return 'Hello Flask', 200
+
+        # turn off master switch
+        self.tracer.trace_search_enabled = False
+
+        # test without integration config
+        with self.override_global_tracer(self.tracer):
+            with self.override_config('flask', dict(event_sample_rate=None)):
+                res = self.client.get('/')
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.data, b'Hello Flask')
+
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+
+        # test with integration config
+        with self.override_global_tracer(self.tracer):
+            with self.override_config('flask', dict(event_sample_rate=1)):
+                res = self.client.get('/')
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.data, b'Hello Flask')
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+
     def test_distributed_tracing(self):
         """
         When making a request

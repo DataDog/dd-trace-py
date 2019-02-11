@@ -286,7 +286,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
         # Configure trace search sample rate
-        if config.flask.event_sample_rate is not None:
+        if config.flask.event_sample_rate is not None and pin.tracer.trace_search_enabled:
             s.set_tag(EVENT_SAMPLE_RATE_KEY, config.flask.event_sample_rate)
 
         s.set_tag(FLASK_VERSION, flask_version_str)
