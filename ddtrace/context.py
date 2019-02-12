@@ -1,10 +1,10 @@
-import logging
 import threading
 
 from .constants import SAMPLING_PRIORITY_KEY
+from .internal.logger import get_logger
 from .utils.formats import asbool, get_env
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Context(object):

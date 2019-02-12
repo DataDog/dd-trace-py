@@ -9,6 +9,7 @@ import sys
 import logging
 
 from ddtrace.utils.formats import asbool, get_env
+from ddtrace.internal.logger import get_logger
 
 logs_injection = asbool(get_env('logs', 'injection'))
 DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s'.format(
@@ -28,7 +29,7 @@ if debug and debug.lower() == "true":
 else:
     logging.basicConfig(format=DD_LOG_FORMAT)
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 EXTRA_PATCHED_MODULES = {
     "bottle": True,

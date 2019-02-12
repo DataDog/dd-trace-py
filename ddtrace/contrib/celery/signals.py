@@ -1,9 +1,8 @@
-import logging
-
 from ddtrace import Pin, config
 
 from celery import registry
 
+from ...internal.logger import get_logger
 from . import constants as c
 from .utils import (
     tags_from_context,
@@ -13,7 +12,7 @@ from .utils import (
     retrieve_span,
 )
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 SPAN_TYPE = 'worker'
 
 

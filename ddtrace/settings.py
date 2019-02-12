@@ -1,7 +1,7 @@
 import collections
 from copy import deepcopy
-import logging
 
+from .internal.logger import get_logger
 from .pin import Pin
 from .span import Span
 from .utils.attrdict import AttrDict
@@ -9,7 +9,7 @@ from .utils.merge import deepmerge
 from .utils.http import normalize_header_name
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class ConfigException(Exception):

@@ -1,10 +1,9 @@
-import logging
-
 from ..context import Context
+from ..internal.logger import get_logger
 
 from .utils import get_wsgi_header
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
