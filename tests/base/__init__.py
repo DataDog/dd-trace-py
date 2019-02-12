@@ -44,6 +44,22 @@ class BaseTestCase(unittest.TestCase):
             os.environ.update(original)
 
     @contextlib.contextmanager
+    def override_global_config(self, values):
+        """
+        Temporarily override an global configuration
+        >>> with self.override_global_config(dict(name=value,...)):
+            # Your test
+        """
+        # DEV: Uses dict as interface but internally handled as attributes on Config instance
+        analytics_original = ddtrace.config.analytics
+
+        ddtrace.config.analytics = values.get('analytics', analytics_original)
+        try:
+            yield
+        finally:
+            ddtrace.config.analytics = analytics_original
+
+    @contextlib.contextmanager
     def override_config(self, integration, values):
         """
         Temporarily override an integration configuration value

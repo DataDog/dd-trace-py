@@ -77,20 +77,22 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.resource, '/')
         self.assertEqual(req_span.error, 0)
 
-    def test_event_sample_rate(self):
+    def test_trace_search_global_on_integration_default(self):
         """
         When making a request
-            When an event sample rate is set
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
         @self.app.route('/')
         def index():
             return 'Hello Flask', 200
 
-        with self.override_config('flask', dict(event_sample_rate=1)):
-            res = self.client.get('/')
-            self.assertEqual(res.status_code, 200)
-            self.assertEqual(res.data, b'Hello Flask')
+        # test without integration config
+        with self.override_global_trace_search(True):
+            with self.override_config('flask', dict()):
+                res = self.client.get('/')
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.data, b'Hello Flask')
 
         root = self.get_root_span()
         root.assert_matches(
@@ -105,64 +107,88 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 continue
             self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
-    def test_trace_search_enabled(self):
+    def test_trace_search_global_on_integration_on(self):
         """
         When making a request
-            When an event sample rate is not set or if globally trace search is off
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
         @self.app.route('/')
         def index():
             return 'Hello Flask', 200
 
-        # turn on master switch
-        self.tracer.trace_search_enabled = True
-
-        # test without integration config
-        with self.override_global_tracer(self.tracer):
-            with self.override_config('flask', dict(event_sample_rate=None)):
+        with self.override_global_trace_search(True):
+            with self.override_config('flask', dict(trace_search=True, event_sample_rate=0.5)):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')
 
         root = self.get_root_span()
-        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+        root.assert_matches(
+            name='flask.request',
+            metrics={
+                EVENT_SAMPLE_RATE_KEY: 0.5,
+            },
+        )
 
-        # test with integration config
-        with self.override_global_tracer(self.tracer):
-            with self.override_config('flask', dict(event_sample_rate=1)):
-                res = self.client.get('/')
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.data, b'Hello Flask')
-        root = self.get_root_span()
-        self.assertEqual(root.get_metric(EVENT_SAMPLE_RATE_KEY), 1)
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
-    def test_trace_search_disabled(self):
+    def test_trace_search_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
         @self.app.route('/')
         def index():
             return 'Hello Flask', 200
 
-        # turn off master switch
-        self.tracer.trace_search_enabled = False
-
         # test without integration config
-        with self.override_global_tracer(self.tracer):
-            with self.override_config('flask', dict(event_sample_rate=None)):
+        with self.override_global_trace_search(False):
+            with self.override_config('flask', dict(event_sample_rate=0.5)):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+
+    def test_trace_search_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        @self.app.route('/')
+        def index():
+            return 'Hello Flask', 200
 
         # test with integration config
-        with self.override_global_tracer(self.tracer):
-            with self.override_config('flask', dict(event_sample_rate=1)):
+        with self.override_global_trace_search(False):
+            with self.override_config('flask', dict(trace_search=True, event_sample_rate=0.5)):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')
         root = self.get_root_span()
-        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+        root.assert_matches(
+            name='flask.request',
+            metrics={
+                EVENT_SAMPLE_RATE_KEY: 0.5,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
 
     def test_distributed_tracing(self):
         """

@@ -5,6 +5,7 @@ from ..pin import Pin
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
+from .utils.formats import asbool
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +20,8 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
         self._http = HttpConfig()
+        # Master switch for turning on and off trace search by default
+        self.analytics = asbool(environ.get('DD_ANALYTICS', False))
 
     def __getattr__(self, name):
         if name not in self._config:

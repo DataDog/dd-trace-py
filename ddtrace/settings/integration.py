@@ -37,7 +37,8 @@ class IntegrationConfig(AttrDict):
 
         # Set default keys/values
         # DEV: Default to `None` which means do not set this key
-        self['event_sample_rate'] = None
+        self['analytics'] = None
+        self['analytics_sample_rate'] = 1.0
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))

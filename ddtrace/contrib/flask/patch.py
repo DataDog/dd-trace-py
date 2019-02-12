@@ -12,6 +12,7 @@ from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
+from ...utils.formats import get_env
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
@@ -34,6 +35,10 @@ config._add('flask', dict(
     distributed_tracing_enabled=True,
     template_default_name='<memory>',
     trace_signals=True,
+
+    # Trace search configuration
+    trace_search=get_env('flask', 'trace_search', None),
+    event_sample_rate=get_env('flask', 'event_sample_rate', 1.0),
 
     # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
     # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
@@ -285,9 +290,10 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
-        # Configure trace search sample rate
-        if config.flask.event_sample_rate is not None and pin.tracer.trace_search_enabled:
-            s.set_tag(EVENT_SAMPLE_RATE_KEY, config.flask.event_sample_rate)
+        # Set event sample rate for trace search (analytics)
+        event_sample_rate = config.flask.get_event_sample_rate()
+        if event_sample_rate:
+            s.set_tag(EVENT_SAMPLE_RATE_KEY, event_sample_rate)
 
         s.set_tag(FLASK_VERSION, flask_version_str)
 
