@@ -87,7 +87,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        # test without integration config
         with self.override_global_trace_search(True):
             with self.override_config('flask', dict()):
                 res = self.client.get('/')
@@ -98,7 +97,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         root.assert_matches(
             name='flask.request',
             metrics={
-                EVENT_SAMPLE_RATE_KEY: 1,
+                EVENT_SAMPLE_RATE_KEY: 1.0,
             },
         )
 
@@ -146,9 +145,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        # test without integration config
         with self.override_global_trace_search(False):
-            with self.override_config('flask', dict(event_sample_rate=0.5)):
+            with self.override_config('flask', dict()):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')
@@ -171,7 +169,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        # test with integration config
         with self.override_global_trace_search(False):
             with self.override_config('flask', dict(trace_search=True, event_sample_rate=0.5)):
                 res = self.client.get('/')

@@ -1,16 +1,34 @@
+import os
+
 # 3p
 from bottle import response, request
 
 # stdlib
 import ddtrace
-from ddtrace.ext import http
 
 # project
 from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...ext import http, AppTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from ...utils.formats import get_env
 
 SPAN_TYPE = 'web'
+
+# Configure default configuration
+config._add('bottle', dict(
+    # Bottle service configuration
+    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
+    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'bottle',
+    app='bottle',
+    app_type=AppTypes.web,
+
+    distributed_tracing_enabled=False,
+
+    # Trace search configuration
+    trace_search=get_env('bottle', 'trace_search', None),
+    event_sample_rate=get_env('bottle', 'event_sample_rate', 1.0),
+))
 
 
 class TracePlugin(object):
@@ -38,9 +56,10 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
-                # Configure trace search sample rate
-                if config.bottle.event_sample_rate is not None:
-                    s.set_tag(EVENT_SAMPLE_RATE_KEY, config.bottle.event_sample_rate)
+                # Set event sample rate for trace search (analytics)
+                event_sample_rate = config.bottle.get_event_sample_rate()
+                if event_sample_rate:
+                    s.set_tag(EVENT_SAMPLE_RATE_KEY, event_sample_rate)
 
                 code = 0
                 try:
