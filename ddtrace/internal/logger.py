@@ -1,6 +1,8 @@
 import collections
 import logging
 
+from ..utils.formats import get_env
+
 
 def get_logger(name):
     """
@@ -63,8 +65,10 @@ class DDLogger(logging.Logger):
         # Dict to keep track of the current time bucket per name/level/pathname/lineno
         self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))
 
-        # Allow 1 log record per name/level/pathname/lineno every 60 seconds
-        self.rate_limit = 60
+        # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
+        # Allow configuring via `DD_LOGGING_RATE_LIMIT`
+        # DEV: `DD_LOGGING_RATE_LIMIT=0` means to disable all rate limiting
+        self.rate_limit = int(get_env('logging', 'rate_limit', default=60))
 
     def handle(self, record):
         """
@@ -77,6 +81,11 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
+        # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
+        if not self.rate_limit:
+            super(DDLogger, self).handle(record)
+            return
+
         # Allow 1 log record by name/level/pathname/lineno every X seconds
         # DEV: current unix time / rate (e.g. 300 seconds) = time bucket
         #      int(1546615098.8404942 / 300) = 515538
