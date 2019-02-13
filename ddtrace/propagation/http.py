@@ -56,34 +56,15 @@ class HTTPPropagator(object):
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
 
     @staticmethod
-    def extract_trace_id(headers):
-        trace_id = 0
+    def extract_header_value(possible_header_names, headers, default=None):
+        rv = default
 
-        for key in POSSIBLE_HTTP_HEADER_TRACE_IDS:
-            if key in headers:
-                trace_id = headers.get(key)
+        for header, value in headers.items():
+            for header_name in possible_header_names:
+                if header.lower() == header_name.lower():
+                    return value
 
-        return int(trace_id)
-
-    @staticmethod
-    def extract_parent_span_id(headers):
-        parent_span_id = 0
-
-        for key in POSSIBLE_HTTP_HEADER_PARENT_IDS:
-            if key in headers:
-                parent_span_id = headers.get(key)
-
-        return int(parent_span_id)
-
-    @staticmethod
-    def extract_sampling_priority(headers):
-        sampling_priority = None
-
-        for key in POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES:
-            if key in headers:
-                sampling_priority = headers.get(key)
-
-        return sampling_priority
+        return rv
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
@@ -107,9 +88,9 @@ class HTTPPropagator(object):
             return Context()
 
         try:
-            trace_id = HTTPPropagator.extract_trace_id(headers)
-            parent_span_id = HTTPPropagator.extract_parent_span_id(headers)
-            sampling_priority = HTTPPropagator.extract_sampling_priority(headers)
+            trace_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers, default=0))
+            parent_span_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_PARENT_IDS, headers, default=0))
+            sampling_priority = HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers)
 
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)
