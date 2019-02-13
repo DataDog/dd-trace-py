@@ -3,7 +3,6 @@ from celery.exceptions import Retry
 
 from nose.tools import eq_, ok_
 
-from ddtrace import config
 from ddtrace.contrib.celery import patch, unpatch
 
 from .base import CeleryBaseTestCase
@@ -306,41 +305,39 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         eq_(span.get_tag('celery.state'), 'SUCCESS')
 
     def test_worker_service_name(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
         # Ensure worker service name can be changed via
         # configuration object
-        config.celery['worker_service_name'] = 'worker-notify'
+        with self.override_config('celery', dict(worker_service_name='worker-notify')):
+            t = fn_task.apply()
+            self.assertTrue(t.successful())
+            self.assertEqual(42, t.result)
 
-        @self.app.task
-        def fn_task():
-            return 42
-
-        t = fn_task.apply()
-        ok_(t.successful())
-        eq_(42, t.result)
-
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
-        span = traces[0][0]
-        eq_(span.service, 'worker-notify')
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.service, 'worker-notify')
 
     def test_producer_service_name(self):
-        # Ensure producer service name can be changed via
-        # configuration object
-        config.celery['producer_service_name'] = 'task-queue'
-
         @self.app.task
         def fn_task():
             return 42
 
-        t = fn_task.delay()
-        eq_('PENDING', t.status)
+        # Ensure producer service name can be changed via
+        # configuration object
+        with self.override_config('celery', dict(producer_service_name='task-queue')):
+            t = fn_task.delay()
+            self.assertEqual('PENDING', t.status)
 
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
-        span = traces[0][0]
-        eq_(span.service, 'task-queue')
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.service, 'task-queue')
 
     def test_fn_task_apply_async_ot(self):
         """OpenTracing version of test_fn_task_apply_async."""
