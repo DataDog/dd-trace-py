@@ -386,6 +386,24 @@ class TestTracedConnection(BaseTracerTestCase):
         super(TestTracedConnection, self).setUp()
         self.connection = mock.Mock()
 
+    def test_split_by_host(self):
+        connection = self.connection
+        connection.host = 'hostname'
+
+        with self.override_config('dbapi2', {'split_by_host': True}):
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_connection = TracedConnection(connection, pin)
+
+            pin = Pin.get_from(traced_connection)
+            assert pin.service == 'hostname'
+
+        with self.override_config('dbapi2', {'split_by_host': False}):
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_connection = TracedConnection(connection, pin)
+
+            pin = Pin.get_from(traced_connection)
+            assert pin.service == 'pin_name'
+
     def test_cursor_class(self):
         pin = Pin('pin_name', tracer=self.tracer)
 

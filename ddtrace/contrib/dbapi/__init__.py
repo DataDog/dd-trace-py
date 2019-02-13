@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 config._add('dbapi2', dict(
     trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),
+    split_by_host=asbool(get_env('dbapi2', 'split_by_host', 'false'))
 ))
 
 
@@ -150,6 +151,10 @@ class TracedConnection(wrapt.ObjectProxy):
         self._self_datadog_name = '{}.connection'.format(name)
         db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
         db_pin.onto(self)
+        # Split service names by hostname of the connection. Useful if multiple services
+        # have their own DB services that use similar drivers.
+        if config.dbapi2.split_by_host:
+            Pin.override(self, service=conn.host)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
