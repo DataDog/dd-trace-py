@@ -88,8 +88,10 @@ class HTTPPropagator(object):
             return Context()
 
         try:
-            trace_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers, default=0))
-            parent_span_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_PARENT_IDS, headers, default=0))
+            trace_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers,
+                                                               default=0))
+            parent_span_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_PARENT_IDS, headers,
+                                                                     default=0))
             sampling_priority = HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers)
 
             if sampling_priority is not None:
