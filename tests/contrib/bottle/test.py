@@ -7,7 +7,7 @@ from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
 
 from ddtrace import compat
-from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
 
 SERVICE = 'bottle-app'
@@ -101,7 +101,7 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
 
-    def test_trace_search_global_on_integration_default(self):
+    def test_analytics_global_on_integration_default(self):
         """
         When making a request
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
@@ -113,7 +113,7 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_trace_search(True):
+        with self.override_global_config(dict(analytics=True)):
             with self.override_config('bottle', dict()):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
@@ -123,16 +123,16 @@ class TraceBottleTest(BaseTracerTestCase):
         root.assert_matches(
             name='bottle.request',
             metrics={
-                EVENT_SAMPLE_RATE_KEY: 1.0,
+                ANALYTICS_SAMPLE_RATE_KEY: 1.0,
             },
         )
 
         for span in self.spans:
             if span == root:
                 continue
-            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    def test_trace_search_global_on_integration_on(self):
+    def test_analytics_global_on_integration_on(self):
         """
         When making a request
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
@@ -144,8 +144,8 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_trace_search(True):
-            with self.override_config('bottle', dict(trace_search=True, event_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics=True)):
+            with self.override_config('bottle', dict(analytics=True, analytics_sample_rate=0.5)):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
                 eq_(compat.to_unicode(resp.body), u'hi dougie')
@@ -154,16 +154,16 @@ class TraceBottleTest(BaseTracerTestCase):
         root.assert_matches(
             name='bottle.request',
             metrics={
-                EVENT_SAMPLE_RATE_KEY: 0.5,
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
             },
         )
 
         for span in self.spans:
             if span == root:
                 continue
-            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    def test_trace_search_global_off_integration_default(self):
+    def test_analytics_global_off_integration_default(self):
         """
         When making a request
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
@@ -175,21 +175,21 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_trace_search(False):
+        with self.override_global_config(dict(analytics=False)):
             with self.override_config('bottle', dict()):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
                 eq_(compat.to_unicode(resp.body), u'hi dougie')
 
         root = self.get_root_span()
-        self.assertIsNone(root.get_metric(EVENT_SAMPLE_RATE_KEY))
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         for span in self.spans:
             if span == root:
                 continue
-            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    def test_trace_search_global_off_integration_on(self):
+    def test_analytics_global_off_integration_on(self):
         """
         When making a request
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
@@ -201,8 +201,8 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_trace_search(False):
-            with self.override_config('bottle', dict(trace_search=True, event_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics=False)):
+            with self.override_config('bottle', dict(analytics=True, analytics_sample_rate=0.5)):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
                 eq_(compat.to_unicode(resp.body), u'hi dougie')
@@ -211,14 +211,14 @@ class TraceBottleTest(BaseTracerTestCase):
         root.assert_matches(
             name='bottle.request',
             metrics={
-                EVENT_SAMPLE_RATE_KEY: 0.5,
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
             },
         )
 
         for span in self.spans:
             if span == root:
                 continue
-            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_200_ot(self):
         ot_tracer = init_tracer('my_svc', self.tracer)

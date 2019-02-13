@@ -7,7 +7,7 @@ from bottle import response, request
 import ddtrace
 
 # project
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http, AppTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -26,8 +26,8 @@ config._add('bottle', dict(
     distributed_tracing_enabled=False,
 
     # Trace search configuration
-    trace_search=get_env('bottle', 'trace_search', None),
-    event_sample_rate=get_env('bottle', 'event_sample_rate', 1.0),
+    analytics=get_env('bottle', 'analytics', None),
+    analytics_sample_rate=get_env('bottle', 'analytics_sample_rate', 1.0),
 ))
 
 
@@ -57,9 +57,9 @@ class TracePlugin(object):
 
             with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
                 # Set event sample rate for trace search (analytics)
-                event_sample_rate = config.bottle.get_event_sample_rate()
-                if event_sample_rate:
-                    s.set_tag(EVENT_SAMPLE_RATE_KEY, event_sample_rate)
+                analytics_sample_rate = config.bottle.get_analytics_sample_rate()
+                if analytics_sample_rate:
+                    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
                 code = 0
                 try:
