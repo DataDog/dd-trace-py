@@ -28,7 +28,6 @@ The library can be configured globally and per instance, using the Configuration
     session = Session()
     cfg = config.get_from(session)
     cfg['service_name'] = 'auth-api'
-    cfg['distributed_tracing'] = False
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """

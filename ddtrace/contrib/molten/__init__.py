@@ -13,8 +13,23 @@ You may also enable molten tracing automatically via ``ddtrace-run``::
 
     ddtrace-run python app.py
 
-To disable distributed tracing when using autopatching, set the
-``DD_MOLTEN_DISTRIBUTED_TRACING`` environment variable to ``False``.
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.molten['distributed_tracing']
+
+   Whether to parse distributed tracing headers from requests received by your Molten app.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.molten['service_name']
+
+   The service name reported for your Molten app.
+
+   Can also be configured via the ``DD_MOLTEN_SERVICE_NAME`` environment variable.
+
+   Default: ``'molten'``
 """
 from ...utils.importlib import require_modules
 

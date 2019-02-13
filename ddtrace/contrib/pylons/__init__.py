@@ -12,10 +12,7 @@ the following::
 
     traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app')
 
-Then you can define your routes and views as usual. To disable distributed tracing,
-set the following keyword argument::
-
-    traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app', distributed_tracing=False)
+Then you can define your routes and views as usual.
 """
 
 from ...utils.importlib import require_modules
