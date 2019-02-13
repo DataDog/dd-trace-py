@@ -55,20 +55,115 @@ class TestRequestTracing(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    def test_analytics_sample_rate(self):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
         # it should create a root span when there is a handler hit
         # with the proper tags
-        with self.override_config('aiohttp', dict(analytics_sample_rate=1)):
-            request = yield from self.client.request('GET', '/template/')
-            eq_(200, request.status)
-            yield from request.text()
+        with self.override_global_config(dict(analytics=True)):
+            with self.override_config('aiohttp', dict()):
+                request = yield from self.client.request('GET', '/template/')
+                self.assertEqual(200, request.status)
+                yield from request.text()
 
         # Assert root span sets the appropriate metric
         root = self.get_root_span()
         root.assert_matches(
             name='aiohttp.request',
             metrics={
-                ANALYTICS_SAMPLE_RATE_KEY: 1,
+                ANALYTICS_SAMPLE_RATE_KEY: 1.0,
+            },
+        )
+
+        # Assert non-root spans do not have this metric set
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        # it should create a root span when there is a handler hit
+        # with the proper tags
+        with self.override_global_config(dict(analytics=True)):
+            with self.override_config('aiohttp', dict(analytics=True, analytics_sample_rate=0.5)):
+                request = yield from self.client.request('GET', '/template/')
+                self.assertEqual(200, request.status)
+                yield from request.text()
+
+        # Assert root span sets the appropriate metric
+        root = self.get_root_span()
+        root.assert_matches(
+            name='aiohttp.request',
+            metrics={
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
+            },
+        )
+
+        # Assert non-root spans do not have this metric set
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        # it should create a root span when there is a handler hit
+        # with the proper tags
+        with self.override_global_config(dict(analytics=False)):
+            with self.override_config('aiohttp', dict()):
+                request = yield from self.client.request('GET', '/template/')
+                self.assertEqual(200, request.status)
+                yield from request.text()
+
+        # Assert root span sets the appropriate metric
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+        # Assert non-root spans do not have this metric set
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        # it should create a root span when there is a handler hit
+        # with the proper tags
+        with self.override_global_config(dict(analytics=False)):
+            with self.override_config('aiohttp', dict(analytics=True, analytics_sample_rate=0.5)):
+                request = yield from self.client.request('GET', '/template/')
+                self.assertEqual(200, request.status)
+                yield from request.text()
+
+        # Assert root span sets the appropriate metric
+        root = self.get_root_span()
+        root.assert_matches(
+            name='aiohttp.request',
+            metrics={
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
             },
         )
 
