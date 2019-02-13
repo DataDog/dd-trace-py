@@ -11,7 +11,7 @@ from ...settings import config
 
 class TraceMiddleware(object):
 
-    def __init__(self, tracer, service="falcon", distributed_tracing=False):
+    def __init__(self, tracer, service="falcon", distributed_tracing=True):
         # store tracing references
         self.tracer = tracer
         self.service = service
@@ -23,7 +23,9 @@ class TraceMiddleware(object):
             headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
-            self.tracer.context_provider.activate(context)
+            # Only activate the new context if there was a trace id extracted
+            if context.trace_id:
+                self.tracer.context_provider.activate(context)
 
         span = self.tracer.trace(
             "falcon.request",

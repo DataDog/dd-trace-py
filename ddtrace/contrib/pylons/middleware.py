@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 class PylonsTraceMiddleware(object):
 
-    def __init__(self, app, tracer, service='pylons', distributed_tracing=False):
+    def __init__(self, app, tracer, service='pylons', distributed_tracing=True):
         self.app = app
         self._service = service
         self._distributed_tracing = distributed_tracing
