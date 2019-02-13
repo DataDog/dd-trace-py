@@ -8,8 +8,8 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import http, AppTypes
 from ...propagation.http import HTTPPropagator
 from ...settings import config as ddconfig
 
@@ -47,8 +47,9 @@ class PylonsTraceMiddleware(object):
             span.span_type = http.TYPE
 
             # Configure trace search sample rate
-            if ddconfig.pylons.event_sample_rate is not None:
-                span.set_tag(EVENT_SAMPLE_RATE_KEY, ddconfig.pylons.event_sample_rate)
+            analytics_sample_rate = ddconfig.pylons.get_analytics_sample_rate()
+            if analytics_sample_rate:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.analytics_sample_rate)
 
             if not span.sampled:
                 return self.app(environ, start_response)
