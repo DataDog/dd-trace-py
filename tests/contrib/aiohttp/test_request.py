@@ -8,7 +8,7 @@ from nose.tools import eq_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
-from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
@@ -55,10 +55,10 @@ class TestRequestTracing(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    def test_event_sample_rate(self):
+    def test_analytics_sample_rate(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        with self.override_config('aiohttp', dict(event_sample_rate=1)):
+        with self.override_config('aiohttp', dict(analytics_sample_rate=1)):
             request = yield from self.client.request('GET', '/template/')
             eq_(200, request.status)
             yield from request.text()
@@ -68,7 +68,7 @@ class TestRequestTracing(TraceTestCase):
         root.assert_matches(
             name='aiohttp.request',
             metrics={
-                EVENT_SAMPLE_RATE_KEY: 1,
+                ANALYTICS_SAMPLE_RATE_KEY: 1,
             },
         )
 
@@ -76,7 +76,7 @@ class TestRequestTracing(TraceTestCase):
         for span in self.spans:
             if span == root:
                 continue
-            self.assertIsNone(span.get_metric(EVENT_SAMPLE_RATE_KEY))
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     @unittest_run_loop
     @asyncio.coroutine

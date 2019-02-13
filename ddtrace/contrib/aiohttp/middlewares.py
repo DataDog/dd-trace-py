@@ -2,7 +2,7 @@ import asyncio
 
 from ..asyncio import context_provider
 from ...compat import stringify
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -47,8 +47,9 @@ def trace_middleware(app, handler):
         )
 
         # Configure trace search sample rate
-        if config.aiohttp.event_sample_rate is not None:
-            request_span.set_tag(EVENT_SAMPLE_RATE_KEY, config.aiohttp.event_sample_rate)
+        analytics_sample_rate = config.aiohttp.get_analytics_sample_rate()
+        if analytics_sample_rate:
+            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiohttp.analytics_sample_rate)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
