@@ -37,7 +37,7 @@ class TraceMiddleware(object):
         # Configure trace search sample rate
         analytics_sample_rate = config.falcon.get_analytics_sample_rate()
         if analytics_sample_rate:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.falcon.analytics_sample_rate)
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)

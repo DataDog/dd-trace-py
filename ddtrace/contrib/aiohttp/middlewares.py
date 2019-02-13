@@ -49,7 +49,7 @@ def trace_middleware(app, handler):
         # Configure trace search sample rate
         analytics_sample_rate = config.aiohttp.get_analytics_sample_rate()
         if analytics_sample_rate:
-            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiohttp.analytics_sample_rate)
+            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code

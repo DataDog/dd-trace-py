@@ -75,7 +75,7 @@ def trace_tween_factory(handler, registry):
                 # Configure trace search sample rate
                 analytics_sample_rate = config.pyramid.get_analytics_sample_rate()
                 if analytics_sample_rate:
-                    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pyramid.analytics_sample_rate)
+                    span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
