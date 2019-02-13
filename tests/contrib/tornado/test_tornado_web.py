@@ -3,7 +3,7 @@ from nose.tools import eq_, ok_
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from tests.opentracer.utils import init_tracer
@@ -36,15 +36,68 @@ class TestTornadoWeb(TornadoTestCase):
         eq_('/success/', request_span.get_tag('http.url'))
         eq_(0, request_span.error)
 
-    def test_event_sample_rate(self):
-        with self.override_config('tornado', dict(event_sample_rate=1)):
-            # it should trace a handler that returns 200
-            response = self.fetch('/success/')
-            self.assertEqual(200, response.code)
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics=True)):
+            with self.override_config('tornado', dict()):
+                # it should trace a handler that returns 200
+                response = self.fetch('/success/')
+                self.assertEqual(200, response.code)
 
-            self.assert_structure(
-                dict(name='tornado.request', metrics={EVENT_SAMPLE_RATE_KEY: 1}),
-            )
+                self.assert_structure(
+                    dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+                )
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics=True)):
+            with self.override_config('tornado', dict(analytics=True, analytics_sample_rate=0.5)):
+                # it should trace a handler that returns 200
+                response = self.fetch('/success/')
+                self.assertEqual(200, response.code)
+
+                self.assert_structure(
+                    dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+                )
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics=False)):
+            with self.override_config('tornado', dict()):
+                # it should trace a handler that returns 200
+                response = self.fetch('/success/')
+                self.assertEqual(200, response.code)
+
+                root = self.get_root_span()
+                self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics=False)):
+            with self.override_config('tornado', dict(analytics=True, analytics_sample_rate=0.5)):
+                # it should trace a handler that returns 200
+                response = self.fetch('/success/')
+                self.assertEqual(200, response.code)
+
+                self.assert_structure(
+                    dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+                )
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
