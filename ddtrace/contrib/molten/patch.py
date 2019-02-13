@@ -4,7 +4,7 @@ from wrapt import wrap_function_wrapper as _w
 import molten
 
 from ... import Pin, config
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes, http
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
@@ -85,8 +85,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
         # Configure trace search sample rate
-        if config.molten.event_sample_rate is not None:
-            span.set_tag(EVENT_SAMPLE_RATE_KEY, config.molten.event_sample_rate)
+        analytics_sample_rate = config.molten.get_analytics_sample_rate()
+        if analytics_sample_rate:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
