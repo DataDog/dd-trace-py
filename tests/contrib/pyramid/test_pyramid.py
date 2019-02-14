@@ -45,4 +45,4 @@ class TestPyramidDistributedTracing(PyramidBase):
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
         eq_(span.get_metric('_sampling_priority_v1'), 2)
-        eq_(span.get_tag('_dd-origin'), 'synthetics')
+        eq_(span.get_tag('_dd_origin'), 'synthetics')
