@@ -58,9 +58,8 @@ class HTTPPropagator(object):
         # Propagate priority only if defined
         if sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
-        origin = span_context._dd_origin
         # Propagate origin only if defined
-        if origin is not None:
+        if span_context._dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = str(span_context._dd_origin)
 
     @staticmethod
