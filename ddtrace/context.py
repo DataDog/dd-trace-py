@@ -25,7 +25,7 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
     _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
 
-    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
+    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None, _dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -41,6 +41,7 @@ class Context(object):
         self._parent_span_id = span_id
         self._sampled = sampled
         self._sampling_priority = sampling_priority
+        self._dd_origin = _dd_origin
 
     @property
     def trace_id(self):

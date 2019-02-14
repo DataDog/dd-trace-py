@@ -34,6 +34,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
+            'x-datadog-origin': 'synthetics',
         }
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
@@ -44,3 +45,4 @@ class TestPyramidDistributedTracing(PyramidBase):
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
         eq_(span.get_metric('_sampling_priority_v1'), 2)
+        eq_(span.get_tag('_dd-origin'), 'synthetics')
