@@ -1,5 +1,7 @@
 from nose.tools import eq_
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+
 from .utils import PyramidTestCase, PyramidBase
 
 
@@ -44,5 +46,5 @@ class TestPyramidDistributedTracing(PyramidBase):
         span = spans[0]
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
-        eq_(span.get_metric('_sampling_priority_v1'), 2)
-        eq_(span.get_tag('_dd.origin'), 'synthetics')
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        eq_(span.get_tag(ORIGIN_KEY), 'synthetics')
