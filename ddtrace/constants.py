@@ -1,6 +1,7 @@
 FILTERS_KEY = 'FILTERS'
 SAMPLE_RATE_METRIC_KEY = '_sample_rate'
 SAMPLING_PRIORITY_KEY = '_sampling_priority_v1'
+ORIGIN_KEY = '_dd_origin'
 EVENT_SAMPLE_RATE_KEY = '_dd1.sr.eausr'
 
 NUMERIC_TAGS = (EVENT_SAMPLE_RATE_KEY, )

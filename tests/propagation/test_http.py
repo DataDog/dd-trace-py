@@ -56,7 +56,7 @@ class TestHttpPropagation(TestCase):
             eq_(span.trace_id, 1234)
             eq_(span.parent_id, 5678)
             eq_(span.context.sampling_priority, 1)
-            eq_(span.context.sampling_priority, "synthetics")
+            eq_(span.context._dd_origin, "synthetics")
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
@@ -77,4 +77,4 @@ class TestHttpPropagation(TestCase):
             eq_(span.trace_id, 1234)
             eq_(span.parent_id, 5678)
             eq_(span.context.sampling_priority, 1)
-            eq_(span.context.sampling_priority, "synthetics")
+            eq_(span.context._dd_origin, "synthetics")

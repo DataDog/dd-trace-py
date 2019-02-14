@@ -3,7 +3,7 @@ from nose.tools import eq_, ok_
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY, EVENT_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.tornado import TornadoScopeManager
 from tests.opentracer.utils import init_tracer
@@ -320,7 +320,8 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
         headers = {
             'x-datadog-trace-id': '1234',
             'x-datadog-parent-id': '4567',
-            'x-datadog-sampling-priority': '2'
+            'x-datadog-sampling-priority': '2',
+            'x-datadog-origin': 'synthetics',
         }
         response = self.fetch('/success/', headers=headers)
         eq_(200, response.code)
@@ -341,6 +342,7 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
         assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != 'synthetics'
 
 
 class TestCustomTornadoWeb(TornadoTestCase):
