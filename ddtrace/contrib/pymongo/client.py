@@ -24,11 +24,6 @@ log = get_logger(__name__)
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def trace_mongo_client(client, tracer, service=mongox.TYPE):
-    tracer.set_service_info(
-        service=service,
-        app=mongox.TYPE,
-        app_type=AppTypes.db,
-    )
     traced_client = TracedMongoClient(client)
     ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
     return traced_client

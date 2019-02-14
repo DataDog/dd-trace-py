@@ -1,5 +1,5 @@
 from ... import compat
-from ...ext import http, errors, AppTypes
+from ...ext import http, errors
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
@@ -35,12 +35,6 @@ class TraceMiddleware(object):
         if getattr(app, '__dd_instrumentation', False):
             return
         setattr(app, '__dd_instrumentation', True)
-
-        self.app._tracer.set_service_info(
-            service=service,
-            app="flask",
-            app_type=AppTypes.web,
-        )
 
         # Install hooks which time requests.
         self.app.before_request(self._before_request)

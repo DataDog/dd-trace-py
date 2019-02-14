@@ -2,11 +2,11 @@ from django.db import connections
 
 # project
 from ...ext import sql as sqlx
-from ...ext import AppTypes
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ..dbapi import TracedCursor as DbApiTracedCursor
+
 from .conf import settings
+from ..dbapi import TracedCursor as DbApiTracedCursor
 
 log = get_logger(__name__)
 
@@ -60,11 +60,6 @@ def patch_conn(tracer, conn):
             'django.db.vendor': vendor,
             'django.db.alias': alias,
         }
-        tracer.set_service_info(
-            service=service,
-            app=prefix,
-            app_type=AppTypes.db,
-        )
 
         pin = Pin(service, tags=tags, tracer=tracer, app=prefix)
         return DbApiTracedCursor(conn._datadog_original_cursor(), pin)

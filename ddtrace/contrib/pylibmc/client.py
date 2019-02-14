@@ -48,15 +48,6 @@ class TracedClient(ObjectProxy):
         except Exception:
             log.debug("error setting addresses", exc_info=True)
 
-        # attempt to set the service info
-        try:
-            pin.tracer.set_service_info(
-                service=service,
-                app=memcached.SERVICE,
-                app_type=memcached.TYPE)
-        except Exception:
-            log.debug("error setting service info", exc_info=True)
-
     def clone(self, *args, **kwargs):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
