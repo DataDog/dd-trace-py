@@ -5,7 +5,6 @@ from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
 
-from ...util import override_config
 from . import BaseFlaskTestCase
 
 
@@ -116,8 +115,21 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        # Enable distributed tracing
-        with override_config('flask', dict(distributed_tracing_enabled=True)):
+        # Default: distributed tracing enabled
+        res = self.client.get('/', headers={
+            HTTP_HEADER_PARENT_ID: '12345',
+            HTTP_HEADER_TRACE_ID: '678910',
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data, b'Hello Flask')
+
+        # Assert parent and trace id are properly set on the root span
+        span = self.find_span_by_name(self.get_spans(), 'flask.request')
+        self.assertEqual(span.trace_id, 678910)
+        self.assertEqual(span.parent_id, 12345)
+
+        # Explicitly enable distributed tracing
+        with self.override_config('flask', dict(distributed_tracing_enabled=True)):
             res = self.client.get('/', headers={
                 HTTP_HEADER_PARENT_ID: '12345',
                 HTTP_HEADER_TRACE_ID: '678910',
@@ -131,26 +143,13 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(span.parent_id, 12345)
 
         # With distributed tracing disabled
-        with override_config('flask', dict(distributed_tracing_enabled=False)):
+        with self.override_config('flask', dict(distributed_tracing_enabled=False)):
             res = self.client.get('/', headers={
                 HTTP_HEADER_PARENT_ID: '12345',
                 HTTP_HEADER_TRACE_ID: '678910',
             })
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.data, b'Hello Flask')
-
-        # Assert parent and trace id are properly set on the root span
-        span = self.find_span_by_name(self.get_spans(), 'flask.request')
-        self.assertNotEqual(span.trace_id, 678910)
-        self.assertIsNone(span.parent_id)
-
-        # With default distributed tracing
-        res = self.client.get('/', headers={
-            HTTP_HEADER_PARENT_ID: '12345',
-            HTTP_HEADER_TRACE_ID: '678910',
-        })
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, b'Hello Flask')
 
         # Assert parent and trace id are properly set on the root span
         span = self.find_span_by_name(self.get_spans(), 'flask.request')

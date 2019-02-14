@@ -14,11 +14,8 @@ class TestTornadoWeb(TornadoTestCase):
     Ensure that Tornado web handlers are properly traced.
     """
     def get_settings(self):
-        return {
-            'datadog_trace': {
-                'distributed_tracing': True,
-            }
-        }
+        # distributed tracing enabled by default
+        return {}
 
     def test_success_handler(self):
         # it should trace a handler that returns 200
@@ -312,8 +309,12 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
     Ensure that Tornado web handlers are properly traced and are ignoring propagated HTTP headers when disabled.
     """
     def get_settings(self):
-        # distributed_tracing should be disabled by default
-        return {}
+        # distributed_tracing needs to be disabled manually
+        return {
+            'datadog_trace': {
+                'distributed_tracing': False,
+            },
+        }
 
     def test_no_propagation(self):
         # it should not propagate the HTTP context

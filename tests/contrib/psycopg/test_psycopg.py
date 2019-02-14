@@ -245,10 +245,7 @@ class PsycopgCore(BaseTracerTestCase):
 
         # ensure we have the service types
         service_meta = self.tracer.writer.pop_services()
-        expected = {
-            'db': {'app': 'postgres', 'app_type': 'db'},
-            'another': {'app': 'postgres', 'app_type': 'db'},
-        }
+        expected = {}
         self.assertEquals(service_meta, expected)
 
     def test_commit(self):

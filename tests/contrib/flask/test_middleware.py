@@ -115,9 +115,7 @@ class TestFlask(TestCase):
         eq_(s.meta.get(http.METHOD), 'GET')
 
         services = self.tracer.writer.pop_services()
-        expected = {
-            'test.flask.service': {'app': 'flask', 'app_type': 'web'},
-        }
+        expected = {}
         eq_(services, expected)
 
     def test_template(self):

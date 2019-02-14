@@ -40,11 +40,7 @@ class TestSQLite(BaseTracerTestCase):
         sqlite3.connect(':memory:')
 
         services = self.tracer.writer.pop_services()
-        self.assertEqual(len(services), 1)
-        expected = {
-            'sqlite': {'app': 'sqlite', 'app_type': 'db'}
-        }
-        self.assertEqual(expected, services)
+        self.assertEqual(services, {})
 
         ddtrace.tracer = backup_tracer
 
