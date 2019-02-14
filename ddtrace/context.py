@@ -1,7 +1,7 @@
 import logging
 import threading
 
-from .constants import SAMPLING_PRIORITY_KEY
+from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
 from .utils.formats import asbool, get_env
 
 log = logging.getLogger(__name__)
@@ -185,6 +185,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
 
                 # clean the current state
                 self._trace = []
@@ -203,6 +207,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
 
                 # Any open spans will remain as `self._trace`
                 # Any finished spans will get returned to be flushed
