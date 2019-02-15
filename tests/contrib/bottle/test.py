@@ -2,7 +2,7 @@ import bottle
 import ddtrace
 import webtest
 
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
 
@@ -57,11 +57,7 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(s.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
+        eq_(services, {})
 
     def test_500(self):
         @self.app.route('/hi')
@@ -164,8 +160,4 @@ class TraceBottleTest(BaseTracerTestCase):
         eq_(dd_span.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
+        eq_(services, {})

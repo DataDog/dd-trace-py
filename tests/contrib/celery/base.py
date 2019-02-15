@@ -1,6 +1,6 @@
 from celery import Celery
 
-from ddtrace import Pin, config
+from ddtrace import Pin
 from ddtrace.compat import PY2
 from ddtrace.contrib.celery import patch, unpatch
 
@@ -21,8 +21,6 @@ class CeleryBaseTestCase(BaseTracerTestCase):
     def setUp(self):
         super(CeleryBaseTestCase, self).setUp()
 
-        # keep track of original config
-        self._config = dict(config.celery)
         # instrument Celery and create an app with Broker and Result backends
         patch()
         self.pin = Pin(service='celery-unittest', tracer=self.tracer)
@@ -34,9 +32,6 @@ class CeleryBaseTestCase(BaseTracerTestCase):
         # remove instrumentation from Celery
         unpatch()
         self.app = None
-        # restore the global configuration
-        config.celery.update(self._config)
-        self._config = None
 
         super(CeleryBaseTestCase, self).tearDown()
 
