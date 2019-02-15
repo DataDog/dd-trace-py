@@ -153,10 +153,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
-        expected = {
-            'db': {'app': 'postgres', 'app_type': 'db'},
-            'another': {'app': 'postgres', 'app_type': 'db'},
-        }
+        expected = {}
         eq_(service_meta, expected)
 
     @mark_asyncio

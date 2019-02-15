@@ -8,7 +8,6 @@ import functools
 from ...ext import db
 from ...ext import net
 from ...ext import sql
-from ...ext import AppTypes
 from ...utils.deprecation import deprecated
 
 # 3p
@@ -23,12 +22,6 @@ def connection_factory(tracer, service="postgres"):
         >>> factory = connection_factor(my_tracer, service="my_db_service")
         >>> conn = pyscopg2.connect(..., connection_factory=factory)
     """
-
-    tracer.set_service_info(
-        service=service,
-        app="postgres",
-        app_type=AppTypes.db,
-    )
 
     return functools.partial(
         TracedConnection,

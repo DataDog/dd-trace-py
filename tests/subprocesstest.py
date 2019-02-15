@@ -84,7 +84,7 @@ class SubprocessTestCase(unittest.TestCase):
             stderr=subprocess.PIPE,
             env=sp_test_env,
         )
-        _, stderr = sp.communicate()
+        stdout, stderr = sp.communicate()
 
         if sp.returncode:
             try:
@@ -92,7 +92,11 @@ class SubprocessTestCase(unittest.TestCase):
                 raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
             except Exception:
                 exc_info = sys.exc_info()
-            sys.stderr.write(stderr)
+
+            # DEV: stderr, stdout are byte sequences so to print them nicely
+            #      back out they should be decoded.
+            sys.stderr.write(stderr.decode())
+            sys.stdout.write(stdout.decode())
             result.addFailure(self, exc_info)
         else:
             result.addSuccess(self)

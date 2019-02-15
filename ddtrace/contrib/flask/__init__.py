@@ -35,7 +35,7 @@ Configuration
 
    Whether to parse distributed tracing headers from requests received by your Flask app.
 
-   Default: ``False``
+   Default: ``True``
 
 .. py:data:: ddtrace.config.flask['service_name']
 
