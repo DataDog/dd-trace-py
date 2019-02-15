@@ -7,6 +7,7 @@ from json import loads
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .utils.deprecation import deprecated
 
 
 log = logging.getLogger(__name__)
@@ -159,23 +160,9 @@ class API(object):
         log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
         return response
 
-    def send_services(self, services):
-        if not services:
-            return
-        s = {}
-        for service in services:
-            s.update(service)
-        data = self._encoder.encode_services(s)
-        response = self._put(self._services, data)
-
-        # the API endpoint is not available so we should downgrade the connection and re-try the call
-        if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._services, response.status)
-            self._downgrade()
-            return self.send_services(services)
-
-        log.debug("reported %d services", len(services))
-        return response
+    @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')
+    def send_services(self, *args, **kwargs):
+        return
 
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)

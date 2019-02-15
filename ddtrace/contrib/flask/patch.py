@@ -31,7 +31,7 @@ config._add('flask', dict(
     app_type=AppTypes.web,
 
     collect_view_args=True,
-    distributed_tracing_enabled=False,
+    distributed_tracing_enabled=True,
     template_default_name='<memory>',
     trace_signals=True,
 

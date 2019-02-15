@@ -54,7 +54,7 @@ Tornado settings can be used to change some tracing configuration, like::
         'datadog_trace': {
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
-            'distributed_tracing': True,
+            'distributed_tracing': False,
             'settings': {
                 'FILTERS':  [
                     FilterRequestsOnUrl(r'http://test\.example\.com'),
@@ -74,7 +74,7 @@ The available settings are:
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
-* ``distributed_tracing`` (default: `False`): enable distributed tracing if this is called
+* ``distributed_tracing`` (default: `True`): enable distributed tracing if this is called
   remotely from an instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.

@@ -19,7 +19,7 @@ config._add('molten', dict(
     service_name=get_env('molten', 'service_name', 'molten'),
     app='molten',
     app_type=AppTypes.web,
-    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False)),
+    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', True)),
 ))
 
 
@@ -75,7 +75,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     resource = func_name(wrapped)
 
     # Configure distributed tracing
-    if config.molten.get('distributed_tracing', False):
+    if config.molten.get('distributed_tracing', True):
         propagator = HTTPPropagator()
         # request.headers is type Iterable[Tuple[str, str]]
         context = propagator.extract(dict(request.headers))

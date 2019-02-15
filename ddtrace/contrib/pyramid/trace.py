@@ -8,7 +8,7 @@ from ddtrace.vendor import wrapt
 # project
 import ddtrace
 from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .constants import (
@@ -60,13 +60,7 @@ def trace_tween_factory(handler, registry):
     service = settings.get(SETTINGS_SERVICE) or 'pyramid'
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
-    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
-
-    # set the service info
-    tracer.set_service_info(
-        service=service,
-        app="pyramid",
-        app_type=AppTypes.web)
+    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
     if enabled:
         # make a request tracing function

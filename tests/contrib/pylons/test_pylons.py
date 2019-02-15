@@ -295,14 +295,14 @@ class PylonsTestCase(BaseTracerTestCase):
         eq_(len(spans), 1)
         span = spans[0]
 
-        ok_(span.trace_id != 100)
-        ok_(span.parent_id != 42)
-        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
 
-    def test_distributed_tracing_enabled(self):
+    def test_distributed_tracing_disabled(self):
         # ensure distributed tracing propagator is working
         middleware = self.app.app
-        middleware._distributed_tracing = True
+        middleware._distributed_tracing = False
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -317,9 +317,9 @@ class PylonsTestCase(BaseTracerTestCase):
         eq_(len(spans), 1)
         span = spans[0]
 
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        ok_(span.trace_id != 100)
+        ok_(span.parent_id != 42)
+        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
 
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""

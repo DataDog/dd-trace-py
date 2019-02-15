@@ -65,9 +65,7 @@ class PyramidTestCase(PyramidBase):
 
         # ensure services are set correctly
         services = writer.pop_services()
-        expected = {
-            'foobar': {"app": "pyramid", "app_type": "web"}
-        }
+        expected = {}
         eq_(services, expected)
 
     def test_event_sample_rate(self):
