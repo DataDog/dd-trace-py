@@ -27,31 +27,31 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 Web Frameworks
 ^^^^^^^^^^^^^^
 
-Some web framework integrations support distributed tracing out of the box, you just have to enable it.
-For that, refer to the configuration of the given integration.
+Some web framework integrations support distributed tracing out of the box.
+
 Supported web frameworks:
 
 
 +-------------------+-----------------+
 | Framework/Library |  Enabled        |
 +===================+=================+
-| :ref:`aiohttp`    | False           |
+| :ref:`aiohttp`    | True            |
 +-------------------+-----------------+
-| :ref:`bottle`     | False           |
+| :ref:`bottle`     | True            |
 +-------------------+-----------------+
-| :ref:`django`     | False           |
+| :ref:`django`     | True            |
 +-------------------+-----------------+
-| :ref:`falcon`     | False           |
+| :ref:`falcon`     | True            |
 +-------------------+-----------------+
-| :ref:`flask`      | False           |
+| :ref:`flask`      | True            |
 +-------------------+-----------------+
-| :ref:`pylons`     | False           |
+| :ref:`pylons`     | True            |
 +-------------------+-----------------+
-| :ref:`pyramid`    | False           |
+| :ref:`pyramid`    | True            |
 +-------------------+-----------------+
-| :ref:`requests`   | False           |
+| :ref:`requests`   | True            |
 +-------------------+-----------------+
-| :ref:`tornado`    | False           |
+| :ref:`tornado`    | True            |
 +-------------------+-----------------+
 
 
