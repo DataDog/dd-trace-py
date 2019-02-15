@@ -15,6 +15,10 @@ def get_logger(name):
 
     If a previous logger has been created then it is returned.
 
+    DEV: We do not want to mess with `logging.setLoggerClass()`
+         That will totally mess with the user's loggers, we want
+         just our own, selective loggers to be DDLoggers
+
     :param name: The name of the logger to fetch or create
     :type name: str
     :return: The logger instance
