@@ -6,7 +6,7 @@ import time
 import ddtrace
 from ddtrace import Pin
 from ddtrace.contrib.sqlite3 import connection_factory
-from ddtrace.contrib.sqlite3.patch import patch, unpatch
+from ddtrace.contrib.sqlite3.patch import patch, unpatch, TracedSQLiteCursor
 from ddtrace.ext import errors
 
 # testing
@@ -29,8 +29,9 @@ class TestSQLite(BaseTracerTestCase):
         factory = connection_factory(self.tracer, service='my_db_service')
         conn = sqlite3.connect(':memory:', factory=factory)
         q = 'select * from sqlite_master'
-        rows = conn.execute(q)
-        assert not rows.fetchall()
+        cursor = conn.execute(q)
+        self.assertIsInstance(cursor, TracedSQLiteCursor)
+        assert not cursor.fetchall()
         assert not self.spans
 
     def test_service_info(self):
@@ -64,6 +65,7 @@ class TestSQLite(BaseTracerTestCase):
             q = 'select * from sqlite_master'
             start = time.time()
             cursor = db.execute(q)
+            self.assertIsInstance(cursor, TracedSQLiteCursor)
             rows = cursor.fetchall()
             end = time.time()
             assert not rows
