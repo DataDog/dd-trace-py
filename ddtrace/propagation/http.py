@@ -57,14 +57,12 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract_header_value(possible_header_names, headers, default=None):
-        rv = default
-
         for header, value in headers.items():
             for header_name in possible_header_names:
                 if header.lower() == header_name.lower():
                     return value
 
-        return rv
+        return default
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
