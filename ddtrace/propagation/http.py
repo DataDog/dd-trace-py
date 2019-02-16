@@ -64,6 +64,28 @@ class HTTPPropagator(object):
 
         return default
 
+    @staticmethod
+    def extract_trace_id(headers):
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_TRACE_IDS, headers, default=0,
+            )
+        )
+
+    @staticmethod
+    def extract_parent_span_id(headers):
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_PARENT_IDS, headers, default=0,
+            )
+        )
+
+    @staticmethod
+    def extract_sampling_priority(headers):
+        return HTTPPropagator.extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers,
+        )
+
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
 
@@ -86,11 +108,9 @@ class HTTPPropagator(object):
             return Context()
 
         try:
-            trace_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers,
-                                                               default=0))
-            parent_span_id = int(HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_PARENT_IDS, headers,
-                                                                     default=0))
-            sampling_priority = HTTPPropagator.extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers)
+            trace_id = HTTPPropagator.extract_trace_id(headers)
+            parent_span_id = HTTPPropagator.extract_parent_span_id(headers)
+            sampling_priority = HTTPPropagator.extract_sampling_priority(headers)
 
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)
