@@ -37,7 +37,7 @@ config._add('flask', dict(
     trace_signals=True,
 
     # Trace search configuration
-    trace_search=get_env('flask', 'trace_search', None),
+    analytics=get_env('flask', 'analytics', None),
     analytics_sample_rate=get_env('flask', 'analytics_sample_rate', 1.0),
 
     # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
