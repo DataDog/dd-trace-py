@@ -7,7 +7,6 @@ import logging
 
 # project
 from .utils import _extract_conn_tags, _resource_from_cache_prefix
-from ...ext import AppTypes
 
 # 3rd party
 from flask.ext.cache import Cache
@@ -28,13 +27,6 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
     """
     Return a traced Cache object that behaves exactly as the ``flask.ext.cache.Cache class``
     """
-
-    # set the Tracer info
-    ddtracer.set_service_info(
-        app="flask",
-        app_type=AppTypes.cache,
-        service=service,
-    )
 
     class TracedCache(Cache):
         """
