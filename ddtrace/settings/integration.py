@@ -59,6 +59,16 @@ class IntegrationConfig(AttrDict):
             else self.global_config.header_is_traced(header_name)
         )
 
+    def is_analytics_enabled(self, enabled_if_global=False):
+        if self.global_config.analytics:
+            return self.analytics is not False
+        else:
+            return self.analytics is True
+
+    def get_analytics_sample_rate(self, enabled_if_global=False):
+        if self.is_analytics_enabled(enabled_if_global=enabled_if_global):
+            return self.analytics_sample_rate or 1
+
     def __repr__(self):
         cls = self.__class__
         keys = ', '.join(self.keys())

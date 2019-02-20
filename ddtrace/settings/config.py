@@ -1,11 +1,12 @@
 from copy import deepcopy
 import logging
+from os import environ
 
 from ..pin import Pin
+from ..utils.formats import asbool
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
-from .utils.formats import asbool
 
 log = logging.getLogger(__name__)
 
