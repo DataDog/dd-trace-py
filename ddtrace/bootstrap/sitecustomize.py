@@ -17,7 +17,7 @@ DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 if logs_injection:
     # immediately patch logging if trace id injected
-    from ddtrace import patch_all; patch_all(**dict(logging=True)) # noqa
+    from ddtrace import patch; patch(logging=True) # noqa
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
 
