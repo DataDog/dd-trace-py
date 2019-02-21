@@ -35,7 +35,7 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, 'hooks', Hooks())
         object.__setattr__(self, 'http', HttpConfig())
 
-        # Set default keys/values
+        # Set default analytics configuration
         # DEV: Default to `None` which means do not set this key
         self['analytics'] = None
         self['analytics_sample_rate'] = 1.0
@@ -70,11 +70,11 @@ class IntegrationConfig(AttrDict):
 
     def get_analytics_sample_rate(self):
         """
-        Returns analytics sample rate if set or a default, but only when
-        integration-specific analytics configuration is enabled
+        Returns analytics sample rate but only when integration-specific
+        analytics configuration is enabled
         """
         if self._is_analytics_enabled():
-            return self.analytics_sample_rate or 1
+            return self.analytics_sample_rate
 
     def __repr__(self):
         cls = self.__class__
