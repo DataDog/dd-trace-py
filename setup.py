@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import copy
 import os
 import sys
@@ -146,7 +148,10 @@ try:
     kwargs['ext_modules'] = [
         Extension('ddtrace.vendor.wrapt._wrappers', ['ddtrace.vendor/wrapt/_wrappers.c']),
     ]
+    # DEV: Make sure `cmdclass` exists
+    kwargs.update(dict(cmdclass=dict()))
     kwargs['cmdclass']['build_ext'] = optional_build_ext
     setup(**kwargs)
 except BuildExtFailed:
+    print('WARNING: Failed to install wrapt C-extension, using pure-Python wrapt instead')
     setup(**setup_kwargs)
