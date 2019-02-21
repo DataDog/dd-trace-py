@@ -1,6 +1,6 @@
 import pymemcache
 import unittest
-import wrapt
+from ddtrace.vendor import wrapt
 
 
 class AutoPatchTestCase(unittest.TestCase):

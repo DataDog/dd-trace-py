@@ -1,9 +1,9 @@
 import logging
-import wrapt
 
 from ddtrace.helpers import get_correlation_ids
 from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
+from ddtrace.vendor import wrapt
 
 from ...base import BaseTracerTestCase
 

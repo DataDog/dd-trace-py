@@ -1,5 +1,5 @@
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 import pymysql
 
 # project

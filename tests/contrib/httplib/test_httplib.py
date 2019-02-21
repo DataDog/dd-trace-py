@@ -3,7 +3,7 @@ import contextlib
 import sys
 
 # Third party
-import wrapt
+from ddtrace.vendor import wrapt
 
 # Project
 from ddtrace import config

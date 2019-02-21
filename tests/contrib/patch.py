@@ -3,7 +3,7 @@ import importlib
 import sys
 import unittest
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 

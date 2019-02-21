@@ -1,10 +1,10 @@
 import logging
-from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 
 from ...helpers import get_correlation_ids
 from ...utils.wrappers import unwrap as _u
+from ...vendor.wrapt import wrap_function_wrapper as _w
 
 RECORD_ATTR_TRACE_ID = 'dd.trace_id'
 RECORD_ATTR_SPAN_ID = 'dd.span_id'
