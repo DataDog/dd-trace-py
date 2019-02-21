@@ -1,5 +1,3 @@
-import os
-
 # 3p
 from bottle import response, request
 
@@ -8,27 +6,11 @@ import ddtrace
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
-from ...utils.formats import get_env
 
 SPAN_TYPE = 'web'
-
-# Configure default configuration
-config._add('bottle', dict(
-    # Bottle service configuration
-    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
-    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'bottle',
-    app='bottle',
-    app_type=AppTypes.web,
-
-    distributed_tracing_enabled=False,
-
-    # Trace search configuration
-    analytics=get_env('bottle', 'analytics', None),
-    analytics_sample_rate=get_env('bottle', 'analytics_sample_rate', 1.0),
-))
 
 
 class TracePlugin(object):
