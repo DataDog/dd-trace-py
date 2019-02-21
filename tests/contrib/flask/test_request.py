@@ -88,10 +88,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             return 'Hello Flask', 200
 
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('flask', dict()):
-                res = self.client.get('/')
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.data, b'Hello Flask')
+            res = self.client.get('/')
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.data, b'Hello Flask')
 
         root = self.get_root_span()
         root.assert_matches(
@@ -146,10 +145,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             return 'Hello Flask', 200
 
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('flask', dict()):
-                res = self.client.get('/')
-                self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.data, b'Hello Flask')
+            res = self.client.get('/')
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.data, b'Hello Flask')
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))

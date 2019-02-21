@@ -173,9 +173,8 @@ class PylonsTestCase(BaseTracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('pylons', dict()):
-                res = self.app.get(url_for(controller='root', action='index'))
-                self.assertEqual(res.status, 200)
+            res = self.app.get(url_for(controller='root', action='index'))
+            self.assertEqual(res.status, 200)
 
         self.assert_structure(
             dict(name='pylons.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0})
@@ -203,9 +202,8 @@ class PylonsTestCase(BaseTracerTestCase):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('pylons', dict()):
-                res = self.app.get(url_for(controller='root', action='index'))
-                self.assertEqual(res.status, 200)
+            res = self.app.get(url_for(controller='root', action='index'))
+            self.assertEqual(res.status, 200)
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))

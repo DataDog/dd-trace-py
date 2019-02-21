@@ -43,14 +43,13 @@ class TestTornadoWeb(TornadoTestCase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('tornado', dict()):
-                # it should trace a handler that returns 200
-                response = self.fetch('/success/')
-                self.assertEqual(200, response.code)
+            # it should trace a handler that returns 200
+            response = self.fetch('/success/')
+            self.assertEqual(200, response.code)
 
-                self.assert_structure(
-                    dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
-                )
+            self.assert_structure(
+                dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+            )
 
     def test_analytics_global_on_integration_on(self):
         """
@@ -75,13 +74,12 @@ class TestTornadoWeb(TornadoTestCase):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('tornado', dict()):
-                # it should trace a handler that returns 200
-                response = self.fetch('/success/')
-                self.assertEqual(200, response.code)
+            # it should trace a handler that returns 200
+            response = self.fetch('/success/')
+            self.assertEqual(200, response.code)
 
-                root = self.get_root_span()
-                self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+            root = self.get_root_span()
+            self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_global_off_integration_on(self):
         """

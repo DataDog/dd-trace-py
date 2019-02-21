@@ -64,10 +64,9 @@ class TestRequestTracing(TraceTestCase):
         # it should create a root span when there is a handler hit
         # with the proper tags
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('aiohttp', dict()):
-                request = yield from self.client.request('GET', '/template/')
-                self.assertEqual(200, request.status)
-                yield from request.text()
+            request = yield from self.client.request('GET', '/template/')
+            self.assertEqual(200, request.status)
+            yield from request.text()
 
         # Assert root span sets the appropriate metric
         root = self.get_root_span()
@@ -126,10 +125,9 @@ class TestRequestTracing(TraceTestCase):
         # it should create a root span when there is a handler hit
         # with the proper tags
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('aiohttp', dict()):
-                request = yield from self.client.request('GET', '/template/')
-                self.assertEqual(200, request.status)
-                yield from request.text()
+            request = yield from self.client.request('GET', '/template/')
+            self.assertEqual(200, request.status)
+            yield from request.text()
 
         # Assert root span sets the appropriate metric
         root = self.get_root_span()

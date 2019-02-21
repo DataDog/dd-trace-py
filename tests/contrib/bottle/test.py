@@ -114,10 +114,9 @@ class TraceBottleTest(BaseTracerTestCase):
         self._trace_app(self.tracer)
 
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('bottle', dict()):
-                resp = self.app.get('/hi/dougie')
-                eq_(resp.status_int, 200)
-                eq_(compat.to_unicode(resp.body), u'hi dougie')
+            resp = self.app.get('/hi/dougie')
+            eq_(resp.status_int, 200)
+            eq_(compat.to_unicode(resp.body), u'hi dougie')
 
         root = self.get_root_span()
         root.assert_matches(
@@ -176,10 +175,9 @@ class TraceBottleTest(BaseTracerTestCase):
         self._trace_app(self.tracer)
 
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('bottle', dict()):
-                resp = self.app.get('/hi/dougie')
-                eq_(resp.status_int, 200)
-                eq_(compat.to_unicode(resp.body), u'hi dougie')
+            resp = self.app.get('/hi/dougie')
+            eq_(resp.status_int, 200)
+            eq_(compat.to_unicode(resp.body), u'hi dougie')
 
         root = self.get_root_span()
         self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))

@@ -70,14 +70,13 @@ class FalconTestCase(object):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('falcon', dict()):
-                out = self.simulate_get('/200')
-                self.assertEqual(out.status_code, 200)
-                self.assertEqual(out.content.decode('utf-8'), 'Success')
+            out = self.simulate_get('/200')
+            self.assertEqual(out.status_code, 200)
+            self.assertEqual(out.content.decode('utf-8'), 'Success')
 
-                self.assert_structure(
-                    dict(name='falcon.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0})
-                )
+            self.assert_structure(
+                dict(name='falcon.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0})
+            )
 
     def test_analytics_global_on_integration_on(self):
         """
@@ -102,13 +101,12 @@ class FalconTestCase(object):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('falcon', dict()):
-                out = self.simulate_get('/200')
-                self.assertEqual(out.status_code, 200)
-                self.assertEqual(out.content.decode('utf-8'), 'Success')
+            out = self.simulate_get('/200')
+            self.assertEqual(out.status_code, 200)
+            self.assertEqual(out.content.decode('utf-8'), 'Success')
 
-                root = self.get_root_span()
-                self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+            root = self.get_root_span()
+            self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_global_off_integration_on(self):
         """

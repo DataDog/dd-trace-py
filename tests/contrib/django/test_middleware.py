@@ -47,10 +47,9 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('django', dict()):
-                url = reverse('users-list')
-                response = self.client.get(url)
-                self.assertEqual(response.status_code, 200)
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
@@ -91,10 +90,9 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
                 We expect the root span to not include tag
         """
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('django', dict()):
-                url = reverse('users-list')
-                response = self.client.get(url)
-                self.assertEqual(response.status_code, 200)
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
