@@ -6,7 +6,6 @@ from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
 from ...settings import config
 
 

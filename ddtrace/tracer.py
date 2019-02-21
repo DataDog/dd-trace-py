@@ -12,7 +12,6 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
-from .utils.formats import asbool
 
 
 log = logging.getLogger(__name__)

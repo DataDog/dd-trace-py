@@ -8,7 +8,7 @@ import wrapt
 # project
 import ddtrace
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http, AppTypes
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .constants import (

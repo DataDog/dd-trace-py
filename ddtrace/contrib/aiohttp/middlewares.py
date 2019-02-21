@@ -3,7 +3,7 @@ import asyncio
 from ..asyncio import context_provider
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes, http
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
