@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
+HTTP_HEADER_ORIGIN = "x-datadog-origin"
 
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
@@ -23,6 +24,9 @@ POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset(
 )
 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
     [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY)]
+)
+POSSIBLE_HTTP_HEADER_ORIGIN = frozenset(
+    [HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN)]
 )
 
 
@@ -54,36 +58,46 @@ class HTTPPropagator(object):
         # Propagate priority only if defined
         if sampling_priority is not None:
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
+        # Propagate origin only if defined
+        if span_context._dd_origin is not None:
+            headers[HTTP_HEADER_ORIGIN] = str(span_context._dd_origin)
+
+    @staticmethod
+    def extract_header_value(possible_header_names, headers, default=None):
+        for header, value in headers.items():
+            for header_name in possible_header_names:
+                if header.lower() == header_name.lower():
+                    return value
+
+        return default
 
     @staticmethod
     def extract_trace_id(headers):
-        trace_id = 0
-
-        for key in POSSIBLE_HTTP_HEADER_TRACE_IDS:
-            if key in headers:
-                trace_id = headers.get(key)
-
-        return int(trace_id)
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_TRACE_IDS, headers, default=0,
+            )
+        )
 
     @staticmethod
     def extract_parent_span_id(headers):
-        parent_span_id = 0
-
-        for key in POSSIBLE_HTTP_HEADER_PARENT_IDS:
-            if key in headers:
-                parent_span_id = headers.get(key)
-
-        return int(parent_span_id)
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_PARENT_IDS, headers, default=0,
+            )
+        )
 
     @staticmethod
     def extract_sampling_priority(headers):
-        sampling_priority = None
+        return HTTPPropagator.extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers,
+        )
 
-        for key in POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES:
-            if key in headers:
-                sampling_priority = headers.get(key)
-
-        return sampling_priority
+    @staticmethod
+    def extract_origin(headers):
+        return HTTPPropagator.extract_header_value(
+            POSSIBLE_HTTP_HEADER_ORIGIN, headers,
+        )
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
@@ -110,6 +124,7 @@ class HTTPPropagator(object):
             trace_id = HTTPPropagator.extract_trace_id(headers)
             parent_span_id = HTTPPropagator.extract_parent_span_id(headers)
             sampling_priority = HTTPPropagator.extract_sampling_priority(headers)
+            origin = HTTPPropagator.extract_origin(headers)
 
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)
@@ -118,15 +133,17 @@ class HTTPPropagator(object):
                 trace_id=trace_id,
                 span_id=parent_span_id,
                 sampling_priority=sampling_priority,
+                _dd_origin=origin,
             )
         # If headers are invalid and cannot be parsed, return a new context and log the issue.
         except Exception as error:
             try:
                 log.debug(
-                    "invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, error: %s",
+                    "invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s, error: %s",
                     headers.get(HTTP_HEADER_TRACE_ID, 0),
                     headers.get(HTTP_HEADER_PARENT_ID, 0),
                     headers.get(HTTP_HEADER_SAMPLING_PRIORITY),
+                    headers.get(HTTP_HEADER_ORIGIN, ''),
                     error,
                 )
             # We might fail on string formatting errors ; in that case only format the first error
