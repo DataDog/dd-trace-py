@@ -56,34 +56,35 @@ class HTTPPropagator(object):
             headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
 
     @staticmethod
+    def extract_header_value(possible_header_names, headers, default=None):
+        for header, value in headers.items():
+            for header_name in possible_header_names:
+                if header.lower() == header_name.lower():
+                    return value
+
+        return default
+
+    @staticmethod
     def extract_trace_id(headers):
-        trace_id = 0
-
-        for key in POSSIBLE_HTTP_HEADER_TRACE_IDS:
-            if key in headers:
-                trace_id = headers.get(key)
-
-        return int(trace_id)
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_TRACE_IDS, headers, default=0,
+            )
+        )
 
     @staticmethod
     def extract_parent_span_id(headers):
-        parent_span_id = 0
-
-        for key in POSSIBLE_HTTP_HEADER_PARENT_IDS:
-            if key in headers:
-                parent_span_id = headers.get(key)
-
-        return int(parent_span_id)
+        return int(
+            HTTPPropagator.extract_header_value(
+                POSSIBLE_HTTP_HEADER_PARENT_IDS, headers, default=0,
+            )
+        )
 
     @staticmethod
     def extract_sampling_priority(headers):
-        sampling_priority = None
-
-        for key in POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES:
-            if key in headers:
-                sampling_priority = headers.get(key)
-
-        return sampling_priority
+        return HTTPPropagator.extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers,
+        )
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.

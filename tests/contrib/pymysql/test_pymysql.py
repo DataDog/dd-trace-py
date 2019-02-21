@@ -54,7 +54,11 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute('SELECT 1')
+
+        # PyMySQL returns back the rowcount instead of a cursor
+        rowcount = cursor.execute('SELECT 1')
+        eq_(rowcount, 1)
+
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
@@ -135,7 +139,11 @@ class PyMySQLCore(object):
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
         data = [("foo", "this is foo"),
                 ("bar", "this is bar")]
-        cursor.executemany(stmt, data)
+
+        # PyMySQL `executemany()` returns the rowcount
+        rowcount = cursor.executemany(stmt, data)
+        eq_(rowcount, 2)
+
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)
         rows = cursor.fetchall()
