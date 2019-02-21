@@ -4,7 +4,7 @@ Generic dbapi tracing code.
 
 import logging
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ddtrace import Pin
 from ddtrace.ext import AppTypes, sql

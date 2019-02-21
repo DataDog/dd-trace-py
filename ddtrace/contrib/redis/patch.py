@@ -1,6 +1,6 @@
 # 3p
 import redis
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 from ...pin import Pin
