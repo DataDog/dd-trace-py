@@ -42,7 +42,8 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
+        rowcount = cursor.execute("SELECT 1")
+        eq_(rowcount, 1)
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
