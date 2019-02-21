@@ -63,18 +63,23 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         """ Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
+        # Always return the result as-is
+        # DEV: Some libraries return `None`, others `int`, and others the cursor objects
+        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        self._trace_method(
+        return self._trace_method(
             self.__wrapped__.executemany, self._self_datadog_name, query, {'sql.executemany': 'true'},
             query, *args, **kwargs)
-        return self
 
     def execute(self, query, *args, **kwargs):
         """ Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
-        return self
+
+        # Always return the result as-is
+        # DEV: Some libraries return `None`, others `int`, and others the cursor objects
+        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
+        return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):
         """ Wraps the cursor.callproc method"""

@@ -16,6 +16,10 @@ DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
     '[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] ' if logs_injection else ''
 )
 
+if logs_injection:
+    # immediately patch logging if trace id injected
+    from ddtrace import patch; patch(logging=True)  # noqa
+
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
 
 # Set here a default logging format for basicConfig
