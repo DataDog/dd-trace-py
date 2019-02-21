@@ -4,10 +4,10 @@ import sqlite3.dbapi2
 from ddtrace.vendor import wrapt
 
 # project
-from ddtrace import Pin
-from ddtrace.contrib.dbapi import TracedConnection
-
+from ...contrib.dbapi import TracedConnection, TracedCursor, FetchTracedCursor
 from ...ext import AppTypes
+from ...pin import Pin
+from ...settings import config
 
 # Original connect method
 _connect = sqlite3.connect
@@ -36,7 +36,31 @@ def patch_conn(conn):
     return wrapped
 
 
+class TracedSQLiteCursor(TracedCursor):
+    def executemany(self, *args, **kwargs):
+        # DEV: SQLite3 Cursor.execute always returns back the cursor instance
+        super(TracedSQLiteCursor, self).executemany(*args, **kwargs)
+        return self
+
+    def execute(self, *args, **kwargs):
+        # DEV: SQLite3 Cursor.execute always returns back the cursor instance
+        super(TracedSQLiteCursor, self).execute(*args, **kwargs)
+        return self
+
+
+class TracedSQLiteFetchCursor(TracedSQLiteCursor, FetchTracedCursor):
+    pass
+
+
 class TracedSQLite(TracedConnection):
+    def __init__(self, conn, pin=None, cursor_cls=None):
+        if not cursor_cls:
+            # Do not trace `fetch*` methods by default
+            cursor_cls = TracedSQLiteCursor
+            if config.dbapi2.trace_fetch_methods:
+                cursor_cls = TracedSQLiteFetchCursor
+
+            super(TracedSQLite, self).__init__(conn, pin=pin, cursor_cls=cursor_cls)
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

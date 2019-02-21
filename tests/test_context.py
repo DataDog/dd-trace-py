@@ -388,6 +388,7 @@ class TestTracingContext(TestCase):
         eq_(cloned_ctx._parent_span_id, ctx._parent_span_id)
         eq_(cloned_ctx._sampled, ctx._sampled)
         eq_(cloned_ctx._sampling_priority, ctx._sampling_priority)
+        eq_(cloned_ctx._dd_origin, ctx._dd_origin)
         eq_(cloned_ctx._current_span, ctx._current_span)
         eq_(cloned_ctx._trace, [])
         eq_(cloned_ctx._finished_spans, 0)
