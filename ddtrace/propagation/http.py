@@ -95,13 +95,9 @@ class HTTPPropagator(object):
 
     @staticmethod
     def extract_origin(headers):
-        origin = None
-
-        for key in POSSIBLE_HTTP_HEADER_ORIGIN:
-            if key in headers:
-                origin = headers.get(key)
-
-        return origin
+        return HTTPPropagator.extract_header_value(
+            POSSIBLE_HTTP_HEADER_ORIGIN, headers,
+        )
 
     def extract(self, headers):
         """Extract a Context from HTTP headers into a new Context.
