@@ -91,42 +91,6 @@ class Payload:
         # DEV: `self.traces` is an array of encoded traces, `join_encoded` joins them together
         return self.encoder.join_encoded(self.traces)
 
-    def downgrade(self, new_encoder):
-        """
-        Downgrade this payload to a different encoder
-
-        This function is used when the API needs to downgrade from an endpoint
-        that supports msgpack to an endpoint that only supports json.
-
-        This function will decode our existing payload and re-encode using the
-        new encoder.
-
-        :param new_encoder: The new encoded to use
-        :type new_encoder: ``ddtrace.encoding.Encoder``
-        """
-        if isinstance(self.encoder, type(new_encoder)):
-            return
-
-        log.debug('Downgrading payload from %r to %r', self.encoder, new_encoder)
-        self.traces = [
-            new_encoder.encode(self.encoder.decode(trace))
-            for trace in self.traces
-        ]
-        log.debug('Downgraded %d traces', len(self.traces))
-        self.encoder = new_encoder
-
-    def clone(self):
-        """
-        Create a new instance a ``Payload`` using this payload's encoder and max size
-
-        :returns: A new ``Payload``
-        :rtype: ``Payload``
-        """
-        return Payload(
-            encoder=self.encoder,
-            max_payload_size=self.max_payload_size,
-        )
-
     def __repr__(self):
         """Get the string representation of this payload"""
         return '{0}(length={1}, size={2}b, full={3})'.format(self.__class__.__name__, self.length, self.size, self.full)
