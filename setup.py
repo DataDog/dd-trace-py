@@ -1,8 +1,13 @@
+from __future__ import print_function
+
+import copy
 import os
 import sys
 import re
 
-from setuptools import setup, find_packages
+from distutils.command.build_ext import build_ext
+from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
+from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 
 
@@ -17,7 +22,7 @@ def get_version(package):
 
 class Tox(TestCommand):
 
-    user_options = [('tox-args=', 'a', "Arguments to pass to tox")]
+    user_options = [('tox-args=', 'a', 'Arguments to pass to tox')]
 
     def initialize_options(self):
         TestCommand.initialize_options(self)
@@ -70,7 +75,8 @@ documentation][visualization docs].
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
-setup(
+# Base `setup()` kwargs without any C-extension registering
+setup_kwargs = dict(
     name='ddtrace',
     version=version,
     description='Datadog tracing code',
@@ -83,8 +89,6 @@ setup(
     packages=find_packages(exclude=['tests*']),
     install_requires=[
         'msgpack-python',
-        'six',
-        'wrapt',
     ],
     extras_require={
         # users can include opentracing by having:
@@ -107,3 +111,47 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
 )
+
+
+# The following from here to the end of the file is borrowed from wrapt's `setup.py`:
+#   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
+# These helpers are useful for attempting build a C-extension and then retrying without it if it fails
+
+if sys.platform == 'win32':
+    build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
+else:
+    build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
+
+
+class BuildExtFailed(Exception):
+    pass
+
+
+# Attempt to build a C-extension, catch and throw a common/custom error if there are any issues
+class optional_build_ext(build_ext):
+    def run(self):
+        try:
+            build_ext.run(self)
+        except DistutilsPlatformError:
+            raise BuildExtFailed()
+
+    def build_extension(self, ext):
+        try:
+            build_ext.build_extension(self, ext)
+        except build_ext_errors:
+            raise BuildExtFailed()
+
+
+# Try to build with C extensions first, fallback to only pure-Python if building fails
+try:
+    kwargs = copy.deepcopy(setup_kwargs)
+    kwargs['ext_modules'] = [
+        Extension('ddtrace.vendor.wrapt._wrappers', ['ddtrace.vendor/wrapt/_wrappers.c']),
+    ]
+    # DEV: Make sure `cmdclass` exists
+    kwargs.update(dict(cmdclass=dict()))
+    kwargs['cmdclass']['build_ext'] = optional_build_ext
+    setup(**kwargs)
+except BuildExtFailed:
+    print('WARNING: Failed to install wrapt C-extension, using pure-Python wrapt instead')
+    setup(**setup_kwargs)

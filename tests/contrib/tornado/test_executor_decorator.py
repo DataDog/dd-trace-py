@@ -173,7 +173,7 @@ class TestTornadoExecutor(TornadoTestCase):
         # `futures` is already instrumented
         from ddtrace import patch; patch(futures=True)  # noqa
         from concurrent.futures import ThreadPoolExecutor
-        from wrapt import BoundFunctionWrapper
+        from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
         fn_wrapper = getattr(ThreadPoolExecutor.submit, '__wrapped__', None)
         ok_(not isinstance(fn_wrapper, BoundFunctionWrapper))

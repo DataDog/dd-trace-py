@@ -3,7 +3,7 @@ import logging
 import pyramid.renderers
 from pyramid.settings import asbool
 from pyramid.httpexceptions import HTTPException
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
