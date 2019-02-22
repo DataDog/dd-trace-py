@@ -279,7 +279,7 @@ class DDLoggerTestCase(BaseTestCase):
 
         self.assertEqual(record.msg, 'test, 20 additional messages skipped')
 
-    def test_logger_handle_different_messages(self):
+    def test_logger_handle_bucket_key(self):
         """
         When calling `DDLogger.handle`
             With different log messages
@@ -317,12 +317,15 @@ class DDLoggerTestCase(BaseTestCase):
         # We have 6 records but only end up with 5 buckets
         self.assertEqual(len(buckets), 5)
 
-        #
-        [self.assertIn(get_key(record), buckets) for record in all_records]
+        # Assert bucket created for the record1 and record2
+        bucket1 = buckets[get_key(record1)]
+        self.assertEqual(bucket1.skipped, 1)
 
-    def test_logger_handle_(self):
-        """
-        When calling `DDLogger.handle`
-            With different log messages
-                We use different buckets to limit them
-        """
+        bucket2 = buckets[get_key(record2)]
+        self.assertEqual(bucket1, bucket2)
+
+        # Assert bucket for the remaining records
+        # None of these other messages should have been grouped together
+        for record in (record3, record4, record5, record6):
+            bucket = buckets[get_key(record)]
+            self.assertEqual(bucket.skipped, 0)
