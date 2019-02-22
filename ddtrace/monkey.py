@@ -10,7 +10,7 @@ import importlib
 import sys
 import threading
 
-from wrapt.importer import when_imported
+from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
 

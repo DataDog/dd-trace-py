@@ -12,17 +12,16 @@ So this module differs from wrapt.importer in that:
     - notify_module_loaded is modified to not remove the hooks when they are
       fired.
 """
-import logging
 import sys
 import threading
 
-from wrapt.decorators import synchronized
+from ..compat import PY3
+from ..internal.logger import get_logger
+from ..utils import get_module_name
+from ..vendor.wrapt.decorators import synchronized
 
-from ddtrace.compat import PY3
-from ddtrace.utils import get_module_name
 
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 _post_import_hooks = {}

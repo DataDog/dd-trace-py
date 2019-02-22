@@ -1,13 +1,12 @@
 """
 Generic dbapi tracing code.
 """
-import wrapt
-
 from ...ext import AppTypes, sql
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
 from ...utils.formats import asbool, get_env
+from ...vendor import wrapt
 
 log = get_logger(__name__)
 

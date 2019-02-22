@@ -1,5 +1,5 @@
 import asyncio
-import wrapt
+from ddtrace.vendor import wrapt
 
 from aiopg.utils import _ContextManager
 

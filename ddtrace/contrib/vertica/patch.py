@@ -1,6 +1,6 @@
 import importlib
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 import ddtrace
 from ...ext import db as dbx, sql

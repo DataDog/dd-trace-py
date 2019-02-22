@@ -1,7 +1,7 @@
-import wrapt
 import ddtrace
 
 from .internal.logger import get_logger
+from .vendor import wrapt
 
 
 log = get_logger(__name__)

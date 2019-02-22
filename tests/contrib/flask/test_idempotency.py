@@ -2,7 +2,7 @@ import mock
 import unittest
 
 import flask
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ddtrace.contrib.flask import patch, unpatch
 from ddtrace.contrib.flask.patch import _w, _u
