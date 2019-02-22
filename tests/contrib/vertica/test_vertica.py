@@ -1,6 +1,6 @@
 # 3p
 import pytest
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 import ddtrace

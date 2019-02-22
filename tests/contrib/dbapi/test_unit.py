@@ -14,17 +14,23 @@ class TestTracedCursor(BaseTracerTestCase):
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.executemany.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_fetchone_wrapped_is_called_and_returned(self):
@@ -114,14 +120,17 @@ class TestTracedCursor(BaseTracerTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+        cursor.executemany.return_value = '__result__'
+
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
 
-        assert traced_cursor is traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
-        assert traced_cursor is traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'
@@ -191,17 +200,21 @@ class TestFetchTracedCursor(BaseTracerTestCase):
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.executemany.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_fetchone_wrapped_is_called_and_returned(self):
@@ -297,14 +310,17 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+        cursor.executemany.return_value = '__result__'
+
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
 
-        assert traced_cursor is traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
-        assert traced_cursor is traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'

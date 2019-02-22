@@ -117,7 +117,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     app[CONFIG_KEY] = {
         'tracer': tracer,
         'service': service,
-        'distributed_tracing_enabled': False,
+        'distributed_tracing_enabled': True,
     }
 
     # the tracer must work with asynchronous Context propagation

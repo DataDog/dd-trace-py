@@ -3,7 +3,7 @@ import logging
 import sys
 
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 import pymemcache
 from pymemcache.client.base import Client
 from pymemcache.exceptions import (

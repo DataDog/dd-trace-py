@@ -2,12 +2,12 @@ import os
 
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING
-from ...utils.formats import asbool
+from ...utils.formats import asbool, get_env
 
 import pyramid.config
 from pyramid.path import caller_package
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 DD_PATCH = '_datadog_patch'
 
@@ -27,22 +27,30 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
-    distributed_tracing = asbool(os.environ.get('DATADOG_PYRAMID_DISTRIBUTED_TRACING')) or False
+    distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', True))
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,
     }
-    settings.update(trace_settings)
+    # Update over top of the defaults
+    # DEV: If we did `settings.update(trace_settings)` then we would only ever
+    #      have the default values.
+    trace_settings.update(settings)
     # If the tweens are explicitly set with 'pyramid.tweens', we need to
     # explicitly set our tween too since `add_tween` will be ignored.
-    insert_tween_if_needed(settings)
-    kwargs['settings'] = settings
+    insert_tween_if_needed(trace_settings)
+    kwargs['settings'] = trace_settings
 
     # `caller_package` works by walking a fixed amount of frames up the stack
     # to find the calling package. So if we let the original `__init__`
     # function call it, our wrapper will mess things up.
     if not kwargs.get('package', None):
-        kwargs['package'] = caller_package()
+        # Get the packge for the third frame up from this one.
+        #   - ddtrace.contrib.pyramid.path
+        #   - ddtrace.vendor.wrapt
+        #   - (this is the frame we want)
+        # DEV: Default is `level=2` which will give us the package from `wrapt`
+        kwargs['package'] = caller_package(level=3)
 
     wrapped(*args, **kwargs)
     trace_pyramid(instance)

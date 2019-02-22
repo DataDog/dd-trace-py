@@ -2,7 +2,7 @@ import platform
 import sys
 import textwrap
 
-import six
+from ddtrace.vendor import six
 
 __all__ = [
     'httplib',
@@ -18,6 +18,7 @@ __all__ = [
 
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] == 3
 
 # Infos about python passed to the trace agent through the header
 PYTHON_VERSION = platform.python_version()
@@ -34,6 +35,7 @@ parse = six.moves.urllib.parse
 Queue = six.moves.queue.Queue
 iteritems = six.iteritems
 reraise = six.reraise
+reload_module = six.moves.reload_module
 
 stringify = six.text_type
 string_type = six.string_types[0]

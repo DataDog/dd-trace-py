@@ -91,6 +91,7 @@ services:
         working_dir: /src
         volumes:
             - ./ddtrace:/src/ddtrace:ro
+            - ./ddtrace_vendor:/src/ddtrace_vendor:ro
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
