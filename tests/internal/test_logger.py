@@ -285,6 +285,40 @@ class DDLoggerTestCase(BaseTestCase):
             With different log messages
                 We use different buckets to limit them
         """
+        log = get_logger('test.logger')
+
+        # DEV: This function is inlined in `logger.py`
+        def get_key(record):
+            return (record.name, record.levelno, record.pathname, record.lineno)
+
+        # Same record signature but different message
+        # DEV: These count against the same bucket
+        record1 = self._make_record(log, msg='record 1')
+        record2 = self._make_record(log, msg='record 2')
+
+        # Different line number (default is `10`)
+        record3 = self._make_record(log, lno=10)
+
+        # Different pathnames (default is `module.py`)
+        record4 = self._make_record(log, fn='log.py')
+
+        # Different level (default is `logging.INFO`)
+        record5 = self._make_record(log, level=logging.WARN)
+
+        # Different logger name
+        record6 = self._make_record(log)
+        record6.name = 'test.logger2'
+
+        # Log all of our records
+        all_records = (record1, record2, record3, record4, record5, record6)
+        [log.handle(record) for record in all_records]
+
+        buckets = log.buckets
+        # We have 6 records but only end up with 5 buckets
+        self.assertEqual(len(buckets), 5)
+
+        #
+        [self.assertIn(get_key(record), buckets) for record in all_records]
 
     def test_logger_handle_(self):
         """

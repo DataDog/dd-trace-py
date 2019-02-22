@@ -82,6 +82,8 @@ class DDLogger(logging.Logger):
         be logged or rate limited, and then call the base ``logging.Logger.handle``
         function if it should be logged
 
+        DEV: This method has all of it's code inlined to reduce on functions calls
+
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
