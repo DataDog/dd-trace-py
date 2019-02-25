@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
@@ -71,6 +72,19 @@ def _wrap_send(func, instance, args, kwargs):
     with tracer.trace('requests.request', span_type=http.TYPE) as span:
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
+
+        # Configure trace search sample rate
+        # DEV: Not enabled by default when global analytics config is enabled
+        # TODO[tahir]: Use config api to simplify
+
+        analytics = config.get_from(instance).get('analytics', config.requests.analytics)
+        analytics_sample_rate = config.get_from(instance).get(
+            'analytics_sample_rate',
+            config.requests.analytics_sample_rate
+        )
+
+        if analytics and analytics_sample_rate:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         # propagate distributed tracing headers
         if config.get_from(instance).get('distributed_tracing'):
