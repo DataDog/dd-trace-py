@@ -35,10 +35,10 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, 'hooks', Hooks())
         object.__setattr__(self, 'http', HttpConfig())
 
-        # Set default analytics configuration
+        # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
-        self['analytics'] = None
-        self['analytics_sample_rate'] = 1.0
+        self['analytics'] = self.get('analytics', None)
+        self['analytics_sample_rate'] = self.get('analytics_sample_rate', 1.0)
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
@@ -62,7 +62,7 @@ class IntegrationConfig(AttrDict):
     def _is_analytics_enabled(self):
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
-
+        
         if self.global_config.analytics:
             return self.analytics is not False
         else:

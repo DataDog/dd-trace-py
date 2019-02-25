@@ -1,7 +1,19 @@
 from ddtrace.settings import Config, IntegrationConfig, HttpConfig
 
+from ..base import BaseTestCase
 
-class TestHttpConfig(object):
+class TestConfig(BaseTestCase):
+    def test_environment_analytics(self):
+        with self.override_env(dict(DD_ANALYTICS='True')):
+            config = Config()
+            self.assertTrue(config.analytics)
+
+        with self.override_env(dict(DD_ANALYTICS='False')):
+            config = Config()
+            self.assertFalse(config.analytics)
+
+
+class TestHttpConfig(BaseTestCase):
 
     def test_trace_headers(self):
         http_config = HttpConfig()
@@ -25,6 +37,7 @@ class TestHttpConfig(object):
     def test_empty_entry_do_not_raise_exception(self):
         http_config = HttpConfig()
         http_config.trace_headers('')
+
         assert not http_config.header_is_traced('some_header_1')
 
     def test_none_entry_do_not_raise_exception(self):
@@ -55,7 +68,7 @@ class TestHttpConfig(object):
         assert not http_config.header_is_traced(None)
 
 
-class TestIntegrationConfig(object):
+class TestIntegrationConfig(BaseTestCase):
 
     def test_is_a_dict(self):
         integration_config = IntegrationConfig(Config())
@@ -106,3 +119,12 @@ class TestIntegrationConfig(object):
         assert integration_config.header_is_traced('integration_header')
         assert not integration_config.header_is_traced('global_header')
         assert not global_config.header_is_traced('integration_header')
+
+    def test_environment_analytics(self):
+        with self.override_env(dict(DD_FOO_ANALYTICS='True')):
+            global_config = Config()
+            self.assertTrue(global_config.foo.analytics)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS='False')):
+            global_config = Config()
+            self.assertFalse(global_config.foo.analytics)

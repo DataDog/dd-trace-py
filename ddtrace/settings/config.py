@@ -27,6 +27,11 @@ class Config(object):
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self)
+
+            # Inject environment variables for integration
+            integration_analytics = environ.get('DD_{}_ANALYTICS'.format(name.upper()))
+            if integration_analytics is not None:
+                self._config[name].analytics = asbool(integration_analytics)
         return self._config[name]
 
     def get_from(self, obj):
@@ -70,6 +75,11 @@ class Config(object):
             self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
         else:
             self._config[integration] = IntegrationConfig(self, settings)
+
+        # Inject environment variables for integration if none set
+        integration_analytics = environ.get('DD_{}_ANALYTICS'.format(integration.upper()))
+        if self._config[integration].analytics is None and integration_analytics is not None:
+            self._config[integration].analytics = asbool(integration_analytics)
 
     def trace_headers(self, whitelist):
         """
