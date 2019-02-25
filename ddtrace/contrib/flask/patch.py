@@ -3,7 +3,7 @@ import os
 
 import flask
 import werkzeug
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config, Pin
 
@@ -31,7 +31,7 @@ config._add('flask', dict(
     app_type=AppTypes.web,
 
     collect_view_args=True,
-    distributed_tracing_enabled=False,
+    distributed_tracing_enabled=True,
     template_default_name='<memory>',
     trace_signals=True,
 
