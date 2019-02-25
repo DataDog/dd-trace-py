@@ -8,7 +8,6 @@ import time
 
 from . import api
 from .compat import Queue
-from .payload import Payload
 
 log = logging.getLogger(__name__)
 
