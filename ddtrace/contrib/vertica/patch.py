@@ -1,7 +1,7 @@
 import importlib
 import logging
 
-import wrapt
+from ddtrace.vendor import wrapt
 
 import ddtrace
 from ddtrace import config, Pin

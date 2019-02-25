@@ -89,7 +89,8 @@ class PsycopgCore(BaseTracerTestCase):
 
         start = time.time()
         cursor = db.cursor()
-        cursor.execute(q)
+        res = cursor.execute(q)
+        self.assertIsNone(res)
         rows = cursor.fetchall()
         end = time.time()
 

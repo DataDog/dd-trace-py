@@ -1,5 +1,7 @@
 from nose.tools import eq_, ok_
 
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+
 from .utils import PyramidTestCase, PyramidBase
 
 
@@ -32,6 +34,7 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
+            'x-datadog-origin': 'synthetics',
         }
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
@@ -41,7 +44,8 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         span = spans[0]
         eq_(span.trace_id, 100)
         eq_(span.parent_id, 42)
-        eq_(span.get_metric('_sampling_priority_v1'), 2)
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        eq_(span.get_tag(ORIGIN_KEY), 'synthetics')
 
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
@@ -58,6 +62,7 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
+            'x-datadog-origin': 'synthetics',
         }
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
@@ -67,4 +72,5 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         span = spans[0]
         ok_(span.trace_id != 100)
         ok_(span.parent_id != 42)
-        ok_(span.get_metric('_sampling_priority_v1') != 2)
+        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
+        ok_(span.get_tag(ORIGIN_KEY) != 'synthetics')
