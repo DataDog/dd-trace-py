@@ -8,6 +8,7 @@ import ddtrace
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .payload import Payload
 from .utils.deprecation import deprecated
 
 
@@ -145,6 +146,15 @@ class API(object):
         executed only once.
         """
         self._set_version(self._fallback)
+
+    def new_payload(self):
+        """
+        Return a new trace payload for this API client
+
+        :returns: A new ``Payload`` with the appropriate encoder set
+        :rtype: Payload
+        """
+        return Payload(self._encoder)
 
     def send_traces(self, payload):
         if not payload or payload.empty:

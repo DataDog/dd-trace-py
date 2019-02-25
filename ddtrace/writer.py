@@ -150,7 +150,7 @@ class AsyncWorker(object):
 
     def _target(self):
         next_flush = time.time() + 1
-        payload = Payload()
+        payload = self.api.new_payload()
 
         while True:
             # DEV: Returns `None` or a Trace
@@ -178,9 +178,9 @@ class AsyncWorker(object):
                     log.debug('Attempting to flush %r', payload)
                     self._flush(payload)
 
-                    # Clone/reset the payload
-                    # DEV: Cloning will keep the same encoder + max payload size in case we had to downgrade
-                    payload = payload.clone()
+                    # Get a fresh payload
+                    # DEV: Payloads are not reusable
+                    payload = self.api.new_payload()
                 next_flush = now + 1
 
             # Wait up until the next flush for another trace to be added

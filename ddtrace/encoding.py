@@ -12,11 +12,13 @@ try:
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
     from msgpack._version import version
     # use_bin_type kwarg only exists since msgpack-python v0.4.0
-    MSGPACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
+    MSGPACK_PACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
+    MSGPACK_UNPACK_PARAMS = {'raw': False} if version >= (0, 4, 0) else {'encoding': 'utf-8'}
     MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
-    MSGPACK_PARAMS = {}
+    MSGPACK_PACK_PARAMS = {}
+    MSGPACK_UNPACK_PARAMS = {}
     MSGPACK_ENCODING = False
 
 log = logging.getLogger(__name__)
@@ -99,10 +101,10 @@ class MsgpackEncoder(Encoder):
         self.content_type = 'application/msgpack'
 
     def encode(self, obj):
-        return msgpack.packb(obj)
+        return msgpack.packb(obj, **MSGPACK_PACK_PARAMS)
 
     def decode(self, data):
-        return msgpack.unpackb(data)
+        return msgpack.unpackb(data, **MSGPACK_UNPACK_PARAMS)
 
     def join_encoded(self, objs):
         """Join a list of encoded objects together as a msgpack array"""

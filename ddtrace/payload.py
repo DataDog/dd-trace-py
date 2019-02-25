@@ -15,7 +15,7 @@ class Payload:
     DEV: We encoded and buffer traces so that we can reliable determine the size of
          the payload easily so we can flush based on the payload size.
     """
-    __slots__ = ['traces', 'size', 'encoder', 'max_payload_size']
+    __slots__ = ('traces', 'size', 'encoder', 'max_payload_size')
 
     # Default max payload size of 5mb
     # DEV: Trace agent limit is 10mb, cutoff at 5mb to ensure we don't hit 10mb
@@ -114,18 +114,6 @@ class Payload:
         ]
         log.debug('Downgraded %d traces', len(self.traces))
         self.encoder = new_encoder
-
-    def clone(self):
-        """
-        Create a new instance a ``Payload`` using this payload's encoder and max size
-
-        :returns: A new ``Payload``
-        :rtype: ``Payload``
-        """
-        return Payload(
-            encoder=self.encoder,
-            max_payload_size=self.max_payload_size,
-        )
 
     def __repr__(self):
         """Get the string representation of this payload"""
