@@ -68,6 +68,7 @@ The available settings are:
   required for distributed tracing if this application is called remotely from another
   instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
+* ``ANALYTICS`` (default: ``None``): enables APM events in Trace Search & Analytics.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 * ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be

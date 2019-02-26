@@ -18,7 +18,6 @@ import logging
 
 from django.conf import settings as django_settings
 
-
 log = logging.getLogger(__name__)
 
 # List of available settings with their defaults
@@ -34,6 +33,8 @@ DEFAULTS = {
     'DEFAULT_CACHE_SERVICE': '',
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
+    'ANALYTICS': None,
+    'ANALYTICS_SAMPLE_RATE': 1.0,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }

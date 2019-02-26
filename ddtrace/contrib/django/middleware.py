@@ -120,10 +120,13 @@ class TraceMiddleware(InstrumentationMixin):
                 span_type=http.TYPE,
             )
 
+            # DEV: Django is special case for analytics since as current django
+            # instrumentation maintains separate configuration from config api
+            analytics = (config.analytics and settings.ANALYTICS is not False) or settings.ANALYTICS is True
+
             # Set event sample rate for trace search (analytics)
-            analytics_sample_rate = config.django.get_analytics_sample_rate()
-            if analytics_sample_rate:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+            if analytics:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.ANALYTICS_SAMPLE_RATE)
 
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, request.path)
