@@ -32,7 +32,7 @@ def traced_init(wrapped, instance, args, kwargs):
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', True))
     analytics = asbool(get_env('pyramid', 'analytics', None))
-    analytics_sample_rate = asbool(get_env('pyramid', 'analytics_sample_rate', 1.0))
+    analytics_sample_rate = get_env('pyramid', 'analytics_sample_rate', 1.0)
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,
