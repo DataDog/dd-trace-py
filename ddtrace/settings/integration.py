@@ -62,7 +62,6 @@ class IntegrationConfig(AttrDict):
     def _is_analytics_enabled(self):
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
-        
         if self.global_config.analytics:
             return self.analytics is not False
         else:

@@ -3,7 +3,7 @@ import logging
 from os import environ
 
 from ..pin import Pin
-from ..utils.formats import asbool
+from ..utils.formats import asbool, get_env
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -29,9 +29,9 @@ class Config(object):
             self._config[name] = IntegrationConfig(self)
 
             # Inject environment variables for integration
-            integration_analytics = environ.get('DD_{}_ANALYTICS'.format(name.upper()))
-            if integration_analytics is not None:
-                self._config[name].analytics = asbool(integration_analytics)
+            analytics = get_env(name, 'analytics')
+            if analytics is not None:
+                self._config[name].analytics = asbool(analytics)
         return self._config[name]
 
     def get_from(self, obj):
@@ -77,9 +77,9 @@ class Config(object):
             self._config[integration] = IntegrationConfig(self, settings)
 
         # Inject environment variables for integration if none set
-        integration_analytics = environ.get('DD_{}_ANALYTICS'.format(integration.upper()))
-        if self._config[integration].analytics is None and integration_analytics is not None:
-            self._config[integration].analytics = asbool(integration_analytics)
+        analytics = get_env(integration, 'analytics')
+        if self._config[integration].analytics is None and analytics is not None:
+            self._config[integration].analytics = asbool(analytics)
 
     def trace_headers(self, whitelist):
         """

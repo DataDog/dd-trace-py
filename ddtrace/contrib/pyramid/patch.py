@@ -1,7 +1,10 @@
 import os
 
 from .trace import trace_pyramid, DD_TWEEN_NAME
-from .constants import SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING
+from .constants import (
+    SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING,
+    SETTINGS_ANALYTICS, SETTINGS_ANALYTICS_SAMPLE_RATE
+)
 from ...utils.formats import asbool, get_env
 
 import pyramid.config
@@ -28,9 +31,13 @@ def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', True))
+    analytics = asbool(get_env('pyramid', 'analytics', True))
+    analytics_sample_rate = asbool(get_env('pyramid', 'analytics_sample_rate', True))
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: distributed_tracing,
+        SETTINGS_ANALYTICS: analytics,
+        SETTINGS_ANALYTICS_SAMPLE_RATE: analytics_sample_rate,
     }
     # Update over top of the defaults
     # DEV: If we did `settings.update(trace_settings)` then we would only ever

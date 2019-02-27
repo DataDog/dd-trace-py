@@ -16,6 +16,8 @@ from .constants import (
     SETTINGS_SERVICE,
     SETTINGS_TRACE_ENABLED,
     SETTINGS_DISTRIBUTED_TRACING,
+    SETTINGS_ANALYTICS,
+    SETTINGS_ANALYTICS_SAMPLE_RATE,
 )
 
 
@@ -61,6 +63,8 @@ def trace_tween_factory(handler, registry):
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
     distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
+    analytics = asbool(settings.get(SETTINGS_ANALYTICS, False)) if settings.get(SETTINGS_ANALYTICS) else None
+    analytics_sample_rate = settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, 1.0)
 
     if enabled:
         # make a request tracing function
@@ -73,8 +77,8 @@ def trace_tween_factory(handler, registry):
                     tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
                 # Configure trace search sample rate
-                analytics_sample_rate = config.pyramid.get_analytics_sample_rate()
-                if analytics_sample_rate:
+                # DEV: pyramid is special case maintains separate configuration from config api
+                if (config.analytics and analytics is not False) or analytics is True:
                     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates

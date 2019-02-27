@@ -2,6 +2,7 @@ from ddtrace.settings import Config, IntegrationConfig, HttpConfig
 
 from ..base import BaseTestCase
 
+
 class TestConfig(BaseTestCase):
     def test_environment_analytics(self):
         with self.override_env(dict(DD_ANALYTICS='True')):

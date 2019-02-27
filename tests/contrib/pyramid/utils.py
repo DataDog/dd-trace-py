@@ -89,13 +89,13 @@ class PyramidTestCase(PyramidBase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=True)):
-            with self.override_config('pyramid', dict(analytics=True, analytics_sample_rate=0.5)):
-                res = self.app.get('/', status=200)
-                assert b'idx' in res.body
+            self.override_settings(dict(datadog_analytics=True, datadog_analytics_sample_rate=0.5))
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
 
-                self.assert_structure(
-                    dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
-                )
+            self.assert_structure(
+                dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_analytics_global_off_integration_default(self):
         """
@@ -117,13 +117,13 @@ class PyramidTestCase(PyramidBase):
                 We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics=False)):
-            with self.override_config('pyramid', dict(analytics=True, analytics_sample_rate=0.5)):
-                res = self.app.get('/', status=200)
-                assert b'idx' in res.body
+            self.override_settings(dict(datadog_analytics=True, datadog_analytics_sample_rate=0.5))
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
 
-                self.assert_structure(
-                    dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
-                )
+            self.assert_structure(
+                dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
 
     def test_404(self):
         self.app.get('/404', status=404)

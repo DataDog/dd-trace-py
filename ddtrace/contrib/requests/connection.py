@@ -75,7 +75,6 @@ def _wrap_send(func, instance, args, kwargs):
 
         # Configure trace search sample rate
         # DEV: Not enabled by default when global analytics config is enabled
-        # TODO[tahir]: Use config api to simplify
 
         analytics = config.get_from(instance).get('analytics', config.requests.analytics)
         analytics_sample_rate = config.get_from(instance).get(

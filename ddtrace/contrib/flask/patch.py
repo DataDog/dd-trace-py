@@ -12,7 +12,6 @@ from ...ext import AppTypes
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
-from ...utils.formats import get_env
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
@@ -35,10 +34,6 @@ config._add('flask', dict(
     distributed_tracing_enabled=True,
     template_default_name='<memory>',
     trace_signals=True,
-
-    # Trace search configuration
-    analytics=get_env('flask', 'analytics', None),
-    analytics_sample_rate=get_env('flask', 'analytics_sample_rate', 1.0),
 
     # We mark 5xx responses as errors, these codes are additional status codes to mark as errors
     # DEV: This is so that if a user wants to see `401` or `403` as an error, they can configure that
