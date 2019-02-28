@@ -31,7 +31,9 @@ def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', True))
-    analytics = asbool(get_env('pyramid', 'analytics', None))
+    # DEV: integration-specific analytics flag can be not set but still enabled
+    # globally for web frameworks
+    analytics = asbool(get_env('pyramid', 'analytics')) if get_env('pyramid', 'analytics') else None
     analytics_sample_rate = get_env('pyramid', 'analytics_sample_rate', 1.0)
     trace_settings = {
         SETTINGS_SERVICE: service,
