@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from ddtrace.api import API
 from ddtrace.span import Span
 from ddtrace.writer import AsyncWorker, Q
 
@@ -34,9 +35,13 @@ class AddTagFilter():
         return trace
 
 
-class DummmyAPI():
+class DummyAPI(API):
     def __init__(self):
+        super(DummyAPI, self).__init__('127.0.0.1', 8126)
         self.traces = []
+
+    def _put(self, *args, **kwargs):
+        raise AssertionError('DummyAPI._put was not expected to be called')
 
     def send_traces(self, payload):
         for trace in payload.traces:
@@ -48,7 +53,7 @@ N_TRACES = 11
 
 class AsyncWorkerTests(TestCase):
     def setUp(self):
-        self.api = DummmyAPI()
+        self.api = DummyAPI()
         self.traces = Q()
         self.services = Q()
         for i in range(N_TRACES):
@@ -86,8 +91,7 @@ class AsyncWorkerTests(TestCase):
         self.assertEqual(filtr.filtered_traces, N_TRACES)
         for trace in self.api.traces:
             for span in trace:
-                # DEV: Encoding and then decoding forces the strings to be bytes
-                self.assertIsNotNone(span[b'meta'].get(b'Tag'))
+                self.assertIsNotNone(span['meta'].get('Tag'))
 
     def test_filters_short_circuit(self):
         filtr = KeepAllFilter()
