@@ -1,17 +1,14 @@
 """
 Generic dbapi tracing code.
 """
+from ...ext import AppTypes, sql
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
+from ...utils.formats import asbool, get_env
+from ...vendor import wrapt
 
-import logging
-
-from ddtrace.vendor import wrapt
-
-from ddtrace import Pin
-from ddtrace.ext import AppTypes, sql
-from ddtrace.settings import config
-from ddtrace.utils.formats import asbool, get_env
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 config._add('dbapi2', dict(
     trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),

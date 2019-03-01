@@ -1,16 +1,14 @@
-
-import logging
-
 from django.db import connections
 
 # project
 from ...ext import sql as sqlx
+from ...internal.logger import get_logger
+from ...pin import Pin
 
 from .conf import settings
 from ..dbapi import TracedCursor as DbApiTracedCursor
-from ddtrace import Pin
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 CURSOR_ATTR = '_datadog_original_cursor'
 ALL_CONNS_ATTR = '_datadog_original_connections_all'

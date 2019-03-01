@@ -1,10 +1,10 @@
-import logging
-
-from ddtrace.vendor import wrapt
 import ddtrace
 
+from .internal.logger import get_logger
+from .vendor import wrapt
 
-log = logging.getLogger(__name__)
+
+log = get_logger(__name__)
 
 
 # To set attributes on wrapt proxy objects use this prefix:

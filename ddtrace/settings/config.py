@@ -1,12 +1,12 @@
 from copy import deepcopy
-import logging
 
+from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Config(object):

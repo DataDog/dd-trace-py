@@ -1,14 +1,14 @@
 # stdlib
 import atexit
-import logging
 import threading
 import random
 import os
 import time
 
-from ddtrace import api
+from . import api
+from .internal.logger import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 MAX_TRACES = 1000

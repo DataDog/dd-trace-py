@@ -1,5 +1,3 @@
-# 3p
-import logging
 import pyramid.renderers
 from pyramid.settings import asbool
 from pyramid.httpexceptions import HTTPException
@@ -9,6 +7,7 @@ from ddtrace.vendor import wrapt
 import ddtrace
 from ...constants import EVENT_SAMPLE_RATE_KEY
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 from .constants import (
@@ -19,7 +18,7 @@ from .constants import (
 )
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 DD_SPAN = '_datadog_span'

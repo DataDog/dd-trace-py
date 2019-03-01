@@ -1,14 +1,13 @@
-import logging
-
 from functools import wraps
 
 from django.conf import settings as django_settings
 
+from ...internal.logger import get_logger
 from .conf import settings, import_from_string
 from .utils import quantize_key_values, _resource_from_cache_prefix
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # code instrumentation
 DATADOG_NAMESPACE = '__datadog_original_{method}'

@@ -1,6 +1,3 @@
-
-# stdlib
-import logging
 import random
 
 # 3p
@@ -9,8 +6,9 @@ import pylibmc
 
 # project
 import ddtrace
-from ddtrace.ext import memcached
-from ddtrace.ext import net
+from ...ext import memcached
+from ...ext import net
+from ...internal.logger import get_logger
 from .addrs import parse_addresses
 
 
@@ -18,7 +16,7 @@ from .addrs import parse_addresses
 _Client = pylibmc.Client
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class TracedClient(ObjectProxy):
