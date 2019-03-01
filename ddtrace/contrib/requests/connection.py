@@ -1,15 +1,14 @@
-import logging
-
 import ddtrace
 from ddtrace import config
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def _extract_service_name(session, span, hostname=None):

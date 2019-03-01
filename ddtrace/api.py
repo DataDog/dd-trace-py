@@ -1,5 +1,4 @@
 # stdlib
-import logging
 import time
 import ddtrace
 from json import loads
@@ -7,10 +6,11 @@ from json import loads
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
+from .internal.logger import get_logger
 from .utils.deprecation import deprecated
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 

@@ -1,5 +1,3 @@
-import logging
-
 # 3rd party
 from django.apps import AppConfig, apps
 
@@ -10,7 +8,9 @@ from .cache import patch_cache
 from .templates import patch_template
 from .middleware import insert_exception_middleware, insert_trace_middleware
 
-log = logging.getLogger(__name__)
+from ...internal.logger import get_logger
+
+log = get_logger(__name__)
 
 
 class TracerConfig(AppConfig):

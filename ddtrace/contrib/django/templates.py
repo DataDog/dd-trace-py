@@ -1,18 +1,14 @@
 """
 code to measure django template rendering.
 """
-
-
-# stdlib
-import logging
-
 # project
 from ...ext import http
+from ...internal.logger import get_logger
 
 # 3p
 from django.template import Template
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 RENDER_ATTR = '_datadog_original_render'
 
