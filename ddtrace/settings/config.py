@@ -26,12 +26,8 @@ class Config(object):
 
     def __getattr__(self, name):
         if name not in self._config:
-            self._config[name] = IntegrationConfig(self)
+            self._config[name] = IntegrationConfig(self, name)
 
-            # Inject environment variables for integration
-            analytics = get_env(name, 'analytics')
-            if analytics is not None:
-                self._config[name].analytics = asbool(analytics)
         return self._config[name]
 
     def get_from(self, obj):
@@ -72,14 +68,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
         else:
-            self._config[integration] = IntegrationConfig(self, settings)
-
-        # Inject environment variables for integration if none set
-        analytics = get_env(integration, 'analytics')
-        if self._config[integration].analytics is None and analytics is not None:
-            self._config[integration].analytics = asbool(analytics)
+            self._config[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """

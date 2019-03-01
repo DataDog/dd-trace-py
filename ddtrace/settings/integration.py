@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from ..utils.attrdict import AttrDict
+from ..utils.formats import asbool, get_env
 from .http import HttpConfig
 from .hooks import Hooks
 
@@ -20,7 +21,7 @@ class IntegrationConfig(AttrDict):
         config.flask['service_name'] = 'my-service-name'
         config.flask.service_name = 'my-service-name'
     """
-    def __init__(self, global_config, *args, **kwargs):
+    def __init__(self, global_config, name, *args, **kwargs):
         """
         :param global_config:
         :type global_config: Config
@@ -32,12 +33,18 @@ class IntegrationConfig(AttrDict):
         # Set internal properties for this `IntegrationConfig`
         # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
         object.__setattr__(self, 'global_config', global_config)
+        object.__setattr__(self, 'integration_name', name)
         object.__setattr__(self, 'hooks', Hooks())
         object.__setattr__(self, 'http', HttpConfig())
 
+
         # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
-        self['analytics'] = self.get('analytics', None)
+        # Inject environment variables for integration, override any set in
+        # AttrDict args
+        self['analytics'] = get_env(name, 'analytics')
+        if self['analytics'] is not None:
+            self['analytics'] = asbool(self['analytics'])
         self['analytics_sample_rate'] = self.get('analytics_sample_rate', 1.0)
 
     def __deepcopy__(self, memodict=None):

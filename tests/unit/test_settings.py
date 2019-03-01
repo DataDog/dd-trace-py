@@ -70,62 +70,64 @@ class TestHttpConfig(BaseTestCase):
 
 
 class TestIntegrationConfig(BaseTestCase):
+    def setUp(self):
+        self.config = Config()
+        self.integration_config = IntegrationConfig(self.config, 'test')
 
     def test_is_a_dict(self):
-        integration_config = IntegrationConfig(Config())
-        assert isinstance(integration_config, dict)
+        assert isinstance(self.integration_config, dict)
 
     def test_allow_item_access(self):
-        config = IntegrationConfig(Config())
-        config['setting'] = 'value'
+        self.integration_config['setting'] = 'value'
 
         # Can be accessed both as item and attr accessor
-        assert config.setting == 'value'
-        assert config['setting'] == 'value'
+        assert self.integration_config.setting == 'value'
+        assert self.integration_config['setting'] == 'value'
 
     def test_allow_attr_access(self):
-        config = IntegrationConfig(Config())
-        config.setting = 'value'
+        self.integration_config.setting = 'value'
 
         # Can be accessed both as item and attr accessor
-        assert config.setting == 'value'
-        assert config['setting'] == 'value'
+        assert self.integration_config.setting == 'value'
+        assert self.integration_config['setting'] == 'value'
 
     def test_allow_both_access(self):
-        config = IntegrationConfig(Config())
+        self.integration_config.setting = 'value'
+        assert self.integration_config['setting'] == 'value'
+        assert self.integration_config.setting == 'value'
 
-        config.setting = 'value'
-        assert config['setting'] == 'value'
-        assert config.setting == 'value'
-
-        config['setting'] = 'new-value'
-        assert config.setting == 'new-value'
-        assert config['setting'] == 'new-value'
+        self.integration_config['setting'] = 'new-value'
+        assert self.integration_config.setting == 'new-value'
+        assert self.integration_config['setting'] == 'new-value'
 
     def test_allow_configuring_http(self):
-        global_config = Config()
-        integration_config = IntegrationConfig(global_config)
-        integration_config.http.trace_headers('integration_header')
-        assert integration_config.http.header_is_traced('integration_header')
-        assert not integration_config.http.header_is_traced('other_header')
+        self.integration_config.http.trace_headers('integration_header')
+        assert self.integration_config.http.header_is_traced('integration_header')
+        assert not self.integration_config.http.header_is_traced('other_header')
 
     def test_allow_exist_both_global_and_integration_config(self):
-        global_config = Config()
-        integration_config = IntegrationConfig(global_config)
+        self.config.trace_headers('global_header')
+        assert self.integration_config.header_is_traced('global_header')
 
-        global_config.trace_headers('global_header')
-        assert integration_config.header_is_traced('global_header')
-
-        integration_config.http.trace_headers('integration_header')
-        assert integration_config.header_is_traced('integration_header')
-        assert not integration_config.header_is_traced('global_header')
-        assert not global_config.header_is_traced('integration_header')
+        self.integration_config.http.trace_headers('integration_header')
+        assert self.integration_config.header_is_traced('integration_header')
+        assert not self.integration_config.header_is_traced('global_header')
+        assert not self.config.header_is_traced('integration_header')
 
     def test_environment_analytics(self):
+        # default
+        self.assertFalse(self.config.analytics)
+        self.assertIsNone(self.config.foo.analytics)
+
+        with self.override_env(dict(DD_ANALYTICS='True')):
+            config = Config()
+            self.assertTrue(config.analytics)
+            self.assertIsNone(config.foo.analytics)
+
         with self.override_env(dict(DD_FOO_ANALYTICS='True')):
-            global_config = Config()
-            self.assertTrue(global_config.foo.analytics)
+            config = Config()
+            self.assertTrue(config.foo.analytics)
 
         with self.override_env(dict(DD_FOO_ANALYTICS='False')):
-            global_config = Config()
-            self.assertFalse(global_config.foo.analytics)
+            config = Config()
+            self.assertFalse(config.foo.analytics)
