@@ -1,6 +1,7 @@
 import json
-import logging
 import struct
+
+from .internal.logger import get_logger
 
 
 # check msgpack CPP implementation; if the import fails, we're using the
@@ -21,7 +22,7 @@ except ImportError:
     MSGPACK_UNPACK_PARAMS = {}
     MSGPACK_ENCODING = False
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Encoder(object):

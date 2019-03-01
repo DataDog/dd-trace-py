@@ -1,6 +1,3 @@
-# Standard library
-import logging
-
 # Third party
 from ddtrace.vendor import wrapt
 
@@ -9,12 +6,13 @@ from ...compat import PY2, httplib, parse
 from ddtrace import config
 from ...ext import http as ext_http
 from ...http import store_request_headers, store_response_headers
+from ...internal.logger import get_logger
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def _wrap_init(func, instance, args, kwargs):

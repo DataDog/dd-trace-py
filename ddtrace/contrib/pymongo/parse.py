@@ -1,5 +1,4 @@
 import ctypes
-import logging
 import struct
 
 # 3p
@@ -10,9 +9,10 @@ from bson.son import SON
 # project
 from ...compat import to_unicode
 from ...ext import net as netx
+from ...internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 # MongoDB wire protocol commands

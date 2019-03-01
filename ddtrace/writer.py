@@ -1,6 +1,4 @@
-# stdlib
 import atexit
-import logging
 import os
 import random
 import threading
@@ -8,8 +6,9 @@ import time
 
 from . import api
 from .compat import Queue
+from .internal.logger import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 MAX_TRACES = 1000

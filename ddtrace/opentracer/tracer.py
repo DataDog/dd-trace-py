@@ -1,4 +1,3 @@
-import logging
 import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
@@ -10,13 +9,14 @@ from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
+from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .utils import get_context_provider_for_scope_manager
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
     keys.AGENT_HOSTNAME: 'localhost',

@@ -1,5 +1,3 @@
-# stdlib
-import logging
 import sys
 
 # 3p
@@ -15,11 +13,12 @@ from pymemcache.exceptions import (
 )
 
 # project
-from ddtrace import Pin
-from ddtrace.compat import reraise
-from ddtrace.ext import net, memcached as memcachedx
+from ...compat import reraise
+from ...ext import net, memcached as memcachedx
+from ...internal.logger import get_logger
+from ...pin import Pin
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 # keep a reference to the original unpatched clients
