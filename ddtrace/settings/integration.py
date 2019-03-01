@@ -37,7 +37,6 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, 'hooks', Hooks())
         object.__setattr__(self, 'http', HttpConfig())
 
-
         # Set default analytics configuration, default is disabled
         # DEV: Default to `None` which means do not set this key
         # Inject environment variables for integration, override any set in
