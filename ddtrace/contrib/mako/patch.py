@@ -1,11 +1,11 @@
 import mako
 from mako.template import Template
-from wrapt import wrap_function_wrapper as _w
 
 from ...ext import http
 from ...pin import Pin
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
+from ...vendor.wrapt import wrap_function_wrapper as _w
 from .constants import DEFAULT_TEMPLATE_NAME
 
 

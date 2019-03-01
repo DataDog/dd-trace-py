@@ -1,6 +1,6 @@
 from importlib import import_module
 
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .quantize import quantize
 

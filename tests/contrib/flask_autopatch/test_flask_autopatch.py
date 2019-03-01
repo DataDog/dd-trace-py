@@ -2,7 +2,7 @@
 import unittest
 
 import flask
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ddtrace import Pin
 

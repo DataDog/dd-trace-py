@@ -5,13 +5,7 @@ from ddtrace import Pin, config
 from celery import registry
 
 from . import constants as c
-from .utils import (
-    tags_from_context,
-    retrieve_task_id,
-    attach_span,
-    detach_span,
-    retrieve_span,
-)
+from .utils import tags_from_context, retrieve_task_id, attach_span, detach_span, retrieve_span
 
 log = logging.getLogger(__name__)
 SPAN_TYPE = 'worker'
@@ -128,6 +122,8 @@ def trace_failure(*args, **kwargs):
         # so we don't need to attach other tags here
         ex = kwargs.get('einfo')
         if ex is None:
+            return
+        if hasattr(task, 'throws') and isinstance(ex.exception, task.throws):
             return
         span.set_exc_info(ex.type, ex.exception, ex.tb)
 
