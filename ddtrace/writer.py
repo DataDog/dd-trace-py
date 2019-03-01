@@ -17,7 +17,6 @@ DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 
-
 class AgentWriter(object):
 
     def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
