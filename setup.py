@@ -146,7 +146,7 @@ class optional_build_ext(build_ext):
 try:
     kwargs = copy.deepcopy(setup_kwargs)
     kwargs['ext_modules'] = [
-        Extension('ddtrace.vendor.wrapt._wrappers', ['ddtrace.vendor/wrapt/_wrappers.c']),
+        Extension('ddtrace.vendor.wrapt._wrappers', sources=['ddtrace/vendor/wrapt/_wrappers.c']),
     ]
     # DEV: Make sure `cmdclass` exists
     kwargs.update(dict(cmdclass=dict()))
