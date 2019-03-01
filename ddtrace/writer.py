@@ -17,19 +17,6 @@ DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
 
-def _get_trace_info(trace):
-    if not trace and not len(trace):
-        return '<{0!r}>'.format(trace)
-
-    root = trace[0]
-    return 'Trace(id={0!r}, name={1!r}, service={2!r}, resource={3!r}, spans={4!r})'.format(
-        getattr(root, 'trace_id', None),
-        getattr(root, 'name', None),
-        getattr(root, 'service', None),
-        getattr(root, 'resource', None),
-        len(trace),
-    )
-
 
 class AgentWriter(object):
 
@@ -47,7 +34,7 @@ class AgentWriter(object):
         self._reset_worker()
 
         if spans:
-            log.debug('Queuing %s', _get_trace_info(spans))
+            log.debug('Queuing trace with %s spans', len(spans))
             self._traces.put(spans)
 
     def _reset_worker(self):
@@ -166,7 +153,7 @@ class AsyncWorker(object):
                 trace = None
 
             if trace:
-                log.debug('Popped %s', _get_trace_info(trace))
+                log.debug('Popped trace with %s spans', len(trace))
                 payload.add_trace(trace)
 
             now = time.time()
