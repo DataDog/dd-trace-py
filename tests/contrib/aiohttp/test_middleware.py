@@ -6,7 +6,7 @@ from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
 from ddtrace.sampler import RateSampler
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
@@ -384,3 +384,17 @@ class TestTraceMiddleware(TraceTestCase):
         eq_("What's tracing?", text)
         traces = self.tracer.writer.pop_traces()
         self._assert_200_parenting(traces)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_enabled(self):
+        """ Check trace has analytics sample rate set """
+        self.app['datadog_trace']['analytics'] = True
+        self.app['datadog_trace']['analytics_sample_rate'] = 0.5
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span sets the appropriate metric
+        self.assert_structure(
+            dict(name='aiohttp.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
+        )

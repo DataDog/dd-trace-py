@@ -28,6 +28,8 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
+        analytics = app[CONFIG_KEY]['analytics']
+        analytics_sample_rate = app[CONFIG_KEY]['analytics_sample_rate']
 
         context = tracer.context_provider.active()
 
@@ -47,8 +49,8 @@ def trace_middleware(app, handler):
         )
 
         # Configure trace search sample rate
-        analytics_sample_rate = config.aiohttp.get_analytics_sample_rate()
-        if analytics_sample_rate:
+        # DEV: aiohttp is special case maintains separate configuration from config api
+        if (config.analytics and analytics is not False) or analytics is True:
             request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         # attach the context and the root span to the request; the Context
@@ -119,6 +121,8 @@ def trace_app(app, tracer, service='aiohttp-web'):
         'tracer': tracer,
         'service': service,
         'distributed_tracing_enabled': True,
+        'analytics': None,
+        'analytics_sample_rate': 1.0,
     }
 
     # the tracer must work with asynchronous Context propagation
