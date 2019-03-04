@@ -65,20 +65,20 @@ class IntegrationConfig(AttrDict):
             else self.global_config.header_is_traced(header_name)
         )
 
-    def _is_analytics_enabled(self):
+    def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
-        if self.global_config.analytics:
+        if use_global_config and self.global_config.analytics:
             return self.analytics is not False
         else:
             return self.analytics is True
 
-    def get_analytics_sample_rate(self):
+    def get_analytics_sample_rate(self, use_global_config=True):
         """
         Returns analytics sample rate but only when integration-specific
         analytics configuration is enabled
         """
-        if self._is_analytics_enabled():
+        if self._is_analytics_enabled(use_global_config):
             return self.analytics_sample_rate
 
     def __repr__(self):

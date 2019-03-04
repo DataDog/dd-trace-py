@@ -3,6 +3,7 @@
 from botocore.errorfactory import ClientError
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
 from ddtrace.compat import stringify
 
@@ -42,6 +43,18 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(span.resource, 'ec2.describeinstances')
         self.assertEqual(span.name, 'ec2.command')
         self.assertEqual(span.span_type, 'http')
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @mark_asyncio
+    def test_traced_client_analytics(self):
+        with self.override_config('aiobotocore', dict(analytics=True, analytics_sample_rate=0.5)):
+            with aiobotocore_client('ec2', self.tracer) as ec2:
+                yield from ec2.describe_instances()
+
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     @mark_asyncio
     def test_s3_client(self):

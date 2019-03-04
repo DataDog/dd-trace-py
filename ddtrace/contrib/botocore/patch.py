@@ -3,9 +3,11 @@ Trace queries to aws api done via botocore client
 """
 # 3p
 from ddtrace.vendor import wrapt
+from ddtrace import config
 import botocore.client
 
 # project
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import http, aws
 from ...utils.formats import deep_getattr
@@ -70,5 +72,9 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
+
+        analytics_sample_rate = config.botocore.get_analytics_sample_rate(use_global_config=False)
+        if analytics_sample_rate:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
         return result
