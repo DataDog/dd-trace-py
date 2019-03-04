@@ -398,3 +398,26 @@ class TestTraceMiddleware(TraceTestCase):
         self.assert_structure(
             dict(name='aiohttp.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
         )
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_default(self):
+        """ Check trace has analytics sample rate set """
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span does not have the appropriate metric
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_disabled(self):
+        """ Check trace has analytics sample rate set """
+        self.app['datadog_trace']['analytics'] = False
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span does not have the appropriate metric
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
