@@ -73,8 +73,10 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
         span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
 
-        analytics_sample_rate = config.botocore.get_analytics_sample_rate(use_global_config=False)
-        if analytics_sample_rate:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+        # set analytics sample rate if enabled
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.botocore.get_analytics_sample_rate(use_global_config=False)
+        )
 
         return result

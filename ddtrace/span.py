@@ -6,7 +6,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .constants import NUMERIC_TAGS
+from .constants import NUMERIC_TAGS, NUMERIC_TAGS_DEFAULT
 from .ext import errors
 
 
@@ -130,7 +130,13 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+        # handle None and False values as not setting tag
+        if not value:
+            pass
+
         if key in NUMERIC_TAGS:
+            # handle boolean value as default numeric value
+            value = NUMERIC_TAGS_DEFAULT[key] if value is True else value
             return self.set_metric(key, value)
 
         try:

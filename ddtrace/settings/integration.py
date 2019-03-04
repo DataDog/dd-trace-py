@@ -44,7 +44,6 @@ class IntegrationConfig(AttrDict):
         self['analytics'] = get_env(name, 'analytics')
         if self['analytics'] is not None:
             self['analytics'] = asbool(self['analytics'])
-        self['analytics_sample_rate'] = self.get('analytics_sample_rate', 1.0)
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
@@ -79,7 +78,12 @@ class IntegrationConfig(AttrDict):
         analytics configuration is enabled
         """
         if self._is_analytics_enabled(use_global_config):
-            return self.analytics_sample_rate
+            analytics_sample_rate = getattr(self, 'analytics_sample_rate', None)
+            # return True if attribute is None or attribute not found
+            if not analytics_sample_rate:
+                return True
+            # otherwise return rate
+            return analytics_sample_rate
 
     def __repr__(self):
         cls = self.__class__
