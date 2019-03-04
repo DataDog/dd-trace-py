@@ -130,14 +130,10 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
-        # handle None and False values as not setting tag
-        if not value:
-            pass
-
         if key in NUMERIC_TAGS:
-            # handle boolean value as default numeric value
-            value = NUMERIC_TAGS_DEFAULT[key] if value is True else value
-            return self.set_metric(key, value)
+            if value is not None:
+                # DEV: handle boolean values as well
+                return self.set_metric(key, float(value))
 
         try:
             self.meta[key] = stringify(value)
