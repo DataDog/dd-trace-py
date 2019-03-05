@@ -8,9 +8,10 @@ import cassandra.cluster
 from ddtrace.vendor import wrapt
 
 # project
-from ddtrace import Pin
+from ddtrace import config, Pin
 from ddtrace.compat import stringify
 
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...utils.formats import deep_getattr
 from ...utils.deprecation import deprecated
 from ...ext import net, cassandra as cassx, errors
@@ -183,6 +184,11 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
+    # set analytics sample rate if enabled
+    span.set_tag(
+        ANALYTICS_SAMPLE_RATE_KEY,
+        config.cassandra.get_analytics_sample_rate(use_global_config=False)
+    )
     return span
 
 
