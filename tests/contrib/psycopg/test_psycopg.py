@@ -9,6 +9,7 @@ from psycopg2 import extras
 from unittest import skipIf
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg import connection_factory
 from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
 from ddtrace import Pin
@@ -103,6 +104,8 @@ class PsycopgCore(BaseTracerTestCase):
         self.assertIsNone(root.get_tag('sql.query'))
         assert start <= root.start <= end
         assert root.duration <= end - start
+        # confirm analytics disabled by default
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.reset()
 
         # run a query with an error and ensure all is well
@@ -283,6 +286,19 @@ class PsycopgCore(BaseTracerTestCase):
         self.assert_structure(
             dict(name='postgres.query', resource=query.as_string(db)),
         )
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics=True, analytics_sample_rate=0.5)
+        ):
+            conn = self._get_conn()
+            conn.cursor().execute("""select 'blah'""")
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5, span)
 
 
 def test_backwards_compatibilty_v3():

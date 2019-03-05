@@ -457,3 +457,17 @@ class TestTracedConnection(BaseTracerTestCase):
         traced_connection.rollback()
         assert tracer.writer.pop()[0].name == 'mock.connection.rollback'
         connection.rollback.assert_called_with()
+
+    def test_cursor_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics=True, analytics_sample_rate=0.5)
+        ):
+            connection = self.connection
+            tracer = self.tracer
+            connection.commit.return_value = None
+            pin = Pin('pin_name', tracer=tracer)
+            traced_connection = TracedConnection(connection, pin)
+            traced_connection.commit()
+            span = tracer.writer.pop()[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
