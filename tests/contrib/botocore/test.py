@@ -1,6 +1,3 @@
-# stdlib
-from unittest import TestCase
-
 # 3p
 import botocore.session
 from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_kms

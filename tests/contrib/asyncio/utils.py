@@ -2,12 +2,10 @@ import asyncio
 
 from functools import wraps
 
-from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
-
 from ddtrace.contrib.asyncio import context_provider
 
 from ...base import BaseTracerTestCase
+
 
 class AsyncioTestCase(BaseTracerTestCase):
     """

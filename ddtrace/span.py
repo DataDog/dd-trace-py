@@ -6,7 +6,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .constants import NUMERIC_TAGS, NUMERIC_TAGS_DEFAULT
+from .constants import NUMERIC_TAGS
 from .ext import errors
 
 
