@@ -1,5 +1,3 @@
-import logging
-
 # project
 from .conf import settings
 from .compat import user_is_authenticated, get_resolver
@@ -7,6 +5,7 @@ from .compat import user_is_authenticated, get_resolver
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -21,7 +20,7 @@ try:
 except ImportError:
     MiddlewareClass = object
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 EXCEPTION_MIDDLEWARE = 'ddtrace.contrib.django.TraceExceptionMiddleware'
 TRACE_MIDDLEWARE = 'ddtrace.contrib.django.TraceMiddleware'

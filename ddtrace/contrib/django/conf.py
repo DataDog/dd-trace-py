@@ -14,11 +14,13 @@ from __future__ import unicode_literals
 
 import os
 import importlib
-import logging
 
 from django.conf import settings as django_settings
 
-log = logging.getLogger(__name__)
+from ...internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 # List of available settings with their defaults
 DEFAULTS = {

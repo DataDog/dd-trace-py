@@ -1,4 +1,3 @@
-import logging
 import math
 import random
 import sys
@@ -8,9 +7,10 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .constants import NUMERIC_TAGS
 from .ext import errors
+from .internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Span(object):

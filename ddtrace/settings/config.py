@@ -1,14 +1,14 @@
 from copy import deepcopy
-import logging
 from os import environ
 
+from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.formats import asbool
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Config(object):

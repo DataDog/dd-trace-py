@@ -1,7 +1,6 @@
-import logging
-
 from ... import compat
 from ...ext import http, errors
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.deprecation import deprecated
 
@@ -9,7 +8,7 @@ import flask.templating
 from flask import g, request, signals
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 SPAN_NAME = 'flask.request'

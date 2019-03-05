@@ -2,21 +2,22 @@
 Trace queries along a session to a cassandra cluster
 """
 import sys
-import logging
+
 # 3p
 import cassandra.cluster
-from ddtrace.vendor import wrapt
 
 # project
-from ddtrace import config, Pin
-from ddtrace.compat import stringify
-
+from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...utils.formats import deep_getattr
-from ...utils.deprecation import deprecated
 from ...ext import net, cassandra as cassx, errors
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
+from ...utils.deprecation import deprecated
+from ...utils.formats import deep_getattr
+from ...vendor import wrapt
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
 SERVICE = 'cassandra'

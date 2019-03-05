@@ -1,4 +1,3 @@
-import logging
 import os
 
 import flask
@@ -10,12 +9,13 @@ from ddtrace import config, Pin
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 FLASK_ENDPOINT = 'flask.endpoint'
 FLASK_VIEW_ARGS = 'flask.view_args'

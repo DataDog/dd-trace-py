@@ -1,4 +1,3 @@
-import logging
 import sys
 
 from webob import Request
@@ -10,11 +9,12 @@ from .constants import CONFIG_MIDDLEWARE
 from ...compat import reraise
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config as ddconfig
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class PylonsTraceMiddleware(object):
