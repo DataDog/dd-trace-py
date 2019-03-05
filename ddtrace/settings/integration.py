@@ -72,10 +72,11 @@ class IntegrationConfig(AttrDict):
         else:
             return self.analytics is True
 
-    def get_analytics_sample_rate(self, use_global_config=True):
+    def get_analytics_sample_rate(self, use_global_config=False):
         """
         Returns analytics sample rate but only when integration-specific
-        analytics configuration is enabled
+        analytics configuration is enabled with optional override with global
+        configuration
         """
         if self._is_analytics_enabled(use_global_config):
             analytics_sample_rate = getattr(self, 'analytics_sample_rate', None)

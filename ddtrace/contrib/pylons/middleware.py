@@ -46,10 +46,11 @@ class PylonsTraceMiddleware(object):
             # set as early as possible when different services share one single agent.
             span.span_type = http.TYPE
 
-            # Configure trace search sample rate
-            analytics_sample_rate = ddconfig.pylons.get_analytics_sample_rate()
-            if analytics_sample_rate:
-                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+            # set analytics sample rate with global config enabled
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                ddconfig.pylons.get_analytics_sample_rate(use_global_config=True)
+            )
 
             if not span.sampled:
                 return self.app(environ, start_response)

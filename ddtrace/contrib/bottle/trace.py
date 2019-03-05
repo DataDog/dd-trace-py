@@ -38,10 +38,11 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
-                # Set event sample rate for trace search (analytics)
-                analytics_sample_rate = config.bottle.get_analytics_sample_rate()
-                if analytics_sample_rate:
-                    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+                # set analytics sample rate with global config enabled
+                s.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.bottle.get_analytics_sample_rate(use_global_config=True)
+                )
 
                 code = 0
                 try:

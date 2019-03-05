@@ -19,8 +19,6 @@ def execute(func, handler, args, kwargs):
     tracer = settings['tracer']
     service = settings['default_service']
     distributed_tracing = settings['distributed_tracing']
-    analytics = settings['analytics']
-    analytics_sample_rate = settings['analytics_sample_rate']
 
     with TracerStackContext():
         # attach the context to the request
@@ -39,10 +37,14 @@ def execute(func, handler, args, kwargs):
             service=service,
             span_type=http.TYPE
         )
-        # Configure trace search sample rate
-        # DEV: pyramid is special case maintains separate configuration from config api
+        # set analytics sample rate
+        # DEV: tornado is special case maintains separate configuration from config api
+        analytics = settings['analytics']
         if (config.analytics and analytics is not False) or analytics is True:
-            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+            request_span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                settings['analytics_sample_rate']
+            )
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 

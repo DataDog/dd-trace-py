@@ -188,7 +188,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     # set analytics sample rate if enabled
     span.set_tag(
         ANALYTICS_SAMPLE_RATE_KEY,
-        config.cassandra.get_analytics_sample_rate(use_global_config=False)
+        config.cassandra.get_analytics_sample_rate()
     )
     return span
 

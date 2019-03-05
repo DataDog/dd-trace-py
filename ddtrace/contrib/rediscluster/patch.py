@@ -50,9 +50,11 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.span_type = redisx.TYPE
         s.set_tag(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
+
         # set analytics sample rate if enabled
         s.set_tag(
             ANALYTICS_SAMPLE_RATE_KEY,
-            config.rediscluster.get_analytics_sample_rate(use_global_config=False)
+            config.rediscluster.get_analytics_sample_rate()
         )
+
         return func(*args, **kwargs)

@@ -53,7 +53,7 @@ class TracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate if enabled
             s.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
-                config.dbapi2.get_analytics_sample_rate(use_global_config=False)
+                config.dbapi2.get_analytics_sample_rate()
             )
 
             try:
@@ -173,7 +173,7 @@ class TracedConnection(wrapt.ObjectProxy):
             # set analytics sample rate if enabled
             s.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
-                config.dbapi2.get_analytics_sample_rate(use_global_config=False)
+                config.dbapi2.get_analytics_sample_rate()
             )
 
             return method(*args, **kwargs)

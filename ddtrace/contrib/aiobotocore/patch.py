@@ -119,8 +119,10 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         if request_id2:
             span.set_tag('aws.requestid2', request_id2)
 
-        analytics_sample_rate = config.aiobotocore.get_analytics_sample_rate(use_global_config=False)
-        if analytics_sample_rate:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.aiobotocore.get_analytics_sample_rate()
+        )
 
         return result

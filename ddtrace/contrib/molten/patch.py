@@ -84,10 +84,11 @@ def patch_app_call(wrapped, instance, args, kwargs):
             pin.tracer.context_provider.activate(context)
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
-        # Configure trace search sample rate
-        analytics_sample_rate = config.molten.get_analytics_sample_rate()
-        if analytics_sample_rate:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
+        # set analytics sample rate with global config enabled
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.molten.get_analytics_sample_rate(use_global_config=True)
+        )
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
