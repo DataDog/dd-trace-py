@@ -47,7 +47,10 @@ class AIOBotocoreTest(AsyncioTestCase):
 
     @mark_asyncio
     def test_traced_client_analytics(self):
-        with self.override_config('aiobotocore', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_config(
+                'aiobotocore',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
             with aiobotocore_client('ec2', self.tracer) as ec2:
                 yield from ec2.describe_instances()
 

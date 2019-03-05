@@ -55,7 +55,7 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': False,
-            'analytics': False,
+            'analytics_enabled': False,
             'settings': {
                 'FILTERS':  [
                     FilterRequestsOnUrl(r'http://test\.example\.com'),
@@ -78,7 +78,7 @@ The available settings are:
 * ``distributed_tracing`` (default: `True`): enable distributed tracing if this is called
   remotely from an instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
-* ``analytics`` (default: `None`): enable generating APM events for Trace Search & Analytics.
+* ``analytics_enabled`` (default: `None`): enable generating APM events for Trace Search & Analytics.
   We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.

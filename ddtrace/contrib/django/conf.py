@@ -35,8 +35,7 @@ DEFAULTS = {
     'DEFAULT_CACHE_SERVICE': '',
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
-    'ANALYTICS': None,
-    'ANALYTICS_SAMPLE_RATE': 1.0,
+    'ANALYTICS_ENABLED': None,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }

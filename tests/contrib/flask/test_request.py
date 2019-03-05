@@ -87,7 +87,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             res = self.client.get('/')
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.data, b'Hello Flask')
@@ -115,8 +115,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        with self.override_global_config(dict(analytics=True)):
-            with self.override_config('flask', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('flask', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')
@@ -144,7 +144,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             res = self.client.get('/')
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.data, b'Hello Flask')
@@ -167,8 +167,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return 'Hello Flask', 200
 
-        with self.override_global_config(dict(analytics=False)):
-            with self.override_config('flask', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('flask', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 res = self.client.get('/')
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.data, b'Hello Flask')

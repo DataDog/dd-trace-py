@@ -75,7 +75,7 @@ class TestMolten(BaseTracerTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             response = molten_client()
             self.assertEqual(response.status_code, 200)
             # TestResponse from TestClient is wrapper around Response so we must
@@ -93,8 +93,8 @@ class TestMolten(BaseTracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
-            with self.override_config('molten', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('molten', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 response = molten_client()
                 self.assertEqual(response.status_code, 200)
                 # TestResponse from TestClient is wrapper around Response so we must
@@ -112,7 +112,7 @@ class TestMolten(BaseTracerTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             response = molten_client()
             self.assertEqual(response.status_code, 200)
             # TestResponse from TestClient is wrapper around Response so we must
@@ -128,8 +128,8 @@ class TestMolten(BaseTracerTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=False)):
-            with self.override_config('molten', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('molten', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 response = molten_client()
                 self.assertEqual(response.status_code, 200)
                 # TestResponse from TestClient is wrapper around Response so we must

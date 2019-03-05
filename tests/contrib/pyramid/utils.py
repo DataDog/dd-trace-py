@@ -74,7 +74,7 @@ class PyramidTestCase(PyramidBase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             res = self.app.get('/', status=200)
             assert b'idx' in res.body
 
@@ -88,8 +88,8 @@ class PyramidTestCase(PyramidBase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
-            self.override_settings(dict(datadog_analytics=True, datadog_analytics_sample_rate=0.5))
+        with self.override_global_config(dict(analytics_enabled=True)):
+            self.override_settings(dict(datadog_analytics_enabled=True, datadog_analytics_sample_rate=0.5))
             res = self.app.get('/', status=200)
             assert b'idx' in res.body
 
@@ -103,7 +103,7 @@ class PyramidTestCase(PyramidBase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             res = self.app.get('/', status=200)
             assert b'idx' in res.body
 
@@ -116,8 +116,8 @@ class PyramidTestCase(PyramidBase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=False)):
-            self.override_settings(dict(datadog_analytics=True, datadog_analytics_sample_rate=0.5))
+        with self.override_global_config(dict(analytics_enabled=False)):
+            self.override_settings(dict(datadog_analytics_enabled=True, datadog_analytics_sample_rate=0.5))
             res = self.app.get('/', status=200)
             assert b'idx' in res.body
 

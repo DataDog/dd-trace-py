@@ -62,10 +62,10 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(span.span_type, 'boto')
 
     @mock_ec2
-    def test_analytics_with_rate(self):
+    def test_analytics_enabled_with_rate(self):
         with self.override_config(
                 'boto',
-                dict(analytics=True, analytics_sample_rate=0.5)
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             ec2 = boto.ec2.connect_to_region("us-west-2")
             writer = self.tracer.writer
@@ -79,10 +79,10 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     @mock_ec2
-    def test_analytics_without_rate(self):
+    def test_analytics_enabled_without_rate(self):
         with self.override_config(
                 'boto',
-                dict(analytics=True)
+                dict(analytics_enabled=True)
         ):
             ec2 = boto.ec2.connect_to_region("us-west-2")
             writer = self.tracer.writer

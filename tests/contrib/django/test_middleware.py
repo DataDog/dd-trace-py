@@ -46,7 +46,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             url = reverse('users-list')
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -61,14 +61,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    @override_ddtrace_settings(ANALYTICS=True, ANALYTICS_SAMPLE_RATE=0.5)
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
     def test_analytics_global_on_integration_on(self):
         """
         When making a request
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             url = reverse('users-list')
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -89,7 +89,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             url = reverse('users-list')
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -104,14 +104,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
-    @override_ddtrace_settings(ANALYTICS=True, ANALYTICS_SAMPLE_RATE=0.5)
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
     def test_analytics_global_off_integration_on(self):
         """
         When making a request
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             url = reverse('users-list')
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)

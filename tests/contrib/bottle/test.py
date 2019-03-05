@@ -113,7 +113,7 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             resp = self.app.get('/hi/dougie')
             eq_(resp.status_int, 200)
             eq_(compat.to_unicode(resp.body), u'hi dougie')
@@ -143,8 +143,8 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_config(dict(analytics=True)):
-            with self.override_config('bottle', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('bottle', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
                 eq_(compat.to_unicode(resp.body), u'hi dougie')
@@ -174,7 +174,7 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             resp = self.app.get('/hi/dougie')
             eq_(resp.status_int, 200)
             eq_(compat.to_unicode(resp.body), u'hi dougie')
@@ -199,8 +199,8 @@ class TraceBottleTest(BaseTracerTestCase):
             return 'hi %s' % name
         self._trace_app(self.tracer)
 
-        with self.override_global_config(dict(analytics=False)):
-            with self.override_config('bottle', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('bottle', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 resp = self.app.get('/hi/dougie')
                 eq_(resp.status_int, 200)
                 eq_(compat.to_unicode(resp.body), u'hi dougie')

@@ -143,7 +143,7 @@ class CassandraBase(object):
     def test_query_analytics_with_rate(self):
         with self.override_config(
                 'cassandra',
-                dict(analytics=True, analytics_sample_rate=0.5)
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)
@@ -160,7 +160,7 @@ class CassandraBase(object):
     def test_query_analytics_without_rate(self):
         with self.override_config(
                 'cassandra',
-                dict(analytics=True)
+                dict(analytics_enabled=True)
         ):
             session, tracer = self._traced_session()
             session.execute(self.TEST_QUERY)

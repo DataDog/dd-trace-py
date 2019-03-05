@@ -48,8 +48,8 @@ def trace_middleware(app, handler):
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
-        analytics = app[CONFIG_KEY]['analytics']
-        if (config.analytics and analytics is not False) or analytics is True:
+        analytics_enabled = app[CONFIG_KEY]['analytics_enabled']
+        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
                 app[CONFIG_KEY].get('analytics_sample_rate', True)
@@ -123,7 +123,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
         'tracer': tracer,
         'service': service,
         'distributed_tracing_enabled': True,
-        'analytics': None,
+        'analytics_enabled': None,
         'analytics_sample_rate': 1.0,
     }
 

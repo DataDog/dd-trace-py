@@ -51,13 +51,13 @@ class BaseTestCase(unittest.TestCase):
             # Your test
         """
         # DEV: Uses dict as interface but internally handled as attributes on Config instance
-        analytics_original = ddtrace.config.analytics
+        analytics_enabled_original = ddtrace.config.analytics_enabled
 
-        ddtrace.config.analytics = values.get('analytics', analytics_original)
+        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
         try:
             yield
         finally:
-            ddtrace.config.analytics = analytics_original
+            ddtrace.config.analytics_enabled = analytics_enabled_original
 
     @contextlib.contextmanager
     def override_config(self, integration, values):

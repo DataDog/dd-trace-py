@@ -4,14 +4,14 @@ from ..base import BaseTestCase
 
 
 class TestConfig(BaseTestCase):
-    def test_environment_analytics(self):
-        with self.override_env(dict(DD_ANALYTICS='True')):
+    def test_environment_analytics_enabled(self):
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True')):
             config = Config()
-            self.assertTrue(config.analytics)
+            self.assertTrue(config.analytics_enabled)
 
-        with self.override_env(dict(DD_ANALYTICS='False')):
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False')):
             config = Config()
-            self.assertFalse(config.analytics)
+            self.assertFalse(config.analytics_enabled)
 
 
 class TestHttpConfig(BaseTestCase):
@@ -114,20 +114,20 @@ class TestIntegrationConfig(BaseTestCase):
         assert not self.integration_config.header_is_traced('global_header')
         assert not self.config.header_is_traced('integration_header')
 
-    def test_environment_analytics(self):
+    def test_environment_analytics_enabled(self):
         # default
-        self.assertFalse(self.config.analytics)
-        self.assertIsNone(self.config.foo.analytics)
+        self.assertFalse(self.config.analytics_enabled)
+        self.assertIsNone(self.config.foo.analytics_enabled)
 
-        with self.override_env(dict(DD_ANALYTICS='True')):
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True')):
             config = Config()
-            self.assertTrue(config.analytics)
-            self.assertIsNone(config.foo.analytics)
+            self.assertTrue(config.analytics_enabled)
+            self.assertIsNone(config.foo.analytics_enabled)
 
-        with self.override_env(dict(DD_FOO_ANALYTICS='True')):
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
             config = Config()
-            self.assertTrue(config.foo.analytics)
+            self.assertTrue(config.foo.analytics_enabled)
 
-        with self.override_env(dict(DD_FOO_ANALYTICS='False')):
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='False')):
             config = Config()
-            self.assertFalse(config.foo.analytics)
+            self.assertFalse(config.foo.analytics_enabled)

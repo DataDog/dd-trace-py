@@ -300,7 +300,7 @@ class TestTornadoWebAnalyticsDefault(TornadoTestCase):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             # it should trace a handler that returns 200
             response = self.fetch('/success/')
             self.assertEqual(200, response.code)
@@ -315,7 +315,7 @@ class TestTornadoWebAnalyticsDefault(TornadoTestCase):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             # it should trace a handler that returns 200
             response = self.fetch('/success/')
             self.assertEqual(200, response.code)
@@ -332,7 +332,7 @@ class TestTornadoWebAnalyticsOn(TornadoTestCase):
         # distributed_tracing needs to be disabled manually
         return {
             'datadog_trace': {
-                'analytics': True,
+                'analytics_enabled': True,
                 'analytics_sample_rate': 0.5,
             },
         }
@@ -343,7 +343,7 @@ class TestTornadoWebAnalyticsOn(TornadoTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             # it should trace a handler that returns 200
             response = self.fetch('/success/')
             self.assertEqual(200, response.code)
@@ -358,7 +358,7 @@ class TestTornadoWebAnalyticsOn(TornadoTestCase):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             # it should trace a handler that returns 200
             response = self.fetch('/success/')
             self.assertEqual(200, response.code)

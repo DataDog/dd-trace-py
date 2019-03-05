@@ -389,7 +389,7 @@ class TestTraceMiddleware(TraceTestCase):
     @asyncio.coroutine
     def test_analytics_integration_enabled(self):
         """ Check trace has analytics sample rate set """
-        self.app['datadog_trace']['analytics'] = True
+        self.app['datadog_trace']['analytics_enabled'] = True
         self.app['datadog_trace']['analytics_sample_rate'] = 0.5
         request = yield from self.client.request('GET', '/template/')
         yield from request.text()
@@ -414,7 +414,7 @@ class TestTraceMiddleware(TraceTestCase):
     @asyncio.coroutine
     def test_analytics_integration_disabled(self):
         """ Check trace has analytics sample rate set """
-        self.app['datadog_trace']['analytics'] = False
+        self.app['datadog_trace']['analytics_enabled'] = False
         request = yield from self.client.request('GET', '/template/')
         yield from request.text()
 

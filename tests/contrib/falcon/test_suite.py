@@ -69,7 +69,7 @@ class FalconTestCase(object):
             When an integration trace search is not event sample rate is not set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
+        with self.override_global_config(dict(analytics_enabled=True)):
             out = self.simulate_get('/200')
             self.assertEqual(out.status_code, 200)
             self.assertEqual(out.content.decode('utf-8'), 'Success')
@@ -84,8 +84,8 @@ class FalconTestCase(object):
             When an integration trace search is enabled and sample rate is set and globally trace search is enabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=True)):
-            with self.override_config('falcon', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 out = self.simulate_get('/200')
                 self.assertEqual(out.status_code, 200)
                 self.assertEqual(out.content.decode('utf-8'), 'Success')
@@ -100,7 +100,7 @@ class FalconTestCase(object):
             When an integration trace search is not set and sample rate is set and globally trace search is disabled
                 We expect the root span to not include tag
         """
-        with self.override_global_config(dict(analytics=False)):
+        with self.override_global_config(dict(analytics_enabled=False)):
             out = self.simulate_get('/200')
             self.assertEqual(out.status_code, 200)
             self.assertEqual(out.content.decode('utf-8'), 'Success')
@@ -114,8 +114,8 @@ class FalconTestCase(object):
             When an integration trace search is enabled and sample rate is set and globally trace search is disabled
                 We expect the root span to have the appropriate tag
         """
-        with self.override_global_config(dict(analytics=False)):
-            with self.override_config('falcon', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
                 out = self.simulate_get('/200')
                 self.assertEqual(out.status_code, 200)
                 self.assertEqual(out.content.decode('utf-8'), 'Success')

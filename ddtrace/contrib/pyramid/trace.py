@@ -15,7 +15,7 @@ from .constants import (
     SETTINGS_SERVICE,
     SETTINGS_TRACE_ENABLED,
     SETTINGS_DISTRIBUTED_TRACING,
-    SETTINGS_ANALYTICS,
+    SETTINGS_ANALYTICS_ENABLED,
     SETTINGS_ANALYTICS_SAMPLE_RATE,
 )
 
@@ -75,11 +75,13 @@ def trace_tween_factory(handler, registry):
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
-                analytics = settings.get(SETTINGS_ANALYTICS)
-                if analytics is not None:
-                    analytics = asbool(analytics)
+                analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
+                if analytics_enabled is not None:
+                    analytics_enabled = asbool(analytics_enabled)
 
-                if (config.analytics and analytics is not False) or analytics is True:
+                if (
+                    config.analytics_enabled and analytics_enabled is not False
+                ) or analytics_enabled is True:
                     span.set_tag(
                         ANALYTICS_SAMPLE_RATE_KEY,
                         settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True)

@@ -39,8 +39,8 @@ def execute(func, handler, args, kwargs):
         )
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
-        analytics = settings['analytics']
-        if (config.analytics and analytics is not False) or analytics is True:
+        analytics_enabled = settings['analytics_enabled']
+        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
                 settings['analytics_sample_rate']

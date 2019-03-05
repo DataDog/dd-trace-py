@@ -406,7 +406,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             When an integration trace search is enabled and sample rate is set
                 We expect the root span to have the appropriate tag
         """
-        with self.override_config('requests', dict(analytics=False, analytics_sample_rate=0.5)):
+        with self.override_config('requests', dict(analytics_enabled=False, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
         spans = self.tracer.writer.pop()
@@ -420,7 +420,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             When an integration trace search is enabled and sample rate is set
                 We expect the root span to have the appropriate tag
         """
-        with self.override_config('requests', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_config('requests', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
         spans = self.tracer.writer.pop()
@@ -440,7 +440,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                       "service_name": __name__,
                       "distributed_tracing": False,
                       "split_by_domain": False,
-                      "analytics": True,
+                      "analytics_enabled": True,
                       "analytics_sample_rate": 0.5,
                   })
         pin.onto(self.session)
@@ -463,7 +463,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                       "service_name": __name__,
                       "distributed_tracing": False,
                       "split_by_domain": False,
-                      "analytics": True,
+                      "analytics_enabled": True,
                   })
         pin.onto(self.session)
         self.session.get(URL_200)

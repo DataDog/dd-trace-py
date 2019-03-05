@@ -21,7 +21,7 @@ To disable distributed tracing when using autopatching, set the
 ``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
 
 To enable generating APM events for Trace Search & Analytics, set the
-``DD_FALCON_ANALYTICS`` environment variable to ``True``.
+``DD_FALCON_ANALYTICS_ENABLED`` environment variable to ``True``.
 
 **Supported span hooks**
 

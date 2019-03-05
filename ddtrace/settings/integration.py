@@ -41,9 +41,9 @@ class IntegrationConfig(AttrDict):
         # DEV: Default to `None` which means do not set this key
         # Inject environment variables for integration, override any set in
         # AttrDict args
-        self['analytics'] = get_env(name, 'analytics')
-        if self['analytics'] is not None:
-            self['analytics'] = asbool(self['analytics'])
+        self['analytics_enabled'] = get_env(name, 'analytics_enabled')
+        if self['analytics_enabled'] is not None:
+            self['analytics_enabled'] = asbool(self['analytics_enabled'])
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
@@ -67,10 +67,10 @@ class IntegrationConfig(AttrDict):
     def _is_analytics_enabled(self, use_global_config):
         # DEV: analytics flag can be None which should not be taken as
         # enabled when global flag is disabled
-        if use_global_config and self.global_config.analytics:
-            return self.analytics is not False
+        if use_global_config and self.global_config.analytics_enabled:
+            return self.analytics_enabled is not False
         else:
-            return self.analytics is True
+            return self.analytics_enabled is True
 
     def get_analytics_sample_rate(self, use_global_config=False):
         """

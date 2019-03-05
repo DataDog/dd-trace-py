@@ -290,7 +290,7 @@ class PsycopgCore(BaseTracerTestCase):
     def test_analytics_with_rate(self):
         with self.override_config(
                 'dbapi2',
-                dict(analytics=True, analytics_sample_rate=0.5)
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             conn = self._get_conn()
             conn.cursor().execute("""select 'blah'""")

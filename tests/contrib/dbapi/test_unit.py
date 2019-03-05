@@ -194,7 +194,7 @@ class TestTracedCursor(BaseTracerTestCase):
     def test_cursor_analytics_with_rate(self):
         with self.override_config(
                 'dbapi2',
-                dict(analytics=True, analytics_sample_rate=0.5)
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             cursor = self.cursor
             cursor.rowcount = 0
@@ -211,7 +211,7 @@ class TestTracedCursor(BaseTracerTestCase):
     def test_cursor_analytics_without_rate(self):
         with self.override_config(
                 'dbapi2',
-                dict(analytics=True)
+                dict(analytics_enabled=True)
         ):
             cursor = self.cursor
             cursor.rowcount = 0
@@ -461,7 +461,7 @@ class TestTracedConnection(BaseTracerTestCase):
     def test_cursor_analytics_with_rate(self):
         with self.override_config(
                 'dbapi2',
-                dict(analytics=True, analytics_sample_rate=0.5)
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             connection = self.connection
             tracer = self.tracer
