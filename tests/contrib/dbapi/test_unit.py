@@ -1,6 +1,7 @@
 import mock
 
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ...base import BaseTracerTestCase
 
@@ -189,6 +190,40 @@ class TestTracedCursor(BaseTracerTestCase):
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
+
+    def test_cursor_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics=True, analytics_sample_rate=0.5)
+        ):
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.execute.return_value = '__result__'
+
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = TracedCursor(cursor, pin)
+            # DEV: We always pass through the result
+            assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_cursor_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics=True)
+        ):
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.execute.return_value = '__result__'
+
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = TracedCursor(cursor, pin)
+            # DEV: We always pass through the result
+            assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class TestFetchTracedCursor(BaseTracerTestCase):

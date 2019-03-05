@@ -7,6 +7,7 @@ import logging
 from ddtrace.vendor import wrapt
 
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import AppTypes, sql
 from ddtrace.settings import config
 from ddtrace.utils.formats import asbool, get_env
@@ -49,6 +50,12 @@ class TracedCursor(wrapt.ObjectProxy):
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # set analytics sample rate if enabled
+            s.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.dbapi2.get_analytics_sample_rate(use_global_config=False)
+            )
 
             try:
                 return method(*args, **kwargs)
@@ -163,6 +170,12 @@ class TracedConnection(wrapt.ObjectProxy):
         with pin.tracer.trace(name, service=service) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # set analytics sample rate if enabled
+            s.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.dbapi2.get_analytics_sample_rate(use_global_config=False)
+            )
 
             return method(*args, **kwargs)
 
