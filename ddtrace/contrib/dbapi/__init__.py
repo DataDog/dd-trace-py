@@ -51,7 +51,7 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(extra_tags)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if type(self) is not FetchTracedCursor:
+            if not isinstance(self, FetchTracedCursor):
                 s.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
                     config.dbapi2.get_analytics_sample_rate()
