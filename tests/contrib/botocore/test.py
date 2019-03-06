@@ -56,7 +56,10 @@ class BotocoreTest(BaseTracerTestCase):
 
     @mock_ec2
     def test_traced_client_analytics(self):
-        with self.override_config('botocore', dict(analytics=True, analytics_sample_rate=0.5)):
+        with self.override_config(
+                'botocore',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
             ec2 = self.session.create_client('ec2', region_name='us-west-2')
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
             ec2.describe_instances()
