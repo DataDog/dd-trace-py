@@ -79,6 +79,30 @@ class TestRedisPatch(BaseTracerTestCase):
         eq_(span.resource, 'GET cheese')
         ok_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
 
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'redis',
+            dict(analytics_enabled=True)
+        ):
+            us = self.r.get('cheese')
+            eq_(us, None)
+            spans = self.get_spans()
+            eq_(len(spans), 1)
+            span = spans[0]
+            eq_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'redis',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            us = self.r.get('cheese')
+            eq_(us, None)
+            spans = self.get_spans()
+            eq_(len(spans), 1)
+            span = spans[0]
+            eq_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
     def test_pipeline_traced(self):
         with self.r.pipeline(transaction=False) as p:
             p.set('blah', 32)
