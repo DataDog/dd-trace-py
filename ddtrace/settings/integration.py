@@ -28,13 +28,6 @@ class IntegrationConfig(AttrDict):
         :param args:
         :param kwargs:
         """
-        # Set default analytics configuration, default is disabled
-        # DEV: Default to `None` which means do not set this key
-        # Inject environment variables for integration
-        self['analytics_enabled'] = get_env(name, 'analytics_enabled')
-        if self['analytics_enabled'] is not None:
-            self['analytics_enabled'] = asbool(self['analytics_enabled'])
-
         super(IntegrationConfig, self).__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
@@ -43,6 +36,14 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, 'integration_name', name)
         object.__setattr__(self, 'hooks', Hooks())
         object.__setattr__(self, 'http', HttpConfig())
+
+        # Set default analytics configuration, default is disabled
+        # DEV: Default to `None` which means do not set this key
+        # Inject environment variables for integration
+        analytics_enabled_env = get_env(name, 'analytics_enabled')
+        if analytics_enabled_env is not None:
+            analytics_enabled_env = asbool(analytics_enabled_env)
+        self.setdefault('analytics_enabled', analytics_enabled_env)
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
