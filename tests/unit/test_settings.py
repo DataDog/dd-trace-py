@@ -143,3 +143,24 @@ class TestIntegrationConfig(BaseTestCase):
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
             ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
             self.assertFalse(ic.analytics_enabled)
+
+    def test_get_analytics_sample_rate(self):
+        """" Check method for accessing sample rate based on configuration """
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=True, analytics_sample_rate=0.5)
+        self.assertEqual(ic.get_analytics_sample_rate(), 0.5)
+
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=True)
+        self.assertEqual(ic.get_analytics_sample_rate(), 1.0)
+
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
+        self.assertIsNone(ic.get_analytics_sample_rate())
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True')):
+            config = Config()
+            ic = IntegrationConfig(config, 'foo')
+            self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False')):
+            config = Config()
+            ic = IntegrationConfig(config, 'foo')
+            self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
