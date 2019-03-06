@@ -76,8 +76,6 @@ def trace_tween_factory(handler, registry):
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
-                if analytics_enabled is not None:
-                    analytics_enabled = asbool(analytics_enabled)
 
                 if (
                     config.analytics_enabled and analytics_enabled is not False

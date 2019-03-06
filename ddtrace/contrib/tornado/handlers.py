@@ -43,7 +43,7 @@ def execute(func, handler, args, kwargs):
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
             request_span.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
-                settings['analytics_sample_rate']
+                settings.get('analytics_sample_rate', True)
             )
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)

@@ -131,3 +131,15 @@ class TestIntegrationConfig(BaseTestCase):
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='False')):
             config = Config()
             self.assertFalse(config.foo.analytics_enabled)
+
+    def test_analytics_enabled_attribute(self):
+        """" Confirm environment variable and kwargs are handled properly """
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=True)
+        self.assertTrue(ic.analytics_enabled)
+
+        ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
+        self.assertFalse(ic.analytics_enabled)
+
+        with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
+            ic = IntegrationConfig(self.config, 'foo', analytics_enabled=False)
+            self.assertFalse(ic.analytics_enabled)

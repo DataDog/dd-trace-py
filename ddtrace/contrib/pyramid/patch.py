@@ -3,7 +3,7 @@ import os
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import (
     SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING,
-    SETTINGS_ANALYTICS_ENABLED, SETTINGS_ANALYTICS_SAMPLE_RATE
+    SETTINGS_ANALYTICS_ENABLED, SETTINGS_ANALYTICS_SAMPLE_RATE,
 )
 from ...utils.formats import asbool, get_env
 

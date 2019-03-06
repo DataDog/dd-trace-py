@@ -368,6 +368,34 @@ class TestTornadoWebAnalyticsOn(TornadoTestCase):
             )
 
 
+class TestTornadoWebAnalyticsNoRate(TornadoTestCase):
+    """
+    Ensure that Tornado web handlers generate APM events with default settings
+    """
+    def get_settings(self):
+        # distributed_tracing needs to be disabled manually
+        return {
+            'datadog_trace': {
+                'analytics_enabled': True,
+            },
+        }
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            # it should trace a handler that returns 200
+            response = self.fetch('/success/')
+            self.assertEqual(200, response.code)
+
+            self.assert_structure(
+                dict(name='tornado.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+            )
+
+
 class TestNoPropagationTornadoWeb(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced and are ignoring propagated HTTP headers when disabled.

@@ -261,6 +261,14 @@ def test_numeric_tags_value():
     eq_(d['metrics'], expected)
 
 
+def test_numeric_tags_bad_value():
+    s = Span(tracer=None, name='test.span')
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 'Hello')
+    d = s.to_dict()
+    assert d
+    ok_('metrics' not in d)
+
+
 class DummyTracer(object):
     def __init__(self):
         self.debug_logging = False
