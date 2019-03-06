@@ -50,11 +50,12 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
-            # set analytics sample rate if enabled
-            s.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                config.dbapi2.get_analytics_sample_rate()
-            )
+            # set analytics sample rate if enabled but only for non-FetchTracedCursor
+            if type(self) is not FetchTracedCursor:
+                s.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.dbapi2.get_analytics_sample_rate()
+                )
 
             try:
                 return method(*args, **kwargs)
@@ -169,12 +170,6 @@ class TracedConnection(wrapt.ObjectProxy):
         with pin.tracer.trace(name, service=service) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
-
-            # set analytics sample rate if enabled
-            s.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                config.dbapi2.get_analytics_sample_rate()
-            )
 
             return method(*args, **kwargs)
 
