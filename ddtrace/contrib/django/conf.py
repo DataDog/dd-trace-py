@@ -36,6 +36,7 @@ DEFAULTS = {
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
     'ANALYTICS_ENABLED': None,
+    'ANALYTICS_SAMPLE_RATE': True,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }
