@@ -135,7 +135,7 @@ class Span(object):
             try:
                 self.set_metric(key, float(value))
             except (TypeError, ValueError):
-                log.debug("error setting numeric metric {}:{}".format(key, value))
+                log.debug('error setting numeric metric {}:{}'.format(key, value))
 
             return
         try:
