@@ -5,7 +5,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .constants import ANALYTICS_SAMPLE_RATE_KEY
+from .constants import NUMERIC_TAGS
 from .ext import errors
 from .internal.logger import get_logger
 
@@ -131,11 +131,11 @@ class Span(object):
             be ignored.
         """
 
-        if key is ANALYTICS_SAMPLE_RATE_KEY:
+        if key in NUMERIC_TAGS:
             try:
                 self.set_metric(key, float(value))
             except (TypeError, ValueError):
-                log.debug('error setting numeric metric {}:{}'.format(key, value))
+                log.debug("error setting numeric metric {}:{}".format(key, value))
 
             return
         try:
