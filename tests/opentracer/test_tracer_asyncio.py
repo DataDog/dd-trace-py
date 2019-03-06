@@ -29,6 +29,9 @@ class TestTracerAsyncio(AsyncioTestCase):
         self.tracer = ot_tracer(ot_tracer_factory())
         self.writer = writer(self.tracer)
 
+    def reset(self):
+        self.writer.pop_traces()
+
     @mark_asyncio
     def test_trace_coroutine(self):
         # it should use the task context when invoked in a coroutine
