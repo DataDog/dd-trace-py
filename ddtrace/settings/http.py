@@ -1,8 +1,7 @@
-import logging
-
+from ..internal.logger import get_logger
 from ..utils.http import normalize_header_name
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class HttpConfig(object):

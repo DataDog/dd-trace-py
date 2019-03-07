@@ -1,18 +1,18 @@
 import importlib
-import logging
 
 from ddtrace.vendor import wrapt
 
 import ddtrace
-from ddtrace import config, Pin
-from ddtrace.ext import net, AppTypes
-from ddtrace.utils.wrappers import unwrap
-
-from .constants import APP
 from ...ext import db as dbx, sql
+from ...ext import net, AppTypes
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
+from ...utils.wrappers import unwrap
+from .constants import APP
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 _PATCHED = False
 

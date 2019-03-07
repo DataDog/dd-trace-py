@@ -1,15 +1,15 @@
-import logging
-
 import ddtrace
 from ddtrace import config
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def _extract_service_name(session, span, hostname=None):
@@ -72,8 +72,18 @@ def _wrap_send(func, instance, args, kwargs):
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
 
+        # Configure trace search sample rate
+        # DEV: Not enabled by default when global analytics config is enabled
+        cfg = config.get_from(instance)
+        analytics_enabled = cfg.get('analytics_enabled')
+        if analytics_enabled:
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                cfg.get('analytics_sample_rate', True)
+            )
+
         # propagate distributed tracing headers
-        if config.get_from(instance).get('distributed_tracing'):
+        if cfg.get('distributed_tracing'):
             propagator = HTTPPropagator()
             propagator.inject(span.context, request.headers)
 

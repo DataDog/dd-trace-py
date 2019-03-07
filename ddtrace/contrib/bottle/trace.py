@@ -3,10 +3,10 @@ from bottle import response, request
 
 # stdlib
 import ddtrace
-from ddtrace.ext import http
 
 # project
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -38,9 +38,11 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
-                # Configure trace search sample rate
-                if config.bottle.event_sample_rate is not None:
-                    s.set_tag(EVENT_SAMPLE_RATE_KEY, config.bottle.event_sample_rate)
+                # set analytics sample rate with global config enabled
+                s.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.bottle.get_analytics_sample_rate(use_global_config=True)
+                )
 
                 code = 0
                 try:

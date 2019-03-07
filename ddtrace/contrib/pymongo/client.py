@@ -1,6 +1,5 @@
 # stdlib
 import contextlib
-import logging
 import json
 
 # 3p
@@ -9,17 +8,18 @@ from ddtrace.vendor.wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ...utils.deprecation import deprecated
 from ...compat import iteritems
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
+from ...internal.logger import get_logger
+from ...utils.deprecation import deprecated
 from .parse import parse_spec, parse_query, parse_msg
 
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
