@@ -1,12 +1,15 @@
 """
 Generic dbapi tracing code.
 """
+
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes, sql
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
 from ...utils.formats import asbool, get_env
 from ...vendor import wrapt
+
 
 log = get_logger(__name__)
 
@@ -46,6 +49,13 @@ class TracedCursor(wrapt.ObjectProxy):
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # set analytics sample rate if enabled but only for non-FetchTracedCursor
+            if not isinstance(self, FetchTracedCursor):
+                s.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.dbapi2.get_analytics_sample_rate()
+                )
 
             try:
                 return method(*args, **kwargs)

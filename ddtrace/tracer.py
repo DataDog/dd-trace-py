@@ -103,7 +103,7 @@ class Tracer(object):
 
         filters = None
         if settings is not None:
-                filters = settings.get(FILTERS_KEY)
+            filters = settings.get(FILTERS_KEY)
 
         if sampler is not None:
             self.sampler = sampler

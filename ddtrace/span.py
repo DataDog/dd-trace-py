@@ -130,9 +130,14 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
-        if key in NUMERIC_TAGS:
-            return self.set_metric(key, value)
 
+        if key in NUMERIC_TAGS:
+            try:
+                self.set_metric(key, float(value))
+            except (TypeError, ValueError):
+                log.debug("error setting numeric metric {}:{}".format(key, value))
+
+            return
         try:
             self.meta[key] = stringify(value)
         except Exception:
