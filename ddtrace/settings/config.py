@@ -1,7 +1,9 @@
 from copy import deepcopy
+from os import environ
 
 from ..internal.logger import get_logger
 from ..pin import Pin
+from ..utils.formats import asbool
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -19,10 +21,13 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
         self._http = HttpConfig()
+        # Master switch for turning on and off trace search by default
+        self.analytics_enabled = asbool(environ.get('DD_ANALYTICS_ENABLED', False))
 
     def __getattr__(self, name):
         if name not in self._config:
-            self._config[name] = IntegrationConfig(self)
+            self._config[name] = IntegrationConfig(self, name)
+
         return self._config[name]
 
     def get_from(self, obj):
@@ -63,9 +68,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, deepmerge(existing, settings))
+            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
         else:
-            self._config[integration] = IntegrationConfig(self, settings)
+            self._config[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """

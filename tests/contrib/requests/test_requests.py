@@ -3,6 +3,8 @@ from requests import Session
 from requests.exceptions import MissingSchema
 
 from ddtrace import config
+from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.requests import patch, unpatch
 from ddtrace.ext import errors, http
 from nose.tools import assert_raises, eq_
@@ -384,3 +386,89 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         s = spans[0]
         eq_(s.get_tag('http.request.headers.my-header'), 'my_value')
         eq_(s.get_tag('http.response.headers.access-control-allow-origin'), '*')
+
+    def test_analytics_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        self.session.get(URL_200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        s = spans[0]
+        self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_integration_disabled(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_config('requests', dict(analytics_enabled=False, analytics_sample_rate=0.5)):
+            self.session.get(URL_200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        s = spans[0]
+        self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_config('requests', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+            self.session.get(URL_200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        s = spans[0]
+        self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_integration_on_using_pin(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        pin = Pin(service=__name__,
+                  app="requests",
+                  _config={
+                      "service_name": __name__,
+                      "distributed_tracing": False,
+                      "split_by_domain": False,
+                      "analytics_enabled": True,
+                      "analytics_sample_rate": 0.5,
+                  })
+        pin.onto(self.session)
+        self.session.get(URL_200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        s = spans[0]
+        self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_integration_on_using_pin_default(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set
+                We expect the root span to have the appropriate tag
+        """
+        pin = Pin(service=__name__,
+                  app="requests",
+                  _config={
+                      "service_name": __name__,
+                      "distributed_tracing": False,
+                      "split_by_domain": False,
+                      "analytics_enabled": True,
+                  })
+        pin.onto(self.session)
+        self.session.get(URL_200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        s = spans[0]
+        self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)

@@ -4,7 +4,7 @@ import molten
 from molten.testing import TestClient
 
 from ddtrace import Pin
-from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
@@ -69,9 +69,13 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(spans[0].service, 'molten-patch')
 
-    def test_event_sample_rate(self):
-        """ Tests request was a success with the expected span tags """
-        with self.override_config('molten', dict(event_sample_rate=1)):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
             response = molten_client()
             self.assertEqual(response.status_code, 200)
             # TestResponse from TestClient is wrapper around Response so we must
@@ -80,8 +84,62 @@ class TestMolten(BaseTracerTestCase):
 
             root_span = self.get_root_span()
             root_span.assert_matches(
-                name='molten.request', metrics={EVENT_SAMPLE_RATE_KEY: 1},
+                name='molten.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0},
             )
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('molten', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                response = molten_client()
+                self.assertEqual(response.status_code, 200)
+                # TestResponse from TestClient is wrapper around Response so we must
+                # access data property
+                self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+
+                root_span = self.get_root_span()
+                root_span.assert_matches(
+                    name='molten.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5},
+                )
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            response = molten_client()
+            self.assertEqual(response.status_code, 200)
+            # TestResponse from TestClient is wrapper around Response so we must
+            # access data property
+            self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+
+            root_span = self.get_root_span()
+            self.assertIsNone(root_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('molten', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                response = molten_client()
+                self.assertEqual(response.status_code, 200)
+                # TestResponse from TestClient is wrapper around Response so we must
+                # access data property
+                self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+
+                root_span = self.get_root_span()
+                root_span.assert_matches(
+                    name='molten.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5},
+                )
 
     def test_route_failure(self):
         app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])

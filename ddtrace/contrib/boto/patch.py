@@ -2,6 +2,8 @@ import boto.connection
 from ddtrace.vendor import wrapt
 import inspect
 
+from ddtrace import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import http, aws
 from ...utils.wrappers import unwrap
@@ -97,6 +99,12 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
 
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.boto.get_analytics_sample_rate()
+        )
+
         return result
 
 
@@ -151,6 +159,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.boto.get_analytics_sample_rate()
+        )
 
         return result
 

@@ -2,7 +2,7 @@
 from .conf import settings
 from .compat import user_is_authenticated, get_resolver
 
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
 from ...ext import http
 from ...internal.logger import get_logger
@@ -119,9 +119,15 @@ class TraceMiddleware(InstrumentationMixin):
                 span_type=http.TYPE,
             )
 
-            # Configure trace search sample rate
-            if config.django.event_sample_rate is not None:
-                span.set_tag(EVENT_SAMPLE_RATE_KEY, config.django.event_sample_rate)
+            # set analytics sample rate
+            # DEV: django is special case maintains separate configuration from config api
+            if (
+                config.analytics_enabled and settings.ANALYTICS_ENABLED is not False
+            ) or settings.ANALYTICS_ENABLED is True:
+                span.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    settings.ANALYTICS_SAMPLE_RATE
+                )
 
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, request.path)

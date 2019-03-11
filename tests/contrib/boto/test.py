@@ -10,6 +10,7 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.boto.patch import patch, unpatch
 from ddtrace.ext import http
 
@@ -43,6 +44,7 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
         self.assertEqual(span.get_tag(http.METHOD), 'POST')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         # Create an instance
         ec2.run_instances(21)
@@ -58,6 +60,40 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(span.resource, 'ec2.runinstances')
         self.assertEqual(span.name, 'ec2.command')
         self.assertEqual(span.span_type, 'boto')
+
+    @mock_ec2
+    def test_analytics_enabled_with_rate(self):
+        with self.override_config(
+                'boto',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            ec2 = boto.ec2.connect_to_region("us-west-2")
+            writer = self.tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
+
+            ec2.get_all_instances()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    @mock_ec2
+    def test_analytics_enabled_without_rate(self):
+        with self.override_config(
+                'boto',
+                dict(analytics_enabled=True)
+        ):
+            ec2 = boto.ec2.connect_to_region("us-west-2")
+            writer = self.tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
+
+            ec2.get_all_instances()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     @mock_s3
     def test_s3_client(self):
