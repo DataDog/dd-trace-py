@@ -18,7 +18,7 @@ CASSANDRA_CONFIG = {
 }
 
 POSTGRES_CONFIG = {
-    'host': 'localhost',
+    'host': '127.0.0.1',
     'port': int(os.getenv("TEST_POSTGRES_PORT", 5432)),
     'user': os.getenv("TEST_POSTGRES_USER", "postgres"),
     'password': os.getenv("TEST_POSTGRES_PASSWORD", "postgres"),
