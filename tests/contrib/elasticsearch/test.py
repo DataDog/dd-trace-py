@@ -259,7 +259,6 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         eq_(span.get_tag('elasticsearch.url'), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
-
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
         es.indices.refresh(index=self.ES_INDEX)
 
