@@ -15,6 +15,7 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
 class ElasticsearchTest(unittest.TestCase):
@@ -191,7 +192,7 @@ class ElasticsearchTest(unittest.TestCase):
         eq_(dd_span.resource, "PUT /%s" % self.ES_INDEX)
 
 
-class ElasticsearchPatchTest(unittest.TestCase):
+class ElasticsearchPatchTest(BaseTracerTestCase):
     """
     Elasticsearch integration test suite.
     Need a running ElasticSearch.
@@ -206,35 +207,31 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
     def setUp(self):
         """Prepare ES"""
+        super(ElasticsearchPatchTest, self).setUp()
+
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
-        patch()
-
-    def tearDown(self):
-        """Clean ES"""
-        unpatch()
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
-
-    def test_elasticsearch(self):
-        """Test the elasticsearch integration
-
-        All in this for now. Will split it later.
-        """
-        """Test the elasticsearch integration with patching
-
-        """
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es.transport)
-
-        # Test index creation
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
         mapping = {'mapping': {'properties': {'created': {'type': 'date', 'format': 'yyyy-MM-dd'}}}}
         es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
-        spans = writer.pop()
+        patch()
+
+        self.es = es
+
+    def tearDown(self):
+        """Clean ES"""
+        super(ElasticsearchPatchTest, self).tearDown()
+
+        unpatch()
+        self.es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+
+    def test_elasticsearch(self):
+        es = self.es
+        mapping = {'mapping': {'properties': {'created': {'type': 'date', 'format': 'yyyy-MM-dd'}}}}
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
@@ -246,13 +243,13 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(span.get_tag('elasticsearch.url'), "/%s" % self.ES_INDEX)
         eq_(span.resource, "PUT /%s" % self.ES_INDEX)
 
-        # Put data
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
         es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
         es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
         es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
 
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
         eq_(len(spans), 3)
         span = spans[0]
@@ -261,10 +258,12 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(span.get_tag('elasticsearch.url'), "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10))
         eq_(span.resource, "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE))
 
-        # Make the data available
+
+        args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
         es.indices.refresh(index=self.ES_INDEX)
 
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
@@ -272,7 +271,11 @@ class ElasticsearchPatchTest(unittest.TestCase):
         eq_(span.get_tag('elasticsearch.method'), "POST")
         eq_(span.get_tag('elasticsearch.url'), "/%s/_refresh" % self.ES_INDEX)
 
-        # Search data
+        # search data
+        args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
+        es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
+        es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
+        es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
         result = es.search(
             sort=['name:desc'],
             size=100,
@@ -281,11 +284,11 @@ class ElasticsearchPatchTest(unittest.TestCase):
         )
 
         assert len(result["hits"]["hits"]) == 3, result
-
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
-        eq_(len(spans), 1)
-        span = spans[0]
+        eq_(len(spans), 4)
+        span = spans[-1]
         eq_(span.resource,
             "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE))
         eq_(span.get_tag('elasticsearch.method'), "GET")
@@ -302,29 +305,24 @@ class ElasticsearchPatchTest(unittest.TestCase):
 
         assert len(result["hits"]["hits"]) == 2, result
 
-        # Drop the index, checking it won't raise exception on success or failure
-        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
-        es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
-
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-
         # Test patch idempotence
         patch()
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es.transport)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
 
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
         eq_(len(spans), 1)
 
         # Test unpatch
+        self.reset()
         unpatch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
@@ -332,18 +330,21 @@ class ElasticsearchPatchTest(unittest.TestCase):
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
 
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert not spans, spans
 
         # Test patch again
+        self.reset()
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(es.transport)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
 
-        spans = writer.pop()
+        spans = self.get_spans()
+        self.reset()
         assert spans, spans
         eq_(len(spans), 1)
