@@ -1,29 +1,25 @@
-# Standard library
-import unittest
-
 # Thirdparty
 import grpc
 from grpc.framework.foundation import logging_pool
-from nose.tools import eq_
 
 # Internal
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace import Pin
 
 
-from ...test_tracer import get_dummy_tracer, DummyWriter
+from ...base import BaseTracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub
 
 GRPC_PORT = 50531
 
-
-class GrpcBaseMixin(object):
+class GrpcTestCase(BaseTracerTestCase):
     def setUp(self):
+        super(GrpcTestCase, self).setUp()
+
         patch()
-        self._tracer = get_dummy_tracer()
-        Pin.override(grpc, tracer=self._tracer)
+        Pin.override(grpc, tracer=self.tracer)
         self._server = grpc.server(logging_pool.pool(2))
         self._server.add_insecure_port('[::]:%d' % (GRPC_PORT))
         add_HelloServicer_to_server(SendBackDatadogHeaders(), self._server)
@@ -33,19 +29,27 @@ class GrpcBaseMixin(object):
         unpatch()
         self._server.stop(5)
 
+        super(GrpcTestCase, self).tearDown()
 
-class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
+    def _check_span(self, span, service='grpc'):
+        self.assertEqual(span.name, 'grpc.client')
+        self.assertEqual(span.resource, '/Hello/SayHello')
+        self.assertEqual(span.service, service)
+        self.assertEqual(span.error, 0)
+        self.assertEqual(span.span_type, 'grpc')
+        self.assertEqual(span.meta['grpc.host'], 'localhost')
+        self.assertEqual(span.meta['grpc.port'], '50531')
+
     def test_insecure_channel(self):
         # Create a channel and send one request to the server
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 1)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
         span = spans[0]
-        eq_(
+        self.assertEqual(
             response.message,
             (
                 # DEV: Priority sampling is enabled by default
@@ -53,7 +57,7 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
                 (span.trace_id, span.span_id)
             ),
         )
-        _check_span(span)
+        self._check_span(span)
 
     def test_secure_channel(self):
         # Create a channel and send one request to the server
@@ -61,12 +65,11 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 1)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        eq_(
+        self.assertEqual(
             response.message,
             (
                 # DEV: Priority sampling is enabled by default
@@ -74,31 +77,29 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
                 (span.trace_id, span.span_id)
             ),
         )
-        _check_span(span)
+        self._check_span(span)
 
     def test_priority_sampling(self):
         # DEV: Priority sampling is enabled by default
         # Setting priority sampling reset the writer, we need to re-override it
-        self._tracer.writer = DummyWriter()
 
         # Create a channel and send one request to the server
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 1)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
         span = spans[0]
 
-        eq_(
+        self.assertEqual(
             response.message,
             (
                 'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
                 (span.trace_id, span.span_id)
             ),
         )
-        _check_span(span)
+        self._check_span(span)
 
     def test_span_in_error(self):
         # Create a channel and send one request to the server
@@ -107,24 +108,22 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
             with self.assertRaises(Exception):
                 stub.SayError(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 1)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
 
         span = spans[0]
-        eq_(span.error, 1)
+        self.assertEqual(span.error, 1)
         self.assertIsNotNone(span.meta['error.stack'])
 
     def test_pin_not_activated(self):
-        self._tracer.configure(enabled=False)
-        Pin.override(grpc, tracer=self._tracer)
+        self.tracer.configure(enabled=False)
+        Pin.override(grpc, tracer=self.tracer)
         with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 0)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 0)
 
     def test_pin_tags_are_put_in_span(self):
         Pin.override(grpc, tags={'tag1': 'value1'})
@@ -132,11 +131,10 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
-        eq_(len(spans), 1)
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
         span = spans[0]
-        eq_(span.meta['tag1'], 'value1')
+        self.assertEqual(span.meta['tag1'], 'value1')
 
     def test_pin_can_be_defined_per_channel(self):
         Pin.override(grpc, service='grpc1')
@@ -150,27 +148,16 @@ class GrpcTestCase(GrpcBaseMixin, unittest.TestCase):
         stub1.SayHello(HelloRequest(name='test'))
         stub2.SayHello(HelloRequest(name='test'))
 
-        writer = self._tracer.writer
-        spans = writer.pop()
+        spans = self.get_spans()
 
-        eq_(len(spans), 2)
+        self.assertEqual(len(spans), 2)
         span1 = spans[0]
         span2 = spans[1]
-        _check_span(span1, 'grpc1')
-        _check_span(span2, 'grpc2')
+        self._check_span(span1, 'grpc1')
+        self._check_span(span2, 'grpc2')
 
         channel1.close()
         channel2.close()
-
-
-def _check_span(span, service='grpc'):
-    eq_(span.name, 'grpc.client')
-    eq_(span.resource, '/Hello/SayHello')
-    eq_(span.service, service)
-    eq_(span.error, 0)
-    eq_(span.span_type, 'grpc')
-    eq_(span.meta['grpc.host'], 'localhost')
-    eq_(span.meta['grpc.port'], '50531')
 
 
 class SendBackDatadogHeaders(object):
