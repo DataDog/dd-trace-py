@@ -3,6 +3,7 @@ import grpc
 from grpc.framework.foundation import logging_pool
 
 # Internal
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace import Pin
 
@@ -158,6 +159,41 @@ class GrpcTestCase(BaseTracerTestCase):
 
         channel1.close()
         channel2.close()
+
+    def test_analytics_default(self):
+        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            response = stub.SayHello(HelloRequest(name='test'))
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'grpc',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+                stub = HelloStub(channel)
+                response = stub.SayHello(HelloRequest(name='test'))
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'grpc',
+            dict(analytics_enabled=True)
+        ):
+            with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+                stub = HelloStub(channel)
+                response = stub.SayHello(HelloRequest(name='test'))
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class SendBackDatadogHeaders(object):
