@@ -6,6 +6,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
 from ddtrace.contrib.elasticsearch import get_traced_transport
 from ddtrace.contrib.elasticsearch.elasticsearch import elasticsearch
@@ -304,6 +305,41 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         result = es.search(size=100, body={"query": query}, **args)
 
         assert len(result["hits"]["hits"]) == 2, result
+
+    def test_analytics_default(self):
+        es = self.es
+        mapping = {'mapping': {'properties': {'created': {'type': 'date', 'format': 'yyyy-MM-dd'}}}}
+        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'elasticsearch',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            es = self.es
+            mapping = {'mapping': {'properties': {'created': {'type': 'date', 'format': 'yyyy-MM-dd'}}}}
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'elasticsearch',
+            dict(analytics_enabled=True)
+        ):
+            es = self.es
+            mapping = {'mapping': {'properties': {'created': {'type': 'date', 'format': 'yyyy-MM-dd'}}}}
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_patch_unpatch(self):
         # Test patch idempotence
