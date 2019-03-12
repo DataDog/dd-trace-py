@@ -7,6 +7,7 @@ from json import loads
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
+from .payload import Payload
 from .utils.deprecation import deprecated
 
 
@@ -147,9 +148,13 @@ class API(object):
     def send_traces(self, traces):
         if not traces:
             return
+
         start = time.time()
-        data = self._encoder.encode_traces(traces)
-        response = self._put(self._traces, data, len(traces))
+        payload = Payload(encoder=self._encoder)
+        for trace in traces:
+            payload.add_trace(trace)
+
+        response = self._put(self._traces, payload.get_payload(), payload.length)
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:
