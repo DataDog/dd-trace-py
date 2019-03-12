@@ -34,6 +34,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
+            # set analytics sample rate
             s.set_tag(
                 ANALYTICS_SAMPLE_RATE_KEY,
                 config.aiopg.get_analytics_sample_rate()
