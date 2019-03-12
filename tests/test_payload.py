@@ -175,5 +175,3 @@ class PayloadTestCase(BaseTracerTestCase):
         # Assert payload is msgpack encoded
         self.assertEqual(payload.encoder, msgpack_encoder)
         assert_payload(payload, msgpack_encoder)
-=======
->>>>>>> origin/0.23-dev
