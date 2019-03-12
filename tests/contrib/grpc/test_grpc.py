@@ -7,13 +7,13 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace import Pin
 
-
 from ...base import BaseTracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub
 
 GRPC_PORT = 50531
+
 
 class GrpcTestCase(BaseTracerTestCase):
     def setUp(self):
@@ -163,7 +163,7 @@ class GrpcTestCase(BaseTracerTestCase):
     def test_analytics_default(self):
         with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name='test'))
+            stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -174,9 +174,12 @@ class GrpcTestCase(BaseTracerTestCase):
             'grpc',
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
-            with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            with grpc.secure_channel(
+                    'localhost:%d' % (GRPC_PORT),
+                    credentials=grpc.ChannelCredentials(None)
+            ) as channel:
                 stub = HelloStub(channel)
-                response = stub.SayHello(HelloRequest(name='test'))
+                stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -187,9 +190,12 @@ class GrpcTestCase(BaseTracerTestCase):
             'grpc',
             dict(analytics_enabled=True)
         ):
-            with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            with grpc.secure_channel(
+                    'localhost:%d' % (GRPC_PORT),
+                    credentials=grpc.ChannelCredentials(None)
+            ) as channel:
                 stub = HelloStub(channel)
-                response = stub.SayHello(HelloRequest(name='test'))
+                stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
