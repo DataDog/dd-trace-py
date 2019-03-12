@@ -107,7 +107,7 @@ class InstanceConfigTestCase(TestCase):
         This is a regression test for when mixing attr attribute and key
         access we would set the value of the attribute but not the key
         """
-        integration_config = IntegrationConfig(config)
+        integration_config = IntegrationConfig(config, 'test')
 
         # Our key and attribute do not exist
         self.assertFalse(hasattr(integration_config, 'distributed_tracing'))

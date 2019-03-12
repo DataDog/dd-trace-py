@@ -1,9 +1,11 @@
 import asyncio
 from ddtrace.vendor import wrapt
+from ddtrace import config
 import aiobotocore.client
 
 from aiobotocore.endpoint import ClientResponseContentProxy
 
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import http, aws
 from ...compat import PYTHON_VERSION_INFO
@@ -116,5 +118,11 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         request_id2 = response_headers.get('x-amz-id-2')
         if request_id2:
             span.set_tag('aws.requestid2', request_id2)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.aiobotocore.get_analytics_sample_rate()
+        )
 
         return result

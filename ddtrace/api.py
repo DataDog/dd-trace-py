@@ -159,8 +159,8 @@ class API(object):
             return
 
         start = time.time()
-        data = payload.get_payload()
-        response = self._put(self._traces, data, payload.length)
+
+        response = self._put(self._traces, payload.get_payload(), payload.length)
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:

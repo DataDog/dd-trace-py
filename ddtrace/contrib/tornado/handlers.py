@@ -2,7 +2,7 @@ from tornado.web import HTTPError
 
 from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -37,9 +37,14 @@ def execute(func, handler, args, kwargs):
             service=service,
             span_type=http.TYPE
         )
-        # Configure trace search sample rate
-        if config.tornado.event_sample_rate is not None:
-            request_span.set_tag(EVENT_SAMPLE_RATE_KEY, config.tornado.event_sample_rate)
+        # set analytics sample rate
+        # DEV: tornado is special case maintains separate configuration from config api
+        analytics_enabled = settings['analytics_enabled']
+        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
+            request_span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                settings.get('analytics_sample_rate', True)
+            )
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
