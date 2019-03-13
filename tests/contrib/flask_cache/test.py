@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import net
