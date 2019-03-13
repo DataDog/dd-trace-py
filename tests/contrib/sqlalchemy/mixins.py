@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
 
 # testing
@@ -90,7 +91,6 @@ class SQLAlchemyTestMixin(object):
         self.session = Session()
 
         # trace the engine
-        self.tracer = get_dummy_tracer()
         trace_engine(self.engine, self.tracer)
 
     def tearDown(self):
@@ -201,3 +201,39 @@ class SQLAlchemyTestMixin(object):
         eq_(dd_span.span_type, 'sql')
         eq_(dd_span.error, 0)
         ok_(dd_span.duration > 0)
+
+    def test_analytics_default(self):
+        # ensures that the ORM session is traced
+        wayne = Player(id=1, name='wayne')
+        self.session.add(wayne)
+        self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'sqlalchemy',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            wayne = Player(id=1, name='wayne')
+            self.session.add(wayne)
+            self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'sqlalchemy',
+            dict(analytics_enabled=True)
+        ):
+            wayne = Player(id=1, name='wayne')
+            self.session.add(wayne)
+            self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
