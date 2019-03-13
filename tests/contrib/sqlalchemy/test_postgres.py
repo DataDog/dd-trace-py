@@ -1,6 +1,5 @@
 import psycopg2
 
-from unittest import TestCase
 from nose.tools import assert_raises
 
 from sqlalchemy.exc import ProgrammingError
@@ -18,12 +17,10 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
     ENGINE_ARGS = {'url': 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG}
 
     def setUp(self):
-        BaseTracerTestCase.setUp(self)
         super(PostgresTestCase, self).setUp()
 
     def tearDown(self):
         super(PostgresTestCase, self).tearDown()
-        BaseTracerTestCase.tearDown(self)
 
     def check_meta(self, span):
         # check database connection tags

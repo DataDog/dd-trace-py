@@ -15,12 +15,10 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
     ENGINE_ARGS = {'url': 'mysql+mysqlconnector://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s' % MYSQL_CONFIG}
 
     def setUp(self):
-        BaseTracerTestCase.setUp(self)
         super(MysqlConnectorTestCase, self).setUp()
-        
+
     def tearDown(self):
         super(MysqlConnectorTestCase, self).tearDown()
-        BaseTracerTestCase.tearDown(self)
 
     def check_meta(self, span):
         # check database connection tags

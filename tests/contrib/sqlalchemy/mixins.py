@@ -19,7 +19,6 @@ from ddtrace.contrib.sqlalchemy import trace_engine
 
 # testing
 from tests.opentracer.utils import init_tracer
-from ...test_tracer import get_dummy_tracer
 
 
 Base = declarative_base()
@@ -81,6 +80,8 @@ class SQLAlchemyTestMixin(object):
         return
 
     def setUp(self):
+        super(SQLAlchemyTestMixin, self).setUp()
+
         # create an engine with the given arguments
         self.engine = self.create_engine(self.ENGINE_ARGS)
 
@@ -98,6 +99,7 @@ class SQLAlchemyTestMixin(object):
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
+        super(SQLAlchemyTestMixin, self).tearDown()
 
     def test_orm_insert(self):
         # ensures that the ORM session is traced

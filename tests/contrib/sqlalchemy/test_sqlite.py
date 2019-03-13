@@ -1,4 +1,3 @@
-from unittest import TestCase
 from nose.tools import assert_raises
 
 from sqlalchemy.exc import OperationalError
@@ -15,12 +14,10 @@ class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
     ENGINE_ARGS = {'url': 'sqlite:///:memory:'}
 
     def setUp(self):
-        BaseTracerTestCase.setUp(self)
         super(SQLiteTestCase, self).setUp()
 
     def tearDown(self):
         super(SQLiteTestCase, self).tearDown()
-        BaseTracerTestCase.tearDown(self)
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
