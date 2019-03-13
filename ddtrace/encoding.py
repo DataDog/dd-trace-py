@@ -1,4 +1,5 @@
 import json
+import struct
 
 from .internal.logger import get_logger
 
@@ -45,21 +46,34 @@ class Encoder(object):
         :param traces: A list of traces that should be serialized
         """
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
-        return self._encode(normalized_traces)
+        return self.encode(normalized_traces)
 
-    def encode_services(self, services):
+    def encode_trace(self, trace):
         """
-        Encodes a dictionary of services.
+        Encodes a trace, expecting a list of spans. Before dump the string in a
+        serialized format all traces are normalized, calling the ``to_dict()`` method.
+        The traces nesting is not changed.
 
-        :param services: A dictionary that contains one or more services
+        :param trace: A list of traces that should be serialized
         """
-        return self._encode(services)
+        return self.encode([span.to_dict() for span in trace])
 
-    def _encode(self, obj):
+    def encode(self, obj):
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal functions.
         """
+        raise NotImplementedError
+
+    def decode(self, data):
+        """
+        Defines the underlying format used during traces or services encoding.
+        This method must be implemented and should only be used by the internal functions.
+        """
+        raise NotImplementedError
+
+    def join_encoded(self, objs):
+        """Helper used to join a list of encoded objects into an encoded list of objects"""
         raise NotImplementedError
 
 
@@ -69,8 +83,15 @@ class JSONEncoder(Encoder):
         log.debug('using JSON encoder; application performance may be degraded')
         self.content_type = 'application/json'
 
-    def _encode(self, obj):
+    def encode(self, obj):
         return json.dumps(obj)
+
+    def decode(self, data):
+        return json.loads(data)
+
+    def join_encoded(self, objs):
+        """Join a list of encoded objects together as a json array"""
+        return '[' + ','.join(objs) + ']'
 
 
 class MsgpackEncoder(Encoder):
@@ -78,8 +99,25 @@ class MsgpackEncoder(Encoder):
         log.debug('using Msgpack encoder')
         self.content_type = 'application/msgpack'
 
-    def _encode(self, obj):
-        return msgpack.packb(obj, **MSGPACK_PARAMS)
+    def encode(self, obj):
+        return msgpack.packb(obj)
+
+    def decode(self, data):
+        return msgpack.unpackb(data)
+
+    def join_encoded(self, objs):
+        """Join a list of encoded objects together as a msgpack array"""
+        buf = b''.join(objs)
+
+        # Prepend array header to buffer
+        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
+        count = len(objs)
+        if count <= 0xf:
+            return struct.pack('B', 0x90 + count) + buf
+        elif count <= 0xffff:
+            return struct.pack('>BH', 0xdc, count) + buf
+        else:
+            return struct.pack('>BI', 0xdd, count) + buf
 
 
 def get_encoder():
