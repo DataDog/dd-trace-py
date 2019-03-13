@@ -26,6 +26,15 @@ def trace_prerun(*args, **kwargs):
         return
 
     # propagate the `Span` in the current task Context
+
+    if task.request.hostname is not None:
+        try:
+            global WORKER_SERVICE
+            WORKER_SERVICE = 'celery_{}'.format(task.request.hostname.split('@')[0])
+            config.celery['worker_service_name'] = WORKER_SERVICE
+        except AttributeError:
+            pass
+
     service = config.celery['worker_service_name']
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SPAN_TYPE)
     attach_span(task, task_id, span)
