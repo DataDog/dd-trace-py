@@ -17,6 +17,8 @@ CASSANDRA_CONFIG = {
     'port': int(os.getenv("TEST_CASSANDRA_PORT", 9042)),
 }
 
+# Use host=127.0.0.1 since local docker testing breaks with localhost
+
 POSTGRES_CONFIG = {
     'host': '127.0.0.1',
     'port': int(os.getenv("TEST_POSTGRES_PORT", 5432)),

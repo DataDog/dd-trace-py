@@ -126,7 +126,7 @@ class PsycopgCore(BaseTracerTestCase):
                 error=1,
                 span_type='sql',
                 meta={
-                    'out.host': 'localhost',
+                    'out.host': '127.0.0.1',
                     'out.port': TEST_PORT,
                 },
             ),
