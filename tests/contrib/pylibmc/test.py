@@ -8,14 +8,15 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Pin
-from ddtrace.ext import memcached
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylibmc import TracedClient
 from ddtrace.contrib.pylibmc.patch import patch, unpatch
+from ddtrace.ext import memcached
 
 # testing
-from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
-from tests.contrib.config import MEMCACHED_CONFIG as cfg
+from ...opentracer.utils import init_tracer
+from ...contrib.config import MEMCACHED_CONFIG as cfg
+from ...base import BaseTracerTestCase
 
 
 class PylibmcCore(object):
@@ -186,8 +187,40 @@ class PylibmcCore(object):
         eq_(s.get_tag("out.host"), cfg["host"])
         eq_(s.get_tag("out.port"), str(cfg["port"]))
 
+    def test_analytics_default(self):
+        client, tracer = self.get_client()
+        client.set("a", "crow")
 
-class TestPylibmcLegacy(PylibmcCore):
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'pylibmc',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            client, tracer = self.get_client()
+            client.set("a", "crow")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'pylibmc',
+            dict(analytics_enabled=True)
+        ):
+            client, tracer = self.get_client()
+            client.set("a", "crow")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
     TEST_SERVICE = 'mc-legacy'
@@ -197,30 +230,29 @@ class TestPylibmcLegacy(PylibmcCore):
         raw_client = pylibmc.Client([url])
         raw_client.flush_all()
 
-        tracer = get_dummy_tracer()
-
-        client = TracedClient(raw_client, tracer=tracer, service=self.TEST_SERVICE)
-        return client, tracer
+        client = TracedClient(raw_client, tracer=self.tracer, service=self.TEST_SERVICE)
+        return client, self.tracer
 
 
-class TestPylibmcPatchDefault(PylibmcCore):
+class TestPylibmcPatchDefault(BaseTracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
     def setUp(self):
+        super(TestPylibmcPatchDefault, self).setUp()
         patch()
 
     def tearDown(self):
         unpatch()
+        super(TestPylibmcPatchDefault, self).tearDown()
 
     def get_client(self):
         url = "%s:%s" % (cfg["host"], cfg["port"])
         client = pylibmc.Client([url])
         client.flush_all()
 
-        tracer = get_dummy_tracer()
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
 
-        return client, tracer
+        return client, self.tracer
 
 
 class TestPylibmcPatch(TestPylibmcPatchDefault):
@@ -236,8 +268,6 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         return client, tracer
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
         url = "%s:%s" % (cfg["host"], cfg["port"])
 
         # Test patch idempotence
@@ -247,11 +277,11 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         client = pylibmc.Client([url])
         Pin.get_from(client).clone(
             service=self.TEST_SERVICE,
-            tracer=tracer).onto(client)
+            tracer=self.tracer).onto(client)
 
         client.set("a", 1)
 
-        spans = writer.pop()
+        spans = self.tracer.writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
 
@@ -261,16 +291,16 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         client = pylibmc.Client([url])
         client.set("a", 1)
 
-        spans = writer.pop()
+        spans = self.tracer.writer.pop()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         client = pylibmc.Client([url])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
         client.set("a", 1)
 
-        spans = writer.pop()
+        spans = self.tracer.writer.pop()
         assert spans, spans
         eq_(len(spans), 1)

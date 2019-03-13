@@ -6,9 +6,11 @@ import pylibmc
 
 # project
 import ddtrace
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import memcached
 from ...ext import net
 from ...internal.logger import get_logger
+from ...settings import config
 from .addrs import parse_addresses
 
 
@@ -131,6 +133,12 @@ class TracedClient(ObjectProxy):
                 span_type="cache")
 
             try:
+                # set analytics sample rate
+                span.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.pylibmc.get_analytics_sample_rate()
+                )
+
                 self._tag_span(span)
             except Exception:
                 log.debug("error tagging span", exc_info=True)
