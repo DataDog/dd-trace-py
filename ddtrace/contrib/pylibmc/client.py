@@ -133,12 +133,6 @@ class TracedClient(ObjectProxy):
                 span_type="cache")
 
             try:
-                # set analytics sample rate
-                span.set_tag(
-                    ANALYTICS_SAMPLE_RATE_KEY,
-                    config.pylibmc.get_analytics_sample_rate()
-                )
-
                 self._tag_span(span)
             except Exception:
                 log.debug("error tagging span", exc_info=True)
@@ -151,3 +145,9 @@ class TracedClient(ObjectProxy):
             _, host, port, _ = random.choice(self._addresses)
             span.set_meta(net.TARGET_HOST, host)
             span.set_meta(net.TARGET_PORT, port)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.pylibmc.get_analytics_sample_rate()
+        )

@@ -7,8 +7,8 @@ import ddtrace
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
-# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
 
+# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
 @contextlib.contextmanager
 def override_config(integration, values):
     """

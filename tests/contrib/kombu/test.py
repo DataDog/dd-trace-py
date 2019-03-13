@@ -52,9 +52,9 @@ class TestKombuPatch(BaseTracerTestCase):
         task_queue = kombu.Queue('tasks', kombu.Exchange('tasks'), routing_key='tasks')
         to_publish = {'hello': 'world'}
         self.producer.publish(to_publish,
-                        exchange=task_queue.exchange,
-                        routing_key=task_queue.routing_key,
-                        declare=[task_queue])
+                              exchange=task_queue.exchange,
+                              routing_key=task_queue.routing_key,
+                              declare=[task_queue])
 
         with kombu.Consumer(self.conn, [task_queue], accept=['json'], callbacks=[process_message]) as consumer:
             Pin.override(consumer, service='kombu-patch', tracer=self.tracer)
