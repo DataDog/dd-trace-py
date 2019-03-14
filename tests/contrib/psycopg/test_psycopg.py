@@ -308,7 +308,7 @@ class PsycopgCore(BaseTracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
-    def test_analytics_with_rate(self):
+    def test_analytics_without_rate(self):
         with self.override_config(
                 'dbapi2',
                 dict(analytics_enabled=True)
