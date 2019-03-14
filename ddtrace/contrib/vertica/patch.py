@@ -3,6 +3,7 @@ import importlib
 from ddtrace.vendor import wrapt
 
 import ddtrace
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import db as dbx, sql
 from ...ext import net, AppTypes
 from ...internal.logger import get_logger
@@ -207,6 +208,12 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
                 if "span_start" in conf:
                     conf["span_start"](instance, span, conf, *args, **kwargs)
+
+                # set analytics sample rate
+                span.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.get_analytics_sample_rate()
+                )
 
                 result = wrapped(*args, **kwargs)
                 return result

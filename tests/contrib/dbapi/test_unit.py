@@ -191,6 +191,19 @@ class TestTracedCursor(BaseTracerTestCase):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
+    def test_cursor_analytics_default(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = TracedCursor(cursor, pin)
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+        span = self.tracer.writer.pop()[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
     def test_cursor_analytics_with_rate(self):
         with self.override_config(
                 'dbapi2',

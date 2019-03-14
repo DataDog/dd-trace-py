@@ -73,7 +73,7 @@ def _wrap_send(func, instance, args, kwargs):
         span.service = _extract_service_name(instance, span, hostname=hostname)
 
         # Configure trace search sample rate
-        # DEV: Not enabled by default when global analytics config is enabled
+        # DEV: analytics enabled on per-session basis
         cfg = config.get_from(instance)
         analytics_enabled = cfg.get('analytics_enabled')
         if analytics_enabled:

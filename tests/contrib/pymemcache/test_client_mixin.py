@@ -4,12 +4,14 @@ import pymemcache
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
 from .utils import MockSocket
 
 from tests.test_tracer import get_dummy_tracer
+from ...base import override_config
 
 
 _Client = pymemcache.client.base.Client
@@ -137,3 +139,38 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         assert result is True
 
         self.check_spans(1, ["set_many"], ["set_many key"])
+
+    def test_analytics_default(self):
+        client = self.make_client([b"STORED\r\n"])
+        result = client.set(b"key", b"value", noreply=False)
+        assert result is True
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with override_config(
+            'pymemcache',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            client = self.make_client([b"STORED\r\n"])
+            result = client.set(b"key", b"value", noreply=False)
+            assert result is True
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with override_config(
+            'pymemcache',
+            dict(analytics_enabled=True)
+        ):
+            client = self.make_client([b"STORED\r\n"])
+            result = client.set(b"key", b"value", noreply=False)
+            assert result is True
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)

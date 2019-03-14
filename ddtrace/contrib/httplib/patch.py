@@ -3,11 +3,12 @@ from ddtrace.vendor import wrapt
 
 # Project
 from ...compat import PY2, httplib, parse
-from ddtrace import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import http as ext_http
 from ...http import store_request_headers, store_response_headers
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...settings import config
 from ...utils.wrappers import unwrap as _u
 
 span_name = 'httplib.request' if PY2 else 'http.client.request'
@@ -78,6 +79,12 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         span.set_tag(ext_http.URL, sanitized_url)
         span.set_tag(ext_http.METHOD, method)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.httplib.get_analytics_sample_rate()
+        )
     except Exception:
         log.debug('error applying request tags', exc_info=True)
     return func(*args, **kwargs)

@@ -105,7 +105,6 @@ class PsycopgCore(BaseTracerTestCase):
         assert start <= root.start <= end
         assert root.duration <= end - start
         # confirm analytics disabled by default
-        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.reset()
 
         # run a query with an error and ensure all is well
@@ -126,7 +125,7 @@ class PsycopgCore(BaseTracerTestCase):
                 error=1,
                 span_type='sql',
                 meta={
-                    'out.host': 'localhost',
+                    'out.host': '127.0.0.1',
                     'out.port': TEST_PORT,
                 },
             ),
@@ -287,6 +286,15 @@ class PsycopgCore(BaseTracerTestCase):
             dict(name='postgres.query', resource=query.as_string(db)),
         )
 
+    def test_analytics_default(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
     def test_analytics_with_rate(self):
         with self.override_config(
                 'dbapi2',
@@ -298,7 +306,20 @@ class PsycopgCore(BaseTracerTestCase):
             spans = self.get_spans()
             self.assertEqual(len(spans), 1)
             span = spans[0]
-            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5, span)
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            conn = self._get_conn()
+            conn.cursor().execute("""select 'blah'""")
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 def test_backwards_compatibilty_v3():
