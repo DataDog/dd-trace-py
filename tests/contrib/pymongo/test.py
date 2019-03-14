@@ -15,8 +15,8 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...test_tracer import get_dummy_tracer
 from ...base import override_config
+from ...test_tracer import get_dummy_tracer
 
 
 def test_normalize_filter():

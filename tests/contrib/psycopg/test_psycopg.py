@@ -9,6 +9,7 @@ from psycopg2 import extras
 from unittest import skipIf
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.psycopg import connection_factory
 from ddtrace.contrib.psycopg.patch import patch, unpatch, PSYCOPG2_VERSION
 from ddtrace import Pin
@@ -284,6 +285,41 @@ class PsycopgCore(BaseTracerTestCase):
         self.assert_structure(
             dict(name='postgres.query', resource=query.as_string(db)),
         )
+
+    def test_analytics_default(self):
+        conn = self._get_conn()
+        conn.cursor().execute("""select 'blah'""")
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            conn = self._get_conn()
+            conn.cursor().execute("""select 'blah'""")
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            conn = self._get_conn()
+            conn.cursor().execute("""select 'blah'""")
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 def test_backwards_compatibilty_v3():
