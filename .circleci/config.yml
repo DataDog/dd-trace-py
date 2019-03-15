@@ -864,7 +864,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'msgpack_contrib-{py27,py34}-msgpack{03,04,05}' --result-json /tmp/msgpack.results
+      - run: tox -e 'msgpack_contrib-{py27,py34}' --result-json /tmp/msgpack.results
       - persist_to_workspace:
           root: /tmp
           paths:
