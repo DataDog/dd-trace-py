@@ -65,8 +65,10 @@ jobs:
       - run: pip install twine readme_renderer[md] pyopenssl
       # Ensure we didn't cache from previous runs
       - run: rm -rf dist/
-      # Ensure package will build
+      # Ensure source package will build
       - run: python setup.py sdist
+      # Ensure wheel will build
+      - run: python setup.py bdist_wheel
       # Ensure package long description is valid and will render
       # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
       - run: twine check dist/*
