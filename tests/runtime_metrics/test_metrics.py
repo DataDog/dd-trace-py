@@ -76,8 +76,10 @@ class TestValueCollector(unittest.TestCase):
             collect.assert_not_called()
 
         calls = [
-            mock.call(
-                'Could not import module "moduleshouldnotexist" for <Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. Disabling.'
+            mock.call((
+                'Could not import module "moduleshouldnotexist" for '
+                '<Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. Disabling collector.'
+            )
             )
         ]
         log_mock.warn.assert_has_calls(calls)

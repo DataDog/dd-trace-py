@@ -18,6 +18,8 @@ class ValueCollector(object):
     enabled = True
     periodic = False
     required_modules = []
+    value = None
+    value_loaded = False
 
     def __init__(self, collect_fn=None, enabled=None, periodic=None, required_modules=None):
         self._collect_fn = collect_fn
@@ -25,8 +27,6 @@ class ValueCollector(object):
         self.periodic = self.periodic if periodic is None else periodic
         self.required_modules = self.required_modules if required_modules is None else required_modules
 
-        self.value = None
-        self.value_loaded = False
         self._modules_successfully_loaded = False
         self.modules = self._load_modules()
         if self._modules_successfully_loaded:
@@ -45,12 +45,16 @@ class ValueCollector(object):
         except ImportError:
             # DEV: disable collector if we cannot load any of the required modules
             self.enabled = False
-            log.warn('Could not import module "{}" for {}. Disabling.'.format(module, self))
+            log.warn('Could not import module "{}" for {}. Disabling collector.'.format(module, self))
             return None
         return modules
 
     def collect_fn(self, keys):
         """Returns metrics given a set of keys and provided modules.
+
+        Note: this method has to be provided as an argument to the intializer
+        or overridden by a child class.
+
         :param keys: set of keys to collect
         :return: collected metrics as a dict
         """
@@ -81,3 +85,4 @@ class ValueCollector(object):
             self.periodic,
             self.required_modules
         )
+

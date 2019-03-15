@@ -1,4 +1,8 @@
-from .runtime_metrics import RuntimeMetricsCollector, RuntimeMetricsCollectorWorker
+from .runtime_metrics import (
+    RuntimeMetricsCollector,
+    RuntimeMetricsCollectorWorker
+)
+
 
 __all__ = [
     'RuntimeMetricsCollector',

@@ -2,31 +2,34 @@ import logging
 import threading
 import time
 
+
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
 )
 
-FLUSH_INTERVAL = 1
 AGENT_HOST = '127.0.0.1'
-METRIC_AGENT_PORT = 8125
 DD_METRIC_PREFIX = 'runtime.python'
+FLUSH_INTERVAL = 10
+METRIC_AGENT_PORT = 8125
 
 logging.basicConfig(level=logging.DEBUG)
-
-# TODO: look at gc
-# TODO: forking/multi-process app
 
 log = logging.getLogger(__name__)
 
 
 # Default metrics to collect
 ENABLED_METRICS = set([
-    'thread_count',
-    'mem.rss',
+    'ctx_switch.voluntary',
+    'ctx_switch.involuntary',
+    'cpu.time.sys',
+    'cpu.time.user',
+    'cpu.percent',
     'gc.gen1_count',
     'gc.gen2_count',
     'gc.gen3_count',
+    'mem.rss',
+    'thread_count',
 ])
 
 ENABLED_TAGS = set([
@@ -112,8 +115,8 @@ class RuntimeMetricsCollectorWorker(object):
         while True:
             self.collector.flush()
             with self._lock:
-                 if self._stay_alive is False:
-                     break
+                if self._stay_alive is False:
+                    break
             time.sleep(self._flush_interval)
 
     def start(self):
