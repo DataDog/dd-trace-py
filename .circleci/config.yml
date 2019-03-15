@@ -62,7 +62,8 @@ jobs:
       # Install required dependencies
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
-      - run: pip install twine readme_renderer[md] pyopenssl
+      # DEV: `wheel` is needed to run `bdist_wheel`
+      - run: pip install twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
       - run: rm -rf dist/
       # Ensure source package will build
