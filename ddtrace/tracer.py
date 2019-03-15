@@ -146,7 +146,9 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._rtmetrics_worker is None:
-            self._rtmetrics_worker = RuntimeMetricsCollectorWorker()
+            self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
+                self._runtime_id,
+            )
             self._rtmetrics_worker.start()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):

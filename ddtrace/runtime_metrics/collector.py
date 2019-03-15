@@ -83,5 +83,5 @@ class ValueCollector(object):
         return '<Collector(enabled={},periodic={},required_modules={})>'.format(
             self.enabled,
             self.periodic,
-            self.required_modules
+            self.required_modules,
         )

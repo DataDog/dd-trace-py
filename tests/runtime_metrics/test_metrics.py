@@ -116,7 +116,7 @@ class TestMetrics(unittest.TestCase):
         from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
         from time import sleep
 
-        rtm = RuntimeMetricsCollector()
+        rtm = RuntimeMetricsCollector("runtimeId")
 
         class A(object):
             pass

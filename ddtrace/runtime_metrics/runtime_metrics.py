@@ -49,24 +49,31 @@ class RuntimeMetricsCollector(object):
     TAG_COLLECTORS = [
     ]
 
-    def __init__(self, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
+    def __init__(self, runtime_id, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
         self._agent_host = AGENT_HOST
         self._agent_metric_port = METRIC_AGENT_PORT
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
         self._statsd = None
+        self._tracer_tags = [
+            self._metric_tag('runtime-id', runtime_id),
+            # self._metric_tag('service', service),
+        ]
 
         self._init_statsd()
+
+    def _metric_tag(self, key, value):
+        return '{}:{}'.format(key, value)
 
     def _collect_constant_tags(self):
         """Collects tags to be sent to ddstatsd.
 
         Note: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         """
-        tags = []
+        tags = list(self._tracer_tags)
         for tag_collector in self.TAG_COLLECTORS:
             collected_tags = tag_collector.collect(self.enabled_tags)
-            tags += ['{}:{}'.format(k, v) for k, v in collected_tags.items()]
+            tags += [self._metric_tag(k, v) for k, v in collected_tags.items()]
         log.info('Reporting constant tags {}'.format(tags))
         return tags
 
@@ -102,12 +109,12 @@ class RuntimeMetricsCollector(object):
 
 
 class RuntimeMetricsCollectorWorker(object):
-    def __init__(self, flush_interval=FLUSH_INTERVAL):
+    def __init__(self, runtime_id, flush_interval=FLUSH_INTERVAL):
         self._lock = threading.Lock()
         self._stay_alive = None
         self._thread = None
         self._flush_interval = flush_interval
-        self.collector = RuntimeMetricsCollector()
+        self.collector = RuntimeMetricsCollector(runtime_id)
 
     def _target(self):
         while True:

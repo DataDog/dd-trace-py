@@ -1,5 +1,4 @@
 from .collector import ValueCollector
-from ddtrace import __version__
 
 
 class RuntimeMetricTagCollector(ValueCollector):
@@ -9,11 +8,13 @@ class RuntimeMetricTagCollector(ValueCollector):
 class PlatformMetricTagCollector(RuntimeMetricTagCollector):
     """Tag collector for the Python interpreter implementation.
 
-    Tag collected:
+    Tags collected:
     - lang_interpreter:
       - For CPython this is 'CPython'.
       - For Pypy this is 'PyPy'.
       - For Jython this is 'Jython'.
+    - lang_version:
+      - eg. '2.7.10'
     """
     required_modules = ['platform']
 
@@ -27,11 +28,3 @@ class PlatformMetricTagCollector(RuntimeMetricTagCollector):
             metrics['lang_version'] = platform.python_version()
         return metrics
 
-
-class TracerMetricTagCollector(RuntimeMetricTagCollector):
-    def collect_fn(self, keys):
-        if 'version' not in keys:
-            return {}
-        return {
-            'version': __version__,
-        }
