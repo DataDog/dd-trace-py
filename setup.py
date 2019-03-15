@@ -171,5 +171,9 @@ try:
     kwargs['cmdclass']['build_ext'] = optional_build_ext
     setup(**kwargs)
 except BuildExtFailed:
+    # Set `DDTRACE_BUILD_TRACE=TRUE` in CI to raise any build errors
+    if os.environ.get('DDTRACE_BUILD_RAISE') == 'TRUE':
+        raise
+
     print('WARNING: Failed to install wrapt/msgpack C-extensions, using pure-Python wrapt/msgpack instead')
     setup(**setup_kwargs)

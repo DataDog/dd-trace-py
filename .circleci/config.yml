@@ -66,6 +66,9 @@ jobs:
       - run: pip install twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
       - run: rm -rf dist/
+      # Manually build any extensions to ensure they succeed
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
       # Ensure source package will build
       - run: python setup.py sdist
       # Ensure wheel will build
