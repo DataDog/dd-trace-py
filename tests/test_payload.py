@@ -81,8 +81,8 @@ class PayloadTestCase(BaseTracerTestCase):
         self.assertEqual(len(decoded_data), 5)
         for trace in decoded_data:
             self.assertEqual(len(trace), 2)
-            self.assertEqual(trace[0]['name'], 'root.span')
-            self.assertEqual(trace[1]['name'], 'child.span')
+            self.assertEqual(trace[0][b'name'], b'root.span')
+            self.assertEqual(trace[1][b'name'], b'child.span')
 
     def test_full(self):
         """
