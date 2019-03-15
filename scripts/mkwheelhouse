@@ -26,7 +26,7 @@ def make_index(bucket):
     with tag('html'):
         for key in bucket.list():
             # Skip over any non-wheel or non-source dist
-            if not key.endswith('.whl') and not key.endswith('.tar.gz'):
+            if not key.name.endswith('.whl') and not key.name.endswith('.tar.gz'):
                 continue
 
             with tag('a', href=bucket.generate_url(key)):
