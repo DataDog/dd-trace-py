@@ -35,4 +35,3 @@ class TracerMetricTagCollector(RuntimeMetricTagCollector):
         return {
             'version': __version__,
         }
-

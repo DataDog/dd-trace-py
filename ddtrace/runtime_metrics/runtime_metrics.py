@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 
-
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
@@ -13,7 +12,6 @@ DD_METRIC_PREFIX = 'runtime.python'
 FLUSH_INTERVAL = 10
 METRIC_AGENT_PORT = 8125
 
-logging.basicConfig(level=logging.DEBUG)
 
 log = logging.getLogger(__name__)
 

@@ -85,4 +85,3 @@ class ValueCollector(object):
             self.periodic,
             self.required_modules
         )
-

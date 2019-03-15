@@ -40,7 +40,7 @@ class Tracer(object):
         """
         self.sampler = None
         self.priority_sampler = None
-        self.rmc_worker = None
+        self._rtmetrics_worker = None
 
         # Apply the default configuration
         self.configure(
@@ -57,7 +57,7 @@ class Tracer(object):
         # globally set tags
         self.tags = {}
 
-        # a buffer for service info so we dont' perpetually send the same things
+        # a buffer for service info so we don't perpetually send the same things
         self._services = {}
 
         # Runtime id used for associating metrics to traces
@@ -145,9 +145,9 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if self.rmc_worker is None:
-            self.rmc_worker = RuntimeMetricsCollectorWorker()
-            self.rmc_worker.start()
+        if collect_metrics and self._rtmetrics_worker is None:
+            self._rtmetrics_worker = RuntimeMetricsCollectorWorker()
+            self._rtmetrics_worker.start()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
