@@ -27,4 +27,3 @@ class PlatformMetricTagCollector(RuntimeMetricTagCollector):
         if 'lang_version' in keys:
             metrics['lang_version'] = platform.python_version()
         return metrics
-
