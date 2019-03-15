@@ -78,7 +78,8 @@ class TestValueCollector(unittest.TestCase):
         calls = [
             mock.call((
                 'Could not import module "moduleshouldnotexist" for '
-                '<Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. Disabling collector.'
+                '<Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. '
+                'Disabling collector.'
             )
             )
         ]
