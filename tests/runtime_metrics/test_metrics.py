@@ -111,10 +111,10 @@ class TestValueCollector(unittest.TestCase):
 
 class TestMetrics(unittest.TestCase):
     def test_manual(self):
-        from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetrics
+        from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
         from time import sleep
 
-        rtm = RuntimeMetrics()
+        rtm = RuntimeMetricsCollector()
 
         class A(object):
             pass

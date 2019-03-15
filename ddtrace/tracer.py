@@ -13,6 +13,7 @@ from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
 from .runtime_metrics import RuntimeMetricsCollectorWorker
+from .utils.runtime import generate_runtime_id
 
 
 log = get_logger(__name__)
@@ -55,6 +56,12 @@ class Tracer(object):
 
         # globally set tags
         self.tags = {}
+
+        # a buffer for service info so we dont' perpetually send the same things
+        self._services = {}
+
+        # Runtime id used for associating metrics to traces
+        self._runtime_id = generate_runtime_id()
 
     def get_call_context(self, *args, **kwargs):
         """

@@ -1,12 +1,15 @@
 import logging
+import threading
+import time
 
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
 )
 
-DEFAULT_AGENT_HOST = '127.0.0.1'
-DEFAULT_METRIC_AGENT_PORT = 8125
+FLUSH_INTERVAL = 1
+AGENT_HOST = '127.0.0.1'
+METRIC_AGENT_PORT = 8125
 DD_METRIC_PREFIX = 'runtime.python'
 
 logging.basicConfig(level=logging.DEBUG)
@@ -18,7 +21,7 @@ log = logging.getLogger(__name__)
 
 
 # Default metrics to collect
-DEFAULT_ENABLED_METRICS = set([
+ENABLED_METRICS = set([
     'thread_count',
     'mem.rss',
     'gc.gen1_count',
@@ -26,13 +29,13 @@ DEFAULT_ENABLED_METRICS = set([
     'gc.gen3_count',
 ])
 
-DEFAULT_ENABLED_TAGS = set([
+ENABLED_TAGS = set([
     'service',
     'runtime-id',
 ])
 
 
-class RuntimeMetrics(object):
+class RuntimeMetricsCollector(object):
     """
     TODO: configuration
     """
@@ -43,17 +46,14 @@ class RuntimeMetrics(object):
     ]
 
     TAG_COLLECTORS = [
-        # RuntimeMetricTagCollector(collect_fn=interpreter_version),
-        # RuntimeMetricTagCollector(collect_fn=interpreter_implementation),
-        # RuntimeMetricTagCollector(collect_fn=tracer_version),
     ]
 
-    def __init__(self, enabled_metrics=DEFAULT_ENABLED_METRICS, enabled_tags=DEFAULT_ENABLED_TAGS):
-        self.agent_host = DEFAULT_AGENT_HOST
-        self.agent_metric_port = DEFAULT_METRIC_AGENT_PORT
+    def __init__(self, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
+        self._agent_host = AGENT_HOST
+        self._agent_metric_port = METRIC_AGENT_PORT
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
-        self.statsd = None
+        self._statsd = None
 
         self._init_statsd()
 
@@ -61,7 +61,6 @@ class RuntimeMetrics(object):
         """Collects tags to be sent to ddstatsd.
 
         Note: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        :return:
         """
         tags = []
         for tag_collector in self.TAG_COLLECTORS:
@@ -81,7 +80,7 @@ class RuntimeMetrics(object):
         try:
             from datadog import DogStatsd
             tags = self._collect_constant_tags()
-            self.statsd = DogStatsd(host=self.agent_host, port=self.agent_metric_port, constant_tags=tags)
+            self._statsd = DogStatsd(host=self._agent_host, port=self._agent_metric_port, constant_tags=tags)
         except ImportError:
             log.info('Install the `datadog` package to enable runtime metrics.')
         except Exception:
@@ -89,7 +88,7 @@ class RuntimeMetrics(object):
 
     def flush(self):
         """Collects and flushes enabled metrics to the Datadog Agent."""
-        if not self.statsd:
+        if not self._statsd:
             log.warn('Attempted flush with uninitialized or failed statsd client')
             return
 
@@ -98,4 +97,34 @@ class RuntimeMetrics(object):
         for metric_key, metric_value in metrics.items():
             metric_key = '{}.{}'.format(DD_METRIC_PREFIX, metric_key)
             log.info('Flushing metric {}:{}'.format(metric_key, metric_value))
-            self.statsd.gauge(metric_key, metric_value)
+            self._statsd.gauge(metric_key, metric_value)
+
+
+class RuntimeMetricsCollectorWorker(object):
+    def __init__(self, flush_interval=FLUSH_INTERVAL):
+        self._lock = threading.Lock()
+        self._stay_alive = None
+        self._thread = None
+        self._flush_interval = flush_interval
+        self.collector = RuntimeMetricsCollector()
+
+    def _target(self):
+        while True:
+            self.collector.flush()
+            with self._lock:
+                 if self._stay_alive is False:
+                     break
+            time.sleep(self._flush_interval)
+
+    def start(self):
+        if self._thread:
+            log.info('Ignoring start as worker already started')
+            return
+        self._stay_alive = True
+        self._thread = threading.Thread(target=self._target)
+        self._thread.setDaemon(True)
+        self._thread.start()
+
+    def stop(self):
+        with self._lock:
+            self._stay_alive = False

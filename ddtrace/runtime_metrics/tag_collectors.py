@@ -6,7 +6,7 @@ class RuntimeMetricTagCollector(ValueCollector):
     periodic = False
 
 
-class PlatformTagCollector(RuntimeMetricTagCollector):
+class PlatformMetricTagCollector(RuntimeMetricTagCollector):
     """Tag collector for the Python interpreter implementation.
 
     Tag collected:
@@ -28,11 +28,11 @@ class PlatformTagCollector(RuntimeMetricTagCollector):
         return metrics
 
 
-class TracerVersionTagCollector(RuntimeMetricTagCollector):
+class TracerMetricTagCollector(RuntimeMetricTagCollector):
     def collect_fn(self, keys):
         if 'version' not in keys:
             return {}
         return {
-            'version': __version__
+            'version': __version__,
         }
 
