@@ -1,5 +1,4 @@
 import json
-import msgpack
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
@@ -7,6 +6,7 @@ from nose.tools import eq_, ok_
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
+from ddtrace.vendor import msgpack
 
 
 class TestEncoders(TestCase):

@@ -8,10 +8,10 @@ from .internal.logger import get_logger
 # pure Python implementation that is really slow, so the ``Encoder`` should use
 # a different encoding format.
 try:
-    import msgpack
-    from msgpack._packer import Packer  # noqa
-    from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
-    from msgpack._version import version
+    from ddtrace.vendor import msgpack
+    from ddtrace.vendor.msgpack._packer import Packer  # noqa
+    from ddtrace.vendor.msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
+    from ddtrace.vendor.msgpack._version import version
     # use_bin_type kwarg only exists since msgpack-python v0.4.0
     MSGPACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
     MSGPACK_ENCODING = True

@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import msgpack
 import logging
 import mock
 import ddtrace
@@ -16,6 +15,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
 
