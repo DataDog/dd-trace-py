@@ -6,7 +6,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .constants import NUMERIC_TAGS
-from .ext import errors
+from .ext import errors, priority
 from .internal.logger import get_logger
 
 
@@ -125,7 +125,7 @@ class Span(object):
             except Exception:
                 log.exception("error recording finished trace")
 
-    def set_tag(self, key, value):
+    def set_tag(self, key, value=None):
         """ Set the given key / value tag pair on the span. Keys and values
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
@@ -138,6 +138,10 @@ class Span(object):
                 log.debug("error setting numeric metric {}:{}".format(key, value))
 
             return
+        elif key == 'force.keep':
+            self.context.sampling_priority = priority.USER_KEEP
+            return
+
         try:
             self.meta[key] = stringify(value)
         except Exception:
