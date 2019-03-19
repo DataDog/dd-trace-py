@@ -1,4 +1,3 @@
-import logging
 import os
 
 import flask
@@ -7,15 +6,16 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config, Pin
 
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
 from .helpers import get_current_app, get_current_span, simple_tracer, with_instance_pin
 from .wrappers import wrap_function, wrap_signal
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 FLASK_ENDPOINT = 'flask.endpoint'
 FLASK_VIEW_ARGS = 'flask.view_args'
@@ -285,9 +285,11 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
-        # Configure trace search sample rate
-        if config.flask.event_sample_rate is not None:
-            s.set_tag(EVENT_SAMPLE_RATE_KEY, config.flask.event_sample_rate)
+        # set analytics sample rate with global config enabled
+        s.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.flask.get_analytics_sample_rate(use_global_config=True)
+        )
 
         s.set_tag(FLASK_VERSION, flask_version_str)
 

@@ -2,6 +2,8 @@ import grpc
 
 from ddtrace import Pin
 from .propagation import inject_span
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...settings import config
 
 
 class GrpcClientInterceptor(
@@ -23,6 +25,11 @@ class GrpcClientInterceptor(
             span.set_tag('grpc.port', self._port)
         if self._pin.tags:
             span.set_tags(self._pin.tags)
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.grpc.get_analytics_sample_rate()
+        )
         return span
 
     def intercept_unary_unary(self, continuation, client_call_details, request):

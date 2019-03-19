@@ -1,10 +1,10 @@
 import collections
 from copy import deepcopy
-import logging
 
+from ..internal.logger import get_logger
 from ..span import Span
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Hooks(object):

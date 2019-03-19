@@ -1,6 +1,3 @@
-
-# stdlib
-import logging
 import random
 
 # 3p
@@ -9,8 +6,11 @@ import pylibmc
 
 # project
 import ddtrace
-from ddtrace.ext import memcached
-from ddtrace.ext import net
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import memcached
+from ...ext import net
+from ...internal.logger import get_logger
+from ...settings import config
 from .addrs import parse_addresses
 
 
@@ -18,7 +18,7 @@ from .addrs import parse_addresses
 _Client = pylibmc.Client
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class TracedClient(ObjectProxy):
@@ -145,3 +145,9 @@ class TracedClient(ObjectProxy):
             _, host, port, _ = random.choice(self._addresses)
             span.set_meta(net.TARGET_HOST, host)
             span.set_meta(net.TARGET_PORT, port)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.pylibmc.get_analytics_sample_rate()
+        )

@@ -1,8 +1,8 @@
 import functools
-import logging
 from os import environ, getpid
 
 from .ext import system
+from .internal.logger import get_logger
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
@@ -14,7 +14,7 @@ from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Tracer(object):
@@ -103,7 +103,7 @@ class Tracer(object):
 
         filters = None
         if settings is not None:
-                filters = settings.get(FILTERS_KEY)
+            filters = settings.get(FILTERS_KEY)
 
         if sampler is not None:
             self.sampler = sampler

@@ -10,6 +10,11 @@ debug = os.environ.get("DATADOG_TRACE_DEBUG")
 if debug and debug.lower() == "true":
     logging.basicConfig(level=logging.DEBUG)
 
+# Do not use `ddtrace.internal.logger.get_logger` here
+# DEV: It isn't really necessary to use `DDLogger` here so we want to
+#        defer importing `ddtrace` until we actually need it.
+#      As well, no actual rate limiting would apply here since we only
+#        have a few logged lines
 log = logging.getLogger(__name__)
 
 USAGE = """

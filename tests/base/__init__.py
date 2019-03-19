@@ -8,6 +8,28 @@ from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
+# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
+@contextlib.contextmanager
+def override_config(integration, values):
+    """
+    Temporarily override an integration configuration value
+    >>> with .override_config('flask', dict(service_name='test-service')):
+        # Your test
+    """
+    options = getattr(ddtrace.config, integration)
+
+    original = dict(
+        (key, options.get(key))
+        for key in values.keys()
+    )
+
+    options.update(values)
+    try:
+        yield
+    finally:
+        options.update(original)
+
+
 class BaseTestCase(unittest.TestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
@@ -42,6 +64,22 @@ class BaseTestCase(unittest.TestCase):
             # Full clear the environment out and reset back to the original
             os.environ.clear()
             os.environ.update(original)
+
+    @contextlib.contextmanager
+    def override_global_config(self, values):
+        """
+        Temporarily override an global configuration
+        >>> with self.override_global_config(dict(name=value,...)):
+            # Your test
+        """
+        # DEV: Uses dict as interface but internally handled as attributes on Config instance
+        analytics_enabled_original = ddtrace.config.analytics_enabled
+
+        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
+        try:
+            yield
+        finally:
+            ddtrace.config.analytics_enabled = analytics_enabled_original
 
     @contextlib.contextmanager
     def override_config(self, integration, values):

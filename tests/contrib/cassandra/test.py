@@ -1,4 +1,5 @@
 # stdlib
+import contextlib
 import logging
 import unittest
 from threading import Event
@@ -10,10 +11,11 @@ from cassandra.cluster import Cluster, ResultSet
 from cassandra.query import BatchStatement, SimpleStatement
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.cassandra.patch import patch, unpatch
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
 from ddtrace.ext import net, cassandra as cassx, errors
-from ddtrace import Pin
+from ddtrace import config, Pin
 
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
@@ -75,6 +77,26 @@ class CassandraBase(object):
         # implement me
         pass
 
+    @contextlib.contextmanager
+    def override_config(self, integration, values):
+        """
+        Temporarily override an integration configuration value
+        >>> with self.override_config('flask', dict(service_name='test-service')):
+            # Your test
+        """
+        options = getattr(config, integration)
+
+        original = dict(
+            (key, options.get(key))
+            for key in values.keys()
+        )
+
+        options.update(values)
+        try:
+            yield
+        finally:
+            options.update(original)
+
     def setUp(self):
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
         self.session = self.cluster.connect()
@@ -110,10 +132,47 @@ class CassandraBase(object):
         eq_(query.get_tag(cassx.PAGINATED), 'False')
         eq_(query.get_tag(net.TARGET_HOST), '127.0.0.1')
 
+        # confirm no analytics sample rate set by default
+        ok_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
     def test_query(self):
         def execute_fn(session, query):
             return session.execute(query)
         self._test_query_base(execute_fn)
+
+    def test_query_analytics_with_rate(self):
+        with self.override_config(
+                'cassandra',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            session, tracer = self._traced_session()
+            session.execute(self.TEST_QUERY)
+
+            writer = tracer.writer
+            spans = writer.pop()
+            assert spans, spans
+            # another for the actual query
+            eq_(len(spans), 1)
+            query = spans[0]
+            # confirm no analytics sample rate set by default
+            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_query_analytics_without_rate(self):
+        with self.override_config(
+                'cassandra',
+                dict(analytics_enabled=True)
+        ):
+            session, tracer = self._traced_session()
+            session.execute(self.TEST_QUERY)
+
+            writer = tracer.writer
+            spans = writer.pop()
+            assert spans, spans
+            # another for the actual query
+            eq_(len(spans), 1)
+            query = spans[0]
+            # confirm no analytics sample rate set by default
+            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_query_ot(self):
         """Ensure that cassandra works with the opentracer."""

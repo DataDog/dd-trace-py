@@ -14,12 +14,13 @@ from __future__ import unicode_literals
 
 import os
 import importlib
-import logging
 
 from django.conf import settings as django_settings
 
+from ...internal.logger import get_logger
 
-log = logging.getLogger(__name__)
+
+log = get_logger(__name__)
 
 # List of available settings with their defaults
 DEFAULTS = {
@@ -34,6 +35,8 @@ DEFAULTS = {
     'DEFAULT_CACHE_SERVICE': '',
     'ENABLED': True,
     'DISTRIBUTED_TRACING': False,
+    'ANALYTICS_ENABLED': None,
+    'ANALYTICS_SAMPLE_RATE': True,
     'TAGS': {},
     'TRACER': 'ddtrace.tracer',
 }
