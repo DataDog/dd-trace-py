@@ -4,6 +4,7 @@ from nose.tools import eq_, ok_
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysql.patch import patch, unpatch
 
 # tests
@@ -315,6 +316,53 @@ class MySQLCore(object):
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
         eq_(span.name, 'mysql.connection.rollback')
+
+    def test_analytics_default(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        eq_(len(rows), 1)
+        spans = writer.pop()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            conn, tracer = self._get_conn_tracer()
+            writer = tracer.writer
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
+
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            conn, tracer = self._get_conn_tracer()
+            writer = tracer.writer
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
+
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class TestMysqlPatch(MySQLCore, BaseTracerTestCase):

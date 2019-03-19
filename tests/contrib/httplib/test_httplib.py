@@ -8,6 +8,7 @@ from ddtrace.vendor import wrapt
 # Project
 from ddtrace import config
 from ddtrace.compat import httplib, PY2
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
@@ -491,6 +492,50 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
                 'http.url': URL_200,
             }
         )
+
+    def test_analytics_default(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            resp = conn.getresponse()
+            self.assertEqual(self.to_str(resp.read()), '')
+            self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'httplib',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200')
+                resp = conn.getresponse()
+                self.assertEqual(self.to_str(resp.read()), '')
+                self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'httplib',
+            dict(analytics_enabled=True)
+        ):
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200')
+                resp = conn.getresponse()
+                self.assertEqual(self.to_str(resp.read()), '')
+                self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 # Additional Python2 test cases for urllib

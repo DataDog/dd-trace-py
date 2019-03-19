@@ -3,17 +3,19 @@ import time
 
 # 3p
 import mongoengine
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 import pymongo
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
+from ...base import override_config
 from ...test_tracer import get_dummy_tracer
 
 
@@ -153,6 +155,38 @@ class MongoEngineCore(object):
         eq_(dd_span.span_type, 'mongodb')
         eq_(dd_span.service, self.TEST_SERVICE)
         _assert_timing(dd_span, start, end)
+
+    def test_analytics_default(self):
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        ok_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
+    def test_analytics_with_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            tracer = self.get_tracer_and_connect()
+            Artist.drop_collection()
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True)
+        ):
+            tracer = self.get_tracer_and_connect()
+            Artist.drop_collection()
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class TestMongoEnginePatchConnectDefault(MongoEngineCore):
