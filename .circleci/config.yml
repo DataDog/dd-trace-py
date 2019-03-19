@@ -25,7 +25,7 @@ restore_cache_step: &restore_cache_step
 resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
-    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
     paths:
       - .tox
 deploy_docs_filters: &deploy_docs_filters
