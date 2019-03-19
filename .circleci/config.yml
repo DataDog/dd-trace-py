@@ -16,16 +16,11 @@ restore_cache_step: &restore_cache_step
         # In the cache key:
         #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
         #                              much faster.
-        #   - .Environment.CACHE_EXPIRE_HASH: Typically CircleCI discard caches every ~60days. If we see any strange
-        #                              behavior in tests and we want to run a build in a clean environment, we should
-        #                              still be able to do it. In order to achieve this we can change the value of the
-        #                              CACHE_EXPIRE_HASH in our CircleCI's repo settings. Please use the format
-        #                              'YYYY-MM-DD'. This way a new push on the branch is not required.
-        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
 resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
-    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
     paths:
       - .tox
 deploy_docs_filters: &deploy_docs_filters
