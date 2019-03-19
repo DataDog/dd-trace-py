@@ -8,6 +8,7 @@ end
 
 # Deploy tasks
 S3_DIR = ENV['S3_DIR']
+S3_BUCKET = "pypi.datadoghq.com"
 
 desc "release the a new wheel"
 task :'release:wheel' do
