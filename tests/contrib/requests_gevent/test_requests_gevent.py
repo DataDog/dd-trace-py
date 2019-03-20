@@ -39,7 +39,7 @@ class TestRequestsGevent(unittest.TestCase):
             import requests
 
             # DEV: We **MUST** use an HTTPS request, that is what causes the issue
-            requests.get('https://httpbin.org/get')
+            requests.get('https://icanhazdadjoke.com/')
 
         finally:
             # Ensure we always unpatch `requests` when we are done
