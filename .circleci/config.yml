@@ -298,10 +298,10 @@ jobs:
         env:
           TOX_SKIP_DIST: True
           CASS_DRIVER_NO_EXTENSIONS: 1
-      - image: cassandra:3.11
+      - image: spotify/cassandra:latest
         env:
-          - MAX_HEAP_SIZE=1024M
-          - HEAP_NEWSIZE=400M
+          - MAX_HEAP_SIZE=512M
+          - HEAP_NEWSIZE=256M
     resource_class: *resource_class
     steps:
       - checkout
