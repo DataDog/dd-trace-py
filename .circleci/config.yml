@@ -659,7 +659,6 @@ jobs:
   requestsgevent:
     docker:
       - *test_runner
-      - *httpbin_local
     resource_class: *resource_class
     steps:
       - checkout
