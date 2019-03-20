@@ -40,7 +40,6 @@ def run():
 
     bucket.sync(build_dir, acl=acl)
     bucket.put(make_index(bucket), key='index.html', acl=acl)
-    shutil.rmtree(build_dir)
     print('mkwheelhouse: index written to', index_url)
 
 
