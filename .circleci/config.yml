@@ -877,10 +877,10 @@ jobs:
       - *save_cache_step
 
   deploy_dev:
-    # DEV: Use CircleCI machine instead of docker since we need to be able to run docker commands directly
-    # DEV: Use machine instead of setup_remote_docker since we need to supporting mounting volumes for docker commands
-    machine:
-      docker_layer_caching: true
+    # build the master/*-dev branch releasing development docs and wheels
+    docker:
+      - image: circleci/python:3.6
+    resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
