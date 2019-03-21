@@ -1,16 +1,15 @@
 import logging
 import threading
 import time
+from ddtrace.utils.formats import get_env
 
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
 )
 
-AGENT_HOST = '127.0.0.1'
 DD_METRIC_PREFIX = 'runtime.python'
 FLUSH_INTERVAL = 10
-METRIC_AGENT_PORT = 8125
 
 
 log = logging.getLogger(__name__)
@@ -50,8 +49,8 @@ class RuntimeMetricsCollector(object):
     ]
 
     def __init__(self, runtime_id, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
-        self._agent_host = AGENT_HOST
-        self._agent_metric_port = METRIC_AGENT_PORT
+        self._agent_host = get_env('runtime_metrics', 'dogstatsd_host', default='127.0.0.1')
+        self._agent_metric_port = get_env('runtime_metrics', 'dogstatsd_port', default=8125)
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
         self._statsd = None
