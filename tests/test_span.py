@@ -247,7 +247,7 @@ class SpanTestCase(BaseTracerTestCase):
         assert d
         self.assertTrue('metrics' not in d)
 
-    def test_set_tag_force_keep(self):
+    def test_set_tag_manual_keep(self):
         ctx = Context()
         s = Span(tracer=None, name='root.span', service='s', resource='r', context=ctx)
 
@@ -256,7 +256,7 @@ class SpanTestCase(BaseTracerTestCase):
         self.assertNotEqual(s.context.sampling_priority, priority.USER_KEEP)
         self.assertEqual(s.meta, dict())
 
-        s.set_tag('force.keep')
+        s.set_tag('manual.keep')
         self.assertEqual(ctx.sampling_priority, priority.USER_KEEP)
         self.assertEqual(s.context.sampling_priority, priority.USER_KEEP)
         self.assertEqual(s.meta, dict())
@@ -266,9 +266,33 @@ class SpanTestCase(BaseTracerTestCase):
         self.assertEqual(s.context.sampling_priority, priority.AUTO_REJECT)
         self.assertEqual(s.meta, dict())
 
-        s.set_tag('force.keep')
+        s.set_tag('manual.keep')
         self.assertEqual(ctx.sampling_priority, priority.USER_KEEP)
         self.assertEqual(s.context.sampling_priority, priority.USER_KEEP)
+        self.assertEqual(s.meta, dict())
+
+    def test_set_tag_manual_drop(self):
+        ctx = Context()
+        s = Span(tracer=None, name='root.span', service='s', resource='r', context=ctx)
+
+        self.assertEqual(s.context, ctx)
+        self.assertNotEqual(ctx.sampling_priority, priority.USER_REJECT)
+        self.assertNotEqual(s.context.sampling_priority, priority.USER_REJECT)
+        self.assertEqual(s.meta, dict())
+
+        s.set_tag('manual.drop')
+        self.assertEqual(ctx.sampling_priority, priority.USER_REJECT)
+        self.assertEqual(s.context.sampling_priority, priority.USER_REJECT)
+        self.assertEqual(s.meta, dict())
+
+        ctx.sampling_priority = priority.AUTO_REJECT
+        self.assertEqual(ctx.sampling_priority, priority.AUTO_REJECT)
+        self.assertEqual(s.context.sampling_priority, priority.AUTO_REJECT)
+        self.assertEqual(s.meta, dict())
+
+        s.set_tag('manual.drop')
+        self.assertEqual(ctx.sampling_priority, priority.USER_REJECT)
+        self.assertEqual(s.context.sampling_priority, priority.USER_REJECT)
         self.assertEqual(s.meta, dict())
 
     def test_set_tag_none(self):

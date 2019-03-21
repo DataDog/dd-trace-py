@@ -138,8 +138,11 @@ class Span(object):
                 log.debug("error setting numeric metric {}:{}".format(key, value))
 
             return
-        elif key == 'force.keep':
+        elif key == 'manual.keep':
             self.context.sampling_priority = priority.USER_KEEP
+            return
+        elif key == 'manual.drop':
+            self.context.sampling_priority = priority.USER_REJECT
             return
 
         try:
