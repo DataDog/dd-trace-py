@@ -17,6 +17,14 @@ task :'release:wheel' do
   # Use custom script to build wheels and source distribution into dist/
   sh "scripts/build-dist"
 
+  # Ensure `mkwheelhouse` is installed and available
+  sh <<-SCRIPT
+  if ! which mkwheelhouse;
+  then
+    pip install mkwheelhouse
+  fi
+SCRIPT
+
   # Use custom `mkwheelhouse` to upload wheels and source distribution from dist/ to S3 bucket
   sh "scripts/mkwheelhouse"
 end
