@@ -14,9 +14,6 @@ desc "release the a new wheel"
 task :'release:wheel' do
   fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
 
-  # Use custom script to build wheels and source distribution into dist/
-  sh "scripts/build-dist"
-
   # Use custom `mkwheelhouse` to upload wheels and source distribution from dist/ to S3 bucket
   sh "scripts/mkwheelhouse"
 end
