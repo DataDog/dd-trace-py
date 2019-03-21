@@ -877,15 +877,13 @@ jobs:
       - *save_cache_step
 
   deploy_dev:
-    # build only the nightly and *-dev packages
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
+    machine:
+      docker_layer_caching: true
     steps:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: true
-      - run: sudo apt-get -y install rake
+      - run: sudo apt-get -y install rake python3 python3-pip
       - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:docs
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
