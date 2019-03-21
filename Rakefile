@@ -18,8 +18,7 @@ task :'release:wheel' do
   sh "scripts/build-dist"
 
   # Use custom `mkwheelhouse` to upload wheels and source distribution from dist/ to S3 bucket
-  # TODO: Re-enable
-  # sh "scripts/mkwheelhouse"
+  sh "scripts/mkwheelhouse"
 end
 
 desc "release the docs website"
@@ -66,6 +65,7 @@ namespace :pypi do
 
   task :build => :clean do
     puts "building release in #{RELEASE_DIR}"
+    # TODO: Use `scripts/build-dist` instead to build sdist and wheels
     sh "python setup.py -q sdist -d #{RELEASE_DIR}"
   end
 
