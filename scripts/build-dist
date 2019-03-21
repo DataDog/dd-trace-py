@@ -12,10 +12,6 @@ mkdir "${DIST_DIR}"
 build_script=$(cat <<'EOF'
 set -ex
 
-pwd
-ls
-ls /dd-trace-py
-
 # Build linux wheels from the source distribution we created
 for PYBIN in /opt/python/*/bin;
 do
