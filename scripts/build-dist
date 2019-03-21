@@ -2,7 +2,7 @@
 set -ex
 
 # Determine where "../dist" is
-PARENT_DIR="$( cd "$(dirname "${0}/../")" ; pwd -P )"
+PARENT_DIR="$( cd "$(dirname "${0}")/../" ; pwd -P )"
 DIST_DIR="${PARENT_DIR}/dist"
 
 # Remove and recreate dist/ directory where our release wheels/source distribution will go
