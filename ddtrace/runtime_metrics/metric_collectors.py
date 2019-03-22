@@ -79,21 +79,21 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
             if 'thread_count' in keys:
                 metrics['thread_count'] = self.proc.num_threads()
 
-            mem_info = LazyValue(lambda: self.proc.memory_info())
+            mem_info = self.proc.memory_info()
             if 'mem.rss' in keys:
-                metrics['mem.rss'] = mem_info().rss
+                metrics['mem.rss'] = mem_info.rss
 
-            ctx_switches = LazyValue(lambda: self.proc.num_ctx_switches())
+            ctx_switches = self.proc.num_ctx_switches()
             if 'ctx_switch.voluntary' in keys:
-                metrics['ctx_switch.voluntary'] = ctx_switches().voluntary
+                metrics['ctx_switch.voluntary'] = ctx_switches.voluntary
             if 'ctx_switch.involuntary' in keys:
-                metrics['ctx_switch.involuntary'] = ctx_switches().involuntary
+                metrics['ctx_switch.involuntary'] = ctx_switches.involuntary
 
-            cpu_time = LazyValue(lambda: self.proc.cpu_times())
+            cpu_time = self.proc.cpu_times()
             if 'cpu.time.sys' in keys:
-                metrics['cpu.time.sys'] = cpu_time().user
+                metrics['cpu.time.sys'] = cpu_time.user
             if 'cpu.time.user' in keys:
-                metrics['cpu.time.user'] = cpu_time().system
+                metrics['cpu.time.user'] = cpu_time.system
             if 'cpu.percent' in keys:
                 metrics['cpu.percent'] = self.proc.cpu_percent()
         return metrics
