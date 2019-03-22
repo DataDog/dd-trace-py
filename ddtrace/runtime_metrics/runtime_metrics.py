@@ -1,8 +1,8 @@
-import logging
 import threading
 import time
 from ddtrace.utils.formats import get_env
 
+from ..internal.logger import get_logger
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
@@ -12,7 +12,7 @@ DD_METRIC_PREFIX = 'runtime.python'
 FLUSH_INTERVAL = 10
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 # Default metrics to collect
