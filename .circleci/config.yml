@@ -302,10 +302,10 @@ jobs:
         env:
           TOX_SKIP_DIST: True
           CASS_DRIVER_NO_EXTENSIONS: 1
-      - image: cassandra:3.11
+      - image: spotify/cassandra:latest
         env:
-          - MAX_HEAP_SIZE=1024M
-          - HEAP_NEWSIZE=400M
+          - MAX_HEAP_SIZE=512M
+          - HEAP_NEWSIZE=256M
     resource_class: *resource_class
     steps:
       - checkout
@@ -663,7 +663,6 @@ jobs:
   requestsgevent:
     docker:
       - *test_runner
-      - *httpbin_local
     resource_class: *resource_class
     steps:
       - checkout
@@ -882,26 +881,15 @@ jobs:
       - *save_cache_step
 
   deploy_dev:
-    # build only the nightly package
+    # build the master/*-dev branch releasing development docs and wheels
     docker:
       - image: circleci/python:3.6
     resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
+      - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:docs
-      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
-
-  deploy_experimental:
-    # build the *-dev branch releasing development docs
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
-    steps:
-      - checkout
-      - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   jinja2:
@@ -1212,10 +1200,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(master)/
-      - deploy_experimental:
-          requires:
-            - wait_all_tests
-          filters:
-            branches:
-              only: /(.*-dev)/
+              only: /(master|.*-dev)/
