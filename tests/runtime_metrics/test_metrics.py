@@ -1,10 +1,11 @@
-import unittest
 import sys
 import mock
 from ddtrace.runtime_metrics.collector import ValueCollector
 
+from ..base import BaseTestCase
 
-class TestValueCollector(unittest.TestCase):
+
+class TestValueCollector(BaseTestCase):
     def test_default_usage(self):
         mock_collect = mock.MagicMock()
         mock_collect.side_effect = lambda m, k: {
