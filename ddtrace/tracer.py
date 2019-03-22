@@ -58,7 +58,7 @@ class Tracer(object):
         self.tags = {}
 
         # a buffer for service info so we don't perpetually send the same things
-        self._services = {}
+        self._services = set()
 
         # Runtime id used for associating metrics to traces
         self._runtime_id = generate_runtime_id()
@@ -148,6 +148,7 @@ class Tracer(object):
         if collect_metrics and self._rtmetrics_worker is None:
             self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
                 self._runtime_id,
+                self._services,
             )
             self._rtmetrics_worker.start()
 
@@ -253,6 +254,17 @@ class Tracer(object):
 
         # add it to the current context
         context.add_span(span)
+
+        if service and service not in self._services:
+            self._services.add(service)
+
+            # The run-time metrics worker needs to be reinitialized with any new
+            # service(s) that may have been added.
+            if self._rtmetrics_worker:
+                self._rtmetrics_worker.reset(
+                    self._runtime_id,
+                    self._services,
+                )
 
         return span
 

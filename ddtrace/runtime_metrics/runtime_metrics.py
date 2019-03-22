@@ -45,10 +45,9 @@ class RuntimeMetricsCollector(object):
         GCRuntimeMetricCollector(),
     ]
 
-    TAG_COLLECTORS = [
-    ]
+    TAG_COLLECTORS = []
 
-    def __init__(self, runtime_id, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
+    def __init__(self, runtime_id, services, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
         self._agent_host = get_env('runtime_metrics', 'dogstatsd_host', default='127.0.0.1')
         self._agent_metric_port = get_env('runtime_metrics', 'dogstatsd_port', default=8125)
         self.enabled_metrics = enabled_metrics
@@ -56,7 +55,8 @@ class RuntimeMetricsCollector(object):
         self._statsd = None
         self._tracer_tags = [
             self._metric_tag('runtime-id', runtime_id),
-            # self._metric_tag('service', service),
+            # DEV: delimit multiple services with ','
+            self._metric_tag('service', ','.join(services)),
         ]
 
         self._init_statsd()
@@ -108,19 +108,19 @@ class RuntimeMetricsCollector(object):
 
 
 class RuntimeMetricsCollectorWorker(object):
-    def __init__(self, runtime_id, flush_interval=FLUSH_INTERVAL):
+    def __init__(self, runtime_id, services, flush_interval=FLUSH_INTERVAL):
         self._lock = threading.Lock()
         self._stay_alive = None
         self._thread = None
         self._flush_interval = flush_interval
-        self.collector = RuntimeMetricsCollector(runtime_id)
+        self._collector = RuntimeMetricsCollector(runtime_id, services)
 
     def _target(self):
         while True:
-            self.collector.flush()
             with self._lock:
                 if self._stay_alive is False:
                     break
+                self._collector.flush()
             time.sleep(self._flush_interval)
 
     def start(self):
@@ -131,6 +131,10 @@ class RuntimeMetricsCollectorWorker(object):
         self._thread = threading.Thread(target=self._target)
         self._thread.setDaemon(True)
         self._thread.start()
+
+    def reset(self, runtime_id, services):
+        with self._lock:
+            self._collector = RuntimeMetricsCollector(runtime_id, services)
 
     def stop(self):
         with self._lock:
