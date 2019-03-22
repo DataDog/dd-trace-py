@@ -16,16 +16,11 @@ restore_cache_step: &restore_cache_step
         # In the cache key:
         #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
         #                              much faster.
-        #   - .Environment.CACHE_EXPIRE_HASH: Typically CircleCI discard caches every ~60days. If we see any strange
-        #                              behavior in tests and we want to run a build in a clean environment, we should
-        #                              still be able to do it. In order to achieve this we can change the value of the
-        #                              CACHE_EXPIRE_HASH in our CircleCI's repo settings. Please use the format
-        #                              'YYYY-MM-DD'. This way a new push on the branch is not required.
-        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
 resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
-    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CACHE_EXPIRE_HASH }}
+    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
     paths:
       - .tox
 deploy_docs_filters: &deploy_docs_filters
@@ -303,10 +298,10 @@ jobs:
         env:
           TOX_SKIP_DIST: True
           CASS_DRIVER_NO_EXTENSIONS: 1
-      - image: cassandra:3.11
+      - image: spotify/cassandra:latest
         env:
-          - MAX_HEAP_SIZE=1024M
-          - HEAP_NEWSIZE=400M
+          - MAX_HEAP_SIZE=512M
+          - HEAP_NEWSIZE=256M
     resource_class: *resource_class
     steps:
       - checkout
@@ -664,7 +659,6 @@ jobs:
   requestsgevent:
     docker:
       - *test_runner
-      - *httpbin_local
     resource_class: *resource_class
     steps:
       - checkout
@@ -883,26 +877,15 @@ jobs:
       - *save_cache_step
 
   deploy_dev:
-    # build only the nightly package
+    # build the master/*-dev branch releasing development docs and wheels
     docker:
       - image: circleci/python:3.6
     resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
+      - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:docs
-      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
-
-  deploy_experimental:
-    # build the *-dev branch releasing development docs
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
-    steps:
-      - checkout
-      - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli wrapt
       - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   jinja2:
@@ -1213,10 +1196,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(master)/
-      - deploy_experimental:
-          requires:
-            - wait_all_tests
-          filters:
-            branches:
-              only: /(.*-dev)/
+              only: /(master|.*-dev)/
