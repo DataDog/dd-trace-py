@@ -117,14 +117,28 @@ class TestMetrics(unittest.TestCase):
         from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
         from time import sleep
 
-        rtm = RuntimeMetricsCollector('runtimeId')
+        rtm = RuntimeMetricsCollector('runtimeId', {'redis'})
 
         class A(object):
             pass
 
         lst = []
+        i = 0
         while True:
             rtm.flush()
             lst += [A() for i in range(1000)]
+            sleep(5)
+
+    def test_tracer_worker(self):
+        from ddtrace import Tracer
+        from time import sleep
+        tracer = Tracer()
+        tracer.configure(collect_metrics=True)
+        with tracer.trace('test', service='celery'):
+            sleep(0.5)
+        with tracer.trace('test', service='memcached'):
+            sleep(0.5)
+
+        while True:
             sleep(5)
 """

@@ -17,11 +17,11 @@ log = get_logger(__name__)
 
 # Default metrics to collect
 ENABLED_METRICS = set([
-    'ctx_switch.voluntary',
-    'ctx_switch.involuntary',
     'cpu.time.sys',
     'cpu.time.user',
     'cpu.percent',
+    'ctx_switch.voluntary',
+    'ctx_switch.involuntary',
     'gc.gen1_count',
     'gc.gen2_count',
     'gc.gen3_count',
@@ -53,11 +53,8 @@ class RuntimeMetricsCollector(object):
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
         self._statsd = None
-        self._tracer_tags = [
-            self._metric_tag('runtime-id', runtime_id),
-            # DEV: delimit multiple services with ','
-            self._metric_tag('service', ','.join(services)),
-        ]
+        self._tracer_tags = [self._metric_tag('runtime-id', runtime_id)]
+        self._tracer_tags += [self._metric_tag('service', service) for service in services]
 
         self._init_statsd()
 
