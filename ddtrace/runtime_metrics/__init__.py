@@ -1,6 +1,6 @@
 from .runtime_metrics import (
     RuntimeMetricsCollector,
-    RuntimeMetricsCollectorWorker
+    RuntimeMetricsCollectorWorker,
 )
 
 

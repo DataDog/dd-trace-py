@@ -12,5 +12,6 @@ class TestRuntimeMetricCollector(unittest.TestCase):
         """
         def collect(modules, keys):
             return {'k': 'v'}
+
         vc = RuntimeMetricCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
         self.assertIsNotNone(vc.collect(), 'collect should return valid metrics')

@@ -20,7 +20,7 @@ class TestValueCollector(unittest.TestCase):
         mock_collect.assert_called_once()
         mock_collect.assert_called_with({}, set(['key1']))
 
-        self.assertEqual(mock_collect.call_count, 1, "Collector is not periodic by default")
+        self.assertEqual(mock_collect.call_count, 1, 'Collector is not periodic by default')
 
     def test_enabled(self):
         collect = mock.MagicMock()
@@ -80,8 +80,7 @@ class TestValueCollector(unittest.TestCase):
                 'Could not import module "moduleshouldnotexist" for '
                 '<Collector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. '
                 'Disabling collector.'
-            )
-            )
+            ))
         ]
         log_mock.warn.assert_has_calls(calls)
 
@@ -117,7 +116,7 @@ class TestMetrics(unittest.TestCase):
         from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
         from time import sleep
 
-        rtm = RuntimeMetricsCollector("runtimeId")
+        rtm = RuntimeMetricsCollector('runtimeId')
 
         class A(object):
             pass
