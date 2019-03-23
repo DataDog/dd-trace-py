@@ -40,7 +40,6 @@ class Tracer(object):
         """
         self.sampler = None
         self.priority_sampler = None
-        self._rtmetrics_worker = None
 
         # Apply the default configuration
         self.configure(
@@ -62,6 +61,8 @@ class Tracer(object):
 
         # Runtime id used for associating metrics to traces
         self._runtime_id = generate_runtime_id()
+        self._pid = getpid()
+        self._rtmetrics_worker = None
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -266,7 +267,35 @@ class Tracer(object):
                     self._services,
                 )
 
+        if self._rtmetrics_worker:
+            self._check_new_process()
+
         return span
+
+    def _check_new_process(self):
+        """
+        Checks if the tracer is in a new process (was forked) and performs the necessary
+        updates if it is a new process
+        """
+        pid = getpid()
+        if self._pid == pid:
+            return
+
+        self._pid = pid
+
+        # Run-time metrics require a new runtime-id per process.
+        self._runtime_id = generate_runtime_id()
+
+        # Assume that the services of the child are not necessarily a subset of those
+        # of the parent.
+        self._services = set()
+
+        # Also need to initialize a new worker for the new process.
+        self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
+            self._runtime_id,
+            self._services,
+        )
+        self._rtmetrics_worker.start()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

@@ -113,33 +113,38 @@ class TestValueCollector(BaseTestCase):
 
 
 """
-class TestMetrics(unittest.TestCase):
-    def test_manual(self):
-        from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
-        from time import sleep
+class TestMetrics(BaseTestCase):
+def test_manual(self):
+    from ddtrace.runtime_metrics.runtime_metrics import RuntimeMetricsCollector
+    from time import sleep
 
-        rtm = RuntimeMetricsCollector('runtimeId', {'redis'})
+    rtm = RuntimeMetricsCollector('runtimeId', {'redis'})
 
-        class A(object):
-            pass
+    class A(object):
+        pass
 
-        lst = []
-        i = 0
-        while True:
-            rtm.flush()
-            lst += [A() for i in range(1000)]
-            sleep(5)
+    lst = []
+    while True:
+        rtm.flush()
+        lst += [A() for _ in range(1000)]
+        sleep(5)
 
-    def test_tracer_worker(self):
-        from ddtrace import Tracer
-        from time import sleep
-        tracer = Tracer()
-        tracer.configure(collect_metrics=True)
-        with tracer.trace('test', service='celery'):
-            sleep(0.5)
-        with tracer.trace('test', service='memcached'):
-            sleep(0.5)
+def test_tracer_worker(self):
+    from ddtrace import Tracer
+    from time import sleep
+    import os
+    tracer = Tracer()
+    tracer.configure(collect_metrics=True)
+    with tracer.trace('test', service='parent'):
+        sleep(0.5)
 
-        while True:
-            sleep(5)
+    pid = os.fork()
+    while True:
+        if pid == 0:
+            print("child {}".format(os.getpid()))
+            with tracer.trace('test', service='child'):
+                sleep(0.5)
+        else:
+            print("parent {}".format(os.getpid()))
+        sleep(5)
 """

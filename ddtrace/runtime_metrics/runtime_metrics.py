@@ -41,8 +41,8 @@ class RuntimeMetricsCollector(object):
     """
 
     METRIC_COLLECTORS = [
-        PSUtilRuntimeMetricCollector(),
-        GCRuntimeMetricCollector(),
+        GCRuntimeMetricCollector,
+        PSUtilRuntimeMetricCollector,
     ]
 
     TAG_COLLECTORS = []
@@ -56,6 +56,10 @@ class RuntimeMetricsCollector(object):
         self._tracer_tags = [self._metric_tag('runtime-id', runtime_id)]
         self._tracer_tags += [self._metric_tag('service', service) for service in services]
 
+        # Initialize the collectors.
+        self._metric_collectors = [collector() for collector in self.METRIC_COLLECTORS]
+        self._tag_collectors = [collector() for collector in self.TAG_COLLECTORS]
+
         self._init_statsd()
 
     def _metric_tag(self, key, value):
@@ -67,15 +71,15 @@ class RuntimeMetricsCollector(object):
         Note: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         """
         tags = list(self._tracer_tags)
-        for tag_collector in self.TAG_COLLECTORS:
+        for tag_collector in self._tag_collectors:
             collected_tags = tag_collector.collect(self.enabled_tags)
             tags += [self._metric_tag(k, v) for k, v in collected_tags.items()]
-        log.info('Reporting constant tags {}'.format(tags))
+        log.debug('Reporting constant tags {}'.format(tags))
         return tags
 
     def _collect_metrics(self):
         metrics = {}
-        for metric_collector in self.METRIC_COLLECTORS:
+        for metric_collector in self._metric_collectors:
             collector_metrics = metric_collector.collect(self.enabled_metrics)
             metrics.update(collector_metrics)
         return metrics
@@ -86,7 +90,7 @@ class RuntimeMetricsCollector(object):
             tags = self._collect_constant_tags()
             self._statsd = DogStatsd(host=self._agent_host, port=self._agent_metric_port, constant_tags=tags)
         except ImportError:
-            log.info('Install the `datadog` package to enable runtime metrics.')
+            log.debug('Install the `datadog` package to enable runtime metrics.')
         except Exception:
             log.warn('Could not initialize ddstatsd.')
 
@@ -100,7 +104,7 @@ class RuntimeMetricsCollector(object):
 
         for metric_key, metric_value in metrics.items():
             metric_key = '{}.{}'.format(DD_METRIC_PREFIX, metric_key)
-            log.info('Flushing metric {}:{}'.format(metric_key, metric_value))
+            log.debug('Flushing metric {}:{}'.format(metric_key, metric_value))
             self._statsd.gauge(metric_key, metric_value)
 
 
@@ -113,16 +117,18 @@ class RuntimeMetricsCollectorWorker(object):
         self._collector = RuntimeMetricsCollector(runtime_id, services)
 
     def _target(self):
+        import os
         while True:
+            print("WORKER {}".format(os.getpid()))
             with self._lock:
-                if self._stay_alive is False:
+                if not self._stay_alive:
                     break
                 self._collector.flush()
             time.sleep(self._flush_interval)
 
     def start(self):
         if self._thread:
-            log.info('Ignoring start as worker already started')
+            log.debug('Ignoring start as worker already started')
             return
         self._stay_alive = True
         self._thread = threading.Thread(target=self._target)
