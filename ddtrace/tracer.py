@@ -267,7 +267,10 @@ class Tracer(object):
                     self._services,
                 )
 
+        # If there's a run-time metrics worker then set the necessary tags
         if self._rtmetrics_worker:
+            span.set_tag('runtime-id', self._runtime_id)
+            span.set_tag('language', 'python')
             self._check_new_process()
 
         return span
