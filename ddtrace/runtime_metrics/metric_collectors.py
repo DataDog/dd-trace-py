@@ -7,17 +7,6 @@ class RuntimeMetricCollector(ValueCollector):
     value = {}
 
 
-class LazyValue(object):
-    def __init__(self, func):
-        self.func = func
-        self.value = None
-
-    def __call__(self):
-        if not self.value:
-            self.value = self.func()
-        return self.value
-
-
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
     """
     """
