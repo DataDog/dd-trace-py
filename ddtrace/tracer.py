@@ -32,6 +32,7 @@ class Tracer(object):
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
+    DEFAULT_METRIC_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8125))
 
     def __init__(self):
         """
@@ -148,6 +149,8 @@ class Tracer(object):
 
         if collect_metrics and self._rtmetrics_worker is None:
             self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
+                hostname or self.DEFAULT_HOSTNAME,
+                port or self.DEFAULT_METRIC_PORT,
                 self._runtime_id,
                 self._services,
             )

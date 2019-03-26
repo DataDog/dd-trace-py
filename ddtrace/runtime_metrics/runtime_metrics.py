@@ -1,8 +1,11 @@
 import threading
 import time
-from ddtrace.utils.formats import get_env
+
+from datadog import DogStatsd
+
 
 from ..internal.logger import get_logger
+from ..utils.formats import get_env
 from .metric_collectors import (
     GCRuntimeMetricCollector,
     PSUtilRuntimeMetricCollector,
@@ -47,12 +50,11 @@ class RuntimeMetricsCollector(object):
 
     TAG_COLLECTORS = []
 
-    def __init__(self, runtime_id, services, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
-        self._agent_host = get_env('runtime_metrics', 'dogstatsd_host', default='127.0.0.1')
-        self._agent_metric_port = get_env('runtime_metrics', 'dogstatsd_port', default=8125)
+    def __init__(self, hostname, port, runtime_id, services, enabled_metrics=ENABLED_METRICS, enabled_tags=ENABLED_TAGS):
+        self._agent_host = hostname
+        self._agent_port = port
         self.enabled_metrics = enabled_metrics
         self.enabled_tags = enabled_tags
-        self._statsd = None
         self._tracer_tags = [self._metric_tag('runtime-id', runtime_id)]
         self._tracer_tags += [self._metric_tag('service', service) for service in services]
 
@@ -60,7 +62,8 @@ class RuntimeMetricsCollector(object):
         self._metric_collectors = [collector() for collector in self.METRIC_COLLECTORS]
         self._tag_collectors = [collector() for collector in self.TAG_COLLECTORS]
 
-        self._init_statsd()
+        self._statsd = DogStatsd(host=self._agent_host, port=self._agent_port,
+                                 constant_tags=self._collect_constant_tags())
 
     def _metric_tag(self, key, value):
         return '{}:{}'.format(key, value)
@@ -83,16 +86,6 @@ class RuntimeMetricsCollector(object):
             collector_metrics = metric_collector.collect(self.enabled_metrics)
             metrics.update(collector_metrics)
         return metrics
-
-    def _init_statsd(self):
-        try:
-            from datadog import DogStatsd
-            tags = self._collect_constant_tags()
-            self._statsd = DogStatsd(host=self._agent_host, port=self._agent_metric_port, constant_tags=tags)
-        except ImportError:
-            log.debug('Install the `datadog` package to enable runtime metrics.')
-        except Exception:
-            log.warn('Could not initialize ddstatsd.')
 
     def flush(self):
         """Collects and flushes enabled metrics to the Datadog Agent."""
@@ -119,7 +112,7 @@ class RuntimeMetricsCollectorWorker(object):
     def _target(self):
         import os
         while True:
-            print("WORKER {}".format(os.getpid()))
+            log.debug("WORKER {}".format(os.getpid()))
             with self._lock:
                 if not self._stay_alive:
                     break
