@@ -1,6 +1,20 @@
 import os
 
 from .collector import ValueCollector
+from .constants import (
+    GC_RUNTIME_METRICS,
+    PSUTIL_RUNTIME_METRICS,
+    GC_GEN1_COUNT,
+    GC_GEN2_COUNT,
+    GC_GEN3_COUNT,
+    THREAD_COUNT,
+    MEM_RSS,
+    CTX_SWITCH_VOLUNTARY,
+    CTX_SWITCH_INVOLUNTARY,
+    CPU_TIME_SYS,
+    CPU_TIME_USER,
+    CPU_PERCENT,
+)
 
 
 class RuntimeMetricCollector(ValueCollector):
@@ -24,23 +38,20 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         - gc.gen3_count
         """
         gc = self.modules.get('gc')
-        metrics = {}
 
         # DEV: shortcut if none of the keys are required.
-        if not len(set([
-            'gc.gen1_count',
-            'gc.gen2_count',
-            'gc.gen3_count',
-        ]).intersection(keys)):
+        if not set(keys) <= GC_RUNTIME_METRICS:
             return {}
 
-        count = gc.get_count()
-        if 'gc.gen1_count' in keys:
-            metrics['gc.gen1_count'] = count[0]
-        if 'gc.gen2_count' in keys:
-            metrics['gc.gen2_count'] = count[1]
-        if 'gc.gen3_count' in keys:
-            metrics['gc.gen3_count'] = count[2]
+        counts = gc.get_count()
+        metrics = {
+            GC_GEN1_COUNT: counts[0],
+            GC_GEN2_COUNT: counts[1],
+            GC_GEN3_COUNT: counts[2],
+        }
+
+        # filter metrics based on keys
+        metrics = {k: metrics[k] for k in metrics if k in keys}
 
         return metrics
 
@@ -63,23 +74,19 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
         self.proc = self.modules['psutil'].Process(os.getpid())
 
     def collect_fn(self, keys):
-        metrics = {}
         with self.proc.oneshot():
-            if 'thread_count' in keys:
-                metrics['thread_count'] = self.proc.num_threads()
+            # gather all metrics
+            metrics = {
+                THREAD_COUNT: self.proc.num_threads(),
+                MEM_RSS: self.proc.memory_info().rss,
+                CTX_SWITCH_VOLUNTARY: self.proc.num_ctx_switches().voluntary,
+                CTX_SWITCH_INVOLUNTARY: self.proc.num_ctx_switches().involuntary,
+                CPU_TIME_SYS: self.proc.cpu_times().user,
+                CPU_TIME_USER: self.proc.cpu_times().system,
+                CPU_PERCENT: self.proc.cpu_percent(),
+            }
 
-            if 'mem.rss' in keys:
-                metrics['mem.rss'] = self.proc.memory_info().rss
+            # filter metrics based on keys
+            metrics = {k: metrics[k] for k in metrics if k in keys}
 
-            if 'ctx_switch.voluntary' in keys:
-                metrics['ctx_switch.voluntary'] = self.proc.num_ctx_switches().voluntary
-            if 'ctx_switch.involuntary' in keys:
-                metrics['ctx_switch.involuntary'] = self.proc.num_ctx_switches().involuntary
-
-            if 'cpu.time.sys' in keys:
-                metrics['cpu.time.sys'] = self.proc.cpu_times().user
-            if 'cpu.time.user' in keys:
-                metrics['cpu.time.user'] = self.proc.cpu_times().system
-            if 'cpu.percent' in keys:
-                metrics['cpu.percent'] = self.proc.cpu_percent()
-        return metrics
+            return metrics
