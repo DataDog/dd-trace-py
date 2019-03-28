@@ -1,10 +1,12 @@
 from .runtime_metrics import (
-    RuntimeMetricsCollector,
-    RuntimeMetricsCollectorWorker,
+    RuntimeTags,
+    RuntimeMetrics,
+    RuntimeMetricsWorker,
 )
 
 
 __all__ = [
-    'RuntimeMetricsCollector',
-    'RuntimeMetricsCollectorWorker',
+    'RuntimeTags',
+    'RuntimeMetrics',
+    'RuntimeMetricsWorker',
 ]

@@ -76,7 +76,17 @@ class ValueCollector(object):
         if not self.periodic and self.value_loaded:
             return self.value
 
+        # call underlying collect function and filter out keys not requested
+        # TODO: Fix headaches here with dict vs list return values from collectors
         self.value = self.collect_fn(keys)
+
+        if self.value and type(self.value) is list:
+            self.value = [
+                (k,v)
+                for (k,v) in self.value
+                if k in keys
+            ]
+
         self.value_loaded = True
         return self.value
 

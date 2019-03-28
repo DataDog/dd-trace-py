@@ -1,5 +1,3 @@
-import time
-
 from ddtrace.runtime_metrics.metric_collectors import (
     RuntimeMetricCollector,
     GCRuntimeMetricCollector,
@@ -29,16 +27,14 @@ class TestRuntimeMetricCollector(BaseTestCase):
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
-        collected = collector.collect(PSUTIL_RUNTIME_METRICS)
-        for metric in PSUTIL_RUNTIME_METRICS:
-            self.assertIsNotNone(collected[metric])
+        for (key, value) in collector.collect(PSUTIL_RUNTIME_METRICS):
+            self.assertIsNotNone(value)
 
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        collected = collector.collect(GC_RUNTIME_METRICS)
-        for metric in GC_RUNTIME_METRICS:
-            self.assertIsNotNone(collected[metric])
+        for (key, value) in collector.collect(GC_RUNTIME_METRICS):
+            self.assertIsNotNone(value)
 
     def test_gen1_changes(self):
         # disable gc
@@ -52,10 +48,14 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         # create reference
         a = []
         collected = collector.collect([GC_GEN1_COUNT])
-        self.assertGreater(collected[GC_GEN1_COUNT], start[0])
+        self.assertGreater(collected[0][1], start[0])
 
         # delete reference and collect
         del a
         gc.collect()
         collected_after = collector.collect([GC_GEN1_COUNT])
-        self.assertLess(collected_after[GC_GEN1_COUNT], collected[GC_GEN1_COUNT])
+        self.assertLess(collected_after[0][1], collected[0][1])
+
+class TestRuntimeMetricCollector(BaseTestCase):
+    def test_all_metrics(self):
+        collector = RuntimeMetricCollector()

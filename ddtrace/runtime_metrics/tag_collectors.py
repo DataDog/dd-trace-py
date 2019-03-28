@@ -1,12 +1,28 @@
 from .collector import ValueCollector
+from .constants import (
+    RUNTIME_ID,
+    SERVICE,
+    LANG_INTERPRETER,
+    LANG_VERSION,
+)
 
-
-class RuntimeMetricTagCollector(ValueCollector):
+class RuntimeTagCollector(ValueCollector):
     periodic = False
+    value = []
 
+class TracerTagCollector(RuntimeTagCollector):
+    """ Tag collector for the ddtrace Tracer
+    """
+    required_modules = ['ddtrace']
 
-class PlatformMetricTagCollector(RuntimeMetricTagCollector):
-    """Tag collector for the Python interpreter implementation.
+    def collect_fn(self, keys):
+        ddtrace = self.modules.get('ddtrace')
+        tags = [(RUNTIME_ID, ddtrace.tracer._runtime_id)]
+        tags += [(SERVICE, service) for service in ddtrace.tracer._services]
+        return tags
+
+class PlatformTagCollector(RuntimeTagCollector):
+    """ Tag collector for the Python interpreter implementation.
 
     Tags collected:
     - lang_interpreter:
@@ -20,10 +36,8 @@ class PlatformMetricTagCollector(RuntimeMetricTagCollector):
 
     def collect_fn(self, keys):
         platform = self.modules.get('platform')
-        metrics = {}
-        if 'lang_interpreter' in keys:
-            metrics['lang_interpreter'] = platform.python_implementation()
-
-        if 'lang_version' in keys:
-            metrics['lang_version'] = platform.python_version()
-        return metrics
+        tags = [
+            (LANG_INTERPRETER, platform.python_implementation()),
+            (LANG_VERSION, platform.python_version())
+        ]
+        return tags

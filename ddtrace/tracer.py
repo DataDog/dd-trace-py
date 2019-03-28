@@ -12,7 +12,7 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
-from .runtime_metrics import RuntimeMetricsCollectorWorker
+from .runtime_metrics import RuntimeMetricsWorker
 from .utils.runtime import generate_runtime_id
 
 
@@ -148,11 +148,11 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._rtmetrics_worker is None:
-            self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
-                hostname or self.DEFAULT_HOSTNAME,
-                port or self.DEFAULT_METRIC_PORT,
+            self._rtmetrics_worker = RuntimeMetricsWorker(
+                self.DEFAULT_HOSTNAME,
+                self.DEFAULT_METRIC_PORT,
                 self._runtime_id,
-                self._services,
+                self._services
             )
             self._rtmetrics_worker.start()
 
@@ -296,8 +296,12 @@ class Tracer(object):
         # of the parent.
         self._services = set()
 
+        # use configured hostname and port
+
         # Also need to initialize a new worker for the new process.
-        self._rtmetrics_worker = RuntimeMetricsCollectorWorker(
+        self._rtmetrics_worker = RuntimeMetricsWorker(
+            self.DEFAULT_HOSTNAME,
+            self.DEFAULT_METRIC_PORT,
             self._runtime_id,
             self._services,
         )
