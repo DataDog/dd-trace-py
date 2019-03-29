@@ -36,9 +36,8 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace("app.request", "web-server").finish()
     """
-    DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
+    DEFAULT_AGENT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_DOGSTATSD_HOST = get_env('dogstatsd', 'host', 'localhost')
     DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
 
     def __init__(self):
@@ -52,7 +51,7 @@ class Tracer(object):
         # Apply the default configuration
         self.configure(
             enabled=True,
-            hostname=self.DEFAULT_HOSTNAME,
+            hostname=self.DEFAULT_AGENT_HOSTNAME,
             port=self.DEFAULT_PORT,
             sampler=AllSampler(),
             context_provider=DefaultContextProvider(),
@@ -137,7 +136,7 @@ class Tracer(object):
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
-            default_hostname = self.DEFAULT_HOSTNAME
+            default_hostname = self.DEFAULT_AGENT_HOSTNAME
             default_port = self.DEFAULT_PORT
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
                 default_hostname = self.writer.api.hostname
@@ -157,7 +156,7 @@ class Tracer(object):
 
         if collect_metrics and self._rtmetrics_worker is None:
             self._start_dogstatsd(
-                dogstatsd_host or self.DEFAULT_DOGSTATSD_HOST,
+                dogstatsd_host or self.DEFAULT_AGENT_HOSTNAME,
                 dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
             )
             self._start_runtime_worker()
