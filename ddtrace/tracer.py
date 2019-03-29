@@ -15,6 +15,7 @@ from .runtime_metrics import (
 )
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
 from .span import Span
+from .utils.formats import get_env
 from .utils.deprecation import deprecated
 from .utils.runtime import generate_runtime_id
 from .writer import AgentWriter
@@ -37,7 +38,8 @@ class Tracer(object):
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_DOGSTATSD_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8125))
+    DEFAULT_DOGSTATSD_HOST = get_env('dogstatsd', 'host', 'localhost')
+    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
 
     def __init__(self):
         """
@@ -93,9 +95,9 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                  context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None, collect_metrics=None):
+    def configure(self, enabled=None, hostname=None, port=None, dogstatsd_host=None,
+                  dogstatsd_port=None, sampler=None, context_provider=None, wrap_executor=None,
+                  priority_sampling=None, settings=None, collect_metrics=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -104,6 +106,7 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
+        :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
@@ -131,18 +134,17 @@ class Tracer(object):
         elif priority_sampling is False:
             self.priority_sampler = None
 
-        self._agent_hostname = self.DEFAULT_HOSTNAME
-        self._agent_port = self.DEFAULT_PORT
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
+            default_hostname = self.DEFAULT_HOSTNAME
+            default_port = self.DEFAULT_PORT
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
-                self._agent_hostname = self.writer.api.hostname
-                self._agent_port = self.writer.api.port
-
+                default_hostname = self.writer.api.hostname
+                default_port = self.writer.api.port
             self.writer = AgentWriter(
-                self._agent_hostname,
-                self.DEFAULT_DOGSTATSD_PORT,
+                hostname or default_hostname,
+                port or default_port,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
             )
@@ -154,6 +156,10 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._rtmetrics_worker is None:
+            self._start_dogstatsd(
+                dogstatsd_host or self.DEFAULT_DOGSTATSD_HOST,
+                dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
+            )
             self._start_runtime_worker()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
@@ -287,19 +293,19 @@ class Tracer(object):
             for k, v in RuntimeTags()
         ]
 
-    def _start_runtime_worker(self):
+    def _start_dogstatsd(self, host, port):
         # start dogstatsd as client with constant tags
         if not hasattr(self, 'dogstatsd') or self.dogstatsd is None:
             constant_tags = self._dogstatsd_constant_tags()
-            log.debug('Starting DogStatsd on {}:{}'.format(self._agent_hostname, self._agent_port))
+            log.debug('Starting DogStatsd on {}:{}'.format(host, port))
             log.debug('Reporting constant tags {}'.format(constant_tags))
             self.dogstatsd = DogStatsd(
-                host=self._agent_hostname,
-                port=self._agent_port,
+                host=host,
+                port=port,
                 constant_tags=constant_tags,
             )
 
-        # start runtime worker thread
+    def _start_runtime_worker(self):
         self._rtmetrics_worker = RuntimeMetricsWorker(self.dogstatsd)
         self._rtmetrics_worker.start()
 
