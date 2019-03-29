@@ -3,7 +3,6 @@ import time
 import itertools
 
 from ..internal.logger import get_logger
-from ..utils.formats import get_env
 from .constants import (
     DEFAULT_RUNTIME_METRICS,
     DEFAULT_RUNTIME_TAGS,
@@ -18,6 +17,7 @@ from .tag_collectors import (
 )
 
 log = get_logger(__name__)
+
 
 class RuntimeCollectorsIterable:
     def __init__(self, enabled=None):
@@ -37,6 +37,7 @@ class RuntimeCollectorsIterable:
             self.__class__,
             self._enabled,
         )
+
 
 class RuntimeTags(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_TAGS

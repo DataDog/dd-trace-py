@@ -283,8 +283,8 @@ class Tracer(object):
         """
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         return [
-            '{}:{}'.format(k,v)
-            for k,v in RuntimeTags()
+            '{}:{}'.format(k, v)
+            for k, v in RuntimeTags()
         ]
 
     def _start_runtime_worker(self):
@@ -296,7 +296,7 @@ class Tracer(object):
             self.dogstatsd = DogStatsd(
                 host=self._agent_hostname,
                 port=self._agent_port,
-                #constant_tags=constant_tags,
+                constant_tags=constant_tags,
             )
 
         # start runtime worker thread

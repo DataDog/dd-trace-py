@@ -2,8 +2,6 @@ import os
 
 from .collector import ValueCollector
 from .constants import (
-    GC_RUNTIME_METRICS,
-    PSUTIL_RUNTIME_METRICS,
     GC_GEN1_COUNT,
     GC_GEN2_COUNT,
     GC_GEN3_COUNT,

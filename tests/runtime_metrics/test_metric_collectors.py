@@ -8,7 +8,6 @@ from ddtrace.runtime_metrics.constants import (
     GC_GEN1_COUNT,
     GC_RUNTIME_METRICS,
     PSUTIL_RUNTIME_METRICS,
-    DEFAULT_RUNTIME_METRICS,
 )
 from ..base import BaseTestCase
 
@@ -24,11 +23,13 @@ class TestRuntimeMetricCollector(BaseTestCase):
         vc = RuntimeMetricCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
         self.assertIsNotNone(vc.collect(), 'collect should return valid metrics')
 
+
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
         for (key, value) in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+
 
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
@@ -38,7 +39,8 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
 
     def test_gen1_changes(self):
         # disable gc
-        import gc; gc.disable()
+        import gc
+        gc.disable()
 
         # start collector and get current gc counts
         collector = GCRuntimeMetricCollector()
@@ -55,7 +57,3 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         gc.collect()
         collected_after = collector.collect([GC_GEN1_COUNT])
         self.assertLess(collected_after[0][1], collected[0][1])
-
-class TestRuntimeMetricCollector(BaseTestCase):
-    def test_all_metrics(self):
-        collector = RuntimeMetricCollector()

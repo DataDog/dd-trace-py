@@ -6,9 +6,11 @@ from .constants import (
     LANG_VERSION,
 )
 
+
 class RuntimeTagCollector(ValueCollector):
     periodic = False
     value = []
+
 
 class TracerTagCollector(RuntimeTagCollector):
     """ Tag collector for the ddtrace Tracer
@@ -20,6 +22,7 @@ class TracerTagCollector(RuntimeTagCollector):
         tags = [(RUNTIME_ID, ddtrace.tracer._runtime_id)]
         tags += [(SERVICE, service) for service in ddtrace.tracer._services]
         return tags
+
 
 class PlatformTagCollector(RuntimeTagCollector):
     """ Tag collector for the Python interpreter implementation.

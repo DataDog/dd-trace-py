@@ -82,8 +82,8 @@ class ValueCollector(object):
 
         if self.value and type(self.value) is list:
             self.value = [
-                (k,v)
-                for (k,v) in self.value
+                (k, v)
+                for (k, v) in self.value
                 if k in keys
             ]
 
