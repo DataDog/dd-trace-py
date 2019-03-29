@@ -1,14 +1,14 @@
-GC_GEN1_COUNT = 'gc_gen1_count'
-GC_GEN2_COUNT = 'gc_gen2_count'
-GC_GEN3_COUNT = 'gc_gen3_count'
+GC_GEN1_COUNT = 'runtime.python.gc_gen1_count'
+GC_GEN2_COUNT = 'runtime.python.gc_gen2_count'
+GC_GEN3_COUNT = 'runtime.python.gc_gen3_count'
 
-THREAD_COUNT = 'thread_count'
-MEM_RSS = 'mem.rss'
-CTX_SWITCH_VOLUNTARY = 'ctx_switch.voluntary'
-CTX_SWITCH_INVOLUNTARY = 'ctx_switch.involuntary'
-CPU_TIME_SYS = 'cpu.time.sys'
-CPU_TIME_USER = 'cpu.time.user'
-CPU_PERCENT = 'cpu.percent'
+THREAD_COUNT = 'runtime.python.thread_count'
+MEM_RSS = 'runtime.python.mem.rss'
+CTX_SWITCH_VOLUNTARY = 'runtime.python.ctx_switch.voluntary'
+CTX_SWITCH_INVOLUNTARY = 'runtime.python.ctx_switch.involuntary'
+CPU_TIME_SYS = 'runtime.python.cpu.time.sys'
+CPU_TIME_USER = 'runtime.python.cpu.time.user'
+CPU_PERCENT = 'runtime.python.cpu.percent'
 
 GC_RUNTIME_METRICS = set([
     GC_GEN1_COUNT,
@@ -28,10 +28,10 @@ PSUTIL_RUNTIME_METRICS = set([
 
 DEFAULT_RUNTIME_METRICS = GC_RUNTIME_METRICS | PSUTIL_RUNTIME_METRICS
 
-RUNTIME_ID = 'runtime-id'
-SERVICE = 'service'
-LANG_INTERPRETER = 'lang_interpreter'
-LANG_VERSION = 'lang_version'
+RUNTIME_ID = 'runtime.python.runtime-id'
+SERVICE = 'runtime.python.service'
+LANG_INTERPRETER = 'runtime.python.lang_interpreter'
+LANG_VERSION = 'runtime.python.lang_version'
 
 TRACER_TAGS = set([
     RUNTIME_ID,
@@ -44,5 +44,3 @@ PLATFORM_TAGS = set([
 ])
 
 DEFAULT_RUNTIME_TAGS = TRACER_TAGS | PLATFORM_TAGS
-
-DD_METRIC_PREFIX = 'runtime.python'

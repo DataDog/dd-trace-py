@@ -13,6 +13,7 @@ from ..base import (
     BaseTestCase,
     BaseTracerTestCase,
 )
+import time
 
 class TestRuntimeTags(BaseTracerTestCase):
     def test_all_tags(self):
@@ -35,3 +36,18 @@ class TestRuntimeMetrics(BaseTestCase):
     def test_one_metric(self):
         metrics = [k for (k,v) in RuntimeMetrics(enabled=[GC_GEN1_COUNT])]
         self.assertEqual(metrics, [GC_GEN1_COUNT])
+
+
+class TestRuntimeWorker(BaseTracerTestCase):
+    def setUp(self):
+        super(TestRuntimeWorker, self).setUp()
+        self.worker = RuntimeMetricsWorker(self.tracer.dogstatsd)
+
+    def test_worker_start_stop(self):
+        self.worker.start()
+        self.worker.stop()
+
+    def test_worker_flush(self):
+        self.worker.start()
+        self.worker.flush()
+        self.worker.stop()

@@ -1,19 +1,24 @@
 import functools
 from os import environ, getpid
 
+from datadog import DogStatsd
+
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
+from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .provider import DefaultContextProvider
 from .context import Context
+from .runtime_metrics import (
+    RuntimeTags,
+    RuntimeMetricsWorker,
+)
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
-from .writer import AgentWriter
 from .span import Span
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
-from . import compat
-from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .utils.deprecation import deprecated
-from .runtime_metrics import RuntimeMetricsWorker
 from .utils.runtime import generate_runtime_id
+from .writer import AgentWriter
+from . import compat
 
 
 log = get_logger(__name__)
@@ -32,7 +37,7 @@ class Tracer(object):
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_METRIC_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8125))
+    DEFAULT_DOGSTATSD_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8125))
 
     def __init__(self):
         """
@@ -126,17 +131,18 @@ class Tracer(object):
         elif priority_sampling is False:
             self.priority_sampler = None
 
+        self._agent_hostname = self.DEFAULT_HOSTNAME
+        self._agent_port = self.DEFAULT_PORT
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
-            default_hostname = self.DEFAULT_HOSTNAME
-            default_port = self.DEFAULT_PORT
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
-                default_hostname = self.writer.api.hostname
-                default_port = self.writer.api.port
+                self._agent_hostname = self.writer.api.hostname
+                self._agent_port = self.writer.api.port
+
             self.writer = AgentWriter(
-                hostname or default_hostname,
-                port or default_port,
+                self._agent_hostname,
+                self.DEFAULT_DOGSTATSD_PORT,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
             )
@@ -148,13 +154,7 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._rtmetrics_worker is None:
-            self._rtmetrics_worker = RuntimeMetricsWorker(
-                self.DEFAULT_HOSTNAME,
-                self.DEFAULT_METRIC_PORT,
-                self._runtime_id,
-                self._services
-            )
-            self._rtmetrics_worker.start()
+            self._start_runtime_worker()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -278,10 +278,34 @@ class Tracer(object):
 
         return span
 
-    def _check_new_process(self):
+    def _dogstatsd_constant_tags(self):
+        """ Prepare runtime tags for ddstatsd.
         """
-        Checks if the tracer is in a new process (was forked) and performs the necessary
-        updates if it is a new process
+        # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
+        return [
+            '{}:{}'.format(k,v)
+            for k,v in RuntimeTags()
+        ]
+
+    def _start_runtime_worker(self):
+        # start dogstatsd as client with constant tags
+        if not hasattr(self, 'dogstatsd') or self.dogstatsd is None:
+            constant_tags = self._dogstatsd_constant_tags()
+            log.debug('Starting DogStatsd on {}:{}'.format(self._agent_hostname, self._agent_port))
+            log.debug('Reporting constant tags {}'.format(constant_tags))
+            self.dogstatsd = DogStatsd(
+                host=self._agent_hostname,
+                port=self._agent_port,
+                #constant_tags=constant_tags,
+            )
+
+        # start runtime worker thread
+        self._rtmetrics_worker = RuntimeMetricsWorker(self.dogstatsd)
+        self._rtmetrics_worker.start()
+
+    def _check_new_process(self):
+        """ Checks if the tracer is in a new process (was forked) and performs
+            the necessary updates if it is a new process
         """
         pid = getpid()
         if self._pid == pid:
@@ -289,23 +313,14 @@ class Tracer(object):
 
         self._pid = pid
 
-        # Run-time metrics require a new runtime-id per process.
+        # generate a new runtime-id per process.
         self._runtime_id = generate_runtime_id()
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
         self._services = set()
 
-        # use configured hostname and port
-
-        # Also need to initialize a new worker for the new process.
-        self._rtmetrics_worker = RuntimeMetricsWorker(
-            self.DEFAULT_HOSTNAME,
-            self.DEFAULT_METRIC_PORT,
-            self._runtime_id,
-            self._services,
-        )
-        self._rtmetrics_worker.start()
+        self._start_runtime_worker()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

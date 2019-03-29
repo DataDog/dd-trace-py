@@ -1,6 +1,9 @@
+from collections import deque
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
+from ddtrace.compat import PY3
+from datadog import DogStatsd
 
 
 class DummyWriter(AgentWriter):
@@ -62,6 +65,7 @@ class DummyTracer(Tracer):
     def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__(*args, **kwargs)
         self._update_writer()
+        self._update_dogstatsd()
 
     def _update_writer(self):
         self.writer = DummyWriter(
@@ -71,7 +75,41 @@ class DummyTracer(Tracer):
                 priority_sampler=self.writer._priority_sampler,
         )
 
+    def _update_dogstatsd(self):
+        self.dogstatsd = DogStatsd()
+        self.dogstatsd.socket = FakeSocket()
+
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
         self._update_writer()
+        self._update_dogstatsd()
+
+
+class FakeSocket(object):
+    """ A fake socket for testing dogstatsd client.
+
+        Adapted from https://github.com/DataDog/datadogpy/blob/master/tests/unit/dogstatsd/test_statsd.py#L31
+    """
+
+    def __init__(self):
+        self.payloads = deque()
+
+    def send(self, payload):
+        if PY3:
+            assert type(payload) == bytes
+        else:
+            assert type(payload) == str
+        self.payloads.append(payload)
+
+    def recv(self):
+        try:
+            return self.payloads.popleft().decode('utf-8')
+        except IndexError:
+            return None
+
+    def close(self):
+        pass
+
+    def __repr__(self):
+        return str(self.payloads)
