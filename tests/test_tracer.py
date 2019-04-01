@@ -329,6 +329,12 @@ class TracerTestCase(BaseTracerTestCase):
         span = self.trace('fake_span')
         self.assertEqual(self.tracer.current_span(), span)
 
+    def test_tracer_current_span_missing_context(self):
+        self.assertIsNone(self.tracer.current_span())
+
+    def test_tracer_current_root_span_missing_context(self):
+        self.assertIsNone(self.tracer.current_root_span())
+
     def test_default_provider_get(self):
         # Tracer Context Provider must return a Context object
         # even if empty

@@ -386,14 +386,20 @@ class Tracer(object):
             # set the host just once on the root span
             root_span.set_tag('host', '127.0.0.1')
         """
-        return self.get_call_context().get_current_root_span()
+        ctx = self.get_call_context()
+        if ctx:
+            return ctx.get_current_root_span()
+        return None
 
     def current_span(self):
         """
         Return the active span for the current call context or ``None``
         if no spans are available.
         """
-        return self.get_call_context().get_current_span()
+        ctx = self.get_call_context()
+        if ctx:
+            return ctx.get_current_span()
+        return None
 
     def record(self, context):
         """

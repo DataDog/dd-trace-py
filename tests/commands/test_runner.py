@@ -197,7 +197,7 @@ class DdtraceRunTest(BaseTestCase):
         # ensure `sitecustomize.py` is not loaded if `-S` is used
         env = inject_sitecustomize('tests/commands/bootstrap')
         out = subprocess.check_output(
-            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_sitecustomize.py', '-S'],
+            ['ddtrace-run', 'python', '-S', 'tests/commands/ddtrace_run_sitecustomize.py', '-S'],
             env=env,
         )
         assert out.startswith(b"Test success")
