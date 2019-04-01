@@ -1,7 +1,6 @@
 import functools
 from os import environ, getpid
 
-from datadog import DogStatsd
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
@@ -18,6 +17,7 @@ from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated
 from .utils.runtime import generate_runtime_id
+from .vendor.dogstatsd import DogStatsd
 from .writer import AgentWriter
 from . import compat
 
