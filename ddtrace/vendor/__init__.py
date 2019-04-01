@@ -43,6 +43,7 @@ Version: 0.28.0
 License: Copyright (c) 2015, Datadog <info@datadoghq.com>
 
 Notes:
-  Only `datadog.dogstatsd` module has been vendored
-  `datadog.util.compat` has been copied into `dogstatsd` module
+  `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
+  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
+  `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
 """
