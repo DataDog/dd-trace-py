@@ -74,7 +74,6 @@ _PATCH_ON_IMPORT = {
     'flask': ('flask, '),
     'gevent': ('gevent', ),
     'requests': ('requests', ),
-    'datadog': ('datadog', ),
 }
 
 
