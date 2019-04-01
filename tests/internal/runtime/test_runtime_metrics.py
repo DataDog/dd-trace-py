@@ -1,15 +1,15 @@
-from ddtrace.runtime_metrics.runtime_metrics import (
+from ddtrace.internal.runtime.runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
-    RuntimeMetricsWorker,
+    RuntimeWorker,
 )
-from ddtrace.runtime_metrics.constants import (
+from ddtrace.internal.runtime.constants import (
     DEFAULT_RUNTIME_METRICS,
     DEFAULT_RUNTIME_TAGS,
     GC_GEN1_COUNT,
     RUNTIME_ID,
 )
-from ..base import (
+from ...base import (
     BaseTestCase,
     BaseTracerTestCase,
 )
@@ -42,7 +42,7 @@ class TestRuntimeMetrics(BaseTestCase):
 class TestRuntimeWorker(BaseTracerTestCase):
     def setUp(self):
         super(TestRuntimeWorker, self).setUp()
-        self.worker = RuntimeMetricsWorker(self.tracer.dogstatsd)
+        self.worker = RuntimeWorker(self.tracer.dogstatsd)
 
     def test_worker_start_stop(self):
         self.worker.start()

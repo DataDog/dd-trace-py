@@ -1,12 +1,12 @@
 from .runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
-    RuntimeMetricsWorker,
+    RuntimeWorker,
 )
 
 
 __all__ = [
     'RuntimeTags',
     'RuntimeMetrics',
-    'RuntimeMetricsWorker',
+    'RuntimeWorker',
 ]

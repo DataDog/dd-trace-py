@@ -1,8 +1,8 @@
 import sys
 import mock
-from ddtrace.runtime_metrics.collector import ValueCollector
+from ddtrace.internal.runtime.collector import ValueCollector
 
-from ..base import BaseTestCase
+from ...base import BaseTestCase
 
 
 class TestValueCollector(BaseTestCase):
@@ -67,7 +67,7 @@ class TestValueCollector(BaseTestCase):
 
     def test_required_module_not_installed(self):
         collect = mock.MagicMock()
-        with mock.patch('ddtrace.runtime_metrics.collector.log') as log_mock:
+        with mock.patch('ddtrace.internal.runtime.collector.log') as log_mock:
             # Should log a warning (tested below)
             vc = ValueCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
 

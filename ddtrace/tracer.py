@@ -6,12 +6,9 @@ from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
+from .internal.runtime import RuntimeTags, RuntimeWorker
 from .provider import DefaultContextProvider
 from .context import Context
-from .runtime_metrics import (
-    RuntimeTags,
-    RuntimeMetricsWorker,
-)
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
@@ -66,10 +63,11 @@ class Tracer(object):
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()
 
-        # Runtime id used for associating metrics to traces
+        # Runtime id used for associating data collected during runtime to
+        # traces
         self._runtime_id = generate_runtime_id()
         self._pid = getpid()
-        self._rtmetrics_worker = None
+        self._runtime_worker = None
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -154,7 +152,7 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if collect_metrics and self._rtmetrics_worker is None:
+        if collect_metrics and self._runtime_worker is None:
             self._start_dogstatsd(
                 dogstatsd_host or self.DEFAULT_HOSTNAME,
                 dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
@@ -269,14 +267,14 @@ class Tracer(object):
 
             # The run-time metrics worker needs to be reinitialized with any new
             # service(s) that may have been added.
-            if self._rtmetrics_worker:
-                self._rtmetrics_worker.reset(
+            if self._runtime_worker:
+                self._runtime_worker.reset(
                     self._runtime_id,
                     self._services,
                 )
 
         # If there's a run-time metrics worker then set the necessary tags
-        if self._rtmetrics_worker:
+        if self._runtime_worker:
             span.set_tag('runtime-id', self._runtime_id)
             span.set_tag('language', 'python')
             self._check_new_process()
@@ -305,8 +303,8 @@ class Tracer(object):
             )
 
     def _start_runtime_worker(self):
-        self._rtmetrics_worker = RuntimeMetricsWorker(self.dogstatsd)
-        self._rtmetrics_worker.start()
+        self._runtime_worker = RuntimeWorker(self.dogstatsd)
+        self._runtime_worker.start()
 
     def _check_new_process(self):
         """ Checks if the tracer is in a new process (was forked) and performs

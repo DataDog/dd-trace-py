@@ -2,7 +2,7 @@ import threading
 import time
 import itertools
 
-from ..internal.logger import get_logger
+from ..logger import get_logger
 from .constants import (
     DEFAULT_RUNTIME_METRICS,
     DEFAULT_RUNTIME_TAGS,
@@ -55,7 +55,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-class RuntimeMetricsWorker(object):
+class RuntimeWorker(object):
     FLUSH_INTERVAL = 10
 
     def __init__(self, statsd_client, flush_interval=None):
