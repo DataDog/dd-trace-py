@@ -72,11 +72,10 @@ class RuntimeWorker(object):
                 if not self._stay_alive:
                     break
 
-                self.flush()
-                # try:
-                # except Exception as err:
-                #     import pdb; pdb.set_trace()
-                #     log.error("Failed to flush metrics: {}".format(str(err)))
+                try:
+                    self.flush()
+                except Exception as err:
+                    log.error("Failed to flush metrics: {}".format(str(err)))
 
             time.sleep(self._flush_interval)
 
