@@ -1,5 +1,6 @@
 # flake8: noqa
 # DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
+import aiobotocore
 from botocore.errorfactory import ClientError
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
@@ -125,9 +126,15 @@ class AIOBotocoreTest(AsyncioTestCase):
             yield from response['Body'].read()
 
         traces = self.tracer.writer.pop_traces()
-        self.assertEqual(len(traces), 2)
+        version = aiobotocore.__version__.split(".")
+        pre_08 = int(version[0]) == 0 and int(version[1]) < 8
+        if pre_08:
+            self.assertEqual(len(traces), 2)
+            self.assertEqual(len(traces[1]), 1)
+        else:
+            self.assertEqual(len(traces), 1)
+
         self.assertEqual(len(traces[0]), 1)
-        self.assertEqual(len(traces[1]), 1)
 
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.operation'), 'GetObject')
@@ -135,15 +142,16 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(span.service, 'aws.s3')
         self.assertEqual(span.resource, 's3.getobject')
 
-        read_span = traces[1][0]
-        self.assertEqual(read_span.get_tag('aws.operation'), 'GetObject')
-        self.assertEqual(read_span.get_tag('http.status_code'), '200')
-        self.assertEqual(read_span.service, 'aws.s3')
-        self.assertEqual(read_span.resource, 's3.getobject')
-        self.assertEqual(read_span.name, 's3.command.read')
-        # enforce parenting
-        self.assertEqual(read_span.parent_id, span.span_id)
-        self.assertEqual(read_span.trace_id, span.trace_id)
+        if pre_08:
+            read_span = traces[1][0]
+            self.assertEqual(read_span.get_tag('aws.operation'), 'GetObject')
+            self.assertEqual(read_span.get_tag('http.status_code'), '200')
+            self.assertEqual(read_span.service, 'aws.s3')
+            self.assertEqual(read_span.resource, 's3.getobject')
+            self.assertEqual(read_span.name, 's3.command.read')
+            # enforce parenting
+            self.assertEqual(read_span.parent_id, span.span_id)
+            self.assertEqual(read_span.trace_id, span.trace_id)
 
     @mark_asyncio
     def test_sqs_client(self):
