@@ -13,7 +13,6 @@ from .metric_collectors import (
 )
 from .tag_collectors import (
     TracerTagCollector,
-    PlatformTagCollector,
 )
 
 log = get_logger(__name__)
@@ -43,7 +42,6 @@ class RuntimeTags(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_TAGS
     COLLECTORS = [
         TracerTagCollector,
-        PlatformTagCollector,
     ]
 
 
