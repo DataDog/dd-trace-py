@@ -22,8 +22,7 @@ class ValueCollector(object):
     value = None
     value_loaded = False
 
-    def __init__(self, collect_fn=None, enabled=None, periodic=None, required_modules=None):
-        self._collect_fn = collect_fn
+    def __init__(self, enabled=None, periodic=None, required_modules=None):
         self.enabled = self.enabled if enabled is None else enabled
         self.periodic = self.periodic if periodic is None else periodic
         self.required_modules = self.required_modules if required_modules is None else required_modules
@@ -50,19 +49,6 @@ class ValueCollector(object):
             return None
         return modules
 
-    def collect_fn(self, keys):
-        """Returns metrics given a set of keys and provided modules.
-
-        Note: this method has to be provided as an argument to the intializer
-        or overridden by a child class.
-
-        :param keys: set of keys to collect
-        :return: collected metrics as a dict
-        """
-        if not self._collect_fn:
-            raise NotImplementedError('A collect function must be implemented')
-        return self._collect_fn(self.modules, keys)
-
     def collect(self, keys=None):
         """Returns metrics as collected by `collect_fn`.
 
@@ -77,10 +63,10 @@ class ValueCollector(object):
             return self.value
 
         # call underlying collect function and filter out keys not requested
-        # TODO: Fix headaches here with dict vs list return values from collectors
         self.value = self.collect_fn(keys)
 
-        if self.value and type(self.value) is list:
+        # filter values for keys
+        if len(keys) > 0 and isinstance(self.value, list):
             self.value = [
                 (k, v)
                 for (k, v) in self.value
@@ -91,7 +77,8 @@ class ValueCollector(object):
         return self.value
 
     def __repr__(self):
-        return '<Collector(enabled={},periodic={},required_modules={})>'.format(
+        return '<{}(enabled={},periodic={},required_modules={})>'.format(
+            self.__class__.__name__,
             self.enabled,
             self.periodic,
             self.required_modules,

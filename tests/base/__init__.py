@@ -1,5 +1,6 @@
 import contextlib
 import os
+import sys
 import unittest
 
 import ddtrace
@@ -100,6 +101,24 @@ class BaseTestCase(unittest.TestCase):
             yield
         finally:
             options.update(original)
+
+    @contextlib.contextmanager
+    def override_sys_modules(self, modules):
+        """
+        Temporarily override ``sys.modules`` with provided dictionary of modules
+        >>> mock_module = mock.MagicMock()
+        >>> mock_module.fn.side_effect = lambda: 'test'
+        >>> with self.override_sys_modules(dict(A=mock_module)):
+            # Your test
+        """
+        original = dict(sys.modules)
+
+        sys.modules.update(modules)
+        try:
+            yield
+        finally:
+            sys.modules.clear()
+            sys.modules.update(original)
 
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):

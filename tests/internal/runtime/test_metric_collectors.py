@@ -17,11 +17,13 @@ class TestRuntimeMetricCollector(BaseTestCase):
         """Attempts to collect from a collector when it has failed to load its
         module should return no metrics gracefully.
         """
-        def collect(modules, keys):
-            return {'k': 'v'}
+        class A(RuntimeMetricCollector):
+            required_modules=['moduleshouldnotexist']
 
-        vc = RuntimeMetricCollector(collect_fn=collect, required_modules=['moduleshouldnotexist'])
-        self.assertIsNotNone(vc.collect(), 'collect should return valid metrics')
+            def collect_fn(self, keys):
+                return {'k': 'v'}
+
+        self.assertIsNotNone(A().collect(), 'collect should return valid metrics')
 
 
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):

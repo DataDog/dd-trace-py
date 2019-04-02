@@ -19,7 +19,7 @@ from .tag_collectors import (
 log = get_logger(__name__)
 
 
-class RuntimeCollectorsIterable:
+class RuntimeCollectorsIterable(object):
     def __init__(self, enabled=None):
         self._enabled = enabled or self.ENABLED
         # Initialize the collectors.
@@ -34,7 +34,7 @@ class RuntimeCollectorsIterable:
 
     def __repr__(self):
         return '{}(enabled={})'.format(
-            self.__class__,
+            self.__class__.__name__,
             self._enabled,
         )
 
@@ -59,7 +59,6 @@ class RuntimeWorker(object):
     FLUSH_INTERVAL = 10
 
     def __init__(self, statsd_client, flush_interval=None):
-        self._lock = threading.Lock()
         self._stay_alive = None
         self._thread = None
         self._flush_interval = flush_interval or self.FLUSH_INTERVAL
@@ -67,28 +66,21 @@ class RuntimeWorker(object):
         self._runtime_metrics = RuntimeMetrics()
 
     def _target(self):
-        while True:
-            with self._lock:
-                if not self._stay_alive:
-                    break
-
-                self.flush()
-
+        while self._stay_alive:
+            self.flush()
             time.sleep(self._flush_interval)
 
     def start(self):
-        with self._lock:
-            if not self._thread:
-                log.debug("Starting {} thread".format(self))
-                self._thread = threading.Thread(target=self._target)
-                self._thread.setDaemon(True)
-                self._thread.start()
-                self._stay_alive = True
+        if not self._thread:
+            log.debug("Starting {} thread".format(self))
+            self._thread = threading.Thread(target=self._target)
+            self._thread.setDaemon(True)
+            self._thread.start()
+            self._stay_alive = True
 
     def stop(self):
-        with self._lock:
-            if self._thread and self._stay_alive:
-                self._stay_alive = False
+        if self._thread and self._stay_alive:
+            self._stay_alive = False
 
     def _write_metric(self, key, value):
         log.debug('Writing metric {}:{}'.format(key, value))
@@ -103,10 +95,10 @@ class RuntimeWorker(object):
             self._write_metric(key, value)
 
     def reset(self):
-        with self._lock:
-            self._runtime_metrics = RuntimeMetrics()
+        self._runtime_metrics = RuntimeMetrics()
 
     def __repr__(self):
-        return 'RuntimeWorker(runtime_metrics={})'.format(
+        return '{}(runtime_metrics={})'.format(
+            self.__class__.__name__,
             self._runtime_metrics,
         )
