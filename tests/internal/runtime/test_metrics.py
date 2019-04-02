@@ -1,13 +1,14 @@
-import sys
 import mock
 from ddtrace.internal.runtime.collector import ValueCollector
 
 from ...base import BaseTestCase
 
+
 def mocked_collector(mock_collect, **kwargs):
     collector = ValueCollector(**kwargs)
     collector.collect_fn = mock_collect
     return collector
+
 
 class TestValueCollector(BaseTestCase):
 
@@ -60,7 +61,7 @@ class TestValueCollector(BaseTestCase):
         mock_module.fn.side_effect = lambda: 'test'
         with self.override_sys_modules(dict(A=mock_module)):
             class AVC(ValueCollector):
-                required_modules=['A']
+                required_modules = ['A']
 
                 def collect_fn(self, keys):
                     a = self.modules.get('A')

@@ -18,7 +18,7 @@ class TestRuntimeMetricCollector(BaseTestCase):
         module should return no metrics gracefully.
         """
         class A(RuntimeMetricCollector):
-            required_modules=['moduleshouldnotexist']
+            required_modules = ['moduleshouldnotexist']
 
             def collect_fn(self, keys):
                 return {'k': 'v'}
