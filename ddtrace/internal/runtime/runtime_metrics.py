@@ -107,6 +107,6 @@ class RuntimeWorker(object):
             self._runtime_metrics = RuntimeMetrics()
 
     def __repr__(self):
-        return 'RuntimeMetricsCollectorWorker({})'.format(
+        return 'RuntimeWorker(runtime_metrics={})'.format(
             self._runtime_metrics,
         )
