@@ -1,5 +1,3 @@
-from nose.tools import ok_
-
 from ddtrace import Pin
 
 if __name__ == '__main__':
@@ -7,5 +5,5 @@ if __name__ == '__main__':
     import celery
 
     # now celery.Celery should be patched and should have a pin
-    ok_(Pin.get_from(celery.Celery))
+    assert Pin.get_from(celery.Celery)
     print("Test success")
