@@ -4,11 +4,11 @@ GC_GEN3_COUNT = 'runtime.python.gc.gen3_count'
 
 THREAD_COUNT = 'runtime.python.thread_count'
 MEM_RSS = 'runtime.python.mem.rss'
-CTX_SWITCH_VOLUNTARY = 'runtime.python.ctx_switch.voluntary'
-CTX_SWITCH_INVOLUNTARY = 'runtime.python.ctx_switch.involuntary'
-CPU_TIME_SYS = 'runtime.python.cpu.time.sys'
-CPU_TIME_USER = 'runtime.python.cpu.time.user'
+CPU_TIME_SYS = 'runtime.python.cpu.sys'
+CPU_TIME_USER = 'runtime.python.cpu.user'
 CPU_PERCENT = 'runtime.python.cpu.percent'
+CTX_SWITCH_VOLUNTARY = 'runtime.python.cpu.ctx_switch.voluntary'
+CTX_SWITCH_INVOLUNTARY = 'runtime.python.cpu.ctx_switch.involuntary'
 
 GC_RUNTIME_METRICS = set([
     GC_GEN1_COUNT,
