@@ -72,10 +72,7 @@ class RuntimeWorker(object):
                 if not self._stay_alive:
                     break
 
-                try:
-                    self.flush()
-                except Exception as err:
-                    log.error("Failed to flush metrics: {}".format(str(err)))
+                self.flush()
 
             time.sleep(self._flush_interval)
 
