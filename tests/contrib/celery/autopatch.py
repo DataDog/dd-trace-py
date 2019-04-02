@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from nose.tools import ok_
 
 from ddtrace import Pin
