@@ -68,6 +68,8 @@ def on_finish(func, handler, args, kwargs):
         request_span.set_tag('http.method', request.method)
         request_span.set_tag('http.status_code', handler.get_status())
         request_span.set_tag(http.URL, request.full_url().rsplit('?', 1)[0])
+        if config.tornado.trace_query_string:
+            request_span.set_tag(http.QUERY_STRING, request.query)
         request_span.finish()
 
     return func(*args, **kwargs)

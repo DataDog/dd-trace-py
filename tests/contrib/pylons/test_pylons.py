@@ -5,6 +5,7 @@ from paste import fixture
 from paste.deploy import loadapp
 import pytest
 
+from ddtrace import config
 from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
@@ -51,6 +52,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert span.error == 0
         assert span.get_tag(http.URL) == 'http://localhost:80/raise_exception'
         assert span.get_tag('http.status_code') == '200'
+        assert http.QUERY_STRING not in span.meta
         assert span.get_tag(errors.ERROR_MSG) is None
         assert span.get_tag(errors.ERROR_TYPE) is None
         assert span.get_tag(errors.ERROR_STACK) is None
@@ -156,8 +158,12 @@ class PylonsTestCase(BaseTracerTestCase):
         assert span.get_tag(errors.ERROR_TYPE) is None
         assert span.get_tag(errors.ERROR_STACK) is None
 
-    def test_success_200(self):
-        res = self.app.get(url_for(controller='root', action='index'))
+    def test_success_200(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+        res = self.app.get(url_for(controller='root', action='index') + fqs)
         assert res.status == 200
 
         spans = self.tracer.writer.pop()
@@ -168,7 +174,25 @@ class PylonsTestCase(BaseTracerTestCase):
         assert span.service == 'web'
         assert span.resource == 'root.index'
         assert span.meta.get(http.STATUS_CODE) == '200'
+        if config.pylons.trace_query_string:
+            assert span.meta.get(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in span.meta
         assert span.error == 0
+
+    def test_query_string(self):
+        return self.test_success_200('foo=bar')
+
+    def test_multi_query_string(self):
+        return self.test_success_200('foo=bar&foo=baz&x=y')
+
+    def test_query_string_trace(self):
+        with self.override_http_config('pylons', dict(trace_query_string=True)):
+            return self.test_success_200('foo=bar')
+
+    def test_multi_query_string_trace(self):
+        with self.override_http_config('pylons', dict(trace_query_string=True)):
+            return self.test_success_200('foo=bar&foo=baz&x=y')
 
     def test_analytics_global_on_integration_default(self):
         """

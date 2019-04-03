@@ -61,6 +61,10 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
+        if ddtrace.config.bottle.trace_query_string:
+            assert s.get_tag(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in s.meta
 
         services = self.tracer.writer.pop_services()
         assert services == {}
@@ -70,6 +74,14 @@ class TraceBottleTest(BaseTracerTestCase):
 
     def test_query_string_multi_keys(self):
         return self.test_200('foo=bar&foo=baz&x=y')
+
+    def test_query_string_trace(self):
+        with self.override_http_config('bottle', dict(trace_query_string=True)):
+            return self.test_200('foo=bar')
+
+    def test_query_string_multi_keys_trace(self):
+        with self.override_http_config('bottle', dict(trace_query_string=True)):
+            return self.test_200('foo=bar&foo=baz&x=y')
 
     def test_500(self):
         @self.app.route('/hi')

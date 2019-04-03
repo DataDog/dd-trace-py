@@ -104,6 +104,8 @@ def trace_tween_factory(handler, registry):
                     # set request tags
                     span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)
+                    if config.pyramid.trace_query_string:
+                        span.set_tag(http.QUERY_STRING, request.query_string)
                     if request.matched_route:
                         span.resource = '{} {}'.format(request.method, request.matched_route.name)
                         span.set_tag('pyramid.route.name', request.matched_route.name)

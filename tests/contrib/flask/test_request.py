@@ -70,6 +70,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
         self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert http.QUERY_STRING not in req_span.meta
 
         # Handler span
         handler_span = spans[4]
@@ -77,6 +78,19 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, 'tests.contrib.flask.test_request.index')
         self.assertEqual(handler_span.resource, '/')
         self.assertEqual(req_span.error, 0)
+
+    def test_request_query_string_trace(self):
+        """Make sure when making a request that we create the expected spans and capture the query string."""
+        @self.app.route('/')
+        def index():
+            return 'Hello Flask', 200
+
+        with self.override_http_config('flask', dict(trace_query_string=True)):
+            self.client.get('/?foo=bar&baz=biz')
+        spans = self.get_spans()
+
+        # Request tags
+        assert spans[0].get_tag(http.QUERY_STRING) == 'foo=bar&baz=biz'
 
     def test_analytics_global_on_integration_default(self):
         """
