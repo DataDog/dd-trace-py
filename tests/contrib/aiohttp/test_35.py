@@ -1,7 +1,7 @@
 import asyncio
 
 from nose.tools import eq_
-import aiohttp
+from aiohttp import ClientSession
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.asyncio.patch import patch as aio_patch, \
@@ -27,7 +27,7 @@ class AIOHttpTest(TraceTestCase):
     async def test_wait_for_full_request(self):
         aio_patch()
 
-        session = aiohttp.ClientSession()
+        session = ClientSession()
         url = self.client.make_url('/')
 
         try:
