@@ -28,7 +28,6 @@ class TestRequestTracing(TraceTestCase):
         #   * middleware
         #   * templates
         trace_app(self.app, self.tracer, distributed_tracing=True)
-
         patch(self.tracer, enable_distributed=True)
         Pin.override(aiohttp_jinja2, tracer=self.tracer)
 
@@ -86,7 +85,7 @@ class TestRequestTracing(TraceTestCase):
         eq_(root_trace_id, server_request_span.trace_id)
         eq_('aiohttp-web', server_request_span.service)
         eq_('aiohttp.request', server_request_span.name)
-        eq_('/', server_request_span.resource)
+        eq_('GET /', server_request_span.resource)
 
         # client read span
         eq_(1, len(traces[2]))
@@ -107,7 +106,7 @@ class TestRequestTracing(TraceTestCase):
         yield from request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
+        eq_(2, len(traces))
         eq_(2, len(traces[0]))
         request_span = traces[0][0]
         template_span = traces[0][1]
@@ -119,7 +118,6 @@ class TestRequestTracing(TraceTestCase):
         eq_('aiohttp-web', template_span.service)
         eq_('aiohttp.template', template_span.name)
         eq_('aiohttp.template', template_span.resource)
-
 
     @unittest_run_loop
     @asyncio.coroutine

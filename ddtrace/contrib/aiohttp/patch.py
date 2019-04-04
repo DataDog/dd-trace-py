@@ -311,6 +311,11 @@ def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+_clientsession_wrap_methods = {
+    'get', 'options', 'head', 'post', 'put', 'patch', 'delete', 'request'
+}
+
+
 def patch(tracer=None, enable_distributed=False, trace_headers=None,
           trace_context=False):
     """
@@ -336,9 +341,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
         wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
         _w('aiohttp', 'ClientSession.__init__', wrapper)
 
-        for method in \
-                {'get', 'options', 'head', 'post', 'put', 'patch', 'delete',
-                 'request'}:
+        for method in _clientsession_wrap_methods:
             wrapper = functools.partial(_create_wrapped_request,
                                         method.upper(), enable_distributed,
                                         trace_headers, trace_context)
@@ -359,7 +362,11 @@ def unpatch():
     """
     if getattr(aiohttp, '__datadog_patch', False):
         unwrap(aiohttp.ClientSession, '__init__')
-        unwrap(aiohttp.ClientSession, '_request')
+
+        for method in _clientsession_wrap_methods:
+            unwrap(aiohttp.ClientSession, method)
+
+        setattr(aiohttp, '__datadog_patch', False)
 
     if _trace_render_template and getattr(aiohttp_jinja2, '__datadog_patch',
                                           False):
