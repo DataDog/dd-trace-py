@@ -301,7 +301,7 @@ class TestTracer(object):
         span2.finish()
 
         spans = writer.pop()
-        assert len(spans) is 2
+        assert len(spans) == 2
         assert spans[0].parent_id is None
         assert spans[1].parent_id is span1._dd_span.span_id
         assert spans[1].duration > spans[0].duration
