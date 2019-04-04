@@ -103,7 +103,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
             self._self_parent_span_id = parent_span.span_id
         else:
             self._self_parent_trace_id, self._self_parent_span_id = \
-                ctx._get_parent_span_ids()
+                ctx.trace_id, ctx.span_id
 
         self._self_trace_headers = trace_headers
 

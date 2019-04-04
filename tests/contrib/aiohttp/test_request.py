@@ -9,7 +9,6 @@ from nose.tools import eq_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
