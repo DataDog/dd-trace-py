@@ -196,7 +196,9 @@ class Context(object):
 
                 # Don't clear out the parent trace IDs as this may be a cloned
                 # context in a new thread/task without a outer span
-                if not self._parent_trace_id:
+                if not self._parent_trace_id or (trace and trace[0].trace_id == self._parent_trace_id):
+                    self._parent_trace_id = None
+                    self._parent_span_id = None
                     self._sampling_priority = None
                     self._sampled = True
                 return trace, sampled
