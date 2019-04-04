@@ -253,13 +253,11 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'aiohttp_contrib-{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl' --result-json /tmp/aiohttp.1.results
-      - run: tox -e 'aiohttp_contrib-{py34,py35,py36}-aiohttp{23}-aiohttp_jinja{015}-yarl10' --result-json /tmp/aiohttp.2.results
+      - run: tox -e 'aiohttp_contrib-{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl,aiohttp_contrib-{py34,py35,py36}-aiohttp23-aiohttp_jinja015-yarl10,aiohttp_contrib-{py35,py36}-aiohttp{30,31,32,33,34,35}-aiohttp_jinja015-yarl10' --result-json /tmp/aiohttp.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - aiohttp.1.results
-            - aiohttp.2.results
+            - aiohttp.results
       - *save_cache_step
 
   tornado:
