@@ -188,7 +188,7 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
             self._self_span.set_tag(ext_http.STATUS_CODE, resp.status)
             self._self_span.error = int(500 <= resp.status)
             return resp
-        except:
+        except BaseException:
             self._self_span.set_traceback()
             raise
         finally:
