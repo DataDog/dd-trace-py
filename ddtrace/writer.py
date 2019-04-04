@@ -1,21 +1,17 @@
-
 # stdlib
 import atexit
-import logging
 import threading
 import random
 import os
 import time
 
-from ddtrace import api
+from . import api
+from .internal.logger import get_logger
 
-from .api import _parse_response_json
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 MAX_TRACES = 1000
-MAX_SERVICES = 1000
 
 DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
@@ -26,7 +22,6 @@ class AgentWriter(object):
     def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
         self._pid = None
         self._traces = None
-        self._services = None
         self._worker = None
         self._filters = filters
         self._priority_sampler = priority_sampler
@@ -40,9 +35,6 @@ class AgentWriter(object):
         if spans:
             self._traces.add(spans)
 
-        if services:
-            self._services.add(services)
-
     def _reset_worker(self):
         # if this queue was created in a different process (i.e. this was
         # forked) reset everything so that we can safely work from it.
@@ -50,7 +42,6 @@ class AgentWriter(object):
         if self._pid != pid:
             log.debug("resetting queues. pids(old:%s new:%s)", self._pid, pid)
             self._traces = Q(max_size=MAX_TRACES)
-            self._services = Q(max_size=MAX_SERVICES)
             self._worker = None
             self._pid = pid
 
@@ -59,7 +50,6 @@ class AgentWriter(object):
             self._worker = AsyncWorker(
                 self.api,
                 self._traces,
-                self._services,
                 filters=self._filters,
                 priority_sampler=self._priority_sampler,
             )
@@ -67,10 +57,9 @@ class AgentWriter(object):
 
 class AsyncWorker(object):
 
-    def __init__(self, api, trace_queue, service_queue, shutdown_timeout=DEFAULT_TIMEOUT,
+    def __init__(self, api, trace_queue, service_queue=None, shutdown_timeout=DEFAULT_TIMEOUT,
                  filters=None, priority_sampler=None):
         self._trace_queue = trace_queue
-        self._service_queue = service_queue
         self._lock = threading.Lock()
         self._thread = None
         self._shutdown_timeout = shutdown_timeout
@@ -119,16 +108,18 @@ class AsyncWorker(object):
             size = self._trace_queue.size()
             if size:
                 key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
-                log.debug("Waiting %ss for traces to be sent. Hit %s to quit.",
-                        self._shutdown_timeout, key)
+                log.debug(
+                    "Waiting %ss for traces to be sent. Hit %s to quit.",
+                    self._shutdown_timeout,
+                    key,
+                )
                 timeout = time.time() + self._shutdown_timeout
                 while time.time() < timeout and self._trace_queue.size():
                     # FIXME[matt] replace with a queue join
                     time.sleep(0.05)
 
     def _target(self):
-        result_traces = None
-        result_services = None
+        traces_response = None
 
         while True:
             traces = self._trace_queue.pop()
@@ -142,43 +133,41 @@ class AsyncWorker(object):
             if traces:
                 # If we have data, let's try to send it.
                 try:
-                    result_traces = self.api.send_traces(traces)
+                    traces_response = self.api.send_traces(traces)
                 except Exception as err:
                     log.error("cannot send spans to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
-
-            services = self._service_queue.pop()
-            if services:
-                try:
-                    result_services = self.api.send_services(services)
-                except Exception as err:
-                    log.error("cannot send services to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
 
             if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
                 return
 
-            if self._priority_sampler:
-                result_traces_json = _parse_response_json(result_traces)
+            if self._priority_sampler and traces_response:
+                result_traces_json = traces_response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-            self._log_error_status(result_traces, "traces")
-            result_traces = None
-            self._log_error_status(result_services, "services")
-            result_services = None
+            self._log_error_status(traces_response, "traces")
+            traces_response = None
 
             time.sleep(1)  # replace with a blocking pop.
 
-    def _log_error_status(self, result, result_name):
+    def _log_error_status(self, response, response_name):
+        if not isinstance(response, api.Response):
+            return
+
         log_level = log.debug
-        if result and getattr(result, "status", None) >= 400:
+        if response.status >= 400:
             now = time.time()
             if now > self._last_error_ts + LOG_ERR_INTERVAL:
                 log_level = log.error
                 self._last_error_ts = now
-            log_level("failed_to_send %s to Agent: HTTP error status %s, reason %s, message %s", result_name,
-                      getattr(result, "status", None), getattr(result, "reason", None),
-                      getattr(result, "msg", None))
+            log_level(
+                'failed_to_send %s to Datadog Agent: HTTP error status %s, reason %s, message %s',
+                response_name,
+                response.status,
+                response.reason,
+                response.msg,
+            )
 
     def _apply_filters(self, traces):
         """

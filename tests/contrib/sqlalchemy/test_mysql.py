@@ -1,23 +1,29 @@
-from unittest import TestCase
-from nose.tools import eq_, ok_, assert_raises
-
 from sqlalchemy.exc import ProgrammingError
+
+from nose.tools import assert_raises
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import MYSQL_CONFIG
+from ...base import BaseTracerTestCase
 
 
-class MysqlConnectorTestCase(SQLAlchemyTestMixin, TestCase):
+class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
     """TestCase for mysql-connector engine"""
     VENDOR = 'mysql'
     SQL_DB = 'test'
     SERVICE = 'mysql'
     ENGINE_ARGS = {'url': 'mysql+mysqlconnector://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s' % MYSQL_CONFIG}
 
+    def setUp(self):
+        super(MysqlConnectorTestCase, self).setUp()
+
+    def tearDown(self):
+        super(MysqlConnectorTestCase, self).tearDown()
+
     def check_meta(self, span):
         # check database connection tags
-        eq_(span.get_tag('out.host'), MYSQL_CONFIG['host'])
-        eq_(span.get_tag('out.port'), str(MYSQL_CONFIG['port']))
+        self.assertEqual(span.get_tag('out.host'), MYSQL_CONFIG['host'])
+        self.assertEqual(span.get_tag('out.port'), str(MYSQL_CONFIG['port']))
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
@@ -27,20 +33,20 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TestCase):
 
         traces = self.tracer.writer.pop_traces()
         # trace composition
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        self.assertEqual(len(traces), 1)
+        self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
-        eq_(span.name, '{}.query'.format(self.VENDOR))
-        eq_(span.service, self.SERVICE)
-        eq_(span.resource, 'SELECT * FROM a_wrong_table')
-        eq_(span.get_tag('sql.db'), self.SQL_DB)
-        ok_(span.get_tag('sql.rows') is None)
+        self.assertEqual(span.name, '{}.query'.format(self.VENDOR))
+        self.assertEqual(span.service, self.SERVICE)
+        self.assertEqual(span.resource, 'SELECT * FROM a_wrong_table')
+        self.assertEqual(span.get_tag('sql.db'), self.SQL_DB)
+        self.assertIsNone(span.get_tag('sql.rows'))
         self.check_meta(span)
-        eq_(span.span_type, 'sql')
-        ok_(span.duration > 0)
+        self.assertEqual(span.span_type, 'sql')
+        self.assertTrue(span.duration > 0)
         # check the error
-        eq_(span.error, 1)
-        eq_(span.get_tag('error.type'), 'mysql.connector.errors.ProgrammingError')
-        ok_("Table 'test.a_wrong_table' doesn't exist" in span.get_tag('error.msg'))
-        ok_("Table 'test.a_wrong_table' doesn't exist" in span.get_tag('error.stack'))
+        self.assertEqual(span.error, 1)
+        self.assertEqual(span.get_tag('error.type'), 'mysql.connector.errors.ProgrammingError')
+        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag('error.msg'))
+        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag('error.stack'))

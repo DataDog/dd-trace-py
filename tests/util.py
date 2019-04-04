@@ -1,7 +1,9 @@
 import os
+import sys
 import mock
-import ddtrace
 
+import ddtrace
+from ddtrace import __file__ as root_file
 from nose.tools import ok_
 from contextlib import contextmanager
 
@@ -38,13 +40,17 @@ def patch_time():
 
 
 def assert_dict_issuperset(a, b):
-    ok_(set(a.items()).issuperset(set(b.items())),
-            msg="{a} is not a superset of {b}".format(a=a, b=b))
+    ok_(
+        set(a.items()).issuperset(set(b.items())),
+        msg="{a} is not a superset of {b}".format(a=a, b=b),
+    )
 
 
 def assert_list_issuperset(a, b):
-    ok_(set(a).issuperset(set(b)),
-            msg="{a} is not a superset of {b}".format(a=a, b=b))
+    ok_(
+        set(a).issuperset(set(b)),
+        msg="{a} is not a superset of {b}".format(a=a, b=b),
+    )
 
 
 @contextmanager
@@ -60,18 +66,24 @@ def override_global_tracer(tracer):
     ddtrace.tracer = original_tracer
 
 
-@contextmanager
-def set_env(**environ):
-    """
-    Temporarily set the process environment variables.
+def inject_sitecustomize(path):
+    """Creates a new environment, injecting a ``sitecustomize.py`` module in
+    the current PYTHONPATH.
 
-    >>> with set_env(DEFAULT_SERVICE='my-webapp'):
-            # your test
+    :param path: package path containing ``sitecustomize.py`` module, starting
+                 from the ddtrace root folder
+    :returns: a cloned environment that includes an altered PYTHONPATH with
+              the given `sitecustomize.py`
     """
-    old_environ = dict(os.environ)
-    os.environ.update(environ)
-    try:
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(old_environ)
+    root_folder = os.path.dirname(root_file)
+    # Copy the current environment and replace the PYTHONPATH. This is
+    # required otherwise `ddtrace` scripts are not found when `env` kwarg is
+    # passed
+    env = os.environ.copy()
+    sitecustomize = os.path.join(root_folder, '..', path)
+
+    # Add `boostrap` module so that `sitecustomize.py` is at the bottom
+    # of the PYTHONPATH
+    python_path = list(sys.path) + [sitecustomize]
+    env['PYTHONPATH'] = ':'.join(python_path)[1:]
+    return env

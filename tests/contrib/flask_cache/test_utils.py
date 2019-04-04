@@ -1,13 +1,11 @@
 import unittest
 
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 
 # project
-from ddtrace.ext import net
-from ddtrace.tracer import Tracer, Span
+from ddtrace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
 from ddtrace.contrib.flask_cache.utils import _extract_conn_tags, _resource_from_cache_prefix
-from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
@@ -107,10 +105,6 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
-        config = {
-            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
-            "CACHE_TYPE": "redis",
-        }
         traced_cache = Cache(app, config={"CACHE_TYPE": "redis"})
         # expect only the resource name
         expected_resource = "get"

@@ -17,9 +17,11 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 
-from ddtrace import Pin
-from ddtrace.ext import sql as sqlx
-from ddtrace.ext import net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import sql as sqlx
+from ...ext import net as netx
+from ...pin import Pin
+from ...settings import config
 
 
 def trace_engine(engine, tracer=None, service=None):
@@ -57,12 +59,6 @@ class EngineTracer(object):
         self.service = service or self.vendor
         self.name = "%s.query" % self.vendor
 
-        # set the service info.
-        self.tracer.set_service_info(
-            service=self.service,
-            app=self.vendor,
-            app_type=sqlx.APP_TYPE)
-
         # attach the PIN
         Pin(
             app=self.vendor,
@@ -90,6 +86,12 @@ class EngineTracer(object):
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.sqlalchemy.get_analytics_sample_rate()
+        )
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
@@ -122,6 +124,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
+
 def _set_tags_from_url(span, url):
     """ set connection tags from the url. return true if successful. """
     if url.host:
@@ -133,6 +136,7 @@ def _set_tags_from_url(span, url):
 
     return bool(span.get_tag(netx.TARGET_HOST))
 
+
 def _set_tags_from_cursor(span, vendor, cursor):
     """ attempt to set db connection tags by introspecting the cursor. """
     if 'postgres' == vendor:
@@ -143,4 +147,3 @@ def _set_tags_from_cursor(span, vendor, cursor):
                 span.set_tag(sqlx.DB, d.get("dbname"))
                 span.set_tag(netx.TARGET_HOST, d.get("host"))
                 span.set_tag(netx.TARGET_PORT, d.get("port"))
-

@@ -1,10 +1,8 @@
 """
-The Botocore integration will trace all aws calls made with the botocore
-library. Libraries like Boto3 that use Botocore will also be patched
+The Botocore integration will trace all AWS calls made with the botocore
+library. Libraries like Boto3 that use Botocore will also be patched.
 
-This integration ignores autopatching, it can be enabled via
-`patch_all(botocore=True)`
-::
+This integration is automatically patched when using ``patch_all()``::
 
     import botocore.session
     from ddtrace import patch
@@ -20,7 +18,7 @@ This integration ignores autopatching, it can be enabled via
 """
 
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['botocore.client']
 

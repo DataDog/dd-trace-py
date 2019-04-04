@@ -10,21 +10,23 @@ the following::
 
     app = PylonsApp(...)
 
-    traced_app = PylonsTraceMiddleware(app, tracer, service="my-pylons-app")
+    traced_app = PylonsTraceMiddleware(app, tracer, service='my-pylons-app')
 
 Then you can define your routes and views as usual.
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['pylons.wsgiapp']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import PylonsTraceMiddleware
-        from .patch import patch
+        from .patch import patch, unpatch
 
         __all__ = [
             'patch',
+            'unpatch',
             'PylonsTraceMiddleware',
         ]

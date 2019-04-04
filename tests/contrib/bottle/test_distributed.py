@@ -1,25 +1,25 @@
 import bottle
-import ddtrace
 import webtest
 
-from unittest import TestCase
 from nose.tools import eq_, assert_not_equal
-from tests.test_tracer import get_dummy_tracer
 
+import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
 
+from ...base import BaseTracerTestCase
 
 SERVICE = 'bottle-app'
 
 
-class TraceBottleDistributedTest(TestCase):
+class TraceBottleDistributedTest(BaseTracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
     def setUp(self):
+        super(TraceBottleDistributedTest, self).setUp()
+
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app
@@ -30,7 +30,7 @@ class TraceBottleDistributedTest(TestCase):
         ddtrace.tracer = self._original_tracer
 
     def _trace_app_distributed(self, tracer=None):
-        self.app.install(TracePlugin(service=SERVICE, tracer=tracer, distributed_tracing=True))
+        self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
         self.app = webtest.TestApp(self.app)
 
     def _trace_app_not_distributed(self, tracer=None):

@@ -1,14 +1,13 @@
-import logging
-
 from functools import wraps
 
 from django.conf import settings as django_settings
 
+from ...internal.logger import get_logger
 from .conf import settings, import_from_string
 from .utils import quantize_key_values, _resource_from_cache_prefix
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # code instrumentation
 DATADOG_NAMESPACE = '__datadog_original_{method}'
@@ -41,18 +40,20 @@ def patch_cache(tracer):
           Django supported cache servers (Redis, Memcached, Database, Custom)
     """
     # discover used cache backends
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
 
     def _trace_operation(fn, method_name):
         """
         Return a wrapped function that traces a cache operation
         """
+        cache_service_name = settings.DEFAULT_CACHE_SERVICE \
+            if settings.DEFAULT_CACHE_SERVICE else settings.DEFAULT_SERVICE
+
         @wraps(fn)
         def wrapped(self, *args, **kwargs):
             # get the original function method
             method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
-            with tracer.trace('django.cache',
-                    span_type=TYPE, service=settings.DEFAULT_SERVICE) as span:
+            with tracer.trace('django.cache', span_type=TYPE, service=cache_service_name) as span:
                 # update the resource name and tag the cache backend
                 span.resource = _resource_from_cache_prefix(method_name, self)
                 cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)
@@ -90,6 +91,7 @@ def patch_cache(tracer):
         for method in TRACED_METHODS:
             _wrap_method(cache, method)
 
+
 def unpatch_method(cls, method_name):
     method = getattr(cls, DATADOG_NAMESPACE.format(method=method_name), None)
     if method is None:
@@ -98,8 +100,9 @@ def unpatch_method(cls, method_name):
     setattr(cls, method_name, method)
     delattr(cls, DATADOG_NAMESPACE.format(method=method_name))
 
+
 def unpatch_cache():
-    cache_backends = [cache['BACKEND'] for cache in django_settings.CACHES.values()]
+    cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
     for cache_module in cache_backends:
         cache = import_from_string(cache_module, cache_module)
 

@@ -5,8 +5,6 @@ from tornado import template
 from . import decorators, context_provider
 from .constants import CONFIG_KEY
 
-from ...ext import AppTypes
-
 
 def tracer_config(__init__, app, args, kwargs):
     """
@@ -20,7 +18,8 @@ def tracer_config(__init__, app, args, kwargs):
     settings = {
         'tracer': ddtrace.tracer,
         'default_service': 'tornado-web',
-        'distributed_tracing': False,
+        'distributed_tracing': True,
+        'analytics_enabled': None
     }
 
     # update defaults with users settings
@@ -32,6 +31,9 @@ def tracer_config(__init__, app, args, kwargs):
     tracer = settings['tracer']
     service = settings['default_service']
 
+    # extract extra settings
+    extra_settings = settings.get('settings', {})
+
     # the tracer must use the right Context propagation and wrap executor;
     # this action is done twice because the patch() method uses the
     # global tracer while here we can have a different instance (even if
@@ -42,19 +44,13 @@ def tracer_config(__init__, app, args, kwargs):
         enabled=settings.get('enabled', None),
         hostname=settings.get('agent_hostname', None),
         port=settings.get('agent_port', None),
+        settings=extra_settings,
     )
 
     # set global tags if any
     tags = settings.get('tags', None)
     if tags:
         tracer.set_tags(tags)
-
-    # configure the current service
-    tracer.set_service_info(
-        service=service,
-        app='tornado',
-        app_type=AppTypes.web,
-    )
 
     # configure the PIN object for template rendering
     ddtrace.Pin(app='tornado', service=service, app_type='web', tracer=tracer).onto(template)

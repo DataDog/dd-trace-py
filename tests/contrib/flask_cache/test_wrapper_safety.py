@@ -7,7 +7,7 @@ from nose.tools import eq_, ok_, assert_raises
 from ddtrace.ext import net
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
+from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
@@ -216,7 +216,6 @@ class FlaskCacheWrapperTest(unittest.TestCase):
             cache.get(u"á_complex_operation")
         except Exception:
             pass
-
 
         # ensure that the error is not caused by our tracer
         spans = writer.pop()
