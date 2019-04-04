@@ -84,7 +84,7 @@ class TestRequestTracing(TraceTestCase):
         eq_(root_trace_id, server_request_span.trace_id)
         eq_('aiohttp-web', server_request_span.service)
         eq_('aiohttp.request', server_request_span.name)
-        eq_('GET /', server_request_span.resource)
+        eq_('/', server_request_span.resource)
 
         # client read span
         eq_(1, len(traces[2]))

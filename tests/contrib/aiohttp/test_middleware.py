@@ -24,7 +24,7 @@ class TestTraceMiddleware(TraceTestCase):
         asyncio.set_event_loop(self.loop)
 
     def enable_tracing(self):
-        trace_app(self.app, self.tracer, distributed_tracing=True)
+        trace_app(self.app, self.tracer, distributed_tracing=False)
 
     @unittest_run_loop
     @asyncio.coroutine
