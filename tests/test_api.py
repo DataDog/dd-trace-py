@@ -1,19 +1,23 @@
 import mock
+import re
 import warnings
 
 from unittest import TestCase
 from nose.tools import eq_, ok_
 
 from tests.test_tracer import get_dummy_tracer
-from ddtrace.api import _parse_response_json, API
+from ddtrace.api import API, Response
 from ddtrace.compat import iteritems, httplib
 
+
 class ResponseMock:
-    def __init__(self, content):
+    def __init__(self, content, status=200):
+        self.status = status
         self.content = content
 
     def read(self):
         return self.content
+
 
 class APITests(TestCase):
 
@@ -30,28 +34,51 @@ class APITests(TestCase):
     def test_parse_response_json(self, log):
         tracer = get_dummy_tracer()
         tracer.debug_logging = True
-        test_cases = {'OK': {'js': None, 'log': "please make sure trace-agent is up to date"},
-                      'OK\n': {'js': None, 'log': "please make sure trace-agent is up to date"},
-                      'error:unsupported-endpoint': {'js': None, 'log': "unable to load JSON 'error:unsupported-endpoint'"},
-                      42: {'js': None, 'log': "unable to load JSON '42'"}, # int as key to trigger TypeError
-                      '{}': {'js': {}},
-                      '[]': {'js': []},
-                      '{"rate_by_service": {"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}':
-                      {'js': {"rate_by_service":
-                              {"service:,env:":0.5,
-                               "service:mcnulty,env:test":0.9,
-                               "service:postgres,env:test":0.6}}},
-                      ' [4,2,1] ': {'js': [4,2,1]}}
 
-        for k,v in iteritems(test_cases):
-            r = ResponseMock(k)
-            js =_parse_response_json(r)
+        test_cases = {
+            'OK': dict(
+                js=None,
+                log='Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date',
+            ),
+            'OK\n': dict(
+                js=None,
+                log='Cannot parse Datadog Agent response, please make sure your Datadog Agent is up to date',
+            ),
+            'error:unsupported-endpoint': dict(
+                js=None,
+                log='Unable to parse Datadog Agent JSON response: .*? \'error:unsupported-endpoint\'',
+            ),
+            42: dict(  # int as key to trigger TypeError
+                js=None,
+                log='Unable to parse Datadog Agent JSON response: .*? 42',
+            ),
+            '{}': dict(js={}),
+            '[]': dict(js=[]),
+
+            # Priority sampling "rate_by_service" response
+            ('{"rate_by_service": '
+             '{"service:,env:":0.5, "service:mcnulty,env:test":0.9, "service:postgres,env:test":0.6}}'): dict(
+                js=dict(
+                    rate_by_service={
+                        'service:,env:': 0.5,
+                        'service:mcnulty,env:test': 0.9,
+                        'service:postgres,env:test': 0.6,
+                    },
+                ),
+            ),
+            ' [4,2,1] ': dict(js=[4, 2, 1]),
+        }
+
+        for k, v in iteritems(test_cases):
+            log.reset_mock()
+
+            r = Response.from_http_response(ResponseMock(k))
+            js = r.get_json()
             eq_(v['js'], js)
             if 'log' in v:
-                ok_(1<=len(log.call_args_list), "not enough elements in call_args_list: %s" % log.call_args_list)
-                print(log.call_args_list)
-                l = log.call_args_list[-1][0][0]
-                ok_(v['log'] in l, "unable to find %s in %s" % (v['log'], l))
+                log.assert_called_once()
+                msg = log.call_args[0][0] % log.call_args[0][1:]
+                ok_(re.match(v['log'], msg), msg)
 
     @mock.patch('ddtrace.compat.httplib.HTTPConnection')
     def test_put_connection_close(self, HTTPConnection):

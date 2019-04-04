@@ -21,13 +21,19 @@ The library can be configured globally and per instance, using the Configuration
 
     from ddtrace import config
 
-    # enable distributed tracing globally
-    config.requests['distributed_tracing'] = True
+    # disable distributed tracing globally
+    config.requests['distributed_tracing'] = False
 
-    # change the service name only for this session
+    # enable trace analytics globally
+    config.requests['analytics_enabled'] = True
+
+    # change the service name/distributed tracing only for this session
     session = Session()
     cfg = config.get_from(session)
     cfg['service_name'] = 'auth-api'
+    cfg['analytics_enabled'] = True
+
+:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
 from ...utils.importlib import require_modules
 

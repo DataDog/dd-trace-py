@@ -1,12 +1,12 @@
-from elasticsearch import Transport
-from elasticsearch.exceptions import TransportError
+# DEV: This will import the first available module from:
+#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
+from .elasticsearch import elasticsearch
 
-from . import metadata
 from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http
+from ...ext import http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
@@ -15,13 +15,7 @@ SPAN_TYPE = 'elasticsearch'
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
-    datadog_tracer.set_service_info(
-        service=datadog_service,
-        app=SPAN_TYPE,
-        app_type=AppTypes.db,
-    )
-
-    class TracedTransport(Transport):
+    class TracedTransport(elasticsearch.Transport):
         """ Extend elasticseach transport layer to allow Datadog
             tracer to catch any performed request.
         """
@@ -47,7 +41,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
                 try:
                     result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
-                except TransportError as e:
+                except elasticsearch.exceptions.TransportError as e:
                     s.set_tag(http.STATUS_CODE, e.status_code)
                     raise
 

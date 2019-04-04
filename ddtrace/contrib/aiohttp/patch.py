@@ -2,7 +2,7 @@ import asyncio
 import functools
 import logging
 import sys
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ...utils.wrappers import unwrap
 from ...propagation.http import HTTPPropagator

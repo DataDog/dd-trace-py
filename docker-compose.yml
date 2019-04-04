@@ -28,7 +28,7 @@ services:
         ports:
             - "127.0.0.1:3306:3306"
     redis:
-        image: redis:3.2-alpine
+        image: redis:4.0-alpine
         ports:
             - "127.0.0.1:6379:6379"
     rediscluster:
@@ -62,6 +62,10 @@ services:
             - "127.0.0.1:5003:5003"
             - "127.0.0.1:5004:5004"
             - "127.0.0.1:5005:5005"
+    rabbitmq:
+        image: rabbitmq:3.7-alpine
+        ports:
+            - "127.0.0.1:5672:5672"
     ddagent:
         image: datadog/docker-dd-agent
         environment:
@@ -78,3 +82,20 @@ services:
           - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"
+
+    testrunner:
+        image: datadog/docker-library:ddtrace_py
+        environment:
+            - TOX_SKIP_DIST=True
+        network_mode: host
+        working_dir: /src
+        volumes:
+            - ./ddtrace:/src/ddtrace:ro
+            - ./ddtrace_vendor:/src/ddtrace_vendor:ro
+            - ./tests:/src/tests:ro
+            - ./setup.cfg:/src/setup.cfg:ro
+            - ./setup.py:/src/setup.py:ro
+            - ./conftest.py:/src/conftest.py:ro
+            - ./tox.ini:/src/tox.ini:ro
+            - ./.ddtox:/src/.tox
+        command: bash

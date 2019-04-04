@@ -3,22 +3,26 @@ import time
 
 # 3p
 import mongoengine
-from nose.tools import eq_
+from nose.tools import eq_, ok_
+import pymongo
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mongoengine.patch import patch, unpatch
 from ddtrace.ext import mongo as mongox
 
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
+from ...base import override_config
 from ...test_tracer import get_dummy_tracer
 
 
 class Artist(mongoengine.Document):
     first_name = mongoengine.StringField(max_length=50)
     last_name = mongoengine.StringField(max_length=50)
+
 
 class MongoEngineCore(object):
 
@@ -70,10 +74,13 @@ class MongoEngineCore(object):
         eq_(artists[0].first_name, 'Joni')
         eq_(artists[0].last_name, 'Mitchell')
 
+        # query names should be used in pymongo>3.1
+        name = 'find' if pymongo.version_tuple >= (3, 1, 0) else 'query'
+
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.resource, 'query artist {}')
+        eq_(span.resource, '{} artist'.format(name))
         eq_(span.span_type, 'mongodb')
         eq_(span.service, self.TEST_SERVICE)
         _assert_timing(span, start, end)
@@ -90,7 +97,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.resource, 'query artist {"first_name": "?"}')
+        eq_(span.resource, '{} artist {{"first_name": "?"}}'.format(name))
         eq_(span.span_type, 'mongodb')
         eq_(span.service, self.TEST_SERVICE)
         _assert_timing(span, start, end)
@@ -149,6 +156,38 @@ class MongoEngineCore(object):
         eq_(dd_span.service, self.TEST_SERVICE)
         _assert_timing(dd_span, start, end)
 
+    def test_analytics_default(self):
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        ok_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
+    def test_analytics_with_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            tracer = self.get_tracer_and_connect()
+            Artist.drop_collection()
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True)
+        ):
+            tracer = self.get_tracer_and_connect()
+            Artist.drop_collection()
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
 
 class TestMongoEnginePatchConnectDefault(MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
@@ -204,6 +243,7 @@ class TestMongoEnginePatchClientDefault(MongoEngineCore):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return tracer
+
 
 class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     """Test suite with a Pin local to a specific client with custom service"""

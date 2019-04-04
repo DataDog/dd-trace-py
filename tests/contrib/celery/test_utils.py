@@ -89,7 +89,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         # delete the Span
         weak_dict = getattr(fn_task, '__dd_task_span')
         detach_span(fn_task, task_id)
-        ok_(weak_dict.get(task_id) is None)
+        ok_(weak_dict.get((task_id, False)) is None)
 
     def test_span_delete_empty(self):
         # ensure the helper works even if the Task doesn't have
@@ -119,13 +119,14 @@ class CeleryTagsTest(CeleryBaseTestCase):
         task_id = '7c6731af-9533-40c3-83a9-25b58f0d837f'
         attach_span(fn_task, task_id, self.tracer.trace('celery.run'))
         weak_dict = getattr(fn_task, '__dd_task_span')
-        ok_(weak_dict.get(task_id))
+        key = (task_id, False)
+        ok_(weak_dict.get(key))
         # flush data and force the GC
-        weak_dict.get(task_id).finish()
+        weak_dict.get(key).finish()
         self.tracer.writer.pop()
         self.tracer.writer.pop_traces()
         gc.collect()
-        ok_(weak_dict.get(task_id) is None)
+        ok_(weak_dict.get(key) is None)
 
     def test_task_id_from_protocol_v1(self):
         # ensures a `task_id` is properly returned when Protocol v1 is used.

@@ -1,5 +1,3 @@
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.ext import errors as errx, http as httpx, AppTypes
 from falcon import testing
 from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer
@@ -16,7 +14,7 @@ class DistributedTracingTestCase(testing.TestCase):
         super(DistributedTracingTestCase, self).setUp()
         self._service = 'falcon'
         self.tracer = get_dummy_tracer()
-        self.api = get_app(tracer=self.tracer, distributed_tracing=True)
+        self.api = get_app(tracer=self.tracer)
 
     def test_distributred_tracing(self):
         headers = {
@@ -37,7 +35,7 @@ class DistributedTracingTestCase(testing.TestCase):
 
     def test_distributred_tracing_disabled(self):
         self.tracer = get_dummy_tracer()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app(tracer=self.tracer, distributed_tracing=False)
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',

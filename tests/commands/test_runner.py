@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import os
-import sys
 
 import subprocess
 import unittest
@@ -15,7 +14,15 @@ class DdtraceRunTest(unittest.TestCase):
         """
         Clear DATADOG_* env vars between tests
         """
-        for k in ('DATADOG_ENV', 'DATADOG_TRACE_ENABLED', 'DATADOG_SERVICE_NAME', 'DATADOG_TRACE_DEBUG'):
+        keys = (
+            'DATADOG_ENV',
+            'DATADOG_TRACE_ENABLED',
+            'DATADOG_SERVICE_NAME',
+            'DATADOG_TRACE_DEBUG',
+            'DD_TRACE_GLOBAL_TAGS',
+            'DD_LOGS_INJECTION',
+        )
+        for k in keys:
             if k in os.environ:
                 del os.environ[k]
 
@@ -93,11 +100,29 @@ class DdtraceRunTest(unittest.TestCase):
         to the correct host/port for submission
         """
         os.environ["DATADOG_TRACE_AGENT_HOSTNAME"] = "172.10.0.1"
-        os.environ["DATADOG_TRACE_AGENT_PORT"] = "8126"
+        os.environ["DATADOG_TRACE_AGENT_PORT"] = "8120"
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
         )
         assert out.startswith(b"Test success")
+
+    def test_host_port_from_env_dd(self):
+        """
+        DD_AGENT_HOST|DD_TRACE_AGENT_PORT point to the tracer
+        to the correct host/port for submission
+        """
+        os.environ['DD_AGENT_HOST'] = '172.10.0.1'
+        os.environ['DD_TRACE_AGENT_PORT'] = '8120'
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_hostname.py']
+        )
+        assert out.startswith(b'Test success')
+
+        # Do we get the same results without `ddtrace-run`?
+        out = subprocess.check_output(
+            ['python', 'tests/commands/ddtrace_run_hostname.py']
+        )
+        assert out.startswith(b'Test success')
 
     def test_priority_sampling_from_env(self):
         """
@@ -136,21 +161,21 @@ class DdtraceRunTest(unittest.TestCase):
         # overrides work in either direction
         os.environ["DATADOG_PATCH_MODULES"] = "django:false"
         update_patched_modules()
-        assert EXTRA_PATCHED_MODULES["django"] == False
+        assert EXTRA_PATCHED_MODULES["django"] is False
 
         os.environ["DATADOG_PATCH_MODULES"] = "boto:true"
         update_patched_modules()
-        assert EXTRA_PATCHED_MODULES["boto"] == True
+        assert EXTRA_PATCHED_MODULES["boto"] is True
 
         os.environ["DATADOG_PATCH_MODULES"] = "django:true,boto:false"
         update_patched_modules()
-        assert EXTRA_PATCHED_MODULES["boto"] == False
-        assert EXTRA_PATCHED_MODULES["django"] == True
+        assert EXTRA_PATCHED_MODULES["boto"] is False
+        assert EXTRA_PATCHED_MODULES["django"] is True
 
         os.environ["DATADOG_PATCH_MODULES"] = "django:false,boto:true"
         update_patched_modules()
-        assert EXTRA_PATCHED_MODULES["boto"] == True
-        assert EXTRA_PATCHED_MODULES["django"] == False
+        assert EXTRA_PATCHED_MODULES["boto"] is True
+        assert EXTRA_PATCHED_MODULES["django"] is False
 
     def test_sitecustomize_without_ddtrace_run_command(self):
         # [Regression test]: ensure `sitecustomize` path is removed only if it's
@@ -200,3 +225,24 @@ class DdtraceRunTest(unittest.TestCase):
             ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_app_name.py']
         )
         assert out.startswith(b"ddtrace_run_app_name.py")
+
+    def test_global_trace_tags(self):
+        """ Ensure global tags are passed in from environment
+        """
+        os.environ["DD_TRACE_GLOBAL_TAGS"] = 'a:True,b:0,c:C'
+
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_global_tags.py']
+        )
+        assert out.startswith(b"Test success")
+
+    def test_logs_injection(self):
+        """ Ensure logs injection works
+        """
+
+        os.environ['DD_LOGS_INJECTION'] = 'true'
+
+        out = subprocess.check_output(
+            ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_logs_injection.py']
+        )
+        assert out.startswith(b"Test success")

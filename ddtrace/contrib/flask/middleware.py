@@ -1,14 +1,14 @@
-import logging
-
 from ... import compat
-from ...ext import http, errors, AppTypes
+from ...ext import http, errors
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...utils.deprecation import deprecated
 
 import flask.templating
 from flask import g, request, signals
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 SPAN_NAME = 'flask.request'
@@ -16,6 +16,7 @@ SPAN_NAME = 'flask.request'
 
 class TraceMiddleware(object):
 
+    @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         log.debug('flask: initializing trace middleware')
@@ -34,12 +35,6 @@ class TraceMiddleware(object):
         if getattr(app, '__dd_instrumentation', False):
             return
         setattr(app, '__dd_instrumentation', True)
-
-        self.app._tracer.set_service_info(
-            service=service,
-            app="flask",
-            app_type=AppTypes.web,
-        )
 
         # Install hooks which time requests.
         self.app.before_request(self._before_request)
@@ -175,6 +170,7 @@ class TraceMiddleware(object):
         span.set_tag(http.METHOD, method)
         span.finish()
 
+
 def _set_error_on_span(span, exception):
     # The 3 next lines might not be strictly required, since `set_traceback`
     # also get the exception from the sys.exc_info (and fill the error meta).
@@ -185,6 +181,7 @@ def _set_error_on_span(span, exception):
     # The provided `exception` object doesn't have a stack trace attached,
     # so attach the stack trace with `set_traceback`.
     span.set_traceback()
+
 
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """

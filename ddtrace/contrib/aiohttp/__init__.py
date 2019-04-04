@@ -20,8 +20,8 @@ Auto instrumentation is available using the ``trace_app`` function::
 Integration settings are attached to your application under the ``datadog_trace``
 namespace. You can read or update them as follows::
 
-    # activates distributed tracing for all received requests
-    app['datadog_trace']['distributed_tracing_enabled'] = True
+    # disables distributed tracing for all received requests
+    app['datadog_trace']['distributed_tracing_enabled'] = False
 
 Available settings are:
 
@@ -29,9 +29,10 @@ Available settings are:
   trace `aiohttp` internals. By default the `ddtrace` tracer is used.
 * ``service`` (default: ``aiohttp-web``): set the service name used by the tracer. Usually
   this configuration must be updated with a meaningful name.
-* ``distributed_tracing_enabled`` (default: ``False``): enable distributed tracing during
+* ``distributed_tracing_enabled`` (default: ``True``): enable distributed tracing during
   the middleware execution, so that a new span is created with the given ``trace_id`` and
   ``parent_id`` injected via request headers.
+* ``analytics_enabled`` (default: ``None``): enables APM events in Trace Search & Analytics.
 
 Third-party modules that are currently supported by the ``patch()`` method are:
 

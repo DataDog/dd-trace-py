@@ -2,25 +2,25 @@ import bottle
 import ddtrace
 import webtest
 
-from unittest import TestCase
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 from tests.opentracer.utils import init_tracer
-from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 from ddtrace import compat
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
-
 
 SERVICE = 'bottle-app'
 
 
-class TraceBottleTest(TestCase):
+class TraceBottleTest(BaseTracerTestCase):
     """
     Ensures that Bottle is properly traced.
     """
     def setUp(self):
+        super(TraceBottleTest, self).setUp()
+
         # provide a dummy tracer
-        self.tracer = get_dummy_tracer()
         self._original_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
         # provide a Bottle app
@@ -51,16 +51,13 @@ class TraceBottleTest(TestCase):
         s = spans[0]
         eq_(s.name, 'bottle.request')
         eq_(s.service, 'bottle-app')
+        eq_(s.span_type, 'web')
         eq_(s.resource, 'GET /hi/<name>')
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
+        eq_(services, {})
 
     def test_500(self):
         @self.app.route('/hi')
@@ -104,6 +101,123 @@ class TraceBottleTest(TestCase):
         eq_(s.get_tag('http.status_code'), '200')
         eq_(s.get_tag('http.method'), 'GET')
 
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        with self.override_global_config(dict(analytics_enabled=True)):
+            resp = self.app.get('/hi/dougie')
+            eq_(resp.status_int, 200)
+            eq_(compat.to_unicode(resp.body), u'hi dougie')
+
+        root = self.get_root_span()
+        root.assert_matches(
+            name='bottle.request',
+            metrics={
+                ANALYTICS_SAMPLE_RATE_KEY: 1.0,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('bottle', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                resp = self.app.get('/hi/dougie')
+                eq_(resp.status_int, 200)
+                eq_(compat.to_unicode(resp.body), u'hi dougie')
+
+        root = self.get_root_span()
+        root.assert_matches(
+            name='bottle.request',
+            metrics={
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        with self.override_global_config(dict(analytics_enabled=False)):
+            resp = self.app.get('/hi/dougie')
+            eq_(resp.status_int, 200)
+            eq_(compat.to_unicode(resp.body), u'hi dougie')
+
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        # setup our test app
+        @self.app.route('/hi/<name>')
+        def hi(name):
+            return 'hi %s' % name
+        self._trace_app(self.tracer)
+
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('bottle', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                resp = self.app.get('/hi/dougie')
+                eq_(resp.status_int, 200)
+                eq_(compat.to_unicode(resp.body), u'hi dougie')
+
+        root = self.get_root_span()
+        root.assert_matches(
+            name='bottle.request',
+            metrics={
+                ANALYTICS_SAMPLE_RATE_KEY: 0.5,
+            },
+        )
+
+        for span in self.spans:
+            if span == root:
+                continue
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
     def test_200_ot(self):
         ot_tracer = init_tracer('my_svc', self.tracer)
 
@@ -137,8 +251,4 @@ class TraceBottleTest(TestCase):
         eq_(dd_span.get_tag('http.method'), 'GET')
 
         services = self.tracer.writer.pop_services()
-        eq_(len(services), 1)
-        ok_(SERVICE in services)
-        s = services[SERVICE]
-        eq_(s['app_type'], 'web')
-        eq_(s['app'], 'bottle')
+        eq_(services, {})

@@ -1,4 +1,5 @@
 # stdlib
+import contextlib
 import logging
 import unittest
 from threading import Event
@@ -10,10 +11,11 @@ from cassandra.cluster import Cluster, ResultSet
 from cassandra.query import BatchStatement, SimpleStatement
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.cassandra.patch import patch, unpatch
 from ddtrace.contrib.cassandra.session import get_traced_cassandra, SERVICE
 from ddtrace.ext import net, cassandra as cassx, errors
-from ddtrace import Pin
+from ddtrace import config, Pin
 
 # testing
 from tests.contrib.config import CASSANDRA_CONFIG
@@ -30,6 +32,7 @@ CONNECTION_TIMEOUT_SECS = 20  # override the default value of 5
 
 logging.getLogger('cassandra').setLevel(logging.INFO)
 
+
 def setUpModule():
     # skip all the modules if the Cluster is not available
     if not Cluster:
@@ -39,12 +42,17 @@ def setUpModule():
     cluster = Cluster(port=CASSANDRA_CONFIG['port'], connect_timeout=CONNECTION_TIMEOUT_SECS)
     session = cluster.connect()
     session.execute('DROP KEYSPACE IF EXISTS test', timeout=10)
-    session.execute("CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};")
+    session.execute(
+        "CREATE KEYSPACE if not exists test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor': 1};"
+    )
     session.execute('CREATE TABLE if not exists test.person (name text PRIMARY KEY, age int, description text)')
     session.execute('CREATE TABLE if not exists test.person_write (name text PRIMARY KEY, age int, description text)')
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Cassandra', 100, 'A cruel mistress')")
-    session.execute("INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')")
+    session.execute(
+        "INSERT INTO test.person (name, age, description) VALUES ('Athena', 100, 'Whose shield is thunder')"
+    )
     session.execute("INSERT INTO test.person (name, age, description) VALUES ('Calypso', 100, 'Softly-braided nymph')")
+
 
 def tearDownModule():
     # destroy the KEYSPACE
@@ -68,6 +76,26 @@ class CassandraBase(object):
     def _traced_session(self):
         # implement me
         pass
+
+    @contextlib.contextmanager
+    def override_config(self, integration, values):
+        """
+        Temporarily override an integration configuration value
+        >>> with self.override_config('flask', dict(service_name='test-service')):
+            # Your test
+        """
+        options = getattr(config, integration)
+
+        original = dict(
+            (key, options.get(key))
+            for key in values.keys()
+        )
+
+        options.update(values)
+        try:
+            yield
+        finally:
+            options.update(original)
 
     def setUp(self):
         self.cluster = Cluster(port=CASSANDRA_CONFIG['port'])
@@ -104,10 +132,47 @@ class CassandraBase(object):
         eq_(query.get_tag(cassx.PAGINATED), 'False')
         eq_(query.get_tag(net.TARGET_HOST), '127.0.0.1')
 
+        # confirm no analytics sample rate set by default
+        ok_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
     def test_query(self):
         def execute_fn(session, query):
             return session.execute(query)
         self._test_query_base(execute_fn)
+
+    def test_query_analytics_with_rate(self):
+        with self.override_config(
+                'cassandra',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            session, tracer = self._traced_session()
+            session.execute(self.TEST_QUERY)
+
+            writer = tracer.writer
+            spans = writer.pop()
+            assert spans, spans
+            # another for the actual query
+            eq_(len(spans), 1)
+            query = spans[0]
+            # confirm no analytics sample rate set by default
+            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_query_analytics_without_rate(self):
+        with self.override_config(
+                'cassandra',
+                dict(analytics_enabled=True)
+        ):
+            session, tracer = self._traced_session()
+            session.execute(self.TEST_QUERY)
+
+            writer = tracer.writer
+            spans = writer.pop()
+            assert spans, spans
+            # another for the actual query
+            eq_(len(spans), 1)
+            query = spans[0]
+            # confirm no analytics sample rate set by default
+            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
     def test_query_ot(self):
         """Ensure that cassandra works with the opentracer."""
@@ -152,9 +217,11 @@ class CassandraBase(object):
             event = Event()
             result = []
             future = session.execute_async(query)
+
             def callback(results):
                 result.append(ResultSet(future, results))
                 event.set()
+
             future.add_callback(callback)
             event.wait()
             return result[0]
@@ -179,7 +246,7 @@ class CassandraBase(object):
         writer = tracer.writer
         statement = SimpleStatement(self.TEST_QUERY_PAGINATED, fetch_size=1)
         result = session.execute(statement)
-        #iterate over all pages
+        # iterate over all pages
         results = list(result)
         eq_(len(results), 3)
 
@@ -257,8 +324,14 @@ class CassandraBase(object):
         writer = tracer.writer
 
         batch = BatchStatement()
-        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Joe', 1, 'a'))
-        batch.add(SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'), ('Jane', 2, 'b'))
+        batch.add(
+            SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'),
+            ('Joe', 1, 'a'),
+        )
+        batch.add(
+            SimpleStatement('INSERT INTO test.person_write (name, age, description) VALUES (%s, %s, %s)'),
+            ('Jane', 2, 'b'),
+        )
         session.execute(batch)
 
         spans = writer.pop()
@@ -285,6 +358,7 @@ class TestCassPatchDefault(CassandraBase):
         tracer = get_dummy_tracer()
         Pin.get_from(self.cluster).clone(tracer=tracer).onto(self.cluster)
         return self.cluster.connect(self.TEST_KEYSPACE), tracer
+
 
 class TestCassPatchAll(TestCassPatchDefault):
     """Test Cassandra instrumentation with patching and custom service on all clusters"""
