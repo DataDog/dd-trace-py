@@ -45,5 +45,5 @@ class TestStackContext(TornadoTestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(len(traces), 1)
         eq_(len(traces[0]), 1)
-        ok_(traces[0][0].trace_id is not 100)
-        ok_(traces[0][0].parent_id is not 101)
+        ok_(traces[0][0].trace_id != 100)
+        ok_(traces[0][0].parent_id != 101)
