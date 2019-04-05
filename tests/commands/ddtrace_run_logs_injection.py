@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import logging
 
 if __name__ == '__main__':
