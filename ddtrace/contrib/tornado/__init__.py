@@ -58,7 +58,7 @@ Tornado settings can be used to change some tracing configuration, like::
             'analytics_enabled': False,
             'settings': {
                 'FILTERS':  [
-                    FilterRequestsOnUrl(r'http://test\.example\.com'),
+                    FilterRequestsOnUrl(r'http://test\\.example\\.com'),
                 ],
             },
         },
