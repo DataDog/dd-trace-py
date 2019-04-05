@@ -23,12 +23,7 @@ class RuntimeMetricCollector(ValueCollector):
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
     """ Collector for garbage collection generational counts
 
-        More information at https://docs.python.org/3/library/gc.html
-
-        Metrics collected are:
-        - gc.gen1_count
-        - gc.gen2_count
-        - gc.gen3_count
+    More information at https://docs.python.org/3/library/gc.html
     """
     required_modules = ['gc']
 
@@ -51,10 +46,6 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     Performs batched operations via proc.oneshot() to optimize the calls.
     See https://psutil.readthedocs.io/en/latest/#psutil.Process.oneshot
     for more information.
-
-    Metrics supported are:
-    - thread_count
-    - mem.rss
     """
     required_modules = ['psutil']
 

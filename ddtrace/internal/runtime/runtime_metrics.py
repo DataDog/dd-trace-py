@@ -54,6 +54,10 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 class RuntimeWorker(object):
+    """ Worker thread for collecting and writing runtime metrics to a DogStatsd
+        client.
+    """
+
     FLUSH_INTERVAL = 10
 
     def __init__(self, statsd_client, flush_interval=None):
@@ -70,9 +74,8 @@ class RuntimeWorker(object):
 
     def start(self):
         if not self._thread:
-            log.debug("Starting {} thread".format(self))
-            self._thread = threading.Thread(target=self._target)
-            self._thread.setDaemon(True)
+            log.debug("Starting {}".format(self))
+            self._thread = threading.Thread(target=self._target, daemon=True)
             self._thread.start()
             self._stay_alive = True
 
