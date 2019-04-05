@@ -48,7 +48,7 @@ class Pin(object):
         return self._config['service_name']
 
     def __setattr__(self, name, value):
-        if getattr(self, '_initialized', False) and name is not '_target':
+        if getattr(self, '_initialized', False) and name != '_target':
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 

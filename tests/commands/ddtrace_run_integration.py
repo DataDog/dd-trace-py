@@ -3,8 +3,6 @@ An integration test that uses a real Redis client
 that we expect to be implicitly traced via `ddtrace-run`
 """
 
-from __future__ import print_function
-
 import redis
 
 from ddtrace import Pin
