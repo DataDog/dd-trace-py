@@ -6,7 +6,7 @@ from ddtrace.internal.runtime.runtime_metrics import (
 from ddtrace.internal.runtime.constants import (
     DEFAULT_RUNTIME_METRICS,
     DEFAULT_RUNTIME_TAGS,
-    GC_GEN1_COUNT,
+    GC_GEN0_COUNT,
     RUNTIME_ID,
 )
 from ...base import (
@@ -35,8 +35,8 @@ class TestRuntimeMetrics(BaseTestCase):
         self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
 
     def test_one_metric(self):
-        metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_GEN1_COUNT])]
-        self.assertEqual(metrics, [GC_GEN1_COUNT])
+        metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_GEN0_COUNT])]
+        self.assertEqual(metrics, [GC_GEN0_COUNT])
 
 
 class TestRuntimeWorker(BaseTracerTestCase):
