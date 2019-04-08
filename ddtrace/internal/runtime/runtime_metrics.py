@@ -75,12 +75,14 @@ class RuntimeWorker(object):
     def start(self):
         if not self._thread:
             log.debug("Starting {}".format(self))
-            self._thread = threading.Thread(target=self._target, daemon=True)
-            self._thread.start()
             self._stay_alive = True
+            self._thread = threading.Thread(target=self._target)
+            self._thread.setDaemon(True)
+            self._thread.start()
 
     def stop(self):
         if self._thread and self._stay_alive:
+            log.debug("Stopping {}".format(self))
             self._stay_alive = False
 
     def _write_metric(self, key, value):
