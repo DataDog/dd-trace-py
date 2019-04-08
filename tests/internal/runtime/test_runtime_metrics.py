@@ -44,6 +44,9 @@ class TestRuntimeWorker(BaseTracerTestCase):
         super(TestRuntimeWorker, self).setUp()
         self.worker = RuntimeWorker(self.tracer.dogstatsd)
 
+    def tearDown(self):
+        self.worker.stop()
+
     def test_worker_start_stop(self):
         self.worker.start()
         self.worker.stop()
@@ -51,4 +54,27 @@ class TestRuntimeWorker(BaseTracerTestCase):
     def test_worker_flush(self):
         self.worker.start()
         self.worker.flush()
+
+        # get all received metrics
+        received = []
+        while True:
+            new = self.tracer.dogstatsd.socket.recv()
+            if not new:
+                break
+
+            received.append(new)
+
+        # expect received twice all metrics since we force a flush
+        self.assertEqual(
+            len(received),
+            2*len(DEFAULT_RUNTIME_METRICS)
+        )
+
+        # expect all metrics in default set are received
+        # DEV: dogstatsd gauges in form "{metric_name}:{value}|g"
+        self.assertSetEqual(
+            set([gauge.split(':')[0] for gauge in received]),
+            DEFAULT_RUNTIME_METRICS
+        )
+
         self.worker.stop()
