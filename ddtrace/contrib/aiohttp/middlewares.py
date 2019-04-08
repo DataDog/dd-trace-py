@@ -121,7 +121,7 @@ def on_prepare(request, response):
     request_span.finish()
 
 
-def trace_app(app, tracer, service='aiohttp-web', distributed_tracing=False):
+def trace_app(app, tracer, service='aiohttp-web', distributed_tracing=True):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
