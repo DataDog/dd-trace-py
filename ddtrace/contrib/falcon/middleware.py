@@ -5,25 +5,17 @@ from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
-from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...settings import config
 
 
 class TraceMiddleware(object):
 
-    def __init__(self, tracer, service="falcon", distributed_tracing=False):
+    def __init__(self, tracer, service="falcon", distributed_tracing=True):
         # store tracing references
         self.tracer = tracer
         self.service = service
         self._distributed_tracing = distributed_tracing
-
-        # configure Falcon service
-        self.tracer.set_service_info(
-            app='falcon',
-            app_type=AppTypes.web,
-            service=service,
-        )
 
     def process_request(self, req, resp):
         if self._distributed_tracing:
@@ -31,7 +23,9 @@ class TraceMiddleware(object):
             headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
-            self.tracer.context_provider.activate(context)
+            # Only activate the new context if there was a trace id extracted
+            if context.trace_id:
+                self.tracer.context_provider.activate(context)
 
         span = self.tracer.trace(
             "falcon.request",
@@ -39,9 +33,11 @@ class TraceMiddleware(object):
             span_type=httpx.TYPE,
         )
 
-        # Configure trace search sample rate
-        if config.falcon.event_sample_rate is not None:
-            span.set_tag(EVENT_SAMPLE_RATE_KEY, config.falcon.event_sample_rate)
+        # set analytics sample rate with global config enabled
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.falcon.get_analytics_sample_rate(use_global_config=True)
+        )
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)

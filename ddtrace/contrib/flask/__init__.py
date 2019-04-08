@@ -35,7 +35,15 @@ Configuration
 
    Whether to parse distributed tracing headers from requests received by your Flask app.
 
-   Default: ``False``
+   Default: ``True``
+
+.. py:data:: ddtrace.config.flask['analytics_enabled']
+
+   Whether to generate APM events for Flask in Trace Search & Analytics.
+
+   Can also be enabled with the ``DD_FLASK_ANALYTICS_ENABLED`` environment variable.
+
+   Default: ``None``
 
 .. py:data:: ddtrace.config.flask['service_name']
 

@@ -1,13 +1,15 @@
 from importlib import import_module
 
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .quantize import quantize
 
 from ...compat import urlencode
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import elasticsearch as metadata, http, AppTypes
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
+from ...settings import config
 
 
 def _es_modules():
@@ -67,6 +69,12 @@ def _get_perform_request(elasticsearch):
             if method == 'GET':
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None
+
+            # set analytics sample rate
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.elasticsearch.get_analytics_sample_rate()
+            )
 
             span = quantize(span)
 

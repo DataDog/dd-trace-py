@@ -5,7 +5,7 @@ from django.test import modify_settings
 from django.db import connections
 
 # project
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.ext import errors
 
@@ -40,27 +40,91 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.span_type, 'http')
         eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
 
-    def test_event_sample_rate(self):
-        # ensures that the internals are properly traced
-        with self.override_config('django', dict(event_sample_rate=1)):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
             url = reverse('users-list')
             response = self.client.get(url)
-            eq_(response.status_code, 200)
+            self.assertEqual(response.status_code, 200)
 
-        # check for spans
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
-        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
-        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
-        eq_(sp_request.get_tag('http.status_code'), '200')
-        eq_(sp_request.get_tag('http.url'), '/users/')
-        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
-        eq_(sp_request.get_tag('http.method'), 'GET')
-        eq_(sp_request.span_type, 'http')
-        eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertIsNone(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections

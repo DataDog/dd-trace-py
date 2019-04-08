@@ -2,16 +2,16 @@
 Generic dbapi tracing code.
 """
 
-import logging
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import AppTypes, sql
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
+from ...utils.formats import asbool, get_env
+from ...vendor import wrapt
 
-import wrapt
 
-from ddtrace import Pin
-from ddtrace.ext import AppTypes, sql
-from ddtrace.settings import config
-from ddtrace.utils.formats import asbool, get_env
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 config._add('dbapi2', dict(
     trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),
@@ -50,6 +50,13 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
+            # set analytics sample rate if enabled but only for non-FetchTracedCursor
+            if not isinstance(self, FetchTracedCursor):
+                s.set_tag(
+                    ANALYTICS_SAMPLE_RATE_KEY,
+                    config.dbapi2.get_analytics_sample_rate()
+                )
+
             try:
                 return method(*args, **kwargs)
             finally:
@@ -65,18 +72,23 @@ class TracedCursor(wrapt.ObjectProxy):
     def executemany(self, query, *args, **kwargs):
         """ Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
+        # Always return the result as-is
+        # DEV: Some libraries return `None`, others `int`, and others the cursor objects
+        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        self._trace_method(
+        return self._trace_method(
             self.__wrapped__.executemany, self._self_datadog_name, query, {'sql.executemany': 'true'},
             query, *args, **kwargs)
-        return self
 
     def execute(self, query, *args, **kwargs):
         """ Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
-        self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
-        return self
+
+        # Always return the result as-is
+        # DEV: Some libraries return `None`, others `int`, and others the cursor objects
+        #      These differences should be overriden at the integration specific layer (e.g. in `sqlite3/patch.py`)
+        return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
 
     def callproc(self, proc, args):
         """ Wraps the cursor.callproc method"""

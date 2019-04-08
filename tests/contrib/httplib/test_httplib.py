@@ -1,22 +1,22 @@
 # Standard library
 import contextlib
 import sys
-import unittest
 
 # Third party
-import wrapt
+from ddtrace.vendor import wrapt
 
 # Project
 from ddtrace import config
 from ddtrace.compat import httplib, PY2
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
 from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
 
-from ...test_tracer import get_dummy_tracer
-from ...util import assert_dict_issuperset, override_global_tracer, override_config
+from ...base import BaseTracerTestCase
+from ...util import assert_dict_issuperset, override_global_tracer
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -39,16 +39,19 @@ class HTTPLibBaseMixin(object):
         return value.decode('utf-8')
 
     def setUp(self):
+        super(HTTPLibBaseMixin, self).setUp()
+
         patch()
-        self.tracer = get_dummy_tracer()
         Pin.override(httplib, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
 
+        super(HTTPLibBaseMixin, self).tearDown()
+
 
 # Main test cases for httplib/http.client and urllib2/urllib.request
-class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
+class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
     SPAN_NAME = 'httplib.request' if PY2 else 'http.client.request'
 
     def to_str(self, value):
@@ -64,13 +67,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         conn = httplib.HTTPSConnection(*args, **kwargs)
         Pin.override(conn, tracer=self.tracer)
         return conn
-
-    def setUp(self):
-        patch()
-        self.tracer = get_dummy_tracer()
-
-    def tearDown(self):
-        unpatch()
 
     def test_patch(self):
         """
@@ -354,7 +350,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             self.assertEqual(s.get_tag('http.response.headers.access_control_allow_origin'), None)
 
         # Enabled when configured
-        with override_config('hhtplib', {}):
+        with self.override_config('hhtplib', {}):
             integration_config = config.httplib  # type: IntegrationConfig
             integration_config.http.trace_headers(['my-header', 'access-control-allow-origin'])
             conn = self.get_http_connection(SOCKET)
@@ -497,12 +493,56 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             }
         )
 
+    def test_analytics_default(self):
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            resp = conn.getresponse()
+            self.assertEqual(self.to_str(resp.read()), '')
+            self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'httplib',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200')
+                resp = conn.getresponse()
+                self.assertEqual(self.to_str(resp.read()), '')
+                self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'httplib',
+            dict(analytics_enabled=True)
+        ):
+            conn = self.get_http_connection(SOCKET)
+            with contextlib.closing(conn):
+                conn.request('GET', '/status/200')
+                resp = conn.getresponse()
+                self.assertEqual(self.to_str(resp.read()), '')
+                self.assertEqual(resp.status, 200)
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
 
 # Additional Python2 test cases for urllib
 if PY2:
     import urllib
 
-    class HTTPLibPython2Test(HTTPLibBaseMixin, unittest.TestCase):
+    class HTTPLibPython2Test(HTTPLibBaseMixin, BaseTracerTestCase):
         def test_urllib_request(self):
             """
             When making a request via urllib.urlopen

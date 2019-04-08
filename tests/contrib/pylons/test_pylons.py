@@ -7,7 +7,7 @@ from paste import fixture
 from paste.deploy import loadapp
 
 from ddtrace.ext import http, errors
-from ddtrace.constants import SAMPLING_PRIORITY_KEY, EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
@@ -166,13 +166,61 @@ class PylonsTestCase(BaseTracerTestCase):
         eq_(span.meta.get(http.STATUS_CODE), '200')
         eq_(span.error, 0)
 
-    def test_event_sample_rate(self):
-        with self.override_config('pylons', dict(event_sample_rate=1)):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
             res = self.app.get(url_for(controller='root', action='index'))
             self.assertEqual(res.status, 200)
 
         self.assert_structure(
-            dict(name='pylons.request', metrics={EVENT_SAMPLE_RATE_KEY: 1})
+            dict(name='pylons.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0})
+        )
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('pylons', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                res = self.app.get(url_for(controller='root', action='index'))
+                self.assertEqual(res.status, 200)
+
+        self.assert_structure(
+            dict(name='pylons.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
+        )
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            res = self.app.get(url_for(controller='root', action='index'))
+            self.assertEqual(res.status, 200)
+
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('pylons', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                res = self.app.get(url_for(controller='root', action='index'))
+                self.assertEqual(res.status, 200)
+
+        self.assert_structure(
+            dict(name='pylons.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
         )
 
     def test_template_render(self):
@@ -295,14 +343,14 @@ class PylonsTestCase(BaseTracerTestCase):
         eq_(len(spans), 1)
         span = spans[0]
 
-        ok_(span.trace_id != 100)
-        ok_(span.parent_id != 42)
-        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
+        eq_(span.trace_id, 100)
+        eq_(span.parent_id, 42)
+        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
 
-    def test_distributed_tracing_enabled(self):
+    def test_distributed_tracing_disabled(self):
         # ensure distributed tracing propagator is working
         middleware = self.app.app
-        middleware._distributed_tracing = True
+        middleware._distributed_tracing = False
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -317,9 +365,9 @@ class PylonsTestCase(BaseTracerTestCase):
         eq_(len(spans), 1)
         span = spans[0]
 
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        ok_(span.trace_id != 100)
+        ok_(span.parent_id != 42)
+        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
 
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""

@@ -5,8 +5,9 @@ import time
 # project
 import ddtrace
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlite3 import connection_factory
-from ddtrace.contrib.sqlite3.patch import patch, unpatch
+from ddtrace.contrib.sqlite3.patch import patch, unpatch, TracedSQLiteCursor
 from ddtrace.ext import errors
 
 # testing
@@ -29,8 +30,9 @@ class TestSQLite(BaseTracerTestCase):
         factory = connection_factory(self.tracer, service='my_db_service')
         conn = sqlite3.connect(':memory:', factory=factory)
         q = 'select * from sqlite_master'
-        rows = conn.execute(q)
-        assert not rows.fetchall()
+        cursor = conn.execute(q)
+        self.assertIsInstance(cursor, TracedSQLiteCursor)
+        assert not cursor.fetchall()
         assert not self.spans
 
     def test_service_info(self):
@@ -40,11 +42,7 @@ class TestSQLite(BaseTracerTestCase):
         sqlite3.connect(':memory:')
 
         services = self.tracer.writer.pop_services()
-        self.assertEqual(len(services), 1)
-        expected = {
-            'sqlite': {'app': 'sqlite', 'app_type': 'db'}
-        }
-        self.assertEqual(expected, services)
+        self.assertEqual(services, {})
 
         ddtrace.tracer = backup_tracer
 
@@ -64,6 +62,7 @@ class TestSQLite(BaseTracerTestCase):
             q = 'select * from sqlite_master'
             start = time.time()
             cursor = db.execute(q)
+            self.assertIsInstance(cursor, TracedSQLiteCursor)
             rows = cursor.fetchall()
             end = time.time()
             assert not rows
@@ -284,3 +283,45 @@ class TestSQLite(BaseTracerTestCase):
         db = sqlite3.connect(':memory:')
         Pin.get_from(db).clone(tracer=tracer).onto(db)
         return db
+
+    def test_analytics_default(self):
+        q = 'select * from sqlite_master'
+        connection = self._given_a_traced_connection(self.tracer)
+        cursor = connection.execute(q)
+        cursor.fetchall()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            q = 'select * from sqlite_master'
+            connection = self._given_a_traced_connection(self.tracer)
+            cursor = connection.execute(q)
+            cursor.fetchall()
+
+            spans = self.get_spans()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            q = 'select * from sqlite_master'
+            connection = self._given_a_traced_connection(self.tracer)
+            cursor = connection.execute(q)
+            cursor.fetchall()
+
+            spans = self.get_spans()
+
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)

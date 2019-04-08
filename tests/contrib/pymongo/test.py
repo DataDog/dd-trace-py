@@ -2,11 +2,12 @@
 import time
 
 # 3p
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 import pymongo
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import mongo as mongox
 from ddtrace.contrib.pymongo.client import trace_mongo_client, normalize_filter
 from ddtrace.contrib.pymongo.patch import patch, unpatch
@@ -14,6 +15,7 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
+from ...base import override_config
 from ...test_tracer import get_dummy_tracer
 
 
@@ -300,6 +302,41 @@ class PymongoCore(object):
 
         eq_(expected_resources, {s.resource for s in spans[1:]})
 
+    def test_analytics_default(self):
+        tracer, client = self.get_tracer_and_client()
+        db = client['testdb']
+        db.drop_collection('songs')
+
+        spans = tracer.writer.pop()
+        eq_(len(spans), 1)
+        ok_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
+    def test_analytics_with_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            tracer, client = self.get_tracer_and_client()
+            db = client['testdb']
+            db.drop_collection('songs')
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with override_config(
+            'pymongo',
+            dict(analytics_enabled=True)
+        ):
+            tracer, client = self.get_tracer_and_client()
+            db = client['testdb']
+            db.drop_collection('songs')
+
+            spans = tracer.writer.pop()
+            eq_(len(spans), 1)
+            eq_(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
 
 class TestPymongoTraceClient(PymongoCore):
     """Test suite for pymongo with the legacy trace interface"""
@@ -337,11 +374,7 @@ class TestPymongoPatchDefault(PymongoCore):
         db.drop_collection('songs')
 
         services = writer.pop_services()
-        eq_(len(services), 1)
-        assert self.TEST_SERVICE in services
-        s = services[self.TEST_SERVICE]
-        assert s['app_type'] == 'db'
-        assert s['app'] == 'mongodb'
+        eq_(services, {})
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client

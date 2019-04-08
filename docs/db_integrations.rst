@@ -76,6 +76,7 @@ mysql-connector
 
 .. _mysqlclient:
 .. _MySQL-python:
+.. _mysqldb:
 
 mysqlclient/MySQL-python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

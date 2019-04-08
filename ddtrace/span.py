@@ -1,4 +1,3 @@
-import logging
 import math
 import random
 import sys
@@ -8,9 +7,10 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types
 from .constants import NUMERIC_TAGS
 from .ext import errors
+from .internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Span(object):
@@ -130,9 +130,14 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
-        if key in NUMERIC_TAGS:
-            return self.set_metric(key, value)
 
+        if key in NUMERIC_TAGS:
+            try:
+                self.set_metric(key, float(value))
+            except (TypeError, ValueError):
+                log.debug("error setting numeric metric {}:{}".format(key, value))
+
+            return
         try:
             self.meta[key] = stringify(value)
         except Exception:

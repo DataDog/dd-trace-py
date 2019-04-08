@@ -6,7 +6,7 @@ from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
 from ddtrace.sampler import RateSampler
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 from tests.opentracer.utils import init_tracer
@@ -21,16 +21,6 @@ class TestTraceMiddleware(TraceTestCase):
     """
     def enable_tracing(self):
         trace_app(self.app, self.tracer)
-
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_tracing_service(self):
-        # it should configure the aiohttp service
-        eq_(1, len(self.tracer._services))
-        service = self.tracer._services.get('aiohttp-web')
-        eq_('aiohttp-web', service[0])
-        eq_('aiohttp', service[1])
-        eq_('web', service[2])
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -215,8 +205,7 @@ class TestTraceMiddleware(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_distributed_tracing(self):
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
+        # distributed tracing is enabled by default
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -241,8 +230,6 @@ class TestTraceMiddleware(TraceTestCase):
     def test_distributed_tracing_with_sampling_true(self):
         self.tracer.priority_sampler = RateSampler(0.1)
 
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -268,8 +255,6 @@ class TestTraceMiddleware(TraceTestCase):
     def test_distributed_tracing_with_sampling_false(self):
         self.tracer.priority_sampler = RateSampler(0.9)
 
-        # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -292,8 +277,9 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
-    def test_distributed_tracing_disabled_default(self):
+    def test_distributed_tracing_disabled(self):
         # pass headers for distributed tracing
+        self.app['datadog_trace']['distributed_tracing_enabled'] = False
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -318,7 +304,6 @@ class TestTraceMiddleware(TraceTestCase):
         self.tracer.priority_sampler = RateSampler(1.0)
 
         # activate distributed tracing
-        self.app['datadog_trace']['distributed_tracing_enabled'] = True
         tracing_headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
@@ -399,3 +384,40 @@ class TestTraceMiddleware(TraceTestCase):
         eq_("What's tracing?", text)
         traces = self.tracer.writer.pop_traces()
         self._assert_200_parenting(traces)
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_enabled(self):
+        """ Check trace has analytics sample rate set """
+        self.app['datadog_trace']['analytics_enabled'] = True
+        self.app['datadog_trace']['analytics_sample_rate'] = 0.5
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span sets the appropriate metric
+        self.assert_structure(
+            dict(name='aiohttp.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
+        )
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_default(self):
+        """ Check trace has analytics sample rate set """
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span does not have the appropriate metric
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_analytics_integration_disabled(self):
+        """ Check trace has analytics sample rate set """
+        self.app['datadog_trace']['analytics_enabled'] = False
+        request = yield from self.client.request('GET', '/template/')
+        yield from request.text()
+
+        # Assert root span does not have the appropriate metric
+        root = self.get_root_span()
+        self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))

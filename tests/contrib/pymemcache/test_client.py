@@ -9,7 +9,7 @@ from pymemcache.exceptions import (
     MemcacheIllegalInputError,
 )
 import unittest
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin

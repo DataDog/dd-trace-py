@@ -7,14 +7,15 @@ A library instrumentation can be configured (for instance, to report as another 
 using Pin. For that, check its documentation.
 """
 import importlib
-import logging
 import sys
 import threading
 
-from wrapt.importer import when_imported
+from ddtrace.vendor.wrapt.importer import when_imported
+
+from .internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -47,6 +48,7 @@ PATCH_MODULES = {
     'vertica': True,
     'molten': True,
     'jinja2': True,
+    'mako': True,
     'flask': True,
     'kombu': False,
 
@@ -55,6 +57,9 @@ PATCH_MODULES = {
     "falcon": False,
     "pylons": False,
     "pyramid": False,
+
+    # Standard library modules off by default
+    'logging': False,
 }
 
 _LOCK = threading.Lock()

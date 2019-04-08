@@ -1,6 +1,6 @@
 # 3p
-import psycopg2.extensions
-import wrapt
+import psycopg2
+from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import Pin, config

@@ -4,7 +4,7 @@ import asyncio
 import aiopg.connection
 import aiopg.pool
 import psycopg2.extensions
-import wrapt
+from ddtrace.vendor import wrapt
 
 # ddtrace
 from .connection import AIOTracedConnection

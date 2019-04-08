@@ -9,7 +9,7 @@ import ddtrace
 from unittest import TestCase, skip, skipUnless
 from nose.tools import eq_, ok_
 
-from ddtrace.api import API
+from ddtrace.api import API, Response
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
@@ -41,7 +41,7 @@ class FlawedAPI(API):
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request('HEAD', endpoint, data, self._headers)
-        return conn.getresponse()
+        return Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(
@@ -150,27 +150,6 @@ class TestWorkers(TestCase):
         eq_(payload[0][0]['name'], 'client.testing')
         eq_(payload[0][1]['name'], 'client.testing')
 
-    def test_worker_single_service(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('client.service', 'django', 'web')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 1)
-
-    def test_worker_service_called_multiple_times(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('backend', 'django', 'web')
-        tracer.set_service_info('database', 'postgres', 'db')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 1)
-
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
@@ -188,7 +167,7 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)
-        ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
+        ok_('failed_to_send traces to Datadog Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
     def test_worker_filter_request(self):
@@ -273,26 +252,7 @@ class TestAPITransport(TestCase):
         # make a call and retrieve the `conn` Mock object
         self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
-        eq_(request_call.call_count, 1)
-
-        # retrieve the headers from the mocked request call
-        expected_headers = {
-                'Datadog-Meta-Lang': 'python',
-                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-                'Content-Type': 'application/msgpack'
-        }
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        eq_(len(expected_headers), len(headers))
-        for k, v in expected_headers.items():
-            eq_(v, headers[k])
-
-        # retrieve the headers from the mocked request call
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        ok_('X-Datadog-Trace-Count' not in headers.keys())
+        eq_(request_call.call_count, 0)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -398,13 +358,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
     def test_send_service_called_multiple_times(self):
         # register some services and send them to the trace agent
@@ -421,13 +379,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
 
 @skipUnless(
@@ -488,8 +444,8 @@ class TestRateByService(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder(), priority_sampling=True)
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder(), priority_sampling=True)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -506,11 +462,13 @@ class TestRateByService(TestCase):
         response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
 
 
 @skipUnless(

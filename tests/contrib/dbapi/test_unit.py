@@ -1,6 +1,7 @@
 import mock
 
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ...base import BaseTracerTestCase
 
@@ -14,17 +15,23 @@ class TestTracedCursor(BaseTracerTestCase):
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.executemany.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = TracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_fetchone_wrapped_is_called_and_returned(self):
@@ -114,14 +121,17 @@ class TestTracedCursor(BaseTracerTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+        cursor.executemany.return_value = '__result__'
+
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
         traced_cursor = TracedCursor(cursor, pin)
 
-        assert traced_cursor is traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
-        assert traced_cursor is traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'
@@ -181,6 +191,53 @@ class TestTracedCursor(BaseTracerTestCase):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
+    def test_cursor_analytics_default(self):
+        cursor = self.cursor
+        cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
+        pin = Pin('pin_name', tracer=self.tracer)
+        traced_cursor = TracedCursor(cursor, pin)
+        # DEV: We always pass through the result
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+        span = self.tracer.writer.pop()[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_cursor_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.execute.return_value = '__result__'
+
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = TracedCursor(cursor, pin)
+            # DEV: We always pass through the result
+            assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_cursor_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.execute.return_value = '__result__'
+
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = TracedCursor(cursor, pin)
+            # DEV: We always pass through the result
+            assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
 
 class TestFetchTracedCursor(BaseTracerTestCase):
 
@@ -191,17 +248,21 @@ class TestFetchTracedCursor(BaseTracerTestCase):
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.execute.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
         cursor.rowcount = 0
+        cursor.executemany.return_value = '__result__'
+
         pin = Pin('pin_name', tracer=self.tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
-        assert traced_cursor is traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('__query__', 'arg_1', kwarg1='kwarg1')
         cursor.executemany.assert_called_once_with('__query__', 'arg_1', kwarg1='kwarg1')
 
     def test_fetchone_wrapped_is_called_and_returned(self):
@@ -297,14 +358,17 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         cursor = self.cursor
         tracer = self.tracer
         cursor.rowcount = 0
+        cursor.execute.return_value = '__result__'
+        cursor.executemany.return_value = '__result__'
+
         tracer.enabled = False
         pin = Pin('pin_name', tracer=tracer)
         traced_cursor = FetchTracedCursor(cursor, pin)
 
-        assert traced_cursor is traced_cursor.execute('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.execute('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
-        assert traced_cursor is traced_cursor.executemany('arg_1', kwarg1='kwarg1')
+        assert '__result__' == traced_cursor.executemany('arg_1', kwarg1='kwarg1')
         assert len(tracer.writer.pop()) == 0
 
         cursor.callproc.return_value = 'callproc'
@@ -364,6 +428,42 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
         assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
+    def test_fetch_no_analytics(self):
+        """ Confirm fetch* methods do not have analytics sample rate metric """
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.fetchone.return_value = '__result__'
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = FetchTracedCursor(cursor, pin)
+            assert '__result__' == traced_cursor.fetchone('arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.fetchall.return_value = '__result__'
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = FetchTracedCursor(cursor, pin)
+            assert '__result__' == traced_cursor.fetchall('arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+            cursor = self.cursor
+            cursor.rowcount = 0
+            cursor.fetchmany.return_value = '__result__'
+            pin = Pin('pin_name', tracer=self.tracer)
+            traced_cursor = FetchTracedCursor(cursor, pin)
+            assert '__result__' == traced_cursor.fetchmany('arg_1', kwarg1='kwarg1')
+
+            span = self.tracer.writer.pop()[0]
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
 
 class TestTracedConnection(BaseTracerTestCase):
     def setUp(self):
@@ -406,3 +506,17 @@ class TestTracedConnection(BaseTracerTestCase):
         traced_connection.rollback()
         assert tracer.writer.pop()[0].name == 'mock.connection.rollback'
         connection.rollback.assert_called_with()
+
+    def test_connection_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            connection = self.connection
+            tracer = self.tracer
+            connection.commit.return_value = None
+            pin = Pin('pin_name', tracer=tracer)
+            traced_connection = TracedConnection(connection, pin)
+            traced_connection.commit()
+            span = tracer.writer.pop()[0]
+            self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))

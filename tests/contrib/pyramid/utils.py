@@ -5,7 +5,7 @@ from pyramid.httpexceptions import HTTPException
 import webtest
 
 from ddtrace import compat
-from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 
 from .app import create_app
@@ -65,18 +65,64 @@ class PyramidTestCase(PyramidBase):
 
         # ensure services are set correctly
         services = writer.pop_services()
-        expected = {
-            'foobar': {"app": "pyramid", "app_type": "web"}
-        }
+        expected = {}
         eq_(services, expected)
 
-    def test_event_sample_rate(self):
-        with self.override_config('pyramid', dict(event_sample_rate=1)):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
             res = self.app.get('/', status=200)
             assert b'idx' in res.body
 
             self.assert_structure(
-                dict(name='pyramid.request', metrics={EVENT_SAMPLE_RATE_KEY: 1}),
+                dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0}),
+            )
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            self.override_settings(dict(datadog_analytics_enabled=True, datadog_analytics_sample_rate=0.5))
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
+
+            self.assert_structure(
+                dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
+            )
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
+
+            root = self.get_root_span()
+            self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            self.override_settings(dict(datadog_analytics_enabled=True, datadog_analytics_sample_rate=0.5))
+            res = self.app.get('/', status=200)
+            assert b'idx' in res.body
+
+            self.assert_structure(
+                dict(name='pyramid.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}),
             )
 
     def test_404(self):

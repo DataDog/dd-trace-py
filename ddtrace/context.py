@@ -1,10 +1,10 @@
-import logging
 import threading
 
-from .constants import SAMPLING_PRIORITY_KEY
+from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .internal.logger import get_logger
 from .utils.formats import asbool, get_env
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Context(object):
@@ -25,7 +25,7 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
     _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
 
-    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
+    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None, _dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -41,6 +41,7 @@ class Context(object):
         self._parent_span_id = span_id
         self._sampled = sampled
         self._sampling_priority = sampling_priority
+        self._dd_origin = _dd_origin
 
     @property
     def trace_id(self):
@@ -184,6 +185,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
 
                 # clean the current state
                 self._trace = []
@@ -202,6 +207,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
 
                 # Any open spans will remain as `self._trace`
                 # Any finished spans will get returned to be flushed
@@ -238,6 +247,16 @@ class ThreadLocalContext(object):
     """
     def __init__(self):
         self._locals = threading.local()
+
+    def _has_active_context(self):
+        """
+        Determine whether we have a currently active context for this thread
+
+        :returns: Whether an active context exists
+        :rtype: bool
+        """
+        ctx = getattr(self._locals, 'context', None)
+        return ctx is not None
 
     def set(self, ctx):
         setattr(self._locals, 'context', ctx)

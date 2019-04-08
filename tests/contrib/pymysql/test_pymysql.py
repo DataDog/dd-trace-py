@@ -5,6 +5,7 @@ from nose.tools import eq_
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.compat import PY2
 from ddtrace.compat import stringify
 from ddtrace.contrib.pymysql.patch import patch, unpatch
@@ -54,7 +55,11 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute('SELECT 1')
+
+        # PyMySQL returns back the rowcount instead of a cursor
+        rowcount = cursor.execute('SELECT 1')
+        eq_(rowcount, 1)
+
         rows = cursor.fetchall()
         eq_(len(rows), 1)
         spans = writer.pop()
@@ -135,7 +140,11 @@ class PyMySQLCore(object):
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
         data = [("foo", "this is foo"),
                 ("bar", "this is bar")]
-        cursor.executemany(stmt, data)
+
+        # PyMySQL `executemany()` returns the rowcount
+        rowcount = cursor.executemany(stmt, data)
+        eq_(rowcount, 2)
+
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)
         rows = cursor.fetchall()
@@ -309,6 +318,53 @@ class PyMySQLCore(object):
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
         eq_(span.name, 'pymysql.connection.rollback')
+
+    def test_analytics_default(self):
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        eq_(len(rows), 1)
+        spans = writer.pop()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            conn, tracer = self._get_conn_tracer()
+            writer = tracer.writer
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
+
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+                'dbapi2',
+                dict(analytics_enabled=True)
+        ):
+            conn, tracer = self._get_conn_tracer()
+            writer = tracer.writer
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            rows = cursor.fetchall()
+            eq_(len(rows), 1)
+            spans = writer.pop()
+
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
 
 class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
