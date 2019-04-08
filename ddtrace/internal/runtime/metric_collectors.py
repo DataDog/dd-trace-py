@@ -59,8 +59,8 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 (MEM_RSS, self.proc.memory_info().rss),
                 (CTX_SWITCH_VOLUNTARY, self.proc.num_ctx_switches().voluntary),
                 (CTX_SWITCH_INVOLUNTARY, self.proc.num_ctx_switches().involuntary),
-                (CPU_TIME_SYS, self.proc.cpu_times().user),
-                (CPU_TIME_USER, self.proc.cpu_times().system),
+                (CPU_TIME_SYS, self.proc.cpu_times().system),
+                (CPU_TIME_USER, self.proc.cpu_times().user),
                 (CPU_PERCENT, self.proc.cpu_percent()),
             ]
 
