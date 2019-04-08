@@ -86,7 +86,6 @@ setup_kwargs = dict(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        'datadog',
         'msgpack-python',
         'psutil',
     ],
