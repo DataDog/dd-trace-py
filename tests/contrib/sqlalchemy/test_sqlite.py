@@ -1,4 +1,4 @@
-from nose.tools import assert_raises
+import pytest
 
 from sqlalchemy.exc import OperationalError
 
@@ -21,7 +21,7 @@ class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
-        with assert_raises(OperationalError):
+        with pytest.raises(OperationalError):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
