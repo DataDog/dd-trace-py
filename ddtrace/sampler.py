@@ -38,7 +38,7 @@ class RateSampler(object):
 
         self.set_sample_rate(sample_rate)
 
-        log.info("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
+        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate):
         self.sample_rate = sample_rate

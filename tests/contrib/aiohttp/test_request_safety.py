@@ -67,14 +67,13 @@ class TestAiohttpSafety(TraceTestCase):
         ctx = self.tracer.get_call_context()
         threads = [threading.Thread(target=make_requests) for _ in range(10)]
         for t in threads:
-            t.daemon = True
             t.start()
 
-        # we should yield so that this loop can handle
-        # threads' requests
-        yield from asyncio.sleep(0.5)
         for t in threads:
-            t.join(timeout=0.5)
+            # we should yield so that this loop can handle
+            # threads' requests
+            yield from asyncio.sleep(0.1)
+            t.join(0.1)
 
         # the trace is wrong but the Context is finished
         traces = self.tracer.writer.pop_traces()
