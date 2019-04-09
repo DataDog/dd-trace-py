@@ -1,12 +1,10 @@
-from __future__ import print_function
-
 import sys
 from nose.tools import ok_
 
 
 if __name__ == '__main__':
     # detect if `-S` is used
-    suppress = len(sys.argv) == 2 and sys.argv[1] is '-S'
+    suppress = len(sys.argv) == 2 and sys.argv[1] == '-S'
     if suppress:
         ok_('sitecustomize' not in sys.modules)
     else:
