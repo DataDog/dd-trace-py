@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from ddtrace.opentracer import Tracer
 
 if __name__ == '__main__':

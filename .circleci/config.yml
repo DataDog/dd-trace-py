@@ -324,13 +324,17 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{31}-redis{210}' --result-json /tmp/celery.1.results
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{40,41,42}-{redis210-kombu43,redis320-kombu44}' --result-json /tmp/celery.2.results
+      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{31}-redis{210}' --result-json /tmp/celery31.results
+      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{40,41}-{redis210-kombu43,redis320-kombu44}' --result-json /tmp/celery40-41.results
+      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery42-redis210-kombu43' --result-json /tmp/celery42.results
+      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery43-redis320-kombu44' --result-json /tmp/celery43.results
       - persist_to_workspace:
           root: /tmp
           paths:
-            - celery.1.results
-            - celery.2.results
+            - celery31.results
+            - celery40-41.results
+            - celery42.results
+            - celery43.results
       - *save_cache_step
 
   elasticsearch:
@@ -497,7 +501,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' mysql
-      - run: tox -e 'mysql_contrib-{py27,py34,py35,py36}-mysqlconnector{21}' --result-json /tmp/mysqlconnector.results
+      - run: tox -e 'mysql_contrib-{py27,py34,py35,py36}-mysqlconnector' --result-json /tmp/mysqlconnector.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -689,7 +693,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres mysql
-      - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector{21}' --result-json /tmp/sqlalchemy.results
+      - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector' --result-json /tmp/sqlalchemy.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -738,7 +742,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'aiobotocore_contrib-{py34,py35,py36}-aiobotocore{02,03,04}' --result-json /tmp/aiobotocore.results
+      - run: tox -e 'aiobotocore_contrib-py34-aiobotocore{02,03,04},aiobotocore_contrib-{py35,py36}-aiobotocore{02,03,04,05,07,08,09,010}' --result-json /tmp/aiobotocore.results
       - persist_to_workspace:
           root: /tmp
           paths:

@@ -1,5 +1,6 @@
 # flake8: noqa
 # DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
+import aiobotocore
 from nose.tools import eq_
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
@@ -36,22 +37,37 @@ class AIOBotocoreTest(AsyncioTestCase):
                 await stream.read()
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 2)
-        eq_(len(traces[0]), 1)
-        eq_(len(traces[1]), 1)
 
-        span = traces[0][0]
-        eq_(span.get_tag('aws.operation'), 'GetObject')
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.service, 'aws.s3')
-        eq_(span.resource, 's3.getobject')
+        version = aiobotocore.__version__.split(".")
+        pre_08 = int(version[0]) == 0 and int(version[1]) < 8
+        # Version 0.8+ generates only one span for reading an object.
+        if pre_08:
+            eq_(len(traces), 2)
+            eq_(len(traces[0]), 1)
+            eq_(len(traces[1]), 1)
 
-        read_span = traces[1][0]
-        eq_(read_span.get_tag('aws.operation'), 'GetObject')
-        eq_(read_span.get_tag('http.status_code'), '200')
-        eq_(read_span.service, 'aws.s3')
-        eq_(read_span.resource, 's3.getobject')
-        eq_(read_span.name, 's3.command.read')
-        # enforce parenting
-        eq_(read_span.parent_id, span.span_id)
-        eq_(read_span.trace_id, span.trace_id)
+            span = traces[0][0]
+            eq_(span.get_tag('aws.operation'), 'GetObject')
+            eq_(span.get_tag('http.status_code'), '200')
+            eq_(span.service, 'aws.s3')
+            eq_(span.resource, 's3.getobject')
+
+            read_span = traces[1][0]
+            eq_(read_span.get_tag('aws.operation'), 'GetObject')
+            eq_(read_span.get_tag('http.status_code'), '200')
+            eq_(read_span.service, 'aws.s3')
+            eq_(read_span.resource, 's3.getobject')
+            eq_(read_span.name, 's3.command.read')
+            # enforce parenting
+            eq_(read_span.parent_id, span.span_id)
+            eq_(read_span.trace_id, span.trace_id)
+        else:
+            eq_(len(traces[0]), 1)
+            eq_(len(traces[0]), 1)
+
+            span = traces[0][0]
+            eq_(span.get_tag('aws.operation'), 'GetObject')
+            eq_(span.get_tag('http.status_code'), '200')
+            eq_(span.service, 'aws.s3')
+            eq_(span.resource, 's3.getobject')
+            eq_(span.name, 's3.command')
