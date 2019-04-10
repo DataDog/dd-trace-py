@@ -2,9 +2,9 @@ import os
 
 from .collector import ValueCollector
 from .constants import (
-    GC_GEN0_COUNT,
-    GC_GEN1_COUNT,
-    GC_GEN2_COUNT,
+    GC_COUNT_GEN0,
+    GC_COUNT_GEN1,
+    GC_COUNT_GEN2,
     THREAD_COUNT,
     MEM_RSS,
     CTX_SWITCH_VOLUNTARY,
@@ -32,9 +32,9 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
 
         counts = gc.get_count()
         metrics = [
-            (GC_GEN0_COUNT, counts[0]),
-            (GC_GEN1_COUNT, counts[1]),
-            (GC_GEN2_COUNT, counts[2]),
+            (GC_COUNT_GEN0, counts[0]),
+            (GC_COUNT_GEN1, counts[1]),
+            (GC_COUNT_GEN2, counts[2]),
         ]
 
         return metrics

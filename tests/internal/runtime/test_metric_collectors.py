@@ -5,7 +5,7 @@ from ddtrace.internal.runtime.metric_collectors import (
 )
 
 from ddtrace.internal.runtime.constants import (
-    GC_GEN0_COUNT,
+    GC_COUNT_GEN0,
     GC_RUNTIME_METRICS,
     PSUTIL_RUNTIME_METRICS,
 )
@@ -51,11 +51,11 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
 
         # create reference
         a = []
-        collected = collector.collect([GC_GEN0_COUNT])
+        collected = collector.collect([GC_COUNT_GEN0])
         self.assertGreater(collected[0][1], start[0])
 
         # delete reference and collect
         del a
         gc.collect()
-        collected_after = collector.collect([GC_GEN0_COUNT])
+        collected_after = collector.collect([GC_COUNT_GEN0])
         self.assertLess(collected_after[0][1], collected[0][1])
