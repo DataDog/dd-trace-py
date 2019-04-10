@@ -268,10 +268,7 @@ class Tracer(object):
             # The run-time metrics worker needs to be reinitialized with any new
             # service(s) that may have been added.
             if self._runtime_worker:
-                self._runtime_worker.reset(
-                    self._runtime_id,
-                    self._services,
-                )
+                self._runtime_worker.reset()
 
         # If there's a run-time metrics worker then set the necessary tags
         if self._runtime_worker:
