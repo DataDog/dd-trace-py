@@ -65,9 +65,10 @@ class Tracer(object):
 
         # Runtime id used for associating data collected during runtime to
         # traces
-        self._runtime_id = generate_runtime_id()
         self._pid = getpid()
+        self._runtime_id = generate_runtime_id()
         self._runtime_worker = None
+        self._dogstatsd_client = None
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -153,10 +154,13 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._runtime_worker is None:
-            self._start_dogstatsd(
-                dogstatsd_host or self.DEFAULT_HOSTNAME,
-                dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
-            )
+            # start dogstatsd client if not already running
+            if not self._dogstatsd_client:
+                self._start_dogstatsd_client(
+                    dogstatsd_host or self.DEFAULT_HOSTNAME,
+                    dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
+                )
+
             self._start_runtime_worker()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
@@ -253,6 +257,11 @@ class Tracer(object):
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
                     context.sampling_priority = 0
 
+            # add tags to root span to correlate trace with runtime metrics
+            if self._runtime_worker:
+                span.set_tag('runtime-id', self._runtime_id)
+                span.set_tag('language', 'python')
+
         # add common tags
         if self.tags:
             span.set_tags(self.tags)
@@ -262,6 +271,7 @@ class Tracer(object):
         # add it to the current context
         context.add_span(span)
 
+        # update set of services handled by tracer
         if service and service not in self._services:
             self._services.add(service)
 
@@ -270,10 +280,8 @@ class Tracer(object):
             if self._runtime_worker:
                 self._runtime_worker.reset()
 
-        # If there's a run-time metrics worker then set the necessary tags
+        # check for new process if runtime metrics worker has already been started
         if self._runtime_worker:
-            span.set_tag('runtime-id', self._runtime_id)
-            span.set_tag('language', 'python')
             self._check_new_process()
 
         return span
@@ -287,20 +295,19 @@ class Tracer(object):
             for k, v in RuntimeTags()
         ]
 
-    def _start_dogstatsd(self, host, port):
+    def _start_dogstatsd_client(self, host, port):
         # start dogstatsd as client with constant tags
-        if not hasattr(self, 'dogstatsd') or self.dogstatsd is None:
-            constant_tags = self._dogstatsd_constant_tags()
-            log.debug('Starting DogStatsd on {}:{}'.format(host, port))
-            log.debug('Reporting constant tags {}'.format(constant_tags))
-            self.dogstatsd = DogStatsd(
-                host=host,
-                port=port,
-                constant_tags=constant_tags,
-            )
+        constant_tags = self._dogstatsd_constant_tags()
+        log.debug('Starting DogStatsd on {}:{}'.format(host, port))
+        log.debug('Reporting constant tags {}'.format(constant_tags))
+        self._dogstatsd_client = DogStatsd(
+            host=host,
+            port=port,
+            constant_tags=constant_tags,
+        )
 
     def _start_runtime_worker(self):
-        self._runtime_worker = RuntimeWorker(self.dogstatsd)
+        self._runtime_worker = RuntimeWorker(self._dogstatsd_client)
         self._runtime_worker.start()
 
     def _check_new_process(self):
