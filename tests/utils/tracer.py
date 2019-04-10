@@ -3,7 +3,6 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
 from ddtrace.compat import PY3
-from ddtrace.vendor.dogstatsd import DogStatsd
 
 
 class DummyWriter(AgentWriter):
@@ -62,10 +61,9 @@ class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
     """
-    def __init__(self, *args, **kwargs):
-        super(DummyTracer, self).__init__(*args, **kwargs)
+    def __init__(self):
+        super(DummyTracer, self).__init__()
         self._update_writer()
-        self._update_dogstatsd()
 
     def _update_writer(self):
         self.writer = DummyWriter(
@@ -75,15 +73,10 @@ class DummyTracer(Tracer):
                 priority_sampler=self.writer._priority_sampler,
         )
 
-    def _update_dogstatsd(self):
-        self.dogstatsd = DogStatsd()
-        self.dogstatsd.socket = FakeSocket()
-
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
         self._update_writer()
-        self._update_dogstatsd()
 
 
 class FakeSocket(object):

@@ -424,6 +424,14 @@ class TracerTestCase(BaseTracerTestCase):
         )
         self.assertEqual(child._context._current_span, child)
 
+    def test_adding_services(self):
+        self.assertEqual(self.tracer._services, set())
+        root = self.start_span('root', service='one')
+        context = root.context
+        self.assertSetEqual(self.tracer._services, set(['one']))
+        child = self.start_span('child', service='two', child_of=context)
+        self.assertSetEqual(self.tracer._services, set(['one', 'two']))
+
     def test_configure_runtime_worker(self):
         # by default runtime worker not started though runtime id is set
         self.assertIsNone(self.tracer._runtime_worker)
@@ -438,7 +446,8 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(collect_metrics=False)
 
         root = self.start_span('root')
-        child = self.start_span('child')
+        context = root.context
+        child = self.start_span('child', child_of=context)
 
         self.assertIsNone(root.get_tag('runtime-id'))
         self.assertIsNone(root.get_tag('language'))

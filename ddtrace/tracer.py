@@ -275,10 +275,9 @@ class Tracer(object):
         if service:
             self._services.add(service)
 
-            # The run-time metrics worker needs to be reinitialized with any new
+            # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
-            if self._runtime_worker:
-                self._runtime_worker.reset()
+            self._update_dogstatsd_constant_tags()
 
         # check for new process if runtime metrics worker has already been started
         if self._runtime_worker:
@@ -286,24 +285,26 @@ class Tracer(object):
 
         return span
 
-    def _dogstatsd_constant_tags(self):
+    def _update_dogstatsd_constant_tags(self):
         """ Prepare runtime tags for ddstatsd.
         """
+        if not self._dogstatsd_client:
+            return
+
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        return [
+        tags = [
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
+        log.debug('Updating constant tags {}'.format(tags))
+        self._dogstatsd_client.constant_tags = tags
 
     def _start_dogstatsd_client(self, host, port):
         # start dogstatsd as client with constant tags
-        constant_tags = self._dogstatsd_constant_tags()
         log.debug('Starting DogStatsd on {}:{}'.format(host, port))
-        log.debug('Reporting constant tags {}'.format(constant_tags))
         self._dogstatsd_client = DogStatsd(
             host=host,
             port=port,
-            constant_tags=constant_tags,
         )
 
     def _start_runtime_worker(self):

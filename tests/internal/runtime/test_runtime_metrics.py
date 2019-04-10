@@ -11,10 +11,13 @@ from ddtrace.internal.runtime.constants import (
     GC_COUNT_GEN0,
     RUNTIME_ID,
 )
+from ddtrace.vendor.dogstatsd import DogStatsd
+
 from ...base import (
     BaseTestCase,
     BaseTracerTestCase,
 )
+from ...utils.tracer import FakeSocket
 
 
 class TestRuntimeTags(BaseTracerTestCase):
@@ -42,34 +45,44 @@ class TestRuntimeMetrics(BaseTestCase):
 
 
 class TestRuntimeWorker(BaseTracerTestCase):
-    def setUp(self):
-        super(TestRuntimeWorker, self).setUp()
-        self.worker = RuntimeWorker(self.tracer.dogstatsd)
+    def test_worker_metrics(self):
+        self.tracer.configure(collect_metrics=True)
 
-    def tearDown(self):
-        self.worker.stop()
+        with self.override_global_tracer(self.tracer):
+            self.tracer._dogstatsd_client = DogStatsd()
+            self.tracer._dogstatsd_client.socket = FakeSocket()
 
-    def test_worker_flush(self):
-        self.worker.start()
-        self.worker.stop()
+            root = self.start_span('parent', service='parent')
+            context = root.context
+            child = self.start_span('child', service='child', child_of=context)
 
-        # get all received metrics
-        received = []
-        while True:
-            new = self.tracer.dogstatsd.socket.recv()
-            if not new:
-                break
+            self.worker = RuntimeWorker(self.tracer._dogstatsd_client)
+            self.worker.start()
+            self.worker.stop()
 
-            received.append(new)
-            # DEV: sleep since metrics will still be getting collected and written
-            time.sleep(.5)
+            # get all received metrics
+            received = []
+            while True:
+                new = self.tracer._dogstatsd_client.socket.recv()
+                if not new:
+                    break
 
-        # expect received all default metrics
-        self.assertEqual(len(received), len(DEFAULT_RUNTIME_METRICS))
+                received.append(new)
+                # DEV: sleep since metrics will still be getting collected and written
+                time.sleep(.5)
 
-        # expect all metrics in default set are received
-        # DEV: dogstatsd gauges in form "{metric_name}:{value}|g"
-        self.assertSetEqual(
-            set([gauge.split(':')[0] for gauge in received]),
-            DEFAULT_RUNTIME_METRICS
-        )
+            # expect received all default metrics
+            self.assertEqual(len(received), len(DEFAULT_RUNTIME_METRICS))
+
+            # expect all metrics in default set are received
+            # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
+            self.assertSetEqual(
+                set([gauge.split(':')[0] for gauge in received]),
+                DEFAULT_RUNTIME_METRICS
+            )
+
+            print(self.tracer._dogstatsd_client.constant_tags)
+            for gauge in received:
+                self.assertRegexpMatches(gauge, 'runtime-id:')
+                self.assertRegexpMatches(gauge, 'service:parent')
+                self.assertRegexpMatches(gauge, 'service:child')
