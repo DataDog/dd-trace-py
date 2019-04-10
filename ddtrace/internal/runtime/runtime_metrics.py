@@ -71,7 +71,7 @@ class RuntimeWorker(object):
         while self._stay_alive:
             self.flush()
             time.sleep(self._flush_interval)
-
+       
     def start(self):
         if not self._thread:
             log.debug("Starting {}".format(self))
