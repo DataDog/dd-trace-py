@@ -50,8 +50,8 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
         # check the error
         self.assertEqual(span.error, 1)
         self.assertTrue('relation "a_wrong_table" does not exist' in span.get_tag('error.msg'))
-        self.assertTrue('ProgrammingError' in span.get_tag('error.type'))
-        self.assertTrue('ProgrammingError: relation "a_wrong_table" does not exist' in span.get_tag('error.stack'))
+        assert 'psycopg2.errors.UndefinedTable' in span.get_tag('error.type')
+        assert 'UndefinedTable: relation "a_wrong_table" does not exist' in span.get_tag('error.stack')
 
 
 class PostgresCreatorTestCase(PostgresTestCase):

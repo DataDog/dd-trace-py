@@ -691,7 +691,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres mysql
-      - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg2{27}-mysqlconnector' --result-json /tmp/sqlalchemy.results
+      - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg228-mysqlconnector' --result-json /tmp/sqlalchemy.results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -725,7 +725,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres
-      - run: tox -e 'psycopg_contrib-{py27,py34,py35,py36}-psycopg2{24,25,26,27}' --result-json /tmp/psycopg.results
+      - run: tox -e 'psycopg_contrib-{py27,py34,py35,py36}-psycopg2{24,25,26,27,28}' --result-json /tmp/psycopg.results
       - persist_to_workspace:
           root: /tmp
           paths:
