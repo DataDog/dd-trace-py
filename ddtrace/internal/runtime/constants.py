@@ -28,10 +28,10 @@ PSUTIL_RUNTIME_METRICS = set([
 
 DEFAULT_RUNTIME_METRICS = GC_RUNTIME_METRICS | PSUTIL_RUNTIME_METRICS
 
-RUNTIME_ID = 'runtime.python.runtime-id'
-SERVICE = 'runtime.python.service'
-LANG_INTERPRETER = 'runtime.python.lang_interpreter'
-LANG_VERSION = 'runtime.python.lang_version'
+RUNTIME_ID = 'runtime-id'
+SERVICE = 'service'
+LANG_INTERPRETER = 'lang_interpreter'
+LANG_VERSION = 'lang_version'
 
 TRACER_TAGS = set([
     RUNTIME_ID,
