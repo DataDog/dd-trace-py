@@ -272,7 +272,7 @@ class Tracer(object):
         context.add_span(span)
 
         # update set of services handled by tracer
-        if service and service not in self._services:
+        if service:
             self._services.add(service)
 
             # The run-time metrics worker needs to be reinitialized with any new
