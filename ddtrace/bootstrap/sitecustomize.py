@@ -85,7 +85,6 @@ try:
     hostname = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
     port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
     priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
-    runtime_metrics_enabled = asbool(get_env('runtime_metrics', 'enabled'))
 
     opts = {}
 
@@ -98,6 +97,8 @@ try:
         opts["port"] = int(port)
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
+
+    opts["collect_metrics"] = asbool(get_env('runtime_metrics', 'enabled'))
 
     if opts:
         tracer.configure(**opts)
