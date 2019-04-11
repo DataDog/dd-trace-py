@@ -4,7 +4,6 @@ import mock
 
 import ddtrace
 from ddtrace import __file__ as root_file
-from nose.tools import ok_
 from contextlib import contextmanager
 
 
@@ -40,17 +39,13 @@ def patch_time():
 
 
 def assert_dict_issuperset(a, b):
-    ok_(
-        set(a.items()).issuperset(set(b.items())),
-        msg="{a} is not a superset of {b}".format(a=a, b=b),
-    )
+    assert set(a.items()).issuperset(set(b.items())), \
+        "{a} is not a superset of {b}".format(a=a, b=b)
 
 
 def assert_list_issuperset(a, b):
-    ok_(
-        set(a).issuperset(set(b)),
-        msg="{a} is not a superset of {b}".format(a=a, b=b),
-    )
+    assert set(a).issuperset(set(b)), \
+        "{a} is not a superset of {b}".format(a=a, b=b)
 
 
 @contextmanager

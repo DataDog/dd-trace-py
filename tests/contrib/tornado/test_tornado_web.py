@@ -1,5 +1,3 @@
-from nose.tools import eq_, ok_
-
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
@@ -16,221 +14,221 @@ class TestTornadoWeb(TornadoTestCase):
     def test_success_handler(self):
         # it should trace a handler that returns 200
         response = self.fetch('/success/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.SuccessHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/success/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.SuccessHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/success/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
         # using the automatic Context retrieval
         response = self.fetch('/nested/')
-        eq_(200, response.code)
+        assert 200 == response.code
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
         # check request span
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.NestedHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/nested/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.NestedHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/nested/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
         # check nested span
         nested_span = traces[0][1]
-        eq_('tornado-web', nested_span.service)
-        eq_('tornado.sleep', nested_span.name)
-        eq_(0, nested_span.error)
+        assert 'tornado-web' == nested_span.service
+        assert 'tornado.sleep' == nested_span.name
+        assert 0 == nested_span.error
         # check durations because of the yield sleep
-        ok_(request_span.duration >= 0.05)
-        ok_(nested_span.duration >= 0.05)
+        assert request_span.duration >= 0.05
+        assert nested_span.duration >= 0.05
 
     def test_exception_handler(self):
         # it should trace a handler that raises an exception
         response = self.fetch('/exception/')
-        eq_(500, response.code)
+        assert 500 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.ExceptionHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('500', request_span.get_tag('http.status_code'))
-        eq_('/exception/', request_span.get_tag('http.url'))
-        eq_(1, request_span.error)
-        eq_('Ouch!', request_span.get_tag('error.msg'))
-        ok_('Exception: Ouch!' in request_span.get_tag('error.stack'))
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.ExceptionHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '500' == request_span.get_tag('http.status_code')
+        assert '/exception/' == request_span.get_tag('http.url')
+        assert 1 == request_span.error
+        assert 'Ouch!' == request_span.get_tag('error.msg')
+        assert 'Exception: Ouch!' in request_span.get_tag('error.stack')
 
     def test_http_exception_handler(self):
         # it should trace a handler that raises a Tornado HTTPError
         response = self.fetch('/http_exception/')
-        eq_(501, response.code)
+        assert 501 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.HTTPExceptionHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('501', request_span.get_tag('http.status_code'))
-        eq_('/http_exception/', request_span.get_tag('http.url'))
-        eq_(1, request_span.error)
-        eq_('HTTP 501: Not Implemented (unavailable)', request_span.get_tag('error.msg'))
-        ok_('HTTP 501: Not Implemented (unavailable)' in request_span.get_tag('error.stack'))
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.HTTPExceptionHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '501' == request_span.get_tag('http.status_code')
+        assert '/http_exception/' == request_span.get_tag('http.url')
+        assert 1 == request_span.error
+        assert 'HTTP 501: Not Implemented (unavailable)' == request_span.get_tag('error.msg')
+        assert 'HTTP 501: Not Implemented (unavailable)' in request_span.get_tag('error.stack')
 
     def test_http_exception_500_handler(self):
         # it should trace a handler that raises a Tornado HTTPError
         response = self.fetch('/http_exception_500/')
-        eq_(500, response.code)
+        assert 500 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.HTTPException500Handler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('500', request_span.get_tag('http.status_code'))
-        eq_('/http_exception_500/', request_span.get_tag('http.url'))
-        eq_(1, request_span.error)
-        eq_('HTTP 500: Server Error (server error)', request_span.get_tag('error.msg'))
-        ok_('HTTP 500: Server Error (server error)' in request_span.get_tag('error.stack'))
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.HTTPException500Handler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '500' == request_span.get_tag('http.status_code')
+        assert '/http_exception_500/' == request_span.get_tag('http.url')
+        assert 1 == request_span.error
+        assert 'HTTP 500: Server Error (server error)' == request_span.get_tag('error.msg')
+        assert 'HTTP 500: Server Error (server error)' in request_span.get_tag('error.stack')
 
     def test_sync_success_handler(self):
         # it should trace a synchronous handler that returns 200
         response = self.fetch('/sync_success/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.SyncSuccessHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/sync_success/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.SyncSuccessHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/sync_success/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
     def test_sync_exception_handler(self):
         # it should trace a handler that raises an exception
         response = self.fetch('/sync_exception/')
-        eq_(500, response.code)
+        assert 500 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.SyncExceptionHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('500', request_span.get_tag('http.status_code'))
-        eq_('/sync_exception/', request_span.get_tag('http.url'))
-        eq_(1, request_span.error)
-        eq_('Ouch!', request_span.get_tag('error.msg'))
-        ok_('Exception: Ouch!' in request_span.get_tag('error.stack'))
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.SyncExceptionHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '500' == request_span.get_tag('http.status_code')
+        assert '/sync_exception/' == request_span.get_tag('http.url')
+        assert 1 == request_span.error
+        assert 'Ouch!' == request_span.get_tag('error.msg')
+        assert 'Exception: Ouch!' in request_span.get_tag('error.stack')
 
     def test_404_handler(self):
         # it should trace 404
         response = self.fetch('/does_not_exist/')
-        eq_(404, response.code)
+        assert 404 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tornado.web.ErrorHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('404', request_span.get_tag('http.status_code'))
-        eq_('/does_not_exist/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tornado.web.ErrorHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '404' == request_span.get_tag('http.status_code')
+        assert '/does_not_exist/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
     def test_redirect_handler(self):
         # it should trace the built-in RedirectHandler
         response = self.fetch('/redirect/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         # we trace two different calls: the RedirectHandler and the SuccessHandler
         traces = self.tracer.writer.pop_traces()
-        eq_(2, len(traces))
-        eq_(1, len(traces[0]))
-        eq_(1, len(traces[1]))
+        assert 2 == len(traces)
+        assert 1 == len(traces[0])
+        assert 1 == len(traces[1])
 
         redirect_span = traces[0][0]
-        eq_('tornado-web', redirect_span.service)
-        eq_('tornado.request', redirect_span.name)
-        eq_('http', redirect_span.span_type)
-        eq_('tornado.web.RedirectHandler', redirect_span.resource)
-        eq_('GET', redirect_span.get_tag('http.method'))
-        eq_('301', redirect_span.get_tag('http.status_code'))
-        eq_('/redirect/', redirect_span.get_tag('http.url'))
-        eq_(0, redirect_span.error)
+        assert 'tornado-web' == redirect_span.service
+        assert 'tornado.request' == redirect_span.name
+        assert 'http' == redirect_span.span_type
+        assert 'tornado.web.RedirectHandler' == redirect_span.resource
+        assert 'GET' == redirect_span.get_tag('http.method')
+        assert '301' == redirect_span.get_tag('http.status_code')
+        assert '/redirect/' == redirect_span.get_tag('http.url')
+        assert 0 == redirect_span.error
 
         success_span = traces[1][0]
-        eq_('tornado-web', success_span.service)
-        eq_('tornado.request', success_span.name)
-        eq_('http', success_span.span_type)
-        eq_('tests.contrib.tornado.web.app.SuccessHandler', success_span.resource)
-        eq_('GET', success_span.get_tag('http.method'))
-        eq_('200', success_span.get_tag('http.status_code'))
-        eq_('/success/', success_span.get_tag('http.url'))
-        eq_(0, success_span.error)
+        assert 'tornado-web' == success_span.service
+        assert 'tornado.request' == success_span.name
+        assert 'http' == success_span.span_type
+        assert 'tests.contrib.tornado.web.app.SuccessHandler' == success_span.resource
+        assert 'GET' == success_span.get_tag('http.method')
+        assert '200' == success_span.get_tag('http.status_code')
+        assert '/success/' == success_span.get_tag('http.url')
+        assert 0 == success_span.error
 
     def test_static_handler(self):
         # it should trace the access to static files
         response = self.fetch('/statics/empty.txt')
-        eq_(200, response.code)
-        eq_('Static file\n', response.body.decode('utf-8'))
+        assert 200 == response.code
+        assert 'Static file\n' == response.body.decode('utf-8')
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tornado.web.StaticFileHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/statics/empty.txt', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tornado.web.StaticFileHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/statics/empty.txt' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
     def test_propagation(self):
         # it should trace a handler that returns 200 with a propagated context
@@ -240,24 +238,24 @@ class TestTornadoWeb(TornadoTestCase):
             'x-datadog-sampling-priority': '2'
         }
         response = self.fetch('/success/', headers=headers)
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
 
         # simple sanity check on the span
-        eq_('tornado.request', request_span.name)
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/success/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado.request' == request_span.name
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/success/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
         # check propagation
-        eq_(1234, request_span.trace_id)
-        eq_(4567, request_span.parent_id)
-        eq_(2, request_span.get_metric(SAMPLING_PRIORITY_KEY))
+        assert 1234 == request_span.trace_id
+        assert 4567 == request_span.parent_id
+        assert 2 == request_span.get_metric(SAMPLING_PRIORITY_KEY)
 
     def test_success_handler_ot(self):
         """OpenTracing version of test_success_handler."""
@@ -265,29 +263,29 @@ class TestTornadoWeb(TornadoTestCase):
 
         with ot_tracer.start_active_span('tornado_op'):
             response = self.fetch('/success/')
-            eq_(200, response.code)
+            assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
         # dd_span will start and stop before the ot_span finishes
         ot_span, dd_span = traces[0]
 
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.name, 'tornado_op')
-        eq_(ot_span.service, 'tornado_svc')
+        assert ot_span.name == 'tornado_op'
+        assert ot_span.service == 'tornado_svc'
 
-        eq_('tornado-web', dd_span.service)
-        eq_('tornado.request', dd_span.name)
-        eq_('http', dd_span.span_type)
-        eq_('tests.contrib.tornado.web.app.SuccessHandler', dd_span.resource)
-        eq_('GET', dd_span.get_tag('http.method'))
-        eq_('200', dd_span.get_tag('http.status_code'))
-        eq_('/success/', dd_span.get_tag('http.url'))
-        eq_(0, dd_span.error)
+        assert 'tornado-web' == dd_span.service
+        assert 'tornado.request' == dd_span.name
+        assert 'http' == dd_span.span_type
+        assert 'tests.contrib.tornado.web.app.SuccessHandler' == dd_span.resource
+        assert 'GET' == dd_span.get_tag('http.method')
+        assert '200' == dd_span.get_tag('http.status_code')
+        assert '/success/' == dd_span.get_tag('http.url')
+        assert 0 == dd_span.error
 
 
 class TestTornadoWebAnalyticsDefault(TornadoTestCase):
@@ -417,19 +415,19 @@ class TestNoPropagationTornadoWeb(TornadoTestCase):
             'x-datadog-origin': 'synthetics',
         }
         response = self.fetch('/success/', headers=headers)
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
 
         # simple sanity check on the span
-        eq_('tornado.request', request_span.name)
-        eq_('200', request_span.get_tag('http.status_code'))
-        eq_('/success/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado.request' == request_span.name
+        assert '200' == request_span.get_tag('http.status_code')
+        assert '/success/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error
 
         # check non-propagation
         assert request_span.trace_id != 1234
@@ -452,18 +450,18 @@ class TestCustomTornadoWeb(TornadoTestCase):
     def test_custom_default_handler(self):
         # it should trace any call that uses a custom default handler
         response = self.fetch('/custom_handler/')
-        eq_(400, response.code)
+        assert 400 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado-web', request_span.service)
-        eq_('tornado.request', request_span.name)
-        eq_('http', request_span.span_type)
-        eq_('tests.contrib.tornado.web.app.CustomDefaultHandler', request_span.resource)
-        eq_('GET', request_span.get_tag('http.method'))
-        eq_('400', request_span.get_tag('http.status_code'))
-        eq_('/custom_handler/', request_span.get_tag('http.url'))
-        eq_(0, request_span.error)
+        assert 'tornado-web' == request_span.service
+        assert 'tornado.request' == request_span.name
+        assert 'http' == request_span.span_type
+        assert 'tests.contrib.tornado.web.app.CustomDefaultHandler' == request_span.resource
+        assert 'GET' == request_span.get_tag('http.method')
+        assert '400' == request_span.get_tag('http.status_code')
+        assert '/custom_handler/' == request_span.get_tag('http.url')
+        assert 0 == request_span.error

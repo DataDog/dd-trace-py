@@ -4,8 +4,6 @@ import os
 import subprocess
 import unittest
 
-from nose.tools import ok_
-
 from ..util import inject_sitecustomize
 
 
@@ -189,7 +187,7 @@ class DdtraceRunTest(unittest.TestCase):
         )
         # `out` contains the `loaded` status of the module
         result = out[:-1] == b'True'
-        ok_(result)
+        assert result
 
     def test_sitecustomize_run(self):
         # [Regression test]: ensure users `sitecustomize.py` is properly loaded,

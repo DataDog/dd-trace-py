@@ -1,7 +1,7 @@
 import mock
 from unittest import TestCase
 
-from nose.tools import eq_, ok_, assert_raises
+import pytest
 
 from ddtrace import config as global_config
 from ddtrace.settings import Config
@@ -21,7 +21,7 @@ class GlobalConfigTestCase(TestCase):
             'distributed_tracing': True,
         }
         self.config._add('requests', settings)
-        ok_(self.config.requests['distributed_tracing'] is True)
+        assert self.config.requests['distributed_tracing'] is True
 
     def test_settings_copy(self):
         # ensure that once an integration is registered, a copy
@@ -37,21 +37,21 @@ class GlobalConfigTestCase(TestCase):
 
         settings['distributed_tracing'] = False
         experimental['request_enqueuing'] = False
-        ok_(self.config.requests['distributed_tracing'] is True)
-        ok_(self.config.requests['experimental']['request_enqueuing'] is True)
+        assert self.config.requests['distributed_tracing'] is True
+        assert self.config.requests['experimental']['request_enqueuing'] is True
 
     def test_missing_integration_key(self):
         # ensure a meaningful exception is raised when an integration
         # that is not available is retrieved in the configuration
         # object
-        with assert_raises(KeyError) as e:
+        with pytest.raises(KeyError) as e:
             self.config.new_integration['some_key']
 
-        ok_(isinstance(e.exception, KeyError))
+        assert isinstance(e.value, KeyError)
 
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module
-        ok_(isinstance(global_config, Config))
+        assert isinstance(global_config, Config)
 
     def test_settings_merge(self):
         """
@@ -61,7 +61,7 @@ class GlobalConfigTestCase(TestCase):
         """
         self.config.requests['split_by_domain'] = True
         self.config._add('requests', dict(split_by_domain=False))
-        eq_(self.config.requests['split_by_domain'], True)
+        assert self.config.requests['split_by_domain'] is True
 
     def test_settings_overwrite(self):
         """
@@ -71,7 +71,7 @@ class GlobalConfigTestCase(TestCase):
         """
         self.config.requests['split_by_domain'] = True
         self.config._add('requests', dict(split_by_domain=False), merge=False)
-        eq_(self.config.requests['split_by_domain'], False)
+        assert self.config.requests['split_by_domain'] is False
 
     def test_settings_merge_deep(self):
         """
@@ -92,8 +92,8 @@ class GlobalConfigTestCase(TestCase):
                 ),
             ),
         ))
-        eq_(self.config.requests['a']['b']['c'], True)
-        eq_(self.config.requests['a']['b']['d'], True)
+        assert self.config.requests['a']['b']['c'] is True
+        assert self.config.requests['a']['b']['d'] is True
 
     def test_settings_hook(self):
         """
@@ -108,13 +108,13 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span('web.request')
-        ok_('web.request' not in span.meta)
+        assert 'web.request' not in span.meta
 
         # Emit the span
         self.config.web.hooks._emit('request', span)
 
         # Assert we updated the span as expected
-        eq_(span.get_tag('web.request'), '/')
+        assert span.get_tag('web.request') == '/'
 
     def test_settings_hook_args(self):
         """
@@ -130,15 +130,15 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span('web.request')
-        ok_('web.request' not in span.meta)
+        assert 'web.request' not in span.meta
 
         # Emit the span
         # DEV: The actual values don't matter, we just want to test args + kwargs usage
         self.config.web.hooks._emit('request', span, 'request', response='response')
 
         # Assert we updated the span as expected
-        eq_(span.get_tag('web.request'), 'request')
-        eq_(span.get_tag('web.response'), 'response')
+        assert span.get_tag('web.request') == 'request'
+        assert span.get_tag('web.response') == 'response'
 
     def test_settings_hook_args_failure(self):
         """
@@ -154,14 +154,14 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span('web.request')
-        ok_('web.request' not in span.meta)
+        assert 'web.request' not in span.meta
 
         # Emit the span
         # DEV: This also asserts that no exception was raised
         self.config.web.hooks._emit('request', span, 'request', response='response')
 
         # Assert we did not update the span
-        ok_('web.request' not in span.meta)
+        assert 'web.request' not in span.meta
 
     def test_settings_multiple_hooks(self):
         """
@@ -184,17 +184,17 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span('web.request')
-        ok_('web.request' not in span.meta)
-        ok_('web.status' not in span.meta)
-        ok_('web.method' not in span.meta)
+        assert 'web.request' not in span.meta
+        assert 'web.status' not in span.meta
+        assert 'web.method' not in span.meta
 
         # Emit the span
         self.config.web.hooks._emit('request', span)
 
         # Assert we updated the span as expected
-        eq_(span.get_tag('web.request'), '/')
-        eq_(span.get_tag('web.status'), '200')
-        eq_(span.get_tag('web.method'), 'GET')
+        assert span.get_tag('web.request') == '/'
+        assert span.get_tag('web.status') == '200'
+        assert span.get_tag('web.method') == 'GET'
 
     def test_settings_hook_failure(self):
         """

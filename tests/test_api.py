@@ -3,7 +3,6 @@ import re
 import warnings
 
 from unittest import TestCase
-from nose.tools import eq_, ok_
 
 from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
@@ -74,11 +73,11 @@ class APITests(TestCase):
 
             r = Response.from_http_response(ResponseMock(k))
             js = r.get_json()
-            eq_(v['js'], js)
+            assert v['js'] == js
             if 'log' in v:
                 log.assert_called_once()
                 msg = log.call_args[0][0] % log.call_args[0][1:]
-                ok_(re.match(v['log'], msg), msg)
+                assert re.match(v['log'], msg), msg
 
     @mock.patch('ddtrace.compat.httplib.HTTPConnection')
     def test_put_connection_close(self, HTTPConnection):

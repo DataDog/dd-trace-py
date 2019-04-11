@@ -4,7 +4,6 @@ from unittest.case import SkipTest
 
 # 3p
 import pylibmc
-from nose.tools import eq_
 
 # project
 from ddtrace import Pin
@@ -49,7 +48,7 @@ class PylibmcCore(object):
         # with get. our traced versions do the right thing, so skipping this
         # test.
         try:
-            eq_(client.get("a"), "holy crow!")
+            assert client.get("a") == "holy crow!"
         except AssertionError:
             pass
 
@@ -60,7 +59,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(["append", "prepend", "get", "set"])
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_incr_decr(self):
         client, tracer = self.get_client()
@@ -78,7 +77,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get", "set", "incr", "decr"])
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_incr_decr_ot(self):
         """OpenTracing version of test_incr_decr."""
@@ -98,14 +97,14 @@ class PylibmcCore(object):
         spans = tracer.writer.pop()
         ot_span = spans[0]
 
-        eq_(ot_span.name, 'mc_ops')
+        assert ot_span.name == 'mc_ops'
 
         for s in spans[1:]:
-            eq_(s.parent_id, ot_span.span_id)
+            assert s.parent_id == ot_span.span_id
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get", "set", "incr", "decr"])
         resources = sorted(s.resource for s in spans[1:])
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_clone(self):
         # ensure cloned connections are traced as well.
@@ -119,7 +118,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
         expected_resources = ["get"]
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_get_set_multi(self):
         client, tracer = self.get_client()
@@ -127,7 +126,7 @@ class PylibmcCore(object):
         start = time.time()
         client.set_multi({'a': 1, 'b': 2})
         out = client.get_multi(["a", "c"])
-        eq_(out, {'a': 1})
+        assert out == {'a': 1}
         client.delete_multi(["a", "c"])
         end = time.time()
         # verify
@@ -136,7 +135,7 @@ class PylibmcCore(object):
             self._verify_cache_span(s, start, end)
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_get_set_multi_prefix(self):
         client, tracer = self.get_client()
@@ -144,17 +143,17 @@ class PylibmcCore(object):
         start = time.time()
         client.set_multi({'a': 1, 'b': 2}, key_prefix='foo')
         out = client.get_multi(["a", "c"], key_prefix='foo')
-        eq_(out, {'a': 1})
+        assert out == {'a': 1}
         client.delete_multi(["a", "c"], key_prefix='foo')
         end = time.time()
         # verify
         spans = tracer.writer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
-            eq_(s.get_tag("memcached.query"), "%s foo" % s.resource,)
+            assert s.get_tag("memcached.query") == "%s foo" % s.resource
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def test_get_set_delete(self):
         client, tracer = self.get_client()
@@ -167,25 +166,25 @@ class PylibmcCore(object):
         assert out is None, out
         client.set(k, v)
         out = client.get(k)
-        eq_(out, v)
+        assert out == v
         end = time.time()
         # verify
         spans = tracer.writer.pop()
         for s in spans:
             self._verify_cache_span(s, start, end)
-            eq_(s.get_tag("memcached.query"), "%s %s" % (s.resource, k))
+            assert s.get_tag("memcached.query") == "%s %s" % (s.resource, k)
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
-        eq_(expected_resources, resources)
+        assert expected_resources == resources
 
     def _verify_cache_span(self, s, start, end):
         assert s.start > start
         assert s.start + s.duration < end
-        eq_(s.service, self.TEST_SERVICE)
-        eq_(s.span_type, "cache")
-        eq_(s.name, "memcached.cmd")
-        eq_(s.get_tag("out.host"), cfg["host"])
-        eq_(s.get_tag("out.port"), str(cfg["port"]))
+        assert s.service == self.TEST_SERVICE
+        assert s.span_type == "cache"
+        assert s.name == "memcached.cmd"
+        assert s.get_tag("out.host") == cfg["host"]
+        assert s.get_tag("out.port") == str(cfg["port"])
 
     def test_analytics_default(self):
         client, tracer = self.get_client()
@@ -283,7 +282,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
         spans = self.tracer.writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -303,4 +302,4 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
 
         spans = self.tracer.writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
