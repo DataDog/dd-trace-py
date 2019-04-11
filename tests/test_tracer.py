@@ -429,7 +429,7 @@ class TracerTestCase(BaseTracerTestCase):
         root = self.start_span('root', service='one')
         context = root.context
         self.assertSetEqual(self.tracer._services, set(['one']))
-        child = self.start_span('child', service='two', child_of=context)
+        self.start_span('child', service='two', child_of=context)
         self.assertSetEqual(self.tracer._services, set(['one', 'two']))
 
     def test_configure_runtime_worker(self):

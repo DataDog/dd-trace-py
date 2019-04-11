@@ -54,7 +54,7 @@ class TestRuntimeWorker(BaseTracerTestCase):
 
             root = self.start_span('parent', service='parent')
             context = root.context
-            child = self.start_span('child', service='child', child_of=context)
+            self.start_span('child', service='child', child_of=context)
 
             self.worker = RuntimeWorker(self.tracer._dogstatsd_client)
             self.worker.start()
@@ -81,7 +81,6 @@ class TestRuntimeWorker(BaseTracerTestCase):
                 DEFAULT_RUNTIME_METRICS
             )
 
-            print(self.tracer._dogstatsd_client.constant_tags)
             for gauge in received:
                 self.assertRegexpMatches(gauge, 'runtime-id:')
                 self.assertRegexpMatches(gauge, 'service:parent')
