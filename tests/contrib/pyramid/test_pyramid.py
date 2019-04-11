@@ -1,5 +1,3 @@
-from nose.tools import eq_, ok_
-
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
 
 from .utils import PyramidTestCase, PyramidBase
@@ -18,7 +16,7 @@ class TestPyramid(PyramidTestCase):
         self.override_settings({'pyramid.tweens': 'pyramid.tweens.excview_tween_factory'})
         self.app.get('/json', status=200)
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        assert len(spans) == 0
 
 
 class TestPyramidDistributedTracingDefault(PyramidBase):
@@ -39,13 +37,13 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
-        eq_(span.get_tag(ORIGIN_KEY), 'synthetics')
+        assert span.trace_id == 100
+        assert span.parent_id == 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert span.get_tag(ORIGIN_KEY) == 'synthetics'
 
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
@@ -67,10 +65,10 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        ok_(span.trace_id != 100)
-        ok_(span.parent_id != 42)
-        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
-        ok_(span.get_tag(ORIGIN_KEY) != 'synthetics')
+        assert span.trace_id != 100
+        assert span.parent_id != 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert span.get_tag(ORIGIN_KEY) != 'synthetics'

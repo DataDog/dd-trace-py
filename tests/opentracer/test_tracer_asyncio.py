@@ -8,37 +8,34 @@ import ddtrace
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
-from .conftest import dd_tracer, ot_tracer_factory, writer
+from .conftest import ot_tracer_factory
 
 
 @pytest.fixture()
-def ot_tracer(ot_tracer_factory):
-    return ot_tracer_factory(
+def ot_tracer(request, ot_tracer_factory):
+    # use the dummy asyncio ot tracer
+    request.instance.ot_tracer = ot_tracer_factory(
         "asyncio_svc",
         config={},
         scope_manager=AsyncioScopeManager(),
         context_provider=ddtrace.contrib.asyncio.context_provider,
     )
+    request.instance.ot_writer = request.instance.ot_tracer._dd_tracer.writer
+    request.instance.dd_tracer = request.instance.ot_tracer._dd_tracer
 
-
+@pytest.mark.usefixtures("ot_tracer")
 class TestTracerAsyncio(AsyncioTestCase):
-    def setUp(self):
-        super(TestTracerAsyncio, self).setUp()
-
-        # use the dummy asyncio ot tracer
-        self.tracer = ot_tracer(ot_tracer_factory())
-        self.writer = writer(self.tracer)
 
     def reset(self):
-        self.writer.pop_traces()
+        self.ot_writer.pop_traces()
 
     @mark_asyncio
     def test_trace_coroutine(self):
         # it should use the task context when invoked in a coroutine
-        with self.tracer.start_span("coroutine"):
+        with self.ot_tracer.start_span("coroutine"):
             pass
 
-        traces = self.writer.pop_traces()
+        traces = self.ot_writer.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
@@ -51,16 +48,16 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_active_span("coroutine_2"):
+            with self.ot_tracer.start_active_span("coroutine_2"):
                 return 42
 
-        with self.tracer.start_active_span("coroutine_1"):
+        with self.ot_tracer.start_active_span("coroutine_1"):
             value = yield from coro()
 
         # the coroutine has been called correctly
         assert value == 42
         # a single trace has been properly reported
-        traces = self.writer.pop_traces()
+        traces = self.ot_writer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         assert traces[0][0].name == "coroutine_1"
@@ -73,13 +70,13 @@ class TestTracerAsyncio(AsyncioTestCase):
     def test_exception(self):
         @asyncio.coroutine
         def f1():
-            with self.tracer.start_span("f1"):
+            with self.ot_tracer.start_span("f1"):
                 raise Exception("f1 error")
 
         with pytest.raises(Exception):
             yield from f1()
 
-        traces = self.writer.pop_traces()
+        traces = self.ot_writer.pop_traces()
         assert len(traces) == 1
         spans = traces[0]
         assert len(spans) == 1
@@ -95,28 +92,23 @@ class TestTracerAsyncio(AsyncioTestCase):
         @asyncio.coroutine
         def coro():
             # another traced coroutine
-            with self.tracer.start_span("coroutine"):
+            with self.ot_tracer.start_span("coroutine"):
                 yield from asyncio.sleep(0.01)
 
         futures = [asyncio.ensure_future(coro()) for x in range(10)]
         for future in futures:
             yield from future
 
-        traces = self.writer.pop_traces()
+        traces = self.ot_writer.pop_traces()
 
         assert len(traces) == 10
         assert len(traces[0]) == 1
         assert traces[0][0].name == "coroutine"
 
 
+@pytest.mark.usefixtures("ot_tracer")
 class TestTracerAsyncioCompatibility(AsyncioTestCase):
     """Ensure the opentracer works in tandem with the ddtracer and asyncio."""
-
-    def setUp(self):
-        super(TestTracerAsyncioCompatibility, self).setUp()
-        self.ot_tracer = ot_tracer(ot_tracer_factory())
-        self.dd_tracer = dd_tracer(self.ot_tracer)
-        self.writer = writer(self.ot_tracer)
 
     @mark_asyncio
     def test_trace_multiple_coroutines_ot_dd(self):

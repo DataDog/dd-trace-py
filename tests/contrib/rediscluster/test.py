@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import rediscluster
-from nose.tools import eq_
 
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
@@ -36,17 +35,17 @@ class TestRedisPatch(BaseTracerTestCase):
 
     def test_basics(self):
         us = self.r.get('cheese')
-        eq_(us, None)
+        assert us is None
         spans = self.get_spans()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'redis.command')
-        eq_(span.span_type, 'redis')
-        eq_(span.error, 0)
-        eq_(span.get_tag('redis.raw_command'), u'GET cheese')
-        eq_(span.get_metric('redis.args_length'), 2)
-        eq_(span.resource, 'GET cheese')
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'redis.command'
+        assert span.span_type == 'redis'
+        assert span.error == 0
+        assert span.get_tag('redis.raw_command') == u'GET cheese'
+        assert span.get_metric('redis.args_length') == 2
+        assert span.resource == 'GET cheese'
 
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
@@ -56,15 +55,15 @@ class TestRedisPatch(BaseTracerTestCase):
             p.execute()
 
         spans = self.get_spans()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'redis.command')
-        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-        eq_(span.span_type, 'redis')
-        eq_(span.error, 0)
-        eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-        eq_(span.get_metric('redis.pipeline_length'), 3)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'redis.command'
+        assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
+        assert span.span_type == 'redis'
+        assert span.error == 0
+        assert span.get_tag('redis.raw_command') == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
+        assert span.get_metric('redis.pipeline_length') == 3
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
@@ -80,7 +79,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -100,4 +99,4 @@ class TestRedisPatch(BaseTracerTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
