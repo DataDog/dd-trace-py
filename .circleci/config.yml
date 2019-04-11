@@ -699,17 +699,6 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
-  msgpack:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
-    steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'msgpack_contrib-{py27,py34}' --result-json /tmp/msgpack.results
-      - *persist_to_workspace_step
-      - *save_cache_step
-
   unit_tests:
     docker:
       - *test_runner
@@ -901,9 +890,6 @@ workflows:
       - mongoengine:
           requires:
             - flake8
-      - msgpack:
-          requires:
-            - flake8
       - mysqlconnector:
           requires:
             - flake8
@@ -1006,7 +992,6 @@ workflows:
             - mako
             - molten
             - mongoengine
-            - msgpack
             - mysqlconnector
             - mysqldb
             - mysqlpython
