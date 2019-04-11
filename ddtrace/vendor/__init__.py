@@ -33,4 +33,17 @@ Notes:
   `wrapt/__init__.py` was updated to include a copy of `wrapt`'s license: https://github.com/GrahamDumpleton/wrapt/blob/1.11.1/LICENSE
 
   `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
+
+dogstatsd
+---------
+
+Website: https://datadogpy.readthedocs.io/en/latest/
+Source: https://github.com/DataDog/datadogpy
+Version: 0.28.0
+License: Copyright (c) 2015, Datadog <info@datadoghq.com>
+
+Notes:
+  `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
+  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
+  `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
 """
