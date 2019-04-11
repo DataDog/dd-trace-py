@@ -98,7 +98,7 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    opts["collect_metrics"] = asbool(get_env('runtime_metrics', 'enabled'))
+    opts['collect_metrics'] = asbool(get_env('runtime_metrics', 'enabled'))
 
     if opts:
         tracer.configure(**opts)
