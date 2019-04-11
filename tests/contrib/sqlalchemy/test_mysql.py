@@ -1,6 +1,5 @@
 from sqlalchemy.exc import ProgrammingError
-
-from nose.tools import assert_raises
+import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import MYSQL_CONFIG
@@ -27,7 +26,7 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
-        with assert_raises(ProgrammingError):
+        with pytest.raises(ProgrammingError):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
