@@ -27,6 +27,7 @@ class TestPyramidDistributedTracing(PyramidBase):
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
             'x-datadog-sampling-priority': '2',
+            'x-datadog-origin': 'synthetics',
         }
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer

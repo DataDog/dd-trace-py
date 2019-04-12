@@ -1,11 +1,10 @@
 from nose.tools import eq_, ok_
 
 from ddtrace import config
-from ddtrace.constants import EVENT_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
-from ...util import override_config
 
 
 class FalconTestCase(object):
@@ -13,14 +12,6 @@ class FalconTestCase(object):
     to add new tests, add them here so that they're shared across manual
     and automatic instrumentation.
     """
-    def test_falcon_service(self):
-        services = self.tracer._services
-        expected_service = (self._service, 'falcon', 'web')
-
-        # ensure users set service name is in the services list
-        ok_(self._service in services.keys())
-        eq_(services[self._service], expected_service)
-
     def test_404(self):
         out = self.simulate_get('/fake_endpoint')
         eq_(out.status_code, 404)
@@ -72,15 +63,66 @@ class FalconTestCase(object):
         eq_(span.parent_id, None)
         eq_(span.span_type, 'http')
 
-    def test_event_sample_key(self):
-        with self.override_config('falcon', dict(event_sample_rate=1)):
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
             out = self.simulate_get('/200')
             self.assertEqual(out.status_code, 200)
             self.assertEqual(out.content.decode('utf-8'), 'Success')
 
             self.assert_structure(
-                dict(name='falcon.request', metrics={EVENT_SAMPLE_RATE_KEY: 1})
+                dict(name='falcon.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 1.0})
             )
+
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                out = self.simulate_get('/200')
+                self.assertEqual(out.status_code, 200)
+                self.assertEqual(out.content.decode('utf-8'), 'Success')
+
+                self.assert_structure(
+                    dict(name='falcon.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
+                )
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            out = self.simulate_get('/200')
+            self.assertEqual(out.status_code, 200)
+            self.assertEqual(out.content.decode('utf-8'), 'Success')
+
+            root = self.get_root_span()
+            self.assertIsNone(root.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            with self.override_config('falcon', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+                out = self.simulate_get('/200')
+                self.assertEqual(out.status_code, 200)
+                self.assertEqual(out.content.decode('utf-8'), 'Success')
+
+                self.assert_structure(
+                    dict(name='falcon.request', metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5})
+                )
 
     def test_201(self):
         out = self.simulate_post('/201')
@@ -193,7 +235,7 @@ class FalconTestCase(object):
         eq_(span.get_tag('my.custom'), 'tag')
 
     def test_http_header_tracing(self):
-        with override_config('falcon', {}):
+        with self.override_config('falcon', {}):
             config.falcon.http.trace_headers(['my-header', 'my-response-header'])
             self.simulate_get('/200', headers={'my-header': 'my_value'})
             traces = self.tracer.writer.pop_traces()

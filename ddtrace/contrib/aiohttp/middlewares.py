@@ -2,8 +2,8 @@ import asyncio
 
 from ..asyncio import context_provider
 from ...compat import stringify
-from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import AppTypes, http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -47,8 +47,13 @@ def trace_middleware(app, handler):
         )
 
         # Configure trace search sample rate
-        if config.aiohttp.event_sample_rate is not None:
-            request_span.set_tag(EVENT_SAMPLE_RATE_KEY, config.aiohttp.event_sample_rate)
+        # DEV: aiohttp is special case maintains separate configuration from config api
+        analytics_enabled = app[CONFIG_KEY]['analytics_enabled']
+        if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
+            request_span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                app[CONFIG_KEY].get('analytics_sample_rate', True)
+            )
 
         # attach the context and the root span to the request; the Context
         # may be freely used by the application code
@@ -117,18 +122,13 @@ def trace_app(app, tracer, service='aiohttp-web'):
     app[CONFIG_KEY] = {
         'tracer': tracer,
         'service': service,
-        'distributed_tracing_enabled': False,
+        'distributed_tracing_enabled': True,
+        'analytics_enabled': None,
+        'analytics_sample_rate': 1.0,
     }
 
     # the tracer must work with asynchronous Context propagation
     tracer.configure(context_provider=context_provider)
-
-    # configure the current service
-    tracer.set_service_info(
-        service=service,
-        app='aiohttp',
-        app_type=AppTypes.web,
-    )
 
     # add the async tracer middleware as a first middleware
     # and be sure that the on_prepare signal is the last one

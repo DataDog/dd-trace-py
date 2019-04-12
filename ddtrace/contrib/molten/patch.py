@@ -1,10 +1,10 @@
-import wrapt
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 import molten
 
 from ... import Pin, config
-from ...constants import EVENT_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes, http
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool, get_env
@@ -19,7 +19,7 @@ config._add('molten', dict(
     service_name=get_env('molten', 'service_name', 'molten'),
     app='molten',
     app_type=AppTypes.web,
-    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', False)),
+    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', True)),
 ))
 
 
@@ -75,7 +75,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     resource = func_name(wrapped)
 
     # Configure distributed tracing
-    if config.molten.get('distributed_tracing', False):
+    if config.molten.get('distributed_tracing', True):
         propagator = HTTPPropagator()
         # request.headers is type Iterable[Tuple[str, str]]
         context = propagator.extract(dict(request.headers))
@@ -84,9 +84,11 @@ def patch_app_call(wrapped, instance, args, kwargs):
             pin.tracer.context_provider.activate(context)
 
     with pin.tracer.trace('molten.request', service=pin.service, resource=resource) as span:
-        # Configure trace search sample rate
-        if config.molten.event_sample_rate is not None:
-            span.set_tag(EVENT_SAMPLE_RATE_KEY, config.molten.event_sample_rate)
+        # set analytics sample rate with global config enabled
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.molten.get_analytics_sample_rate(use_global_config=True)
+        )
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):

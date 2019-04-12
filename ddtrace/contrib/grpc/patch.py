@@ -1,5 +1,5 @@
 import grpc
-import wrapt
+from ddtrace.vendor import wrapt
 
 from .interceptors import intercept_server
 from ddtrace import Pin

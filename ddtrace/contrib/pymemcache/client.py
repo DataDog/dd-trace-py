@@ -1,9 +1,7 @@
-# stdlib
-import logging
 import sys
 
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 import pymemcache
 from pymemcache.client.base import Client
 from pymemcache.exceptions import (
@@ -15,11 +13,14 @@ from pymemcache.exceptions import (
 )
 
 # project
-from ddtrace import Pin
-from ddtrace.compat import reraise
-from ddtrace.ext import net, memcached as memcachedx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...compat import reraise
+from ...ext import net, memcached as memcachedx
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 # keep a reference to the original unpatched clients
@@ -142,6 +143,12 @@ class WrappedClient(wrapt.ObjectProxy):
             resource=method_name,
             span_type=memcachedx.TYPE,
         ) as span:
+            # set analytics sample rate
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.pymemcache.get_analytics_sample_rate()
+            )
+
             # try to set relevant tags, catch any exceptions so we don't mess
             # with the application
             try:

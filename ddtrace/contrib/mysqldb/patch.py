@@ -1,7 +1,7 @@
 # 3p
 import MySQLdb
 
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 # project
 from ddtrace import Pin

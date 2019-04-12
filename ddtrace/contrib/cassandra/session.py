@@ -2,20 +2,22 @@
 Trace queries along a session to a cassandra cluster
 """
 import sys
-import logging
+
 # 3p
 import cassandra.cluster
-import wrapt
 
 # project
-from ddtrace import Pin
-from ddtrace.compat import stringify
-
-from ...utils.formats import deep_getattr
-from ...utils.deprecation import deprecated
+from ...compat import stringify
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import net, cassandra as cassx, errors
+from ...internal.logger import get_logger
+from ...pin import Pin
+from ...settings import config
+from ...utils.deprecation import deprecated
+from ...utils.formats import deep_getattr
+from ...vendor import wrapt
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 RESOURCE_MAX_LENGTH = 5000
 SERVICE = 'cassandra'
@@ -183,6 +185,11 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
+    # set analytics sample rate if enabled
+    span.set_tag(
+        ANALYTICS_SAMPLE_RATE_KEY,
+        config.cassandra.get_analytics_sample_rate()
+    )
     return span
 
 

@@ -1,7 +1,9 @@
 import boto.connection
-import wrapt
+from ddtrace.vendor import wrapt
 import inspect
 
+from ddtrace import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import http, aws
 from ...utils.wrappers import unwrap
@@ -97,6 +99,12 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
 
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.boto.get_analytics_sample_rate()
+        )
+
         return result
 
 
@@ -105,10 +113,15 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     # Catching the name of the operation that called make_request()
     operation_name = None
+
+    # Go up the stack until we get the first non-ddtrace module
+    # DEV: For `lambda.list_functions()` this should be:
+    #        - ddtrace.contrib.boto.patch
+    #        - ddtrace.vendor.wrapt.wrappers
+    #        - boto.awslambda.layer1 (make_request)
+    #        - boto.awslambda.layer1 (list_functions)
     frame = inspect.currentframe()
-    # go up the call stack twice to get into the boto frame
-    boto_frame = frame.f_back.f_back
-    operation_name = boto_frame.f_code.co_name
+    operation_name = frame.f_back.f_back.f_back.f_code.co_name
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -146,6 +159,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
         span.set_tag(http.METHOD, getattr(result, "_method"))
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.boto.get_analytics_sample_rate()
+        )
 
         return result
 

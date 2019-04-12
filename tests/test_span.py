@@ -1,9 +1,10 @@
 import time
 
-from nose.tools import eq_
+from nose.tools import eq_, ok_
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.span import Span
 from ddtrace.ext import errors
 
@@ -228,6 +229,44 @@ def test_span_boolean_err():
     assert d
     eq_(d['error'], 1)
     eq_(type(d['error']), int)
+
+
+def test_numeric_tags_none():
+    s = Span(tracer=None, name='test.span')
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
+    d = s.to_dict()
+    assert d
+    ok_('metrics' not in d)
+
+
+def test_numeric_tags_true():
+    s = Span(tracer=None, name='test.span')
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, True)
+    d = s.to_dict()
+    assert d
+    expected = {
+        ANALYTICS_SAMPLE_RATE_KEY: 1.0
+    }
+    eq_(d['metrics'], expected)
+
+
+def test_numeric_tags_value():
+    s = Span(tracer=None, name='test.span')
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 0.5)
+    d = s.to_dict()
+    assert d
+    expected = {
+        ANALYTICS_SAMPLE_RATE_KEY: 0.5
+    }
+    eq_(d['metrics'], expected)
+
+
+def test_numeric_tags_bad_value():
+    s = Span(tracer=None, name='test.span')
+    s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 'Hello')
+    d = s.to_dict()
+    assert d
+    ok_('metrics' not in d)
 
 
 class DummyTracer(object):

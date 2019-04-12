@@ -1,7 +1,7 @@
 """
 The aiobotocore integration will trace all AWS calls made with the ``aiobotocore``
 library. This integration isn't enabled when applying the default patching.
-To enable it, you must run ``patch_all(botocore=True)``
+To enable it, you must run ``patch_all(aiobotocore=True)``
 
 ::
 

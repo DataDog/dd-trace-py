@@ -1,4 +1,3 @@
-import logging
 import sys
 
 from webob import Request
@@ -8,18 +7,19 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...constants import EVENT_SAMPLE_RATE_KEY
-from ...ext import http, AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config as ddconfig
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class PylonsTraceMiddleware(object):
 
-    def __init__(self, app, tracer, service='pylons', distributed_tracing=False):
+    def __init__(self, app, tracer, service='pylons', distributed_tracing=True):
         self.app = app
         self._service = service
         self._distributed_tracing = distributed_tracing
@@ -30,12 +30,6 @@ class PylonsTraceMiddleware(object):
 
         # add template tracing
         trace_rendering()
-
-        self._tracer.set_service_info(
-            service=service,
-            app="pylons",
-            app_type=AppTypes.web,
-        )
 
     def __call__(self, environ, start_response):
         if self._distributed_tracing:
@@ -52,9 +46,11 @@ class PylonsTraceMiddleware(object):
             # set as early as possible when different services share one single agent.
             span.span_type = http.TYPE
 
-            # Configure trace search sample rate
-            if ddconfig.pylons.event_sample_rate is not None:
-                span.set_tag(EVENT_SAMPLE_RATE_KEY, ddconfig.pylons.event_sample_rate)
+            # set analytics sample rate with global config enabled
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                ddconfig.pylons.get_analytics_sample_rate(use_global_config=True)
+            )
 
             if not span.sampled:
                 return self.app(environ, start_response)

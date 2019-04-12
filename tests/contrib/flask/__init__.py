@@ -1,7 +1,7 @@
 from ddtrace import Pin
 from ddtrace.contrib.flask import patch, unpatch
 import flask
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ...base import BaseTracerTestCase
 

@@ -1,6 +1,3 @@
-# stdlib
-import unittest
-
 # 3p
 import boto.ec2
 import boto.s3
@@ -13,29 +10,30 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sts
 
 # project
 from ddtrace import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.boto.patch import patch, unpatch
 from ddtrace.ext import http
 
 # testing
 from unittest import skipUnless
 from tests.opentracer.utils import init_tracer
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class BotoTest(unittest.TestCase):
+class BotoTest(BaseTracerTestCase):
     """Botocore integration testsuite"""
 
     TEST_SERVICE = "test-boto-tracing"
 
     def setUp(self):
+        super(BotoTest, self).setUp()
         patch()
 
     @mock_ec2
     def test_ec2_client(self):
         ec2 = boto.ec2.connect_to_region("us-west-2")
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
         ec2.get_all_instances()
         spans = writer.pop()
@@ -46,6 +44,7 @@ class BotoTest(unittest.TestCase):
         self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
         self.assertEqual(span.get_tag(http.METHOD), 'POST')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
+        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
         # Create an instance
         ec2.run_instances(21)
@@ -62,12 +61,46 @@ class BotoTest(unittest.TestCase):
         self.assertEqual(span.name, 'ec2.command')
         self.assertEqual(span.span_type, 'boto')
 
+    @mock_ec2
+    def test_analytics_enabled_with_rate(self):
+        with self.override_config(
+                'boto',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            ec2 = boto.ec2.connect_to_region("us-west-2")
+            writer = self.tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
+
+            ec2.get_all_instances()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    @mock_ec2
+    def test_analytics_enabled_without_rate(self):
+        with self.override_config(
+                'boto',
+                dict(analytics_enabled=True)
+        ):
+            ec2 = boto.ec2.connect_to_region("us-west-2")
+            writer = self.tracer.writer
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
+
+            ec2.get_all_instances()
+
+        spans = writer.pop()
+        assert spans
+        span = spans[0]
+        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
     @mock_s3
     def test_s3_client(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
         s3.get_all_buckets()
         spans = writer.pop()
@@ -114,9 +147,9 @@ class BotoTest(unittest.TestCase):
     @mock_s3
     def test_s3_put(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
         s3.create_bucket('mybucket')
         bucket = s3.get_bucket('mybucket')
         k = boto.s3.key.Key(bucket)
@@ -141,9 +174,9 @@ class BotoTest(unittest.TestCase):
     @mock_lambda
     def test_unpatch(self):
         lamb = boto.awslambda.connect_to_region('us-east-2')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
         unpatch()
 
         # multiple calls
@@ -154,9 +187,9 @@ class BotoTest(unittest.TestCase):
     @mock_s3
     def test_double_patch(self):
         s3 = boto.s3.connect_to_region('us-east-1')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(s3)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
 
         patch()
         patch()
@@ -170,13 +203,14 @@ class BotoTest(unittest.TestCase):
     @mock_lambda
     def test_lambda_client(self):
         lamb = boto.awslambda.connect_to_region('us-east-2')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(lamb)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(lamb)
 
         # multiple calls
         lamb.list_functions()
         lamb.list_functions()
+
         spans = writer.pop()
         assert spans
         self.assertEqual(len(spans), 2)
@@ -191,9 +225,9 @@ class BotoTest(unittest.TestCase):
     @mock_sts
     def test_sts_client(self):
         sts = boto.sts.connect_to_region('us-west-2')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(sts)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(sts)
 
         sts.get_federation_token(12, duration=10)
 
@@ -215,9 +249,9 @@ class BotoTest(unittest.TestCase):
     )
     def test_elasticache_client(self):
         elasticache = boto.elasticache.connect_to_region('us-west-2')
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(elasticache)
+
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(elasticache)
 
         elasticache.describe_cache_clusters()
 
@@ -233,10 +267,10 @@ class BotoTest(unittest.TestCase):
         """OpenTracing compatibility check of the test_ec2_client test."""
 
         ec2 = boto.ec2.connect_to_region('us-west-2')
-        tracer = get_dummy_tracer()
-        ot_tracer = init_tracer('my_svc', tracer)
-        writer = tracer.writer
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(ec2)
+
+        ot_tracer = init_tracer('my_svc', self.tracer)
+        writer = self.tracer.writer
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
         with ot_tracer.start_active_span('ot_span'):
             ec2.get_all_instances()

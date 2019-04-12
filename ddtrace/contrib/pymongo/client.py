@@ -1,34 +1,31 @@
 # stdlib
 import contextlib
-import logging
 import json
 
 # 3p
 import pymongo
-from wrapt import ObjectProxy
+from ddtrace.vendor.wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ...utils.deprecation import deprecated
 from ...compat import iteritems
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
+from ...internal.logger import get_logger
+from ...settings import config
+from ...utils.deprecation import deprecated
 from .parse import parse_spec, parse_query, parse_msg
 
 # Original Client class
 _MongoClient = pymongo.MongoClient
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def trace_mongo_client(client, tracer, service=mongox.TYPE):
-    tracer.set_service_info(
-        service=service,
-        app=mongox.TYPE,
-        app_type=AppTypes.db,
-    )
     traced_client = TracedMongoClient(client)
     ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
     return traced_client
@@ -123,6 +120,12 @@ class TracedServer(ObjectProxy):
             # set `mongodb.query` tag and resource for span
             _set_query_metadata(span, cmd)
 
+            # set analytics sample rate
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.pymongo.get_analytics_sample_rate()
+            )
+
             result = self.__wrapped__.send_message_with_response(
                 operation,
                 *args,
@@ -201,6 +204,12 @@ class TracedSocket(ObjectProxy):
 
         # set `mongodb.query` tag and resource for span
         _set_query_metadata(s, cmd)
+
+        # set analytics sample rate
+        s.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.pymongo.get_analytics_sample_rate()
+        )
 
         if self.address:
             _set_address_tags(s, self.address)
