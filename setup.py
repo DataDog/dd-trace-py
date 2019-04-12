@@ -85,6 +85,9 @@ setup_kwargs = dict(
     long_description_content_type='text/markdown',
     license='BSD',
     packages=find_packages(exclude=['tests*']),
+    install_requires=[
+        'psutil',
+    ],
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
