@@ -44,7 +44,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.url") == URL_200
+        assert s.get_tag('http.url') == URL_200
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -171,17 +171,17 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         except Exception:
             pass
         else:
-            assert 0, "expected error"
+            assert 0, 'expected error'
 
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'GET'
         assert s.error == 1
-        assert "Failed to establish a new connection" in s.get_tag(errors.MSG)
-        assert "Failed to establish a new connection" in s.get_tag(errors.STACK)
-        assert "Traceback (most recent call last)" in s.get_tag(errors.STACK)
-        assert "requests.exception" in s.get_tag(errors.TYPE)
+        assert 'Failed to establish a new connection' in s.get_tag(errors.MSG)
+        assert 'Failed to establish a new connection' in s.get_tag(errors.STACK)
+        assert 'Traceback (most recent call last)' in s.get_tag(errors.STACK)
+        assert 'requests.exception' in s.get_tag(errors.TYPE)
 
     def test_500(self):
         out = self.session.get(URL_500)
@@ -435,13 +435,13 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         pin = Pin(service=__name__,
-                  app="requests",
+                  app='requests',
                   _config={
-                      "service_name": __name__,
-                      "distributed_tracing": False,
-                      "split_by_domain": False,
-                      "analytics_enabled": True,
-                      "analytics_sample_rate": 0.5,
+                      'service_name': __name__,
+                      'distributed_tracing': False,
+                      'split_by_domain': False,
+                      'analytics_enabled': True,
+                      'analytics_sample_rate': 0.5,
                   })
         pin.onto(self.session)
         self.session.get(URL_200)
@@ -458,12 +458,12 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         pin = Pin(service=__name__,
-                  app="requests",
+                  app='requests',
                   _config={
-                      "service_name": __name__,
-                      "distributed_tracing": False,
-                      "split_by_domain": False,
-                      "analytics_enabled": True,
+                      'service_name': __name__,
+                      'distributed_tracing': False,
+                      'split_by_domain': False,
+                      'analytics_enabled': True,
                   })
         pin.onto(self.session)
         self.session.get(URL_200)

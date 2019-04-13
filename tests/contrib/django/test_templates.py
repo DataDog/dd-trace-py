@@ -13,7 +13,7 @@ class DjangoTemplateTest(DjangoTraceTestCase):
     """
     def test_template(self):
         # prepare a base template using the default engine
-        template = Template("Hello {{name}}!")
+        template = Template('Hello {{name}}!')
         ctx = Context({'name': 'Django'})
 
         # (trace) the template rendering
@@ -35,7 +35,7 @@ class DjangoTemplateTest(DjangoTraceTestCase):
     @override_ddtrace_settings(INSTRUMENT_TEMPLATE=False)
     def test_template_disabled(self):
         # prepare a base template using the default engine
-        template = Template("Hello {{name}}!")
+        template = Template('Hello {{name}}!')
         ctx = Context({'name': 'Django'})
 
         # (trace) the template rendering

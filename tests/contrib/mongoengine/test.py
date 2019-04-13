@@ -87,7 +87,7 @@ class MongoEngineCore(object):
 
         # ensure filtered queries work
         start = time.time()
-        artists = [a for a in Artist.objects(first_name="Joni")]
+        artists = [a for a in Artist.objects(first_name='Joni')]
         end = time.time()
         assert len(artists) == 1
         joni = artists[0]
@@ -97,7 +97,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.resource == '{} artist {{"first_name": "?"}}'.format(name)
+        assert span.resource == "{} artist {{'first_name': '?'}}".format(name)
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
         _assert_timing(span, start, end)
@@ -111,7 +111,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.resource == 'update artist {"_id": "?"}'
+        assert span.resource == "update artist {'_id': '?'}"
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
         _assert_timing(span, start, end)
@@ -124,7 +124,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.resource == 'delete artist {"_id": "?"}'
+        assert span.resource == "delete artist {'_id': '?'}"
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
         _assert_timing(span, start, end)

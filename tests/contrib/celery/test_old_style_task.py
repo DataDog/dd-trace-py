@@ -22,7 +22,7 @@ class CeleryOldStyleTaskTest(CeleryBaseTestCase):
                 if 'stop' in kwargs:
                     # avoid call loop
                     return
-                CelerySubClass.apply_async(args=[], kwargs={"stop": True})
+                CelerySubClass.apply_async(args=[], kwargs={'stop': True})
 
         class CelerySubClass(CelerySuperClass):
             pass
