@@ -269,7 +269,7 @@ class TestFlask(TestCase):
         assert s.meta.get(http.METHOD) == 'GET'
         assert 'ZeroDivisionError' in s.meta.get(errors.ERROR_TYPE), s.meta
         assert 'by zero' in s.meta.get(errors.ERROR_MSG)
-        assert re.search("File '.*/contrib/flask/web.py', line [0-9]+, in fatal", s.meta.get(errors.ERROR_STACK))
+        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
 
     def test_unicode(self):
         start = time.time()
