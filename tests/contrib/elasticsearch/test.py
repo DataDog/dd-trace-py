@@ -284,7 +284,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert span.resource == 'GET /%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
         assert span.get_tag('elasticsearch.method') == 'GET'
         assert span.get_tag('elasticsearch.url') == '/%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag('elasticsearch.body').replace(' ', '') == "{'query':{'match_all':{}}}"
+        assert span.get_tag('elasticsearch.body').replace(' ', '') == '{"query":{"match_all":{}}}'
         assert set(span.get_tag('elasticsearch.params').split('&')) == {'sort=name%3Adesc', 'size=100'}
 
         self.assertTrue(span.get_metric('elasticsearch.took') > 0)
