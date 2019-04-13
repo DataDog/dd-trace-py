@@ -28,7 +28,7 @@ def patch():
     setattr(botocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
-    Pin(service="aws", app="aws", app_type="web").onto(botocore.client.BaseClient)
+    Pin(service='aws', app='aws', app_type='web').onto(botocore.client.BaseClient)
 
 
 def unpatch():
@@ -43,10 +43,10 @@ def patched_api_call(original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
 
-    endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+    endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
 
     with pin.tracer.trace('{}.command'.format(endpoint_name),
-                          service="{}.{}".format(pin.service, endpoint_name),
+                          service='{}.{}'.format(pin.service, endpoint_name),
                           span_type=SPAN_TYPE) as span:
 
         operation = None
@@ -59,7 +59,7 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
-        region_name = deep_getattr(instance, "meta.region_name")
+        region_name = deep_getattr(instance, 'meta.region_name')
 
         meta = {
             'aws.agent': 'botocore',
@@ -71,7 +71,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
 
         span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag("retry_attempts", result['ResponseMetadata']['RetryAttempts'])
+        span.set_tag('retry_attempts', result['ResponseMetadata']['RetryAttempts'])
 
         # set analytics sample rate
         span.set_tag(
