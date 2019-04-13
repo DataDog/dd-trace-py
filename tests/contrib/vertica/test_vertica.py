@@ -197,7 +197,7 @@ class TestVertica(BaseTracerTestCase):
         Pin.override(cur, tracer=self.test_tracer)
 
         with conn:
-            cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
@@ -208,7 +208,7 @@ class TestVertica(BaseTracerTestCase):
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
         assert spans[0].get_metric('db.rowcount') == -1
-        query = 'INSERT INTO test_table (a, b) VALUES (1, "aa");'
+        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
         assert spans[0].get_tag('out.port') == '5433'
@@ -224,7 +224,7 @@ class TestVertica(BaseTracerTestCase):
         Pin.override(cur, tracer=self.test_tracer)
 
         with conn:
-            cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
@@ -235,7 +235,7 @@ class TestVertica(BaseTracerTestCase):
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
         assert spans[0].get_metric('db.rowcount') == -1
-        query = 'INSERT INTO test_table (a, b) VALUES (1, "aa");'
+        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
         assert spans[0].get_tag('out.port') == '5433'
@@ -362,7 +362,7 @@ class TestVertica(BaseTracerTestCase):
         ot_tracer = init_tracer('vertica_svc', self.test_tracer)
 
         with ot_tracer.start_active_span('vertica_execute'):
-            cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             conn.close()
 
         spans = self.test_tracer.writer.pop()
@@ -377,7 +377,7 @@ class TestVertica(BaseTracerTestCase):
         assert dd_span.span_type == 'sql'
         assert dd_span.name == 'vertica.query'
         assert dd_span.get_metric('db.rowcount') == -1
-        query = 'INSERT INTO test_table (a, b) VALUES (1, "aa");'
+        query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
         assert dd_span.get_tag('out.host') == '127.0.0.1'
         assert dd_span.get_tag('out.port') == '5433'
@@ -388,7 +388,7 @@ class TestVertica(BaseTracerTestCase):
         Pin.override(cur, tracer=self.test_tracer)
 
         with conn:
-            cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+            cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
             cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
@@ -405,7 +405,7 @@ class TestVertica(BaseTracerTestCase):
             Pin.override(cur, tracer=self.test_tracer)
 
             with conn:
-                cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
@@ -422,7 +422,7 @@ class TestVertica(BaseTracerTestCase):
             Pin.override(cur, tracer=self.test_tracer)
 
             with conn:
-                cur.execute('INSERT INTO {} (a, b) VALUES (1, "aa");'.format(TEST_TABLE))
+                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
                 cur.execute('SELECT * FROM {};'.format(TEST_TABLE))
 
         spans = self.test_tracer.writer.pop()
