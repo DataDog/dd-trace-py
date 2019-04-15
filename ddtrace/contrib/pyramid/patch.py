@@ -78,7 +78,7 @@ def insert_tween_if_needed(settings):
     # pyramid.  We need our tween to be before it, otherwise unhandled
     # exceptions will be caught before they reach our tween.
     idx = tweens.find(pyramid.tweens.EXCVIEW)
-    if idx is -1:
+    if idx == -1:
         settings['pyramid.tweens'] = tweens + '\n' + DD_TWEEN_NAME
     else:
         settings['pyramid.tweens'] = tweens[:idx] + DD_TWEEN_NAME + "\n" + tweens[idx:]

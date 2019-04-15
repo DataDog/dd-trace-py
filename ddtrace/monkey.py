@@ -37,7 +37,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
-    'requests': False,  # Not ready yet
+    'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
@@ -96,7 +96,7 @@ def _on_import_factory(module, raise_errors=True):
 def patch_all(**patch_modules):
     """Automatically patches all available modules.
 
-    :param dict \**patch_modules: Override whether particular modules are patched or not.
+    :param dict patch_modules: Override whether particular modules are patched or not.
 
         >>> patch_all(redis=False, cassandra=False)
     """
@@ -110,7 +110,7 @@ def patch(raise_errors=True, **patch_modules):
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
-    :param dict \**patch_modules: List of modules to patch.
+    :param dict patch_modules: List of modules to patch.
 
         >>> patch(psycopg=True, elasticsearch=True)
     """

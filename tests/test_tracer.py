@@ -91,7 +91,7 @@ class TracerTestCase(BaseTracerTestCase):
                 pass
 
         # Root span should contain the pid of the current process
-        root_span.assert_meta({system.PID: str(getpid())}, exact=True)
+        root_span.assert_meta({system.PID: str(getpid())}, exact=False)
 
         # Child span should not contain a pid tag
         child_span.assert_meta(dict(), exact=True)
@@ -329,6 +329,12 @@ class TracerTestCase(BaseTracerTestCase):
         span = self.trace('fake_span')
         self.assertEqual(self.tracer.current_span(), span)
 
+    def test_tracer_current_span_missing_context(self):
+        self.assertIsNone(self.tracer.current_span())
+
+    def test_tracer_current_root_span_missing_context(self):
+        self.assertIsNone(self.tracer.current_root_span())
+
     def test_default_provider_get(self):
         # Tracer Context Provider must return a Context object
         # even if empty
@@ -417,3 +423,47 @@ class TracerTestCase(BaseTracerTestCase):
             _tracer=self.tracer,
         )
         self.assertEqual(child._context._current_span, child)
+
+    def test_adding_services(self):
+        self.assertEqual(self.tracer._services, set())
+        root = self.start_span('root', service='one')
+        context = root.context
+        self.assertSetEqual(self.tracer._services, set(['one']))
+        self.start_span('child', service='two', child_of=context)
+        self.assertSetEqual(self.tracer._services, set(['one', 'two']))
+
+    def test_configure_runtime_worker(self):
+        # by default runtime worker not started though runtime id is set
+        self.assertIsNone(self.tracer._runtime_worker)
+        self.assertIsNotNone(self.tracer._runtime_id)
+
+        # configure tracer with runtime metrics collection
+        self.tracer.configure(collect_metrics=True)
+        self.assertIsNotNone(self.tracer._runtime_worker)
+        self.assertIsNotNone(self.tracer._runtime_id)
+
+    def test_span_no_runtime_tags(self):
+        self.tracer.configure(collect_metrics=False)
+
+        root = self.start_span('root')
+        context = root.context
+        child = self.start_span('child', child_of=context)
+
+        self.assertIsNone(root.get_tag('runtime-id'))
+        self.assertIsNone(root.get_tag('language'))
+
+        self.assertIsNone(child.get_tag('runtime-id'))
+        self.assertIsNone(child.get_tag('language'))
+
+    def test_only_root_span_runtime(self):
+        self.tracer.configure(collect_metrics=True)
+
+        root = self.start_span('root')
+        context = root.context
+        child = self.start_span('child', child_of=context)
+
+        self.assertEqual(root.get_tag('runtime-id'), self.tracer._runtime_id)
+        self.assertEqual(root.get_tag('language'), 'python')
+
+        self.assertIsNone(child.get_tag('runtime-id'))
+        self.assertIsNone(child.get_tag('language'))

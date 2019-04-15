@@ -1,5 +1,4 @@
 # 3p
-from nose.tools import assert_raises
 import pymemcache
 from pymemcache.exceptions import (
     MemcacheClientError,
@@ -8,6 +7,7 @@ from pymemcache.exceptions import (
     MemcacheUnknownError,
     MemcacheIllegalInputError,
 )
+import pytest
 import unittest
 from ddtrace.vendor import wrapt
 
@@ -86,7 +86,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _delete():
             client.delete(b"key", noreply=False)
 
-        assert_raises(Exception, _delete)
+        pytest.raises(Exception, _delete)
 
         spans = self.check_spans(1, ["delete"], ["delete key"])
         self.assertEqual(spans[0].error, 1)
@@ -104,7 +104,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _incr():
             client.incr(b"key", 1)
 
-        assert_raises(Exception, _incr)
+        pytest.raises(Exception, _incr)
 
         spans = self.check_spans(1, ["incr"], ["incr key"])
         self.assertEqual(spans[0].error, 1)
@@ -115,7 +115,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _get():
             client.get(b"key")
 
-        assert_raises(MemcacheUnknownCommandError, _get)
+        pytest.raises(MemcacheUnknownCommandError, _get)
 
         spans = self.check_spans(1, ["get"], ["get key"])
         self.assertEqual(spans[0].error, 1)
@@ -126,7 +126,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _get():
             client.get(b"key")
 
-        assert_raises(MemcacheUnknownError, _get)
+        pytest.raises(MemcacheUnknownError, _get)
 
         self.check_spans(1, ["get"], ["get key"])
 
@@ -150,7 +150,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _set():
             client.set("key", "value", noreply=False)
 
-        assert_raises(MemcacheClientError, _set)
+        pytest.raises(MemcacheClientError, _set)
 
         spans = self.check_spans(1, ["set"], ["set key"])
         self.assertEqual(spans[0].error, 1)
@@ -161,7 +161,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _set():
             client.set(b"key", b"value", noreply=False)
 
-        assert_raises(MemcacheServerError, _set)
+        pytest.raises(MemcacheServerError, _set)
 
         spans = self.check_spans(1, ["set"], ["set key"])
         self.assertEqual(spans[0].error, 1)
@@ -172,7 +172,7 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         def _set():
             client.set(b"key has space", b"value", noreply=False)
 
-        assert_raises(MemcacheIllegalInputError, _set)
+        pytest.raises(MemcacheIllegalInputError, _set)
 
         spans = self.check_spans(1, ["set"], ["set key has space"])
         self.assertEqual(spans[0].error, 1)

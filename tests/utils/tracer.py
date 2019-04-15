@@ -1,6 +1,8 @@
+from collections import deque
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.tracer import Tracer
 from ddtrace.writer import AgentWriter
+from ddtrace.compat import PY3
 
 
 class DummyWriter(AgentWriter):
@@ -59,8 +61,8 @@ class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
     """
-    def __init__(self, *args, **kwargs):
-        super(DummyTracer, self).__init__(*args, **kwargs)
+    def __init__(self):
+        super(DummyTracer, self).__init__()
         self._update_writer()
 
     def _update_writer(self):
@@ -75,3 +77,32 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
         self._update_writer()
+
+
+class FakeSocket(object):
+    """ A fake socket for testing dogstatsd client.
+
+        Adapted from https://github.com/DataDog/datadogpy/blob/master/tests/unit/dogstatsd/test_statsd.py#L31
+    """
+
+    def __init__(self):
+        self.payloads = deque()
+
+    def send(self, payload):
+        if PY3:
+            assert type(payload) == bytes
+        else:
+            assert type(payload) == str
+        self.payloads.append(payload)
+
+    def recv(self):
+        try:
+            return self.payloads.popleft().decode('utf-8')
+        except IndexError:
+            return None
+
+    def close(self):
+        pass
+
+    def __repr__(self):
+        return str(self.payloads)

@@ -3,8 +3,6 @@ import unittest
 
 from celery import Celery
 
-from nose.tools import ok_
-
 from ddtrace.contrib.celery import patch_task, unpatch_task, unpatch
 
 
@@ -32,9 +30,9 @@ class CeleryDeprecatedTaskPatch(unittest.TestCase):
             def fn_task():
                 return 42
 
-            ok_(len(w) == 1)
-            ok_(issubclass(w[-1].category, DeprecationWarning))
-            ok_('patch(celery=True)' in str(w[-1].message))
+            assert len(w) == 1
+            assert issubclass(w[-1].category, DeprecationWarning)
+            assert 'patch(celery=True)' in str(w[-1].message)
 
     def test_unpatch_signals_diconnect(self):
         # calling `unpatch_task` is a no-op that raises a Deprecation
@@ -47,6 +45,6 @@ class CeleryDeprecatedTaskPatch(unittest.TestCase):
             def fn_task():
                 return 42
 
-            ok_(len(w) == 1)
-            ok_(issubclass(w[-1].category, DeprecationWarning))
-            ok_('unpatch()' in str(w[-1].message))
+            assert len(w) == 1
+            assert issubclass(w[-1].category, DeprecationWarning)
+            assert 'unpatch()' in str(w[-1].message)
