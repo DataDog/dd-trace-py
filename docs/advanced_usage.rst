@@ -182,7 +182,7 @@ Trace Search & Analytics
 
 Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
 
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``. Furthermore, ``DD_ANALYTICS_ENABLED=true`` can also be used for the same purpose, however, it will be ignored if ``DD_TRACE_ANALYTICS_ENABLED`` environment variable is set. Those enviornment variables will enable APM for the following web frameworks:
+Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
 * :ref:`aiohttp`
 * :ref:`bottle`

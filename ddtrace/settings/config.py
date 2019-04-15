@@ -7,6 +7,7 @@ from ..utils.formats import asbool
 from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
+from ..utils.formats import get_env
 
 log = get_logger(__name__)
 
@@ -22,11 +23,12 @@ class Config(object):
         self._config = {}
         self._http = HttpConfig()
         # Master switch for turning on and off trace search by default
-        # accepts both DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED
-        # but will prefer the value for DD_TRACE_ANALYTICS_ENABLED every
-        # time
+        # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
+        # legacy environment variable. It should be removed in the future
+        legacy_config_value = get_env('analytics', 'enabled', default=False)
+
         self.analytics_enabled = asbool(
-            environ.get('DD_TRACE_ANALYTICS_ENABLED', environ.get('DD_ANALYTICS_ENABLED', False))
+            get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
     def __getattr__(self, name):
