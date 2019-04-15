@@ -1,5 +1,4 @@
 from copy import deepcopy
-from os import environ
 
 from ..internal.logger import get_logger
 from ..pin import Pin
