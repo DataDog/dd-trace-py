@@ -22,7 +22,12 @@ class Config(object):
         self._config = {}
         self._http = HttpConfig()
         # Master switch for turning on and off trace search by default
-        self.analytics_enabled = asbool(environ.get('DD_ANALYTICS_ENABLED', False))
+        # accepts both DD_TRACE_ANALYTICS_ENABLED and DD_ANALYTICS_ENABLED
+        # but will prefer the value for DD_TRACE_ANALYTICS_ENABLED every
+        # time
+        self.analytics_enabled = asbool(
+            environ.get('DD_TRACE_ANALYTICS_ENABLED', environ.get('DD_ANALYTICS_ENABLED', False))
+        )
 
     def __getattr__(self, name):
         if name not in self._config:
