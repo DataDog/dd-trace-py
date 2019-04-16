@@ -32,9 +32,9 @@ class RateSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
-            # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
+            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
@@ -50,7 +50,7 @@ class RateSamplerTest(unittest.TestCase):
             span.finish()
 
             samples = writer.pop()
-            assert len(samples) <= 1, "there should be 0 or 1 spans"
+            assert len(samples) <= 1, 'there should be 0 or 1 spans'
             sampled = (1 == len(samples))
             for j in range(10):
                 other_span = Span(tracer, i, trace_id=span.trace_id)
@@ -61,14 +61,14 @@ class RateSamplerTest(unittest.TestCase):
 
 class RateByServiceSamplerTest(unittest.TestCase):
     def test_default_key(self):
-        assert "service:,env:" == _default_key, "default key should correspond to no service and no env"
+        assert 'service:,env:' == _default_key, 'default key should correspond to no service and no env'
 
     def test_key(self):
         assert _default_key == _key()
-        assert "service:mcnulty,env:" == _key(service="mcnulty")
-        assert "service:,env:test" == _key(env="test")
-        assert "service:mcnulty,env:test" == _key(service="mcnulty", env="test")
-        assert "service:mcnulty,env:test" == _key("mcnulty", "test")
+        assert 'service:mcnulty,env:' == _key(service='mcnulty')
+        assert 'service:,env:test' == _key(env='test')
+        assert 'service:mcnulty,env:test' == _key(service='mcnulty', env='test')
+        assert 'service:mcnulty,env:test' == _key('mcnulty', 'test')
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
@@ -79,7 +79,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer != tracer.writer, "writer should have been updated by configure"
+            assert writer != tracer.writer, 'writer should have been updated by configure'
             tracer.writer = writer
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
@@ -105,9 +105,9 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
-            # Less than 2% deviation when "enough" iterations (arbitrary, just check if it converges)
+            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, "Deviation too high %f with sample_rate %f" % (deviation, sample_rate)
+            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_set_sample_rate_by_service(self):
         cases = [
@@ -135,7 +135,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
-            assert case == rates, "%s != %s" % (case, rates)
+            assert case == rates, '%s != %s' % (case, rates)
         # It's important to also test in reverse mode for we want to make sure key deletion
         # works as well as key insertion (and doing this both ways ensures we trigger both cases)
         cases.reverse()
@@ -144,4 +144,4 @@ class RateByServiceSamplerTest(unittest.TestCase):
             rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
-            assert case == rates, "%s != %s" % (case, rates)
+            assert case == rates, '%s != %s' % (case, rates)

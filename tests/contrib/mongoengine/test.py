@@ -87,7 +87,7 @@ class MongoEngineCore(object):
 
         # ensure filtered queries work
         start = time.time()
-        artists = [a for a in Artist.objects(first_name="Joni")]
+        artists = [a for a in Artist.objects(first_name='Joni')]
         end = time.time()
         assert len(artists) == 1
         joni = artists[0]

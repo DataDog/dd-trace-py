@@ -31,7 +31,7 @@ class Tracer(object):
     you can use the global tracer instance::
 
         from ddtrace import tracer
-        trace = tracer.trace("app.request", "web-server").finish()
+        trace = tracer.trace('app.request', 'web-server').finish()
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
@@ -177,17 +177,17 @@ class Tracer(object):
 
         To start a new root span, simply::
 
-            span = tracer.start_span("web.request")
+            span = tracer.start_span('web.request')
 
         If you want to create a child for a root span, just::
 
-            root_span = tracer.start_span("web.request")
-            span = tracer.start_span("web.decoder", child_of=root_span)
+            root_span = tracer.start_span('web.request')
+            span = tracer.start_span('web.decoder', child_of=root_span)
 
         Or if you have a ``Context`` object::
 
             context = tracer.get_call_context()
-            span = tracer.start_span("web.worker", child_of=context)
+            span = tracer.start_span('web.worker', child_of=context)
         """
         if child_of is not None:
             # retrieve if the span is a child_of a Span or a of Context
@@ -345,24 +345,24 @@ class Tracer(object):
         You must call `finish` on all spans, either directly or with a context
         manager::
 
-            >>> span = tracer.trace("web.request")
+            >>> span = tracer.trace('web.request')
                 try:
                     # do something
                 finally:
                     span.finish()
 
-            >>> with tracer.trace("web.request") as span:
+            >>> with tracer.trace('web.request') as span:
                     # do something
 
         Trace will store the current active span and subsequent child traces will
         become its children::
 
-            parent = tracer.trace("parent")     # has no parent span
-            child  = tracer.trace("child")      # is a child of a parent
+            parent = tracer.trace('parent')     # has no parent span
+            child  = tracer.trace('child')      # is a child of a parent
             child.finish()
             parent.finish()
 
-            parent2 = tracer.trace("parent2")   # has no parent span
+            parent2 = tracer.trace('parent2')   # has no parent span
             parent2.finish()
         """
         # retrieve the Context using the context provider and create
@@ -422,9 +422,9 @@ class Tracer(object):
             return  # nothing to do
 
         if self.debug_logging:
-            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+            log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
             for span in spans:
-                log.debug("\n%s", span.pprint())
+                log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)

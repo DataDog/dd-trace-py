@@ -30,7 +30,7 @@ class AddTagFilter():
     def process_trace(self, trace):
         self.filtered_traces += 1
         for span in trace:
-            span.set_tag(self.tag_name, "A value")
+            span.set_tag(self.tag_name, 'A value')
         return trace
 
 
@@ -53,7 +53,7 @@ class AsyncWorkerTests(TestCase):
         self.services = Q()
         for i in range(N_TRACES):
             self.traces.add([
-                Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
+                Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
                 for j in range(7)
             ])
 
@@ -76,7 +76,7 @@ class AsyncWorkerTests(TestCase):
         self.assertEqual(filtr.filtered_traces, N_TRACES)
 
     def test_filters_add_tag(self):
-        tag_name = "Tag"
+        tag_name = 'Tag'
         filtr = AddTagFilter(tag_name)
         filters = [filtr]
         worker = AsyncWorker(self.api, self.traces, self.services, filters=filters)

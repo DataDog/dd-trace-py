@@ -12,7 +12,7 @@ NUMBER = 10000
 
 def trace_error(tracer):
     # explicit vars
-    with tracer.trace("a", service="s", resource="r", span_type="t"):
+    with tracer.trace('a', service='s', resource='r', span_type='t'):
         1 / 0
 
 
@@ -23,19 +23,19 @@ def benchmark_tracer_trace():
     # testcase
     def trace(tracer):
         # explicit vars
-        with tracer.trace("a", service="s", resource="r", span_type="t") as s:
-            s.set_tag("a", "b")
-            s.set_tag("b", 1)
-            with tracer.trace("another.thing"):
+        with tracer.trace('a', service='s', resource='r', span_type='t') as s:
+            s.set_tag('a', 'b')
+            s.set_tag('b', 1)
+            with tracer.trace('another.thing'):
                 pass
-            with tracer.trace("another.thing"):
+            with tracer.trace('another.thing'):
                 pass
 
     # benchmark
-    print("## tracer.trace() benchmark: {} loops ##".format(NUMBER))
+    print('## tracer.trace() benchmark: {} loops ##'.format(NUMBER))
     timer = timeit.Timer(lambda: trace(tracer))
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- trace execution time: {:8.6f}".format(min(result)))
+    print('- trace execution time: {:8.6f}'.format(min(result)))
 
 
 def benchmark_tracer_wrap():
@@ -61,23 +61,23 @@ def benchmark_tracer_wrap():
     f = Foo()
 
     # benchmark
-    print("## tracer.trace() wrapper benchmark: {} loops ##".format(NUMBER))
+    print('## tracer.trace() wrapper benchmark: {} loops ##'.format(NUMBER))
     timer = timeit.Timer(f.s)
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- staticmethod execution time: {:8.6f}".format(min(result)))
+    print('- staticmethod execution time: {:8.6f}'.format(min(result)))
     timer = timeit.Timer(f.c)
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- classmethod execution time: {:8.6f}".format(min(result)))
+    print('- classmethod execution time: {:8.6f}'.format(min(result)))
     timer = timeit.Timer(f.m)
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- method execution time: {:8.6f}".format(min(result)))
+    print('- method execution time: {:8.6f}'.format(min(result)))
 
 
 def benchmark_getpid():
     timer = timeit.Timer(getpid)
     result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("## getpid wrapper benchmark: {} loops ##".format(NUMBER))
-    print("- getpid execution time: {:8.6f}".format(min(result)))
+    print('## getpid wrapper benchmark: {} loops ##'.format(NUMBER))
+    print('- getpid execution time: {:8.6f}'.format(min(result)))
 
 
 if __name__ == '__main__':

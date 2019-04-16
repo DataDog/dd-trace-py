@@ -79,17 +79,17 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
     tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application": dsn.get("application_name"),
+        net.TARGET_HOST: dsn.get('host'),
+        net.TARGET_PORT: dsn.get('port'),
+        db.NAME: dsn.get('dbname'),
+        db.USER: dsn.get('user'),
+        'db.application': dsn.get('application_name'),
     }
 
     Pin(
-        service="postgres",
-        app="postgres",
-        app_type="db",
+        service='postgres',
+        app='postgres',
+        app_type='db',
         tags=tags).onto(c)
 
     return c
