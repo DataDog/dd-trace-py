@@ -19,10 +19,10 @@ class Pin(object):
     This is useful if you wanted to, say, trace two different
     database clusters.
 
-        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> conn = sqlite.connect('/tmp/user.db')
         >>> # Override a pin for a specific connection
-        >>> pin = Pin.override(conn, service="user-db")
-        >>> conn = sqlite.connect("/tmp/image.db")
+        >>> pin = Pin.override(conn, service='user-db')
+        >>> conn = sqlite.connect('/tmp/image.db')
     """
     __slots__ = ['app', 'app_type', 'tags', 'tracer', '_target', '_config', '_initialized']
 
@@ -53,7 +53,7 @@ class Pin(object):
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return "Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)" % (
+        return 'Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)' % (
             self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
@@ -107,9 +107,9 @@ class Pin(object):
         That's the recommended way to customize an already instrumented client, without
         losing existing attributes.
 
-            >>> conn = sqlite.connect("/tmp/user.db")
+            >>> conn = sqlite.connect('/tmp/user.db')
             >>> # Override a pin for a specific connection
-            >>> Pin.override(conn, service="user-db")
+            >>> Pin.override(conn, service='user-db')
         """
         if not obj:
             return
@@ -156,7 +156,7 @@ class Pin(object):
             if pin is not None:
                 delattr(obj, pin_name)
         except AttributeError:
-            log.debug('can\'t remove pin from object. skipping', exc_info=True)
+            log.debug("can't remove pin from object. skipping", exc_info=True)
 
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""

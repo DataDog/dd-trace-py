@@ -23,7 +23,7 @@ class require_modules(object):
 def func_name(f):
     """Return a human readable version of the function's name."""
     if hasattr(f, '__module__'):
-        return "%s.%s" % (f.__module__, getattr(f, '__name__', f.__class__.__name__))
+        return '%s.%s' % (f.__module__, getattr(f, '__name__', f.__class__.__name__))
     return getattr(f, '__name__', f.__class__.__name__)
 
 

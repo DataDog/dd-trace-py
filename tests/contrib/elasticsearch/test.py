@@ -59,12 +59,12 @@ class ElasticsearchTest(unittest.TestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == "elasticsearch.query"
-        assert span.span_type == "elasticsearch"
+        assert span.name == 'elasticsearch.query'
+        assert span.span_type == 'elasticsearch'
         assert span.error == 0
-        assert span.get_tag('elasticsearch.method') == "PUT"
-        assert span.get_tag('elasticsearch.url') == "/%s" % self.ES_INDEX
-        assert span.resource == "PUT /%s" % self.ES_INDEX
+        assert span.get_tag('elasticsearch.method') == 'PUT'
+        assert span.get_tag('elasticsearch.url') == '/%s' % self.ES_INDEX
+        assert span.resource == 'PUT /%s' % self.ES_INDEX
 
         # Put data
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
@@ -77,9 +77,9 @@ class ElasticsearchTest(unittest.TestCase):
         assert len(spans) == 3
         span = spans[0]
         assert span.error == 0
-        assert span.get_tag('elasticsearch.method') == "PUT"
-        assert span.get_tag('elasticsearch.url') == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
-        assert span.resource == "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag('elasticsearch.method') == 'PUT'
+        assert span.get_tag('elasticsearch.url') == '/%s/%s/%s' % (self.ES_INDEX, self.ES_TYPE, 10)
+        assert span.resource == 'PUT /%s/%s/?' % (self.ES_INDEX, self.ES_TYPE)
 
         # Make the data available
         es.indices.refresh(index=self.ES_INDEX)
@@ -88,9 +88,9 @@ class ElasticsearchTest(unittest.TestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
-        assert span.get_tag('elasticsearch.method') == "POST"
-        assert span.get_tag('elasticsearch.url') == "/%s/_refresh" % self.ES_INDEX
+        assert span.resource == 'POST /%s/_refresh' % self.ES_INDEX
+        assert span.get_tag('elasticsearch.method') == 'POST'
+        assert span.get_tag('elasticsearch.url') == '/%s/_refresh' % self.ES_INDEX
 
         # Search data
         result = es.search(
@@ -99,32 +99,32 @@ class ElasticsearchTest(unittest.TestCase):
             **args
         )
 
-        assert len(result["hits"]["hits"]) == 3, result
+        assert len(result['hits']['hits']) == 3, result
 
         spans = writer.pop()
         assert spans
         assert len(spans) == 1
         span = spans[0]
         assert span.resource == 'GET /%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag('elasticsearch.method') == "GET"
+        assert span.get_tag('elasticsearch.method') == 'GET'
         assert span.get_tag('elasticsearch.url') == '/%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
 
-        assert span.get_tag('elasticsearch.body').replace(" ", "") == '{"query":{"match_all":{}}}'
+        assert span.get_tag('elasticsearch.body').replace(' ', '') == '{"query":{"match_all":{}}}'
         assert set(span.get_tag('elasticsearch.params').split('&')) == {'sort=name%3Adesc', 'size=100'}
 
         self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 
         # Search by type not supported by default json encoder
-        query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
-        result = es.search(size=100, body={"query": query}, **args)
+        query = {'range': {'created': {'gte': datetime.date(2016, 2, 1)}}}
+        result = es.search(size=100, body={'query': query}, **args)
 
-        assert len(result["hits"]["hits"]) == 2, result
+        assert len(result['hits']['hits']) == 2, result
 
         # Raise error 404 with a non existent index
         writer.pop()
         try:
-            es.get(index="non_existent_index", id=100, doc_type="_all")
-            assert "error_not_raised" == "elasticsearch.exceptions.TransportError"
+            es.get(index='non_existent_index', id=100, doc_type='_all')
+            assert 'error_not_raised' == 'elasticsearch.exceptions.TransportError'
         except elasticsearch.exceptions.TransportError:
             spans = writer.pop()
             assert spans
@@ -135,7 +135,7 @@ class ElasticsearchTest(unittest.TestCase):
         try:
             es.indices.create(index=10)
             es.indices.create(index=10)
-            assert "error_not_raised" == "elasticsearch.exceptions.TransportError"
+            assert 'error_not_raised' == 'elasticsearch.exceptions.TransportError'
         except elasticsearch.exceptions.TransportError:
             spans = writer.pop()
             assert spans
@@ -173,16 +173,16 @@ class ElasticsearchTest(unittest.TestCase):
         assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
 
-        assert ot_span.service == "my_svc"
-        assert ot_span.resource == "ot_span"
+        assert ot_span.service == 'my_svc'
+        assert ot_span.resource == 'ot_span'
 
         assert dd_span.service == self.TEST_SERVICE
-        assert dd_span.name == "elasticsearch.query"
-        assert dd_span.span_type == "elasticsearch"
+        assert dd_span.name == 'elasticsearch.query'
+        assert dd_span.span_type == 'elasticsearch'
         assert dd_span.error == 0
-        assert dd_span.get_tag('elasticsearch.method') == "PUT"
-        assert dd_span.get_tag('elasticsearch.url') == "/%s" % self.ES_INDEX
-        assert dd_span.resource == "PUT /%s" % self.ES_INDEX
+        assert dd_span.get_tag('elasticsearch.method') == 'PUT'
+        assert dd_span.get_tag('elasticsearch.url') == '/%s' % self.ES_INDEX
+        assert dd_span.resource == 'PUT /%s' % self.ES_INDEX
 
 
 class ElasticsearchPatchTest(BaseTracerTestCase):
@@ -229,12 +229,12 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == "elasticsearch.query"
-        assert span.span_type == "elasticsearch"
+        assert span.name == 'elasticsearch.query'
+        assert span.span_type == 'elasticsearch'
         assert span.error == 0
-        assert span.get_tag('elasticsearch.method') == "PUT"
-        assert span.get_tag('elasticsearch.url') == "/%s" % self.ES_INDEX
-        assert span.resource == "PUT /%s" % self.ES_INDEX
+        assert span.get_tag('elasticsearch.method') == 'PUT'
+        assert span.get_tag('elasticsearch.url') == '/%s' % self.ES_INDEX
+        assert span.resource == 'PUT /%s' % self.ES_INDEX
 
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
         es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
@@ -247,9 +247,9 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert len(spans) == 3
         span = spans[0]
         assert span.error == 0
-        assert span.get_tag('elasticsearch.method') == "PUT"
-        assert span.get_tag('elasticsearch.url') == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
-        assert span.resource == "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag('elasticsearch.method') == 'PUT'
+        assert span.get_tag('elasticsearch.url') == '/%s/%s/%s' % (self.ES_INDEX, self.ES_TYPE, 10)
+        assert span.resource == 'PUT /%s/%s/?' % (self.ES_INDEX, self.ES_TYPE)
 
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
         es.indices.refresh(index=self.ES_INDEX)
@@ -259,9 +259,9 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
-        assert span.get_tag('elasticsearch.method') == "POST"
-        assert span.get_tag('elasticsearch.url') == "/%s/_refresh" % self.ES_INDEX
+        assert span.resource == 'POST /%s/_refresh' % self.ES_INDEX
+        assert span.get_tag('elasticsearch.method') == 'POST'
+        assert span.get_tag('elasticsearch.url') == '/%s/_refresh' % self.ES_INDEX
 
         # search data
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
@@ -275,25 +275,25 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
             **args
         )
 
-        assert len(result["hits"]["hits"]) == 3, result
+        assert len(result['hits']['hits']) == 3, result
         spans = self.get_spans()
         self.reset()
         assert spans, spans
         assert len(spans) == 4
         span = spans[-1]
-        assert span.resource == "GET /%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag('elasticsearch.method') == "GET"
-        assert span.get_tag('elasticsearch.url') == "/%s/%s/_search" % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag('elasticsearch.body').replace(" ", "") == '{"query":{"match_all":{}}}'
+        assert span.resource == 'GET /%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag('elasticsearch.method') == 'GET'
+        assert span.get_tag('elasticsearch.url') == '/%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
+        assert span.get_tag('elasticsearch.body').replace(' ', '') == '{"query":{"match_all":{}}}'
         assert set(span.get_tag('elasticsearch.params').split('&')) == {'sort=name%3Adesc', 'size=100'}
 
         self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 
         # Search by type not supported by default json encoder
-        query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
-        result = es.search(size=100, body={"query": query}, **args)
+        query = {'range': {'created': {'gte': datetime.date(2016, 2, 1)}}}
+        result = es.search(size=100, body={'query': query}, **args)
 
-        assert len(result["hits"]["hits"]) == 2, result
+        assert len(result['hits']['hits']) == 2, result
 
     def test_analytics_default(self):
         es = self.es
