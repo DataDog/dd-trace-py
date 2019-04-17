@@ -102,7 +102,7 @@ class API(object):
     """
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
-        self.port = port
+        self.port = int(port)
 
         self._headers = headers or {}
         self._version = None
