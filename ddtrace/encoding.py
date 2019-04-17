@@ -11,6 +11,7 @@ try:
     # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
     MSGPACK_PACK_PARAMS = {'use_bin_type': True}
     MSGPACK_UNPACK_PARAMS = {'raw': False}
+    MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
     MSGPACK_PACK_PARAMS = {}
