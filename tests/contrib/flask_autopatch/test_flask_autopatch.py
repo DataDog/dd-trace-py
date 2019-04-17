@@ -2,8 +2,9 @@
 import unittest
 
 import flask
-from ddtrace.vendor import wrapt
 
+from ddtrace.vendor import wrapt
+from ddtrace.ext import http
 from ddtrace import Pin
 
 from ...test_tracer import get_dummy_tracer
@@ -88,7 +89,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.url'), '/')
+        self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
         self.assertEqual(req_span.get_tag('http.status_code'), '200')
 
         # Handler span

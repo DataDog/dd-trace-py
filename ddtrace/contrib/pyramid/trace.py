@@ -103,7 +103,7 @@ def trace_tween_factory(handler, registry):
                 finally:
                     span.span_type = http.TYPE
                     # set request tags
-                    span.set_tag(http.URL, request.path)
+                    span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)
                     if request.matched_route:
                         span.resource = '{} {}'.format(request.method, request.matched_route.name)

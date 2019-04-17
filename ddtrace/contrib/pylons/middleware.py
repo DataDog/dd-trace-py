@@ -99,7 +99,10 @@ class PylonsTraceMiddleware(object):
 
                 span.set_tags({
                     http.METHOD: environ.get('REQUEST_METHOD'),
-                    http.URL: environ.get('PATH_INFO'),
+                    http.URL: '%s://%s:%s%s' % (environ.get('wsgi.url_scheme'),
+                                                environ.get('SERVER_NAME'),
+                                                environ.get('SERVER_PORT'),
+                                                environ.get('PATH_INFO')),
                     'pylons.user': environ.get('REMOTE_USER', ''),
                     'pylons.route.controller': controller,
                     'pylons.route.action': action,

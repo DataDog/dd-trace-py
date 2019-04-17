@@ -122,7 +122,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
         start_response = _w_start_response(start_response)
 
         span.set_tag(http.METHOD, request.method)
-        span.set_tag(http.URL, request.path)
+        span.set_tag(http.URL, '%s://%s:%s%s' % (
+            request.scheme, request.host, request.port, request.path,
+        ))
         span.set_tag('molten.version', molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
