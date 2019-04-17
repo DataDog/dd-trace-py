@@ -186,6 +186,7 @@ class API(object):
 
             log.debug('PUT %s:%s%s with payload %sb', self.hostname, self.port, endpoint, len(data))
             conn.request('PUT', endpoint, data, headers)
+
             # Parse the HTTPResponse into an API.Response
             # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,
             #      if we call `.close()` then all future `.read()` calls will return `b''`

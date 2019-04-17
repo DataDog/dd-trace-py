@@ -76,7 +76,7 @@ class AsyncWorker(object):
     def start(self):
         with self._lock:
             if not self._thread:
-                log.debug("starting flush thread")
+                log.debug('starting flush thread')
                 self._thread = threading.Thread(target=self._target)
                 self._thread.setDaemon(True)
                 self._thread.start()
@@ -108,9 +108,9 @@ class AsyncWorker(object):
 
             size = self._trace_queue.qsize()
             if size:
-                key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
+                key = 'ctrl-break' if os.name == 'nt' else 'ctrl-c'
                 log.debug(
-                    "Waiting %ss for traces to be sent. Hit %s to quit.",
+                    'Waiting %ss for traces to be sent. Hit %s to quit.',
                     self._shutdown_timeout,
                     key,
                 )

@@ -7,9 +7,9 @@ instance you are using::
     from sqlalchemy import create_engine
 
     engine = create_engine('sqlite:///:memory:')
-    trace_engine(engine, tracer, "my-database")
+    trace_engine(engine, tracer, 'my-database')
 
-    engine.connect().execute("select count(*) from users")
+    engine.connect().execute('select count(*) from users')
 """
 # 3p
 from sqlalchemy.event import listen
@@ -57,7 +57,7 @@ class EngineTracer(object):
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = service or self.vendor
-        self.name = "%s.query" % self.vendor
+        self.name = '%s.query' % self.vendor
 
         # attach the PIN
         Pin(
@@ -144,6 +144,6 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, 'dsn', None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span.set_tag(sqlx.DB, d.get("dbname"))
-                span.set_tag(netx.TARGET_HOST, d.get("host"))
-                span.set_tag(netx.TARGET_PORT, d.get("port"))
+                span.set_tag(sqlx.DB, d.get('dbname'))
+                span.set_tag(netx.TARGET_HOST, d.get('host'))
+                span.set_tag(netx.TARGET_PORT, d.get('port'))

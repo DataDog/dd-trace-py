@@ -32,7 +32,7 @@ def patch():
     """ patch will add tracing to the cassandra library. """
     setattr(cassandra.cluster.Cluster, 'connect',
             wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE, app=SERVICE, app_type="db").onto(cassandra.cluster.Cluster)
+    Pin(service=SERVICE, app=SERVICE, app_type='db').onto(cassandra.cluster.Cluster)
 
 
 def unpatch():
@@ -128,7 +128,7 @@ def traced_execute_async(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    query = kwargs.get("query") or args[0]
+    query = kwargs.get('query') or args[0]
 
     span = _start_span_and_set_tags(pin, query, instance, cluster)
 
@@ -181,7 +181,7 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace("cassandra.query", service=service, span_type=cassx.TYPE)
+    span = tracer.trace('cassandra.query', service=service, span_type=cassx.TYPE)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
@@ -196,9 +196,9 @@ def _start_span_and_set_tags(pin, query, session, cluster):
 def _extract_session_metas(session):
     metas = {}
 
-    if getattr(session, "keyspace", None):
+    if getattr(session, 'keyspace', None):
         # FIXME the keyspace can be overridden explicitly in the query itself
-        # e.g. "select * from trace.hash_to_resource"
+        # e.g. 'select * from trace.hash_to_resource'
         metas[cassx.KEYSPACE] = session.keyspace.lower()
 
     return metas
@@ -206,9 +206,9 @@ def _extract_session_metas(session):
 
 def _extract_cluster_metas(cluster):
     metas = {}
-    if deep_getattr(cluster, "metadata.cluster_name"):
+    if deep_getattr(cluster, 'metadata.cluster_name'):
         metas[cassx.CLUSTER] = cluster.metadata.cluster_name
-    if getattr(cluster, "port", None):
+    if getattr(cluster, 'port', None):
         metas[net.TARGET_PORT] = cluster.port
 
     return metas
@@ -219,11 +219,11 @@ def _extract_result_metas(result):
     if result is None:
         return metas
 
-    future = getattr(result, "response_future", None)
+    future = getattr(result, 'response_future', None)
 
     if future:
         # get the host
-        host = getattr(future, "coordinator_host", None)
+        host = getattr(future, 'coordinator_host', None)
         if host:
             metas[net.TARGET_HOST] = host
         elif hasattr(future, '_current_host'):
@@ -231,20 +231,20 @@ def _extract_result_metas(result):
             if address:
                 metas[net.TARGET_HOST] = address
 
-        query = getattr(future, "query", None)
-        if getattr(query, "consistency_level", None):
+        query = getattr(future, 'query', None)
+        if getattr(query, 'consistency_level', None):
             metas[cassx.CONSISTENCY_LEVEL] = query.consistency_level
-        if getattr(query, "keyspace", None):
+        if getattr(query, 'keyspace', None):
             metas[cassx.KEYSPACE] = query.keyspace.lower()
 
         page_number = getattr(future, PAGE_NUMBER, 1)
-        has_more_pages = getattr(future, "has_more_pages")
+        has_more_pages = getattr(future, 'has_more_pages')
         is_paginated = has_more_pages or page_number > 1
         metas[cassx.PAGINATED] = is_paginated
         if is_paginated:
             metas[cassx.PAGE_NUMBER] = page_number
 
-    if hasattr(result, "current_rows"):
+    if hasattr(result, 'current_rows'):
         result_rows = result.current_rows or []
         metas[cassx.ROW_COUNT] = len(result_rows)
 
@@ -258,12 +258,12 @@ def _sanitize_query(span, query):
     resource = None
     if t in ('SimpleStatement', 'PreparedStatement'):
         # reset query if a string is available
-        resource = getattr(query, "query_string", query)
+        resource = getattr(query, 'query_string', query)
     elif t == 'BatchStatement':
         resource = 'BatchStatement'
-        q = "; ".join(q[1] for q in query._statements_and_parameters[:2])
-        span.set_tag("cassandra.query", q)
-        span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
+        q = '; '.join(q[1] for q in query._statements_and_parameters[:2])
+        span.set_tag('cassandra.query', q)
+        span.set_metric('cassandra.batch_size', len(query._statements_and_parameters))
     elif t == 'BoundStatement':
         ps = getattr(query, 'prepared_statement', None)
         if ps:

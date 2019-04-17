@@ -27,7 +27,7 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
       then patchable[key] contains an already patched command!
       To workaround this, check if patchable or patchable.__class__ are _dogtraced
       If is isn't, nothing to worry about, patch the key as usual
-      But if it is, search for a "__dd_orig_{key}" method on the class, which is
+      But if it is, search for a '__dd_orig_{key}' method on the class, which is
       the original unpatched method we wish to trace.
 
     """
@@ -35,11 +35,11 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
         orig = None
         if hasattr(thing, '_dogtraced'):
             # Search for original method
-            orig = getattr(thing, "__dd_orig_{}".format(key), None)
+            orig = getattr(thing, '__dd_orig_{}'.format(key), None)
         else:
             orig = getattr(thing, key)
             # Set it for the next time we attempt to patch `thing`
-            setattr(thing, "__dd_orig_{}".format(key), orig)
+            setattr(thing, '__dd_orig_{}'.format(key), orig)
 
         return orig
 

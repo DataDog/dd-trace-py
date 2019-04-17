@@ -1,6 +1,5 @@
 import time
 
-from nose.tools import eq_, ok_
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
@@ -16,9 +15,9 @@ def test_ids():
     assert not s.parent_id
 
     s2 = Span(tracer=None, name='t', trace_id=1, span_id=2, parent_id=1)
-    eq_(s2.trace_id, 1)
-    eq_(s2.span_id, 2)
-    eq_(s2.parent_id, 1)
+    assert s2.trace_id == 1
+    assert s2.span_id == 2
+    assert s2.parent_id == 1
 
 
 def test_tags():
@@ -32,7 +31,7 @@ def test_tags():
         'b': '1',
         'c': '1',
     }
-    eq_(d['meta'], expected)
+    assert d['meta'] == expected
 
 
 def test_set_valid_metrics():
@@ -50,7 +49,7 @@ def test_set_valid_metrics():
         'd': 1231543543265475686787869123,
         'e': 12.34,
     }
-    eq_(d['metrics'], expected)
+    assert d['metrics'] == expected
 
 
 def test_set_invalid_metric():
@@ -70,7 +69,7 @@ def test_set_invalid_metric():
     for i, m in enumerate(invalid_metrics):
         k = str(i)
         s.set_metric(k, m)
-        eq_(s.get_metric(k), None)
+        assert s.get_metric(k) is None
 
 
 def test_set_numpy_metric():
@@ -80,8 +79,8 @@ def test_set_numpy_metric():
         raise SkipTest('numpy not installed')
     s = Span(tracer=None, name='test.span')
     s.set_metric('a', np.int64(1))
-    eq_(s.get_metric('a'), 1)
-    eq_(type(s.get_metric('a')), float)
+    assert s.get_metric('a') == 1
+    assert type(s.get_metric('a')) == float
 
 
 def test_tags_not_string():
@@ -107,7 +106,7 @@ def test_finish():
         assert s is s1
         time.sleep(sleep)
     assert s.duration >= sleep, '%s < %s' % (s.duration, sleep)
-    eq_(1, dt.spans_recorded)
+    assert 1 == dt.spans_recorded
 
 
 def test_finish_no_tracer():
@@ -171,10 +170,10 @@ def test_ctx_mgr():
             time.sleep(0.01)
             raise e
     except Exception as out:
-        eq_(out, e)
+        assert out == e
         assert s.duration > 0, s.duration
         assert s.error
-        eq_(s.get_tag(errors.ERROR_MSG), 'boo')
+        assert s.get_tag(errors.ERROR_MSG) == 'boo'
         assert 'Exception' in s.get_tag(errors.ERROR_TYPE)
         assert s.get_tag(errors.ERROR_STACK)
 
@@ -191,13 +190,13 @@ def test_span_to_dict():
 
     d = s.to_dict()
     assert d
-    eq_(d['span_id'], s.span_id)
-    eq_(d['trace_id'], s.trace_id)
-    eq_(d['parent_id'], s.parent_id)
-    eq_(d['meta'], {'a': '1', 'b': '2'})
-    eq_(d['type'], 'foo')
-    eq_(d['error'], 0)
-    eq_(type(d['error']), int)
+    assert d['span_id'] == s.span_id
+    assert d['trace_id'] == s.trace_id
+    assert d['parent_id'] == s.parent_id
+    assert d['meta'] == {'a': '1', 'b': '2'}
+    assert d['type'] == 'foo'
+    assert d['error'] == 0
+    assert type(d['error']) == int
 
 
 def test_span_to_dict_sub():
@@ -211,13 +210,13 @@ def test_span_to_dict_sub():
 
     d = s.to_dict()
     assert d
-    eq_(d['span_id'], s.span_id)
-    eq_(d['trace_id'], s.trace_id)
-    eq_(d['parent_id'], s.parent_id)
-    eq_(d['meta'], {'a': '1', 'b': '2'})
-    eq_(d['type'], 'foo')
-    eq_(d['error'], 0)
-    eq_(type(d['error']), int)
+    assert d['span_id'] == s.span_id
+    assert d['trace_id'] == s.trace_id
+    assert d['parent_id'] == s.parent_id
+    assert d['meta'] == {'a': '1', 'b': '2'}
+    assert d['type'] == 'foo'
+    assert d['error'] == 0
+    assert type(d['error']) == int
 
 
 def test_span_boolean_err():
@@ -227,8 +226,8 @@ def test_span_boolean_err():
 
     d = s.to_dict()
     assert d
-    eq_(d['error'], 1)
-    eq_(type(d['error']), int)
+    assert d['error'] == 1
+    assert type(d['error']) == int
 
 
 def test_numeric_tags_none():
@@ -236,7 +235,7 @@ def test_numeric_tags_none():
     s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
     d = s.to_dict()
     assert d
-    ok_('metrics' not in d)
+    assert 'metrics' not in d
 
 
 def test_numeric_tags_true():
@@ -247,7 +246,7 @@ def test_numeric_tags_true():
     expected = {
         ANALYTICS_SAMPLE_RATE_KEY: 1.0
     }
-    eq_(d['metrics'], expected)
+    assert d['metrics'] == expected
 
 
 def test_numeric_tags_value():
@@ -258,7 +257,7 @@ def test_numeric_tags_value():
     expected = {
         ANALYTICS_SAMPLE_RATE_KEY: 0.5
     }
-    eq_(d['metrics'], expected)
+    assert d['metrics'] == expected
 
 
 def test_numeric_tags_bad_value():
@@ -266,7 +265,7 @@ def test_numeric_tags_bad_value():
     s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 'Hello')
     d = s.to_dict()
     assert d
-    ok_('metrics' not in d)
+    assert 'metrics' not in d
 
 
 class DummyTracer(object):

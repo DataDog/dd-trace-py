@@ -2,4 +2,4 @@
 Standard system tags
 """
 
-PID = "system.pid"
+PID = 'system.pid'
