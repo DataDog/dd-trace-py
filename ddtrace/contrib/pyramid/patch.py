@@ -81,4 +81,4 @@ def insert_tween_if_needed(settings):
     if idx == -1:
         settings['pyramid.tweens'] = tweens + '\n' + DD_TWEEN_NAME
     else:
-        settings['pyramid.tweens'] = tweens[:idx] + DD_TWEEN_NAME + "\n" + tweens[idx:]
+        settings['pyramid.tweens'] = tweens[:idx] + DD_TWEEN_NAME + '\n' + tweens[idx:]

@@ -39,7 +39,7 @@ def create_app():
 
     @app.route('/tmpl')
     def tmpl():
-        return render_template('test.html', world="earth")
+        return render_template('test.html', world='earth')
 
     @app.route('/tmpl/err')
     def tmpl_err():
@@ -55,11 +55,11 @@ def create_app():
             span.set_tag('a', 'b')
             return 'child'
 
-    @app.route("/custom_span")
+    @app.route('/custom_span')
     def custom_span():
         span = app._tracer.current_span()
         assert span
-        span.resource = "overridden"
+        span.resource = 'overridden'
         return 'hiya'
 
     def unicode_view():
