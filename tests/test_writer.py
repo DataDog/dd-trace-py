@@ -58,7 +58,7 @@ class AsyncWorkerTests(TestCase):
         self.services = Q()
         for i in range(N_TRACES):
             self.traces.put([
-                Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None)
+                Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
                 for j in range(7)
             ])
 
