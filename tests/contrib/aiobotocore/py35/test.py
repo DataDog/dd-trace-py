@@ -1,6 +1,6 @@
 # flake8: noqa
 # DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
-from nose.tools import eq_
+import aiobotocore
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 
@@ -36,22 +36,37 @@ class AIOBotocoreTest(AsyncioTestCase):
                 await stream.read()
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 2)
-        eq_(len(traces[0]), 1)
-        eq_(len(traces[1]), 1)
 
-        span = traces[0][0]
-        eq_(span.get_tag('aws.operation'), 'GetObject')
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.service, 'aws.s3')
-        eq_(span.resource, 's3.getobject')
+        version = aiobotocore.__version__.split(".")
+        pre_08 = int(version[0]) == 0 and int(version[1]) < 8
+        # Version 0.8+ generates only one span for reading an object.
+        if pre_08:
+            assert len(traces) == 2
+            assert len(traces[0]) == 1
+            assert len(traces[1]) == 1
 
-        read_span = traces[1][0]
-        eq_(read_span.get_tag('aws.operation'), 'GetObject')
-        eq_(read_span.get_tag('http.status_code'), '200')
-        eq_(read_span.service, 'aws.s3')
-        eq_(read_span.resource, 's3.getobject')
-        eq_(read_span.name, 's3.command.read')
-        # enforce parenting
-        eq_(read_span.parent_id, span.span_id)
-        eq_(read_span.trace_id, span.trace_id)
+            span = traces[0][0]
+            assert span.get_tag('aws.operation') == 'GetObject'
+            assert span.get_tag('http.status_code') == '200'
+            assert span.service == 'aws.s3'
+            assert span.resource == 's3.getobject'
+
+            read_span = traces[1][0]
+            assert read_span.get_tag('aws.operation') == 'GetObject'
+            assert read_span.get_tag('http.status_code') == '200'
+            assert read_span.service == 'aws.s3'
+            assert read_span.resource == 's3.getobject'
+            assert read_span.name == 's3.command.read'
+            # enforce parenting
+            assert read_span.parent_id == span.span_id
+            assert read_span.trace_id == span.trace_id
+        else:
+            assert len(traces[0]) == 1
+            assert len(traces[0]) == 1
+
+            span = traces[0][0]
+            assert span.get_tag('aws.operation') == 'GetObject'
+            assert span.get_tag('http.status_code') == '200'
+            assert span.service == 'aws.s3'
+            assert span.resource == 's3.getobject'
+            assert span.name == 's3.command'

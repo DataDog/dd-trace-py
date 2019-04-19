@@ -7,10 +7,10 @@ log = get_logger(__name__)
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
-HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
-HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
-HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
-HTTP_HEADER_ORIGIN = "x-datadog-origin"
+HTTP_HEADER_TRACE_ID = 'x-datadog-trace-id'
+HTTP_HEADER_PARENT_ID = 'x-datadog-parent-id'
+HTTP_HEADER_SAMPLING_PRIORITY = 'x-datadog-sampling-priority'
+HTTP_HEADER_ORIGIN = 'x-datadog-origin'
 
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
@@ -41,11 +41,11 @@ class HTTPPropagator(object):
             from ddtrace.propagation.http import HTTPPropagator
 
             def parent_call():
-                with tracer.trace("parent_span") as span:
+                with tracer.trace('parent_span') as span:
                     headers = {}
                     propagator = HTTPPropagator()
                     propagator.inject(span.context, headers)
-                    url = "<some RPC endpoint>"
+                    url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
         :param Context span_context: Span context to propagate.
@@ -110,7 +110,7 @@ class HTTPPropagator(object):
                 context = propagator.extract(headers)
                 tracer.context_provider.activate(context)
 
-                with tracer.trace("my_controller") as span:
+                with tracer.trace('my_controller') as span:
                     span.set_meta('http.url', url)
 
         :param dict headers: HTTP headers to extract tracing attributes.
@@ -138,7 +138,7 @@ class HTTPPropagator(object):
         except Exception as error:
             try:
                 log.debug(
-                    "invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s, error: %s",
+                    'invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s, error: %s',
                     headers.get(HTTP_HEADER_TRACE_ID, 0),
                     headers.get(HTTP_HEADER_PARENT_ID, 0),
                     headers.get(HTTP_HEADER_SAMPLING_PRIORITY),

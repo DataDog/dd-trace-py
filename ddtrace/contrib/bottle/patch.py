@@ -20,7 +20,7 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
-    service = os.environ.get("DATADOG_SERVICE_NAME") or "bottle"
+    service = os.environ.get('DATADOG_SERVICE_NAME') or 'bottle'
 
     plugin = TracePlugin(service=service)
     instance.install(plugin)

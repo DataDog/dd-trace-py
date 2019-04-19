@@ -1,5 +1,4 @@
 # 3d party
-from nose.tools import eq_, ok_
 from django.test import TestCase
 
 # project
@@ -13,6 +12,6 @@ class DjangoUtilsTest(TestCase):
         """
         key = {'second_key': 2, 'first_key': 1}
         result = quantize_key_values(key)
-        eq_(len(result), 2)
-        ok_('first_key' in result)
-        ok_('second_key' in result)
+        assert len(result) == 2
+        assert 'first_key' in result
+        assert 'second_key' in result
