@@ -83,7 +83,7 @@ class TestWorkers(TestCase):
         Helper that waits for the thread flush
         """
         self.tracer.writer._worker.stop()
-        self.tracer.writer._worker.join()
+        self.tracer.writer._worker.join(None)
 
     def _get_endpoint_payload(self, calls, endpoint):
         """
@@ -159,8 +159,6 @@ class TestWorkers(TestCase):
         log_handler = MockedLogHandler(level='DEBUG')
         log.addHandler(log_handler)
 
-        # sleeping 1.01 secs to prevent writer from exiting before logging
-        time.sleep(1.01)
         self._wait_thread_flush()
         assert tracer.writer._worker._last_error_ts < time.time()
 
