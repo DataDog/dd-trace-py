@@ -17,9 +17,9 @@ class SpanTestCase(BaseTracerTestCase):
         assert not s.parent_id
 
         s2 = Span(tracer=None, name='t', trace_id=1, span_id=2, parent_id=1)
-        self.assertEqual(s2.trace_id, 1)
-        self.assertEqual(s2.span_id, 2)
-        self.assertEqual(s2.parent_id, 1)
+        assert s2.trace_id == 1
+        assert s2.span_id == 2
+        assert s2.parent_id == 1
 
     def test_tags(self):
         s = Span(tracer=None, name='test.span')
@@ -32,7 +32,7 @@ class SpanTestCase(BaseTracerTestCase):
             'b': '1',
             'c': '1',
         }
-        self.assertEqual(d['meta'], expected)
+        assert d['meta'] == expected
 
     def test_set_valid_metrics(self):
         s = Span(tracer=None, name='test.span')
@@ -49,7 +49,7 @@ class SpanTestCase(BaseTracerTestCase):
             'd': 1231543543265475686787869123,
             'e': 12.34,
         }
-        self.assertEqual(d['metrics'], expected)
+        assert d['metrics'] == expected
 
     def test_set_invalid_metric(self):
         s = Span(tracer=None, name='test.span')
@@ -68,7 +68,7 @@ class SpanTestCase(BaseTracerTestCase):
         for i, m in enumerate(invalid_metrics):
             k = str(i)
             s.set_metric(k, m)
-            self.assertIsNone(s.get_metric(k))
+            assert s.get_metric(k) is None
 
     def test_set_numpy_metric(self):
         try:
@@ -77,8 +77,8 @@ class SpanTestCase(BaseTracerTestCase):
             raise SkipTest('numpy not installed')
         s = Span(tracer=None, name='test.span')
         s.set_metric('a', np.int64(1))
-        self.assertEqual(s.get_metric('a'), 1)
-        self.assertEqual(type(s.get_metric('a')), float)
+        assert s.get_metric('a') == 1
+        assert type(s.get_metric('a')) == float
 
     def test_tags_not_string(self):
         # ensure we can cast as strings
@@ -94,7 +94,7 @@ class SpanTestCase(BaseTracerTestCase):
         ctx = Context()
         s = Span(self.tracer, 'test.span', context=ctx)
         ctx.add_span(s)
-        self.assertIsNone(s.duration)
+        assert s.duration is None
 
         sleep = 0.05
         with s as s1:
@@ -157,10 +157,10 @@ class SpanTestCase(BaseTracerTestCase):
                 time.sleep(0.01)
                 raise e
         except Exception as out:
-            self.assertEqual(out, e)
+            assert out == e
             assert s.duration > 0, s.duration
             assert s.error
-            self.assertEqual(s.get_tag(errors.ERROR_MSG), 'boo')
+            assert s.get_tag(errors.ERROR_MSG) == 'boo'
             assert 'Exception' in s.get_tag(errors.ERROR_TYPE)
             assert s.get_tag(errors.ERROR_STACK)
 
@@ -176,13 +176,13 @@ class SpanTestCase(BaseTracerTestCase):
 
         d = s.to_dict()
         assert d
-        self.assertEqual(d['span_id'], s.span_id)
-        self.assertEqual(d['trace_id'], s.trace_id)
-        self.assertEqual(d['parent_id'], s.parent_id)
-        self.assertEqual(d['meta'], {'a': '1', 'b': '2'})
-        self.assertEqual(d['type'], 'foo')
-        self.assertEqual(d['error'], 0)
-        self.assertEqual(type(d['error']), int)
+        assert d['span_id'] == s.span_id
+        assert d['trace_id'] == s.trace_id
+        assert d['parent_id'] == s.parent_id
+        assert d['meta'] == {'a': '1', 'b': '2'}
+        assert d['type'] == 'foo'
+        assert d['error'] == 0
+        assert type(d['error']) == int
 
     def test_span_to_dict_sub(self):
         parent = Span(tracer=None, name='test.span', service='s', resource='r')
@@ -195,13 +195,13 @@ class SpanTestCase(BaseTracerTestCase):
 
         d = s.to_dict()
         assert d
-        self.assertEqual(d['span_id'], s.span_id)
-        self.assertEqual(d['trace_id'], s.trace_id)
-        self.assertEqual(d['parent_id'], s.parent_id)
-        self.assertEqual(d['meta'], {'a': '1', 'b': '2'})
-        self.assertEqual(d['type'], 'foo')
-        self.assertEqual(d['error'], 0)
-        self.assertEqual(type(d['error']), int)
+        assert d['span_id'] == s.span_id
+        assert d['trace_id'] == s.trace_id
+        assert d['parent_id'] == s.parent_id
+        assert d['meta'] == {'a': '1', 'b': '2'}
+        assert d['type'] == 'foo'
+        assert d['error'] == 0
+        assert type(d['error']) == int
 
     def test_span_boolean_err(self):
         s = Span(tracer=None, name='foo.bar', service='s', resource='r')
@@ -210,15 +210,15 @@ class SpanTestCase(BaseTracerTestCase):
 
         d = s.to_dict()
         assert d
-        self.assertEqual(d['error'], 1)
-        self.assertEqual(type(d['error']), int)
+        assert d['error'] == 1
+        assert type(d['error']) == int
 
     def test_numeric_tags_none(self):
         s = Span(tracer=None, name='test.span')
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
         d = s.to_dict()
         assert d
-        self.assertTrue('metrics' not in d)
+        assert 'metrics' not in d
 
     def test_numeric_tags_true(self):
         s = Span(tracer=None, name='test.span')
@@ -228,7 +228,7 @@ class SpanTestCase(BaseTracerTestCase):
         expected = {
             ANALYTICS_SAMPLE_RATE_KEY: 1.0
         }
-        self.assertEqual(d['metrics'], expected)
+        assert d['metrics'] == expected
 
     def test_numeric_tags_value(self):
         s = Span(tracer=None, name='test.span')
@@ -238,71 +238,71 @@ class SpanTestCase(BaseTracerTestCase):
         expected = {
             ANALYTICS_SAMPLE_RATE_KEY: 0.5
         }
-        self.assertEqual(d['metrics'], expected)
+        assert d['metrics'] == expected
 
     def test_numeric_tags_bad_value(self):
         s = Span(tracer=None, name='test.span')
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 'Hello')
         d = s.to_dict()
         assert d
-        self.assertTrue('metrics' not in d)
+        assert 'metrics' not in d
 
     def test_set_tag_manual_keep(self):
         ctx = Context()
         s = Span(tracer=None, name='root.span', service='s', resource='r', context=ctx)
 
-        self.assertEqual(s.context, ctx)
-        self.assertNotEqual(ctx.sampling_priority, priority.USER_KEEP)
-        self.assertNotEqual(s.context.sampling_priority, priority.USER_KEEP)
-        self.assertEqual(s.meta, dict())
+        assert s.context == ctx
+        assert ctx.sampling_priority != priority.USER_KEEP
+        assert s.context.sampling_priority != priority.USER_KEEP
+        assert s.meta == dict()
 
         s.set_tag('manual.keep')
-        self.assertEqual(ctx.sampling_priority, priority.USER_KEEP)
-        self.assertEqual(s.context.sampling_priority, priority.USER_KEEP)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.USER_KEEP
+        assert s.context.sampling_priority == priority.USER_KEEP
+        assert s.meta == dict()
 
         ctx.sampling_priority = priority.AUTO_REJECT
-        self.assertEqual(ctx.sampling_priority, priority.AUTO_REJECT)
-        self.assertEqual(s.context.sampling_priority, priority.AUTO_REJECT)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.AUTO_REJECT
+        assert s.context.sampling_priority == priority.AUTO_REJECT
+        assert s.meta == dict()
 
         s.set_tag('manual.keep')
-        self.assertEqual(ctx.sampling_priority, priority.USER_KEEP)
-        self.assertEqual(s.context.sampling_priority, priority.USER_KEEP)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.USER_KEEP
+        assert s.context.sampling_priority == priority.USER_KEEP
+        assert s.meta == dict()
 
     def test_set_tag_manual_drop(self):
         ctx = Context()
         s = Span(tracer=None, name='root.span', service='s', resource='r', context=ctx)
 
-        self.assertEqual(s.context, ctx)
-        self.assertNotEqual(ctx.sampling_priority, priority.USER_REJECT)
-        self.assertNotEqual(s.context.sampling_priority, priority.USER_REJECT)
-        self.assertEqual(s.meta, dict())
+        assert s.context == ctx
+        assert ctx.sampling_priority != priority.USER_REJECT
+        assert s.context.sampling_priority != priority.USER_REJECT
+        assert s.meta == dict()
 
         s.set_tag('manual.drop')
-        self.assertEqual(ctx.sampling_priority, priority.USER_REJECT)
-        self.assertEqual(s.context.sampling_priority, priority.USER_REJECT)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.USER_REJECT
+        assert s.context.sampling_priority == priority.USER_REJECT
+        assert s.meta == dict()
 
         ctx.sampling_priority = priority.AUTO_REJECT
-        self.assertEqual(ctx.sampling_priority, priority.AUTO_REJECT)
-        self.assertEqual(s.context.sampling_priority, priority.AUTO_REJECT)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.AUTO_REJECT
+        assert s.context.sampling_priority == priority.AUTO_REJECT
+        assert s.meta == dict()
 
         s.set_tag('manual.drop')
-        self.assertEqual(ctx.sampling_priority, priority.USER_REJECT)
-        self.assertEqual(s.context.sampling_priority, priority.USER_REJECT)
-        self.assertEqual(s.meta, dict())
+        assert ctx.sampling_priority == priority.USER_REJECT
+        assert s.context.sampling_priority == priority.USER_REJECT
+        assert s.meta == dict()
 
     def test_set_tag_none(self):
         s = Span(tracer=None, name='root.span', service='s', resource='r')
-        self.assertEqual(s.meta, dict())
+        assert s.meta == dict()
 
         s.set_tag('custom.key', 100)
 
-        self.assertEqual(s.meta, {'custom.key': '100'})
+        assert s.meta == {'custom.key': '100'}
 
         s.set_tag('custom.key', None)
 
-        self.assertEqual(s.meta, {'custom.key': 'None'})
+        assert s.meta == {'custom.key': 'None'}
