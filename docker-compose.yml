@@ -95,11 +95,13 @@ services:
         working_dir: /src
         volumes:
             - ./ddtrace:/src/ddtrace:ro
-            - ./ddtrace_vendor:/src/ddtrace_vendor:ro
+            # DEV: Make ddtrace/vendor rw so Tox can build C-extensions
+            - ./ddtrace/vendor:/src/ddtrace/vendor:rw
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
             - ./.ddtox:/src/.tox
+            - ./scripts:/src/scripts
         command: bash

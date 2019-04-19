@@ -1,5 +1,3 @@
-import time
-
 from ddtrace.internal.runtime.runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
@@ -56,9 +54,10 @@ class TestRuntimeWorker(BaseTracerTestCase):
             context = root.context
             self.start_span('child', service='child', child_of=context)
 
-            self.worker = RuntimeWorker(self.tracer._dogstatsd_client)
+            self.worker = RuntimeWorker(self.tracer._dogstatsd_client, 0)
             self.worker.start()
             self.worker.stop()
+            self.worker.join()
 
             # get all received metrics
             received = []
@@ -68,8 +67,6 @@ class TestRuntimeWorker(BaseTracerTestCase):
                     break
 
                 received.append(new)
-                # DEV: sleep since metrics will still be getting collected and written
-                time.sleep(.5)
 
             # expect received all default metrics
             self.assertEqual(len(received), len(DEFAULT_RUNTIME_METRICS))

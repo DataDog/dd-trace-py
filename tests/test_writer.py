@@ -52,7 +52,7 @@ class AsyncWorkerTests(TestCase):
         self.traces = Q()
         self.services = Q()
         for i in range(N_TRACES):
-            self.traces.add([
+            self.traces.put([
                 Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
                 for j in range(7)
             ])
@@ -96,3 +96,14 @@ class AsyncWorkerTests(TestCase):
         worker.join()
         self.assertEqual(len(self.api.traces), 0)
         self.assertEqual(filtr.filtered_traces, 0)
+
+
+def test_queue_full():
+    q = Q(maxsize=3)
+    q.put(1)
+    q.put(2)
+    q.put(3)
+    q.put(4)
+    assert (list(q.queue) == [1, 2, 4] or
+            list(q.queue) == [1, 4, 3] or
+            list(q.queue) == [4, 2, 3])
