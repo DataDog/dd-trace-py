@@ -17,7 +17,7 @@ SPAN_NAME = 'flask.request'
 class TraceMiddleware(object):
 
     @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
-    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
+    def __init__(self, app, tracer, service='flask', use_signals=True, distributed_tracing=False):
         self.app = app
         log.debug('flask: initializing trace middleware')
 
@@ -62,7 +62,7 @@ class TraceMiddleware(object):
             s = getattr(signals, name, None)
             if not s:
                 connected = False
-                log.warn("trying to instrument missing signal %s", name)
+                log.warn('trying to instrument missing signal %s', name)
                 continue
             # we should connect to the signal without using weak references
             # otherwise they will be garbage collected and our handlers
@@ -126,7 +126,7 @@ class TraceMiddleware(object):
         span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
-        exception = kwargs.get("exception", None)
+        exception = kwargs.get('exception', None)
         span = getattr(g, 'flask_datadog_span', None)
         if span and exception:
             _set_error_on_span(span, exception)
@@ -191,7 +191,7 @@ def _patch_render(tracer):
     def _traced_render(template, context, app):
         with tracer.trace('flask.template') as span:
             span.span_type = http.TEMPLATE
-            span.set_tag("flask.template", template.name or "string")
+            span.set_tag('flask.template', template.name or 'string')
             return _render(template, context, app)
 
     flask.templating._render = _traced_render
@@ -204,6 +204,6 @@ def _signals_exist(names):
 
 
 _blinker_not_installed_msg = (
-    "please install blinker to use flask signals. "
-    "http://flask.pocoo.org/docs/0.11/signals/"
+    'please install blinker to use flask signals. '
+    'http://flask.pocoo.org/docs/0.11/signals/'
 )

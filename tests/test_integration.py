@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import msgpack
 import logging
 import mock
 import ddtrace
@@ -15,6 +14,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -155,7 +155,7 @@ class TestWorkers(TestCase):
         self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
         tracer.trace('client.testing').finish()
 
-        log = logging.getLogger("ddtrace.writer")
+        log = logging.getLogger('ddtrace.writer')
         log_handler = MockedLogHandler(level='DEBUG')
         log.addHandler(log_handler)
 

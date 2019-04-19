@@ -102,7 +102,7 @@ class API(object):
     """
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
-        self.port = port
+        self.port = int(port)
 
         self._headers = headers or {}
         self._version = None
@@ -158,11 +158,11 @@ class API(object):
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._traces, response.status)
+            log.debug("calling endpoint '%s' but received %s; downgrading API", self._traces, response.status)
             self._downgrade()
             return self.send_traces(traces)
 
-        log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
+        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
         return response
 
     @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')
@@ -177,7 +177,7 @@ class API(object):
                 headers = dict(self._headers)
                 headers[TRACE_COUNT_HEADER] = str(count)
 
-            conn.request("PUT", endpoint, data, headers)
+            conn.request('PUT', endpoint, data, headers)
 
             # Parse the HTTPResponse into an API.Response
             # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,

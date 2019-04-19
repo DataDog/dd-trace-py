@@ -40,7 +40,7 @@ class AgentWriter(object):
         # forked) reset everything so that we can safely work from it.
         pid = os.getpid()
         if self._pid != pid:
-            log.debug("resetting queues. pids(old:%s new:%s)", self._pid, pid)
+            log.debug('resetting queues. pids(old:%s new:%s)', self._pid, pid)
             self._traces = Q(max_size=MAX_TRACES)
             self._worker = None
             self._pid = pid
@@ -75,7 +75,7 @@ class AsyncWorker(object):
     def start(self):
         with self._lock:
             if not self._thread:
-                log.debug("starting flush thread")
+                log.debug('starting flush thread')
                 self._thread = threading.Thread(target=self._target)
                 self._thread.setDaemon(True)
                 self._thread.start()
@@ -107,9 +107,9 @@ class AsyncWorker(object):
 
             size = self._trace_queue.size()
             if size:
-                key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
+                key = 'ctrl-break' if os.name == 'nt' else 'ctrl-c'
                 log.debug(
-                    "Waiting %ss for traces to be sent. Hit %s to quit.",
+                    'Waiting %ss for traces to be sent. Hit %s to quit.',
                     self._shutdown_timeout,
                     key,
                 )
@@ -129,13 +129,13 @@ class AsyncWorker(object):
                 try:
                     traces = self._apply_filters(traces)
                 except Exception as err:
-                    log.error("error while filtering traces:{0}".format(err))
+                    log.error('error while filtering traces:{0}'.format(err))
             if traces:
                 # If we have data, let's try to send it.
                 try:
                     traces_response = self.api.send_traces(traces)
                 except Exception as err:
-                    log.error("cannot send spans to {1}:{2}: {0}".format(err, self.api.hostname, self.api.port))
+                    log.error('cannot send spans to {1}:{2}: {0}'.format(err, self.api.hostname, self.api.port))
 
             if self._trace_queue.closed() and self._trace_queue.size() == 0:
                 # no traces and the queue is closed. our work is done
@@ -146,7 +146,7 @@ class AsyncWorker(object):
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-            self._log_error_status(traces_response, "traces")
+            self._log_error_status(traces_response, 'traces')
             traces_response = None
 
             time.sleep(1)  # replace with a blocking pop.

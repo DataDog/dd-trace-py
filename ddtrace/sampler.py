@@ -31,14 +31,14 @@ class RateSampler(object):
 
     def __init__(self, sample_rate=1):
         if sample_rate <= 0:
-            log.error("sample_rate is negative or null, disable the Sampler")
+            log.error('sample_rate is negative or null, disable the Sampler')
             sample_rate = 1
         elif sample_rate > 1:
             sample_rate = 1
 
         self.set_sample_rate(sample_rate)
 
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
+        log.debug('initialized RateSampler, sample %s%% of traces', 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate):
         self.sample_rate = sample_rate
@@ -51,9 +51,9 @@ class RateSampler(object):
 
 
 def _key(service=None, env=None):
-    service = service or ""
-    env = env or ""
-    return "service:" + service + ",env:" + env
+    service = service or ''
+    env = env or ''
+    return 'service:' + service + ',env:' + env
 
 
 _default_key = _key()
@@ -78,7 +78,7 @@ class RateByServiceSampler(object):
             else:
                 self._by_service_samplers[key] = RateSampler(sample_rate)
 
-    def set_sample_rate(self, sample_rate, service="", env=""):
+    def set_sample_rate(self, sample_rate, service='', env=''):
         self._set_sample_rate_by_key(sample_rate, _key(service, env))
 
     def sample(self, span):

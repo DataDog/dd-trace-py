@@ -36,13 +36,13 @@ def deep_getattr(obj, attr_string, default=None):
     Returns the attribute of `obj` at the dotted path given by `attr_string`
     If no such attribute is reachable, returns `default`
 
-    >>> deep_getattr(cass, "cluster")
+    >>> deep_getattr(cass, 'cluster')
     <cassandra.cluster.Cluster object at 0xa20c350
 
-    >>> deep_getattr(cass, "cluster.metadata.partitioner")
+    >>> deep_getattr(cass, 'cluster.metadata.partitioner')
     u'org.apache.cassandra.dht.Murmur3Partitioner'
 
-    >>> deep_getattr(cass, "i.dont.exist", default="default")
+    >>> deep_getattr(cass, 'i.dont.exist', default='default')
     'default'
     """
     attrs = attr_string.split('.')
@@ -64,7 +64,7 @@ def asbool(value):
     if isinstance(value, bool):
         return value
 
-    return value.lower() in ("true", "1")
+    return value.lower() in ('true', '1')
 
 
 def flatten_dict(d, sep='.', prefix=''):

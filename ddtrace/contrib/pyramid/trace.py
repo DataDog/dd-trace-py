@@ -42,11 +42,11 @@ def trace_render(func, instance, args, kwargs):
     # If the request is not traced, we do not trace
     request = kwargs.get('request', {})
     if not request:
-        log.debug("No request passed to render, will not be traced")
+        log.debug('No request passed to render, will not be traced')
         return func(*args, **kwargs)
     span = getattr(request, DD_SPAN, None)
     if not span:
-        log.debug("No span found in request, will not be traced")
+        log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
     tracer = span.tracer()
