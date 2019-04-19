@@ -12,7 +12,6 @@ DD_PATCH_ATTR = '_datadog_patch'
 SERVICE_NAME = 'algoliasearch'
 APP_NAME = 'algoliasearch'
 SEARCH_SPAN_TYPE = 'algoliasearch.search'
-INDEX_SPAN_TYPE = 'algoliasearch.index'
 
 # Default configuration
 config._add('algoliasearch', dict(
@@ -34,7 +33,10 @@ def patch():
 
     setattr(algoliasearch, '_datadog_patch', True)
     _w(algoliasearch.index, 'Index.search', _get_patched_search(algoliasearch))
-    Pin(service=SERVICE_NAME, app=APP_NAME, app_type=AppTypes.db).onto(algoliasearch.index.Index)
+    Pin(
+        service=config.algoliasearch.service_name, app=config.algoliasearch.app,
+        app_type=config.algoliasearch.app_type
+    ).onto(algoliasearch.index.Index)
 
 
 def unpatch():

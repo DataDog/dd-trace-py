@@ -1,15 +1,13 @@
 import algoliasearch
 import algoliasearch.index as index_module
+from ddtrace import config
 from ddtrace.contrib.algoliasearch.patch import (SEARCH_SPAN_TYPE, patch,
                                                  unpatch)
-from ddtrace import config
 from ddtrace.pin import Pin
 from tests.base import BaseTracerTestCase
 
 
 class AlgoliasearchTest(BaseTracerTestCase):
-    TEST_SERVICE = 'test'
-
     def setUp(self):
         super(AlgoliasearchTest, self).setUp()
 
@@ -31,7 +29,9 @@ class AlgoliasearchTest(BaseTracerTestCase):
                 'page': 0
             }
 
-        # monkey patch search to avoid sending server request
+        # Algolia search is a non free SaaS application, it isn't possible to add it to the
+        # docker environment to enable a full-fledged integration test. The next best option
+        # is to mock out the search method to prevent it from making server requests
         index_module.Index.search = search
         client = algoliasearch.algoliasearch.Client('X', 'X')
         index = client.init_index('test_index')
@@ -69,7 +69,9 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert span.get_tag('query_args.unsupported_totally_new_argument') is None
         assert span.get_metric('processing_time_ms') == 23
         assert span.get_metric('number_of_hits') == 1
-        # Verify that query_text does not get passed along
+
+        # Verify query_text, which may contain sensitive data, is not passed along
+        # unless the config value is appropriately set
         assert span.get_tag('query_text') is None
 
         config.algoliasearch.collect_query_text = True
@@ -81,7 +83,6 @@ class AlgoliasearchTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.reset()
         span = spans[0]
-        # Verify that query_text does not get passed along
         assert span.get_tag('query_text') == 'test search'
 
     def test_patch_unpatch(self):
