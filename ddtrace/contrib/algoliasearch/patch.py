@@ -90,7 +90,7 @@ def _get_patched_search(algoliasearch):
 
             query_args = kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
             if query_args is None:
-                # try "searchParameters" as the name, which seems to be a deprecated argument name
+                # try 'searchParameters' as the name, which seems to be a deprecated argument name
                 # that is still in use in the documentation but not in the latest algoliasearch
                 # library
                 query_args = kwargs.get('searchParameters', None)
@@ -108,28 +108,28 @@ def _get_patched_search(algoliasearch):
 
             # Result would look like this
             # {
-            #   "hits": [
+            #   'hits': [
             #     {
             #       .... your search results ...
             #     }
             #   ],
-            #   "processingTimeMS": 1,
-            #   "nbHits": 1,
-            #   "hitsPerPage": 20,
-            #   "exhaustiveNbHits": true,
-            #   "params": "query=xxx",
-            #   "nbPages": 1,
-            #   "query": "xxx",
-            #   "page": 0
+            #   'processingTimeMS': 1,
+            #   'nbHits': 1,
+            #   'hitsPerPage': 20,
+            #   'exhaustiveNbHits': true,
+            #   'params': 'query=xxx',
+            #   'nbPages': 1,
+            #   'query': 'xxx',
+            #   'page': 0
             # }
             result = func(*wrapt_args, **kwargs)
 
             if isinstance(result, dict):
                 if result.get('processingTimeMS', None) is not None:
-                    span.set_metric('processing_time_ms', int(result["processingTimeMS"]))
+                    span.set_metric('processing_time_ms', int(result['processingTimeMS']))
 
                 if result.get('nbHits', None) is not None:
-                    span.set_metric('number_of_hits', int(result["nbHits"]))
+                    span.set_metric('number_of_hits', int(result['nbHits']))
 
             return result
 

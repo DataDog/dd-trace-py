@@ -16,19 +16,19 @@ class AlgoliasearchTest(BaseTracerTestCase):
         # dummy values
         def search(self, query, args=None, request_parameters=None):
             return {
-                "hits": [
+                'hits': [
                     {
-                        "dummy": "dummy"
+                        'dummy': 'dummy'
                     }
                 ],
-                "processingTimeMS": 23,
-                "nbHits": 1,
-                "hitsPerPage": 20,
-                "exhaustiveNbHits": True,
-                "params": "query=xxx",
-                "nbPages": 1,
-                "query": "xxx",
-                "page": 0
+                'processingTimeMS': 23,
+                'nbHits': 1,
+                'hitsPerPage': 20,
+                'exhaustiveNbHits': True,
+                'params': 'query=xxx',
+                'nbPages': 1,
+                'query': 'xxx',
+                'page': 0
             }
 
         # monkey patch search to avoid sending server request
@@ -50,8 +50,8 @@ class AlgoliasearchTest(BaseTracerTestCase):
 
     def test_algoliasearch(self):
         self.index.search(
-            "test search",
-            args={"attributesToRetrieve": "firstname,lastname", 'unsupportedTotallyNewArgument': 'ignore'}
+            'test search',
+            args={'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
         )
 
         spans = self.get_spans()
@@ -63,7 +63,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert span.name == 'algoliasearch.search'
         assert span.span_type == SEARCH_SPAN_TYPE
         assert span.error == 0
-        assert span.get_tag('query_args.attributes_to_retrieve') == "firstname,lastname"
+        assert span.get_tag('query_args.attributes_to_retrieve') == 'firstname,lastname'
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors
         assert span.get_tag('query_args.unsupported_totally_new_argument') is None
@@ -75,21 +75,21 @@ class AlgoliasearchTest(BaseTracerTestCase):
         config.algoliasearch.collect_query_text = True
 
         self.index.search(
-            "test search",
-            args={"attributesToRetrieve": "firstname,lastname", 'unsupportedTotallyNewArgument': 'ignore'}
+            'test search',
+            args={'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
         )
         spans = self.get_spans()
         self.reset()
         span = spans[0]
         # Verify that query_text does not get passed along
-        assert span.get_tag('query_text') == "test search"
+        assert span.get_tag('query_text') == 'test search'
 
     def test_patch_unpatch(self):
         # Test patch idempotence
         patch()
         patch()
 
-        self.index.search("test search")
+        self.index.search('test search')
 
         spans = self.get_spans()
         self.reset()
@@ -99,7 +99,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         # Test unpatch
         unpatch()
 
-        self.index.search("test search")
+        self.index.search('test search')
 
         spans = self.get_spans()
         self.reset()
@@ -109,7 +109,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         self.reset()
         patch()
 
-        self.index.search("test search")
+        self.index.search('test search')
 
         spans = self.get_spans()
         assert spans, spans
