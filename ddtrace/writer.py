@@ -201,10 +201,17 @@ class Q(Queue):
             # Cannot use super() here because Queue in Python2 is old style class
             return Queue.put(self, item, block=False)
         except Full:
-            # If the queue is full, replace a random item
+            # If the queue is full, replace a random item. We need to make sure
+            # the queue is not emptied was emptied in the meantime, so we lock
+            # check qsize value.
             with self.mutex:
-                idx = random.randrange(0, self._qsize())
-                self.queue[idx] = item
+                qsize = self._qsize()
+                if qsize != 0:
+                    idx = random.randrange(0, qsize)
+                    self.queue[idx] = item
+                    return
+            # The queue has been emptied, simply retry putting item
+            return self.put(item)
 
     def _get(self):
         things = self.queue
