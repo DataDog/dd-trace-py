@@ -103,4 +103,5 @@ services:
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
             - ./.ddtox:/src/.tox
+            - ./scripts:/src/scripts
         command: bash
