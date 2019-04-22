@@ -1,5 +1,10 @@
 from .context import ThreadLocalContext
 
+try:
+    from .context import ContextVarContext
+except ImportError:
+    ContextVarContext = None
+
 
 class BaseContextProvider(object):
     """
@@ -33,7 +38,10 @@ class DefaultContextProvider(BaseContextProvider):
     Python WSGI frameworks.
     """
     def __init__(self):
-        self._local = ThreadLocalContext()
+        if ContextVarContext is not None:
+            self._local = ContextVarContext()
+        else:
+            self._local = ThreadLocalContext()
 
     def _has_active_context(self):
         """

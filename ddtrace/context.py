@@ -1,3 +1,4 @@
+import sys
 import threading
 
 from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
@@ -269,3 +270,30 @@ class ThreadLocalContext(object):
             self._locals.context = ctx
 
         return ctx
+
+
+if sys.version_info >= (3, 7):
+    from contextvars import ContextVar
+
+    _datadog_context = ContextVar('_datadog_context')
+
+    class ContextVarContext(object):
+        def _has_active_context(self):
+            """
+            Determine whether we have a currently active context for this thread
+
+            :returns: Whether an active context exists
+            :rtype: bool
+            """
+            try:
+                return _datadog_context.get() is not None
+            except LookupError:
+                return False
+
+        def set(self, ctx):
+            _datadog_context.set(ctx)
+
+        def get(self):
+            if not self._has_active_context():
+                self.set(Context())
+            return _datadog_context.get()
