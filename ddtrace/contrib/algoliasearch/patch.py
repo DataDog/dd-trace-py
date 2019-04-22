@@ -1,6 +1,5 @@
-from importlib import import_module
+import algoliasearch
 
-from ddtrace.compat import stringify
 from ddtrace.ext import AppTypes
 from ddtrace.pin import Pin
 from ddtrace.settings import config
@@ -16,35 +15,23 @@ SEARCH_SPAN_TYPE = 'algoliasearch.search'
 # Default configuration
 config._add('algoliasearch', dict(
     service_name=SERVICE_NAME,
-    app=APP_NAME,
-    app_type=AppTypes.db,
     collect_query_text=False
 ))
 
 
 def patch():
-    try:
-        algoliasearch = import_module('algoliasearch')
-    except ImportError:
-        return
-
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
     setattr(algoliasearch, '_datadog_patch', True)
     _w(algoliasearch.index, 'Index.search', _get_patched_search(algoliasearch))
     Pin(
-        service=config.algoliasearch.service_name, app=config.algoliasearch.app,
-        app_type=config.algoliasearch.app_type
+        service=config.algoliasearch.service_name, app=APP_NAME,
+        app_type=AppTypes.db
     ).onto(algoliasearch.index.Index)
 
 
 def unpatch():
-    try:
-        algoliasearch = import_module('algoliasearch')
-    except ImportError:
-        return
-
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         setattr(algoliasearch, DD_PATCH_ATTR, False)
         _u(algoliasearch.index.Index, 'search')
@@ -72,40 +59,33 @@ QUERY_ARGS_DD_TAG_MAP = {
 
 
 def _get_patched_search(algoliasearch):
-    def _search(func, instance, wrapt_args, kwargs):
+    def _search(func, instance, wrapt_args, wrapt_kwargs):
         """
             wrapt_args is called the way it is to distinguish it from the 'args'
             argument to the algoliasearch.index.Index.search() method.
         """
         pin = Pin.get_from(instance)
         if not pin or not pin.enabled():
-            return func(*wrapt_args, **kwargs)
+            return func(*wrapt_args, **wrapt_kwargs)
 
-        with pin.tracer.trace('algoliasearch.search') as span:
+        with pin.tracer.trace('algoliasearch.search', service=pin.service, span_type=SEARCH_SPAN_TYPE) as span:
             if not span.sampled:
-                return func(*wrapt_args, **kwargs)
+                return func(*wrapt_args, **wrapt_kwargs)
 
-            span.service = pin.service
-            span.span_type = SEARCH_SPAN_TYPE
             if config.algoliasearch.collect_query_text:
-                span.set_tag('query_text', kwargs.get('query', wrapt_args[0]))
+                span.set_tag('query_text', wrapt_kwargs.get('query', wrapt_args[0]))
 
-            query_args = kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
+            query_args = wrapt_kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
             if query_args is None:
                 # try 'searchParameters' as the name, which seems to be a deprecated argument name
                 # that is still in use in the documentation but not in the latest algoliasearch
                 # library
-                query_args = kwargs.get('searchParameters', None)
+                query_args = wrapt_kwargs.get('searchParameters', None)
 
             if query_args and isinstance(query_args, dict):
                 for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                     value = query_args.get(query_arg, None)
                     if value is not None:
-                        try:
-                            value = stringify(value)
-                        except Exception:
-                            continue
-
                         span.set_tag('query_args.{}'.format(tag_name), value)
 
             # Result would look like this
@@ -124,7 +104,7 @@ def _get_patched_search(algoliasearch):
             #   'query': 'xxx',
             #   'page': 0
             # }
-            result = func(*wrapt_args, **kwargs)
+            result = func(*wrapt_args, **wrapt_kwargs)
 
             if isinstance(result, dict):
                 if result.get('processingTimeMS', None) is not None:
