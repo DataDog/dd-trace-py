@@ -1,6 +1,14 @@
 Datastore Libraries
 ===================
 
+.. _algoliasearch:
+
+Algoliasearch
+-------------
+
+.. automodule:: ddtrace.contrib.algoliasearch
+
+
 .. _cassandra:
 
 Cassandra
