@@ -1,3 +1,5 @@
+import time
+
 import opentracing
 from opentracing import (
     child_of,
@@ -93,10 +95,8 @@ class TestTracerConfig(object):
 class TestTracer(object):
     def test_start_span(self, ot_tracer, writer):
         """Start and finish a span."""
-        import time
-
         with ot_tracer.start_span('myop') as span:
-            time.sleep(0.005)
+            pass
 
         # span should be finished when the context manager exits
         assert span._finished
@@ -125,8 +125,6 @@ class TestTracer(object):
 
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
-        import time
-
         t = time.time() + 0.002
         with ot_tracer.start_span('myop', start_time=t) as span:
             time.sleep(0.005)
@@ -139,12 +137,9 @@ class TestTracer(object):
         """Start and finish a span using a span context as the child_of
         reference.
         """
-        import time
-
         with ot_tracer.start_span('myop') as span:
-            time.sleep(0.005)
             with ot_tracer.start_span('myop', child_of=span.context) as span2:
-                time.sleep(0.008)
+                pass
 
         # span should be finished when the context manager exits
         assert span._finished
@@ -169,8 +164,6 @@ class TestTracer(object):
         """Start and finish multiple child spans.
         This should ensure that child spans can be created 2 levels deep.
         """
-        import time
-
         with ot_tracer.start_active_span('myfirstop') as scope1:
             time.sleep(0.009)
             with ot_tracer.start_active_span('mysecondop') as scope2:
@@ -204,8 +197,6 @@ class TestTracer(object):
         This should test to ensure a parent can have multiple child spans at the
         same level.
         """
-        import time
-
         with ot_tracer.start_active_span('myfirstop') as scope1:
             time.sleep(0.009)
             with ot_tracer.start_active_span('mysecondop') as scope2:
@@ -239,16 +230,12 @@ class TestTracer(object):
         Spans should be created without parents since there will be no call
         for the active span.
         """
-        import time
-
         root = ot_tracer.start_span('zero')
 
         with ot_tracer.start_span('one', child_of=root):
-            time.sleep(0.009)
             with ot_tracer.start_span('two', child_of=root):
-                time.sleep(0.007)
                 with ot_tracer.start_span('three', child_of=root):
-                    time.sleep(0.005)
+                    pass
         root.finish()
 
         spans = writer.pop()
@@ -268,14 +255,11 @@ class TestTracer(object):
         Spans should be created without parents since there will be no call
         for the active span.
         """
-        import time
-
         with ot_tracer.start_span('one', ignore_active_span=True):
-            time.sleep(0.009)
             with ot_tracer.start_span('two', ignore_active_span=True):
-                time.sleep(0.007)
+                pass
             with ot_tracer.start_span('three', ignore_active_span=True):
-                time.sleep(0.005)
+                pass
 
         spans = writer.pop()
 
@@ -292,8 +276,6 @@ class TestTracer(object):
 
     def test_start_active_span_child_finish_after_parent(self, ot_tracer, writer):
         """Start a child span and finish it after its parent."""
-        import time
-
         span1 = ot_tracer.start_active_span('one').span
         span2 = ot_tracer.start_active_span('two').span
         span1.finish()
@@ -311,16 +293,13 @@ class TestTracer(object):
         Alternate calling between two traces.
         """
         import threading
-        import time
 
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
                 id += 1
-                time.sleep(0.009)
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
-                    time.sleep(0.001)
                     with ot_tracer.start_active_span(str(id)):
                         pass
 
@@ -328,24 +307,21 @@ class TestTracer(object):
             id = 21
             with ot_tracer.start_active_span(str(id)):
                 id += 1
-                time.sleep(0.006)
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
-                    time.sleep(0.009)
                 with ot_tracer.start_active_span(str(id)):
                     pass
 
         # the ordering should be
         # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
         t1 = threading.Thread(target=trace_one)
-        t1.daemon = True
         t2 = threading.Thread(target=trace_two)
-        t2.daemon = True
 
         t1.start()
         t2.start()
         # wait for threads to finish
-        time.sleep(0.018)
+        t1.join()
+        t2.join()
 
         spans = writer.pop()
 
