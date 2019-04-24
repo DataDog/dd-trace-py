@@ -1,8 +1,6 @@
-import algoliasearch
-import algoliasearch.index as index_module
 from ddtrace import config, patch_all
 from ddtrace.contrib.algoliasearch.patch import (SEARCH_SPAN_TYPE, patch,
-                                                 unpatch)
+                                                 unpatch, algoliasearch_version)
 from ddtrace.pin import Pin
 from tests.base import BaseTracerTestCase
 
@@ -12,7 +10,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         super(AlgoliasearchTest, self).setUp()
 
         # dummy values
-        def search(self, query, args=None, request_parameters=None):
+        def search(self, query, args=None, request_options=None):
             return {
                 'hits': [
                     {
@@ -32,8 +30,17 @@ class AlgoliasearchTest(BaseTracerTestCase):
         # Algolia search is a non free SaaS application, it isn't possible to add it to the
         # docker environment to enable a full-fledged integration test. The next best option
         # is to mock out the search method to prevent it from making server requests
-        index_module.Index.search = search
-        client = algoliasearch.algoliasearch.Client('X', 'X')
+        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+            import algoliasearch
+            import algoliasearch.index as index_module
+            index_module.Index.search = search
+            client = algoliasearch.algoliasearch.Client('X', 'X')
+        else:
+            import algoliasearch.search_index as index_module
+            from algoliasearch.search_client import SearchClient
+            index_module.SearchIndex.search = search
+            client = SearchClient.create('X', 'X')
+
         index = client.init_index('test_index')
         patch()
         Pin.override(index, tracer=self.tracer)
@@ -45,10 +52,16 @@ class AlgoliasearchTest(BaseTracerTestCase):
         super(AlgoliasearchTest, self).tearDown()
         unpatch()
 
+    def perform_search(self, query_text, query_args=None):
+        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+            self.index.search(query_text, args=query_args)
+        else:
+            self.index.search(query_text, request_options=query_args)
+
     def test_algoliasearch(self):
-        self.index.search(
+        self.perform_search(
             'test search',
-            args={'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
+            {'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
         )
 
         spans = self.get_spans()
@@ -74,9 +87,9 @@ class AlgoliasearchTest(BaseTracerTestCase):
     def test_algoliasearch_with_query_text(self):
         config.algoliasearch.collect_query_text = True
 
-        self.index.search(
+        self.perform_search(
             'test search',
-            args={'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
+            {'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
         )
         spans = self.get_spans()
         span = spans[0]
@@ -87,7 +100,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         patch()
         patch()
 
-        self.index.search('test search')
+        self.perform_search('test search')
 
         spans = self.get_spans()
         self.reset()
@@ -115,7 +128,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
 
     def test_patch_all_auto_enable(self):
         patch_all()
-        self.index.search('test search')
+        self.perform_search('test search')
 
         spans = self.get_spans()
         self.reset()
@@ -124,7 +137,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
 
         unpatch()
 
-        self.index.search('test search')
+        self.perform_search('test search')
 
         spans = self.get_spans()
         assert not spans, spans
