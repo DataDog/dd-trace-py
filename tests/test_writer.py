@@ -1,7 +1,9 @@
 from unittest import TestCase
 
+import pytest
+
 from ddtrace.span import Span
-from ddtrace.writer import AsyncWorker, Q
+from ddtrace.writer import AsyncWorker, Q, Empty
 
 
 class RemoveAllFilter():
@@ -107,3 +109,12 @@ def test_queue_full():
     assert (list(q.queue) == [1, 2, 4] or
             list(q.queue) == [1, 4, 3] or
             list(q.queue) == [4, 2, 3])
+
+
+def test_queue_get():
+    q = Q(maxsize=3)
+    q.put(1)
+    q.put(2)
+    assert list(q.get()) == [1, 2]
+    with pytest.raises(Empty):
+        q.get(block=False)
