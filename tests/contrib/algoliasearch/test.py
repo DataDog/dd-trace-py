@@ -1,6 +1,6 @@
 import algoliasearch
 import algoliasearch.index as index_module
-from ddtrace import config
+from ddtrace import config, patch_all
 from ddtrace.contrib.algoliasearch.patch import (SEARCH_SPAN_TYPE, patch,
                                                  unpatch)
 from ddtrace.pin import Pin
@@ -45,9 +45,6 @@ class AlgoliasearchTest(BaseTracerTestCase):
         super(AlgoliasearchTest, self).tearDown()
         unpatch()
 
-    def reset(self):
-        super(AlgoliasearchTest, self).reset()
-
     def test_algoliasearch(self):
         self.index.search(
             'test search',
@@ -63,17 +60,18 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert span.name == 'algoliasearch.search'
         assert span.span_type == SEARCH_SPAN_TYPE
         assert span.error == 0
-        assert span.get_tag('query_args.attributes_to_retrieve') == 'firstname,lastname'
+        assert span.get_tag('query.args.attributes_to_retrieve') == 'firstname,lastname'
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors
-        assert span.get_tag('query_args.unsupported_totally_new_argument') is None
+        assert span.get_tag('query.args.unsupported_totally_new_argument') is None
         assert span.get_metric('processing_time_ms') == 23
         assert span.get_metric('number_of_hits') == 1
 
         # Verify query_text, which may contain sensitive data, is not passed along
         # unless the config value is appropriately set
-        assert span.get_tag('query_text') is None
+        assert span.get_tag('query.text') is None
 
+    def test_algoliasearch_with_query_text(self):
         config.algoliasearch.collect_query_text = True
 
         self.index.search(
@@ -81,9 +79,8 @@ class AlgoliasearchTest(BaseTracerTestCase):
             args={'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
         )
         spans = self.get_spans()
-        self.reset()
         span = spans[0]
-        assert span.get_tag('query_text') == 'test search'
+        assert span.get_tag('query.text') == 'test search'
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -115,3 +112,19 @@ class AlgoliasearchTest(BaseTracerTestCase):
         spans = self.get_spans()
         assert spans, spans
         assert len(spans) == 1
+
+    def test_patch_all_auto_enable(self):
+        patch_all()
+        self.index.search('test search')
+
+        spans = self.get_spans()
+        self.reset()
+        assert spans, spans
+        assert len(spans) == 1
+
+        unpatch()
+
+        self.index.search('test search')
+
+        spans = self.get_spans()
+        assert not spans, spans

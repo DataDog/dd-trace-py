@@ -24,7 +24,7 @@ def patch():
         return
 
     setattr(algoliasearch, '_datadog_patch', True)
-    _w(algoliasearch.index, 'Index.search', _get_patched_search(algoliasearch))
+    _w(algoliasearch.index, 'Index.search', _patched_search)
     Pin(
         service=config.algoliasearch.service_name, app=APP_NAME,
         app_type=AppTypes.db
@@ -58,61 +58,58 @@ QUERY_ARGS_DD_TAG_MAP = {
 }
 
 
-def _get_patched_search(algoliasearch):
-    def _search(func, instance, wrapt_args, wrapt_kwargs):
-        """
-            wrapt_args is called the way it is to distinguish it from the 'args'
-            argument to the algoliasearch.index.Index.search() method.
-        """
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
+def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
+    """
+        wrapt_args is called the way it is to distinguish it from the 'args'
+        argument to the algoliasearch.index.Index.search() method.
+    """
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return func(*wrapt_args, **wrapt_kwargs)
+
+    with pin.tracer.trace('algoliasearch.search', service=pin.service, span_type=SEARCH_SPAN_TYPE) as span:
+        if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)
 
-        with pin.tracer.trace('algoliasearch.search', service=pin.service, span_type=SEARCH_SPAN_TYPE) as span:
-            if not span.sampled:
-                return func(*wrapt_args, **wrapt_kwargs)
+        if config.algoliasearch.collect_query_text:
+            span.set_tag('query.text', wrapt_kwargs.get('query', wrapt_args[0]))
 
-            if config.algoliasearch.collect_query_text:
-                span.set_tag('query_text', wrapt_kwargs.get('query', wrapt_args[0]))
+        query_args = wrapt_kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
+        if query_args is None:
+            # try 'searchParameters' as the name, which seems to be a deprecated argument name
+            # that is still in use in the documentation but not in the latest algoliasearch
+            # library
+            query_args = wrapt_kwargs.get('searchParameters', None)
 
-            query_args = wrapt_kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
-            if query_args is None:
-                # try 'searchParameters' as the name, which seems to be a deprecated argument name
-                # that is still in use in the documentation but not in the latest algoliasearch
-                # library
-                query_args = wrapt_kwargs.get('searchParameters', None)
+        if query_args and isinstance(query_args, dict):
+            for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
+                value = query_args.get(query_arg)
+                if value is not None:
+                    span.set_tag('query.args.{}'.format(tag_name), value)
 
-            if query_args and isinstance(query_args, dict):
-                for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
-                    value = query_args.get(query_arg, None)
-                    if value is not None:
-                        span.set_tag('query_args.{}'.format(tag_name), value)
+        # Result would look like this
+        # {
+        #   'hits': [
+        #     {
+        #       .... your search results ...
+        #     }
+        #   ],
+        #   'processingTimeMS': 1,
+        #   'nbHits': 1,
+        #   'hitsPerPage': 20,
+        #   'exhaustiveNbHits': true,
+        #   'params': 'query=xxx',
+        #   'nbPages': 1,
+        #   'query': 'xxx',
+        #   'page': 0
+        # }
+        result = func(*wrapt_args, **wrapt_kwargs)
 
-            # Result would look like this
-            # {
-            #   'hits': [
-            #     {
-            #       .... your search results ...
-            #     }
-            #   ],
-            #   'processingTimeMS': 1,
-            #   'nbHits': 1,
-            #   'hitsPerPage': 20,
-            #   'exhaustiveNbHits': true,
-            #   'params': 'query=xxx',
-            #   'nbPages': 1,
-            #   'query': 'xxx',
-            #   'page': 0
-            # }
-            result = func(*wrapt_args, **wrapt_kwargs)
+        if isinstance(result, dict):
+            if result.get('processingTimeMS', None) is not None:
+                span.set_metric('processing_time_ms', int(result['processingTimeMS']))
 
-            if isinstance(result, dict):
-                if result.get('processingTimeMS', None) is not None:
-                    span.set_metric('processing_time_ms', int(result['processingTimeMS']))
+            if result.get('nbHits', None) is not None:
+                span.set_metric('number_of_hits', int(result['nbHits']))
 
-                if result.get('nbHits', None) is not None:
-                    span.set_metric('number_of_hits', int(result['nbHits']))
-
-            return result
-
-    return _search
+        return result
