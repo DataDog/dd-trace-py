@@ -725,18 +725,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^algoliasearch_contrib-.*-algoliasearch$'
-      - *persist_to_workspace_step
-      - *save_cache_step
-
-  algoliasearch2:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
-    steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^algoliasearch_contrib-.*-algoliasearch2$'
+      - run: scripts/run-tox-scenario '^algoliasearch_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -824,9 +813,6 @@ workflows:
           requires:
             - flake8
       - algoliasearch:
-          requires:
-            - flake8
-      - algoliasearch2:
           requires:
             - flake8
       - boto:
@@ -974,7 +960,6 @@ workflows:
             - aiopg
             - asyncio
             - algoliasearch
-            - algoliasearch2
             - boto
             - bottle
             - cassandra
