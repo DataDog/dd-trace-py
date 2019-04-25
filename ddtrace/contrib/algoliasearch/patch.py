@@ -1,5 +1,3 @@
-import algoliasearch
-from algoliasearch.version import VERSION
 from ddtrace.ext import AppTypes
 from ddtrace.pin import Pin
 from ddtrace.settings import config
@@ -12,16 +10,24 @@ SERVICE_NAME = 'algoliasearch'
 APP_NAME = 'algoliasearch'
 SEARCH_SPAN_TYPE = 'algoliasearch.search'
 
-# Default configuration
-config._add('algoliasearch', dict(
-    service_name=SERVICE_NAME,
-    collect_query_text=False
-))
+try:
+    import algoliasearch
+    from algoliasearch.version import VERSION
+    algoliasearch_version = tuple([int(i) for i in VERSION.split('.')])
 
-algoliasearch_version = tuple([int(i) for i in VERSION.split('.')])
+    # Default configuration
+    config._add('algoliasearch', dict(
+        service_name=SERVICE_NAME,
+        collect_query_text=False
+    ))
+except ImportError:
+    algoliasearch_version = (0, 0)
 
 
 def patch():
+    if algoliasearch_version == (0, 0):
+        return
+
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
@@ -31,6 +37,7 @@ def patch():
         service=config.algoliasearch.service_name, app=APP_NAME,
         app_type=AppTypes.db
     )
+
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
         _w(algoliasearch.index, 'Index.search', _patched_search)
         pin.onto(algoliasearch.index.Index)
@@ -43,6 +50,9 @@ def patch():
 
 
 def unpatch():
+    if algoliasearch_version == (0, 0):
+        return
+
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         setattr(algoliasearch, DD_PATCH_ATTR, False)
 

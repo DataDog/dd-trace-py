@@ -22,10 +22,3 @@ Configuration
 
 .. __: https://www.algolia.com
 """
-
-from ...utils.importlib import require_modules
-
-with require_modules('algoliasearch') as missing_modules:
-    from .patch import patch, unpatch
-
-    __all__ = ['patch', 'unpatch']
