@@ -41,16 +41,18 @@ class AlgoliasearchTest(BaseTracerTestCase):
             index_module.SearchIndex.search = search
             client = SearchClient.create('X', 'X')
 
-        index = client.init_index('test_index')
-        patch()
-        Pin.override(index, tracer=self.tracer)
-
         # use this index only to properly test stuff
-        self.index = index
+        self.index = client.init_index('test_index')
+
+    def patch_algoliasearch(self):
+        patch()
+        Pin.override(self.index, tracer=self.tracer)
 
     def tearDown(self):
         super(AlgoliasearchTest, self).tearDown()
         unpatch()
+        if hasattr(self, 'tracer'):
+            self.reset()
 
     def perform_search(self, query_text, query_args=None):
         if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
@@ -59,6 +61,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
             self.index.search(query_text, request_options=query_args)
 
     def test_algoliasearch(self):
+        self.patch_algoliasearch()
         self.perform_search(
             'test search',
             {'attributesToRetrieve': 'firstname,lastname', 'unsupportedTotallyNewArgument': 'ignore'}
@@ -85,6 +88,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert span.get_tag('query.text') is None
 
     def test_algoliasearch_with_query_text(self):
+        self.patch_algoliasearch()
         config.algoliasearch.collect_query_text = True
 
         self.perform_search(
@@ -96,6 +100,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         assert span.get_tag('query.text') == 'test search'
 
     def test_patch_unpatch(self):
+        self.patch_algoliasearch()
         # Test patch idempotence
         patch()
         patch()
@@ -128,6 +133,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
 
     def test_patch_all_auto_enable(self):
         patch_all()
+        Pin.override(self.index, tracer=self.tracer)
         self.perform_search('test search')
 
         spans = self.get_spans()
