@@ -31,9 +31,6 @@ class Config(object):
         )
 
     def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
-
         return self._config[name]
 
     def get_from(self, obj):
@@ -61,8 +58,6 @@ class Config(object):
             or if we should overwrite the settings with those provided;
             Note: when merging existing settings take precedence.
         """
-        # DEV: Use `getattr()` to call our `__getattr__` helper
-        existing = getattr(self, integration)
         settings = deepcopy(settings)
 
         if merge:
@@ -74,6 +69,7 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
+            existing = self._config.get(integration, {})
             self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
         else:
             self._config[integration] = IntegrationConfig(self, integration, settings)

@@ -142,24 +142,29 @@ class TestIntegrationConfig(BaseTestCase):
     def test_environment_analytics_enabled(self):
         # default
         self.assertFalse(self.config.analytics_enabled)
+        self.config._add("foo", {})
         self.assertIsNone(self.config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED='True')):
             config = Config()
             self.assertTrue(config.analytics_enabled)
+            config._add("foo", {})
             self.assertIsNone(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True')):
             config = Config()
+            config._add("foo", {})
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 1.0)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='False')):
             config = Config()
+            config._add("foo", {})
             self.assertFalse(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED='True', DD_FOO_ANALYTICS_SAMPLE_RATE='0.5')):
             config = Config()
+            config._add("foo", {})
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
