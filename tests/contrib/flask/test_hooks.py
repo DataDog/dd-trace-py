@@ -1,5 +1,6 @@
 from flask import Blueprint
 
+from ddtrace.ext import http
 from . import BaseFlaskTestCase
 
 
@@ -81,7 +82,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(root.get_tag('flask.url_rule'), '/')
         self.assertEqual(root.get_tag('http.method'), 'GET')
         self.assertEqual(root.get_tag('http.status_code'), '401')
-        self.assertEqual(root.get_tag('http.url'), '/')
+        self.assertEqual(root.get_tag(http.URL), 'http://localhost/')
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')

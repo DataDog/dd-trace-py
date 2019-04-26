@@ -24,7 +24,7 @@ if __name__ == '__main__':
     assert spans[0].service == 'redis'
     assert spans[0].resource == 'FLUSHALL'
 
-    long_cmd = "mget %s" % " ".join(map(str, range(1000)))
+    long_cmd = 'mget %s' % ' '.join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
 
     spans = pin.tracer.writer.pop()
@@ -45,4 +45,4 @@ if __name__ == '__main__':
     assert span.get_tag('redis.raw_command').startswith(u'mget 0 1 2 3')
     assert span.get_tag('redis.raw_command').endswith(u'...')
 
-    print("Test success")
+    print('Test success')

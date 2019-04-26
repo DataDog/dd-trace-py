@@ -325,8 +325,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         start_response = _wrap_start_response(start_response)
 
         # DEV: We set response status code in `_wrap_start_response`
-        # DEV: Use `request.path` and not `request.url` to keep from leaking any query string parameters
-        s.set_tag(http.URL, request.path)
+        # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
+        s.set_tag(http.URL, request.base_url)
         s.set_tag(http.METHOD, request.method)
 
         return wrapped(environ, start_response)

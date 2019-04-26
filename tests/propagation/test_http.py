@@ -19,9 +19,9 @@ class TestHttpPropagation(TestCase):
     def test_inject(self):
         tracer = get_dummy_tracer()
 
-        with tracer.trace("global_root_span") as span:
+        with tracer.trace('global_root_span') as span:
             span.context.sampling_priority = 2
-            span.context._dd_origin = "synthetics"
+            span.context._dd_origin = 'synthetics'
             headers = {}
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
@@ -41,39 +41,39 @@ class TestHttpPropagation(TestCase):
         tracer = get_dummy_tracer()
 
         headers = {
-            "x-datadog-trace-id": "1234",
-            "x-datadog-parent-id": "5678",
-            "x-datadog-sampling-priority": "1",
-            "x-datadog-origin": "synthetics",
+            'x-datadog-trace-id': '1234',
+            'x-datadog-parent-id': '5678',
+            'x-datadog-sampling-priority': '1',
+            'x-datadog-origin': 'synthetics',
         }
 
         propagator = HTTPPropagator()
         context = propagator.extract(headers)
         tracer.context_provider.activate(context)
 
-        with tracer.trace("local_root_span") as span:
+        with tracer.trace('local_root_span') as span:
             assert span.trace_id == 1234
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
-            assert span.context._dd_origin == "synthetics"
+            assert span.context._dd_origin == 'synthetics'
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
         tracer = get_dummy_tracer()
 
         headers = {
-            "HTTP_X_DATADOG_TRACE_ID": "1234",
-            "HTTP_X_DATADOG_PARENT_ID": "5678",
-            "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
-            "HTTP_X_DATADOG_ORIGIN": "synthetics",
+            'HTTP_X_DATADOG_TRACE_ID': '1234',
+            'HTTP_X_DATADOG_PARENT_ID': '5678',
+            'HTTP_X_DATADOG_SAMPLING_PRIORITY': '1',
+            'HTTP_X_DATADOG_ORIGIN': 'synthetics',
         }
 
         propagator = HTTPPropagator()
         context = propagator.extract(headers)
         tracer.context_provider.activate(context)
 
-        with tracer.trace("local_root_span") as span:
+        with tracer.trace('local_root_span') as span:
             assert span.trace_id == 1234
             assert span.parent_id == 5678
             assert span.context.sampling_priority == 1
-            assert span.context._dd_origin == "synthetics"
+            assert span.context._dd_origin == 'synthetics'

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 
 
 class FakeTime(object):
-    """"Allow to mock time.time for tests
+    """'Allow to mock time.time for tests
 
     `time.time` returns a defined `current_time` instead.
     Any `time.time` call also increase the `current_time` of `delta` seconds.
@@ -40,12 +40,12 @@ def patch_time():
 
 def assert_dict_issuperset(a, b):
     assert set(a.items()).issuperset(set(b.items())), \
-        "{a} is not a superset of {b}".format(a=a, b=b)
+        '{a} is not a superset of {b}'.format(a=a, b=b)
 
 
 def assert_list_issuperset(a, b):
     assert set(a).issuperset(set(b)), \
-        "{a} is not a superset of {b}".format(a=a, b=b)
+        '{a} is not a superset of {b}'.format(a=a, b=b)
 
 
 @contextmanager

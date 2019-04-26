@@ -42,11 +42,11 @@ def trace_render(func, instance, args, kwargs):
     # If the request is not traced, we do not trace
     request = kwargs.get('request', {})
     if not request:
-        log.debug("No request passed to render, will not be traced")
+        log.debug('No request passed to render, will not be traced')
         return func(*args, **kwargs)
     span = getattr(request, DD_SPAN, None)
     if not span:
-        log.debug("No span found in request, will not be traced")
+        log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
     tracer = span.tracer()
@@ -103,7 +103,7 @@ def trace_tween_factory(handler, registry):
                 finally:
                     span.span_type = http.TYPE
                     # set request tags
-                    span.set_tag(http.URL, request.path)
+                    span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)
                     if request.matched_route:
                         span.resource = '{} {}'.format(request.method, request.matched_route.name)
