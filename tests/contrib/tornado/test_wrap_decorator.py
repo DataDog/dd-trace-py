@@ -1,3 +1,5 @@
+from ddtrace.ext import http
+
 from .utils import TornadoTestCase
 
 
@@ -20,7 +22,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.NestedWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/nested_wrap/' == request_span.get_tag('http.url')
+        assert self.get_url('/nested_wrap/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         # check nested span
         nested_span = traces[0][1]
@@ -46,7 +48,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.NestedExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
-        assert '/nested_exception_wrap/' == request_span.get_tag('http.url')
+        assert self.get_url('/nested_exception_wrap/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
         assert 'Exception: Ouch!' in request_span.get_tag('error.stack')
@@ -76,7 +78,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.SyncNestedWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/sync_nested_wrap/' == request_span.get_tag('http.url')
+        assert self.get_url('/sync_nested_wrap/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         # check nested span
         nested_span = traces[0][1]
@@ -102,7 +104,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.SyncNestedExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
-        assert '/sync_nested_exception_wrap/' == request_span.get_tag('http.url')
+        assert self.get_url('/sync_nested_exception_wrap/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
         assert 'Exception: Ouch!' in request_span.get_tag('error.stack')
@@ -132,7 +134,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/executor_wrap_handler/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_wrap_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         # check nested span in the executor
         nested_span = traces[0][1]
@@ -159,7 +161,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
-        assert '/executor_wrap_exception/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_wrap_exception/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
         assert 'Exception: Ouch!' in request_span.get_tag('error.stack')

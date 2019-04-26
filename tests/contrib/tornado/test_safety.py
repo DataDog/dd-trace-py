@@ -4,6 +4,7 @@ from tornado import httpclient
 from tornado.testing import gen_test
 
 from ddtrace.contrib.tornado import patch, unpatch
+from ddtrace.ext import http
 
 from . import web
 from .web.app import CustomDefaultHandler
@@ -92,7 +93,7 @@ class TestAppSafety(TornadoTestCase):
 
         request_span = traces[0][0]
         assert 'tests.contrib.tornado.web.app.SuccessHandler' == request_span.resource
-        assert '/success/?magic_number=42' == request_span.get_tag('http.url')
+        assert self.get_url('/success/?magic_number=42') == request_span.get_tag(http.URL)
 
     def test_arbitrary_resource_404(self):
         # users inputs should not determine `span.resource` field
@@ -105,7 +106,7 @@ class TestAppSafety(TornadoTestCase):
 
         request_span = traces[0][0]
         assert 'tornado.web.ErrorHandler' == request_span.resource
-        assert '/does_not_exist/' == request_span.get_tag('http.url')
+        assert self.get_url('/does_not_exist/') == request_span.get_tag(http.URL)
 
     @gen_test
     def test_futures_without_context(self):

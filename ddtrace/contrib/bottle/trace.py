@@ -54,7 +54,7 @@ class TracePlugin(object):
                     raise
                 finally:
                     s.set_tag(http.STATUS_CODE, code or response.status_code)
-                    s.set_tag(http.URL, request.path)
+                    s.set_tag(http.URL, request.url)
                     s.set_tag(http.METHOD, request.method)
 
         return wrapped
