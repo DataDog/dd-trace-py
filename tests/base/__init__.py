@@ -9,28 +9,6 @@ from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
-# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
-@contextlib.contextmanager
-def override_config(integration, values):
-    """
-    Temporarily override an integration configuration value
-    >>> with .override_config('flask', dict(service_name='test-service')):
-        # Your test
-    """
-    options = getattr(ddtrace.config, integration)
-
-    original = dict(
-        (key, options.get(key))
-        for key in values.keys()
-    )
-
-    options.update(values)
-    try:
-        yield
-    finally:
-        options.update(original)
-
-
 class BaseTestCase(unittest.TestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
@@ -47,8 +25,9 @@ class BaseTestCase(unittest.TestCase):
                     pass
     """
 
+    @staticmethod
     @contextlib.contextmanager
-    def override_env(self, env):
+    def override_env(env):
         """
         Temporarily override ``os.environ`` with provided values
         >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
@@ -66,8 +45,9 @@ class BaseTestCase(unittest.TestCase):
             os.environ.clear()
             os.environ.update(original)
 
+    @staticmethod
     @contextlib.contextmanager
-    def override_global_config(self, values):
+    def override_global_config(values):
         """
         Temporarily override an global configuration
         >>> with self.override_global_config(dict(name=value,...)):
@@ -82,8 +62,9 @@ class BaseTestCase(unittest.TestCase):
         finally:
             ddtrace.config.analytics_enabled = analytics_enabled_original
 
+    @staticmethod
     @contextlib.contextmanager
-    def override_config(self, integration, values):
+    def override_config(integration, values):
         """
         Temporarily override an integration configuration value
         >>> with self.override_config('flask', dict(service_name='test-service')):
@@ -102,8 +83,9 @@ class BaseTestCase(unittest.TestCase):
         finally:
             options.update(original)
 
+    @staticmethod
     @contextlib.contextmanager
-    def override_sys_modules(self, modules):
+    def override_sys_modules(modules):
         """
         Temporarily override ``sys.modules`` with provided dictionary of modules
         >>> mock_module = mock.MagicMock()
@@ -119,6 +101,10 @@ class BaseTestCase(unittest.TestCase):
         finally:
             sys.modules.clear()
             sys.modules.update(original)
+
+
+# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
+override_config = BaseTestCase.override_config
 
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
