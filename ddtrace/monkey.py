@@ -26,6 +26,7 @@ PATCH_MODULES = {
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
+    'algoliasearch': True,
     'futures': False,  # experimental propagation
     'grpc': True,
     'mongoengine': True,
