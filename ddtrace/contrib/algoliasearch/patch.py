@@ -1,5 +1,3 @@
-import algoliasearch
-
 from ddtrace.ext import AppTypes
 from ddtrace.pin import Pin
 from ddtrace.settings import config
@@ -12,29 +10,59 @@ SERVICE_NAME = 'algoliasearch'
 APP_NAME = 'algoliasearch'
 SEARCH_SPAN_TYPE = 'algoliasearch.search'
 
-# Default configuration
-config._add('algoliasearch', dict(
-    service_name=SERVICE_NAME,
-    collect_query_text=False
-))
+try:
+    import algoliasearch
+    from algoliasearch.version import VERSION
+    algoliasearch_version = tuple([int(i) for i in VERSION.split('.')])
+
+    # Default configuration
+    config._add('algoliasearch', dict(
+        service_name=SERVICE_NAME,
+        collect_query_text=False
+    ))
+except ImportError:
+    algoliasearch_version = (0, 0)
 
 
 def patch():
+    if algoliasearch_version == (0, 0):
+        return
+
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         return
 
     setattr(algoliasearch, '_datadog_patch', True)
-    _w(algoliasearch.index, 'Index.search', _patched_search)
-    Pin(
+
+    pin = Pin(
         service=config.algoliasearch.service_name, app=APP_NAME,
         app_type=AppTypes.db
-    ).onto(algoliasearch.index.Index)
+    )
+
+    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+        _w(algoliasearch.index, 'Index.search', _patched_search)
+        pin.onto(algoliasearch.index.Index)
+    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+        from algoliasearch import search_index
+        _w(algoliasearch, 'search_index.SearchIndex.search', _patched_search)
+        pin.onto(search_index.SearchIndex)
+    else:
+        return
 
 
 def unpatch():
+    if algoliasearch_version == (0, 0):
+        return
+
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         setattr(algoliasearch, DD_PATCH_ATTR, False)
+
+    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
         _u(algoliasearch.index.Index, 'search')
+    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+        from algoliasearch import search_index
+        _u(search_index.SearchIndex, 'search')
+    else:
+        return
 
 
 # DEV: this maps serves the dual purpose of enumerating the algoliasearch.search() query_args that
@@ -63,6 +91,14 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         wrapt_args is called the way it is to distinguish it from the 'args'
         argument to the algoliasearch.index.Index.search() method.
     """
+
+    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+        function_query_arg_name = 'args'
+    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+        function_query_arg_name = 'request_options'
+    else:
+        return func(*wrapt_args, **wrapt_kwargs)
+
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*wrapt_args, **wrapt_kwargs)
@@ -74,12 +110,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         if config.algoliasearch.collect_query_text:
             span.set_tag('query.text', wrapt_kwargs.get('query', wrapt_args[0]))
 
-        query_args = wrapt_kwargs.get('args', wrapt_args[1] if len(wrapt_args) > 1 else None)
-        if query_args is None:
-            # try 'searchParameters' as the name, which seems to be a deprecated argument name
-            # that is still in use in the documentation but not in the latest algoliasearch
-            # library
-            query_args = wrapt_kwargs.get('searchParameters', None)
+        query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
         if query_args and isinstance(query_args, dict):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
