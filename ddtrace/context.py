@@ -40,6 +40,14 @@ class Context(object):
         self._sampled = sampled
         self._sampling_priority = sampling_priority
 
+        self._root_state = {
+            'parent_trace_id': trace_id,
+            'parent_span_id': span_id,
+            'parent_service': service,
+            'sampled': sampled,
+            'sampling_priority': sampling_priority
+        }
+
     @property
     def trace_id(self):
         """Return current context trace_id."""
@@ -193,13 +201,12 @@ class Context(object):
                 self._trace = []
                 self._finished_spans = 0
 
-                # Don't clear out the parent trace IDs as this may be a cloned
-                # context in a new thread/task without a outer span
-                if not self._parent_trace_id or (trace and trace[0].trace_id == self._parent_trace_id):
-                    self._parent_trace_id = None
-                    self._parent_span_id = None
-                    self._sampling_priority = None
-                    self._sampled = True
+                self._parent_trace_id = self._root_state['parent_trace_id']
+                self._parent_span_id = self._root_state['parent_span_id']
+                self._sampled = self._root_state['sampled']
+                self._parent_service = self._root_state['parent_service']
+                self._sampling_priority = self._root_state['sampling_priority']
+
                 return trace, sampled
             else:
                 return None, None

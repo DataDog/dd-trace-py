@@ -222,8 +222,17 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # ensures that the context is propagated between different tasks
         @self.tracer.wrap('spawn_task')
         @asyncio.coroutine
-        def coro_2():
+        def coro_3():
             yield from asyncio.sleep(0.01)
+
+        @asyncio.coroutine
+        def coro_2():
+            # This will have a new context, first run will test that the
+            # new context works correctly, second run will test if when we
+            # pop off the last span on the context if it is still parented
+            # corrrectly
+            yield from coro_3()
+            yield from coro_3()
 
         @self.tracer.wrap('main_task')
         @asyncio.coroutine
@@ -233,14 +242,18 @@ class TestAsyncioPropagation(AsyncioTestCase):
         yield from coro_1()
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 2)
+        eq_(len(traces), 3)
         eq_(len(traces[0]), 1)
         eq_(len(traces[1]), 1)
-        spawn_task = traces[0][0]
-        main_task = traces[1][0]
+        main_task = traces[-1][0]
+        spawn_task1 = traces[0][0]
+        spawn_task2 = traces[1][0]
         # check if the context has been correctly propagated
-        eq_(spawn_task.trace_id, main_task.trace_id)
-        eq_(spawn_task.parent_id, main_task.span_id)
+        eq_(spawn_task1.trace_id, main_task.trace_id)
+        eq_(spawn_task1.parent_id, main_task.span_id)
+
+        eq_(spawn_task2.trace_id, main_task.trace_id)
+        eq_(spawn_task2.parent_id, main_task.span_id)
 
     @mark_asyncio
     def test_concurrent_chaining(self):
