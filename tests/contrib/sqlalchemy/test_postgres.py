@@ -1,8 +1,8 @@
 import psycopg2
 
-from nose.tools import assert_raises
-
 from sqlalchemy.exc import ProgrammingError
+
+import pytest
 
 from .mixins import SQLAlchemyTestMixin
 from ..config import POSTGRES_CONFIG
@@ -29,7 +29,7 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
 
     def test_engine_execute_errors(self):
         # ensures that SQL errors are reported
-        with assert_raises(ProgrammingError):
+        with pytest.raises(ProgrammingError):
             with self.connection() as conn:
                 conn.execute('SELECT * FROM a_wrong_table').fetchall()
 
@@ -50,8 +50,8 @@ class PostgresTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
         # check the error
         self.assertEqual(span.error, 1)
         self.assertTrue('relation "a_wrong_table" does not exist' in span.get_tag('error.msg'))
-        self.assertTrue('ProgrammingError' in span.get_tag('error.type'))
-        self.assertTrue('ProgrammingError: relation "a_wrong_table" does not exist' in span.get_tag('error.stack'))
+        assert 'psycopg2.errors.UndefinedTable' in span.get_tag('error.type')
+        assert 'UndefinedTable: relation "a_wrong_table" does not exist' in span.get_tag('error.stack')
 
 
 class PostgresCreatorTestCase(PostgresTestCase):

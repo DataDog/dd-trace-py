@@ -1,7 +1,6 @@
 # flake8: noqa
 import asyncio
 
-from nose.tools import eq_, ok_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
@@ -33,108 +32,108 @@ class TestTraceMiddleware(TraceTestCase):
         # it should create a root span when there is a handler hit
         # with the proper tags
         request = yield from self.client.request('GET', '/')
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right fields
-        eq_('aiohttp.request', span.name)
-        eq_('aiohttp-web', span.service)
-        eq_('http', span.span_type)
-        eq_('GET /', span.resource)
-        eq_('/', span.get_tag('http.url'))
-        eq_('GET', span.get_tag('http.method'))
-        eq_('200', span.get_tag('http.status_code'))
-        eq_(0, span.error)
+        assert 'aiohttp.request' == span.name
+        assert 'aiohttp-web' == span.service
+        assert 'http' == span.span_type
+        assert 'GET /' == span.resource
+        assert '/' == span.get_tag('http.url')
+        assert 'GET' == span.get_tag('http.method')
+        assert '200' == span.get_tag('http.status_code')
+        assert 0 == span.error
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_param_handler(self):
         # it should manage properly handlers with params
         request = yield from self.client.request('GET', '/echo/team')
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_('Hello team', text)
+        assert 'Hello team' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right fields
-        eq_('GET /echo/{name}', span.resource)
-        eq_('/echo/team', span.get_tag('http.url'))
-        eq_('200', span.get_tag('http.status_code'))
+        assert 'GET /echo/{name}' == span.resource
+        assert '/echo/team' == span.get_tag('http.url')
+        assert '200' == span.get_tag('http.status_code')
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_404_handler(self):
         # it should not pollute the resource space
         request = yield from self.client.request('GET', '/404/not_found')
-        eq_(404, request.status)
+        assert 404 == request.status
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right fields
-        eq_('404', span.resource)
-        eq_('/404/not_found', span.get_tag('http.url'))
-        eq_('GET', span.get_tag('http.method'))
-        eq_('404', span.get_tag('http.status_code'))
+        assert '404' == span.resource
+        assert '/404/not_found' == span.get_tag('http.url')
+        assert 'GET' == span.get_tag('http.method')
+        assert '404' == span.get_tag('http.status_code')
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_coroutine_chaining(self):
         # it should create a trace with multiple spans
         request = yield from self.client.request('GET', '/chaining/')
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_('OK', text)
+        assert 'OK' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(3, len(traces[0]))
+        assert 1 == len(traces)
+        assert 3 == len(traces[0])
         root = traces[0][0]
         handler = traces[0][1]
         coroutine = traces[0][2]
         # root span created in the middleware
-        eq_('aiohttp.request', root.name)
-        eq_('GET /chaining/', root.resource)
-        eq_('/chaining/', root.get_tag('http.url'))
-        eq_('GET', root.get_tag('http.method'))
-        eq_('200', root.get_tag('http.status_code'))
+        assert 'aiohttp.request' == root.name
+        assert 'GET /chaining/' == root.resource
+        assert '/chaining/' == root.get_tag('http.url')
+        assert 'GET' == root.get_tag('http.method')
+        assert '200' == root.get_tag('http.status_code')
         # span created in the coroutine_chaining handler
-        eq_('aiohttp.coro_1', handler.name)
-        eq_(root.span_id, handler.parent_id)
-        eq_(root.trace_id, handler.trace_id)
+        assert 'aiohttp.coro_1' == handler.name
+        assert root.span_id == handler.parent_id
+        assert root.trace_id == handler.trace_id
         # span created in the coro_2 handler
-        eq_('aiohttp.coro_2', coroutine.name)
-        eq_(handler.span_id, coroutine.parent_id)
-        eq_(root.trace_id, coroutine.trace_id)
+        assert 'aiohttp.coro_2' == coroutine.name
+        assert handler.span_id == coroutine.parent_id
+        assert root.trace_id == coroutine.trace_id
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_static_handler(self):
         # it should create a trace with multiple spans
         request = yield from self.client.request('GET', '/statics/empty.txt')
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_('Static file\n', text)
+        assert 'Static file\n' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # root span created in the middleware
-        eq_('aiohttp.request', span.name)
-        eq_('GET /statics', span.resource)
-        eq_('/statics/empty.txt', span.get_tag('http.url'))
-        eq_('GET', span.get_tag('http.method'))
-        eq_('200', span.get_tag('http.status_code'))
+        assert 'aiohttp.request' == span.name
+        assert 'GET /statics' == span.resource
+        assert '/statics/empty.txt' == span.get_tag('http.url')
+        assert 'GET' == span.get_tag('http.method')
+        assert '200' == span.get_tag('http.status_code')
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -142,70 +141,69 @@ class TestTraceMiddleware(TraceTestCase):
         # it should be idempotent
         app = setup_app(self.app.loop)
         # the middleware is not present
-        eq_(1, len(app.middlewares))
-        eq_(noop_middleware, app.middlewares[0])
+        assert 1 == len(app.middlewares)
+        assert noop_middleware == app.middlewares[0]
         # the middleware is present (with the noop middleware)
         trace_app(app, self.tracer)
-        eq_(2, len(app.middlewares))
+        assert 2 == len(app.middlewares)
         # applying the middleware twice doesn't add it again
         trace_app(app, self.tracer)
-        eq_(2, len(app.middlewares))
+        assert 2 == len(app.middlewares)
         # and the middleware is always the first
-        eq_(trace_middleware, app.middlewares[0])
-        eq_(noop_middleware, app.middlewares[1])
+        assert trace_middleware == app.middlewares[0]
+        assert noop_middleware == app.middlewares[1]
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_exception(self):
         request = yield from self.client.request('GET', '/exception')
-        eq_(500, request.status)
+        assert 500 == request.status
         yield from request.text()
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
+        assert 1 == len(traces)
         spans = traces[0]
-        eq_(1, len(spans))
+        assert 1 == len(spans)
         span = spans[0]
-        eq_(1, span.error)
-        eq_('GET /exception', span.resource)
-        eq_('error', span.get_tag('error.msg'))
-        ok_('Exception: error' in span.get_tag('error.stack'))
+        assert 1 == span.error
+        assert 'GET /exception' == span.resource
+        assert 'error' == span.get_tag('error.msg')
+        assert 'Exception: error' in span.get_tag('error.stack')
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_async_exception(self):
         request = yield from self.client.request('GET', '/async_exception')
-        eq_(500, request.status)
+        assert 500 == request.status
         yield from request.text()
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
+        assert 1 == len(traces)
         spans = traces[0]
-        eq_(1, len(spans))
+        assert 1 == len(spans)
         span = spans[0]
-        eq_(1, span.error)
-        eq_('GET /async_exception', span.resource)
-        eq_('error', span.get_tag('error.msg'))
-        ok_('Exception: error' in span.get_tag('error.stack'))
+        assert 1 == span.error
+        assert 'GET /async_exception' == span.resource
+        assert 'error' == span.get_tag('error.msg')
+        assert 'Exception: error' in span.get_tag('error.stack')
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_wrapped_coroutine(self):
         request = yield from self.client.request('GET', '/wrapped_coroutine')
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_('OK', text)
+        assert 'OK' == text
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
+        assert 1 == len(traces)
         spans = traces[0]
-        eq_(2, len(spans))
+        assert 2 == len(spans)
         span = spans[0]
-        eq_('GET /wrapped_coroutine', span.resource)
+        assert 'GET /wrapped_coroutine' == span.resource
         span = spans[1]
-        eq_('nested', span.name)
-        ok_(span.duration > 0.25,
-            msg="span.duration={0}".format(span.duration))
+        assert 'nested' == span.name
+        assert span.duration > 0.25, "span.duration={0}".format(span.duration)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -217,18 +215,18 @@ class TestTraceMiddleware(TraceTestCase):
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right trace_id and parent_id
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), None)
+        assert span.trace_id == 100
+        assert span.parent_id == 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == None
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -242,18 +240,18 @@ class TestTraceMiddleware(TraceTestCase):
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right trace_id and parent_id
-        eq_(100, span.trace_id)
-        eq_(42, span.parent_id)
-        eq_(1, span.get_metric(SAMPLING_PRIORITY_KEY))
+        assert 100 == span.trace_id
+        assert 42 == span.parent_id
+        assert 1 == span.get_metric(SAMPLING_PRIORITY_KEY)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -267,18 +265,18 @@ class TestTraceMiddleware(TraceTestCase):
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # with the right trace_id and parent_id
-        eq_(100, span.trace_id)
-        eq_(42, span.parent_id)
-        eq_(0, span.get_metric(SAMPLING_PRIORITY_KEY))
+        assert 100 == span.trace_id
+        assert 42 == span.parent_id
+        assert 0 == span.get_metric(SAMPLING_PRIORITY_KEY)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -291,17 +289,17 @@ class TestTraceMiddleware(TraceTestCase):
         }
 
         request = yield from self.client.request('GET', '/', headers=tracing_headers)
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
         span = traces[0][0]
         # distributed tracing must be ignored by default
-        ok_(span.trace_id is not 100)
-        ok_(span.parent_id is not 42)
+        assert span.trace_id is not 100
+        assert span.parent_id is not 42
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -316,22 +314,22 @@ class TestTraceMiddleware(TraceTestCase):
         }
 
         request = yield from self.client.request('GET', '/sub_span', headers=tracing_headers)
-        eq_(200, request.status)
+        assert 200 == request.status
         text = yield from request.text()
-        eq_("OK", text)
+        assert "OK" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        assert 1 == len(traces)
+        assert 2 == len(traces[0])
         span, sub_span = traces[0][0], traces[0][1]
         # with the right trace_id and parent_id
-        eq_(100, span.trace_id)
-        eq_(42, span.parent_id)
-        eq_(0, span.get_metric(SAMPLING_PRIORITY_KEY))
+        assert 100 == span.trace_id
+        assert 42 == span.parent_id
+        assert 0 == span.get_metric(SAMPLING_PRIORITY_KEY)
         # check parenting is OK with custom sub-span created within server code
-        eq_(100, sub_span.trace_id)
-        eq_(span.span_id, sub_span.parent_id)
-        eq_(None, sub_span.get_metric(SAMPLING_PRIORITY_KEY))
+        assert 100 == sub_span.trace_id
+        assert span.span_id == sub_span.parent_id
+        assert None == sub_span.get_metric(SAMPLING_PRIORITY_KEY)
 
     def _assert_200_parenting(self, traces):
         """Helper to assert parenting when handling aiohttp requests.
@@ -339,8 +337,8 @@ class TestTraceMiddleware(TraceTestCase):
         This is used to ensure that parenting is consistent between Datadog
         and OpenTracing implementations of tracing.
         """
-        eq_(2, len(traces))
-        eq_(1, len(traces[0]))
+        assert 2 == len(traces)
+        assert 1 == len(traces[0])
 
         # the inner span will be the first trace since it completes before the
         # outer span does
@@ -348,30 +346,30 @@ class TestTraceMiddleware(TraceTestCase):
         outer_span = traces[1][0]
 
         # confirm the parenting
-        eq_(outer_span.parent_id, None)
-        eq_(inner_span.parent_id, None)
+        assert outer_span.parent_id == None
+        assert inner_span.parent_id == None
 
-        eq_(outer_span.name, 'aiohttp_op')
+        assert outer_span.name == 'aiohttp_op'
 
         # with the right fields
-        eq_('aiohttp.request', inner_span.name)
-        eq_('aiohttp-web', inner_span.service)
-        eq_('http', inner_span.span_type)
-        eq_('GET /', inner_span.resource)
-        eq_('/', inner_span.get_tag('http.url'))
-        eq_('GET', inner_span.get_tag('http.method'))
-        eq_('200', inner_span.get_tag('http.status_code'))
-        eq_(0, inner_span.error)
+        assert 'aiohttp.request' == inner_span.name
+        assert 'aiohttp-web' == inner_span.service
+        assert 'http' == inner_span.span_type
+        assert 'GET /' == inner_span.resource
+        assert '/' == inner_span.get_tag('http.url')
+        assert 'GET' == inner_span.get_tag('http.method')
+        assert '200' == inner_span.get_tag('http.status_code')
+        assert 0 == inner_span.error
 
     @unittest_run_loop
     @asyncio.coroutine
     def test_parenting_200_dd(self):
         with self.tracer.trace('aiohttp_op'):
             request = yield from self.client.request('GET', '/')
-            eq_(200, request.status)
+            assert 200 == request.status
             text = yield from request.text()
 
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         traces = self.tracer.writer.pop_traces()
         self._assert_200_parenting(traces)
 
@@ -383,10 +381,10 @@ class TestTraceMiddleware(TraceTestCase):
 
         with ot_tracer.start_active_span('aiohttp_op'):
             request = yield from self.client.request('GET', '/')
-            eq_(200, request.status)
+            assert 200 == request.status
             text = yield from request.text()
 
-        eq_("What's tracing?", text)
+        assert "What's tracing?" == text
         traces = self.tracer.writer.pop_traces()
         self._assert_200_parenting(traces)
 

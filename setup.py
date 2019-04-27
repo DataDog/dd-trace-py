@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import copy
 import os
 import sys
@@ -89,6 +87,7 @@ setup_kwargs = dict(
     packages=find_packages(exclude=['tests*']),
     install_requires=[
         'msgpack-python',
+        'psutil',
     ],
     extras_require={
         # users can include opentracing by having:

@@ -1,6 +1,4 @@
 # 3rd party
-from nose.tools import eq_
-
 from django.test import modify_settings
 from django.db import connections
 
@@ -23,22 +21,22 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # ensures that the internals are properly traced
         url = reverse('users-list')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
-        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
-        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
-        eq_(sp_request.get_tag('http.status_code'), '200')
-        eq_(sp_request.get_tag('http.url'), '/users/')
-        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
-        eq_(sp_request.get_tag('http.method'), 'GET')
-        eq_(sp_request.span_type, 'http')
-        eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
+        assert sp_database.get_tag('django.db.vendor') == 'sqlite'
+        assert sp_template.get_tag('django.template_name') == 'users_list.html'
+        assert sp_request.get_tag('http.status_code') == '200'
+        assert sp_request.get_tag('http.url') == '/users/'
+        assert sp_request.get_tag('django.user.is_authenticated') == 'False'
+        assert sp_request.get_tag('http.method') == 'GET'
+        assert sp_request.span_type == 'http'
+        assert sp_request.resource == 'tests.contrib.django.app.views.UserList'
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -52,7 +50,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
@@ -74,7 +72,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
@@ -95,7 +93,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
@@ -117,7 +115,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             self.assertEqual(response.status_code, 200)
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
         sp_template = spans[1]
         sp_database = spans[2]
@@ -136,101 +134,101 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # ensures that the internals are properly traced
         url = reverse('users-list')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # We would be missing span #3, the database span, if the connection
         # wasn't patched.
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
-        eq_(spans[0].name, 'django.request')
-        eq_(spans[1].name, 'django.template')
-        eq_(spans[2].name, 'sqlite.query')
+        assert len(spans) == 3
+        assert spans[0].name == 'django.request'
+        assert spans[1].name == 'django.template'
+        assert spans[2].name == 'sqlite.query'
 
     def test_middleware_trace_errors(self):
         # ensures that the internals are properly traced
         url = reverse('forbidden-view')
         response = self.client.get(url)
-        eq_(response.status_code, 403)
+        assert response.status_code == 403
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.get_tag('http.status_code'), '403')
-        eq_(span.get_tag('http.url'), '/fail-view/')
-        eq_(span.resource, 'tests.contrib.django.app.views.ForbiddenView')
+        assert span.get_tag('http.status_code') == '403'
+        assert span.get_tag('http.url') == '/fail-view/'
+        assert span.resource == 'tests.contrib.django.app.views.ForbiddenView'
 
     def test_middleware_trace_function_based_view(self):
         # ensures that the internals are properly traced when using a function views
         url = reverse('fn-view')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag('http.url'), '/fn-view/')
-        eq_(span.resource, 'tests.contrib.django.app.views.function_view')
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag('http.url') == '/fn-view/'
+        assert span.resource == 'tests.contrib.django.app.views.function_view'
 
     def test_middleware_trace_error_500(self):
         # ensures we trace exceptions generated by views
         url = reverse('error-500')
         response = self.client.get(url)
-        eq_(response.status_code, 500)
+        assert response.status_code == 500
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '500')
-        eq_(span.get_tag('http.url'), '/error-500/')
-        eq_(span.resource, 'tests.contrib.django.app.views.error_500')
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '500'
+        assert span.get_tag('http.url') == '/error-500/'
+        assert span.resource == 'tests.contrib.django.app.views.error_500'
         assert "Error 500" in span.get_tag('error.stack')
 
     def test_middleware_trace_callable_view(self):
         # ensures that the internals are properly traced when using callable views
         url = reverse('feed-view')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag('http.url'), '/feed-view/')
-        eq_(span.resource, 'tests.contrib.django.app.views.FeedView')
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag('http.url') == '/feed-view/'
+        assert span.resource == 'tests.contrib.django.app.views.FeedView'
 
     def test_middleware_trace_partial_based_view(self):
         # ensures that the internals are properly traced when using a function views
         url = reverse('partial-view')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag('http.url'), '/partial-view/')
-        eq_(span.resource, 'partial')
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag('http.url') == '/partial-view/'
+        assert span.resource == 'partial'
 
     def test_middleware_trace_lambda_based_view(self):
         # ensures that the internals are properly traced when using a function views
         url = reverse('lambda-view')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag('http.url'), '/lambda-view/')
-        eq_(span.resource, 'tests.contrib.django.app.views.<lambda>')
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag('http.url') == '/lambda-view/'
+        assert span.resource == 'tests.contrib.django.app.views.<lambda>'
 
     @modify_settings(
         MIDDLEWARE={
@@ -245,14 +243,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         # object doesn't have the ``user`` field
         url = reverse('users-list')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
-        eq_(sp_request.get_tag('http.status_code'), '200')
-        eq_(sp_request.get_tag('django.user.is_authenticated'), None)
+        assert sp_request.get_tag('http.status_code') == '200'
+        assert sp_request.get_tag('django.user.is_authenticated') is None
 
     @override_ddtrace_settings(DISTRIBUTED_TRACING=True)
     def test_middleware_propagation(self):
@@ -264,17 +262,17 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             'x-datadog-sampling-priority': '2',
         }
         response = self.client.get(url, **headers)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
 
         # Check for proper propagated attributes
-        eq_(sp_request.trace_id, 100)
-        eq_(sp_request.parent_id, 42)
-        eq_(sp_request.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        assert sp_request.trace_id == 100
+        assert sp_request.parent_id == 42
+        assert sp_request.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
     def test_middleware_no_propagation(self):
         # ensures that we properly propagate http context
@@ -285,11 +283,11 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
             'x-datadog-sampling-priority': '2',
         }
         response = self.client.get(url, **headers)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         sp_request = spans[0]
 
         # Check that propagation didn't happen
@@ -311,14 +309,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         """
         url = reverse('error-500')
         response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         sp_request = spans[0]
 
-        eq_(sp_request.error, 0)
+        assert sp_request.error == 0
         assert sp_request.get_tag(errors.ERROR_STACK) is None
         assert sp_request.get_tag(errors.ERROR_MSG) is None
         assert sp_request.get_tag(errors.ERROR_TYPE) is None
@@ -337,14 +335,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         """
         url = reverse('error-500')
         response = self.client.get(url)
-        eq_(response.status_code, 404)
+        assert response.status_code == 404
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         sp_request = spans[0]
 
-        eq_(sp_request.error, 0)
+        assert sp_request.error == 0
         assert sp_request.get_tag(errors.ERROR_STACK) is None
         assert sp_request.get_tag(errors.ERROR_MSG) is None
         assert sp_request.get_tag(errors.ERROR_TYPE) is None
@@ -357,29 +355,29 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         url = reverse('users-list')
         with ot_tracer.start_active_span('ot_span'):
             response = self.client.get(url)
-        eq_(response.status_code, 200)
+        assert response.status_code == 200
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        assert len(spans) == 4
         ot_span = spans[0]
         sp_request = spans[1]
         sp_template = spans[2]
         sp_database = spans[3]
 
         # confirm parenting
-        eq_(ot_span.parent_id, None)
-        eq_(sp_request.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert sp_request.parent_id == ot_span.span_id
 
-        eq_(ot_span.resource, 'ot_span')
-        eq_(ot_span.service, 'my_svc')
+        assert ot_span.resource == 'ot_span'
+        assert ot_span.service == 'my_svc'
 
-        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
-        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
-        eq_(sp_request.get_tag('http.status_code'), '200')
-        eq_(sp_request.get_tag('http.url'), '/users/')
-        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
-        eq_(sp_request.get_tag('http.method'), 'GET')
+        assert sp_database.get_tag('django.db.vendor') == 'sqlite'
+        assert sp_template.get_tag('django.template_name') == 'users_list.html'
+        assert sp_request.get_tag('http.status_code') == '200'
+        assert sp_request.get_tag('http.url') == '/users/'
+        assert sp_request.get_tag('django.user.is_authenticated') == 'False'
+        assert sp_request.get_tag('http.method') == 'GET'
 
     def test_middleware_trace_request_404(self):
         """
@@ -388,23 +386,23 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
                 we set a resource name for the default view handler
         """
         response = self.client.get('/unknown-url')
-        eq_(response.status_code, 404)
+        assert response.status_code == 404
 
         # check for spans
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         sp_request = spans[0]
         sp_template = spans[1]
 
         # Template
         # DEV: The template name is `unknown` because unless they define a `404.html`
         #   django generates the template from a string, which will not have a `Template.name` set
-        eq_(sp_template.get_tag('django.template_name'), 'unknown')
+        assert sp_template.get_tag('django.template_name') == 'unknown'
 
         # Request
-        eq_(sp_request.get_tag('http.status_code'), '404')
-        eq_(sp_request.get_tag('http.url'), '/unknown-url')
-        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
-        eq_(sp_request.get_tag('http.method'), 'GET')
-        eq_(sp_request.span_type, 'http')
-        eq_(sp_request.resource, 'django.views.defaults.page_not_found')
+        assert sp_request.get_tag('http.status_code') == '404'
+        assert sp_request.get_tag('http.url') == '/unknown-url'
+        assert sp_request.get_tag('django.user.is_authenticated') == 'False'
+        assert sp_request.get_tag('http.method') == 'GET'
+        assert sp_request.span_type == 'http'
+        assert sp_request.resource == 'django.views.defaults.page_not_found'

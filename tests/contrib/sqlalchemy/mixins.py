@@ -2,8 +2,6 @@
 import contextlib
 
 # 3rd party
-from nose.tools import eq_, ok_
-
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import (
@@ -109,69 +107,67 @@ class SQLAlchemyTestMixin(object):
 
         traces = self.tracer.writer.pop_traces()
         # trace composition
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        eq_(span.name, '{}.query'.format(self.VENDOR))
-        eq_(span.service, self.SERVICE)
-        ok_('INSERT INTO players' in span.resource)
-        eq_(span.get_tag('sql.db'), self.SQL_DB)
-        eq_(span.get_tag('sql.rows'), '1')
+        assert span.name == '{}.query'.format(self.VENDOR)
+        assert span.service == self.SERVICE
+        assert 'INSERT INTO players' in span.resource
+        assert span.get_tag('sql.db') == self.SQL_DB
+        assert span.get_tag('sql.rows') == '1'
         self.check_meta(span)
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
-        ok_(span.duration > 0)
+        assert span.span_type == 'sql'
+        assert span.error == 0
+        assert span.duration > 0
 
     def test_session_query(self):
         # ensures that the Session queries are traced
         out = list(self.session.query(Player).filter_by(name='wayne'))
-        eq_(len(out), 0)
+        assert len(out) == 0
 
         traces = self.tracer.writer.pop_traces()
         # trace composition
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        eq_(span.name, '{}.query'.format(self.VENDOR))
-        eq_(span.service, self.SERVICE)
-        ok_(
-            'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name'
+        assert span.name == '{}.query'.format(self.VENDOR)
+        assert span.service == self.SERVICE
+        assert 'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name' \
             in span.resource
-        )
-        eq_(span.get_tag('sql.db'), self.SQL_DB)
+        assert span.get_tag('sql.db') == self.SQL_DB
         self.check_meta(span)
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
-        ok_(span.duration > 0)
+        assert span.span_type == 'sql'
+        assert span.error == 0
+        assert span.duration > 0
 
     def test_engine_connect_execute(self):
         # ensures that engine.connect() is properly traced
         with self.connection() as conn:
             rows = conn.execute('SELECT * FROM players').fetchall()
-            eq_(len(rows), 0)
+            assert len(rows) == 0
 
         traces = self.tracer.writer.pop_traces()
         # trace composition
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
         # span fields
-        eq_(span.name, '{}.query'.format(self.VENDOR))
-        eq_(span.service, self.SERVICE)
-        eq_(span.resource, 'SELECT * FROM players')
-        eq_(span.get_tag('sql.db'), self.SQL_DB)
+        assert span.name == '{}.query'.format(self.VENDOR)
+        assert span.service == self.SERVICE
+        assert span.resource == 'SELECT * FROM players'
+        assert span.get_tag('sql.db') == self.SQL_DB
         self.check_meta(span)
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
-        ok_(span.duration > 0)
+        assert span.span_type == 'sql'
+        assert span.error == 0
+        assert span.duration > 0
 
     def test_traced_service(self):
         # ensures that the service is set as expected
         services = self.tracer.writer.pop_services()
         expected = {}
-        eq_(services, expected)
+        assert services == expected
 
     def test_opentracing(self):
         """Ensure that sqlalchemy works with the opentracer."""
@@ -180,29 +176,29 @@ class SQLAlchemyTestMixin(object):
         with ot_tracer.start_active_span('sqlalch_op'):
             with self.connection() as conn:
                 rows = conn.execute('SELECT * FROM players').fetchall()
-                eq_(len(rows), 0)
+                assert len(rows) == 0
 
         traces = self.tracer.writer.pop_traces()
         # trace composition
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 2)
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
         ot_span, dd_span = traces[0]
 
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.name, 'sqlalch_op')
-        eq_(ot_span.service, 'sqlalch_svc')
+        assert ot_span.name == 'sqlalch_op'
+        assert ot_span.service == 'sqlalch_svc'
 
         # span fields
-        eq_(dd_span.name, '{}.query'.format(self.VENDOR))
-        eq_(dd_span.service, self.SERVICE)
-        eq_(dd_span.resource, 'SELECT * FROM players')
-        eq_(dd_span.get_tag('sql.db'), self.SQL_DB)
-        eq_(dd_span.span_type, 'sql')
-        eq_(dd_span.error, 0)
-        ok_(dd_span.duration > 0)
+        assert dd_span.name == '{}.query'.format(self.VENDOR)
+        assert dd_span.service == self.SERVICE
+        assert dd_span.resource == 'SELECT * FROM players'
+        assert dd_span.get_tag('sql.db') == self.SQL_DB
+        assert dd_span.span_type == 'sql'
+        assert dd_span.error == 0
+        assert dd_span.duration > 0
 
     def test_analytics_default(self):
         # ensures that the ORM session is traced

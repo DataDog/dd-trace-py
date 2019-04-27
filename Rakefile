@@ -12,13 +12,9 @@ S3_BUCKET = "pypi.datadoghq.com"
 
 desc "release the a new wheel"
 task :'release:wheel' do
-  # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
-  # If at some point, we need only the 2 first steps:
-  #  - python setup.py bdist_wheel
-  #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
   fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
 
-  # Use custom mkwheelhouse script to build and upload an sdist to S3 bucket
+  # Use custom `mkwheelhouse` to upload wheels and source distribution from dist/ to S3 bucket
   sh "scripts/mkwheelhouse"
 end
 
@@ -66,6 +62,7 @@ namespace :pypi do
 
   task :build => :clean do
     puts "building release in #{RELEASE_DIR}"
+    # TODO: Use `scripts/build-dist` instead to build sdist and wheels
     sh "python setup.py -q sdist -d #{RELEASE_DIR}"
   end
 

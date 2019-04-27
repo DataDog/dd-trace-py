@@ -2,7 +2,6 @@ import json
 import msgpack
 
 from unittest import TestCase
-from nose.tools import eq_, ok_
 
 from ddtrace.span import Span
 from ddtrace.compat import msgpack_type, string_type
@@ -31,13 +30,13 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        ok_(isinstance(spans, string_type))
-        eq_(len(items), 2)
-        eq_(len(items[0]), 2)
-        eq_(len(items[1]), 2)
+        assert isinstance(spans, string_type)
+        assert len(items) == 2
+        assert len(items[0]) == 2
+        assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                eq_('client.testing', items[i][j]['name'])
+                assert 'client.testing' == items[i][j]['name']
 
     def test_join_encoded_json(self):
         # test encoding for JSON format
@@ -67,13 +66,13 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        ok_(isinstance(data, string_type))
-        eq_(len(items), 2)
-        eq_(len(items[0]), 2)
-        eq_(len(items[1]), 2)
+        assert isinstance(data, string_type)
+        assert len(items) == 2
+        assert len(items[0]) == 2
+        assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                eq_('client.testing', items[i][j]['name'])
+                assert 'client.testing' == items[i][j]['name']
 
     def test_encode_traces_msgpack(self):
         # test encoding for MsgPack format
@@ -93,13 +92,13 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        ok_(isinstance(spans, msgpack_type))
-        eq_(len(items), 2)
-        eq_(len(items[0]), 2)
-        eq_(len(items[1]), 2)
+        assert isinstance(spans, msgpack_type)
+        assert len(items) == 2
+        assert len(items[0]) == 2
+        assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                eq_(b'client.testing', items[i][j][b'name'])
+                assert b'client.testing' == items[i][j][b'name']
 
     def test_join_encoded_msgpack(self):
         # test encoding for MsgPack format
@@ -128,10 +127,10 @@ class TestEncoders(TestCase):
 
         # test the encoded output that should be a string
         # and the output must be flatten
-        ok_(isinstance(data, msgpack_type))
-        eq_(len(items), 2)
-        eq_(len(items[0]), 2)
-        eq_(len(items[1]), 2)
+        assert isinstance(data, msgpack_type)
+        assert len(items) == 2
+        assert len(items[0]) == 2
+        assert len(items[1]) == 2
         for i in range(2):
             for j in range(2):
-                eq_(b'client.testing', items[i][j][b'name'])
+                assert b'client.testing' == items[i][j][b'name']

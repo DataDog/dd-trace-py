@@ -1,7 +1,6 @@
 import time
 
 # 3rd party
-from nose.tools import eq_
 from django.template import Context, Template
 
 # testing
@@ -19,18 +18,18 @@ class DjangoTemplateTest(DjangoTraceTestCase):
 
         # (trace) the template rendering
         start = time.time()
-        eq_(template.render(ctx), 'Hello Django!')
+        assert template.render(ctx) == 'Hello Django!'
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.span_type, 'template')
-        eq_(span.name, 'django.template')
-        eq_(span.get_tag('django.template_name'), 'unknown')
+        assert span.span_type == 'template'
+        assert span.name == 'django.template'
+        assert span.get_tag('django.template_name') == 'unknown'
         assert start < span.start < span.start + span.duration < end
 
     @override_ddtrace_settings(INSTRUMENT_TEMPLATE=False)
@@ -40,8 +39,8 @@ class DjangoTemplateTest(DjangoTraceTestCase):
         ctx = Context({'name': 'Django'})
 
         # (trace) the template rendering
-        eq_(template.render(ctx), 'Hello Django!')
+        assert template.render(ctx) == 'Hello Django!'
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        assert len(spans) == 0

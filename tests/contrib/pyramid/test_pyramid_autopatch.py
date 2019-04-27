@@ -1,4 +1,3 @@
-from nose.tools import eq_
 from pyramid.config import Configurator
 
 from .test_pyramid import PyramidTestCase, PyramidBase
@@ -32,12 +31,12 @@ class TestPyramidDistributedTracing(PyramidBase):
         self.app.get('/', headers=headers, status=200)
         writer = self.tracer.writer
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric('_sampling_priority_v1'), 2)
+        assert span.trace_id == 100
+        assert span.parent_id == 42
+        assert span.get_metric('_sampling_priority_v1') == 2
 
 
 def _include_me(config):

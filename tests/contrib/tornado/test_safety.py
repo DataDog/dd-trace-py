@@ -1,7 +1,5 @@
 import threading
 
-from nose.tools import eq_
-
 from tornado import httpclient
 from tornado.testing import gen_test
 
@@ -24,8 +22,8 @@ class TestAsyncConcurrency(TornadoTestCase):
             http_client = httpclient.HTTPClient()
             url = self.get_url('/nested/')
             response = http_client.fetch(url)
-            eq_(200, response.code)
-            eq_('OK', response.body.decode('utf-8'))
+            assert 200 == response.code
+            assert 'OK' == response.body.decode('utf-8')
             # freeing file descriptors
             http_client.close()
 
@@ -40,8 +38,8 @@ class TestAsyncConcurrency(TornadoTestCase):
 
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        eq_(25, len(traces))
-        eq_(2, len(traces[0]))
+        assert 25 == len(traces)
+        assert 2 == len(traces[0])
 
 
 class TestAppSafety(TornadoTestCase):
@@ -55,10 +53,10 @@ class TestAppSafety(TornadoTestCase):
         unpatch()
 
         response = self.fetch('/success/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(0, len(traces))
+        assert 0 == len(traces)
 
     def test_trace_unpatch_not_traced(self):
         # the untrace must be safe if the app is not traced
@@ -66,10 +64,10 @@ class TestAppSafety(TornadoTestCase):
         unpatch()
 
         response = self.fetch('/success/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(0, len(traces))
+        assert 0 == len(traces)
 
     def test_trace_app_twice(self):
         # the application must not be traced multiple times
@@ -77,37 +75,37 @@ class TestAppSafety(TornadoTestCase):
         patch()
 
         response = self.fetch('/success/')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
     def test_arbitrary_resource_querystring(self):
         # users inputs should not determine `span.resource` field
         response = self.fetch('/success/?magic_number=42')
-        eq_(200, response.code)
+        assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tests.contrib.tornado.web.app.SuccessHandler', request_span.resource)
-        eq_('/success/?magic_number=42', request_span.get_tag('http.url'))
+        assert 'tests.contrib.tornado.web.app.SuccessHandler' == request_span.resource
+        assert '/success/?magic_number=42' == request_span.get_tag('http.url')
 
     def test_arbitrary_resource_404(self):
         # users inputs should not determine `span.resource` field
         response = self.fetch('/does_not_exist/')
-        eq_(404, response.code)
+        assert 404 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
-        eq_('tornado.web.ErrorHandler', request_span.resource)
-        eq_('/does_not_exist/', request_span.get_tag('http.url'))
+        assert 'tornado.web.ErrorHandler' == request_span.resource
+        assert '/does_not_exist/' == request_span.get_tag('http.url')
 
     @gen_test
     def test_futures_without_context(self):
@@ -123,12 +121,12 @@ class TestAppSafety(TornadoTestCase):
         yield executor.submit(job)
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         # this trace yields the execution of the thread
         span = traces[0][0]
-        eq_('job', span.name)
+        assert 'job' == span.name
 
 
 class TestCustomAppSafety(TornadoTestCase):
@@ -147,7 +145,7 @@ class TestCustomAppSafety(TornadoTestCase):
         unpatch()
 
         response = self.fetch('/custom_handler/')
-        eq_(400, response.code)
+        assert 400 == response.code
 
         traces = self.tracer.writer.pop_traces()
-        eq_(0, len(traces))
+        assert 0 == len(traces)

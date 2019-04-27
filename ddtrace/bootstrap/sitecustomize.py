@@ -46,7 +46,10 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    for patch in os.environ.get("DATADOG_PATCH_MODULES", '').split(','):
+    modules_to_patch = os.environ.get("DATADOG_PATCH_MODULES")
+    if not modules_to_patch:
+        return
+    for patch in modules_to_patch.split(','):
         if len(patch.split(':')) != 2:
             log.debug("skipping malformed patch instruction")
             continue
@@ -94,6 +97,8 @@ try:
         opts["port"] = int(port)
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
+
+    opts['collect_metrics'] = asbool(get_env('runtime_metrics', 'enabled'))
 
     if opts:
         tracer.configure(**opts)
