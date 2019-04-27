@@ -1,10 +1,9 @@
 import os
 
-from nose.tools import eq_, ok_, assert_raises
-
 from routes import url_for
 from paste import fixture
 from paste.deploy import loadapp
+import pytest
 
 from ddtrace.ext import http, errors
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
@@ -43,18 +42,18 @@ class PylonsTestCase(BaseTracerTestCase):
 
         spans = self.tracer.writer.pop()
 
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_exception')
-        eq_(span.error, 0)
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag(errors.ERROR_MSG), None)
-        eq_(span.get_tag(errors.ERROR_TYPE), None)
-        eq_(span.get_tag(errors.ERROR_STACK), None)
-        eq_(span.span_type, 'http')
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_exception'
+        assert span.error == 0
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag(errors.ERROR_MSG) is None
+        assert span.get_tag(errors.ERROR_TYPE) is None
+        assert span.get_tag(errors.ERROR_STACK) is None
+        assert span.span_type == 'http'
 
     def test_mw_exc_success(self):
         """Ensure exceptions can be properly handled by other middleware.
@@ -71,17 +70,17 @@ class PylonsTestCase(BaseTracerTestCase):
 
         spans = self.tracer.writer.pop()
 
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'None.None')
-        eq_(span.error, 0)
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag(errors.ERROR_MSG), None)
-        eq_(span.get_tag(errors.ERROR_TYPE), None)
-        eq_(span.get_tag(errors.ERROR_STACK), None)
+        assert span.service == 'web'
+        assert span.resource == 'None.None'
+        assert span.error == 0
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag(errors.ERROR_MSG) is None
+        assert span.get_tag(errors.ERROR_TYPE) is None
+        assert span.get_tag(errors.ERROR_STACK) is None
 
     def test_middleware_exception(self):
         """Ensure exceptions raised in middleware are properly handled.
@@ -93,22 +92,22 @@ class PylonsTestCase(BaseTracerTestCase):
         app = PylonsTraceMiddleware(wsgiapp, self.tracer, service='web')
         app = fixture.TestApp(app)
 
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             app.get(url_for(controller='root', action='index'))
 
         spans = self.tracer.writer.pop()
 
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'None.None')
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '500')
-        eq_(span.get_tag(errors.ERROR_MSG), 'Middleware exception')
-        eq_(span.get_tag(errors.ERROR_TYPE), 'exceptions.Exception')
-        ok_(span.get_tag(errors.ERROR_STACK))
+        assert span.service == 'web'
+        assert span.resource == 'None.None'
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '500'
+        assert span.get_tag(errors.ERROR_MSG) == 'Middleware exception'
+        assert span.get_tag(errors.ERROR_TYPE) == 'exceptions.Exception'
+        assert span.get_tag(errors.ERROR_STACK)
 
     def test_exc_success(self):
         from .app.middleware import ExceptionToSuccessMiddleware
@@ -119,17 +118,17 @@ class PylonsTestCase(BaseTracerTestCase):
         app.get(url_for(controller='root', action='raise_exception'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_exception')
-        eq_(span.error, 0)
-        eq_(span.get_tag('http.status_code'), '200')
-        eq_(span.get_tag(errors.ERROR_MSG), None)
-        eq_(span.get_tag(errors.ERROR_TYPE), None)
-        eq_(span.get_tag(errors.ERROR_STACK), None)
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_exception'
+        assert span.error == 0
+        assert span.get_tag('http.status_code') == '200'
+        assert span.get_tag(errors.ERROR_MSG) is None
+        assert span.get_tag(errors.ERROR_TYPE) is None
+        assert span.get_tag(errors.ERROR_STACK) is None
 
     def test_exc_client_failure(self):
         from .app.middleware import ExceptionToClientErrorMiddleware
@@ -140,31 +139,31 @@ class PylonsTestCase(BaseTracerTestCase):
         app.get(url_for(controller='root', action='raise_exception'), status=404)
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_exception')
-        eq_(span.error, 0)
-        eq_(span.get_tag('http.status_code'), '404')
-        eq_(span.get_tag(errors.ERROR_MSG), None)
-        eq_(span.get_tag(errors.ERROR_TYPE), None)
-        eq_(span.get_tag(errors.ERROR_STACK), None)
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_exception'
+        assert span.error == 0
+        assert span.get_tag('http.status_code') == '404'
+        assert span.get_tag(errors.ERROR_MSG) is None
+        assert span.get_tag(errors.ERROR_TYPE) is None
+        assert span.get_tag(errors.ERROR_STACK) is None
 
     def test_success_200(self):
         res = self.app.get(url_for(controller='root', action='index'))
-        eq_(res.status, 200)
+        assert res.status == 200
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.index')
-        eq_(span.meta.get(http.STATUS_CODE), '200')
-        eq_(span.error, 0)
+        assert span.service == 'web'
+        assert span.resource == 'root.index'
+        assert span.meta.get(http.STATUS_CODE) == '200'
+        assert span.error == 0
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -225,108 +224,108 @@ class PylonsTestCase(BaseTracerTestCase):
 
     def test_template_render(self):
         res = self.app.get(url_for(controller='root', action='render'))
-        eq_(res.status, 200)
+        assert res.status == 200
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 2)
+        assert spans, spans
+        assert len(spans) == 2
         request = spans[0]
         template = spans[1]
 
-        eq_(request.service, 'web')
-        eq_(request.resource, 'root.render')
-        eq_(request.meta.get(http.STATUS_CODE), '200')
-        eq_(request.error, 0)
+        assert request.service == 'web'
+        assert request.resource == 'root.render'
+        assert request.meta.get(http.STATUS_CODE) == '200'
+        assert request.error == 0
 
-        eq_(template.service, 'web')
-        eq_(template.resource, 'pylons.render')
-        eq_(template.meta.get('template.name'), '/template.mako')
-        eq_(template.error, 0)
+        assert template.service == 'web'
+        assert template.resource == 'pylons.render'
+        assert template.meta.get('template.name') == '/template.mako'
+        assert template.error == 0
 
     def test_template_render_exception(self):
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='render_exception'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 2)
+        assert spans, spans
+        assert len(spans) == 2
         request = spans[0]
         template = spans[1]
 
-        eq_(request.service, 'web')
-        eq_(request.resource, 'root.render_exception')
-        eq_(request.meta.get(http.STATUS_CODE), '500')
-        eq_(request.error, 1)
+        assert request.service == 'web'
+        assert request.resource == 'root.render_exception'
+        assert request.meta.get(http.STATUS_CODE) == '500'
+        assert request.error == 1
 
-        eq_(template.service, 'web')
-        eq_(template.resource, 'pylons.render')
-        eq_(template.meta.get('template.name'), '/exception.mako')
-        eq_(template.error, 1)
-        eq_(template.get_tag('error.msg'), 'integer division or modulo by zero')
-        ok_('ZeroDivisionError: integer division or modulo by zero' in template.get_tag('error.stack'))
+        assert template.service == 'web'
+        assert template.resource == 'pylons.render'
+        assert template.meta.get('template.name') == '/exception.mako'
+        assert template.error == 1
+        assert template.get_tag('error.msg') == 'integer division or modulo by zero'
+        assert 'ZeroDivisionError: integer division or modulo by zero' in template.get_tag('error.stack')
 
     def test_failure_500(self):
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_exception'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_exception')
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '500')
-        eq_(span.get_tag('error.msg'), 'Ouch!')
-        ok_('Exception: Ouch!' in span.get_tag('error.stack'))
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_exception'
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '500'
+        assert span.get_tag('error.msg') == 'Ouch!'
+        assert 'Exception: Ouch!' in span.get_tag('error.stack')
 
     def test_failure_500_with_wrong_code(self):
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_wrong_code'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_wrong_code')
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '500')
-        eq_(span.get_tag('error.msg'), 'Ouch!')
-        ok_('Exception: Ouch!' in span.get_tag('error.stack'))
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_wrong_code'
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '500'
+        assert span.get_tag('error.msg') == 'Ouch!'
+        assert 'Exception: Ouch!' in span.get_tag('error.stack')
 
     def test_failure_500_with_custom_code(self):
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_custom_code'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_custom_code')
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '512')
-        eq_(span.get_tag('error.msg'), 'Ouch!')
-        ok_('Exception: Ouch!' in span.get_tag('error.stack'))
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_custom_code'
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '512'
+        assert span.get_tag('error.msg') == 'Ouch!'
+        assert 'Exception: Ouch!' in span.get_tag('error.stack')
 
     def test_failure_500_with_code_method(self):
-        with assert_raises(Exception):
+        with pytest.raises(Exception):
             self.app.get(url_for(controller='root', action='raise_code_method'))
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.service, 'web')
-        eq_(span.resource, 'root.raise_code_method')
-        eq_(span.error, 1)
-        eq_(span.get_tag('http.status_code'), '500')
-        eq_(span.get_tag('error.msg'), 'Ouch!')
+        assert span.service == 'web'
+        assert span.resource == 'root.raise_code_method'
+        assert span.error == 1
+        assert span.get_tag('http.status_code') == '500'
+        assert span.get_tag('error.msg') == 'Ouch!'
 
     def test_distributed_tracing_default(self):
         # ensure by default, distributed tracing is not enabled
@@ -336,16 +335,16 @@ class PylonsTestCase(BaseTracerTestCase):
             'x-datadog-sampling-priority': '2',
         }
         res = self.app.get(url_for(controller='root', action='index'), headers=headers)
-        eq_(res.status, 200)
+        assert res.status == 200
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        eq_(span.trace_id, 100)
-        eq_(span.parent_id, 42)
-        eq_(span.get_metric(SAMPLING_PRIORITY_KEY), 2)
+        assert span.trace_id == 100
+        assert span.parent_id == 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
     def test_distributed_tracing_disabled(self):
         # ensure distributed tracing propagator is working
@@ -358,16 +357,16 @@ class PylonsTestCase(BaseTracerTestCase):
         }
 
         res = self.app.get(url_for(controller='root', action='index'), headers=headers)
-        eq_(res.status, 200)
+        assert res.status == 200
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 1)
+        assert spans, spans
+        assert len(spans) == 1
         span = spans[0]
 
-        ok_(span.trace_id != 100)
-        ok_(span.parent_id != 42)
-        ok_(span.get_metric(SAMPLING_PRIORITY_KEY) != 2)
+        assert span.trace_id != 100
+        assert span.parent_id != 42
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
 
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""
@@ -375,21 +374,21 @@ class PylonsTestCase(BaseTracerTestCase):
 
         with ot_tracer.start_active_span('pylons_get'):
             res = self.app.get(url_for(controller='root', action='index'))
-            eq_(res.status, 200)
+            assert res.status == 200
 
         spans = self.tracer.writer.pop()
-        ok_(spans, spans)
-        eq_(len(spans), 2)
+        assert spans, spans
+        assert len(spans) == 2
         ot_span, dd_span = spans
 
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.name, 'pylons_get')
-        eq_(ot_span.service, 'pylons_svc')
+        assert ot_span.name == 'pylons_get'
+        assert ot_span.service == 'pylons_svc'
 
-        eq_(dd_span.service, 'web')
-        eq_(dd_span.resource, 'root.index')
-        eq_(dd_span.meta.get(http.STATUS_CODE), '200')
-        eq_(dd_span.error, 0)
+        assert dd_span.service == 'web'
+        assert dd_span.resource == 'root.index'
+        assert dd_span.meta.get(http.STATUS_CODE) == '200'
+        assert dd_span.error == 0

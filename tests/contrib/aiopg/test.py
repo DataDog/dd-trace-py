@@ -7,7 +7,6 @@ import asyncio
 # 3p
 import aiopg
 from psycopg2 import extras
-from nose.tools import eq_
 
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -65,26 +64,26 @@ class AiopgTestCase(AsyncioTestCase):
         yield from cursor.execute(q)
         rows = yield from cursor.fetchall()
         end = time.time()
-        eq_(rows, [('foobarblah',)])
+        assert rows == [('foobarblah',)]
         assert rows
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 2)
+        assert len(spans) == 2
 
         # execute
         span = spans[0]
-        eq_(span.name, 'postgres.execute')
-        eq_(span.service, service)
-        eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.execute'
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'sql'
         assert start <= span.start <= end
         assert span.duration <= end - start
 
         span = spans[1]
-        eq_(span.name, 'postgres.fetchall')
-        eq_(span.service, service)
-        eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.fetchall'
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'sql'
         assert start <= span.start <= end
         assert span.duration <= end - start
 
@@ -94,28 +93,28 @@ class AiopgTestCase(AsyncioTestCase):
             cursor = yield from db.cursor()
             yield from cursor.execute(q)
             rows = yield from cursor.fetchall()
-            eq_(rows, [('foobarblah',)])
+            assert rows == [('foobarblah',)]
         spans = writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
         ot_span, dd_execute_span, dd_fetchall_span = spans
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(ot_span.name, 'aiopg_op')
-        eq_(ot_span.service, 'aiopg_svc')
+        assert ot_span.parent_id == None
+        assert ot_span.name == 'aiopg_op'
+        assert ot_span.service == 'aiopg_svc'
 
-        eq_(dd_execute_span.parent_id, ot_span.span_id)
-        eq_(dd_execute_span.name, 'postgres.execute')
-        eq_(dd_execute_span.resource, q)
-        eq_(dd_execute_span.service, service)
-        eq_(dd_execute_span.error, 0)
-        eq_(dd_execute_span.span_type, 'sql')
+        assert dd_execute_span.parent_id == ot_span.span_id
+        assert dd_execute_span.name == 'postgres.execute'
+        assert dd_execute_span.resource == q
+        assert dd_execute_span.service == service
+        assert dd_execute_span.error == 0
+        assert dd_execute_span.span_type == 'sql'
 
-        eq_(dd_fetchall_span.parent_id, ot_span.span_id)
-        eq_(dd_fetchall_span.name, 'postgres.fetchall')
-        eq_(dd_fetchall_span.resource, q)
-        eq_(dd_fetchall_span.service, service)
-        eq_(dd_fetchall_span.error, 0)
-        eq_(dd_fetchall_span.span_type, 'sql')
+        assert dd_fetchall_span.parent_id == ot_span.span_id
+        assert dd_fetchall_span.name == 'postgres.fetchall'
+        assert dd_fetchall_span.resource == q
+        assert dd_fetchall_span.service == service
+        assert dd_fetchall_span.error == 0
+        assert dd_fetchall_span.span_type == 'sql'
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
@@ -128,14 +127,14 @@ class AiopgTestCase(AsyncioTestCase):
             assert 0, 'should have an error'
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.name, 'postgres.execute')
-        eq_(span.service, service)
-        eq_(span.error, 1)
-        # eq_(span.meta['out.host'], 'localhost')
-        eq_(span.meta['out.port'], TEST_PORT)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.execute'
+        assert span.service == service
+        assert span.error == 1
+        # assert span.meta['out.host'] == 'localhost'
+        assert span.meta['out.port'] == TEST_PORT
+        assert span.span_type == 'sql'
 
     @mark_asyncio
     def test_disabled_execute(self):
@@ -168,7 +167,7 @@ class AiopgTestCase(AsyncioTestCase):
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {}
-        eq_(service_meta, expected)
+        assert service_meta == expected
 
     @mark_asyncio
     def test_patch_unpatch(self):
@@ -188,7 +187,7 @@ class AiopgTestCase(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -210,7 +209,7 @@ class AiopgTestCase(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

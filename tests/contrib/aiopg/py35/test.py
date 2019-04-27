@@ -5,7 +5,6 @@ import asyncio
 
 # 3p
 import aiopg
-from nose.tools import eq_
 
 # project
 from ddtrace.contrib.aiopg.patch import patch, unpatch
@@ -54,9 +53,9 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = tracer.writer.pop()
         assert len(spans) == 3
-        eq_(spans[0].name, 'postgres.connect')
-        eq_(spans[1].name, 'postgres.execute')
-        eq_(spans[2].name, 'postgres.fetchall')
+        assert spans[0].name == 'postgres.connect'
+        assert spans[1].name == 'postgres.execute'
+        assert spans[2].name == 'postgres.fetchall'
 
     @mark_asyncio
     def test_cursor_ctx_manager(self):

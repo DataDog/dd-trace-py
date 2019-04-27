@@ -1,7 +1,6 @@
 import time
 
 # 3rd party
-from nose.tools import eq_, ok_
 from django.core.cache import caches
 
 # testing
@@ -24,14 +23,14 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -52,10 +51,10 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'foo')
+        assert span.service == 'foo'
 
     @override_ddtrace_settings(INSTRUMENT_CACHE=False)
     def test_cache_disabled(self):
@@ -67,7 +66,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        assert len(spans) == 0
 
     def test_cache_set(self):
         # get the default cache
@@ -80,14 +79,14 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'set')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'set'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -109,14 +108,14 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'add')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'add'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -138,14 +137,14 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'delete')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'delete'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -169,22 +168,22 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
 
         span_incr = spans[0]
         span_get = spans[1]
 
         # LocMemCache doesn't provide an atomic operation
-        eq_(span_get.service, 'django')
-        eq_(span_get.resource, 'get')
-        eq_(span_get.name, 'django.cache')
-        eq_(span_get.span_type, 'cache')
-        eq_(span_get.error, 0)
-        eq_(span_incr.service, 'django')
-        eq_(span_incr.resource, 'incr')
-        eq_(span_incr.name, 'django.cache')
-        eq_(span_incr.span_type, 'cache')
-        eq_(span_incr.error, 0)
+        assert span_get.service == 'django'
+        assert span_get.resource == 'get'
+        assert span_get.name == 'django.cache'
+        assert span_get.span_type == 'cache'
+        assert span_get.error == 0
+        assert span_incr.service == 'django'
+        assert span_incr.resource == 'incr'
+        assert span_incr.name == 'django.cache'
+        assert span_incr.span_type == 'cache'
+        assert span_incr.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -209,28 +208,28 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
 
         span_decr = spans[0]
         span_incr = spans[1]
         span_get = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
-        eq_(span_get.service, 'django')
-        eq_(span_get.resource, 'get')
-        eq_(span_get.name, 'django.cache')
-        eq_(span_get.span_type, 'cache')
-        eq_(span_get.error, 0)
-        eq_(span_incr.service, 'django')
-        eq_(span_incr.resource, 'incr')
-        eq_(span_incr.name, 'django.cache')
-        eq_(span_incr.span_type, 'cache')
-        eq_(span_incr.error, 0)
-        eq_(span_decr.service, 'django')
-        eq_(span_decr.resource, 'decr')
-        eq_(span_decr.name, 'django.cache')
-        eq_(span_decr.span_type, 'cache')
-        eq_(span_decr.error, 0)
+        assert span_get.service == 'django'
+        assert span_get.resource == 'get'
+        assert span_get.name == 'django.cache'
+        assert span_get.span_type == 'cache'
+        assert span_get.error == 0
+        assert span_incr.service == 'django'
+        assert span_incr.resource == 'incr'
+        assert span_incr.name == 'django.cache'
+        assert span_incr.span_type == 'cache'
+        assert span_incr.error == 0
+        assert span_decr.service == 'django'
+        assert span_decr.resource == 'decr'
+        assert span_decr.name == 'django.cache'
+        assert span_decr.span_type == 'cache'
+        assert span_decr.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -254,28 +253,28 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
 
         span_get_many = spans[0]
         span_get_first = spans[1]
         span_get_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
-        eq_(span_get_first.service, 'django')
-        eq_(span_get_first.resource, 'get')
-        eq_(span_get_first.name, 'django.cache')
-        eq_(span_get_first.span_type, 'cache')
-        eq_(span_get_first.error, 0)
-        eq_(span_get_second.service, 'django')
-        eq_(span_get_second.resource, 'get')
-        eq_(span_get_second.name, 'django.cache')
-        eq_(span_get_second.span_type, 'cache')
-        eq_(span_get_second.error, 0)
-        eq_(span_get_many.service, 'django')
-        eq_(span_get_many.resource, 'get_many')
-        eq_(span_get_many.name, 'django.cache')
-        eq_(span_get_many.span_type, 'cache')
-        eq_(span_get_many.error, 0)
+        assert span_get_first.service == 'django'
+        assert span_get_first.resource == 'get'
+        assert span_get_first.name == 'django.cache'
+        assert span_get_first.span_type == 'cache'
+        assert span_get_first.error == 0
+        assert span_get_second.service == 'django'
+        assert span_get_second.resource == 'get'
+        assert span_get_second.name == 'django.cache'
+        assert span_get_second.span_type == 'cache'
+        assert span_get_second.error == 0
+        assert span_get_many.service == 'django'
+        assert span_get_many.resource == 'get_many'
+        assert span_get_many.name == 'django.cache'
+        assert span_get_many.span_type == 'cache'
+        assert span_get_many.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
@@ -297,32 +296,32 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
 
         span_set_many = spans[0]
         span_set_first = spans[1]
         span_set_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
-        eq_(span_set_first.service, 'django')
-        eq_(span_set_first.resource, 'set')
-        eq_(span_set_first.name, 'django.cache')
-        eq_(span_set_first.span_type, 'cache')
-        eq_(span_set_first.error, 0)
-        eq_(span_set_second.service, 'django')
-        eq_(span_set_second.resource, 'set')
-        eq_(span_set_second.name, 'django.cache')
-        eq_(span_set_second.span_type, 'cache')
-        eq_(span_set_second.error, 0)
-        eq_(span_set_many.service, 'django')
-        eq_(span_set_many.resource, 'set_many')
-        eq_(span_set_many.name, 'django.cache')
-        eq_(span_set_many.span_type, 'cache')
-        eq_(span_set_many.error, 0)
+        assert span_set_first.service == 'django'
+        assert span_set_first.resource == 'set'
+        assert span_set_first.name == 'django.cache'
+        assert span_set_first.span_type == 'cache'
+        assert span_set_first.error == 0
+        assert span_set_second.service == 'django'
+        assert span_set_second.resource == 'set'
+        assert span_set_second.name == 'django.cache'
+        assert span_set_second.span_type == 'cache'
+        assert span_set_second.error == 0
+        assert span_set_many.service == 'django'
+        assert span_set_many.resource == 'set_many'
+        assert span_set_many.name == 'django.cache'
+        assert span_set_many.span_type == 'cache'
+        assert span_set_many.error == 0
 
-        eq_(span_set_many.meta['django.cache.backend'], 'django.core.cache.backends.locmem.LocMemCache')
-        ok_('first_key' in span_set_many.meta['django.cache.key'])
-        ok_('second_key' in span_set_many.meta['django.cache.key'])
+        assert span_set_many.meta['django.cache.backend'] == 'django.core.cache.backends.locmem.LocMemCache'
+        assert 'first_key' in span_set_many.meta['django.cache.key']
+        assert 'second_key' in span_set_many.meta['django.cache.key']
         assert start < span_set_many.start < span_set_many.start + span_set_many.duration < end
 
     def test_cache_delete_many(self):
@@ -336,30 +335,30 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 3)
+        assert len(spans) == 3
 
         span_delete_many = spans[0]
         span_delete_first = spans[1]
         span_delete_second = spans[2]
 
         # LocMemCache doesn't provide an atomic operation
-        eq_(span_delete_first.service, 'django')
-        eq_(span_delete_first.resource, 'delete')
-        eq_(span_delete_first.name, 'django.cache')
-        eq_(span_delete_first.span_type, 'cache')
-        eq_(span_delete_first.error, 0)
-        eq_(span_delete_second.service, 'django')
-        eq_(span_delete_second.resource, 'delete')
-        eq_(span_delete_second.name, 'django.cache')
-        eq_(span_delete_second.span_type, 'cache')
-        eq_(span_delete_second.error, 0)
-        eq_(span_delete_many.service, 'django')
-        eq_(span_delete_many.resource, 'delete_many')
-        eq_(span_delete_many.name, 'django.cache')
-        eq_(span_delete_many.span_type, 'cache')
-        eq_(span_delete_many.error, 0)
+        assert span_delete_first.service == 'django'
+        assert span_delete_first.resource == 'delete'
+        assert span_delete_first.name == 'django.cache'
+        assert span_delete_first.span_type == 'cache'
+        assert span_delete_first.error == 0
+        assert span_delete_second.service == 'django'
+        assert span_delete_second.resource == 'delete'
+        assert span_delete_second.name == 'django.cache'
+        assert span_delete_second.span_type == 'cache'
+        assert span_delete_second.error == 0
+        assert span_delete_many.service == 'django'
+        assert span_delete_many.resource == 'delete_many'
+        assert span_delete_many.name == 'django.cache'
+        assert span_delete_many.span_type == 'cache'
+        assert span_delete_many.error == 0
 
-        eq_(span_delete_many.meta['django.cache.backend'], 'django.core.cache.backends.locmem.LocMemCache')
-        ok_('missing_key' in span_delete_many.meta['django.cache.key'])
-        ok_('another_key' in span_delete_many.meta['django.cache.key'])
+        assert span_delete_many.meta['django.cache.backend'] == 'django.core.cache.backends.locmem.LocMemCache'
+        assert 'missing_key' in span_delete_many.meta['django.cache.key']
+        assert 'another_key' in span_delete_many.meta['django.cache.key']
         assert start < span_delete_many.start < span_delete_many.start + span_delete_many.duration < end

@@ -1,7 +1,5 @@
 import gc
 
-from nose.tools import eq_, ok_
-
 from ddtrace.contrib.celery.utils import (
     tags_from_context,
     retrieve_task_id,
@@ -33,16 +31,16 @@ class CeleryTagsTest(CeleryBaseTestCase):
         }
 
         metas = tags_from_context(context)
-        eq_(metas['celery.correlation_id'], '44b7f305')
-        eq_(metas['celery.delivery_info'], '{"eager": "True"}')
-        eq_(metas['celery.eta'], 'soon')
-        eq_(metas['celery.expires'], 'later')
-        eq_(metas['celery.hostname'], 'localhost')
-        eq_(metas['celery.id'], '44b7f305')
-        eq_(metas['celery.reply_to'], '44b7f305')
-        eq_(metas['celery.retries'], 4)
-        eq_(metas['celery.timelimit'], ('now', 'later'))
-        ok_(metas.get('custom_meta', None) is None)
+        assert metas['celery.correlation_id'] == '44b7f305'
+        assert metas['celery.delivery_info'] == '{"eager": "True"}'
+        assert metas['celery.eta'] == 'soon'
+        assert metas['celery.expires'] == 'later'
+        assert metas['celery.hostname'] == 'localhost'
+        assert metas['celery.id'] == '44b7f305'
+        assert metas['celery.reply_to'] == '44b7f305'
+        assert metas['celery.retries'] == 4
+        assert metas['celery.timelimit'] == ('now', 'later')
+        assert metas.get('custom_meta', None) is None
 
     def test_tags_from_context_empty_keys(self):
         # it should not extract empty keys
@@ -54,14 +52,14 @@ class CeleryTagsTest(CeleryBaseTestCase):
         }
 
         tags = tags_from_context(context)
-        eq_({}, tags)
+        assert {} == tags
         # edge case: `timelimit` can also be a list of None values
         context = {
             'timelimit': [None, None],
         }
 
         tags = tags_from_context(context)
-        eq_({}, tags)
+        assert {} == tags
 
     def test_span_propagation(self):
         # ensure spans getter and setter works properly
@@ -74,7 +72,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         span_before = self.tracer.trace('celery.run')
         attach_span(fn_task, task_id, span_before)
         span_after = retrieve_span(fn_task, task_id)
-        ok_(span_before is span_after)
+        assert span_before is span_after
 
     def test_span_delete(self):
         # ensure the helper removes properly a propagated Span
@@ -89,7 +87,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         # delete the Span
         weak_dict = getattr(fn_task, '__dd_task_span')
         detach_span(fn_task, task_id)
-        ok_(weak_dict.get((task_id, False)) is None)
+        assert weak_dict.get((task_id, False)) is None
 
     def test_span_delete_empty(self):
         # ensure the helper works even if the Task doesn't have
@@ -105,7 +103,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
             detach_span(fn_task, task_id)
         except Exception as e:
             exception = e
-        ok_(exception is None)
+        assert exception is None
 
     def test_memory_leak_safety(self):
         # Spans are shared between signals using a Dictionary (task_id -> span).
@@ -120,13 +118,13 @@ class CeleryTagsTest(CeleryBaseTestCase):
         attach_span(fn_task, task_id, self.tracer.trace('celery.run'))
         weak_dict = getattr(fn_task, '__dd_task_span')
         key = (task_id, False)
-        ok_(weak_dict.get(key))
+        assert weak_dict.get(key)
         # flush data and force the GC
         weak_dict.get(key).finish()
         self.tracer.writer.pop()
         self.tracer.writer.pop_traces()
         gc.collect()
-        ok_(weak_dict.get(key) is None)
+        assert weak_dict.get(key) is None
 
     def test_task_id_from_protocol_v1(self):
         # ensures a `task_id` is properly returned when Protocol v1 is used.
@@ -156,7 +154,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         }
 
         task_id = retrieve_task_id(context)
-        eq_(task_id, 'dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7')
+        assert task_id == 'dffcaec1-dd92-4a1a-b3ab-d6512f4beeb7'
 
     def test_task_id_from_protocol_v2(self):
         # ensures a `task_id` is properly returned when Protocol v2 is used.
@@ -194,4 +192,4 @@ class CeleryTagsTest(CeleryBaseTestCase):
         }
 
         task_id = retrieve_task_id(context)
-        eq_(task_id, '7e917b83-4018-431d-9832-73a28e1fb6c0')
+        assert task_id == '7e917b83-4018-431d-9832-73a28e1fb6c0'

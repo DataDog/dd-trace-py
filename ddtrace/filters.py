@@ -18,15 +18,15 @@ class FilterRequestsOnUrl(object):
 
     To filter out http calls to domain api.example.com::
 
-        FilterRequestsOnUrl(r'http://api\.example\.com')
+        FilterRequestsOnUrl(r'http://api\\.example\\.com')
 
     To filter out http calls to all first level subdomains from example.com::
 
-        FilterRequestOnUrl(r'http://.*+\.example\.com')
+        FilterRequestOnUrl(r'http://.*+\\.example\\.com')
 
     To filter out calls to both http://test.example.com and http://example.com/healthcheck::
 
-        FilterRequestOnUrl([r'http://test\.example\.com', r'http://example\.com/healthcheck'])
+        FilterRequestOnUrl([r'http://test\\.example\\.com', r'http://example\\.com/healthcheck'])
     """
     def __init__(self, regexps):
         if isinstance(regexps, str):

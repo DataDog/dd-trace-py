@@ -4,8 +4,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.mysqldb.patch import patch, unpatch
 
-from nose.tools import eq_, ok_
-
 from tests.opentracer.utils import init_tracer
 from ..config import MYSQL_CONFIG
 from ...base import BaseTracerTestCase
@@ -44,17 +42,17 @@ class MySQLCore(object):
         writer = tracer.writer
         cursor = conn.cursor()
         rowcount = cursor.execute("SELECT 1")
-        eq_(rowcount, 1)
+        assert rowcount == 1
         rows = cursor.fetchall()
-        eq_(len(rows), 1)
+        assert len(rows) == 1
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'mysql.query')
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'mysql.query'
+        assert span.span_type == 'sql'
+        assert span.error == 0
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'3306',
@@ -69,15 +67,15 @@ class MySQLCore(object):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
             spans = writer.pop()
-            eq_(len(spans), 2)
+            assert len(spans) == 2
 
             span = spans[0]
-            eq_(span.service, self.TEST_SERVICE)
-            eq_(span.name, 'mysql.query')
-            eq_(span.span_type, 'sql')
-            eq_(span.error, 0)
+            assert span.service == self.TEST_SERVICE
+            assert span.name == 'mysql.query'
+            assert span.span_type == 'sql'
+            assert span.error == 0
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
                 'out.port': u'3306',
@@ -85,7 +83,7 @@ class MySQLCore(object):
                 'db.user': u'test',
             })
             fetch_span = spans[1]
-            eq_(fetch_span.name, 'mysql.query.fetchall')
+            assert fetch_span.name == 'mysql.query.fetchall'
 
     def test_simple_query_with_positional_args(self):
         conn, tracer = self._get_conn_tracer_with_positional_args()
@@ -93,15 +91,15 @@ class MySQLCore(object):
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
-        eq_(len(rows), 1)
+        assert len(rows) == 1
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'mysql.query')
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'mysql.query'
+        assert span.span_type == 'sql'
+        assert span.error == 0
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'3306',
@@ -116,15 +114,15 @@ class MySQLCore(object):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
             spans = writer.pop()
-            eq_(len(spans), 2)
+            assert len(spans) == 2
 
             span = spans[0]
-            eq_(span.service, self.TEST_SERVICE)
-            eq_(span.name, 'mysql.query')
-            eq_(span.span_type, 'sql')
-            eq_(span.error, 0)
+            assert span.service == self.TEST_SERVICE
+            assert span.name == 'mysql.query'
+            assert span.span_type == 'sql'
+            assert span.error == 0
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
                 'out.port': u'3306',
@@ -132,7 +130,7 @@ class MySQLCore(object):
                 'db.user': u'test',
             })
             fetch_span = spans[1]
-            eq_(fetch_span.name, 'mysql.query.fetchall')
+            assert fetch_span.name == 'mysql.query.fetchall'
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
@@ -141,11 +139,11 @@ class MySQLCore(object):
         query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
         cursor.execute(query)
         rows = cursor.fetchall()
-        eq_(len(rows), 3)
+        assert len(rows) == 3
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        ok_(span.get_tag('sql.query') is None)
+        assert span.get_tag('sql.query') is None
 
     def test_query_with_several_rows_fetchall(self):
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
@@ -155,13 +153,13 @@ class MySQLCore(object):
             query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
             cursor.execute(query)
             rows = cursor.fetchall()
-            eq_(len(rows), 3)
+            assert len(rows) == 3
             spans = writer.pop()
-            eq_(len(spans), 2)
+            assert len(spans) == 2
             span = spans[0]
-            ok_(span.get_tag('sql.query') is None)
+            assert span.get_tag('sql.query') is None
             fetch_span = spans[1]
-            eq_(fetch_span.name, 'mysql.query.fetchall')
+            assert fetch_span.name == 'mysql.query.fetchall'
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
@@ -185,16 +183,16 @@ class MySQLCore(object):
         query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
         cursor.execute(query)
         rows = cursor.fetchall()
-        eq_(len(rows), 2)
-        eq_(rows[0][0], "bar")
-        eq_(rows[0][1], "this is bar")
-        eq_(rows[1][0], "foo")
-        eq_(rows[1][1], "this is foo")
+        assert len(rows) == 2
+        assert rows[0][0] == "bar"
+        assert rows[0][1] == "this is bar"
+        assert rows[1][0] == "foo"
+        assert rows[1][1] == "this is foo"
 
         spans = writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         span = spans[1]
-        ok_(span.get_tag('sql.query') is None)
+        assert span.get_tag('sql.query') is None
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
@@ -220,19 +218,19 @@ class MySQLCore(object):
             query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
             cursor.execute(query)
             rows = cursor.fetchall()
-            eq_(len(rows), 2)
-            eq_(rows[0][0], "bar")
-            eq_(rows[0][1], "this is bar")
-            eq_(rows[1][0], "foo")
-            eq_(rows[1][1], "this is foo")
+            assert len(rows) == 2
+            assert rows[0][0] == "bar"
+            assert rows[0][1] == "this is bar"
+            assert rows[1][0] == "foo"
+            assert rows[1][1] == "this is foo"
 
             spans = writer.pop()
-            eq_(len(spans), 3)
+            assert len(spans) == 3
             span = spans[1]
-            ok_(span.get_tag('sql.query') is None)
+            assert span.get_tag('sql.query') is None
             cursor.execute("drop table if exists dummy")
             fetch_span = spans[2]
-            eq_(fetch_span.name, 'mysql.query.fetchall')
+            assert fetch_span.name == 'mysql.query.fetchall'
 
     def test_query_proc(self):
         conn, tracer = self._get_conn_tracer()
@@ -252,11 +250,11 @@ class MySQLCore(object):
         proc = "sp_sum"
         data = (40, 2, None)
         output = cursor.callproc(proc, data)
-        eq_(len(output), 3)
+        assert len(output) == 3
         # resulted p3 isn't stored on output[2], we need to fetch it with select
         # http://mysqlclient.readthedocs.io/user_guide.html#cursor-objects
         cursor.execute("SELECT @_sp_sum_2;")
-        eq_(cursor.fetchone()[0], 42)
+        assert cursor.fetchone()[0] == 42
 
         spans = writer.pop()
         assert spans, spans
@@ -265,17 +263,17 @@ class MySQLCore(object):
         # typically, internal calls to execute, but at least we
         # can expect the next to the last closed span to be our proc.
         span = spans[-2]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'mysql.query')
-        eq_(span.span_type, 'sql')
-        eq_(span.error, 0)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'mysql.query'
+        assert span.span_type == 'sql'
+        assert span.error == 0
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
-        ok_(span.get_tag('sql.query') is None)
+        assert span.get_tag('sql.query') is None
 
     def test_simple_query_ot(self):
         """OpenTracing version of test_simple_query."""
@@ -286,23 +284,23 @@ class MySQLCore(object):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
 
         spans = writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         ot_span, dd_span = spans
 
         # confirm parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.service, 'mysql_svc')
-        eq_(ot_span.name, 'mysql_op')
+        assert ot_span.service == 'mysql_svc'
+        assert ot_span.name == 'mysql_op'
 
-        eq_(dd_span.service, self.TEST_SERVICE)
-        eq_(dd_span.name, 'mysql.query')
-        eq_(dd_span.span_type, 'sql')
-        eq_(dd_span.error, 0)
+        assert dd_span.service == self.TEST_SERVICE
+        assert dd_span.name == 'mysql.query'
+        assert dd_span.span_type == 'sql'
+        assert dd_span.error == 0
         assert_dict_issuperset(dd_span.meta, {
             'out.host': u'127.0.0.1',
             'out.port': u'3306',
@@ -320,23 +318,23 @@ class MySQLCore(object):
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1")
                 rows = cursor.fetchall()
-                eq_(len(rows), 1)
+                assert len(rows) == 1
 
             spans = writer.pop()
-            eq_(len(spans), 3)
+            assert len(spans) == 3
             ot_span, dd_span, fetch_span = spans
 
             # confirm parenting
-            eq_(ot_span.parent_id, None)
-            eq_(dd_span.parent_id, ot_span.span_id)
+            assert ot_span.parent_id is None
+            assert dd_span.parent_id == ot_span.span_id
 
-            eq_(ot_span.service, 'mysql_svc')
-            eq_(ot_span.name, 'mysql_op')
+            assert ot_span.service == 'mysql_svc'
+            assert ot_span.name == 'mysql_op'
 
-            eq_(dd_span.service, self.TEST_SERVICE)
-            eq_(dd_span.name, 'mysql.query')
-            eq_(dd_span.span_type, 'sql')
-            eq_(dd_span.error, 0)
+            assert dd_span.service == self.TEST_SERVICE
+            assert dd_span.name == 'mysql.query'
+            assert dd_span.span_type == 'sql'
+            assert dd_span.error == 0
             assert_dict_issuperset(dd_span.meta, {
                 'out.host': u'127.0.0.1',
                 'out.port': u'3306',
@@ -344,27 +342,27 @@ class MySQLCore(object):
                 'db.user': u'test',
             })
 
-            eq_(fetch_span.name, 'mysql.query.fetchall')
+            assert fetch_span.name == 'mysql.query.fetchall'
 
     def test_commit(self):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         conn.commit()
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'MySQLdb.connection.commit')
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'MySQLdb.connection.commit'
 
     def test_rollback(self):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         conn.rollback()
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'MySQLdb.connection.rollback')
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'MySQLdb.connection.rollback'
 
     def test_analytics_default(self):
         conn, tracer = self._get_conn_tracer()
@@ -372,7 +370,7 @@ class MySQLCore(object):
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
-        eq_(len(rows), 1)
+        assert len(rows) == 1
         spans = writer.pop()
 
         self.assertEqual(len(spans), 1)
@@ -389,7 +387,7 @@ class MySQLCore(object):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
             spans = writer.pop()
 
             self.assertEqual(len(spans), 1)
@@ -406,7 +404,7 @@ class MySQLCore(object):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
             spans = writer.pop()
 
             self.assertEqual(len(spans), 1)
@@ -479,22 +477,22 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
-            eq_(len(rows), 1)
+            assert len(rows) == 1
             spans = writer.pop()
-            eq_(len(spans), 1)
+            assert len(spans) == 1
 
             span = spans[0]
-            eq_(span.service, self.TEST_SERVICE)
-            eq_(span.name, 'mysql.query')
-            eq_(span.span_type, 'sql')
-            eq_(span.error, 0)
+            assert span.service == self.TEST_SERVICE
+            assert span.name == 'mysql.query'
+            assert span.span_type == 'sql'
+            assert span.error == 0
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
                 'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
-            ok_(span.get_tag('sql.query') is None)
+            assert span.get_tag('sql.query') is None
 
         finally:
             unpatch()
