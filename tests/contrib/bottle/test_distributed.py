@@ -1,8 +1,6 @@
 import bottle
 import webtest
 
-from nose.tools import eq_, assert_not_equal
-
 import ddtrace
 from ddtrace import compat
 from ddtrace.contrib.bottle import TracePlugin
@@ -48,21 +46,21 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         headers = {'x-datadog-trace-id': '123',
                    'x-datadog-parent-id': '456'}
         resp = self.app.get('/hi/dougie', headers=headers)
-        eq_(resp.status_int, 200)
-        eq_(compat.to_unicode(resp.body), u'hi dougie')
+        assert resp.status_int == 200
+        assert compat.to_unicode(resp.body) == u'hi dougie'
 
         # validate it's traced
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.name, 'bottle.request')
-        eq_(s.service, 'bottle-app')
-        eq_(s.resource, 'GET /hi/<name>')
-        eq_(s.get_tag('http.status_code'), '200')
-        eq_(s.get_tag('http.method'), 'GET')
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi/<name>'
+        assert s.get_tag('http.status_code') == '200'
+        assert s.get_tag('http.method') == 'GET'
         # check distributed headers
-        eq_(123, s.trace_id)
-        eq_(456, s.parent_id)
+        assert 123 == s.trace_id
+        assert 456 == s.parent_id
 
     def test_not_distributed(self):
         # setup our test app
@@ -75,18 +73,18 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         headers = {'x-datadog-trace-id': '123',
                    'x-datadog-parent-id': '456'}
         resp = self.app.get('/hi/dougie', headers=headers)
-        eq_(resp.status_int, 200)
-        eq_(compat.to_unicode(resp.body), u'hi dougie')
+        assert resp.status_int == 200
+        assert compat.to_unicode(resp.body) == u'hi dougie'
 
         # validate it's traced
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.name, 'bottle.request')
-        eq_(s.service, 'bottle-app')
-        eq_(s.resource, 'GET /hi/<name>')
-        eq_(s.get_tag('http.status_code'), '200')
-        eq_(s.get_tag('http.method'), 'GET')
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi/<name>'
+        assert s.get_tag('http.status_code') == '200'
+        assert s.get_tag('http.method') == 'GET'
         # check distributed headers
-        assert_not_equal(123, s.trace_id)
-        assert_not_equal(456, s.parent_id)
+        assert 123 != s.trace_id
+        assert 456 != s.parent_id

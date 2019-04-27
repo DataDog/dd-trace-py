@@ -1,5 +1,3 @@
-from nose.tools import eq_, ok_
-
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
@@ -14,18 +12,18 @@ class FalconTestCase(object):
     """
     def test_404(self):
         out = self.simulate_get('/fake_endpoint')
-        eq_(out.status_code, 404)
+        assert out.status_code == 404
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'GET 404')
-        eq_(span.get_tag(httpx.STATUS_CODE), '404')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/fake_endpoint')
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'GET 404'
+        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/fake_endpoint'
+        assert span.parent_id is None
 
     def test_exception(self):
         try:
@@ -36,32 +34,32 @@ class FalconTestCase(object):
             assert 0
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'GET tests.contrib.falcon.app.resources.ResourceException')
-        eq_(span.get_tag(httpx.STATUS_CODE), '500')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/exception')
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceException'
+        assert span.get_tag(httpx.STATUS_CODE) == '500'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/exception'
+        assert span.parent_id is None
 
     def test_200(self):
         out = self.simulate_get('/200')
-        eq_(out.status_code, 200)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 200
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
-        eq_(span.get_tag(httpx.STATUS_CODE), '200')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/200')
-        eq_(span.parent_id, None)
-        eq_(span.span_type, 'http')
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
+        assert span.get_tag(httpx.STATUS_CODE) == '200'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/200'
+        assert span.parent_id is None
+        assert span.span_type == 'http'
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -126,65 +124,65 @@ class FalconTestCase(object):
 
     def test_201(self):
         out = self.simulate_post('/201')
-        eq_(out.status_code, 201)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 201
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'POST tests.contrib.falcon.app.resources.Resource201')
-        eq_(span.get_tag(httpx.STATUS_CODE), '201')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/201')
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'POST tests.contrib.falcon.app.resources.Resource201'
+        assert span.get_tag(httpx.STATUS_CODE) == '201'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/201'
+        assert span.parent_id is None
 
     def test_500(self):
         out = self.simulate_get('/500')
-        eq_(out.status_code, 500)
-        eq_(out.content.decode('utf-8'), 'Failure')
+        assert out.status_code == 500
+        assert out.content.decode('utf-8') == 'Failure'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'GET tests.contrib.falcon.app.resources.Resource500')
-        eq_(span.get_tag(httpx.STATUS_CODE), '500')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/500')
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource500'
+        assert span.get_tag(httpx.STATUS_CODE) == '500'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/500'
+        assert span.parent_id is None
 
     def test_404_exception(self):
         out = self.simulate_get('/not_found')
-        eq_(out.status_code, 404)
+        assert out.status_code == 404
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.resource, 'GET tests.contrib.falcon.app.resources.ResourceNotFound')
-        eq_(span.get_tag(httpx.STATUS_CODE), '404')
-        eq_(span.get_tag(httpx.URL), 'http://falconframework.org/not_found')
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceNotFound'
+        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/not_found'
+        assert span.parent_id is None
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
         out = self.simulate_get('/not_found')
-        eq_(out.status_code, 404)
+        assert out.status_code == 404
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.name, 'falcon.request')
-        eq_(span.service, self._service)
-        eq_(span.get_tag(httpx.STATUS_CODE), '404')
-        ok_(span.get_tag(errx.ERROR_TYPE) is None)
-        eq_(span.parent_id, None)
+        assert span.name == 'falcon.request'
+        assert span.service == self._service
+        assert span.get_tag(httpx.STATUS_CODE) == '404'
+        assert span.get_tag(errx.ERROR_TYPE) is None
+        assert span.parent_id is None
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
@@ -193,26 +191,26 @@ class FalconTestCase(object):
         with ot_tracer.start_active_span('ot_span'):
             out = self.simulate_get('/200')
 
-        eq_(out.status_code, 200)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 200
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 2)
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
         ot_span, dd_span = traces[0]
 
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.service, 'my_svc')
-        eq_(ot_span.resource, 'ot_span')
+        assert ot_span.service == 'my_svc'
+        assert ot_span.resource == 'ot_span'
 
-        eq_(dd_span.name, 'falcon.request')
-        eq_(dd_span.service, self._service)
-        eq_(dd_span.resource, 'GET tests.contrib.falcon.app.resources.Resource200')
-        eq_(dd_span.get_tag(httpx.STATUS_CODE), '200')
-        eq_(dd_span.get_tag(httpx.URL), 'http://falconframework.org/200')
+        assert dd_span.name == 'falcon.request'
+        assert dd_span.service == self._service
+        assert dd_span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
+        assert dd_span.get_tag(httpx.STATUS_CODE) == '200'
+        assert dd_span.get_tag(httpx.URL) == 'http://falconframework.org/200'
 
     def test_falcon_request_hook(self):
         @config.falcon.hooks.on('request')
@@ -220,19 +218,19 @@ class FalconTestCase(object):
             span.set_tag('my.custom', 'tag')
 
         out = self.simulate_get('/200')
-        eq_(out.status_code, 200)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 200
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.get_tag('http.request.headers.my_header'), None)
-        eq_(span.get_tag('http.response.headers.my_response_header'), None)
+        assert span.get_tag('http.request.headers.my_header') is None
+        assert span.get_tag('http.response.headers.my_response_header') is None
 
-        eq_(span.name, 'falcon.request')
+        assert span.name == 'falcon.request'
 
-        eq_(span.get_tag('my.custom'), 'tag')
+        assert span.get_tag('my.custom') == 'tag'
 
     def test_http_header_tracing(self):
         with self.override_config('falcon', {}):
@@ -240,8 +238,8 @@ class FalconTestCase(object):
             self.simulate_get('/200', headers={'my-header': 'my_value'})
             traces = self.tracer.writer.pop_traces()
 
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        eq_(span.get_tag('http.request.headers.my-header'), 'my_value')
-        eq_(span.get_tag('http.response.headers.my-response-header'), 'my_response_value')
+        assert span.get_tag('http.request.headers.my-header') == 'my_value'
+        assert span.get_tag('http.response.headers.my-response-header') == 'my_response_value'

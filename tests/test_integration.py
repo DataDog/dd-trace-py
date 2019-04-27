@@ -7,7 +7,6 @@ import mock
 import ddtrace
 
 from unittest import TestCase, skip, skipUnless
-from nose.tools import eq_, ok_
 
 from ddtrace.api import API, Response
 from ddtrace.ext import http
@@ -104,13 +103,13 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 1)
+        assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
-        eq_(endpoint, '/v0.4/traces')
-        eq_(len(payload), 1)
-        eq_(len(payload[0]), 1)
-        eq_(payload[0][0]['name'], 'client.testing')
+        assert endpoint == '/v0.4/traces'
+        assert len(payload) == 1
+        assert len(payload[0]) == 1
+        assert payload[0][0]['name'] == 'client.testing'
 
     # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
     @skip('Writer flush intervals are impossible to time correctly to make this test not flaky')
@@ -122,15 +121,15 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 1)
+        assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
-        eq_(endpoint, '/v0.4/traces')
-        eq_(len(payload), 2)
-        eq_(len(payload[0]), 1)
-        eq_(len(payload[1]), 1)
-        eq_(payload[0][0]['name'], 'client.testing')
-        eq_(payload[1][0]['name'], 'client.testing')
+        assert endpoint == '/v0.4/traces'
+        assert len(payload) == 2
+        assert len(payload[0]) == 1
+        assert len(payload[1]) == 1
+        assert payload[0][0]['name'] == 'client.testing'
+        assert payload[1][0]['name'] == 'client.testing'
 
     def test_worker_single_trace_multiple_spans(self):
         # make a single send() if a single trace with multiple spans is created before the flush
@@ -141,14 +140,14 @@ class TestWorkers(TestCase):
 
         # one send is expected
         self._wait_thread_flush()
-        eq_(self.api._put.call_count, 1)
+        assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
-        eq_(endpoint, '/v0.4/traces')
-        eq_(len(payload), 1)
-        eq_(len(payload[0]), 2)
-        eq_(payload[0][0]['name'], 'client.testing')
-        eq_(payload[0][1]['name'], 'client.testing')
+        assert endpoint == '/v0.4/traces'
+        assert len(payload) == 1
+        assert len(payload[0]) == 2
+        assert payload[0][0]['name'] == 'client.testing'
+        assert payload[0][1]['name'] == 'client.testing'
 
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
@@ -166,9 +165,10 @@ class TestWorkers(TestCase):
         assert tracer.writer._worker._last_error_ts < time.time()
 
         logged_errors = log_handler.messages['error']
-        eq_(len(logged_errors), 1)
-        ok_('failed_to_send traces to Datadog Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
-            in logged_errors[0])
+        assert len(logged_errors) == 1
+        assert 'failed_to_send traces to Datadog Agent: ' \
+            'HTTP error status 400, reason Bad Request, message Content-Type:' \
+            in logged_errors[0]
 
     def test_worker_filter_request(self):
         self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
@@ -185,12 +185,12 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
 
         # Only the second trace should have been sent
-        eq_(self.api._put.call_count, 1)
+        assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
-        eq_(endpoint, '/v0.4/traces')
-        eq_(len(payload), 1)
-        eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
+        assert endpoint == '/v0.4/traces'
+        assert len(payload) == 1
+        assert payload[0][0]['name'] == 'testing.nonfilteredurl'
 
 
 @skipUnless(
@@ -222,7 +222,7 @@ class TestAPITransport(TestCase):
         # make a call and retrieve the `conn` Mock object
         self.api_msgpack.send_traces(traces)
         request_call = mocked_http.return_value.request
-        eq_(request_call.call_count, 1)
+        assert request_call.call_count == 1
 
         # retrieve the headers from the mocked request call
         expected_headers = {
@@ -235,9 +235,9 @@ class TestAPITransport(TestCase):
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
-        eq_(len(expected_headers), len(headers))
+        assert len(expected_headers) == len(headers)
         for k, v in expected_headers.items():
-            eq_(v, headers[k])
+            assert v == headers[k]
 
     @mock.patch('ddtrace.api.httplib.HTTPConnection')
     def test_send_presampler_headers_not_in_services(self, mocked_http):
@@ -252,7 +252,7 @@ class TestAPITransport(TestCase):
         # make a call and retrieve the `conn` Mock object
         self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
-        eq_(request_call.call_count, 0)
+        assert request_call.call_count == 0
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -262,13 +262,13 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
     def test_send_single_with_wrong_errors(self):
         # if the error field is set to True, it must be cast as int so
@@ -282,13 +282,13 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
     def test_send_multiple_traces(self):
         # register some traces and send them to the trace agent
@@ -300,13 +300,13 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
     def test_send_single_trace_multiple_spans(self):
         # register some traces and send them to the trace agent
@@ -317,13 +317,13 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
     def test_send_multiple_traces_multiple_spans(self):
         # register some traces and send them to the trace agent
@@ -339,13 +339,13 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
+        assert response
+        assert response.status == 200
 
     def test_send_single_service(self):
         # register some services and send them to the trace agent
@@ -358,11 +358,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response is None)
+        assert response is None
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response is None)
+        assert response is None
 
     def test_send_service_called_multiple_times(self):
         # register some services and send them to the trace agent
@@ -379,11 +379,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response is None)
+        assert response is None
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response is None)
+        assert response is None
 
 
 @skipUnless(
@@ -400,14 +400,14 @@ class TestAPIDowngrade(TestCase):
         # get_encoder should return MsgpackEncoder instance if
         # msgpack and the CPP implementaiton are available
         encoder = get_encoder()
-        ok_(isinstance(encoder, MsgpackEncoder))
+        assert isinstance(encoder, MsgpackEncoder)
 
     @mock.patch('ddtrace.encoding.MSGPACK_ENCODING', False)
     def test_get_encoder_fallback(self):
         # get_encoder should return JSONEncoder instance if
         # msgpack or the CPP implementaiton, are not available
         encoder = get_encoder()
-        ok_(isinstance(encoder, JSONEncoder))
+        assert isinstance(encoder, JSONEncoder)
 
     @skip('msgpack package split breaks this test; it works for newer version of msgpack')
     def test_downgrade_api(self):
@@ -421,13 +421,13 @@ class TestAPIDowngrade(TestCase):
         # endpoint that is not available
         api = API('localhost', 8126)
         api._traces = '/v0.0/traces'
-        ok_(isinstance(api._encoder, MsgpackEncoder))
+        assert isinstance(api._encoder, MsgpackEncoder)
 
         # after the call, we downgrade to a working endpoint
         response = api.send_traces([trace])
-        ok_(response)
-        eq_(response.status, 200)
-        ok_(isinstance(api._encoder, JSONEncoder))
+        assert response
+        assert response.status == 200
+        assert isinstance(api._encoder, JSONEncoder)
 
 
 @skipUnless(
@@ -460,15 +460,15 @@ class TestRateByService(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
-        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
+        assert response
+        assert response.status == 200
+        assert response.get_json() == dict(rate_by_service={'service:,env:': 1})
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
-        ok_(response)
-        eq_(response.status, 200)
-        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
+        assert response
+        assert response.status == 200
+        assert response.get_json() == dict(rate_by_service={'service:,env:': 1})
 
 
 @skipUnless(
@@ -482,11 +482,11 @@ class TestConfigure(TestCase):
     """
     def test_configure_keeps_api_hostname_and_port(self):
         tracer = Tracer()  # use real tracer with real api
-        eq_('localhost', tracer.writer.api.hostname)
-        eq_(8126, tracer.writer.api.port)
+        assert 'localhost' == tracer.writer.api.hostname
+        assert 8126 == tracer.writer.api.port
         tracer.configure(hostname='127.0.0.1', port=8127)
-        eq_('127.0.0.1', tracer.writer.api.hostname)
-        eq_(8127, tracer.writer.api.port)
+        assert '127.0.0.1' == tracer.writer.api.hostname
+        assert 8127 == tracer.writer.api.port
         tracer.configure(priority_sampling=True)
-        eq_('127.0.0.1', tracer.writer.api.hostname)
-        eq_(8127, tracer.writer.api.port)
+        assert '127.0.0.1' == tracer.writer.api.hostname
+        assert 8127 == tracer.writer.api.port

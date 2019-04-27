@@ -1,5 +1,4 @@
 import unittest
-from nose.tools import ok_
 from ddtrace import Pin
 
 
@@ -10,7 +9,7 @@ class CeleryPatchTest(unittest.TestCase):
         patch(celery=True)
 
         app = celery.Celery()
-        ok_(Pin.get_from(app) is not None)
+        assert Pin.get_from(app) is not None
 
     def test_patch_before_import(self):
         from ddtrace import patch
@@ -18,4 +17,4 @@ class CeleryPatchTest(unittest.TestCase):
         import celery
 
         app = celery.Celery()
-        ok_(Pin.get_from(app) is not None)
+        assert Pin.get_from(app) is not None

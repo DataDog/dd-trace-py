@@ -1,17 +1,22 @@
 import functools
 from os import environ, getpid
 
+
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
+from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
+from .internal.runtime import RuntimeTags, RuntimeWorker
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
-from .writer import AgentWriter
 from .span import Span
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
-from . import compat
-from .ext.priority import AUTO_REJECT, AUTO_KEEP
+from .utils.formats import get_env
 from .utils.deprecation import deprecated
+from .utils.runtime import generate_runtime_id
+from .vendor.dogstatsd import DogStatsd
+from .writer import AgentWriter
+from . import compat
 
 
 log = get_logger(__name__)
@@ -30,6 +35,7 @@ class Tracer(object):
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
+    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
 
     def __init__(self):
         """
@@ -54,6 +60,16 @@ class Tracer(object):
         # globally set tags
         self.tags = {}
 
+        # a buffer for service info so we don't perpetually send the same things
+        self._services = set()
+
+        # Runtime id used for associating data collected during runtime to
+        # traces
+        self._pid = getpid()
+        self._runtime_id = generate_runtime_id()
+        self._runtime_worker = None
+        self._dogstatsd_client = None
+
     def get_call_context(self, *args, **kwargs):
         """
         Return the current active ``Context`` for this traced execution. This method is
@@ -77,9 +93,9 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None,
-                  context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None):
+    def configure(self, enabled=None, hostname=None, port=None, dogstatsd_host=None,
+                  dogstatsd_port=None, sampler=None, context_provider=None, wrap_executor=None,
+                  priority_sampling=None, settings=None, collect_metrics=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -88,6 +104,7 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
+        :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
@@ -135,6 +152,16 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
+
+        if collect_metrics and self._runtime_worker is None:
+            # start dogstatsd client if not already running
+            if not self._dogstatsd_client:
+                self._start_dogstatsd_client(
+                    dogstatsd_host or self.DEFAULT_HOSTNAME,
+                    dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
+                )
+
+            self._start_runtime_worker()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -230,6 +257,11 @@ class Tracer(object):
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
                     context.sampling_priority = 0
 
+            # add tags to root span to correlate trace with runtime metrics
+            if self._runtime_worker:
+                span.set_tag('runtime-id', self._runtime_id)
+                span.set_tag('language', 'python')
+
         # add common tags
         if self.tags:
             span.set_tags(self.tags)
@@ -239,7 +271,64 @@ class Tracer(object):
         # add it to the current context
         context.add_span(span)
 
+        # update set of services handled by tracer
+        if service:
+            self._services.add(service)
+
+            # The constant tags for the dogstatsd client needs to updated with any new
+            # service(s) that may have been added.
+            self._update_dogstatsd_constant_tags()
+
+        # check for new process if runtime metrics worker has already been started
+        if self._runtime_worker:
+            self._check_new_process()
+
         return span
+
+    def _update_dogstatsd_constant_tags(self):
+        """ Prepare runtime tags for ddstatsd.
+        """
+        if not self._dogstatsd_client:
+            return
+
+        # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
+        tags = [
+            '{}:{}'.format(k, v)
+            for k, v in RuntimeTags()
+        ]
+        log.debug('Updating constant tags {}'.format(tags))
+        self._dogstatsd_client.constant_tags = tags
+
+    def _start_dogstatsd_client(self, host, port):
+        # start dogstatsd as client with constant tags
+        log.debug('Starting DogStatsd on {}:{}'.format(host, port))
+        self._dogstatsd_client = DogStatsd(
+            host=host,
+            port=port,
+        )
+
+    def _start_runtime_worker(self):
+        self._runtime_worker = RuntimeWorker(self._dogstatsd_client)
+        self._runtime_worker.start()
+
+    def _check_new_process(self):
+        """ Checks if the tracer is in a new process (was forked) and performs
+            the necessary updates if it is a new process
+        """
+        pid = getpid()
+        if self._pid == pid:
+            return
+
+        self._pid = pid
+
+        # generate a new runtime-id per process.
+        self._runtime_id = generate_runtime_id()
+
+        # Assume that the services of the child are not necessarily a subset of those
+        # of the parent.
+        self._services = set()
+
+        self._start_runtime_worker()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
@@ -300,14 +389,20 @@ class Tracer(object):
             # set the host just once on the root span
             root_span.set_tag('host', '127.0.0.1')
         """
-        return self.get_call_context().get_current_root_span()
+        ctx = self.get_call_context()
+        if ctx:
+            return ctx.get_current_root_span()
+        return None
 
     def current_span(self):
         """
         Return the active span for the current call context or ``None``
         if no spans are available.
         """
-        return self.get_call_context().get_current_span()
+        ctx = self.get_call_context()
+        if ctx:
+            return ctx.get_current_span()
+        return None
 
     def record(self, context):
         """
