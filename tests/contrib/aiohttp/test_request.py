@@ -1,3 +1,4 @@
+# flake8: noqa
 import threading
 import asyncio
 import aiohttp_jinja2
@@ -7,6 +8,7 @@ from nose.tools import eq_
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
@@ -45,11 +47,12 @@ class TestRequestTracing(TraceTestCase):
         # request
         eq_('aiohttp-web', request_span.service)
         eq_('aiohttp.request', request_span.name)
-        eq_('/template/', request_span.resource)
+        eq_('GET /template/', request_span.resource)
         # template
         eq_('aiohttp-web', template_span.service)
         eq_('aiohttp.template', template_span.name)
         eq_('aiohttp.template', template_span.resource)
+
 
     @unittest_run_loop
     @asyncio.coroutine

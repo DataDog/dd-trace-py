@@ -7,7 +7,6 @@ from pyramid.httpexceptions import (
     HTTPInternalServerError,
     HTTPFound,
     HTTPNotFound,
-    HTTPException,
     HTTPNoContent,
 )
 

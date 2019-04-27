@@ -19,11 +19,12 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(200, response.code)
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(1, len(traces[1]))
 
         # this trace yields the execution of the thread
-        request_span = traces[0][0]
+        request_span = traces[1][0]
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
@@ -35,7 +36,7 @@ class TestTornadoExecutor(TornadoTestCase):
         ok_(request_span.duration >= 0.05)
 
         # this trace is executed in a different thread
-        executor_span = traces[0][1]
+        executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
         eq_(executor_span.parent_id, request_span.span_id)
@@ -49,11 +50,12 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(200, response.code)
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(1, len(traces[1]))
 
         # this trace yields the execution of the thread
-        request_span = traces[0][0]
+        request_span = traces[1][0]
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
@@ -65,7 +67,7 @@ class TestTornadoExecutor(TornadoTestCase):
         ok_(request_span.duration >= 0.05)
 
         # this trace is executed in a different thread
-        executor_span = traces[0][1]
+        executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.query', executor_span.name)
         eq_(executor_span.parent_id, request_span.span_id)
@@ -78,11 +80,12 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(500, response.code)
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(1, len(traces[1]))
 
         # this trace yields the execution of the thread
-        request_span = traces[0][0]
+        request_span = traces[1][0]
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
@@ -95,7 +98,7 @@ class TestTornadoExecutor(TornadoTestCase):
         ok_('Exception: Ouch!' in request_span.get_tag('error.stack'))
 
         # this trace is executed in a different thread
-        executor_span = traces[0][1]
+        executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
         eq_(executor_span.parent_id, request_span.span_id)
@@ -114,11 +117,12 @@ class TestTornadoExecutor(TornadoTestCase):
         eq_(200, response.code)
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
+        eq_(2, len(traces))
+        eq_(1, len(traces[0]))
+        eq_(1, len(traces[1]))
 
         # this trace yields the execution of the thread
-        request_span = traces[0][0]
+        request_span = traces[1][0]
         eq_('tornado-web', request_span.service)
         eq_('tornado.request', request_span.name)
         eq_('http', request_span.span_type)
@@ -130,7 +134,7 @@ class TestTornadoExecutor(TornadoTestCase):
         ok_(request_span.duration >= 0.05)
 
         # this trace is executed in a different thread
-        executor_span = traces[0][1]
+        executor_span = traces[0][0]
         eq_('tornado-web', executor_span.service)
         eq_('tornado.executor.with', executor_span.name)
         eq_(executor_span.parent_id, request_span.span_id)
@@ -167,9 +171,9 @@ class TestTornadoExecutor(TornadoTestCase):
     def test_futures_double_instrumentation(self):
         # it should not double wrap `ThreadpPoolExecutor.submit` method if
         # `futures` is already instrumented
-        from ddtrace import patch; patch(futures=True)
+        from ddtrace import patch; patch(futures=True)  # noqa
         from concurrent.futures import ThreadPoolExecutor
-        from wrapt import BoundFunctionWrapper
+        from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
         fn_wrapper = getattr(ThreadPoolExecutor.submit, '__wrapped__', None)
         ok_(not isinstance(fn_wrapper, BoundFunctionWrapper))

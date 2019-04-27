@@ -1,8 +1,8 @@
 import functools
-import logging
-from os import getpid
+from os import environ, getpid
 
 from .ext import system
+from .internal.logger import get_logger
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler, RateSampler, RateByServiceSampler
@@ -11,9 +11,10 @@ from .span import Span
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from . import compat
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
+from .utils.deprecation import deprecated
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Tracer(object):
@@ -27,8 +28,8 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace("app.request", "web-server").finish()
     """
-    DEFAULT_HOSTNAME = 'localhost'
-    DEFAULT_PORT = 8126
+    DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
+    DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
 
     def __init__(self):
         """
@@ -52,9 +53,6 @@ class Tracer(object):
 
         # globally set tags
         self.tags = {}
-
-        # a buffer for service info so we dont' perpetually send the same things
-        self._services = {}
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -98,20 +96,24 @@ class Tracer(object):
             ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
             from the default value
         :param priority_sampling: enable priority sampling, this is required for
-            complete distributed tracing support.
+            complete distributed tracing support. Enabled by default.
         """
         if enabled is not None:
             self.enabled = enabled
 
         filters = None
         if settings is not None:
-                filters = settings.get(FILTERS_KEY)
+            filters = settings.get(FILTERS_KEY)
 
         if sampler is not None:
             self.sampler = sampler
 
-        if priority_sampling:
+        # If priority sampling is not set or is True and no priority sampler is set yet
+        if priority_sampling in (None, True) and not self.priority_sampler:
             self.priority_sampler = RateByServiceSampler()
+        # Explicitly disable priority sampling
+        elif priority_sampling is False:
+            self.priority_sampler = None
 
         if hostname is not None or port is not None or filters is not None or \
                 priority_sampling is not None:
@@ -288,6 +290,21 @@ class Tracer(object):
             span_type=span_type,
         )
 
+    def current_root_span(self):
+        """Returns the root span of the current context.
+
+        This is useful for attaching information related to the trace as a
+        whole without needing to add to child spans.
+
+        Usage is simple, for example::
+
+            # get the root span
+            root_span = tracer.current_root_span()
+            # set the host just once on the root span
+            root_span.set_tag('host', '127.0.0.1')
+        """
+        return self.get_call_context().get_current_root_span()
+
     def current_span(self):
         """
         Return the active span for the current call context or ``None``
@@ -321,35 +338,15 @@ class Tracer(object):
             # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans=spans)
 
-    def set_service_info(self, service, app, app_type):
+    @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
+    def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
 
         :param str service: the internal name of the service (e.g. acme_search, datadog_web)
         :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
         :param str app_type: the type of the application (e.g. db, web)
         """
-        try:
-            # don't bother sending the same services over and over.
-            info = (service, app, app_type)
-            if self._services.get(service, None) == info:
-                return
-            self._services[service] = info
-
-            if self.debug_logging:
-                log.debug("set_service_info: service:%s app:%s type:%s", service, app, app_type)
-
-            # If we had changes, send them to the writer.
-            if self.enabled and self.writer:
-
-                # translate to the form the server understands.
-                services = {}
-                for service, app, app_type in self._services.values():
-                    services[service] = {"app" : app, "app_type" : app_type}
-
-                # queue them for writes.
-                self.writer.write(services=services)
-        except Exception:
-            log.debug("error setting service info", exc_info=True)
+        return
 
     def wrap(self, name=None, service=None, resource=None, span_type=None):
         """
@@ -437,6 +434,6 @@ class Tracer(object):
         """ Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
-        :param str tags: dict of tags to set at tracer level
+        :param dict tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)

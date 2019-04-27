@@ -1,5 +1,5 @@
 """
-Instrument `aiopg` to report a span for each executed Postgres queries::
+Instrument aiopg to report a span for each executed Postgres queries::
 
     from ddtrace import Pin, patch
     import aiopg

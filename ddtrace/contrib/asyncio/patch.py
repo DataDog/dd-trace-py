@@ -1,6 +1,6 @@
 import asyncio
 
-from wrapt import wrap_function_wrapper as _w
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .helpers import _wrapped_create_task
 from ...utils.wrappers import unwrap as _u

@@ -27,5 +27,3 @@ with require_modules(required_modules) as missing_modules:
         from .patch import patch, trace_mongoengine
 
         __all__ = ['patch', 'trace_mongoengine']
-
-

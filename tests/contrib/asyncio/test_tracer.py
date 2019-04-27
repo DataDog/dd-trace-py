@@ -1,3 +1,5 @@
+# flake8: noqa
+# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
 
 from asyncio import BaseEventLoop
@@ -8,6 +10,7 @@ from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio.helpers import set_call_context
 
 from nose.tools import eq_, ok_
+from tests.opentracer.utils import init_tracer
 from .utils import AsyncioTestCase, mark_asyncio
 
 
@@ -339,3 +342,57 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # the event loop
         patch()
         self.test_tasks_chaining()
+
+    @mark_asyncio
+    def test_trace_multiple_coroutines_ot_outer(self):
+        """OpenTracing version of test_trace_multiple_coroutines."""
+        # if multiple coroutines have nested tracing, they must belong
+        # to the same trace
+        @asyncio.coroutine
+        def coro():
+            # another traced coroutine
+            with self.tracer.trace('coroutine_2'):
+                return 42
+
+        ot_tracer = init_tracer('asyncio_svc', self.tracer)
+        with ot_tracer.start_active_span('coroutine_1'):
+            value = yield from coro()
+
+        # the coroutine has been called correctly
+        eq_(42, value)
+        # a single trace has been properly reported
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        eq_('coroutine_1', traces[0][0].name)
+        eq_('coroutine_2', traces[0][1].name)
+        # the parenting is correct
+        eq_(traces[0][0], traces[0][1]._parent)
+        eq_(traces[0][0].trace_id, traces[0][1].trace_id)
+
+    @mark_asyncio
+    def test_trace_multiple_coroutines_ot_inner(self):
+        """OpenTracing version of test_trace_multiple_coroutines."""
+        # if multiple coroutines have nested tracing, they must belong
+        # to the same trace
+        ot_tracer = init_tracer('asyncio_svc', self.tracer)
+        @asyncio.coroutine
+        def coro():
+            # another traced coroutine
+            with ot_tracer.start_active_span('coroutine_2'):
+                return 42
+
+        with self.tracer.trace('coroutine_1'):
+            value = yield from coro()
+
+        # the coroutine has been called correctly
+        eq_(42, value)
+        # a single trace has been properly reported
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(2, len(traces[0]))
+        eq_('coroutine_1', traces[0][0].name)
+        eq_('coroutine_2', traces[0][1].name)
+        # the parenting is correct
+        eq_(traces[0][0], traces[0][1]._parent)
+        eq_(traces[0][0].trace_id, traces[0][1].trace_id)

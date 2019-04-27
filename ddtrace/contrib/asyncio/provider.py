@@ -21,12 +21,8 @@ class AsyncioContextProvider(DefaultContextProvider):
     def activate(self, context, loop=None):
         """Sets the scoped ``Context`` for the current running ``Task``.
         """
-        try:
-            loop = loop or asyncio.get_event_loop()
-        except RuntimeError:
-            # detects if a loop is available in the current thread;
-            # This happens when a new thread is created from the one that is running
-            # the async loop
+        loop = self._get_loop(loop)
+        if not loop:
             self._local.set(context)
             return context
 
@@ -35,19 +31,40 @@ class AsyncioContextProvider(DefaultContextProvider):
         setattr(task, CONTEXT_ATTR, context)
         return context
 
+    def _get_loop(self, loop=None):
+        """Helper to try and resolve the current loop"""
+        try:
+            return loop or asyncio.get_event_loop()
+        except RuntimeError:
+            # Detects if a loop is available in the current thread;
+            # DEV: This happens when a new thread is created from the out that is running the async loop
+            # DEV: It's possible that a different Executor is handling a different Thread that
+            #      works with blocking code. In that case, we fallback to a thread-local Context.
+            pass
+        return None
+
+    def _has_active_context(self, loop=None):
+        """Helper to determine if we have a currently active context"""
+        loop = self._get_loop(loop=loop)
+        if loop is None:
+            return self._local._has_active_context()
+
+        # the current unit of work (if tasks are used)
+        task = asyncio.Task.current_task(loop=loop)
+        if task is None:
+            return False
+
+        ctx = getattr(task, CONTEXT_ATTR, None)
+        return ctx is not None
+
     def active(self, loop=None):
         """
         Returns the scoped Context for this execution flow. The ``Context`` uses
         the current task as a carrier so if a single task is used for the entire application,
         the context must be handled separately.
         """
-        try:
-            loop = loop or asyncio.get_event_loop()
-        except RuntimeError:
-            # handles RuntimeError: There is no current event loop in thread 'MainThread'
-            # it happens when it's not possible to get the current event loop.
-            # It's possible that a different Executor is handling a different Thread that
-            # works with blocking code. In that case, we fallback to a thread-local Context.
+        loop = self._get_loop(loop=loop)
+        if not loop:
             return self._local.get()
 
         # the current unit of work (if tasks are used)

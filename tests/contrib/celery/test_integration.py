@@ -1,13 +1,24 @@
+import celery
+from celery.exceptions import Retry
+
 from nose.tools import eq_, ok_
 
-from .utils import CeleryTestCase
+from ddtrace.contrib.celery import patch, unpatch
+
+from .base import CeleryBaseTestCase
+
+from tests.opentracer.utils import init_tracer
 
 
-class CeleryIntegrationTask(CeleryTestCase):
+class MyException(Exception):
+    pass
+
+
+class CeleryIntegrationTask(CeleryBaseTestCase):
+    """Ensures that the tracer works properly with a real Celery application
+    without breaking the Application or Task API.
     """
-    Ensures that the tracer works properly with a real Celery application
-    without breaking the Application or Task APIs.
-    """
+
     def test_concurrent_delays(self):
         # it should create one trace for each delayed execution
         @self.app.task
@@ -20,7 +31,65 @@ class CeleryIntegrationTask(CeleryTestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(100, len(traces))
 
-    def test_fn_task(self):
+    def test_idempotent_patch(self):
+        # calling patch() twice doesn't have side effects
+        patch()
+
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task.apply()
+        ok_(t.successful())
+        eq_(42, t.result)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+
+    def test_idempotent_unpatch(self):
+        # calling unpatch() twice doesn't have side effects
+        unpatch()
+        unpatch()
+
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task.apply()
+        ok_(t.successful())
+        eq_(42, t.result)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(0, len(traces))
+
+    def test_fn_task_run(self):
+        # the body of the function is not instrumented so calling it
+        # directly doesn't create a trace
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task.run()
+        eq_(t, 42)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(0, len(traces))
+
+    def test_fn_task_call(self):
+        # the body of the function is not instrumented so calling it
+        # directly doesn't create a trace
+        @self.app.task
+        def fn_task():
+            return 42
+
+        t = fn_task()
+        eq_(t, 42)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(0, len(traces))
+
+    def test_fn_task_apply(self):
         # it should execute a traced task with a returning value
         @self.app.task
         def fn_task():
@@ -32,18 +101,18 @@ class CeleryIntegrationTask(CeleryTestCase):
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.fn_task', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('SUCCESS', traces[0][0].get_tag('state'))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task')
+        eq_(span.service, 'celery-worker')
+        eq_(span.span_type, 'worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'SUCCESS')
 
-    def test_fn_task_bind(self):
+    def test_fn_task_apply_bind(self):
         # it should execute a traced task with a returning value
         @self.app.task(bind=True)
         def fn_task(self):
@@ -55,67 +124,17 @@ class CeleryIntegrationTask(CeleryTestCase):
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.fn_task', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('SUCCESS', traces[0][0].get_tag('state'))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'SUCCESS')
 
-    def test_fn_task_parameters(self):
-        # it should execute a traced task that has parameters
-        @self.app.task
-        def fn_task_parameters(user, force_logout=False):
-            return (user, force_logout)
-
-        t = fn_task_parameters.apply(args=['user'], kwargs={'force_logout': True})
-        ok_(t.successful())
-        eq_('user', t.result[0])
-        ok_(t.result[1] is True)
-
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('SUCCESS', traces[0][0].get_tag('state'))
-
-    def test_fn_task_parameters_bind(self):
-        # it should execute a traced task that has parameters
-        @self.app.task(bind=True)
-        def fn_task_parameters(self, user, force_logout=False):
-            return (self, user, force_logout)
-
-        t = fn_task_parameters.apply(args=['user'], kwargs={'force_logout': True})
-        ok_(t.successful())
-        ok_('fn_task_parameters' in t.result[0].name)
-        eq_('user', t.result[1])
-        ok_(t.result[2] is True)
-
-        traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('SUCCESS', traces[0][0].get_tag('state'))
-
-    def test_fn_task_parameters_async(self):
+    def test_fn_task_apply_async(self):
         # it should execute a traced async task that has parameters
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
@@ -127,13 +146,16 @@ class CeleryIntegrationTask(CeleryTestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
         eq_(1, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply_async', traces[0][0].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][0].resource)
-        eq_('celery-producer', traces[0][0].service)
-        ok_(traces[0][0].get_tag('id') is not None)
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.apply')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task_parameters')
+        eq_(span.service, 'celery-producer')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'apply_async')
+        eq_(span.get_tag('celery.routing_key'), 'celery')
 
-    def test_fn_task_parameters_delay(self):
+    def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
         @self.app.task
         def fn_task_parameters(user, force_logout=False):
@@ -145,11 +167,14 @@ class CeleryIntegrationTask(CeleryTestCase):
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
         eq_(1, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply_async', traces[0][0].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_task_parameters', traces[0][0].resource)
-        eq_('celery-producer', traces[0][0].service)
-        ok_(traces[0][0].get_tag('id') is not None)
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.apply')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_task_parameters')
+        eq_(span.service, 'celery-producer')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'apply_async')
+        eq_(span.get_tag('celery.routing_key'), 'celery')
 
     def test_fn_exception(self):
         # it should catch exceptions in task functions
@@ -157,26 +182,73 @@ class CeleryIntegrationTask(CeleryTestCase):
         def fn_exception():
             raise Exception('Task class is failing')
 
-        r = fn_exception.apply()
-        ok_(r.failed())
-        ok_('Task class is failing' in r.traceback)
+        t = fn_exception.apply()
+        ok_(t.failed())
+        ok_('Task class is failing' in t.traceback)
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.fn_exception', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.fn_exception', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('FAILURE', traces[0][0].get_tag('state'))
-        eq_(1, traces[0][1].error)
-        eq_('Task class is failing', traces[0][1].get_tag('error.msg'))
-        ok_('Traceback (most recent call last)' in traces[0][1].get_tag('error.stack'))
-        ok_('Task class is failing' in traces[0][1].get_tag('error.stack'))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_exception')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 1)
+        eq_(span.get_tag('error.msg'), 'Task class is failing')
+        ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
+        ok_('Task class is failing' in span.get_tag('error.stack'))
+
+    def test_fn_exception_expected(self):
+        # it should catch exceptions in task functions
+        @self.app.task(throws=(MyException,))
+        def fn_exception():
+            raise MyException('Task class is failing')
+
+        t = fn_exception.apply()
+        ok_(t.failed())
+        ok_('Task class is failing' in t.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_exception')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 0)
+
+    def test_fn_retry_exception(self):
+        # it should not catch retry exceptions in task functions
+        @self.app.task
+        def fn_exception():
+            raise Retry('Task class is being retried')
+
+        t = fn_exception.apply()
+        ok_(not t.failed())
+        ok_('Task class is being retried' in t.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.fn_exception')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), t.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'RETRY')
+        eq_(span.get_tag('celery.retry.reason'), 'Task class is being retried')
+
+        # This type of retrying should not be marked as an exception
+        eq_(span.error, 0)
+        ok_(not span.get_tag('error.msg'))
+        ok_(not span.get_tag('error.stack'))
 
     def test_class_task(self):
         # it should execute class based tasks with a returning value
@@ -196,16 +268,15 @@ class CeleryIntegrationTask(CeleryTestCase):
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
-        eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.BaseTask', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.BaseTask', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('SUCCESS', traces[0][0].get_tag('state'))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.BaseTask')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), r.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'SUCCESS')
 
     def test_class_task_exception(self):
         # it should catch exceptions in class based tasks
@@ -225,17 +296,135 @@ class CeleryIntegrationTask(CeleryTestCase):
 
         traces = self.tracer.writer.pop_traces()
         eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.BaseTask')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), r.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 1)
+        eq_(span.get_tag('error.msg'), 'Task class is failing')
+        ok_('Traceback (most recent call last)' in span.get_tag('error.stack'))
+        ok_('Task class is failing' in span.get_tag('error.stack'))
+
+    def test_class_task_exception_expected(self):
+        # it should catch exceptions in class based tasks
+        class BaseTask(self.app.Task):
+            throws = (MyException,)
+
+            def run(self):
+                raise MyException('Task class is failing')
+
+        t = BaseTask()
+        # register the Task class if it's available (required in Celery 4.0+)
+        register_task = getattr(self.app, 'register_task', None)
+        if register_task is not None:
+            register_task(t)
+
+        r = t.apply()
+        ok_(r.failed())
+        ok_('Task class is failing' in r.traceback)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.name, 'celery.run')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.BaseTask')
+        eq_(span.service, 'celery-worker')
+        eq_(span.get_tag('celery.id'), r.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'FAILURE')
+        eq_(span.error, 0)
+
+    def test_shared_task(self):
+        # Ensure Django Shared Task are supported
+        @celery.shared_task
+        def add(x, y):
+            return x + y
+
+        res = add.apply([2, 2])
+        eq_(res.result, 4)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
+        eq_(1, len(traces[0]))
+        span = traces[0][0]
+        eq_(span.error, 0)
+        eq_(span.name, 'celery.run')
+        eq_(span.service, 'celery-worker')
+        eq_(span.resource, 'tests.contrib.celery.test_integration.add')
+        ok_(span.parent_id is None)
+        eq_(span.get_tag('celery.id'), res.task_id)
+        eq_(span.get_tag('celery.action'), 'run')
+        eq_(span.get_tag('celery.state'), 'SUCCESS')
+
+    def test_worker_service_name(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure worker service name can be changed via
+        # configuration object
+        with self.override_config('celery', dict(worker_service_name='worker-notify')):
+            t = fn_task.apply()
+            self.assertTrue(t.successful())
+            self.assertEqual(42, t.result)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.service, 'worker-notify')
+
+    def test_producer_service_name(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        # Ensure producer service name can be changed via
+        # configuration object
+        with self.override_config('celery', dict(producer_service_name='task-queue')):
+            t = fn_task.delay()
+            self.assertEqual('PENDING', t.status)
+
+            traces = self.tracer.writer.pop_traces()
+            self.assertEqual(1, len(traces))
+            self.assertEqual(1, len(traces[0]))
+            span = traces[0][0]
+            self.assertEqual(span.service, 'task-queue')
+
+    def test_fn_task_apply_async_ot(self):
+        """OpenTracing version of test_fn_task_apply_async."""
+        ot_tracer = init_tracer('celery_svc', self.tracer)
+
+        # it should execute a traced async task that has parameters
+        @self.app.task
+        def fn_task_parameters(user, force_logout=False):
+            return (user, force_logout)
+
+        with ot_tracer.start_active_span('celery_op'):
+            t = fn_task_parameters.apply_async(args=['user'], kwargs={'force_logout': True})
+            eq_('PENDING', t.status)
+
+        traces = self.tracer.writer.pop_traces()
+        eq_(1, len(traces))
         eq_(2, len(traces[0]))
-        eq_('celery.apply', traces[0][0].name)
-        eq_('apply', traces[0][0].get_tag('celery.action'))
-        eq_('celery.run', traces[0][1].name)
-        eq_('run', traces[0][1].get_tag('celery.action'))
-        eq_('tests.contrib.celery.test_integration.BaseTask', traces[0][0].resource)
-        eq_('tests.contrib.celery.test_integration.BaseTask', traces[0][1].resource)
-        eq_('celery-producer', traces[0][0].service)
-        eq_('celery-worker', traces[0][1].service)
-        eq_('FAILURE', traces[0][0].get_tag('state'))
-        eq_(1, traces[0][1].error)
-        eq_('Task class is failing', traces[0][1].get_tag('error.msg'))
-        ok_('Traceback (most recent call last)' in traces[0][1].get_tag('error.stack'))
-        ok_('Task class is failing' in traces[0][1].get_tag('error.stack'))
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'celery_op')
+        eq_(ot_span.service, 'celery_svc')
+
+        eq_(dd_span.error, 0)
+        eq_(dd_span.name, 'celery.apply')
+        eq_(dd_span.resource, 'tests.contrib.celery.test_integration.fn_task_parameters')
+        eq_(dd_span.service, 'celery-producer')
+        eq_(dd_span.get_tag('celery.id'), t.task_id)
+        eq_(dd_span.get_tag('celery.action'), 'apply_async')
+        eq_(dd_span.get_tag('celery.routing_key'), 'celery')

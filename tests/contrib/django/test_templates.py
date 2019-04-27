@@ -2,11 +2,7 @@ import time
 
 # 3rd party
 from nose.tools import eq_
-from django.test import SimpleTestCase
 from django.template import Context, Template
-
-# project
-from ddtrace.contrib.django.templates import patch_template
 
 # testing
 from .utils import DjangoTraceTestCase, override_ddtrace_settings

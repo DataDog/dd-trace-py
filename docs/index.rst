@@ -1,656 +1,126 @@
-Datadog Trace Client
-====================
+.. include:: ./shared.rst
 
-`ddtrace` is Datadog's Python tracing client. It is used to trace requests as
-they flow across web servers, databases and microservices so developers
-have great visibility into bottlenecks and troublesome requests.
+Datadog Python Trace Client
+===========================
 
-Installation
-------------
+``ddtrace`` is Datadog's Python tracing client. It is used to trace requests as
+they flow across web servers, databases and microservices. This enables
+developers to have greater visibility into bottlenecks and troublesome requests
+in their application.
 
-Install with :code:`pip`::
-
-    $ pip install ddtrace
-
-We strongly suggest pinning the version of the library you deploy.
-
-Get Started
------------
-
-Datadog Tracing can automatically instrument many widely used Python libraries
-and frameworks.
-
-Once installed, the package will make the ``ddtrace-run`` command-line entrypoint
-available in your Python environment.
-
-``ddtrace-run`` will trace available web frameworks and database modules without the need
-for changing your code::
-
-
-    $ ddtrace-run -h
-
-    Execute the given Python program, after configuring it
-    to emit Datadog traces.
-
-    Append command line arguments to your program as usual.
-
-    Usage: [ENV_VARS] ddtrace-run <my_program>
-
-
-The available environment variables for `ddtrace-run` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and library instrumentation. When false, your application code
-  will not generate any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used for this program. This value is passed through when setting up middleware for web framework integrations (e.g. pylons, flask, django). For tracing without a web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g. ``boto:true,redis:false``: override the modules patched for this execution of the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace agent host that the default tracer will attempt to submit to  (default: ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables `Priority sampling`_
-
-``ddtrace-run`` respects a variety of common entrypoints for web applications:
-
-- ``ddtrace-run python my_app.py``
-- ``ddtrace-run python manage.py runserver``
-- ``ddtrace-run gunicorn myapp.wsgi:application``
-- ``ddtrace-run uwsgi --http :9090 --wsgi-file my_app.py``
-
-
-Pass along command-line arguments as your program would normally expect them::
-
-    ddtrace-run gunicorn myapp.wsgi:application --max-requests 1000 --statsd-host localhost:8125
-
-*As long as your application isn't running in* ``DEBUG`` *mode, this should be enough to see your application traces in Datadog.*
-
-If you're running in a Kubernetes cluster, and still don't see your traces, make sure your application has a route to the tracing Agent. An easy way to test this is with a::
-
-
-$ pip install ipython
-$ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
-
-Because iPython uses SQLite, it will be automatically instrumented, and your traces should be sent off. If there's an error, you'll see the message in the console, and can make changes as needed.
-
-Please read on if you are curious about further configuration, or
-would rather set up Datadog Tracing explicitly in code.
-
-
-Instrumentation
+Getting Started
 ---------------
 
-Web
-~~~
+For a basic product overview: check out the `setup documentation`_.
 
-We support many `web frameworks`_. Install the middleware for yours.
+For details about developing and contributing: refer to the `development
+guide`_.
 
-.. _web frameworks: #web-frameworks
+For descriptions of the terminology of Datadog APM: take a look at the `official
+documentation`_.
 
 
-Databases
-~~~~~~~~~
+.. _`Supported Libraries`:
 
-Then let's patch widely used Python libraries::
-
-    # Add the following at the main entry point of your application.
-    from ddtrace import patch_all
-    patch_all()
-
-Start your web server and you should be off to the races. Here you can find
-which `framework is automatically instrumented`_ with the ``patch_all()`` method.
-
-.. _framework is automatically instrumented: #instrumented-libraries
-
-Custom
-~~~~~~
-
-You can easily extend the spans we collect by adding your own traces. Here's a
-small example that shows adding a custom span to a Flask application::
-
-    from ddtrace import tracer
-
-    # add the `wrap` decorator to trace an entire function.
-    @tracer.wrap(service='my-app')
-    def save_thumbnails(img, sizes):
-
-        thumbnails = [resize_image(img, size) for size in sizes]
-
-        # Or just trace part of a function with the `trace`
-        # context manager.
-        with tracer.trace("thumbnails.save") as span:
-            span.set_meta("thumbnails.sizes", str(sizes))
-
-            image_server.store(thumbnails)
-
-
-Read the full `API`_ for more details.
-
-Modifying the Agent hostname and port
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If the Datadog Agent is on a separate host from your application, you can modify the default ddtrace.tracer object to utilize another hostname and port. Here is a small example showcasing this::
-
-    from ddtrace import tracer
-
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
-
-By default, these will be set to localhost and 8126 respectively.
-
-.. _web-frameworks:
-
-Web Frameworks
---------------
-
-Bottle
-~~~~~~
-
-.. automodule:: ddtrace.contrib.bottle
-
-Django
-~~~~~~
-
-.. automodule:: ddtrace.contrib.django
-
-Falcon
-~~~~~~
-
-.. automodule:: ddtrace.contrib.falcon
-
-Flask
-~~~~~
-
-.. automodule:: ddtrace.contrib.flask
-
-Pylons
-~~~~~~
-
-.. automodule:: ddtrace.contrib.pylons
-
-Pyramid
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.pyramid
-
-aiohttp
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.aiohttp
-
-aiobotocore
-~~~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.aiobotocore
-
-aiopg
-~~~~~
-
-.. automodule:: ddtrace.contrib.aiopg
-
-Tornado
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.tornado
-
-
-Other Libraries
----------------
-
-Futures
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.futures
-
-Boto2
-~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.boto
-
-Botocore
-~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.botocore
-
-Cassandra
-~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.cassandra
-
-Elasticsearch
-~~~~~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.elasticsearch
-
-Flask Cache
-~~~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.flask_cache
-
-Celery
-~~~~~~
-
-.. automodule:: ddtrace.contrib.celery
-
-MongoDB
-~~~~~~~
-
-**Mongoengine**
-
-.. automodule:: ddtrace.contrib.mongoengine
-
-**Pymongo**
-
-.. automodule:: ddtrace.contrib.pymongo
-
-Memcached
-~~~~~~~~~
-
-**pylibmc**
-
-.. automodule:: ddtrace.contrib.pylibmc
-
-MySQL
-~~~~~
-
-**mysql-connector**
-
-.. automodule:: ddtrace.contrib.mysql
-
-**mysqlclient and MySQL-python**
-
-.. automodule:: ddtrace.contrib.mysqldb
-
-**pymysql**
-
-.. automodule:: ddtrace.contrib.pymysql
-
-Postgres
-~~~~~~~~
-
-.. automodule:: ddtrace.contrib.psycopg
-
-Redis
-~~~~~
-
-.. automodule:: ddtrace.contrib.redis
-
-Requests
-~~~~~~~~
-
-.. automodule:: ddtrace.contrib.requests
-
-SQLAlchemy
-~~~~~~~~~~
-
-.. automodule:: ddtrace.contrib.sqlalchemy
-
-SQLite
-~~~~~~
-
-.. automodule:: ddtrace.contrib.sqlite3
-
-Asynchronous Libraries
-----------------------
-
-asyncio
-~~~~~~~
-
-.. automodule:: ddtrace.contrib.asyncio
-
-gevent
-~~~~~~
-
-.. automodule:: ddtrace.contrib.gevent
-
-
-Distributed Tracing
+Supported Libraries
 -------------------
-
-To trace requests across hosts, the spans on the secondary hosts must be linked together by setting `trace_id`, `parent_id` and `sampling_priority`.
-
-- On the server side, it means to read propagated attributes and set them to the active tracing context.
-- On the client side, it means to propagate the attributes, commonly as a header/metadata.
-
-`ddtrace` already provides default propagators but you can also implement your own.
-
-Web frameworks
-~~~~~~~~~~~~~~
-
-Some web framework integrations support the distributed tracing out of the box, you just have to enable it.
-For that, refer to the configuration of the given integration.
-Supported web frameworks:
-
-- Django
-- Flask
-- Tornado
-
-For web servers not supported, you can extract the HTTP context from the headers using the `HTTPPropagator`.
-
-.. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members: extract
-
-HTTP client
-~~~~~~~~~~~
-
-When calling a remote HTTP server part of the distributed trace, you have to propagate the HTTP headers.
-This is not done automatically to prevent your system from leaking tracing information to external services.
-
-.. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members: inject
-
-Custom
-~~~~~~
-
-You can manually propagate your tracing context over your RPC protocol. Here is an example assuming that you have `rpc.call`
-function that call a `method` and propagate a `rpc_metadata` dictionary over the wire::
-
-
-    # Implement your own context propagator
-    MyRPCPropagator(object):
-        def inject(self, span_context, rpc_metadata):
-            rpc_metadata.update({
-                'trace_id': span_context.trace_id,
-                'span_id': span_context.span_id,
-                'sampling_priority': span_context.sampling_priority,
-            })
-
-        def extract(self, rpc_metadata):
-            return Context(
-                trace_id=rpc_metadata['trace_id'],
-                span_id=rpc_metadata['span_id'],
-                sampling_priority=rpc_metadata['sampling_priority'],
-            )
-
-    # On the parent side
-    def parent_rpc_call():
-        with tracer.trace("parent_span") as span:
-            rpc_metadata = {}
-            propagator = MyRPCPropagator()
-            propagator.inject(span.context, rpc_metadata)
-            method = "<my rpc method>"
-            rpc.call(method, metadata)
-
-    # On the child side
-    def child_rpc_call(method, rpc_metadata):
-        propagator = MyRPCPropagator()
-        context = propagator.extract(rpc_metadata)
-        tracer.context_provider.activate(context)
-
-        with tracer.trace("child_span") as span:
-            span.set_meta('my_rpc_method', method)
-
-
-Sampling
---------
-
-Priority sampling
-~~~~~~~~~~~~~~~~~
-
-Priority sampling consists in deciding if a trace will be kept by using a `priority` attribute that will be propagated
-for distributed traces. Its value gives indication to the Agent and to the backend on how important the trace is.
-
-The sampler can set the priority to the following values:
-
-- ``AUTO_REJECT``: the sampler automatically decided to reject the trace
-- ``AUTO_KEEP``: the sampler automatically decided to keep the trace
-
-For now, priority sampling is disabled by default. Enabling it ensures that your sampled distributed traces will be complete.
-To enable the priority sampling::
-
-    tracer.configure(priority_sampling=True)
-
-Once enabled, the sampler will automatically assign a priority to your traces, depending on their service and volume.
-
-You can also set this priority manually to either drop a non-interesting trace or to keep an important one.
-For that, set the ``context.sampling_priority`` to one of the following:
-
-- ``USER_REJECT``: the user asked to reject the trace
-- ``USER_KEEP``: the user asked to keep the trace
-
-When not using distributed tracing, you may change the priority at any time,
-as long as the trace is not finished yet.
-But it has to be done before any context propagation (fork, RPC calls) to be effective in a distributed context.
-Changing the priority after context has been propagated causes different parts of a distributed trace
-to use different priorities. Some parts might be kept, some parts might be rejected,
-and this can cause the trace to be partially stored and remain incomplete.
-
-If you change the priority, we recommend you do it as soon as possible, when the root span has just been created::
-
-    from ddtrace.ext.priority import USER_REJECT, USER_KEEP
-
-    context = tracer.context_provider.active()
-
-    # indicate to not keep the trace
-    context.sampling_priority = USER_REJECT
-
-    # indicate to keep the trace
-    span.context.sampling_priority = USER_KEEP
-
-
-Pre-sampling
-~~~~~~~~~~~~
-
-Pre-sampling will completely disable instrumentation of some transactions and drop the trace at the client level.
-Information will be lost but it allows to control any potential performance impact.
-
-`RateSampler` ramdomly samples a percentage of traces. Its usage is simple::
-
-    from ddtrace.sampler import RateSampler
-
-    # Sample rate is between 0 (nothing sampled) to 1 (everything sampled).
-    # Keep 20% of the traces.
-    sample_rate = 0.2
-    tracer.sampler = RateSampler(sample_rate)
-
-
-Resolving deprecation warnings
-------------------------------
-Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
-These warnings must be fixed before upgrading, otherwise ``ddtrace`` library will not work
-as expected. Our deprecation messages include the version where the behavior is altered or
-removed.
-
-In Python, deprecation warnings are silenced by default, and to turn them on you may add the
-following flag or environment variable::
-
-    $ python -Wall app.py
-
-    # or
-
-    $ PYTHONWARNINGS=all python app.py
-
-
-Advanced Usage
---------------
-
-Trace Filtering
-~~~~~~~~~~~~~~~
-
-It is possible to filter or modify traces before they are sent to the agent by
-configuring the tracer with a filters list. For instance, to filter out
-all traces of incoming requests to a specific url::
-
-    Tracer.configure(settings={
-        'FILTERS': [
-            FilterRequestsOnUrl(r'http://test\.example\.com'),
-        ],
-    })
-
-All the filters in the filters list will be evaluated sequentially
-for each trace and the resulting trace will either be sent to the agent or
-discarded depending on the output.
-
-**Use the standard filters**
-
-The library comes with a FilterRequestsOnUrl filter that can be used to
-filter out incoming requests to specific urls:
-
-.. autoclass:: ddtrace.filters.FilterRequestsOnUrl
-    :members:
-
-**Write a custom filter**
-
-Creating your own filters is as simple as implementing a class with a
-process_trace method and adding it to the filters parameter of
-Tracer.configure. process_trace should either return a trace to be fed to the
-next step of the pipeline or None if the trace should be discarded::
-
-    class FilterExample(object):
-        def process_trace(self, trace):
-            # write here your logic to return the `trace` or None;
-            # `trace` instance is owned by the thread and you can alter
-            # each single span or the whole trace if needed
-
-    # And then instantiate it with
-    filters = [FilterExample()]
-    Tracer.configure(settings={'FILTERS': filters})
-
-(see filters.py for other example implementations)
-
-
-API
-~~~
-
-.. autoclass:: ddtrace.Tracer
-    :members:
-    :special-members: __init__
-
-
-.. autoclass:: ddtrace.Span
-    :members:
-    :special-members: __init__
-
-.. autoclass:: ddtrace.Pin
-    :members:
-    :special-members: __init__
-
-.. autofunction:: ddtrace.monkey.patch_all
-
-.. autofunction:: ddtrace.monkey.patch
-
-.. toctree::
-   :maxdepth: 2
-
-.. _integrations:
-
-Glossary
-~~~~~~~~
-
-**Service**
-
-The name of a set of processes that do the same job. Some examples are :code:`datadog-web-app` or :code:`datadog-metrics-db`. In general, you only need to set the
-service in your application's top level entry point.
-
-**Resource**
-
-A particular query to a service. For a web application, some
-examples might be a URL stem like :code:`/user/home` or a handler function
-like :code:`web.user.home`. For a SQL database, a resource
-would be the sql of the query itself like :code:`select * from users
-where id = ?`.
-
-You can track thousands (not millions or billions) of unique resources per services, so prefer
-resources like :code:`/user/home` rather than :code:`/user/home?id=123456789`.
-
-**App**
-
-Currently, an "app" doesn't provide much functionality and is subject to change in the future. For example, in the UI, hovering over the type icon (Web/Database/Custom) will display the “app” for a particular service. In the future the UI may use "app" as hints to group services together better and surface relevant metrics.
-
-**Span**
-
-A span tracks a unit of work in a service, like querying a database or
-rendering a template. Spans are associated with a service and optionally a
-resource. A span has a name, start time, duration and optional tags.
-
-Supported versions
-==================
 
 We officially support Python 2.7, 3.4 and above.
 
-+---------------------+--------------------+
-| Integrations        | Supported versions |
-+=====================+====================+
-| aiohttp             | >= 1.2             |
-+---------------------+--------------------+
-| aiobotocore         | >= 0.2.3           |
-+---------------------+--------------------+
-| aiopg               | >= 0.12.0          |
-+---------------------+--------------------+
-| boto                | >= 2.29.0          |
-+---------------------+--------------------+
-| botocore            | >= 1.4.51          |
-+---------------------+--------------------+
-| bottle              | >= 0.11            |
-+---------------------+--------------------+
-| celery              | >= 3.1             |
-+---------------------+--------------------+
-| cassandra           | >= 3.5             |
-+---------------------+--------------------+
-| djangorestframework | >= 3.4             |
-+---------------------+--------------------+
-| django              | >= 1.8             |
-+---------------------+--------------------+
-| elasticsearch       | >= 1.6             |
-+---------------------+--------------------+
-| falcon              | >= 1.0             |
-+---------------------+--------------------+
-| flask               | >= 0.10            |
-+---------------------+--------------------+
-| flask_cache         | >= 0.12            |
-+---------------------+--------------------+
-| gevent              | >= 1.0             |
-+---------------------+--------------------+
-| mongoengine         | >= 0.11            |
-+---------------------+--------------------+
-| mysql-connector     | >= 2.1             |
-+---------------------+--------------------+
-| MySQL-python        | >= 1.2.3           |
-+---------------------+--------------------+
-| mysqlclient         | >= 1.3             |
-+---------------------+--------------------+
-| psycopg2            | >= 2.4             |
-+---------------------+--------------------+
-| pylibmc             | >= 1.4             |
-+---------------------+--------------------+
-| pylons              | >= 0.9.6           |
-+---------------------+--------------------+
-| pymongo             | >= 3.0             |
-+---------------------+--------------------+
-| pyramid             | >= 1.7             |
-+---------------------+--------------------+
-| redis               | >= 2.6             |
-+---------------------+--------------------+
-| sqlalchemy          | >= 1.0             |
-+---------------------+--------------------+
-| tornado             | >= 4.0             |
-+---------------------+--------------------+
+The versions listed are the versions that we have tested, but ``ddtrace`` can
+still be compatible with other versions of these libraries. If a version of a
+library you use is unsupported, feel free to contribute or request it by
+contacting support.
 
 
-These are the fully tested versions but `ddtrace` can be compatible with lower versions.
-If some versions are missing, you can contribute or ask for it by contacting our support.
-For deprecated library versions, the support is best-effort.
+.. |SUPPVER| replace:: Supported Version
+.. |AUTO| replace:: Automatically Instrumented
 
-Instrumented libraries
-======================
 
-The following is the list of libraries that are automatically instrumented when the
-``patch_all()`` method is called. Always use ``patch()`` and ``patch_all()`` as
-soon as possible in your Python entrypoint.
++--------------------------------------------------+---------------+----------------+
+|                   Integration                    |  |SUPPVER|    | |AUTO|    [1]_ |
++==================================================+===============+================+
+| :ref:`aiobotocore`                               | >= 0.2.3      | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`aiohttp`                                   | >= 1.2        | Yes [2]_       |
++--------------------------------------------------+---------------+----------------+
+| :ref:`aiopg`                                     | >= 0.12.0     | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`boto2`                                     | >= 2.29.0     | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`botocore`                                  | >= 1.4.51     | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`bottle`                                    | >= 0.11       | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`celery`                                    | >= 3.1        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`cassandra`                                 | >= 3.5        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`django`                                    | >= 1.8        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`djangorestframework <djangorestframework>` | >= 3.4        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`elasticsearch`                             | >= 1.6        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`falcon`                                    | >= 1.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`flask`                                     | >= 0.10       | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`flask_cache`                               | >= 0.12       | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`gevent`                                    | >= 1.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`grpc`                                      | >= 1.8.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`jinja2`                                    | >= 2.7        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`mako`                                      | >= 0.1.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`kombu`                                     | >= 4.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`molten`                                    | >= 0.7.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`mongoengine`                               | >= 0.11       | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`mysql-connector`                           | >= 2.1        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`MySQL-python <MySQL-python>`               | >= 1.2.3      | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`mysqlclient <mysqlclient>`                 | >= 1.3        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`psycopg2`                                  | >= 2.4        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pylibmc`                                   | >= 1.4        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pylons`                                    | >= 0.9.6      | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pymemcache`                                | >= 1.3        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pymongo`                                   | >= 3.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`pyramid`                                   | >= 1.7        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`redis`                                     | >= 2.6        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`rediscluster`                              | >= 1.3.5      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`requests`                                  | >= 2.08       | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`sqlalchemy`                                | >= 1.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`tornado`                                   | >= 4.0        | No             |
++--------------------------------------------------+---------------+----------------+
+| :ref:`vertica`                                   | >= 0.6        | Yes            |
++--------------------------------------------------+---------------+----------------+
 
-* sqlite3
-* mysql
-* mysqldb
-* pymysql
-* psycopg
-* redis
-* cassandra
-* pymongo
-* mongoengine
-* elasticsearch
-* pylibmc
-* celery
-* boto
-* botocore
-* aiopg
-* aiohttp (only third-party modules such as ``aiohttp_jinja2``)
+
+.. [1] Libraries that are automatically instrumented when the
+  :ref:`ddtrace-run<ddtracerun>` command is used or the ``patch_all()`` method
+  is called. Always use ``patch()`` and ``patch_all()`` as soon as possible in
+  your Python entrypoint.
+
+.. [2] only third-party modules such as aiohttp_jinja2
+
 
 Indices and tables
 ==================
@@ -658,3 +128,14 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. toctree::
+    :hidden:
+
+    installation_quickstart
+    web_integrations
+    db_integrations
+    async_integrations
+    other_integrations
+    basic_usage
+    advanced_usage

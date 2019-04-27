@@ -3,10 +3,14 @@ import redis
 from nose.tools import eq_, ok_
 
 from ddtrace import Pin, compat
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch, unpatch
+
+from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
 def test_redis_legacy():
@@ -20,27 +24,27 @@ def test_redis_legacy():
     assert not tracer.writer.pop()
 
 
-class TestRedisPatch(object):
+class TestRedisPatch(BaseTracerTestCase):
 
     TEST_SERVICE = 'redis-patch'
     TEST_PORT = REDIS_CONFIG['port']
 
     def setUp(self):
+        super(TestRedisPatch, self).setUp()
+        patch()
         r = redis.Redis(port=self.TEST_PORT)
         r.flushall()
-        patch()
+        Pin.override(r, service=self.TEST_SERVICE, tracer=self.tracer)
+        self.r = r
 
     def tearDown(self):
         unpatch()
-        r = redis.Redis(port=self.TEST_PORT)
-        r.flushall()
+        super(TestRedisPatch, self).tearDown()
 
     def test_long_command(self):
-        r, tracer = self.get_redis_and_tracer()
+        self.r.mget(*range(1000))
 
-        r.mget(*range(1000))
-
-        spans = tracer.writer.pop()
+        spans = self.get_spans()
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -59,28 +63,93 @@ class TestRedisPatch(object):
         assert span.get_tag('redis.raw_command').endswith(u'...')
 
     def test_basics(self):
-        r, tracer = self.get_redis_and_tracer()
-        _assert_conn_traced(r, tracer, self.TEST_SERVICE)
+        us = self.r.get('cheese')
+        eq_(us, None)
+        spans = self.get_spans()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'redis.command')
+        eq_(span.span_type, 'redis')
+        eq_(span.error, 0)
+        eq_(span.get_tag('out.redis_db'), '0')
+        eq_(span.get_tag('out.host'), 'localhost')
+        eq_(span.get_tag('redis.raw_command'), u'GET cheese')
+        eq_(span.get_metric('redis.args_length'), 2)
+        eq_(span.resource, 'GET cheese')
+        ok_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
 
-    def test_pipeline(self):
-        r, tracer = self.get_redis_and_tracer()
-        _assert_pipeline_traced(r, tracer, self.TEST_SERVICE)
-        _assert_pipeline_immediate(r, tracer, self.TEST_SERVICE)
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'redis',
+            dict(analytics_enabled=True)
+        ):
+            us = self.r.get('cheese')
+            eq_(us, None)
+            spans = self.get_spans()
+            eq_(len(spans), 1)
+            span = spans[0]
+            eq_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    def get_redis_and_tracer(self):
-        tracer = get_dummy_tracer()
-        r = redis.Redis(port=REDIS_CONFIG['port'])
-        Pin.override(r, service=self.TEST_SERVICE, tracer=tracer)
-        return r, tracer
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'redis',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            us = self.r.get('cheese')
+            eq_(us, None)
+            spans = self.get_spans()
+            eq_(len(spans), 1)
+            span = spans[0]
+            eq_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_pipeline_traced(self):
+        with self.r.pipeline(transaction=False) as p:
+            p.set('blah', 32)
+            p.rpush('foo', u'éé')
+            p.hgetall('xxx')
+            p.execute()
+
+        spans = self.get_spans()
+        eq_(len(spans), 1)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'redis.command')
+        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
+        eq_(span.span_type, 'redis')
+        eq_(span.error, 0)
+        eq_(span.get_tag('out.redis_db'), '0')
+        eq_(span.get_tag('out.host'), 'localhost')
+        eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
+        eq_(span.get_metric('redis.pipeline_length'), 3)
+        eq_(span.get_metric('redis.pipeline_length'), 3)
+        ok_(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+
+    def test_pipeline_immediate(self):
+        with self.r.pipeline() as p:
+            p.set('a', 1)
+            p.immediate_execute_command('SET', 'a', 1)
+            p.execute()
+
+        spans = self.get_spans()
+        eq_(len(spans), 2)
+        span = spans[0]
+        eq_(span.service, self.TEST_SERVICE)
+        eq_(span.name, 'redis.command')
+        eq_(span.resource, u'SET a 1')
+        eq_(span.span_type, 'redis')
+        eq_(span.error, 0)
+        eq_(span.get_tag('out.redis_db'), '0')
+        eq_(span.get_tag('out.host'), 'localhost')
 
     def test_meta_override(self):
-        r, tracer = self.get_redis_and_tracer()
+        r = self.r
         pin = Pin.get_from(r)
         if pin:
             pin.clone(tags={'cheese': 'camembert'}).onto(r)
 
         r.get('cheese')
-        spans = tracer.writer.pop()
+        spans = self.get_spans()
         eq_(len(spans), 1)
         span = spans[0]
         eq_(span.service, self.TEST_SERVICE)
@@ -122,60 +191,31 @@ class TestRedisPatch(object):
         assert spans, spans
         eq_(len(spans), 1)
 
+    def test_opentracing(self):
+        """Ensure OpenTracing works with redis."""
+        ot_tracer = init_tracer('redis_svc', self.tracer)
 
-def _assert_pipeline_immediate(conn, tracer, service):
-    r = conn
-    writer = tracer.writer
-    with r.pipeline() as p:
-        p.set('a', 1)
-        p.immediate_execute_command('SET', 'a', 1)
-        p.execute()
+        with ot_tracer.start_active_span('redis_get'):
+            us = self.r.get('cheese')
+            eq_(us, None)
 
-    spans = writer.pop()
-    eq_(len(spans), 2)
-    span = spans[0]
-    eq_(span.service, service)
-    eq_(span.name, 'redis.command')
-    eq_(span.resource, u'SET a 1')
-    eq_(span.span_type, 'redis')
-    eq_(span.error, 0)
-    eq_(span.get_tag('out.redis_db'), '0')
-    eq_(span.get_tag('out.host'), 'localhost')
+        spans = self.get_spans()
+        eq_(len(spans), 2)
+        ot_span, dd_span = spans
 
-def _assert_pipeline_traced(conn, tracer, service):
-    writer = tracer.writer
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
 
-    with conn.pipeline(transaction=False) as p:
-        p.set('blah', 32)
-        p.rpush('foo', u'éé')
-        p.hgetall('xxx')
-        p.execute()
+        eq_(ot_span.name, 'redis_get')
+        eq_(ot_span.service, 'redis_svc')
 
-    spans = writer.pop()
-    eq_(len(spans), 1)
-    span = spans[0]
-    eq_(span.service, service)
-    eq_(span.name, 'redis.command')
-    eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-    eq_(span.span_type, 'redis')
-    eq_(span.error, 0)
-    eq_(span.get_tag('out.redis_db'), '0')
-    eq_(span.get_tag('out.host'), 'localhost')
-    eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-    eq_(span.get_metric('redis.pipeline_length'), 3)
-
-def _assert_conn_traced(conn, tracer, service):
-    us = conn.get('cheese')
-    eq_(us, None)
-    spans = tracer.writer.pop()
-    eq_(len(spans), 1)
-    span = spans[0]
-    eq_(span.service, service)
-    eq_(span.name, 'redis.command')
-    eq_(span.span_type, 'redis')
-    eq_(span.error, 0)
-    eq_(span.get_tag('out.redis_db'), '0')
-    eq_(span.get_tag('out.host'), 'localhost')
-    eq_(span.get_tag('redis.raw_command'), u'GET cheese')
-    eq_(span.get_metric('redis.args_length'), 2)
-    eq_(span.resource, 'GET cheese')
+        eq_(dd_span.service, self.TEST_SERVICE)
+        eq_(dd_span.name, 'redis.command')
+        eq_(dd_span.span_type, 'redis')
+        eq_(dd_span.error, 0)
+        eq_(dd_span.get_tag('out.redis_db'), '0')
+        eq_(dd_span.get_tag('out.host'), 'localhost')
+        eq_(dd_span.get_tag('redis.raw_command'), u'GET cheese')
+        eq_(dd_span.get_metric('redis.args_length'), 2)
+        eq_(dd_span.resource, 'GET cheese')

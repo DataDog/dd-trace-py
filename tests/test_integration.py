@@ -9,11 +9,10 @@ import ddtrace
 from unittest import TestCase, skip, skipUnless
 from nose.tools import eq_, ok_
 
-from ddtrace.api import API
+from ddtrace.api import API, Response
 from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
-from ddtrace.span import Span
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
@@ -42,15 +41,13 @@ class FlawedAPI(API):
     def _put(self, endpoint, data, count=0):
         conn = httplib.HTTPConnection(self.hostname, self.port)
         conn.request('HEAD', endpoint, data, self._headers)
-        return conn.getresponse()
+        return Response.from_http_response(conn.getresponse())
 
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
 )
-
-
 class TestWorkers(TestCase):
     """
     Ensures that a workers interacts correctly with the main thread. These are part
@@ -109,12 +106,14 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 1)
         eq_(payload[0][0]['name'], 'client.testing')
 
+    # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
+    @skip('Writer flush intervals are impossible to time correctly to make this test not flaky')
     def test_worker_multiple_traces(self):
         # make a single send() if multiple traces are created before the flush interval
         tracer = self.tracer
@@ -125,8 +124,8 @@ class TestWorkers(TestCase):
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 2)
         eq_(len(payload[0]), 1)
         eq_(len(payload[1]), 1)
@@ -137,51 +136,19 @@ class TestWorkers(TestCase):
         # make a single send() if a single trace with multiple spans is created before the flush
         tracer = self.tracer
         parent = tracer.trace('client.testing')
-        child = tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
         parent.finish()
 
         # one send is expected
         self._wait_thread_flush()
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(len(payload[0]), 2)
         eq_(payload[0][0]['name'], 'client.testing')
         eq_(payload[0][1]['name'], 'client.testing')
-
-    def test_worker_single_service(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('client.service', 'django', 'web')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 1)
-        eq_(payload['client.service'], {'app': 'django', 'app_type': 'web'})
-
-    def test_worker_service_called_multiple_times(self):
-        # service must be sent correctly
-        tracer = self.tracer
-        tracer.set_service_info('backend', 'django', 'web')
-        tracer.set_service_info('database', 'postgres', 'db')
-        tracer.trace('client.testing').finish()
-
-        # expect a call for traces and services
-        self._wait_thread_flush()
-        eq_(self.api._put.call_count, 2)
-        # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/services')
-        eq_(endpoint, '/v0.3/services')
-        eq_(len(payload.keys()), 2)
-        eq_(payload['backend'], {'app': 'django', 'app_type': 'web'})
-        eq_(payload['database'], {'app': 'postgres', 'app_type': 'db'})
 
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
@@ -200,7 +167,7 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         eq_(len(logged_errors), 1)
-        ok_('failed_to_send traces to Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
+        ok_('failed_to_send traces to Datadog Agent: HTTP error status 400, reason Bad Request, message Content-Type:'
             in logged_errors[0])
 
     def test_worker_filter_request(self):
@@ -220,10 +187,11 @@ class TestWorkers(TestCase):
         # Only the second trace should have been sent
         eq_(self.api._put.call_count, 1)
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.3/traces')
-        eq_(endpoint, '/v0.3/traces')
+        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        eq_(endpoint, '/v0.4/traces')
         eq_(len(payload), 1)
         eq_(payload[0][0]['name'], 'testing.nonfilteredurl')
+
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
@@ -252,7 +220,7 @@ class TestAPITransport(TestCase):
         traces = [trace]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_traces(traces)
+        self.api_msgpack.send_traces(traces)
         request_call = mocked_http.return_value.request
         eq_(request_call.call_count, 1)
 
@@ -282,28 +250,9 @@ class TestAPITransport(TestCase):
         }]
 
         # make a call and retrieve the `conn` Mock object
-        response = self.api_msgpack.send_services(services)
+        self.api_msgpack.send_services(services)
         request_call = mocked_http.return_value.request
-        eq_(request_call.call_count, 1)
-
-        # retrieve the headers from the mocked request call
-        expected_headers = {
-                'Datadog-Meta-Lang': 'python',
-                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-                'Content-Type': 'application/msgpack'
-        }
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        eq_(len(expected_headers), len(headers))
-        for k, v in expected_headers.items():
-            eq_(v, headers[k])
-
-        # retrieve the headers from the mocked request call
-        params, _ = request_call.call_args_list[0]
-        headers = params[3]
-        ok_('X-Datadog-Trace-Count' not in headers.keys())
+        eq_(request_call.call_count, 0)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -409,13 +358,11 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
     def test_send_service_called_multiple_times(self):
         # register some services and send them to the trace agent
@@ -432,13 +379,12 @@ class TestAPITransport(TestCase):
 
         # test JSON encoder
         response = self.api_json.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
 
         # test Msgpack encoder
         response = self.api_msgpack.send_services(services)
-        ok_(response)
-        eq_(response.status, 200)
+        ok_(response is None)
+
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
@@ -483,6 +429,7 @@ class TestAPIDowngrade(TestCase):
         eq_(response.status, 200)
         ok_(isinstance(api._encoder, JSONEncoder))
 
+
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
     'You should have a running trace agent and set TEST_DATADOG_INTEGRATION=1 env variable'
@@ -497,8 +444,8 @@ class TestRateByService(TestCase):
         """
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
-        self.api_json = API('localhost', 8126, encoder=JSONEncoder())
-        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder())
+        self.api_json = API('localhost', 8126, encoder=JSONEncoder(), priority_sampling=True)
+        self.api_msgpack = API('localhost', 8126, encoder=MsgpackEncoder(), priority_sampling=True)
 
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
@@ -515,11 +462,14 @@ class TestRateByService(TestCase):
         response = self.api_json.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
 
         # test Msgpack encoder
         response = self.api_msgpack.send_traces(traces)
         ok_(response)
         eq_(response.status, 200)
+        eq_(response.get_json(), dict(rate_by_service={'service:,env:': 1}))
+
 
 @skipUnless(
     os.environ.get('TEST_DATADOG_INTEGRATION', False),
@@ -531,7 +481,7 @@ class TestConfigure(TestCase):
     previous overrides have been kept.
     """
     def test_configure_keeps_api_hostname_and_port(self):
-        tracer = Tracer() # use real tracer with real api
+        tracer = Tracer()  # use real tracer with real api
         eq_('localhost', tracer.writer.api.hostname)
         eq_(8126, tracer.writer.api.port)
         tracer.configure(hostname='127.0.0.1', port=8127)

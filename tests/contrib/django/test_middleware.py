@@ -5,13 +5,12 @@ from django.test import modify_settings
 from django.db import connections
 
 # project
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.django.conf import settings
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.db import unpatch_conn
-from ddtrace.contrib.django import TraceMiddleware
 from ddtrace.ext import errors
 
 # testing
+from tests.opentracer.utils import init_tracer
 from .compat import reverse
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
 
@@ -38,6 +37,94 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         eq_(sp_request.get_tag('http.url'), '/users/')
         eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
         eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
+        eq_(sp_request.resource, 'tests.contrib.django.app.views.UserList')
+
+    def test_analytics_global_on_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not event sample rate is not set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
+    def test_analytics_global_on_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is enabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=True)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_global_off_integration_default(self):
+        """
+        When making a request
+            When an integration trace search is not set and sample rate is set and globally trace search is disabled
+                We expect the root span to not include tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertIsNone(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=0.5)
+    def test_analytics_global_off_integration_on(self):
+        """
+        When making a request
+            When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 3)
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
@@ -164,8 +251,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
         sp_request = spans[0]
-        sp_template = spans[1]
-        sp_database = spans[2]
         eq_(sp_request.get_tag('http.status_code'), '200')
         eq_(sp_request.get_tag('django.user.is_authenticated'), None)
 
@@ -185,8 +270,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
         sp_request = spans[0]
-        sp_template = spans[1]
-        sp_database = spans[2]
 
         # Check for proper propagated attributes
         eq_(sp_request.trace_id, 100)
@@ -208,8 +291,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         spans = self.tracer.writer.pop()
         eq_(len(spans), 3)
         sp_request = spans[0]
-        sp_template = spans[1]
-        sp_database = spans[2]
 
         # Check that propagation didn't happen
         assert sp_request.trace_id != 100
@@ -267,3 +348,63 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag(errors.ERROR_STACK) is None
         assert sp_request.get_tag(errors.ERROR_MSG) is None
         assert sp_request.get_tag(errors.ERROR_TYPE) is None
+
+    def test_middleware_trace_request_ot(self):
+        """OpenTracing version of test_middleware_trace_request."""
+        ot_tracer = init_tracer('my_svc', self.tracer)
+
+        # ensures that the internals are properly traced
+        url = reverse('users-list')
+        with ot_tracer.start_active_span('ot_span'):
+            response = self.client.get(url)
+        eq_(response.status_code, 200)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 4)
+        ot_span = spans[0]
+        sp_request = spans[1]
+        sp_template = spans[2]
+        sp_database = spans[3]
+
+        # confirm parenting
+        eq_(ot_span.parent_id, None)
+        eq_(sp_request.parent_id, ot_span.span_id)
+
+        eq_(ot_span.resource, 'ot_span')
+        eq_(ot_span.service, 'my_svc')
+
+        eq_(sp_database.get_tag('django.db.vendor'), 'sqlite')
+        eq_(sp_template.get_tag('django.template_name'), 'users_list.html')
+        eq_(sp_request.get_tag('http.status_code'), '200')
+        eq_(sp_request.get_tag('http.url'), '/users/')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
+        eq_(sp_request.get_tag('http.method'), 'GET')
+
+    def test_middleware_trace_request_404(self):
+        """
+        When making a request to an unknown url in django
+            when we do not have a 404 view handler set
+                we set a resource name for the default view handler
+        """
+        response = self.client.get('/unknown-url')
+        eq_(response.status_code, 404)
+
+        # check for spans
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 2)
+        sp_request = spans[0]
+        sp_template = spans[1]
+
+        # Template
+        # DEV: The template name is `unknown` because unless they define a `404.html`
+        #   django generates the template from a string, which will not have a `Template.name` set
+        eq_(sp_template.get_tag('django.template_name'), 'unknown')
+
+        # Request
+        eq_(sp_request.get_tag('http.status_code'), '404')
+        eq_(sp_request.get_tag('http.url'), '/unknown-url')
+        eq_(sp_request.get_tag('django.user.is_authenticated'), 'False')
+        eq_(sp_request.get_tag('http.method'), 'GET')
+        eq_(sp_request.span_type, 'http')
+        eq_(sp_request.resource, 'django.views.defaults.page_not_found')

@@ -1,11 +1,11 @@
 import os
-import wrapt
+from ddtrace.vendor import wrapt
 import falcon
 
 from ddtrace import tracer
 
 from .middleware import TraceMiddleware
-from ...utils.formats import asbool
+from ...utils.formats import asbool, get_env
 
 
 def patch():
@@ -19,11 +19,11 @@ def patch():
     setattr(falcon, '_datadog_patch', True)
     wrapt.wrap_function_wrapper('falcon', 'API.__init__', traced_init)
 
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop('middleware', [])
     service = os.environ.get('DATADOG_SERVICE_NAME') or 'falcon'
-    distributed_tracing = asbool(os.environ.get(
-        'DATADOG_FALCON_DISTRIBUTED_TRACING')) or False
+    distributed_tracing = asbool(get_env('falcon', 'distributed_tracing', True))
 
     mw.insert(0, TraceMiddleware(tracer, service, distributed_tracing))
     kwargs['middleware'] = mw

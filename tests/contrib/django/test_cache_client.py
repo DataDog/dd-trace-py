@@ -19,7 +19,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
@@ -42,15 +42,28 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
         assert_dict_issuperset(span.meta, expected_meta)
         assert start < span.start < span.start + span.duration < end
 
+    @override_ddtrace_settings(DEFAULT_CACHE_SERVICE='foo')
+    def test_cache_service_can_be_overriden(self):
+        # get the default cache
+        cache = caches['default']
+
+        # (trace) the cache miss
+        cache.get('missing_key')
+
+        # tests
+        spans = self.tracer.writer.pop()
+        eq_(len(spans), 1)
+
+        span = spans[0]
+        eq_(span.service, 'foo')
+
     @override_ddtrace_settings(INSTRUMENT_CACHE=False)
     def test_cache_disabled(self):
         # get the default cache
         cache = caches['default']
 
         # (trace) the cache miss
-        start = time.time()
-        hit = cache.get('missing_key')
-        end = time.time()
+        cache.get('missing_key')
 
         # tests
         spans = self.tracer.writer.pop()
@@ -62,7 +75,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.set('a_new_key', 50)
+        cache.set('a_new_key', 50)
         end = time.time()
 
         # tests
@@ -91,7 +104,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.add('a_new_key', 50)
+        cache.add('a_new_key', 50)
         end = time.time()
 
         # tests
@@ -120,7 +133,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.delete('an_existing_key')
+        cache.delete('an_existing_key')
         end = time.time()
 
         # tests
@@ -151,7 +164,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.incr('value')
+        cache.incr('value')
         end = time.time()
 
         # tests
@@ -191,7 +204,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.decr('value')
+        cache.decr('value')
         end = time.time()
 
         # tests
@@ -236,7 +249,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
@@ -279,7 +292,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.set_many({'first_key': 1, 'second_key': 2})
+        cache.set_many({'first_key': 1, 'second_key': 2})
         end = time.time()
 
         # tests
@@ -318,7 +331,7 @@ class DjangoCacheWrapperTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.delete_many(['missing_key', 'another_key'])
+        cache.delete_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests

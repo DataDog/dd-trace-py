@@ -1,3 +1,4 @@
+# flake8: noqa
 import asyncio
 import aiohttp_jinja2
 

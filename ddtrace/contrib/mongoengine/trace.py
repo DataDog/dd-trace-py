@@ -1,10 +1,10 @@
 
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ddtrace.ext import AppTypes, mongo as mongox
+from ddtrace.ext import mongo as mongox
 from ddtrace.contrib.pymongo.client import TracedMongoClient
 
 
@@ -26,12 +26,6 @@ class WrappedConnect(wrapt.ObjectProxy):
             # mongoengine uses pymongo internally, so we can just piggyback on the
             # existing pymongo integration and make sure that the connections it
             # uses internally are traced.
-
-            pin.tracer.set_service_info(
-                service=pin.service,
-                app=mongox.TYPE,
-                app_type=AppTypes.db,
-            )
             client = TracedMongoClient(client)
             ddtrace.Pin(service=pin.service, tracer=pin.tracer).onto(client)
 

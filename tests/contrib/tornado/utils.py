@@ -3,10 +3,10 @@ from tornado.testing import AsyncHTTPTestCase
 from ddtrace.contrib.tornado import patch, unpatch
 
 from .web import app, compat
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class TornadoTestCase(AsyncHTTPTestCase):
+class TornadoTestCase(BaseTracerTestCase, AsyncHTTPTestCase):
     """
     Generic TornadoTestCase where the framework is globally patched
     and unpatched before/after each test. A dummy tracer is provided
@@ -17,8 +17,7 @@ class TornadoTestCase(AsyncHTTPTestCase):
         patch()
         compat.reload_module(compat)
         compat.reload_module(app)
-        # create a dummy tracer and a Tornado web application
-        self.tracer = get_dummy_tracer()
+
         settings = self.get_settings()
         trace_settings = settings.get('datadog_trace', {})
         settings['datadog_trace'] = trace_settings

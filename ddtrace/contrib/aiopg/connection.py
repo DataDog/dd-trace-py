@@ -1,11 +1,13 @@
 import asyncio
-import wrapt
+from ddtrace.vendor import wrapt
 
 from aiopg.utils import _ContextManager
 
 from .. import dbapi
-from ...ext import sql
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import sql, AppTypes
 from ...pin import Pin
+from ...settings import config
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -31,6 +33,12 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # set analytics sample rate
+            s.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.aiopg.get_analytics_sample_rate()
+            )
 
             try:
                 result = yield from method(*args, **kwargs)
@@ -63,10 +71,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
 
-    def __init__(self, conn):
+    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
-        Pin(service=name, app=name).onto(self)
+        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin.onto(self)
+        # wrapt requires prefix of `_self` for attributes that are only in the
+        # proxy (since some of our source objects will use `__slots__`)
+        self._self_cursor_cls = cursor_cls
 
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
@@ -80,4 +92,4 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         if not pin:
             return cursor
-        return AIOTracedCursor(cursor, pin)
+        return self._self_cursor_cls(cursor, pin)

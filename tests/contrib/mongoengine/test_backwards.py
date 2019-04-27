@@ -1,12 +1,11 @@
 """
 ensure old interfaces exist and won't break things.
 """
-
-
 import mongoengine
 
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib import config
+
 
 class Singer(mongoengine.Document):
     first_name = mongoengine.StringField(max_length=50)

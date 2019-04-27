@@ -5,6 +5,7 @@ from unittest import skipIf
 
 from tests.contrib.django.utils import DjangoTraceTestCase
 
+
 @skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
 class RestFrameworkTest(DjangoTraceTestCase):
     def setUp(self):

@@ -65,6 +65,7 @@ class KitchenSink(object):
         self._pylibmc.incr("a", 2)
         self._pylibmc.decr("a", 1)
 
+
 if __name__ == '__main__':
     k = KitchenSink()
     t = pympler.tracker.SummaryTracker()

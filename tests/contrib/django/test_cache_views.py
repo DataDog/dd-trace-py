@@ -1,7 +1,5 @@
-import time
-
 # 3rd party
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 
 # testing
 from .compat import reverse
@@ -47,7 +45,10 @@ class DjangoCacheViewTest(DjangoTraceTestCase):
 
         expected_meta_view = {
             'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
-            'django.cache.key': 'views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8427e.en-us',
+            'django.cache.key': (
+                'views.decorators.cache.cache_page..'
+                'GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8427e.en-us'
+            ),
             'env': 'test',
         }
 

@@ -1,14 +1,14 @@
-import logging
-
 from ... import compat
-from ...ext import http, errors, AppTypes
+from ...ext import http, errors
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...utils.deprecation import deprecated
 
 import flask.templating
 from flask import g, request, signals
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 SPAN_NAME = 'flask.request'
@@ -16,20 +16,25 @@ SPAN_NAME = 'flask.request'
 
 class TraceMiddleware(object):
 
+    @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
         self.app = app
         log.debug('flask: initializing trace middleware')
 
-        self._tracer = tracer
-        self._service = service
-        self._use_distributed_tracing = distributed_tracing
+        # Attach settings to the inner application middleware. This is required if double
+        # instrumentation happens (i.e. `ddtrace-run` with `TraceMiddleware`). In that
+        # case, `ddtrace-run` instruments the application, but then users code is unable
+        # to update settings such as `distributed_tracing` flag. This step can be removed
+        # when the `Config` object is used
+        self.app._tracer = tracer
+        self.app._service = service
+        self.app._use_distributed_tracing = distributed_tracing
         self.use_signals = use_signals
 
-        self._tracer.set_service_info(
-            service=service,
-            app="flask",
-            app_type=AppTypes.web,
-        )
+        # safe-guard to avoid double instrumentation
+        if getattr(app, '__dd_instrumentation', False):
+            return
+        setattr(app, '__dd_instrumentation', True)
 
         # Install hooks which time requests.
         self.app.before_request(self._before_request)
@@ -97,16 +102,16 @@ class TraceMiddleware(object):
             log.debug('flask: error finishing span', exc_info=True)
 
     def _start_span(self):
-        if self._use_distributed_tracing:
+        if self.app._use_distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(request.headers)
             # Only need to active the new context if something was propagated
             if context.trace_id:
-                self._tracer.context_provider.activate(context)
+                self.app._tracer.context_provider.activate(context)
         try:
-            g.flask_datadog_span = self._tracer.trace(
+            g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
-                service=self._service,
+                service=self.app._service,
                 span_type=http.TYPE,
             )
         except Exception:
@@ -165,6 +170,7 @@ class TraceMiddleware(object):
         span.set_tag(http.METHOD, method)
         span.finish()
 
+
 def _set_error_on_span(span, exception):
     # The 3 next lines might not be strictly required, since `set_traceback`
     # also get the exception from the sys.exc_info (and fill the error meta).
@@ -175,6 +181,7 @@ def _set_error_on_span(span, exception):
     # The provided `exception` object doesn't have a stack trace attached,
     # so attach the stack trace with `set_traceback`.
     span.set_traceback()
+
 
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """

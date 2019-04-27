@@ -7,7 +7,8 @@ import logging
 
 # project
 from .utils import _extract_conn_tags, _resource_from_cache_prefix
-from ...ext import AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...settings import config
 
 # 3rd party
 from flask.ext.cache import Cache
@@ -28,13 +29,6 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
     """
     Return a traced Cache object that behaves exactly as the ``flask.ext.cache.Cache class``
     """
-
-    # set the Tracer info
-    ddtracer.set_service_info(
-        app="flask",
-        app_type=AppTypes.cache,
-        service=service,
-    )
 
     class TracedCache(Cache):
         """
@@ -59,6 +53,11 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             # set span tags
             s.set_tag(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
             s.set_tags(self._datadog_meta)
+            # set analytics sample rate
+            s.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                config.flask_cache.get_analytics_sample_rate()
+            )
             # add connection meta if there is one
             if getattr(self.cache, "_client", None):
                 try:

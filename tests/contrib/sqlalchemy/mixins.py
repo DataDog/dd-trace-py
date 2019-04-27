@@ -14,10 +14,11 @@ from sqlalchemy import (
 )
 
 # project
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.sqlalchemy import trace_engine
 
 # testing
-from ...test_tracer import get_dummy_tracer
+from tests.opentracer.utils import init_tracer
 
 
 Base = declarative_base()
@@ -79,6 +80,8 @@ class SQLAlchemyTestMixin(object):
         return
 
     def setUp(self):
+        super(SQLAlchemyTestMixin, self).setUp()
+
         # create an engine with the given arguments
         self.engine = self.create_engine(self.ENGINE_ARGS)
 
@@ -89,7 +92,6 @@ class SQLAlchemyTestMixin(object):
         self.session = Session()
 
         # trace the engine
-        self.tracer = get_dummy_tracer()
         trace_engine(self.engine, self.tracer)
 
     def tearDown(self):
@@ -97,6 +99,7 @@ class SQLAlchemyTestMixin(object):
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
+        super(SQLAlchemyTestMixin, self).tearDown()
 
     def test_orm_insert(self):
         # ensures that the ORM session is traced
@@ -133,7 +136,10 @@ class SQLAlchemyTestMixin(object):
         # span fields
         eq_(span.name, '{}.query'.format(self.VENDOR))
         eq_(span.service, self.SERVICE)
-        ok_('SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name' in span.resource)
+        ok_(
+            'SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name'
+            in span.resource
+        )
         eq_(span.get_tag('sql.db'), self.SQL_DB)
         self.check_meta(span)
         eq_(span.span_type, 'sql')
@@ -164,7 +170,72 @@ class SQLAlchemyTestMixin(object):
     def test_traced_service(self):
         # ensures that the service is set as expected
         services = self.tracer.writer.pop_services()
-        expected = {
-            self.SERVICE: {'app': self.VENDOR, 'app_type': 'db'}
-        }
+        expected = {}
         eq_(services, expected)
+
+    def test_opentracing(self):
+        """Ensure that sqlalchemy works with the opentracer."""
+        ot_tracer = init_tracer('sqlalch_svc', self.tracer)
+
+        with ot_tracer.start_active_span('sqlalch_op'):
+            with self.connection() as conn:
+                rows = conn.execute('SELECT * FROM players').fetchall()
+                eq_(len(rows), 0)
+
+        traces = self.tracer.writer.pop_traces()
+        # trace composition
+        eq_(len(traces), 1)
+        eq_(len(traces[0]), 2)
+        ot_span, dd_span = traces[0]
+
+        # confirm the parenting
+        eq_(ot_span.parent_id, None)
+        eq_(dd_span.parent_id, ot_span.span_id)
+
+        eq_(ot_span.name, 'sqlalch_op')
+        eq_(ot_span.service, 'sqlalch_svc')
+
+        # span fields
+        eq_(dd_span.name, '{}.query'.format(self.VENDOR))
+        eq_(dd_span.service, self.SERVICE)
+        eq_(dd_span.resource, 'SELECT * FROM players')
+        eq_(dd_span.get_tag('sql.db'), self.SQL_DB)
+        eq_(dd_span.span_type, 'sql')
+        eq_(dd_span.error, 0)
+        ok_(dd_span.duration > 0)
+
+    def test_analytics_default(self):
+        # ensures that the ORM session is traced
+        wayne = Player(id=1, name='wayne')
+        self.session.add(wayne)
+        self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    def test_analytics_with_rate(self):
+        with self.override_config(
+            'sqlalchemy',
+            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+        ):
+            wayne = Player(id=1, name='wayne')
+            self.session.add(wayne)
+            self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+
+    def test_analytics_without_rate(self):
+        with self.override_config(
+            'sqlalchemy',
+            dict(analytics_enabled=True)
+        ):
+            wayne = Player(id=1, name='wayne')
+            self.session.add(wayne)
+            self.session.commit()
+
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)

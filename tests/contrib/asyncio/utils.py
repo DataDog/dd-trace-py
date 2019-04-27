@@ -2,28 +2,30 @@ import asyncio
 
 from functools import wraps
 
-from unittest import TestCase
-from tests.test_tracer import get_dummy_tracer
-
 from ddtrace.contrib.asyncio import context_provider
 
+from ...base import BaseTracerTestCase
 
-class AsyncioTestCase(TestCase):
+
+class AsyncioTestCase(BaseTracerTestCase):
     """
     Base TestCase for asyncio framework that setup a new loop
     for each test, preserving the original (not started) main
     loop.
     """
     def setUp(self):
+        super(AsyncioTestCase, self).setUp()
+
+        self.tracer.configure(context_provider=context_provider)
+
         # each test must have its own event loop
         self._main_loop = asyncio.get_event_loop()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        # Tracer with AsyncContextProvider
-        self.tracer = get_dummy_tracer()
-        self.tracer.configure(context_provider=context_provider)
 
     def tearDown(self):
+        super(AsyncioTestCase, self).tearDown()
+
         # restore the main loop
         asyncio.set_event_loop(self._main_loop)
         self.loop = None

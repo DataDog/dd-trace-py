@@ -1,5 +1,5 @@
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 import mysql.connector
 
 # project
@@ -9,11 +9,12 @@ from ...ext import net, db, AppTypes
 
 
 CONN_ATTR_BY_TAG = {
-    net.TARGET_HOST : 'server_host',
-    net.TARGET_PORT : 'server_port',
+    net.TARGET_HOST: 'server_host',
+    net.TARGET_PORT: 'server_port',
     db.USER: 'user',
     db.NAME: 'database',
 }
+
 
 def patch():
     wrapt.wrap_function_wrapper('mysql.connector', 'connect', _connect)
@@ -21,15 +22,18 @@ def patch():
     if hasattr(mysql.connector, 'Connect'):
         mysql.connector.Connect = mysql.connector.connect
 
+
 def unpatch():
     if isinstance(mysql.connector.connect, wrapt.ObjectProxy):
         mysql.connector.connect = mysql.connector.connect.__wrapped__
         if hasattr(mysql.connector, 'Connect'):
             mysql.connector.Connect = mysql.connector.connect
 
+
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
     return patch_conn(conn)
+
 
 def patch_conn(conn):
 

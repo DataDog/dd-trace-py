@@ -1,4 +1,3 @@
-import logging
 import math
 import random
 import sys
@@ -6,10 +5,12 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
+from .constants import NUMERIC_TAGS
 from .ext import errors
+from .internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Span(object):
@@ -35,6 +36,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '__weakref__',
     ]
 
     def __init__(
@@ -54,7 +56,8 @@ class Span(object):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
-        :param Tracer tracer: the tracer that will submit this span when finished.
+        :param ddtrace.Tracer tracer: the tracer that will submit this span when
+            finished.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -127,6 +130,14 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+
+        if key in NUMERIC_TAGS:
+            try:
+                self.set_metric(key, float(value))
+            except (TypeError, ValueError):
+                log.debug("error setting numeric metric {}:{}".format(key, value))
+
+            return
         try:
             self.meta[key] = stringify(value)
         except Exception:
@@ -187,12 +198,12 @@ class Span(object):
 
     def to_dict(self):
         d = {
-            'trace_id' : self.trace_id,
-            'parent_id' : self.parent_id,
-            'span_id' : self.span_id,
+            'trace_id': self.trace_id,
+            'parent_id': self.parent_id,
+            'span_id': self.span_id,
             'service': self.service,
-            'resource' : self.resource,
-            'name' : self.name,
+            'resource': self.resource,
+            'name': self.name,
             'error': self.error,
         }
 
@@ -235,7 +246,7 @@ class Span(object):
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
-            return # nothing to do
+            return  # nothing to do
 
         self.error = 1
 
@@ -308,6 +319,7 @@ class Span(object):
             self.parent_id,
             self.name,
         )
+
 
 def _new_id():
     """Generate a random trace_id or span_id"""
