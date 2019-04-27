@@ -45,6 +45,13 @@ class Context(object):
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
 
+        self._root_state = {
+            'parent_trace_id': trace_id,
+            'parent_span_id': span_id,
+            'sampled': sampled,
+            'sampling_priority': sampling_priority
+        }
+
     @property
     def trace_id(self):
         """Return current context trace_id."""
@@ -181,9 +188,10 @@ class Context(object):
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
-                self._parent_trace_id = None
-                self._parent_span_id = None
-                self._sampling_priority = None
+                self._parent_trace_id = self._root_state['parent_trace_id']
+                self._parent_span_id = self._root_state['parent_span_id']
+                self._sampling_priority = self._root_state['sampling_priority']
+                self._sampled = self._root_state['sampled']
                 return trace, sampled
 
             elif self._partial_flush_enabled:
