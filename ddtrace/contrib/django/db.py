@@ -64,6 +64,7 @@ def patch_conn(tracer, conn):
         pin = Pin(service, tags=tags, tracer=tracer, app=prefix)
         return DbApiTracedCursor(conn._datadog_original_cursor(), pin)
 
+    cursor.wrapped = getattr(conn._datadog_original_cursor, 'wrapped', None)
     conn.cursor = cursor
 
 
