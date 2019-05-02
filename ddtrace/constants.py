@@ -5,3 +5,6 @@ ANALYTICS_SAMPLE_RATE_KEY = '_dd1.sr.eausr'
 ORIGIN_KEY = '_dd.origin'
 
 NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY, )
+
+MANUAL_DROP_KEY = 'manual.drop'
+MANUAL_KEEP_KEY = 'manual.keep'
