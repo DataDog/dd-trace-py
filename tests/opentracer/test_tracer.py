@@ -1,3 +1,4 @@
+import threading
 import time
 
 import opentracing
@@ -15,6 +16,7 @@ from ddtrace.opentracer import Tracer, set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
+from ddtrace.vendor.six.moves import queue
 
 import mock
 import pytest
@@ -294,28 +296,36 @@ class TestTracer(object):
         """Start multiple spans at the top level intertwined.
         Alternate calling between two traces.
         """
-        import threading
+        # Use a queue to sync threads
+        q_id11 = queue.Queue()
+        q_id22 = queue.Queue()
+        q_id13 = queue.Queue()
 
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
+                q_id11.put(None)
                 id += 1
+                q_id22.get()
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
                     with ot_tracer.start_active_span(str(id)):
-                        pass
+                        q_id13.put(None)
 
         def trace_two():
+            q_id11.get()
             id = 21
             with ot_tracer.start_active_span(str(id)):
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
+                    q_id22.put(None)
+                q_id13.get()
                 with ot_tracer.start_active_span(str(id)):
                     pass
 
         # the ordering should be
-        # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
+        # t1.span1, t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
         t1 = threading.Thread(target=trace_one)
         t2 = threading.Thread(target=trace_two)
 
