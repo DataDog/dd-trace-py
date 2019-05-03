@@ -34,7 +34,12 @@ class TraceBottleTest(BaseTracerTestCase):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
         self.app = webtest.TestApp(self.app)
 
-    def test_200(self):
+    def test_200(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+
         # setup our test app
         @self.app.route('/hi/<name>')
         def hi(name):
@@ -42,7 +47,7 @@ class TraceBottleTest(BaseTracerTestCase):
         self._trace_app(self.tracer)
 
         # make a request
-        resp = self.app.get('/hi/dougie')
+        resp = self.app.get('/hi/dougie' + fqs)
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u'hi dougie'
         # validate it's traced
@@ -59,6 +64,12 @@ class TraceBottleTest(BaseTracerTestCase):
 
         services = self.tracer.writer.pop_services()
         assert services == {}
+
+    def test_query_string(self):
+        return self.test_200('foo=bar')
+
+    def test_query_string_multi_keys(self):
+        return self.test_200('foo=bar&foo=baz&x=y')
 
     def test_500(self):
         @self.app.route('/hi')
