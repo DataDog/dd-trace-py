@@ -17,29 +17,35 @@ class TestAsyncConcurrency(TornadoTestCase):
     """
     @gen_test
     def test_concurrent_requests(self):
+        REQUESTS_NUMBER = 25
+        responses = []
+
         # the application must handle concurrent calls
         def make_requests():
             # use a blocking HTTP client (we're in another thread)
             http_client = httpclient.HTTPClient()
             url = self.get_url('/nested/')
             response = http_client.fetch(url)
+            responses.append(response)
             assert 200 == response.code
             assert 'OK' == response.body.decode('utf-8')
             # freeing file descriptors
             http_client.close()
 
         # blocking call executed in different threads
-        threads = [threading.Thread(target=make_requests) for _ in range(25)]
+        threads = [threading.Thread(target=make_requests) for _ in range(REQUESTS_NUMBER)]
         for t in threads:
-            t.daemon = True
             t.start()
 
-        # wait for the execution; assuming this time as a timeout
-        yield web.compat.sleep(0.5)
+        while len(responses) < REQUESTS_NUMBER:
+            yield web.compat.sleep(0.001)
+
+        for t in threads:
+            t.join()
 
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        assert 25 == len(traces)
+        assert REQUESTS_NUMBER == len(traces)
         assert 2 == len(traces[0])
 
 

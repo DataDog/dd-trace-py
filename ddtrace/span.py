@@ -5,7 +5,7 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .constants import NUMERIC_TAGS
+from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
 from .ext import errors, priority
 from .internal.logger import get_logger
 
@@ -138,10 +138,10 @@ class Span(object):
                 log.debug('error setting numeric metric {}:{}'.format(key, value))
 
             return
-        elif key == 'manual.keep':
+        elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = priority.USER_KEEP
             return
-        elif key == 'manual.drop':
+        elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = priority.USER_REJECT
             return
 
