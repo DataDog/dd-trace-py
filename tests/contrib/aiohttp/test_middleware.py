@@ -46,11 +46,14 @@ class TestTraceMiddleware(TraceTestCase):
         assert '200' == span.get_tag('http.status_code')
         assert 0 == span.error
 
-    @unittest_run_loop
     @asyncio.coroutine
-    def test_param_handler(self):
+    def _test_param_handler(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
         # it should manage properly handlers with params
-        request = yield from self.client.request('GET', '/echo/team')
+        request = yield from self.client.request('GET', '/echo/team' + fqs)
         assert 200 == request.status
         text = yield from request.text()
         assert 'Hello team' == text
@@ -63,6 +66,18 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /echo/{name}' == span.resource
         assert str(self.client.make_url('/echo/team')) == span.get_tag(http.URL)
         assert '200' == span.get_tag('http.status_code')
+
+    @unittest_run_loop
+    def test_param_handler(self):
+        return self._test_param_handler()
+
+    @unittest_run_loop
+    def test_query_string(self):
+        return self._test_param_handler("foo=bar")
+
+    @unittest_run_loop
+    def test_query_string_duplicate_keys(self):
+        return self._test_param_handler("foo=bar&foo=baz&x=y")
 
     @unittest_run_loop
     @asyncio.coroutine

@@ -99,7 +99,7 @@ def on_prepare(request, response):
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)
     request_span.set_tag('http.status_code', response.status)
-    request_span.set_tag(http.URL, request.url)
+    request_span.set_tag(http.URL, request.url.with_query(None))
     request_span.finish()
 
 
