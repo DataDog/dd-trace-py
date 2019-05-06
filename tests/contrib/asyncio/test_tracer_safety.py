@@ -1,11 +1,14 @@
 # flake8: noqa
 # DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
+import sys
+from unittest import skipIf
 
 from ddtrace.provider import DefaultContextProvider
 from .utils import AsyncioTestCase, mark_asyncio
 
 
+@skipIf(sys.version_info >= (3, 7), 'AsyncioTracer context_provider cannot be misconfigured')
 class TestAsyncioSafety(AsyncioTestCase):
     """
     Ensure that if the ``AsyncioTracer`` is not properly configured,

@@ -275,25 +275,55 @@ class ThreadLocalContext(object):
 if sys.version_info >= (3, 7):
     from contextvars import ContextVar
 
-    _datadog_context = ContextVar('_datadog_context')
+    _datadog_context_var = ContextVar('_datadog_context')
 
     class ContextVarContext(object):
+        def _current_task_identifier(self):
+            import asyncio
+            import threading
+
+            if sys.version_info >= (3, 7):
+                current_task = asyncio.current_task
+            else:
+                current_task = asyncio.Task.current_task
+            try:
+                task = current_task()
+            except RuntimeError:
+                task = None
+
+            return threading.current_thread(), task
+
+        def _has_identifier_changed(self):
+            if not self._has_active_context():
+                return False
+            (old_thread, old_task), _ = _datadog_context_var.get()
+            current_thread, current_task = self._current_task_identifier()
+            # Task takes priority here
+            if old_task or current_task:
+                return old_task != current_task
+            return old_thread != current_thread
+
         def _has_active_context(self):
             """
-            Determine whether we have a currently active context for this thread
+            Determine whether we have a currently active context for this thread/task
 
             :returns: Whether an active context exists
             :rtype: bool
             """
-            try:
-                return _datadog_context.get() is not None
-            except LookupError:
-                return False
+            return _datadog_context_var.get(None) is not None
 
         def set(self, ctx):
-            _datadog_context.set(ctx)
+            _datadog_context_var.set((self._current_task_identifier(), ctx))
+            return ctx
 
         def get(self):
             if not self._has_active_context():
-                self.set(Context())
-            return _datadog_context.get()
+                return self.set(Context())
+
+            if not self._has_identifier_changed():
+                return _datadog_context_var.get()[1]
+
+            _, ctx = _datadog_context_var.get()
+            ctx = ctx.clone()
+            self.set(ctx)
+            return ctx

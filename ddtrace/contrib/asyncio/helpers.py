@@ -4,6 +4,8 @@ can be used to simplify some operations while handling
 Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
+import sys
+
 import ddtrace
 from asyncio.base_events import BaseEventLoop
 
@@ -14,7 +16,7 @@ from ...context import Context
 _orig_create_task = BaseEventLoop.create_task
 
 
-def set_call_context(task, ctx):
+def set_call_context(task, ctx, tracer=None):
     """
     Updates the ``Context`` for the given Task. Useful when you need to
     pass the context among different tasks.
@@ -22,7 +24,15 @@ def set_call_context(task, ctx):
     This method is available for backward-compatibility. Use the
     ``AsyncioContextProvider`` API to set the current active ``Context``.
     """
-    setattr(task, CONTEXT_ATTR, ctx)
+    if sys.version_info >= (3, 7):
+        # Special case. If the current task is the same as the one we are activating, it's safe to
+        # call `context_providr.activate()` as the ContextVar is the same.
+        tracer = tracer or ddtrace.tracer
+        current_task = asyncio.current_task()
+        if current_task == task:
+            tracer.context_provider.activate(ctx)
+    else:
+        setattr(task, CONTEXT_ATTR, ctx)
 
 
 def ensure_future(coro_or_future, *, loop=None, tracer=None):  # noqa: E999
@@ -32,10 +42,13 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):  # noqa: E999
     task already has a Context, it will be attached to the
     new Task so the Trace list will be preserved.
     """
+    if sys.version_info >= (3, 7):
+        return asyncio.create_task(coro_or_future)
+
     tracer = tracer or ddtrace.tracer
     current_ctx = tracer.get_call_context()
     task = asyncio.ensure_future(coro_or_future, loop=loop)
-    set_call_context(task, current_ctx)
+    set_call_context(task, current_ctx, tracer=tracer)
     return task
 
 
@@ -57,6 +70,12 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
     the latest active Span when the new thread was created. In this new thread,
     we fallback to the thread-local ``Context`` storage.
     """
+    if sys.version_info >= (3, 7):
+        # https://bugs.python.org/issue34014
+        from contextvars import copy_context
+        ctx = copy_context()
+        return loop.run_in_executor(executor, ctx.run, func, *args)
+
     tracer = tracer or ddtrace.tracer
     ctx = Context()
     current_ctx = tracer.get_call_context()
@@ -86,6 +105,9 @@ def create_task(*args, **kwargs):
     `trace_id` and the `parent_id` from the current active one if available.
     """
     loop = asyncio.get_event_loop()
+    if sys.version_info >= (3, 7):
+        return loop.create_task(*args, **kwargs)
+
     return _wrapped_create_task(loop.create_task, None, args, kwargs)
 
 

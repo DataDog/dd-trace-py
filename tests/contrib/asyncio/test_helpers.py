@@ -27,9 +27,9 @@ class TestAsyncioHelpers(AsyncioTestCase):
         def future_work():
             # the ctx is available in this task
             ctx = self.tracer.get_call_context()
-            assert 1 == len(ctx._trace)
-            assert 'coroutine' == ctx._trace[0].name
-            return ctx._trace[0].name
+            current_span = ctx.get_current_span()
+            assert 'coroutine' == current_span.name
+            return current_span.name
 
         self.tracer.trace('coroutine')
         # schedule future work and wait for a result

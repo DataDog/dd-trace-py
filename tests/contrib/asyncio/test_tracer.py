@@ -1,8 +1,10 @@
 # flake8: noqa
 # DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
+import sys
 
 from asyncio import BaseEventLoop
+from unittest import skipIf
 
 from ddtrace.context import Context
 from ddtrace.provider import DefaultContextProvider
@@ -21,6 +23,7 @@ class TestAsyncioTracer(AsyncioTestCase):
     the same ``IOLoop``.
     """
     @mark_asyncio
+    @skipIf(sys.version_info >= (3, 7), '__datadog_context is not attached in Python 3.7')
     def test_get_call_context(self):
         # it should return the context attached to the current Task
         # or create a new one

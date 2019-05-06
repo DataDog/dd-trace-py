@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -15,7 +16,8 @@ def patch():
     setattr(asyncio, '_datadog_patch', True)
 
     loop = asyncio.get_event_loop()
-    _w(loop, 'create_task', _wrapped_create_task)
+    if sys.version_info < (3, 7):
+        _w(loop, 'create_task', _wrapped_create_task)
 
 
 def unpatch():
@@ -24,4 +26,5 @@ def unpatch():
     if getattr(asyncio, '_datadog_patch', False):
         setattr(asyncio, '_datadog_patch', False)
         loop = asyncio.get_event_loop()
-        _u(loop, 'create_task')
+        if sys.version_info < (3, 7):
+            _u(loop, 'create_task')
