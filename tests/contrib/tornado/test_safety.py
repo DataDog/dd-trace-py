@@ -99,7 +99,7 @@ class TestAppSafety(TornadoTestCase):
 
         request_span = traces[0][0]
         assert 'tests.contrib.tornado.web.app.SuccessHandler' == request_span.resource
-        assert self.get_url('/success/?magic_number=42') == request_span.get_tag(http.URL)
+        assert self.get_url('/success/') == request_span.get_tag(http.URL)
 
     def test_arbitrary_resource_404(self):
         # users inputs should not determine `span.resource` field

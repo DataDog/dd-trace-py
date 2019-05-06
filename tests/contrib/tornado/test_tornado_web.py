@@ -12,9 +12,13 @@ class TestTornadoWeb(TornadoTestCase):
     """
     Ensure that Tornado web handlers are properly traced.
     """
-    def test_success_handler(self):
+    def test_success_handler(self, query_string=''):
         # it should trace a handler that returns 200
-        response = self.fetch('/success/')
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+        response = self.fetch('/success/' + fqs)
         assert 200 == response.code
 
         traces = self.tracer.writer.pop_traces()
@@ -30,6 +34,9 @@ class TestTornadoWeb(TornadoTestCase):
         assert '200' == request_span.get_tag('http.status_code')
         assert self.get_url('/success/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
+
+    def test_success_handler_query_string(self):
+        self.test_success_handler('foo=bar')
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
