@@ -23,7 +23,7 @@ from ...base import BaseTracerTestCase
 class BotoTest(BaseTracerTestCase):
     """Botocore integration testsuite"""
 
-    TEST_SERVICE = "test-boto-tracing"
+    TEST_SERVICE = 'test-boto-tracing'
 
     def setUp(self):
         super(BotoTest, self).setUp()
@@ -31,7 +31,7 @@ class BotoTest(BaseTracerTestCase):
 
     @mock_ec2
     def test_ec2_client(self):
-        ec2 = boto.ec2.connect_to_region("us-west-2")
+        ec2 = boto.ec2.connect_to_region('us-west-2')
         writer = self.tracer.writer
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
@@ -67,7 +67,7 @@ class BotoTest(BaseTracerTestCase):
                 'boto',
                 dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
-            ec2 = boto.ec2.connect_to_region("us-west-2")
+            ec2 = boto.ec2.connect_to_region('us-west-2')
             writer = self.tracer.writer
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 
@@ -84,7 +84,7 @@ class BotoTest(BaseTracerTestCase):
                 'boto',
                 dict(analytics_enabled=True)
         ):
-            ec2 = boto.ec2.connect_to_region("us-west-2")
+            ec2 = boto.ec2.connect_to_region('us-west-2')
             writer = self.tracer.writer
             Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(ec2)
 

@@ -6,4 +6,4 @@ if __name__ == '__main__':
 
     # now celery.Celery should be patched and should have a pin
     assert Pin.get_from(celery.Celery)
-    print("Test success")
+    print('Test success')

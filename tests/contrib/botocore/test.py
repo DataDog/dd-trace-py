@@ -17,7 +17,7 @@ from ...base import BaseTracerTestCase
 class BotocoreTest(BaseTracerTestCase):
     """Botocore integration testsuite"""
 
-    TEST_SERVICE = "test-botocore-tracing"
+    TEST_SERVICE = 'test-botocore-tracing'
 
     def setUp(self):
         patch()
@@ -43,7 +43,7 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag('aws.agent'), "botocore")
+        self.assertEqual(span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
         self.assertEqual(span.get_tag(http.STATUS_CODE), '200')

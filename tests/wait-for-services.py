@@ -46,7 +46,7 @@ def try_until_timeout(exception):
 def check_postgres():
     conn = connect(**POSTGRES_CONFIG)
     try:
-        conn.cursor().execute("SELECT 1;")
+        conn.cursor().execute('SELECT 1;')
     finally:
         conn.close()
 
@@ -54,14 +54,14 @@ def check_postgres():
 @try_until_timeout(NoHostAvailable)
 def check_cassandra():
     with Cluster(**CASSANDRA_CONFIG).connect() as conn:
-        conn.execute("SELECT now() FROM system.local")
+        conn.execute('SELECT now() FROM system.local')
 
 
 @try_until_timeout(Exception)
 def check_mysql():
     conn = mysql.connector.connect(**MYSQL_CONFIG)
     try:
-        conn.cursor().execute("SELECT 1;")
+        conn.cursor().execute('SELECT 1;')
     finally:
         conn.close()
 
@@ -82,14 +82,14 @@ def check_rediscluster():
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
     try:
-        conn.cursor().execute("SELECT 1;")
+        conn.cursor().execute('SELECT 1;')
     finally:
         conn.close()
 
 
 @try_until_timeout(Exception)
 def check_rabbitmq():
-    url = "amqp://{user}:{password}@{host}:{port}//".format(**RABBITMQ_CONFIG)
+    url = 'amqp://{user}:{password}@{host}:{port}//'.format(**RABBITMQ_CONFIG)
     conn = kombu.Connection(url)
     try:
         conn.connect()
@@ -110,5 +110,5 @@ if __name__ == '__main__':
         for service in sys.argv[1:]:
             check_functions[service]()
     else:
-        print("usage: python {} SERVICE_NAME".format(sys.argv[0]))
+        print('usage: python {} SERVICE_NAME'.format(sys.argv[0]))
         sys.exit(1)

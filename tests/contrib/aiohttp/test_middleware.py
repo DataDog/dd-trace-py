@@ -4,6 +4,7 @@ import asyncio
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
+from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
@@ -40,16 +41,19 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'aiohttp-web' == span.service
         assert 'http' == span.span_type
         assert 'GET /' == span.resource
-        assert '/' == span.get_tag('http.url')
+        assert str(self.client.make_url('/')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '200' == span.get_tag('http.status_code')
         assert 0 == span.error
 
-    @unittest_run_loop
     @asyncio.coroutine
-    def test_param_handler(self):
+    def _test_param_handler(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
         # it should manage properly handlers with params
-        request = yield from self.client.request('GET', '/echo/team')
+        request = yield from self.client.request('GET', '/echo/team' + fqs)
         assert 200 == request.status
         text = yield from request.text()
         assert 'Hello team' == text
@@ -60,8 +64,20 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # with the right fields
         assert 'GET /echo/{name}' == span.resource
-        assert '/echo/team' == span.get_tag('http.url')
+        assert str(self.client.make_url('/echo/team')) == span.get_tag(http.URL)
         assert '200' == span.get_tag('http.status_code')
+
+    @unittest_run_loop
+    def test_param_handler(self):
+        return self._test_param_handler()
+
+    @unittest_run_loop
+    def test_query_string(self):
+        return self._test_param_handler("foo=bar")
+
+    @unittest_run_loop
+    def test_query_string_duplicate_keys(self):
+        return self._test_param_handler("foo=bar&foo=baz&x=y")
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -76,7 +92,7 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # with the right fields
         assert '404' == span.resource
-        assert '/404/not_found' == span.get_tag('http.url')
+        assert str(self.client.make_url('/404/not_found')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '404' == span.get_tag('http.status_code')
 
@@ -98,7 +114,7 @@ class TestTraceMiddleware(TraceTestCase):
         # root span created in the middleware
         assert 'aiohttp.request' == root.name
         assert 'GET /chaining/' == root.resource
-        assert '/chaining/' == root.get_tag('http.url')
+        assert str(self.client.make_url('/chaining/')) == root.get_tag(http.URL)
         assert 'GET' == root.get_tag('http.method')
         assert '200' == root.get_tag('http.status_code')
         # span created in the coroutine_chaining handler
@@ -126,7 +142,7 @@ class TestTraceMiddleware(TraceTestCase):
         # root span created in the middleware
         assert 'aiohttp.request' == span.name
         assert 'GET /statics' == span.resource
-        assert '/statics/empty.txt' == span.get_tag('http.url')
+        assert str(self.client.make_url('/statics/empty.txt')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '200' == span.get_tag('http.status_code')
 
@@ -351,7 +367,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'aiohttp-web' == inner_span.service
         assert 'http' == inner_span.span_type
         assert 'GET /' == inner_span.resource
-        assert '/' == inner_span.get_tag('http.url')
+        assert str(self.client.make_url('/')) == inner_span.get_tag(http.URL)
         assert 'GET' == inner_span.get_tag('http.method')
         assert '200' == inner_span.get_tag('http.status_code')
         assert 0 == inner_span.error

@@ -96,7 +96,7 @@ class TraceExceptionMiddleware(InstrumentationMixin):
                 span.set_tag(http.STATUS_CODE, '500')
                 span.set_traceback()  # will set the exception info
         except Exception:
-            log.debug("error processing exception", exc_info=True)
+            log.debug('error processing exception', exc_info=True)
 
 
 class TraceMiddleware(InstrumentationMixin):
@@ -130,7 +130,7 @@ class TraceMiddleware(InstrumentationMixin):
                 )
 
             span.set_tag(http.METHOD, request.method)
-            span.set_tag(http.URL, request.path)
+            span.set_tag(http.URL, request.build_absolute_uri(request.path))
             _set_req_span(request, span)
         except Exception:
             log.debug('error tracing request', exc_info=True)
@@ -179,7 +179,7 @@ class TraceMiddleware(InstrumentationMixin):
                 span = _set_auth_tags(span, request)
                 span.finish()
         except Exception:
-            log.debug("error tracing request", exc_info=True)
+            log.debug('error tracing request', exc_info=True)
         finally:
             return response
 

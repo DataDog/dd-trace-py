@@ -60,10 +60,10 @@ class RuntimeWorker(object):
 
     FLUSH_INTERVAL = 10
 
-    def __init__(self, statsd_client, flush_interval=None):
+    def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL):
         self._stay_alive = None
         self._thread = None
-        self._flush_interval = flush_interval or self.FLUSH_INTERVAL
+        self._flush_interval = flush_interval
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
 
@@ -74,7 +74,7 @@ class RuntimeWorker(object):
 
     def start(self):
         if not self._thread:
-            log.debug("Starting {}".format(self))
+            log.debug('Starting {}'.format(self))
             self._stay_alive = True
             self._thread = threading.Thread(target=self._target)
             self._thread.setDaemon(True)
@@ -82,8 +82,12 @@ class RuntimeWorker(object):
 
     def stop(self):
         if self._thread and self._stay_alive:
-            log.debug("Stopping {}".format(self))
+            log.debug('Stopping {}'.format(self))
             self._stay_alive = False
+
+    def join(self, timeout=None):
+        if self._thread:
+            return self._thread.join(timeout)
 
     def _write_metric(self, key, value):
         log.debug('Writing metric {}:{}'.format(key, value))

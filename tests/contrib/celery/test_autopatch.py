@@ -10,4 +10,4 @@ class DdtraceRunTest(unittest.TestCase):
         out = subprocess.check_output(
             ['ddtrace-run', 'python', 'tests/contrib/celery/autopatch.py']
         )
-        assert out.startswith(b"Test success")
+        assert out.startswith(b'Test success')

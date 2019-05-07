@@ -29,6 +29,10 @@ class APITests(TestCase):
         del self.api
         del self.conn
 
+    def test_typecast_port(self):
+        api = API('localhost', u'8126')
+        self.assertEqual(api.port, 8126)
+
     @mock.patch('logging.Logger.debug')
     def test_parse_response_json(self, log):
         tracer = get_dummy_tracer()

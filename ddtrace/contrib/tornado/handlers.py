@@ -67,7 +67,7 @@ def on_finish(func, handler, args, kwargs):
         request_span.resource = '{}.{}'.format(klass.__module__, klass.__name__)
         request_span.set_tag('http.method', request.method)
         request_span.set_tag('http.status_code', handler.get_status())
-        request_span.set_tag('http.url', request.uri)
+        request_span.set_tag(http.URL, request.full_url().rsplit('?', 1)[0])
         request_span.finish()
 
     return func(*args, **kwargs)

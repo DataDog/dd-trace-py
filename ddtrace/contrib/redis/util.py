@@ -4,9 +4,9 @@ Some utils used by the dogtrace redis integration
 from ...compat import stringify
 from ...ext import redis as redisx, net
 
-VALUE_PLACEHOLDER = "?"
+VALUE_PLACEHOLDER = '?'
 VALUE_MAX_LEN = 100
-VALUE_TOO_LONG_MARK = "..."
+VALUE_TOO_LONG_MARK = '...'
 CMD_MAX_LEN = 1000
 
 
@@ -40,7 +40,7 @@ def format_command_args(args):
 
             if length + len(cmd) > CMD_MAX_LEN:
                 prefix = cmd[:CMD_MAX_LEN - length]
-                out.append("%s%s" % (prefix, VALUE_TOO_LONG_MARK))
+                out.append('%s%s' % (prefix, VALUE_TOO_LONG_MARK))
                 break
 
             out.append(cmd)
@@ -49,4 +49,4 @@ def format_command_args(args):
             out.append(VALUE_PLACEHOLDER)
             break
 
-    return " ".join(out)
+    return ' '.join(out)

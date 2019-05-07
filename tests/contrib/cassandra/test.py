@@ -437,4 +437,4 @@ class TestCassPatchOne(TestCassPatchDefault):
 def test_backwards_compat_get_traced_cassandra():
     cluster = get_traced_cassandra()
     session = cluster(port=CASSANDRA_CONFIG['port']).connect()
-    session.execute("drop table if exists test.person")
+    session.execute('drop table if exists test.person')
