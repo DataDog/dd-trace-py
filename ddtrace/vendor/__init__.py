@@ -59,4 +59,17 @@ Notes:
   `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
   Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
+
+psutil
+------
+
+Website: https://psutil.readthedocs.io/en/latest/
+Source: https://github.com/giampaolo/psutil
+Version: 5.6.2
+License: BSD
+
+Notes:
+   Added psutil's `setup.py` into ddtrace's `setup.py` for building extensions
+   Prepended LICENSE to `psutil/__init__.py`
+   Removed `psutil/tests`
 """
