@@ -69,7 +69,7 @@ Version: 5.6.2
 License: BSD
 
 Notes:
-   Added psutil's `setup.py` into ddtrace's `setup.py` for building extensions
+   Added psutil's `setup.py` into ddtrace's `setup.py` for building extensions with syntax modifications for flake8
    Prepended LICENSE to `psutil/__init__.py`
    Removed `psutil/tests`
 """

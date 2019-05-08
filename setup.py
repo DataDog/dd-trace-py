@@ -159,21 +159,20 @@ def _extensions_psutil():
     import platform
     import sys
     import tempfile
-    import warnings
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        try:
-            import setuptools
-            from setuptools import setup, Extension
-        except ImportError:
-            setuptools = None
-            from distutils.core import setup, Extension
+    # with warnings.catch_warnings():
+    #     warnings.simplefilter("ignore")
+    #     try:
+    #         import setuptools
+    #         from setuptools import setup, Extension
+    #     except ImportError:
+    #         setuptools = None
+    #         from distutils.core import setup, Extension
 
     HERE = os.path.abspath(os.path.dirname(__file__))
 
     # ...so we can import _common.py
-    sys.path.insert(0, os.path.join(HERE, "ddtrace/vendor/psutil"))
+    sys.path.insert(0, os.path.join(HERE, 'ddtrace/vendor/psutil'))
 
     from _common import AIX  # NOQA
     from _common import BSD  # NOQA
@@ -186,12 +185,11 @@ def _extensions_psutil():
     from _common import SUNOS  # NOQA
     from _common import WINDOWS  # NOQA
 
-
     macros = []
     if POSIX:
-        macros.append(("PSUTIL_POSIX", 1))
+        macros.append(('PSUTIL_POSIX', 1))
     if BSD:
-        macros.append(("PSUTIL_BSD", 1))
+        macros.append(('PSUTIL_BSD', 1))
 
     sources = ['ddtrace/vendor/psutil/_psutil_common.c']
     if POSIX:
@@ -209,7 +207,6 @@ def _extensions_psutil():
     if sys.version_info[:2] <= (3, 3):
         extras_require.update(dict(enum='enum34'))
 
-
     def get_version():
         INIT = os.path.join(HERE, 'ddtrace/vendor/psutil/__init__.py')
         with open(INIT, 'r') as f:
@@ -220,24 +217,21 @@ def _extensions_psutil():
                     for num in ret.split('.'):
                         assert num.isdigit(), ret
                     return ret
-            raise ValueError("couldn't find version string")
-
+            raise ValueError('couldn\'t find version string')
 
     VERSION = get_version()
     macros.append(('PSUTIL_VERSION', int(VERSION.replace('.', ''))))
-
 
     def get_description():
         README = os.path.join(HERE, 'README.rst')
         with open(README, 'r') as f:
             return f.read()
 
-
     @contextlib.contextmanager
     def silenced_output(stream_name):
         class DummyFile(io.BytesIO):
             # see: https://github.com/giampaolo/psutil/issues/678
-            errors = "ignore"
+            errors = 'ignore'
 
             def write(self, s):
                 pass
@@ -249,19 +243,18 @@ def _extensions_psutil():
         finally:
             setattr(sys, stream_name, orig)
 
-
     if WINDOWS:
         def get_winver():
             maj, min = sys.getwindowsversion()[0:2]
             return '0x0%s' % ((maj * 100) + min)
 
         if sys.getwindowsversion()[0] < 6:
-            msg = "this Windows version is too old (< Windows Vista); "
-            msg += "psutil 3.4.2 is the latest version which supports Windows "
-            msg += "2000, XP and 2003 server"
+            msg = 'this Windows version is too old (< Windows Vista); '
+            msg += 'psutil 3.4.2 is the latest version which supports Windows '
+            msg += '2000, XP and 2003 server'
             raise RuntimeError(msg)
 
-        macros.append(("PSUTIL_WINDOWS", 1))
+        macros.append(('PSUTIL_WINDOWS', 1))
         macros.extend([
             # be nice to mingw, see:
             # http://www.mingw.org/wiki/Use_more_recent_defined_functions
@@ -286,15 +279,15 @@ def _extensions_psutil():
             ],
             define_macros=macros,
             libraries=[
-                "psapi", "kernel32", "advapi32", "shell32", "netapi32",
-                "wtsapi32", "ws2_32", "PowrProf", "pdh",
+                'psapi', 'kernel32', 'advapi32', 'shell32', 'netapi32',
+                'wtsapi32', 'ws2_32', 'PowrProf', 'pdh',
             ],
-            # extra_compile_args=["/Z7"],
-            # extra_link_args=["/DEBUG"]
+            # extra_compile_args=['/Z7'],
+            # extra_link_args=['/DEBUG']
         )
 
     elif MACOS:
-        macros.append(("PSUTIL_OSX", 1))
+        macros.append(('PSUTIL_OSX', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_osx',
             sources=sources + [
@@ -307,7 +300,7 @@ def _extensions_psutil():
             ])
 
     elif FREEBSD:
-        macros.append(("PSUTIL_FREEBSD", 1))
+        macros.append(('PSUTIL_FREEBSD', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_bsd',
             sources=sources + [
@@ -317,10 +310,10 @@ def _extensions_psutil():
                 'ddtrace/vendor/psutil/arch/freebsd/proc_socks.c',
             ],
             define_macros=macros,
-            libraries=["devstat"])
+            libraries=['devstat'])
 
     elif OPENBSD:
-        macros.append(("PSUTIL_OPENBSD", 1))
+        macros.append(('PSUTIL_OPENBSD', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_bsd',
             sources=sources + [
@@ -328,10 +321,10 @@ def _extensions_psutil():
                 'ddtrace/vendor/psutil/arch/openbsd/specific.c',
             ],
             define_macros=macros,
-            libraries=["kvm"])
+            libraries=['kvm'])
 
     elif NETBSD:
-        macros.append(("PSUTIL_NETBSD", 1))
+        macros.append(('PSUTIL_NETBSD', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_bsd',
             sources=sources + [
@@ -340,7 +333,7 @@ def _extensions_psutil():
                 'ddtrace/vendor/psutil/arch/netbsd/socks.c',
             ],
             define_macros=macros,
-            libraries=["kvm"])
+            libraries=['kvm'])
 
     elif LINUX:
         def get_ethtool_macro():
@@ -349,8 +342,8 @@ def _extensions_psutil():
             from distutils.errors import CompileError
 
             with tempfile.NamedTemporaryFile(
-                    suffix='.c', delete=False, mode="wt") as f:
-                f.write("#include <linux/ethtool.h>")
+                    suffix='.c', delete=False, mode='wt') as f:
+                f.write('#include <linux/ethtool.h>')
 
             try:
                 compiler = UnixCCompiler()
@@ -358,7 +351,7 @@ def _extensions_psutil():
                     with silenced_output('stdout'):
                         compiler.compile([f.name])
             except CompileError:
-                return ("PSUTIL_ETHTOOL_MISSING_TYPES", 1)
+                return ('PSUTIL_ETHTOOL_MISSING_TYPES', 1)
             else:
                 return None
             finally:
@@ -367,7 +360,7 @@ def _extensions_psutil():
                 except OSError:
                     pass
 
-        macros.append(("PSUTIL_LINUX", 1))
+        macros.append(('PSUTIL_LINUX', 1))
         ETHTOOL_MACRO = get_ethtool_macro()
         if ETHTOOL_MACRO is not None:
             macros.append(ETHTOOL_MACRO)
@@ -377,7 +370,7 @@ def _extensions_psutil():
             define_macros=macros)
 
     elif SUNOS:
-        macros.append(("PSUTIL_SUNOS", 1))
+        macros.append(('PSUTIL_SUNOS', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_sunos',
             sources=sources + [
@@ -389,7 +382,7 @@ def _extensions_psutil():
             libraries=['kstat', 'nsl', 'socket'])
     # AIX
     elif AIX:
-        macros.append(("PSUTIL_AIX", 1))
+        macros.append(('PSUTIL_AIX', 1))
         ext = Extension(
             'ddtrace.vendor.psutil._psutil_aix',
             sources=sources + [
@@ -402,7 +395,6 @@ def _extensions_psutil():
 
     else:
         sys.exit('platform %s is not supported' % sys.platform)
-
 
     if POSIX:
         posix_extension = Extension(
@@ -421,8 +413,8 @@ def _extensions_psutil():
     else:
         extensions = [ext]
 
-
     return extensions
+
 
 # Try to build with C extensions first, fallback to only pure-Python if building fails
 try:

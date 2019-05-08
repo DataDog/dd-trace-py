@@ -1,7 +1,6 @@
 from ddtrace.internal.runtime.runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
-    RuntimeWorker,
 )
 from ddtrace.internal.runtime.constants import (
     DEFAULT_RUNTIME_METRICS,
