@@ -44,20 +44,21 @@ class TestRuntimeMetrics(BaseTestCase):
 
 class TestRuntimeWorker(BaseTracerTestCase):
     def test_worker_metrics(self):
-        self.tracer.configure(collect_metrics=True)
-
         with self.override_global_tracer(self.tracer):
             self.tracer._dogstatsd_client = DogStatsd()
             self.tracer._dogstatsd_client.socket = FakeSocket()
 
-            root = self.start_span('parent', service='parent')
-            context = root.context
-            self.start_span('child', service='child', child_of=context)
+            # start a trace so as to update runtime tags
+            with self.tracer.trace('parent', service='parent'):
+                with self.tracer.trace('child', service='child'):
+                    pass
 
-            self.worker = RuntimeWorker(self.tracer._dogstatsd_client, 0)
-            self.worker.start()
-            self.worker.stop()
-            self.worker.join()
+            # with dogstatsd constant tags set now start runtime worker
+            self.tracer.configure(collect_metrics=True)
+            self.tracer._runtime_worker._flush_interval = 0
+
+            self.tracer._runtime_worker.stop()
+            self.tracer._runtime_worker.join()
 
             # get all received metrics
             received = []

@@ -66,6 +66,7 @@ class RuntimeWorker(object):
         self._flush_interval = flush_interval
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
+        self.start()
 
     def _target(self):
         while self._stay_alive:

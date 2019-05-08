@@ -90,6 +90,8 @@ jobs:
   internal:
     docker:
       - *test_runner
+    environment:
+      TOX_SKIP_DIST: False
     resource_class: *resource_class
     steps:
       - checkout

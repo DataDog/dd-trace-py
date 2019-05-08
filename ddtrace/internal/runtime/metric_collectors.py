@@ -47,7 +47,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     See https://psutil.readthedocs.io/en/latest/#psutil.Process.oneshot
     for more information.
     """
-    required_modules = ['psutil']
+    required_modules = ['ddtrace.vendor.psutil']
     stored_value = dict(
         CPU_TIME_SYS_TOTAL=0,
         CPU_TIME_USER_TOTAL=0,
@@ -56,7 +56,8 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     )
 
     def _on_modules_load(self):
-        self.proc = self.modules['psutil'].Process(os.getpid())
+        psutil = self.modules.get('ddtrace.vendor.psutil')
+        self.proc = psutil.Process(os.getpid())
 
     def collect_fn(self, keys):
         with self.proc.oneshot():

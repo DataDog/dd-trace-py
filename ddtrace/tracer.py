@@ -309,7 +309,6 @@ class Tracer(object):
 
     def _start_runtime_worker(self):
         self._runtime_worker = RuntimeWorker(self._dogstatsd_client)
-        self._runtime_worker.start()
 
     def _check_new_process(self):
         """ Checks if the tracer is in a new process (was forked) and performs

@@ -1,4 +1,27 @@
-"""
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2009, Giampaolo Rodola'. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+
+"""psutil is a cross-platform library for retrieving information on
+running processes and system utilization (CPU, memory, disks, network,
+sensors) in Python. Supported platforms:
+
+ - Linux
+ - Windows
+ - macOS
+ - FreeBSD
+ - OpenBSD
+ - NetBSD
+ - Sun Solaris
+ - AIX
+
+Works with Python versions from 2.6 to 3.4+.
+
+LICENSE:
+
 psutil is distributed under BSD license reproduced below.
 
 Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola'
@@ -26,28 +49,6 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
-# -*- coding: utf-8 -*-
-
-# Copyright (c) 2009, Giampaolo Rodola'. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
-
-"""psutil is a cross-platform library for retrieving information on
-running processes and system utilization (CPU, memory, disks, network,
-sensors) in Python. Supported platforms:
-
- - Linux
- - Windows
- - macOS
- - FreeBSD
- - OpenBSD
- - NetBSD
- - Sun Solaris
- - AIX
-
-Works with Python versions from 2.6 to 3.4+.
 """
 
 from __future__ import division
