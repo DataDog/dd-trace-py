@@ -8,8 +8,6 @@ httpbin_local: &httpbin_local
   name: httpbin.org
 test_runner: &test_runner
   image: datadog/docker-library:ddtrace_py
-  env:
-    TOX_SKIP_DIST: True
 restore_cache_step: &restore_cache_step
   restore_cache:
     keys:
@@ -113,7 +111,6 @@ jobs:
     docker:
       - <<: *test_runner
         env:
-          TOX_SKIP_DIST: True
           TEST_DATADOG_INTEGRATION: 1
       - image: datadog/docker-dd-agent
         env:
@@ -154,8 +151,6 @@ jobs:
     docker:
       - *test_runner
       - image: redis:4.0-alpine
-    environment:
-      TOX_SKIP_DIST: False
     resource_class: *resource_class
     steps:
       - checkout
@@ -243,7 +238,6 @@ jobs:
     docker:
       - <<: *test_runner
         env:
-          TOX_SKIP_DIST: True
           CASS_DRIVER_NO_EXTENSIONS: 1
       - image: spotify/cassandra:latest
         env:
@@ -260,9 +254,7 @@ jobs:
 
   celery:
     docker:
-      - <<: *test_runner
-        env:
-          TOX_SKIP_DIST: False
+      - *test_runner
       - image: redis:4.0-alpine
     resource_class: *resource_class
     steps:
@@ -322,8 +314,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^flask_\(cache_\)\?contrib-'
-      - run: TOX_SKIP_DIST=False scripts/run-tox-scenario '^flask_\(cache_\)\?contrib_autopatch-'
+      - run: scripts/run-tox-scenario '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
