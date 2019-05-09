@@ -16,11 +16,11 @@ restore_cache_step: &restore_cache_step
         # In the cache key:
         #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
         #                              much faster.
-        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
+        - v1-tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
 resource_class: &resource_class small
 save_cache_step: &save_cache_step
   save_cache:
-    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
+    key: v1-tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
     paths:
       - .tox
 deploy_docs_filters: &deploy_docs_filters
