@@ -47,4 +47,4 @@ def test_config_include():
     """ This test makes sure that relative imports still work when the
     application is run with ddtrace-run """
     config = Configurator()
-    config.include('._include_me')
+    config.include('tests.contrib.pyramid._include_me')
