@@ -1,7 +1,6 @@
 import time
 
 # 3rd party
-from nose.tools import eq_, ok_
 from django.core.cache import caches
 
 # testing
@@ -20,19 +19,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django_redis.cache.RedisCache',
@@ -49,19 +48,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get_many')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get_many'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django_redis.cache.RedisCache',
@@ -78,19 +77,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.PyLibMCCache',
@@ -107,19 +106,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get_many')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get_many'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.PyLibMCCache',
@@ -136,19 +135,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.MemcachedCache',
@@ -165,19 +164,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get_many')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get_many'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django.core.cache.backends.memcached.MemcachedCache',
@@ -194,19 +193,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get('missing_key')
+        cache.get('missing_key')
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django_pylibmc.memcached.PyLibMCCache',
@@ -223,19 +222,19 @@ class DjangoCacheRedisTest(DjangoTraceTestCase):
 
         # (trace) the cache miss
         start = time.time()
-        hit = cache.get_many(['missing_key', 'another_key'])
+        cache.get_many(['missing_key', 'another_key'])
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.service, 'django')
-        eq_(span.resource, 'get_many')
-        eq_(span.name, 'django.cache')
-        eq_(span.span_type, 'cache')
-        eq_(span.error, 0)
+        assert span.service == 'django'
+        assert span.resource == 'get_many'
+        assert span.name == 'django.cache'
+        assert span.span_type == 'cache'
+        assert span.error == 0
 
         expected_meta = {
             'django.cache.backend': 'django_pylibmc.memcached.PyLibMCCache',

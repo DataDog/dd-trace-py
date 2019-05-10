@@ -13,6 +13,7 @@ class Resource200(object):
 
         resp.status = falcon.HTTP_200
         resp.body = 'Success'
+        resp.append_header('my-response-header', 'my_response_value')
 
 
 class Resource201(object):

@@ -1,4 +1,4 @@
-from nose.tools import eq_
+from ddtrace.filters import FilterRequestsOnUrl
 
 from .utils import TornadoTestCase
 
@@ -17,13 +17,21 @@ class TestTornadoSettings(TornadoTestCase):
                 'enabled': False,
                 'agent_hostname': 'dd-agent.service.consul',
                 'agent_port': 8126,
+                'settings': {
+                    'FILTERS':  [
+                        FilterRequestsOnUrl(r'http://test\.example\.com'),
+                    ],
+                },
             },
         }
 
     def test_tracer_is_properly_configured(self):
         # the tracer must be properly configured
-        eq_(self.tracer._services, {'custom-tornado': ('custom-tornado', 'tornado', 'web')})
-        eq_(self.tracer.tags, {'env': 'production', 'debug': 'false'})
-        eq_(self.tracer.enabled, False)
-        eq_(self.tracer.writer.api.hostname, 'dd-agent.service.consul')
-        eq_(self.tracer.writer.api.port, 8126)
+        assert self.tracer.tags == {'env': 'production', 'debug': 'false'}
+        assert self.tracer.enabled is False
+        assert self.tracer.writer.api.hostname == 'dd-agent.service.consul'
+        assert self.tracer.writer.api.port == 8126
+        # settings are properly passed
+        assert self.tracer.writer._filters is not None
+        assert len(self.tracer.writer._filters) == 1
+        assert isinstance(self.tracer.writer._filters[0], FilterRequestsOnUrl)

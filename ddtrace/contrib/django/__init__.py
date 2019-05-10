@@ -2,6 +2,10 @@
 The Django integration will trace users requests, template renderers, database and cache
 calls.
 
+**Note:** by default the tracer is **disabled** (will not send spans) when
+``Debug=True``. This can be overridden by explicitly enabling the tracer with
+``DATADOG_TRACE['ENABLED'] = True``, as described below.
+
 To enable the Django integration, add the application to your installed
 apps, as follows::
 
@@ -28,12 +32,27 @@ If you need to access to Datadog settings, you can::
     tracer.trace("something")
     # your code ...
 
+To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
+``settings.py`` looks similar to::
+
+    LOGGING = {
+        'loggers': {
+            'ddtrace': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+            },
+        },
+    }
+
+
 The available settings are:
 
 * ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the
   tracer. Usually this configuration must be updated with a meaningful name.
 * ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
   so that your service is listed such as `prefix-defaultdb`.
+* ``DEFAULT_CACHE_SERVICE`` (default: ``''``): set the django cache service name used
+  by the tracer. Change this name if you want to see django cache spans as a cache application.
 * ``TAGS`` (default: ``{}``): set global tags that should be applied to all
   spans.
 * ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
@@ -49,6 +68,7 @@ The available settings are:
   required for distributed tracing if this application is called remotely from another
   instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
+* ``ANALYTICS_ENABLED`` (default: ``None``): enables APM events in Trace Search & Analytics.
 * ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
 * ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
 * ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
@@ -65,7 +85,7 @@ The available settings are:
   rendering will not be instrumented. Only configurable when ``AUTO_INSTRUMENT``
   is set to ``True``.
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['django']

@@ -19,10 +19,11 @@ Available settings are:
 
 * ``datadog_trace_service``: change the `pyramid` service name
 * ``datadog_trace_enabled``: sets if the Tracer is enabled or not
-* ``datadog_distributed_tracing``: set it to ``True`` to enable Distributed Tracing
+* ``datadog_distributed_tracing``: set it to ``False`` to disable Distributed Tracing
+* ``datadog_analytics_enabled``: set it to ``True`` to enable generating APM events for Trace Search & Analytics
 
-If you use the 'pyramid.tweens' settings value to set the tweens for your
-application, you need to add 'ddtrace.contrib.pyramid:trace_tween_factory'
+If you use the ``pyramid.tweens`` settings value to set the tweens for your
+application, you need to add ``ddtrace.contrib.pyramid:trace_tween_factory``
 explicitly to the list. For example::
 
     settings = {
@@ -38,7 +39,8 @@ explicitly to the list. For example::
 
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['pyramid']
 

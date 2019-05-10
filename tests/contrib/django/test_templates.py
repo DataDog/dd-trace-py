@@ -1,12 +1,7 @@
 import time
 
 # 3rd party
-from nose.tools import eq_
-from django.test import SimpleTestCase
 from django.template import Context, Template
-
-# project
-from ddtrace.contrib.django.templates import patch_template
 
 # testing
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
@@ -18,34 +13,34 @@ class DjangoTemplateTest(DjangoTraceTestCase):
     """
     def test_template(self):
         # prepare a base template using the default engine
-        template = Template("Hello {{name}}!")
+        template = Template('Hello {{name}}!')
         ctx = Context({'name': 'Django'})
 
         # (trace) the template rendering
         start = time.time()
-        eq_(template.render(ctx), 'Hello Django!')
+        assert template.render(ctx) == 'Hello Django!'
         end = time.time()
 
         # tests
         spans = self.tracer.writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         span = spans[0]
-        eq_(span.span_type, 'template')
-        eq_(span.name, 'django.template')
-        eq_(span.get_tag('django.template_name'), 'unknown')
+        assert span.span_type == 'template'
+        assert span.name == 'django.template'
+        assert span.get_tag('django.template_name') == 'unknown'
         assert start < span.start < span.start + span.duration < end
 
     @override_ddtrace_settings(INSTRUMENT_TEMPLATE=False)
     def test_template_disabled(self):
         # prepare a base template using the default engine
-        template = Template("Hello {{name}}!")
+        template = Template('Hello {{name}}!')
         ctx = Context({'name': 'Django'})
 
         # (trace) the template rendering
-        eq_(template.render(ctx), 'Hello Django!')
+        assert template.render(ctx) == 'Hello Django!'
 
         # tests
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 0)
+        assert len(spans) == 0

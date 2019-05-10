@@ -9,13 +9,9 @@ plugin to your app::
     app = bottle.Bottle()
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
-
-To enable distributed tracing::
-
-    plugin = TracePlugin(service="my-web-app", distributed_tracing=True)
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['bottle']
 

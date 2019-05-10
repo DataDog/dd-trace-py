@@ -1,10 +1,10 @@
-import logging
 import threading
 
-from .constants import SAMPLING_PRIORITY_KEY
+from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .internal.logger import get_logger
+from .utils.formats import asbool, get_env
 
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Context(object):
@@ -22,7 +22,10 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None):
+    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
+    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
+
+    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None, _dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -38,6 +41,7 @@ class Context(object):
         self._parent_span_id = span_id
         self._sampled = sampled
         self._sampling_priority = sampling_priority
+        self._dd_origin = _dd_origin
 
     @property
     def trace_id(self):
@@ -68,6 +72,27 @@ class Context(object):
         """Set sampling priority."""
         with self._lock:
             self._sampling_priority = value
+
+    def clone(self):
+        """
+        Partially clones the current context.
+        It copies everything EXCEPT the registered and finished spans.
+        """
+        with self._lock:
+            new_ctx = Context(
+                trace_id=self._parent_trace_id,
+                span_id=self._parent_span_id,
+                sampled=self._sampled,
+                sampling_priority=self._sampling_priority,
+            )
+            new_ctx._current_span = self._current_span
+            return new_ctx
+
+    def get_current_root_span(self):
+        """
+        Return the root span of the context or None if it does not exist.
+        """
+        return self._trace[0] if len(self._trace) > 0 else None
 
     def get_current_span(self):
         """
@@ -160,6 +185,10 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
 
                 # clean the current state
                 self._trace = []
@@ -169,6 +198,35 @@ class Context(object):
                 self._sampling_priority = None
                 self._sampled = True
                 return trace, sampled
+
+            elif self._partial_flush_enabled and self._finished_spans >= self._partial_flush_min_spans:
+                # partial flush when enabled and we have more than the minimal required spans
+                trace = self._trace
+                sampled = self._sampled
+                sampling_priority = self._sampling_priority
+                # attach the sampling priority to the context root span
+                if sampled and sampling_priority is not None and trace:
+                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                origin = self._dd_origin
+                # attach the origin to the root span tag
+                if sampled and origin is not None and trace:
+                    trace[0].set_tag(ORIGIN_KEY, origin)
+
+                # Any open spans will remain as `self._trace`
+                # Any finished spans will get returned to be flushed
+                opened_spans = []
+                closed_spans = []
+                for span in trace:
+                    if span._finished:
+                        closed_spans.append(span)
+                    else:
+                        opened_spans.append(span)
+
+                # Update trace spans and stats
+                self._trace = opened_spans
+                self._finished_spans = 0
+
+                return closed_spans, sampled
             else:
                 return None, None
 
@@ -189,6 +247,16 @@ class ThreadLocalContext(object):
     """
     def __init__(self):
         self._locals = threading.local()
+
+    def _has_active_context(self):
+        """
+        Determine whether we have a currently active context for this thread
+
+        :returns: Whether an active context exists
+        :rtype: bool
+        """
+        ctx = getattr(self._locals, 'context', None)
+        return ctx is not None
 
     def set(self, ctx):
         setattr(self._locals, 'context', ctx)

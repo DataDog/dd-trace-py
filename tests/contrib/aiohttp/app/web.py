@@ -1,3 +1,4 @@
+# flake8: noqa
 import os
 import jinja2
 import asyncio
@@ -93,6 +94,7 @@ def delayed_handler(request):
 
 @asyncio.coroutine
 def noop_middleware(app, handler):
+    @asyncio.coroutine
     def middleware_handler(request):
         # noop middleware
         response = yield from handler(request)

@@ -1,24 +1,26 @@
-
-# 3p
-import logging
 import pyramid.renderers
 from pyramid.settings import asbool
 from pyramid.httpexceptions import HTTPException
-import wrapt
+from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ...ext import http, AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...settings import config
 from .constants import (
     SETTINGS_TRACER,
     SETTINGS_SERVICE,
     SETTINGS_TRACE_ENABLED,
     SETTINGS_DISTRIBUTED_TRACING,
+    SETTINGS_ANALYTICS_ENABLED,
+    SETTINGS_ANALYTICS_SAMPLE_RATE,
 )
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 DD_TWEEN_NAME = 'ddtrace.contrib.pyramid:trace_tween_factory'
 DD_SPAN = '_datadog_span'
@@ -26,6 +28,7 @@ DD_SPAN = '_datadog_span'
 
 def trace_pyramid(config):
     config.include('ddtrace.contrib.pyramid')
+
 
 def includeme(config):
     # Add our tween just before the default exception handler
@@ -39,11 +42,11 @@ def trace_render(func, instance, args, kwargs):
     # If the request is not traced, we do not trace
     request = kwargs.get('request', {})
     if not request:
-        log.debug("No request passed to render, will not be traced")
+        log.debug('No request passed to render, will not be traced')
         return func(*args, **kwargs)
     span = getattr(request, DD_SPAN, None)
     if not span:
-        log.debug("No span found in request, will not be traced")
+        log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
     tracer = span.tracer()
@@ -51,19 +54,14 @@ def trace_render(func, instance, args, kwargs):
         span.span_type = http.TEMPLATE
         return func(*args, **kwargs)
 
+
 def trace_tween_factory(handler, registry):
     # configuration
     settings = registry.settings
     service = settings.get(SETTINGS_SERVICE) or 'pyramid'
     tracer = settings.get(SETTINGS_TRACER) or ddtrace.tracer
     enabled = asbool(settings.get(SETTINGS_TRACE_ENABLED, tracer.enabled))
-    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, False))
-
-    # set the service info
-    tracer.set_service_info(
-        service=service,
-        app="pyramid",
-        app_type=AppTypes.web)
+    distributed_tracing = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
     if enabled:
         # make a request tracing function
@@ -75,6 +73,18 @@ def trace_tween_factory(handler, registry):
                 if context.trace_id:
                     tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404') as span:
+                # Configure trace search sample rate
+                # DEV: pyramid is special case maintains separate configuration from config api
+                analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
+
+                if (
+                    config.analytics_enabled and analytics_enabled is not False
+                ) or analytics_enabled is True:
+                    span.set_tag(
+                        ANALYTICS_SAMPLE_RATE_KEY,
+                        settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True)
+                    )
+
                 setattr(request, DD_SPAN, span)  # used to find the tracer in templates
                 response = None
                 try:
@@ -93,7 +103,7 @@ def trace_tween_factory(handler, registry):
                 finally:
                     span.span_type = http.TYPE
                     # set request tags
-                    span.set_tag(http.URL, request.path)
+                    span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)
                     if request.matched_route:
                         span.resource = '{} {}'.format(request.method, request.matched_route.name)

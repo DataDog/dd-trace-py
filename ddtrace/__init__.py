@@ -2,10 +2,11 @@ from .monkey import patch, patch_all
 from .pin import Pin
 from .span import Span
 from .tracer import Tracer
+from .settings import config
 
-__version__ = '0.11.0'
+__version__ = '0.25.0'
 
-# a global tracer instance
+# a global tracer instance with integration settings
 tracer = Tracer()
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     'Span',
     'tracer',
     'Tracer',
+    'config',
 ]

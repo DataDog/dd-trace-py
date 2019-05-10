@@ -1,7 +1,7 @@
 """
 The aiobotocore integration will trace all AWS calls made with the ``aiobotocore``
 library. This integration isn't enabled when applying the default patching.
-To enable it, you must run ``patch_all(botocore=True)``
+To enable it, you must run ``patch_all(aiobotocore=True)``
 
 ::
 
@@ -18,7 +18,7 @@ To enable it, you must run ``patch_all(botocore=True)``
     # This query generates a trace
     lambda_client.list_functions()
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 
 required_modules = ['aiobotocore.client']

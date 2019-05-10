@@ -1,8 +1,6 @@
-from nose.tools import eq_
-
-from ddtrace.contrib.util import func_name
-from ddtrace.util import asbool
 from functools import partial
+from ddtrace.utils.importlib import func_name
+
 
 class SomethingCallable(object):
     """
@@ -31,13 +29,16 @@ def some_function():
     """
     return 'nothing'
 
-def minus(a,b):
+
+def minus(a, b):
     return a - b
 
-minus_two = partial(minus, b=2) # partial funcs need special handling (no module)
+
+minus_two = partial(minus, b=2)  # partial funcs need special handling (no module)
 
 # disabling flake8 test below, yes, declaring a func like this is bad, we know
-plus_three = lambda x : x + 3  # NOQA
+plus_three = lambda x : x + 3  # noqa
+
 
 class TestContrib(object):
     """
@@ -45,22 +46,22 @@ class TestContrib(object):
     """
     def test_func_name(self):
         # check that func_name works on anything callable, not only funcs.
-        eq_('nothing', some_function())
-        eq_('tests.contrib.test_utils.some_function', func_name(some_function))
+        assert 'nothing' == some_function()
+        assert 'tests.contrib.test_utils.some_function' == func_name(some_function)
 
         f = SomethingCallable()
-        eq_('something', f())
-        eq_('tests.contrib.test_utils.SomethingCallable', func_name(f))
+        assert 'something' == f()
+        assert 'tests.contrib.test_utils.SomethingCallable' == func_name(f)
 
-        eq_(f, f.me())
-        eq_('tests.contrib.test_utils.me', func_name(f.me))
-        eq_(3, f.add(1,2))
-        eq_('tests.contrib.test_utils.add', func_name(f.add))
-        eq_(42, f.answer())
-        eq_('tests.contrib.test_utils.answer', func_name(f.answer))
+        assert f == f.me()
+        assert 'tests.contrib.test_utils.me' == func_name(f.me)
+        assert 3 == f.add(1, 2)
+        assert 'tests.contrib.test_utils.add' == func_name(f.add)
+        assert 42 == f.answer()
+        assert 'tests.contrib.test_utils.answer' == func_name(f.answer)
 
-        eq_('tests.contrib.test_utils.minus', func_name(minus))
-        eq_(5, minus_two(7))
-        eq_('partial', func_name(minus_two))
-        eq_(10, plus_three(7))
-        eq_('tests.contrib.test_utils.<lambda>', func_name(plus_three))
+        assert 'tests.contrib.test_utils.minus' == func_name(minus)
+        assert 5 == minus_two(7)
+        assert 'partial' == func_name(minus_two)
+        assert 10 == plus_three(7)
+        assert 'tests.contrib.test_utils.<lambda>' == func_name(plus_three)

@@ -1,21 +1,17 @@
 """
 code to measure django template rendering.
 """
-
-
-# stdlib
-import logging
-
 # project
 from ...ext import http
+from ...internal.logger import get_logger
 
 # 3p
 from django.template import Template
 
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 RENDER_ATTR = '_datadog_original_render'
+
 
 def patch_template(tracer):
     """ will patch django's template rendering function to include timing
@@ -26,7 +22,7 @@ def patch_template(tracer):
     # patch so we can use multiple tracers at once, but i suspect this is fine
     # in practice.
     if getattr(Template, RENDER_ATTR, None):
-        log.debug("already patched")
+        log.debug('already patched')
         return
 
     setattr(Template, RENDER_ATTR, Template.render)
@@ -41,6 +37,7 @@ def patch_template(tracer):
                 span.set_tag('django.template_name', template_name)
 
     Template.render = traced_render
+
 
 def unpatch_template():
     render = getattr(Template, RENDER_ATTR, None)

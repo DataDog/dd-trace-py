@@ -57,6 +57,26 @@ class TracerStackContext(DefaultContextProvider):
     def deactivate(self):
         self._active = False
 
+    def _has_io_loop(self):
+        """Helper to determine if we are currently in an IO loop"""
+        return getattr(IOLoop._current, 'instance', None) is not None
+
+    def _has_active_context(self):
+        """Helper to determine if we have an active context or not"""
+        if not self._has_io_loop():
+            return self._local._has_active_context()
+        else:
+            # we're inside a Tornado loop so the TracerStackContext is used
+            return self._get_state_active_context() is not None
+
+    def _get_state_active_context(self):
+        """Helper to get the currently active context from the TracerStackContext"""
+        # we're inside a Tornado loop so the TracerStackContext is used
+        for stack in reversed(_state.contexts[0]):
+            if isinstance(stack, self.__class__) and stack._active:
+                return stack._context
+        return None
+
     def active(self):
         """
         Return the ``Context`` from the current execution flow. This method can be
@@ -64,17 +84,14 @@ class TracerStackContext(DefaultContextProvider):
         If used in a separated Thread, the `_state` thread-local storage is used to
         propagate the current Active context from the `MainThread`.
         """
-        io_loop = getattr(IOLoop._current, 'instance', None)
-        if io_loop is None:
+        if not self._has_io_loop():
             # if a Tornado loop is not available, it means that this method
             # has been called from a synchronous code, so we can rely in a
             # thread-local storage
             return self._local.get()
         else:
             # we're inside a Tornado loop so the TracerStackContext is used
-            for stack in reversed(_state.contexts[0]):
-                if isinstance(stack, self.__class__) and stack._active:
-                    return stack._context
+            return self._get_state_active_context()
 
     def activate(self, ctx):
         """
@@ -83,8 +100,7 @@ class TracerStackContext(DefaultContextProvider):
         If used in a separated Thread, the `_state` thread-local storage is used to
         propagate the current Active context from the `MainThread`.
         """
-        io_loop = getattr(IOLoop._current, 'instance', None)
-        if io_loop is None:
+        if not self._has_io_loop():
             # because we're outside of an asynchronous execution, we store
             # the current context in a thread-local storage
             self._local.set(ctx)

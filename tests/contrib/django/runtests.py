@@ -3,9 +3,9 @@ import os
 import sys
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # define django defaults
-    app_to_test = "tests/contrib/django"
+    app_to_test = 'tests/contrib/django'
 
     # append the project root to the PYTHONPATH:
     # this is required because we don't want to put the current file
@@ -15,4 +15,4 @@ if __name__ == "__main__":
     sys.path.append(project_root)
 
     from django.core.management import execute_from_command_line
-    execute_from_command_line([sys.argv[0], "test", app_to_test])
+    execute_from_command_line([sys.argv[0], 'test', app_to_test])

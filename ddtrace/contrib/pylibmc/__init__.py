@@ -19,7 +19,7 @@
     Pin.override(client, service="memcached-sessions")
 """
 
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['pylibmc']
 

@@ -1,7 +1,7 @@
-import wrapt
+from ddtrace.vendor import wrapt
 
 from ...pin import Pin
-from ddtrace.util import unwrap
+from ...utils.wrappers import unwrap
 
 
 try:

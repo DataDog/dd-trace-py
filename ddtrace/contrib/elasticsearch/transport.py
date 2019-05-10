@@ -1,26 +1,21 @@
-from elasticsearch import Transport
-from elasticsearch.exceptions import TransportError
+# DEV: This will import the first available module from:
+#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
+from .elasticsearch import elasticsearch
 
 from .quantize import quantize
-from . import metadata
+
+from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import AppTypes, http
-from ...util import deprecated
+from ...ext import http, elasticsearch as metadata
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
-@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
+@deprecated(message='Use patching instead (see the docs).', version='1.0.0')
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
-    datadog_tracer.set_service_info(
-        service=datadog_service,
-        app=SPAN_TYPE,
-        app_type=AppTypes.db,
-    )
-
-    class TracedTransport(Transport):
+    class TracedTransport(elasticsearch.Transport):
         """ Extend elasticseach transport layer to allow Datadog
             tracer to catch any performed request.
         """
@@ -29,7 +24,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-            with self._datadog_tracer.trace("elasticsearch.query") as s:
+            with self._datadog_tracer.trace('elasticsearch.query') as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:
                     return super(TracedTransport, self).perform_request(
@@ -40,13 +35,13 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)
                 s.set_tag(metadata.PARAMS, urlencode(params))
-                if method == "GET":
+                if method == 'GET':
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
                 s = quantize(s)
 
                 try:
                     result = super(TracedTransport, self).perform_request(method, url, params=params, body=body)
-                except TransportError as e:
+                except elasticsearch.exceptions.TransportError as e:
                     s.set_tag(http.STATUS_CODE, e.status_code)
                     raise
 
@@ -62,7 +57,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 if status:
                     s.set_tag(http.STATUS_CODE, status)
 
-                took = data.get("took")
+                took = data.get('took')
                 if took:
                     s.set_metric(metadata.TOOK, int(took))
 

@@ -1,74 +1,61 @@
-# Standard library
-import types
+from celery import signals
 
-# Third party
-import wrapt
-
-# Project
-from ddtrace import Pin
+from ddtrace import Pin, config
+from ddtrace.pin import _DD_PIN_NAME
 from ddtrace.ext import AppTypes
-from .task import patch_task, unpatch_task
-from .util import APP, SERVICE, require_pin
+
+from .constants import APP
+from .signals import (
+    trace_prerun,
+    trace_postrun,
+    trace_before_publish,
+    trace_after_publish,
+    trace_failure,
+    trace_retry,
+)
 
 
 def patch_app(app, pin=None):
-    """ patch_app will add tracing to a celery app """
-    pin = pin or Pin(service=SERVICE, app=APP, app_type=AppTypes.worker)
-    patch_methods = [
-        ('task', _app_task),
-    ]
-    for method_name, wrapper in patch_methods:
-        # Get the original method
-        method = getattr(app, method_name, None)
-        if method is None:
-            continue
+    """Attach the Pin class to the application and connect
+    our handlers to Celery signals.
+    """
+    if getattr(app, '__datadog_patch', False):
+        return
+    setattr(app, '__datadog_patch', True)
 
-        # Do not patch if method is already patched
-        if isinstance(method, wrapt.ObjectProxy):
-            continue
-
-        # Patch method
-        setattr(app, method_name, wrapt.FunctionWrapper(method, wrapper))
-
-    # patch the Task class if available
-    setattr(app, 'Task', patch_task(app.Task))
-
-    # Attach our pin to the app
+    # attach the PIN object
+    pin = pin or Pin(
+        service=config.celery['worker_service_name'],
+        app=APP,
+        app_type=AppTypes.worker,
+        _config=config.celery,
+    )
     pin.onto(app)
+    # connect to the Signal framework
+    signals.task_prerun.connect(trace_prerun)
+    signals.task_postrun.connect(trace_postrun)
+    signals.before_task_publish.connect(trace_before_publish)
+    signals.after_task_publish.connect(trace_after_publish)
+    signals.task_failure.connect(trace_failure)
+    signals.task_retry.connect(trace_retry)
     return app
 
 
 def unpatch_app(app):
-    """ unpatch_app will remove tracing from a celery app """
-    patched_methods = [
-        'task',
-    ]
-    for method_name in patched_methods:
-        # Get the wrapped method
-        wrapper = getattr(app, method_name, None)
-        if wrapper is None:
-            continue
+    """Remove the Pin instance from the application and disconnect
+    our handlers from Celery signal framework.
+    """
+    if not getattr(app, '__datadog_patch', False):
+        return
+    setattr(app, '__datadog_patch', False)
 
-        # Only unpatch if the wrapper is an `ObjectProxy`
-        if not isinstance(wrapper, wrapt.ObjectProxy):
-            continue
+    pin = Pin.get_from(app)
+    if pin is not None:
+        delattr(app, _DD_PIN_NAME)
 
-        # Restore original method
-        setattr(app, method_name, wrapper.__wrapped__)
-
-    # restore the original Task class
-    setattr(app, 'Task', unpatch_task(app.Task))
-    return app
-
-
-@require_pin
-def _app_task(pin, func, app, args, kwargs):
-    task = func(*args, **kwargs)
-
-    # `app.task` is a decorator which may return a function wrapper
-    if isinstance(task, types.FunctionType):
-        def wrapper(func, instance, args, kwargs):
-            return patch_task(func(*args, **kwargs), pin=pin)
-        return wrapt.FunctionWrapper(task, wrapper)
-
-    return patch_task(task, pin=pin)
+    signals.task_prerun.disconnect(trace_prerun)
+    signals.task_postrun.disconnect(trace_postrun)
+    signals.before_task_publish.disconnect(trace_before_publish)
+    signals.after_task_publish.disconnect(trace_after_publish)
+    signals.task_failure.disconnect(trace_failure)
+    signals.task_retry.disconnect(trace_retry)

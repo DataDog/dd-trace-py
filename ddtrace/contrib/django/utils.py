@@ -2,8 +2,8 @@ def _resource_from_cache_prefix(resource, cache):
     """
     Combine the resource name with the cache prefix (if any)
     """
-    if getattr(cache, "key_prefix", None):
-        name = "{} {}".format(resource, cache.key_prefix)
+    if getattr(cache, 'key_prefix', None):
+        name = '{} {}'.format(resource, cache.key_prefix)
     else:
         name = resource
 

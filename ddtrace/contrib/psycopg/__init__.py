@@ -17,7 +17,8 @@
     # Use a pin to specify metadata related to this connection
     Pin.override(db, service='postgres-users')
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
+
 
 required_modules = ['psycopg2']
 

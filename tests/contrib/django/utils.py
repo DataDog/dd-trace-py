@@ -7,12 +7,13 @@ from django.test import TestCase
 # project
 from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
-from ddtrace.contrib.django.db import unpatch_db
+from ddtrace.contrib.django.db import patch_db, unpatch_db
 from ddtrace.contrib.django.cache import unpatch_cache
 from ddtrace.contrib.django.templates import unpatch_template
 from ddtrace.contrib.django.middleware import remove_exception_middleware, remove_trace_middleware
 
 # testing
+from ...base import BaseTestCase
 from ...test_tracer import DummyWriter
 
 
@@ -21,7 +22,7 @@ tracer = Tracer()
 tracer.writer = DummyWriter()
 
 
-class DjangoTraceTestCase(TestCase):
+class DjangoTraceTestCase(BaseTestCase, TestCase):
     """
     Base class that provides an internal tracer according to given
     Datadog settings. This class ensures that the tracer spans are
@@ -35,11 +36,14 @@ class DjangoTraceTestCase(TestCase):
         # such as database creation queries
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
+        # gets unpatched for some tests
+        patch_db(self.tracer)
 
     def tearDown(self):
         # empty the tracer spans from test operations
         self.tracer.writer.spans = []
         self.tracer.writer.pop_traces()
+
 
 class override_ddtrace_settings(object):
     def __init__(self, *args, **kwargs):

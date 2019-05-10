@@ -1,5 +1,3 @@
-import logging
-
 # 3rd party
 from django.apps import AppConfig, apps
 
@@ -10,10 +8,9 @@ from .cache import patch_cache
 from .templates import patch_template
 from .middleware import insert_exception_middleware, insert_trace_middleware
 
-from ...ext import AppTypes
+from ...internal.logger import get_logger
 
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class TracerConfig(AppConfig):
@@ -38,13 +35,6 @@ class TracerConfig(AppConfig):
         tracer.enabled = settings.ENABLED
         tracer.writer.api.hostname = settings.AGENT_HOSTNAME
         tracer.writer.api.port = settings.AGENT_PORT
-
-        # define the service details
-        tracer.set_service_info(
-            app='django',
-            app_type=AppTypes.web,
-            service=settings.DEFAULT_SERVICE,
-        )
 
         if settings.AUTO_INSTRUMENT:
             # trace Django internals

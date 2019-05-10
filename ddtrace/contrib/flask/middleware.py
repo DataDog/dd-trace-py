@@ -1,24 +1,14 @@
-"""
-Datadog tracing code for flask.
-
-Installing the blinker library will allow the tracing middleware to collect
-more exception info.
-"""
-
-# stdlib
-import logging
-
-# project
 from ... import compat
-from ...ext import http, errors, AppTypes
+from ...ext import http, errors
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...utils.deprecation import deprecated
 
-# 3p
 import flask.templating
 from flask import g, request, signals
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 SPAN_NAME = 'flask.request'
@@ -26,20 +16,25 @@ SPAN_NAME = 'flask.request'
 
 class TraceMiddleware(object):
 
-    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
+    @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
+    def __init__(self, app, tracer, service='flask', use_signals=True, distributed_tracing=False):
         self.app = app
-        self.app.logger.info("initializing trace middleware")
+        log.debug('flask: initializing trace middleware')
 
-        self._tracer = tracer
-        self._service = service
-        self._use_distributed_tracing = distributed_tracing
+        # Attach settings to the inner application middleware. This is required if double
+        # instrumentation happens (i.e. `ddtrace-run` with `TraceMiddleware`). In that
+        # case, `ddtrace-run` instruments the application, but then users code is unable
+        # to update settings such as `distributed_tracing` flag. This step can be removed
+        # when the `Config` object is used
+        self.app._tracer = tracer
+        self.app._service = service
+        self.app._use_distributed_tracing = distributed_tracing
         self.use_signals = use_signals
 
-        self._tracer.set_service_info(
-            service=service,
-            app="flask",
-            app_type=AppTypes.web,
-        )
+        # safe-guard to avoid double instrumentation
+        if getattr(app, '__dd_instrumentation', False):
+            return
+        setattr(app, '__dd_instrumentation', True)
 
         # Install hooks which time requests.
         self.app.before_request(self._before_request)
@@ -50,7 +45,7 @@ class TraceMiddleware(object):
         # are caught and handled in custom user code.
         # See https://github.com/DataDog/dd-trace-py/issues/390
         if use_signals and not signals.signals_available:
-            self.app.logger.info(_blinker_not_installed_msg)
+            log.debug(_blinker_not_installed_msg)
         self.use_signals = use_signals and signals.signals_available
         timing_signals = {
             'got_request_exception': self._request_exception,
@@ -67,7 +62,7 @@ class TraceMiddleware(object):
             s = getattr(signals, name, None)
             if not s:
                 connected = False
-                log.warn("trying to instrument missing signal %s", name)
+                log.warn('trying to instrument missing signal %s', name)
                 continue
             # we should connect to the signal without using weak references
             # otherwise they will be garbage collected and our handlers
@@ -88,7 +83,7 @@ class TraceMiddleware(object):
         try:
             self._process_response(response)
         except Exception:
-            self.app.logger.exception("error tracing response")
+            log.debug('flask: error tracing response', exc_info=True)
         return response
 
     def _teardown_request(self, exception):
@@ -104,23 +99,23 @@ class TraceMiddleware(object):
         try:
             self._finish_span(span, exception=exception)
         except Exception:
-            self.app.logger.exception("error finishing span")
+            log.debug('flask: error finishing span', exc_info=True)
 
     def _start_span(self):
-        if self._use_distributed_tracing:
+        if self.app._use_distributed_tracing:
             propagator = HTTPPropagator()
             context = propagator.extract(request.headers)
             # Only need to active the new context if something was propagated
             if context.trace_id:
-                self._tracer.context_provider.activate(context)
+                self.app._tracer.context_provider.activate(context)
         try:
-            g.flask_datadog_span = self._tracer.trace(
+            g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
-                service=self._service,
+                service=self.app._service,
                 span_type=http.TYPE,
             )
         except Exception:
-            self.app.logger.exception("error tracing request")
+            log.debug('flask: error tracing request', exc_info=True)
 
     def _process_response(self, response):
         span = getattr(g, 'flask_datadog_span', None)
@@ -131,7 +126,7 @@ class TraceMiddleware(object):
         span.set_tag(http.STATUS_CODE, code)
 
     def _request_exception(self, *args, **kwargs):
-        exception = kwargs.get("exception", None)
+        exception = kwargs.get('exception', None)
         span = getattr(g, 'flask_datadog_span', None)
         if span and exception:
             _set_error_on_span(span, exception)
@@ -175,6 +170,7 @@ class TraceMiddleware(object):
         span.set_tag(http.METHOD, method)
         span.finish()
 
+
 def _set_error_on_span(span, exception):
     # The 3 next lines might not be strictly required, since `set_traceback`
     # also get the exception from the sys.exc_info (and fill the error meta).
@@ -186,6 +182,7 @@ def _set_error_on_span(span, exception):
     # so attach the stack trace with `set_traceback`.
     span.set_traceback()
 
+
 def _patch_render(tracer):
     """ patch flask's render template methods with the given tracer. """
     # fall back to patching  global method
@@ -194,7 +191,7 @@ def _patch_render(tracer):
     def _traced_render(template, context, app):
         with tracer.trace('flask.template') as span:
             span.span_type = http.TEMPLATE
-            span.set_tag("flask.template", template.name or "string")
+            span.set_tag('flask.template', template.name or 'string')
             return _render(template, context, app)
 
     flask.templating._render = _traced_render
@@ -207,6 +204,6 @@ def _signals_exist(names):
 
 
 _blinker_not_installed_msg = (
-    "please install blinker to use flask signals. "
-    "http://flask.pocoo.org/docs/0.11/signals/"
+    'please install blinker to use flask signals. '
+    'http://flask.pocoo.org/docs/0.11/signals/'
 )

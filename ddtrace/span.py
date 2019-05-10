@@ -1,4 +1,3 @@
-import logging
 import math
 import random
 import sys
@@ -6,10 +5,12 @@ import time
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types
-from .ext import errors
+from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
+from .ext import errors, priority
+from .internal.logger import get_logger
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class Span(object):
@@ -35,6 +36,7 @@ class Span(object):
         '_context',
         '_finished',
         '_parent',
+        '__weakref__',
     ]
 
     def __init__(
@@ -54,7 +56,8 @@ class Span(object):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
-        :param Tracer tracer: the tracer that will submit this span when finished.
+        :param ddtrace.Tracer tracer: the tracer that will submit this span when
+            finished.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -120,17 +123,36 @@ class Span(object):
                 self._context.close_span(self)
                 self._tracer.record(self._context)
             except Exception:
-                log.exception("error recording finished trace")
+                log.exception('error recording finished trace')
 
-    def set_tag(self, key, value):
+    def set_tag(self, key, value=None):
         """ Set the given key / value tag pair on the span. Keys and values
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+
+        if key in NUMERIC_TAGS:
+            try:
+                self.set_metric(key, float(value))
+            except (TypeError, ValueError):
+                log.debug('error setting numeric metric {}:{}'.format(key, value))
+
+            return
+        elif key == MANUAL_KEEP_KEY:
+            self.context.sampling_priority = priority.USER_KEEP
+            return
+        elif key == MANUAL_DROP_KEY:
+            self.context.sampling_priority = priority.USER_REJECT
+            return
+
         try:
             self.meta[key] = stringify(value)
         except Exception:
-            log.debug("error setting tag %s, ignoring it", key, exc_info=True)
+            log.debug('error setting tag %s, ignoring it', key, exc_info=True)
+
+    def _remove_tag(self, key):
+        if key in self.meta:
+            del self.meta[key]
 
     def get_tag(self, key):
         """ Return the given tag or None if it doesn't exist.
@@ -163,12 +185,12 @@ class Span(object):
             try:
                 value = float(value)
             except (ValueError, TypeError):
-                log.debug("ignoring not number metric %s:%s", key, value)
+                log.debug('ignoring not number metric %s:%s', key, value)
                 return
 
         # don't allow nan or inf
         if math.isnan(value) or math.isinf(value):
-            log.debug("ignoring not real metric %s:%s", key, value)
+            log.debug('ignoring not real metric %s:%s', key, value)
             return
 
         self.metrics[key] = value
@@ -183,12 +205,12 @@ class Span(object):
 
     def to_dict(self):
         d = {
-            'trace_id' : self.trace_id,
-            'parent_id' : self.parent_id,
-            'span_id' : self.span_id,
+            'trace_id': self.trace_id,
+            'parent_id': self.parent_id,
+            'span_id': self.span_id,
             'service': self.service,
-            'resource' : self.resource,
-            'name' : self.name,
+            'resource': self.resource,
+            'name': self.name,
             'error': self.error,
         }
 
@@ -226,12 +248,12 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = ''.join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace "error.stack" tag with "python.stack"
+            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace 'error.stack' tag with 'python.stack'
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
         if not (exc_type and exc_val and exc_tb):
-            return # nothing to do
+            return  # nothing to do
 
         self.error = 1
 
@@ -241,31 +263,38 @@ class Span(object):
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
-        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
+        exc_type_str = '%s.%s' % (exc_type.__module__, exc_type.__name__)
 
         self.set_tag(errors.ERROR_MSG, exc_val)
         self.set_tag(errors.ERROR_TYPE, exc_type_str)
         self.set_tag(errors.ERROR_STACK, tb)
 
+    def _remove_exc_info(self):
+        """ Remove all exception related information from the span. """
+        self.error = 0
+        self._remove_tag(errors.ERROR_MSG)
+        self._remove_tag(errors.ERROR_TYPE)
+        self._remove_tag(errors.ERROR_STACK)
+
     def pprint(self):
         """ Return a human readable version of the span. """
         lines = [
             ('name', self.name),
-            ("id", self.span_id),
-            ("trace_id", self.trace_id),
-            ("parent_id", self.parent_id),
-            ("service", self.service),
-            ("resource", self.resource),
+            ('id', self.span_id),
+            ('trace_id', self.trace_id),
+            ('parent_id', self.parent_id),
+            ('service', self.service),
+            ('resource', self.resource),
             ('type', self.span_type),
-            ("start", self.start),
-            ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", "%fs" % (self.duration or 0)),
-            ("error", self.error),
-            ("tags", "")
+            ('start', self.start),
+            ('end', '' if not self.duration else self.start + self.duration),
+            ('duration', '%fs' % (self.duration or 0)),
+            ('error', self.error),
+            ('tags', '')
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
-        return "\n".join("%10s %s" % l for l in lines)
+        lines.extend((' ', '%s:%s' % kv) for kv in sorted(self.meta.items()))
+        return '\n'.join('%10s %s' % l for l in lines)
 
     @property
     def context(self):
@@ -288,15 +317,16 @@ class Span(object):
                 self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
         except Exception:
-            log.exception("error closing trace")
+            log.exception('error closing trace')
 
     def __repr__(self):
-        return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
+        return '<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>' % (
             self.span_id,
             self.trace_id,
             self.parent_id,
             self.name,
         )
+
 
 def _new_id():
     """Generate a random trace_id or span_id"""
