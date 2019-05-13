@@ -676,7 +676,7 @@ jobs:
       - *save_cache_step
 
   deploy_dev:
-    # build the master/*-dev branch releasing development docs and wheels
+    # build the master branch releasing development docs and wheels
     docker:
       - image: circleci/python:3.6
     resource_class: *resource_class
@@ -1000,4 +1000,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(master|.*-dev)/
+              only: master
