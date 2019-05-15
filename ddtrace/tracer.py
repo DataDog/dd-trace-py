@@ -272,17 +272,17 @@ class Tracer(object):
         # add it to the current context
         context.add_span(span)
 
+        # check for new process if runtime metrics worker has already been started
+        if self._runtime_worker:
+            self._check_new_process()
+
         # update set of services handled by tracer
-        if service:
+        if service and service not in self._services:
             self._services.add(service)
 
             # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
             self._update_dogstatsd_constant_tags()
-
-        # check for new process if runtime metrics worker has already been started
-        if self._runtime_worker:
-            self._check_new_process()
 
         return span
 
