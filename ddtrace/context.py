@@ -1,7 +1,9 @@
 import threading
 
-from .constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
 from .internal.logger import get_logger
+from .internal import hostname
+from .settings import config
 from .utils.formats import asbool, get_env
 
 log = get_logger(__name__)
@@ -190,6 +192,11 @@ class Context(object):
                 if sampled and origin is not None and trace:
                     trace[0].set_tag(ORIGIN_KEY, origin)
 
+                # Set hostname tag if they requested it
+                if config.report_hostname:
+                    # DEV: `get_hostname()` value is cached
+                    trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
+
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
@@ -211,6 +218,11 @@ class Context(object):
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
                     trace[0].set_tag(ORIGIN_KEY, origin)
+
+                # Set hostname tag if they requested it
+                if config.report_hostname:
+                    # DEV: `get_hostname()` value is cached
+                    trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
 
                 # Any open spans will remain as `self._trace`
                 # Any finished spans will get returned to be flushed
