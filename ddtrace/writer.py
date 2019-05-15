@@ -1,11 +1,10 @@
 # stdlib
-import atexit
-import threading
 import random
 import os
 import time
 
 from . import api
+from . import _worker
 from .internal.logger import get_logger
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
@@ -56,103 +55,54 @@ class AgentWriter(object):
             )
 
 
-class AsyncWorker(object):
+class AsyncWorker(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
 
     def __init__(self, api, trace_queue, service_queue=None, shutdown_timeout=DEFAULT_TIMEOUT,
                  filters=None, priority_sampler=None):
+        super(AsyncWorker, self).__init__(interval=self.QUEUE_PROCESSING_INTERVAL,
+                                          exit_timeout=shutdown_timeout,
+                                          name=self.__class__.__name__)
         self._trace_queue = trace_queue
-        self._lock = threading.Lock()
-        self._thread = None
-        self._shutdown_timeout = shutdown_timeout
         self._filters = filters
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
-        self._run = True
         self.api = api
         self.start()
 
-    def is_alive(self):
-        return self._thread.is_alive()
+    def flush_queue(self):
+        try:
+            traces = self._trace_queue.get(block=False)
+        except Empty:
+            return
 
-    def start(self):
-        with self._lock:
-            if not self._thread:
-                log.debug('starting flush thread')
-                self._thread = threading.Thread(target=self._target)
-                self._thread.setDaemon(True)
-                self._thread.start()
-                atexit.register(self._on_shutdown)
+        # Before sending the traces, make them go through the
+        # filters
+        try:
+            traces = self._apply_filters(traces)
+        except Exception as err:
+            log.error('error while filtering traces: {0}'.format(err))
 
-    def stop(self):
-        """
-        Close the trace queue so that the worker will stop the execution
-        """
-        with self._lock:
-            if self._thread and self.is_alive():
-                self._run = False
+        traces_response = None
 
-    def join(self, timeout=2):
-        """
-        Wait for the AsyncWorker execution. This call doesn't block the execution
-        and it has a 2 seconds of timeout by default.
-        """
-        self._thread.join(timeout)
-
-    def _on_shutdown(self):
-        with self._lock:
-            if not self._thread:
-                return
-
-            self._run = False
-
-            if self._trace_queue.qsize():
-                key = 'ctrl-break' if os.name == 'nt' else 'ctrl-c'
-                log.debug(
-                    'Waiting %ss for traces to be sent. Hit %s to quit.',
-                    self._shutdown_timeout,
-                    key,
-                )
-                timeout = time.time() + self._shutdown_timeout
-                while time.time() < timeout and self._trace_queue.qsize():
-                    # FIXME[matt] replace with a queue join
-                    time.sleep(0.05)
-
-    def _target(self):
-        while self._run or self._trace_queue.qsize() > 0:
-            # Set a timeout so we check for self._run once in a while
+        if traces:
+            # If we have data, let's try to send it.
             try:
-                traces = self._trace_queue.get(block=False)
-            except Empty:
-                pass
-            else:
-                # Before sending the traces, make them go through the
-                # filters
-                try:
-                    traces = self._apply_filters(traces)
-                except Exception as err:
-                    log.error('error while filtering traces: {0}'.format(err))
+                traces_response = self.api.send_traces(traces)
+            except Exception as err:
+                log.error('cannot send spans to {1}:{2}: {0}'.format(
+                    err, self.api.hostname, self.api.port))
 
-                traces_response = None
+        if self._priority_sampler and traces_response:
+            result_traces_json = traces_response.get_json()
+            if result_traces_json and 'rate_by_service' in result_traces_json:
+                self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-                if traces:
-                    # If we have data, let's try to send it.
-                    try:
-                        traces_response = self.api.send_traces(traces)
-                    except Exception as err:
-                        log.error('cannot send spans to {1}:{2}: {0}'.format(
-                            err, self.api.hostname, self.api.port))
+        self._log_error_status(traces_response, 'traces')
 
-                if self._priority_sampler and traces_response:
-                    result_traces_json = traces_response.get_json()
-                    if result_traces_json and 'rate_by_service' in result_traces_json:
-                        self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
-
-                self._log_error_status(traces_response, 'traces')
-
-            # Do not send data more often than QUEUE_PROCESSING_INTERVAL seconds
-            time.sleep(self.QUEUE_PROCESSING_INTERVAL)
+    run_periodic = flush_queue
+    on_shutdown = flush_queue
 
     def _log_error_status(self, response, response_name):
         if not isinstance(response, api.Response):
