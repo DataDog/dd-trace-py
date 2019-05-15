@@ -302,7 +302,7 @@ class Tracer(object):
 
     def _start_dogstatsd_client(self):
         # start dogstatsd as client with constant tags
-        log.debug('Starting DogStatsd on {}:{}'.format(
+        log.debug('Connecting to DogStatsd on {}:{}'.format(
             self._dogstatsd_host,
             self._dogstatsd_port
         ))
