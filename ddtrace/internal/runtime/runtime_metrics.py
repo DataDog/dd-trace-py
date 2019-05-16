@@ -78,7 +78,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
         for key, value in self._runtime_metrics:
             self._write_metric(key, value)
 
-    on_periodic = flush
+    run_periodic = flush
     on_shutdown = flush
 
     def reset(self):
