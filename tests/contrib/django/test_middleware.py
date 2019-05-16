@@ -197,6 +197,8 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert span.get_tag(http.URL) == 'http://testserver/error-500/'
         assert span.resource == 'tests.contrib.django.app.views.error_500'
         assert 'Error 500' in span.get_tag('error.stack')
+        # confirm that the context was properly closed out
+        assert span._context._is_finished()
 
     def test_middleware_trace_callable_view(self):
         # ensures that the internals are properly traced when using callable views

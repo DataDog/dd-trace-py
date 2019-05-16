@@ -85,6 +85,11 @@ class InstrumentationMixin(MiddlewareClass):
             raise MiddlewareNotUsed
 
 
+def _finalise_span(span, request):
+    span = _set_auth_tags(span, request)
+    span.finish()
+
+
 class TraceExceptionMiddleware(InstrumentationMixin):
     """
     Middleware that traces exceptions raised
@@ -95,6 +100,7 @@ class TraceExceptionMiddleware(InstrumentationMixin):
             if span:
                 span.set_tag(http.STATUS_CODE, '500')
                 span.set_traceback()  # will set the exception info
+                _finalise_span(span, request)
         except Exception:
             log.debug('error processing exception', exc_info=True)
 
@@ -176,8 +182,7 @@ class TraceMiddleware(InstrumentationMixin):
                         span.resource = _django_default_views.get(response.status_code, 'unknown')
 
                 span.set_tag(http.STATUS_CODE, response.status_code)
-                span = _set_auth_tags(span, request)
-                span.finish()
+                _finalise_span(span, request)
         except Exception:
             log.debug('error tracing request', exc_info=True)
         finally:
