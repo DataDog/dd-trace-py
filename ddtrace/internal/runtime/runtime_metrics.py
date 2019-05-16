@@ -60,7 +60,8 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     FLUSH_INTERVAL = 10
 
-    def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL):
+    def __init__(self, statsd_client, flush_interval=None):
+        flush_interval = self.FLUSH_INTERVAL if flush_interval is None else flush_interval
         super(RuntimeWorker, self).__init__(interval=flush_interval,
                                             name=self.__class__.__name__)
         self._statsd_client = statsd_client
