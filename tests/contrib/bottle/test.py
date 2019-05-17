@@ -94,6 +94,29 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
 
+    def test_abort(self):
+        @self.app.route('/hi')
+        def hi():
+            raise bottle.abort(420,  'Enhance Your Calm')
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            resp = self.app.get('/hi')
+            assert resp.status_int == 420
+        except Exception as e:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi'
+        assert s.get_tag('http.status_code') == '420'
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/hi'
+
     def test_bottle_global_tracer(self):
         # without providing a Tracer instance, it should work
         @self.app.route('/home/')

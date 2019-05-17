@@ -1,5 +1,5 @@
 # 3p
-from bottle import response, request
+from bottle import response, request, HTTPError
 
 # stdlib
 import ddtrace
@@ -47,6 +47,11 @@ class TracePlugin(object):
                 code = 0
                 try:
                     return callback(*args, **kwargs)
+                except HTTPError as e:
+                    # you can interrupt flows using abort(status_code, 'message')...
+                    # we need to respect the defined status_code.
+                    code = e.status_code
+                    raise
                 except Exception:
                     # bottle doesn't always translate unhandled exceptions, so
                     # we mark it here.
