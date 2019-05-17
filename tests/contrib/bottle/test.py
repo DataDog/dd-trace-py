@@ -97,7 +97,7 @@ class TraceBottleTest(BaseTracerTestCase):
     def test_abort(self):
         @self.app.route('/hi')
         def hi():
-            raise bottle.abort(420,  'Enhance Your Calm')
+            raise bottle.abort(420, 'Enhance Your Calm')
         self._trace_app(self.tracer)
 
         # make a request
