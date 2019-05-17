@@ -120,8 +120,14 @@ def patched_auth_request(original_func, instance, args, kwargs):
     #        - ddtrace.vendor.wrapt.wrappers
     #        - boto.awslambda.layer1 (make_request)
     #        - boto.awslambda.layer1 (list_functions)
-    frame = inspect.currentframe()
-    operation_name = frame.f_back.f_back.f_back.f_code.co_name
+    # But can vary depending on Python versions; that's why we use an heuristic
+    frame = inspect.currentframe().f_back
+    operation_name = None
+    while frame:
+        if frame.f_code.co_name == 'make_request':
+            operation_name = frame.f_back.f_code.co_name
+            break
+        frame = frame.f_back
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
