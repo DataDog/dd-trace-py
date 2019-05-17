@@ -53,7 +53,7 @@ class TestRuntimeWorker(BaseTracerTestCase):
         default_flush_interval = RuntimeWorker.FLUSH_INTERVAL
         try:
             # lower flush interval
-            RuntimeWorker.FLUSH_INTERVAL = 1/4
+            RuntimeWorker.FLUSH_INTERVAL = 1./4
 
             # configure tracer for runtime metrics
             self.tracer.configure(collect_metrics=True)
