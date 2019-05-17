@@ -104,7 +104,7 @@ class TraceBottleTest(BaseTracerTestCase):
         try:
             resp = self.app.get('/hi')
             assert resp.status_int == 420
-        except Exception as e:
+        except Exception:
             pass
 
         spans = self.tracer.writer.pop()
