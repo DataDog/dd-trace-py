@@ -84,20 +84,21 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         except Exception as err:
             log.error('error while filtering traces: {0}'.format(err))
 
-        traces_response = None
+        traces_responses = None
 
         if traces:
             # If we have data, let's try to send it.
             try:
-                traces_response = self.api.send_traces(traces)
+                traces_responses = self.api.send_traces(traces)
             except Exception as err:
                 log.error('cannot send spans to {1}:{2}: {0}'.format(
                     err, self.api.hostname, self.api.port))
 
-        if self._priority_sampler and traces_response:
-            result_traces_json = traces_response.get_json()
-            if result_traces_json and 'rate_by_service' in result_traces_json:
-                self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
+        if self._priority_sampler and traces_responses:
+            for traces_response in traces_responses:
+                result_traces_json = traces_response.get_json()
+                if result_traces_json and 'rate_by_service' in result_traces_json:
+                    self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
         self._log_error_status(traces_response, 'traces')
 

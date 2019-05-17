@@ -252,21 +252,35 @@ class TestAPITransport(TestCase):
         request_call = mocked_http.return_value.request
         assert request_call.call_count == 0
 
+    def _send_traces_and_check(self, traces, nresponses=1):
+        # test JSON encoder
+        responses = self.api_json.send_traces(traces)
+        assert len(responses) == nresponses
+        for response in responses:
+            assert response.status == 200
+
+        # test Msgpack encoder
+        responses = self.api_msgpack.send_traces(traces)
+        assert len(responses) == nresponses
+        for response in responses:
+            assert response.status == 200
+
     def test_send_single_trace(self):
         # register a single trace with a span and send them to the trace agent
         self.tracer.trace('client.testing').finish()
         trace = self.tracer.writer.pop()
         traces = [trace]
 
-        # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
+        self._send_traces_and_check(traces)
 
-        # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
+    def test_send_many_traces(self):
+        # register a single trace with a span and send them to the trace agent
+        self.tracer.trace('client.testing').finish()
+        trace = self.tracer.writer.pop()
+        # 30k is a right number to have both json and msgpack send 2 payload :)
+        traces = [trace] * 30000
+
+        self._send_traces_and_check(traces, 2)
 
     def test_send_single_with_wrong_errors(self):
         # if the error field is set to True, it must be cast as int so
@@ -278,15 +292,7 @@ class TestAPITransport(TestCase):
         trace = self.tracer.writer.pop()
         traces = [trace]
 
-        # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
+        self._send_traces_and_check(traces)
 
     def test_send_multiple_traces(self):
         # register some traces and send them to the trace agent
@@ -296,15 +302,7 @@ class TestAPITransport(TestCase):
         trace_2 = self.tracer.writer.pop()
         traces = [trace_1, trace_2]
 
-        # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
+        self._send_traces_and_check(traces)
 
     def test_send_single_trace_multiple_spans(self):
         # register some traces and send them to the trace agent
@@ -313,15 +311,7 @@ class TestAPITransport(TestCase):
         trace = self.tracer.writer.pop()
         traces = [trace]
 
-        # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
+        self._send_traces_and_check(traces)
 
     def test_send_multiple_traces_multiple_spans(self):
         # register some traces and send them to the trace agent
@@ -335,15 +325,7 @@ class TestAPITransport(TestCase):
 
         traces = [trace_1, trace_2]
 
-        # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
+        self._send_traces_and_check(traces)
 
     def test_send_single_service(self):
         # register some services and send them to the trace agent
@@ -457,16 +439,16 @@ class TestRateByService(TestCase):
         # - make sure the priority sampler (if enabled) is updated
 
         # test JSON encoder
-        response = self.api_json.send_traces(traces)
-        assert response
-        assert response.status == 200
-        assert response.get_json() == dict(rate_by_service={'service:,env:': 1})
+        responses = self.api_json.send_traces(traces)
+        assert len(responses) == 1
+        assert responses[0].status == 200
+        assert responses[0].get_json() == dict(rate_by_service={'service:,env:': 1})
 
         # test Msgpack encoder
-        response = self.api_msgpack.send_traces(traces)
-        assert response
-        assert response.status == 200
-        assert response.get_json() == dict(rate_by_service={'service:,env:': 1})
+        responses = self.api_msgpack.send_traces(traces)
+        assert len(responses) == 1
+        assert responses[0].status == 200
+        assert responses[0].get_json() == dict(rate_by_service={'service:,env:': 1})
 
 
 @skipUnless(

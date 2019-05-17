@@ -1,10 +1,12 @@
 import math
 
 from ddtrace.encoding import get_encoder, JSONEncoder
-from ddtrace.payload import Payload
+from ddtrace.payload import Payload, PayloadFull
 from ddtrace.span import Span
 
 from .base import BaseTracerTestCase
+
+import pytest
 
 
 class PayloadTestCase(BaseTracerTestCase):
@@ -47,7 +49,6 @@ class PayloadTestCase(BaseTracerTestCase):
         payload.add_trace(trace)
 
         self.assertEqual(payload.length, 1)
-        self.assertFalse(payload.full)
         self.assertFalse(payload.empty)
 
     def test_get_payload(self):
@@ -72,7 +73,6 @@ class PayloadTestCase(BaseTracerTestCase):
             payload.add_trace(trace)
 
         self.assertEqual(payload.length, 5)
-        self.assertFalse(payload.full)
         self.assertFalse(payload.empty)
 
         # Assert the payload generated from Payload
@@ -85,18 +85,10 @@ class PayloadTestCase(BaseTracerTestCase):
             self.assertEqual(trace[1][b'name'], b'child.span')
 
     def test_full(self):
-        """
-        When accessing `Payload.full`
-            When the payload is not full
-                Returns False
-            When the payload is full
-                Returns True
-        """
         payload = Payload()
 
         # Empty
         self.assertTrue(payload.empty)
-        self.assertFalse(payload.full)
 
         # Trace and it's size in bytes
         trace = [Span(self.tracer, 'root.span'), Span(self.tracer, 'child.span')]
@@ -108,11 +100,12 @@ class PayloadTestCase(BaseTracerTestCase):
         # Add the traces
         for _ in range(num_traces):
             payload.add_trace(trace)
-            self.assertFalse(payload.full)
 
         # Just confirm
         self.assertEqual(payload.length, num_traces)
 
-        # Add one more to put us over the limit
-        payload.add_trace(trace)
-        self.assertTrue(payload.full)
+        with pytest.raises(PayloadFull):
+            payload.add_trace(trace)
+
+        # Just confirm again
+        self.assertEqual(payload.length, num_traces)
