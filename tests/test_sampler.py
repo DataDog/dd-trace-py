@@ -1,7 +1,6 @@
 from __future__ import division
 
 import unittest
-import random
 
 from ddtrace.span import Span
 from ddtrace.sampler import RateSampler, AllSampler, _key, _default_key
@@ -18,8 +17,6 @@ class RateSamplerTest(unittest.TestCase):
             writer = tracer.writer
 
             tracer.sampler = RateSampler(sample_rate)
-
-            random.seed(1234)
 
             iterations = int(1e4 / sample_rate)
 
@@ -42,8 +39,6 @@ class RateSamplerTest(unittest.TestCase):
         writer = tracer.writer
 
         tracer.sampler = RateSampler(0.5)
-
-        random.seed(1234)
 
         for i in range(10):
             span = tracer.trace(i)
@@ -82,8 +77,6 @@ class RateByServiceSamplerTest(unittest.TestCase):
             assert writer != tracer.writer, 'writer should have been updated by configure'
             tracer.writer = writer
             tracer.priority_sampler.set_sample_rate(sample_rate)
-
-            random.seed(1234)
 
             iterations = int(1e4 / sample_rate)
 
