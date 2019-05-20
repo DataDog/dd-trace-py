@@ -302,13 +302,9 @@ class TestTracer(object):
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
-                event.set()
                 id += 1
-                event.wait()
                 with ot_tracer.start_active_span(str(id)):
-                    event.set()
                     id += 1
-                    event.wait()
                     with ot_tracer.start_active_span(str(id)):
                         event.set()
 
@@ -316,15 +312,11 @@ class TestTracer(object):
             id = 21
             event.wait()
             with ot_tracer.start_active_span(str(id)):
-                event.set()
                 id += 1
-                event.wait()
                 with ot_tracer.start_active_span(str(id)):
-                    event.set()
                     id += 1
-                event.wait()
                 with ot_tracer.start_active_span(str(id)):
-                    event.set()
+                    pass
 
         # the ordering should be
         # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
