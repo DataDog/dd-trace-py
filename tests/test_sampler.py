@@ -18,7 +18,7 @@ class RateSamplerTest(unittest.TestCase):
 
             tracer.sampler = RateSampler(sample_rate)
 
-            iterations = int(2e4 / sample_rate)
+            iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
                 span = tracer.trace(i)
@@ -29,9 +29,9 @@ class RateSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
-            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
+            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
+            assert deviation < 0.05, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
