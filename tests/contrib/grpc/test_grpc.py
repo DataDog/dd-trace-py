@@ -43,7 +43,8 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def test_insecure_channel(self):
         # Create a channel and send one request to the server
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        target = 'localhost:%d' % (GRPC_PORT)
+        with grpc.insecure_channel(target=target) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
@@ -62,7 +63,8 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def test_secure_channel(self):
         # Create a channel and send one request to the server
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        target = 'localhost:%d' % (GRPC_PORT)
+        with grpc.secure_channel(target=target, credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 

@@ -30,7 +30,12 @@ def unpatch():
 
 def _insecure_channel_with_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
-    target = args[0]
+
+    if kwargs.get('target'):
+        target = kwargs['target']
+    else:
+        target = args[0]
+
     (host, port) = get_host_port(target)
     channel = _intercept_channel(channel, host, port)
     return channel
@@ -38,7 +43,12 @@ def _insecure_channel_with_interceptor(wrapped, instance, args, kwargs):
 
 def _secure_channel_with_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
-    target = args[0]
+
+    if kwargs.get('target'):
+        target = kwargs['target']
+    else:
+        target = args[0]
+
     (host, port) = get_host_port(target)
     channel = _intercept_channel(channel, host, port)
     return channel
