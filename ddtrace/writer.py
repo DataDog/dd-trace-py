@@ -83,6 +83,7 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
             traces = self._apply_filters(traces)
         except Exception as err:
             log.error('error while filtering traces: {0}'.format(err))
+            return
 
         traces_responses = None
 
