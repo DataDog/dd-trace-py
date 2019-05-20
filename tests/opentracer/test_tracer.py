@@ -296,23 +296,35 @@ class TestTracer(object):
         """
         import threading
 
+        # synchronize threads with a threading event object
+        event = threading.Event()
+
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
+                event.set()
                 id += 1
+                event.wait()
                 with ot_tracer.start_active_span(str(id)):
+                    event.set()
                     id += 1
+                    event.wait()
                     with ot_tracer.start_active_span(str(id)):
-                        pass
+                        event.set()
 
         def trace_two():
             id = 21
+            event.wait()
             with ot_tracer.start_active_span(str(id)):
+                event.set()
                 id += 1
+                event.wait()
                 with ot_tracer.start_active_span(str(id)):
+                    event.set()
                     id += 1
+                event.wait()
                 with ot_tracer.start_active_span(str(id)):
-                    pass
+                    event.set()
 
         # the ordering should be
         # t1.span1/t2.span1, t2.span2, t1.span2, t1.span3, t2.span3
