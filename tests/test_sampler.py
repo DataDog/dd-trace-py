@@ -18,7 +18,7 @@ class RateSamplerTest(unittest.TestCase):
 
             tracer.sampler = RateSampler(sample_rate)
 
-            iterations = int(1e4 / sample_rate)
+            iterations = int(2e4 / sample_rate)
 
             for i in range(iterations):
                 span = tracer.trace(i)
