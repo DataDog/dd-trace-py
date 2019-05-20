@@ -1,7 +1,6 @@
 from __future__ import division
 
 import unittest
-import random
 
 from ddtrace.span import Span
 from ddtrace.sampler import RateSampler, AllSampler, _key, _default_key
@@ -19,8 +18,6 @@ class RateSamplerTest(unittest.TestCase):
 
             tracer.sampler = RateSampler(sample_rate)
 
-            random.seed(1234)
-
             iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
@@ -32,9 +29,9 @@ class RateSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) == sample_rate
 
-            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
+            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(len(samples) - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
+            assert deviation < 0.05, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_deterministic_behavior(self):
         """ Test that for a given trace ID, the result is always the same """
@@ -42,8 +39,6 @@ class RateSamplerTest(unittest.TestCase):
         writer = tracer.writer
 
         tracer.sampler = RateSampler(0.5)
-
-        random.seed(1234)
 
         for i in range(10):
             span = tracer.trace(i)
@@ -83,8 +78,6 @@ class RateByServiceSamplerTest(unittest.TestCase):
             tracer.writer = writer
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
-            random.seed(1234)
-
             iterations = int(1e4 / sample_rate)
 
             for i in range(iterations):
@@ -105,9 +98,9 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
-            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
+            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
+            assert deviation < 0.05, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_set_sample_rate_by_service(self):
         cases = [
