@@ -302,12 +302,11 @@ class TestTracer(object):
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
-                event.set()
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
                     with ot_tracer.start_active_span(str(id)):
-                        pass
+                        event.set()
 
         def trace_two():
             id = 21
