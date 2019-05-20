@@ -98,9 +98,9 @@ class RateByServiceSamplerTest(unittest.TestCase):
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
-            # Less than 2% deviation when 'enough' iterations (arbitrary, just check if it converges)
+            # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
-            assert deviation < 0.02, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
+            assert deviation < 0.05, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
     def test_set_sample_rate_by_service(self):
         cases = [
