@@ -184,7 +184,10 @@ class API(object):
         return responses
 
     def _flush(self, payload):
-        response = self._put(self._traces, payload.get_payload(), payload.length)
+        try:
+            response = self._put(self._traces, payload.get_payload(), payload.length)
+        except (httplib.HTTPException, IOError) as e:
+            return e
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:

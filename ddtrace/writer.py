@@ -88,11 +88,11 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
 
         if traces:
             # If we have data, let's try to send it.
-            try:
-                traces_responses = self.api.send_traces(traces)
-            except Exception as err:
-                log.error('cannot send spans to {1}:{2}: {0}'.format(
-                    err, self.api.hostname, self.api.port))
+            traces_responses = self.api.send_traces(traces)
+            for response in traces_responses:
+                if isinstance(response, Exception):
+                    log.error('cannot send spans to {1}:{2}: {0}'.format(
+                        response, self.api.hostname, self.api.port))
 
         if self._priority_sampler and traces_responses:
             for traces_response in traces_responses:
