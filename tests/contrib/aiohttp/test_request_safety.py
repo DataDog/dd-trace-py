@@ -56,27 +56,33 @@ class TestAiohttpSafety(TraceTestCase):
     @unittest_run_loop
     @asyncio.coroutine
     def test_multiple_full_request(self):
+        NUMBER_REQUESTS = 10
+        responses = []
+
         # it should produce a wrong trace, but the Context must
         # be finished
         def make_requests():
             url = self.client.make_url('/delayed/')
             response = request.urlopen(str(url)).read().decode('utf-8')
-            assert 'Done' == response
+            responses.append(response)
 
         # blocking call executed in different threads
         ctx = self.tracer.get_call_context()
-        threads = [threading.Thread(target=make_requests) for _ in range(10)]
+        threads = [threading.Thread(target=make_requests) for _ in range(NUMBER_REQUESTS)]
         for t in threads:
             t.start()
 
+        # yield back to the event loop until all requests are processed
+        while len(responses) < NUMBER_REQUESTS:
+            yield from asyncio.sleep(0.001)
+
+        for response in responses:
+            assert 'Done' == response
+
         for t in threads:
-            # we should yield so that this loop can handle
-            # threads' requests
-            yield from asyncio.sleep(0.1)
-            t.join(0.1)
+            t.join()
 
         # the trace is wrong but the Context is finished
-        traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 10 == len(traces[0])
+        spans = self.tracer.writer.pop()
+        assert NUMBER_REQUESTS == len(spans)
         assert 0 == len(ctx._trace)
