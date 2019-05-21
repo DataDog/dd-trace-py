@@ -30,6 +30,10 @@ class Config(object):
             get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
+        self.report_hostname = asbool(
+            get_env('trace', 'report_hostname', default=False)
+        )
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)

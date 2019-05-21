@@ -16,6 +16,7 @@ from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
 
+import mock
 import pytest
 
 
@@ -125,13 +126,14 @@ class TestTracer(object):
 
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
-        t = time.time() + 0.002
-        with ot_tracer.start_span('myop', start_time=t) as span:
-            time.sleep(0.005)
+        t = 100
+        with mock.patch('time.time') as time:
+            time.return_value = 102
+            with ot_tracer.start_span('myop', start_time=t) as span:
+                pass
 
-        # it should be certain that the span duration is strictly less than
-        # the amount of time we sleep for
-        assert span._dd_span.duration < 0.005
+        assert span._dd_span.start == t
+        assert span._dd_span.duration == 2
 
     def test_start_span_with_spancontext(self, ot_tracer, writer):
         """Start and finish a span using a span context as the child_of
@@ -294,6 +296,9 @@ class TestTracer(object):
         """
         import threading
 
+        # synchronize threads with a threading event object
+        event = threading.Event()
+
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
@@ -301,10 +306,11 @@ class TestTracer(object):
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
                     with ot_tracer.start_active_span(str(id)):
-                        pass
+                        event.set()
 
         def trace_two():
             id = 21
+            event.wait()
             with ot_tracer.start_active_span(str(id)):
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
