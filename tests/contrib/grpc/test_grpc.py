@@ -41,9 +41,20 @@ class GrpcTestCase(BaseTracerTestCase):
         self.assertEqual(span.meta['grpc.host'], 'localhost')
         self.assertEqual(span.meta['grpc.port'], '50531')
 
-    def test_insecure_channel(self):
+    def test_insecure_channel_using_args_parameter(self):
+        def insecure_channel_using_args(target):
+            return grpc.insecure_channel(target)
+        self._test_insecure_channel(insecure_channel_using_args)
+
+    def test_insecure_channel_using_kwargs_parameter(self):
+        def insecure_channel_using_kwargs(target):
+            return grpc.insecure_channel(target=target)
+        self._test_insecure_channel(insecure_channel_using_kwargs)
+
+    def _test_insecure_channel(self, insecure_channel_function):
         # Create a channel and send one request to the server
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        target = 'localhost:%d' % (GRPC_PORT)
+        with insecure_channel_function(target) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
@@ -60,9 +71,20 @@ class GrpcTestCase(BaseTracerTestCase):
         )
         self._check_span(span)
 
-    def test_secure_channel(self):
+    def test_secure_channel_using_args_parameter(self):
+        def secure_channel_using_args(target, **kwargs):
+            return grpc.secure_channel(target, **kwargs)
+        self._test_secure_channel(secure_channel_using_args)
+
+    def test_secure_channel_using_kwargs_parameter(self):
+        def secure_channel_using_kwargs(target, **kwargs):
+            return grpc.secure_channel(target=target, **kwargs)
+        self._test_secure_channel(secure_channel_using_kwargs)
+
+    def _test_secure_channel(self, secure_channel_function):
         # Create a channel and send one request to the server
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        target = 'localhost:%d' % (GRPC_PORT)
+        with secure_channel_function(target, credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
