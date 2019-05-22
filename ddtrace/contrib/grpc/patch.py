@@ -31,7 +31,7 @@ def unpatch():
 def _insecure_channel_with_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    if kwargs.get('target'):
+    if 'target' in kwargs:
         target = kwargs['target']
     else:
         target = args[0]
@@ -44,7 +44,7 @@ def _insecure_channel_with_interceptor(wrapped, instance, args, kwargs):
 def _secure_channel_with_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    if kwargs.get('target'):
+    if 'target' in kwargs:
         target = kwargs['target']
     else:
         target = args[0]
