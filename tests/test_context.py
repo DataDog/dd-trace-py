@@ -2,15 +2,16 @@ import contextlib
 import mock
 import threading
 
-from unittest import TestCase
+from .base import BaseTestCase
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
 
-class TestTracingContext(TestCase):
+class TestTracingContext(BaseTestCase):
     """
     Tests related to the ``Context`` class that hosts the trace for the
     current execution flow.
@@ -114,6 +115,62 @@ class TestTracingContext(TestCase):
         trace, sampled = ctx.get()
         assert trace is None
         assert sampled is None
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_enabled(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        with self.override_global_config(dict(report_hostname=True)):
+            # Create a context and add a span and finish it
+            ctx = Context()
+            span = Span(tracer=None, name='fake_span')
+            ctx.add_span(span)
+            ctx.close_span(span)
+
+            # Assert that we have not added the tag to the span yet
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+            # Assert that retrieving the trace sets the tag
+            trace, _ = ctx.get()
+            assert trace[0].get_tag(HOSTNAME_KEY) == 'test-hostname'
+            assert span.get_tag(HOSTNAME_KEY) == 'test-hostname'
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_disabled(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        with self.override_global_config(dict(report_hostname=False)):
+            # Create a context and add a span and finish it
+            ctx = Context()
+            span = Span(tracer=None, name='fake_span')
+            ctx.add_span(span)
+            ctx.close_span(span)
+
+            # Assert that we have not added the tag to the span yet
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+            # Assert that retrieving the trace does not set the tag
+            trace, _ = ctx.get()
+            assert trace[0].get_tag(HOSTNAME_KEY) is None
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_default(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        # Create a context and add a span and finish it
+        ctx = Context()
+        span = Span(tracer=None, name='fake_span')
+        ctx.add_span(span)
+        ctx.close_span(span)
+
+        # Assert that we have not added the tag to the span yet
+        assert span.get_tag(HOSTNAME_KEY) is None
+
+        # Assert that retrieving the trace does not set the tag
+        trace, _ = ctx.get()
+        assert trace[0].get_tag(HOSTNAME_KEY) is None
+        assert span.get_tag(HOSTNAME_KEY) is None
 
     def test_partial_flush(self):
         """
@@ -393,7 +450,7 @@ class TestTracingContext(TestCase):
         assert cloned_ctx._finished_spans == 0
 
 
-class TestThreadContext(TestCase):
+class TestThreadContext(BaseTestCase):
     """
     Ensures that a ``ThreadLocalContext`` makes the Context
     local to each thread.

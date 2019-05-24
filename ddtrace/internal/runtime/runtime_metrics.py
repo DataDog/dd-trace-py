@@ -1,7 +1,7 @@
-import threading
-import time
 import itertools
 
+
+from ... import _worker
 from ..logger import get_logger
 from .constants import (
     DEFAULT_RUNTIME_METRICS,
@@ -53,7 +53,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ]
 
 
-class RuntimeWorker(object):
+class RuntimeWorker(_worker.PeriodicWorkerThread):
     """ Worker thread for collecting and writing runtime metrics to a DogStatsd
         client.
     """
@@ -61,33 +61,10 @@ class RuntimeWorker(object):
     FLUSH_INTERVAL = 10
 
     def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL):
-        self._stay_alive = None
-        self._thread = None
-        self._flush_interval = flush_interval
+        super(RuntimeWorker, self).__init__(interval=flush_interval,
+                                            name=self.__class__.__name__)
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
-
-    def _target(self):
-        while self._stay_alive:
-            self.flush()
-            time.sleep(self._flush_interval)
-
-    def start(self):
-        if not self._thread:
-            log.debug('Starting {}'.format(self))
-            self._stay_alive = True
-            self._thread = threading.Thread(target=self._target)
-            self._thread.setDaemon(True)
-            self._thread.start()
-
-    def stop(self):
-        if self._thread and self._stay_alive:
-            log.debug('Stopping {}'.format(self))
-            self._stay_alive = False
-
-    def join(self, timeout=None):
-        if self._thread:
-            return self._thread.join(timeout)
 
     def _write_metric(self, key, value):
         log.debug('Writing metric {}:{}'.format(key, value))
@@ -100,6 +77,9 @@ class RuntimeWorker(object):
 
         for key, value in self._runtime_metrics:
             self._write_metric(key, value)
+
+    on_periodic = flush
+    on_shutdown = flush
 
     def reset(self):
         self._runtime_metrics = RuntimeMetrics()

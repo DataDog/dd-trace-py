@@ -17,10 +17,14 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
     """
     Ensures that the middleware traces all Django internals
     """
-    def test_middleware_trace_request(self):
+    def test_middleware_trace_request(self, query_string=''):
         # ensures that the internals are properly traced
         url = reverse('users-list')
-        response = self.client.get(url)
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+        response = self.client.get(url + fqs)
         assert response.status_code == 200
 
         # check for spans
@@ -37,6 +41,12 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag('http.method') == 'GET'
         assert sp_request.span_type == 'http'
         assert sp_request.resource == 'tests.contrib.django.app.views.UserList'
+
+    def test_middleware_trace_request_qs(self):
+        return self.test_middleware_trace_request('foo=bar')
+
+    def test_middleware_trace_request_multi_qs(self):
+        return self.test_middleware_trace_request('foo=bar&foo=baz&x=y')
 
     def test_analytics_global_on_integration_default(self):
         """

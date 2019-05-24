@@ -296,6 +296,9 @@ class TestTracer(object):
         """
         import threading
 
+        # synchronize threads with a threading event object
+        event = threading.Event()
+
         def trace_one():
             id = 11
             with ot_tracer.start_active_span(str(id)):
@@ -303,10 +306,11 @@ class TestTracer(object):
                 with ot_tracer.start_active_span(str(id)):
                     id += 1
                     with ot_tracer.start_active_span(str(id)):
-                        pass
+                        event.set()
 
         def trace_two():
             id = 21
+            event.wait()
             with ot_tracer.start_active_span(str(id)):
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
