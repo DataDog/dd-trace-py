@@ -86,7 +86,7 @@ setup_kwargs = dict(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        'psutil',
+        'psutil>=5.0.0',
     ],
     extras_require={
         # users can include opentracing by having:
