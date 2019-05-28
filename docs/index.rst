@@ -141,3 +141,4 @@ Indices and tables
     other_integrations
     basic_usage
     advanced_usage
+    contributing

@@ -27,6 +27,9 @@ documentation][visualization docs].
 
 ## Development
 
+### Contributing
+
+See [docs/contributing.rst](docs/contributing.rst).
 
 ### Testing
 
