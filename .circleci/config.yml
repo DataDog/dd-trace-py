@@ -682,7 +682,14 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^benchmarks-'
+      - run:
+          command: |
+            mkdir -p /tmp/test-reports
+            tox -e 'benchmarks-{py27,py34,py35,py36,py37}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
+      - store_test_results:
+          path: /tmp/test-reports
+      - store_artifacts:
+          path: /tmp/test-reports
       - *persist_to_workspace_step
       - *save_cache_step
 
