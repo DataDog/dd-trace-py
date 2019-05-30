@@ -675,6 +675,17 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  benchmarks:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^benchmarks-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   deploy_dev:
     # build the master branch releasing development docs and wheels
     docker:
@@ -804,6 +815,9 @@ workflows:
           requires:
             - flake8
       - algoliasearch:
+          requires:
+            - flake8
+      - benchmarks:
           requires:
             - flake8
       - boto:
@@ -951,6 +965,7 @@ workflows:
             - aiopg
             - asyncio
             - algoliasearch
+            - benchmarks
             - boto
             - bottle
             - cassandra

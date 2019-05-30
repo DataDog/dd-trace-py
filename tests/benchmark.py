@@ -1,28 +1,18 @@
-import timeit
-
 from ddtrace import Tracer
+import pytest
 
 from .test_tracer import DummyWriter
-from os import getpid
 
 
-REPEAT = 10
-NUMBER = 10000
-
-
-def trace_error(tracer):
-    # explicit vars
-    with tracer.trace('a', service='s', resource='r', span_type='t'):
-        1 / 0
-
-
-def benchmark_tracer_trace():
+@pytest.fixture
+def tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
+    return tracer
 
-    # testcase
-    def trace(tracer):
-        # explicit vars
+
+def test_tracer_context(benchmark, tracer):
+    def func(tracer):
         with tracer.trace('a', service='s', resource='r', span_type='t') as s:
             s.set_tag('a', 'b')
             s.set_tag('b', 1)
@@ -31,56 +21,36 @@ def benchmark_tracer_trace():
             with tracer.trace('another.thing'):
                 pass
 
-    # benchmark
-    print('## tracer.trace() benchmark: {} loops ##'.format(NUMBER))
-    timer = timeit.Timer(lambda: trace(tracer))
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print('- trace execution time: {:8.6f}'.format(min(result)))
+    benchmark(func, tracer)
 
 
-def benchmark_tracer_wrap():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
-
-    # testcase
+def test_tracer_wrap_staticmethod(benchmark, tracer):
     class Foo(object):
         @staticmethod
         @tracer.wrap()
-        def s():
-            return 0
-
-        @classmethod
-        @tracer.wrap()
-        def c(cls):
-            return 0
-
-        @tracer.wrap()
-        def m(self):
+        def func():
             return 0
 
     f = Foo()
-
-    # benchmark
-    print('## tracer.trace() wrapper benchmark: {} loops ##'.format(NUMBER))
-    timer = timeit.Timer(f.s)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print('- staticmethod execution time: {:8.6f}'.format(min(result)))
-    timer = timeit.Timer(f.c)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print('- classmethod execution time: {:8.6f}'.format(min(result)))
-    timer = timeit.Timer(f.m)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print('- method execution time: {:8.6f}'.format(min(result)))
+    benchmark(f.func)
 
 
-def benchmark_getpid():
-    timer = timeit.Timer(getpid)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print('## getpid wrapper benchmark: {} loops ##'.format(NUMBER))
-    print('- getpid execution time: {:8.6f}'.format(min(result)))
+def test_tracer_wrap_classmethod(benchmark, tracer):
+    class Foo(object):
+        @classmethod
+        @tracer.wrap()
+        def func(cls):
+            return 0
+
+    f = Foo()
+    benchmark(f.func)
 
 
-if __name__ == '__main__':
-    benchmark_tracer_wrap()
-    benchmark_tracer_trace()
-    benchmark_getpid()
+def test_tracer_wrap_instancemethod(benchmark, tracer):
+    class Foo(object):
+        @tracer.wrap()
+        def func(self):
+            return 0
+
+    f = Foo()
+    benchmark(f.func)
