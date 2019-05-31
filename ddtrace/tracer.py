@@ -395,7 +395,8 @@ class Tracer(object):
             # get the root span
             root_span = tracer.current_root_span()
             # set the host just once on the root span
-            root_span.set_tag('host', '127.0.0.1')
+            if root_span:
+                root_span.set_tag('host', '127.0.0.1')
         """
         ctx = self.get_call_context()
         if ctx:
