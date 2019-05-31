@@ -1,4 +1,3 @@
-# flake8: noqa
 import asyncio
 
 from aiohttp.test_utils import unittest_run_loop
@@ -30,7 +29,7 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request('GET', '/')
         assert 200 == request.status
         text = yield from request.text()
-        assert "What's tracing?" == text
+        assert 'What\'s tracing?' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
@@ -73,11 +72,11 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     def test_query_string(self):
-        return self._test_param_handler("foo=bar")
+        return self._test_param_handler('foo=bar')
 
     @unittest_run_loop
     def test_query_string_duplicate_keys(self):
-        return self._test_param_handler("foo=bar&foo=baz&x=y")
+        return self._test_param_handler('foo=bar&foo=baz&x=y')
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -214,7 +213,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /wrapped_coroutine' == span.resource
         span = spans[1]
         assert 'nested' == span.name
-        assert span.duration > 0.25, "span.duration={0}".format(span.duration)
+        assert span.duration > 0.25, 'span.duration={0}'.format(span.duration)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -237,7 +236,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == None
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -309,8 +308,8 @@ class TestTraceMiddleware(TraceTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
         # distributed tracing must be ignored by default
-        assert span.trace_id is not 100
-        assert span.parent_id is not 42
+        assert span.trace_id != 100
+        assert span.parent_id != 42
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -327,7 +326,7 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request('GET', '/sub_span', headers=tracing_headers)
         assert 200 == request.status
         text = yield from request.text()
-        assert "OK" == text
+        assert 'OK' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
@@ -340,7 +339,7 @@ class TestTraceMiddleware(TraceTestCase):
         # check parenting is OK with custom sub-span created within server code
         assert 100 == sub_span.trace_id
         assert span.span_id == sub_span.parent_id
-        assert None == sub_span.get_metric(SAMPLING_PRIORITY_KEY)
+        assert sub_span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
     def _assert_200_parenting(self, traces):
         """Helper to assert parenting when handling aiohttp requests.
@@ -357,8 +356,8 @@ class TestTraceMiddleware(TraceTestCase):
         outer_span = traces[1][0]
 
         # confirm the parenting
-        assert outer_span.parent_id == None
-        assert inner_span.parent_id == None
+        assert outer_span.parent_id is None
+        assert inner_span.parent_id is None
 
         assert outer_span.name == 'aiohttp_op'
 

@@ -60,7 +60,7 @@ def trace_middleware(app, handler):
         request[REQUEST_CONTEXT_KEY] = request_span.context
         request[REQUEST_SPAN_KEY] = request_span
         try:
-            response = yield from handler(request)  # noqa: E999
+            response = yield from handler(request)
             return response
         except Exception:
             request_span.set_traceback()

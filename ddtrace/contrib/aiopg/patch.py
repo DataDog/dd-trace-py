@@ -32,7 +32,7 @@ def unpatch():
 
 @asyncio.coroutine
 def patched_connect(connect_func, _, args, kwargs):
-    conn = yield from connect_func(*args, **kwargs)  # noqa: E999
+    conn = yield from connect_func(*args, **kwargs)
     return psycppg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
 
 

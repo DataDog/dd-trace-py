@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from annotations
 from unittest import TestCase
 
 # Test base adapted from molten/tests/test_dependency_injection.py
@@ -112,7 +110,7 @@ class TestMoltenDI(TestCase):
         # Then all the parameters should resolve as expected
         resolver = di.get_resolver()
         resolved_example = resolver.resolve(example)
-        accounts_1 = resolved_example()
+        resolved_example()
 
         spans = self.tracer.writer.pop()
 

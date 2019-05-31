@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import aiobotocore
 from botocore.errorfactory import ClientError
 
@@ -126,7 +124,7 @@ class AIOBotocoreTest(AsyncioTestCase):
             yield from response['Body'].read()
 
         traces = self.tracer.writer.pop_traces()
-        version = aiobotocore.__version__.split(".")
+        version = aiobotocore.__version__.split('.')
         pre_08 = int(version[0]) == 0 and int(version[1]) < 8
         if pre_08:
             self.assertEqual(len(traces), 2)
@@ -247,7 +245,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         with ot_tracer.start_active_span('ot_outer_span'):
             with aiobotocore_client('ec2', self.tracer) as ec2:
-                    yield from ec2.describe_instances()
+                yield from ec2.describe_instances()
 
         traces = self.tracer.writer.pop_traces()
         print(traces)

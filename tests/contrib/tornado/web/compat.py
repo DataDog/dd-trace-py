@@ -4,11 +4,6 @@ from tornado.ioloop import IOLoop
 
 
 try:
-    from importlib import reload as reload_module
-except ImportError:
-    reload_module = reload
-
-try:
     from concurrent.futures import ThreadPoolExecutor
 except ImportError:
     from tornado.concurrent import DummyExecutor

@@ -25,7 +25,7 @@ def set_call_context(task, ctx):
     setattr(task, CONTEXT_ATTR, ctx)
 
 
-def ensure_future(coro_or_future, *, loop=None, tracer=None):  # noqa: E999
+def ensure_future(coro_or_future, *, loop=None, tracer=None):
     """
     Wrapper for the asyncio.ensure_future() function that
     sets a context to the newly created Task. If the current
