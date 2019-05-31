@@ -88,12 +88,3 @@ the CLI can be found at https://circleci.com/docs/2.0/local-cli/.
 After installing the `circleci` CLI, you can run jobs by name. For example:
 
     $ circleci build --job django
-
-
-### Benchmarking
-
-When two or more approaches must be compared, please write a benchmark in the
-[benchmark.py](tests/benchmark.py) module so that we can measure the efficiency
-of the algorithm. To run your benchmark, just:
-
-    $ python -m tests.benchmark
