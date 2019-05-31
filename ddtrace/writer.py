@@ -85,23 +85,21 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
             log.error('error while filtering traces: {0}'.format(err))
             return
 
-        traces_responses = None
+        if not traces:
+            return
 
-        if traces:
-            # If we have data, let's try to send it.
-            traces_responses = self.api.send_traces(traces)
-            for response in traces_responses:
-                if isinstance(response, Exception):
-                    log.error('cannot send spans to {1}:{2}: {0}'.format(
-                        response, self.api.hostname, self.api.port))
-
-        if self._priority_sampler and traces_responses:
-            for traces_response in traces_responses:
-                result_traces_json = traces_response.get_json()
+        # If we have data, let's try to send it.
+        traces_responses = self.api.send_traces(traces)
+        for response in traces_responses:
+            if isinstance(response, Exception):
+                log.error('failed to send traces to {1}:{2}: {0}'.format(
+                    response, self.api.hostname, self.api.port))
+            elif self._priority_sampler:
+                result_traces_json = response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-        self._log_error_status(traces_response, 'traces')
+            self._log_error_status(response)
 
     run_periodic = flush_queue
     on_shutdown = flush_queue
@@ -117,8 +115,7 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
                 log_level = log.error
                 self._last_error_ts = now
             log_level(
-                'failed_to_send %s to Datadog Agent: HTTP error status %s, reason %s, message %s',
-                response_name,
+                'failed_to_send traces to Datadog Agent: HTTP error status %s, reason %s, message %s',
                 response.status,
                 response.reason,
                 response.msg,
