@@ -1,12 +1,73 @@
 import mock
 import re
+import socket
+import threading
+import time
 import warnings
 
 from unittest import TestCase
 
+import pytest
+
 from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
-from ddtrace.compat import iteritems, httplib
+from ddtrace.compat import iteritems, httplib, PY3
+from ddtrace.vendor.six.moves import BaseHTTPServer
+
+
+class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    error_message_format = '%(message)s\n'
+    error_content_type = 'text/plain'
+
+    @staticmethod
+    def log_message(format, *args):  # noqa: A002
+        pass
+
+
+class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+    def do_PUT(self):
+        # This server sleeps longer than our timeout
+        time.sleep(5)
+
+
+class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+
+    def do_PUT(self):
+        return
+
+
+_HOST = '0.0.0.0'
+_TIMEOUT_PORT = 8743
+_RESET_PORT = _TIMEOUT_PORT + 1
+
+
+def _make_server(port, request_handler):
+    server = BaseHTTPServer.HTTPServer((_HOST, port), request_handler)
+    t = threading.Thread(target=server.serve_forever)
+    # Set daemon just in case something fails
+    t.daemon = True
+    t.start()
+    return server, t
+
+
+@pytest.fixture(scope='module')
+def endpoint_test_timeout_server():
+    server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
+    try:
+        yield thread
+    finally:
+        server.shutdown()
+        thread.join()
+
+
+@pytest.fixture(scope='module')
+def endpoint_test_reset_server():
+    server, thread = _make_server(_RESET_PORT, _ResetAPIEndpointRequestHandlerTest)
+    try:
+        yield thread
+    finally:
+        server.shutdown()
+        thread.join()
 
 
 class ResponseMock:
@@ -117,3 +178,37 @@ class APITests(TestCase):
 
         self.conn.request.assert_called_once()
         self.conn.close.assert_called_once()
+
+
+def test_flush_connection_timeout_connect():
+    payload = mock.Mock()
+    payload.get_payload.return_value = 'foobar'
+    payload.length = 12
+    api = API(_HOST, 2019)
+    response = api._flush(payload)
+    if PY3:
+        assert isinstance(response, (OSError, ConnectionRefusedError))  # noqa: F821
+    else:
+        assert isinstance(response, socket.error)
+    assert response.errno in (99, 111)
+
+
+def test_flush_connection_timeout(endpoint_test_timeout_server):
+    payload = mock.Mock()
+    payload.get_payload.return_value = 'foobar'
+    payload.length = 12
+    api = API(_HOST, _TIMEOUT_PORT)
+    response = api._flush(payload)
+    assert isinstance(response, socket.timeout)
+
+
+def test_flush_connection_reset(endpoint_test_reset_server):
+    payload = mock.Mock()
+    payload.get_payload.return_value = 'foobar'
+    payload.length = 12
+    api = API(_HOST, _RESET_PORT)
+    response = api._flush(payload)
+    if PY3:
+        assert isinstance(response, (httplib.BadStatusLine, ConnectionResetError))  # noqa: F821
+    else:
+        assert isinstance(response, httplib.BadStatusLine)

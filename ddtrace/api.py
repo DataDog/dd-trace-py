@@ -102,6 +102,10 @@ class API(object):
 
     TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 
+    # Default timeout when establishing HTTP connection and sending/receiving from socket.
+    # This ought to be enough as the agent is local
+    TIMEOUT = 2
+
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
         self.port = int(port)
@@ -186,7 +190,7 @@ class API(object):
     def _flush(self, payload):
         try:
             response = self._put(self._traces, payload.get_payload(), payload.length)
-        except (httplib.HTTPException, IOError) as e:
+        except (httplib.HTTPException, OSError, IOError) as e:
             return e
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
@@ -205,7 +209,8 @@ class API(object):
         headers = self._headers.copy()
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
-        conn = httplib.HTTPConnection(self.hostname, self.port)
+        conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+
         try:
             conn.request('PUT', endpoint, data, headers)
 
