@@ -91,34 +91,38 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
         for response in traces_responses:
-            if isinstance(response, Exception):
-                log.error('failed to send traces to {1}:{2}: {0}'.format(
-                    response, self.api.hostname, self.api.port))
+            if isinstance(response, Exception) or response.status >= 400:
+                self._log_error_status(response)
             elif self._priority_sampler:
                 result_traces_json = response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
 
-            self._log_error_status(response)
-
     run_periodic = flush_queue
     on_shutdown = flush_queue
 
-    def _log_error_status(self, response, response_name):
-        if not isinstance(response, api.Response):
-            return
-
+    def _log_error_status(self, response):
         log_level = log.debug
-        if response.status >= 400:
-            now = time.time()
-            if now > self._last_error_ts + LOG_ERR_INTERVAL:
-                log_level = log.error
-                self._last_error_ts = now
+        now = time.time()
+        if now > self._last_error_ts + LOG_ERR_INTERVAL:
+            log_level = log.error
+            self._last_error_ts = now
+        prefix = 'Failed to send traces to Datadog Agent at %s:%s: '
+        if isinstance(response, api.Response):
             log_level(
-                'failed_to_send traces to Datadog Agent: HTTP error status %s, reason %s, message %s',
+                prefix + 'HTTP error status %s, reason %s, message %s',
+                self.api.hostname,
+                self.api.port,
                 response.status,
                 response.reason,
                 response.msg,
+            )
+        else:
+            log_level(
+                prefix + '%s',
+                self.api.hostname,
+                self.api.port,
+                response,
             )
 
     def _apply_filters(self, traces):
