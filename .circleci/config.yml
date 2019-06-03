@@ -675,6 +675,24 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  benchmarks:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run:
+          command: |
+            mkdir -p /tmp/test-reports
+            tox -e 'benchmarks-{py27,py34,py35,py36,py37}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
+      - store_test_results:
+          path: /tmp/test-reports
+      - store_artifacts:
+          path: /tmp/test-reports
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   deploy_dev:
     # build the master branch releasing development docs and wheels
     docker:
@@ -804,6 +822,9 @@ workflows:
           requires:
             - flake8
       - algoliasearch:
+          requires:
+            - flake8
+      - benchmarks:
           requires:
             - flake8
       - boto:
@@ -951,6 +972,7 @@ workflows:
             - aiopg
             - asyncio
             - algoliasearch
+            - benchmarks
             - boto
             - bottle
             - cassandra
