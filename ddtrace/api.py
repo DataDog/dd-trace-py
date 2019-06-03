@@ -13,7 +13,6 @@ from .utils.deprecation import deprecated
 
 log = get_logger(__name__)
 
-TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 
 _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'services': '/v0.4/services',
@@ -100,6 +99,9 @@ class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
     """
+
+    TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
+
     def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
         self.hostname = hostname
         self.port = int(port)
@@ -169,14 +171,12 @@ class API(object):
     def send_services(self, *args, **kwargs):
         return
 
-    def _put(self, endpoint, data, count=0):
+    def _put(self, endpoint, data, count):
+        headers = self._headers.copy()
+        headers[self.TRACE_COUNT_HEADER] = str(count)
+
         conn = httplib.HTTPConnection(self.hostname, self.port)
         try:
-            headers = self._headers
-            if count:
-                headers = dict(self._headers)
-                headers[TRACE_COUNT_HEADER] = str(count)
-
             conn.request('PUT', endpoint, data, headers)
 
             # Parse the HTTPResponse into an API.Response
