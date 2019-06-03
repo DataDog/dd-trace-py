@@ -1,5 +1,3 @@
-# flake8: noqa
-
 import molten
 from molten.testing import TestClient
 
@@ -175,7 +173,7 @@ class TestMolten(BaseTracerTestCase):
 
     def test_resources(self):
         """ Tests request has expected span resources """
-        response = molten_client()
+        molten_client()
         spans = self.tracer.writer.pop()
 
         # `can_handle_parameter` appears twice since two parameters are in request

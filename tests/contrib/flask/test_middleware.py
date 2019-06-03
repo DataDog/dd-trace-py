@@ -35,7 +35,7 @@ class TestFlask(TestCase):
         # and `TraceMiddleware` are used together. `traced_app` MUST
         # be assigned otherwise it's not possible to reproduce the
         # problem (the test scope must keep a strong reference)
-        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa
+        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa: F841
         rv = self.app.get('/child')
         assert rv.status_code == 200
         spans = self.tracer.writer.pop()
