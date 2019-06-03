@@ -69,6 +69,8 @@ class Tracer(object):
         self._runtime_id = generate_runtime_id()
         self._runtime_worker = None
         self._dogstatsd_client = None
+        self._dogstatsd_host = self.DEFAULT_HOSTNAME
+        self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -154,12 +156,11 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._runtime_worker is None:
+            self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
+            self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
             # start dogstatsd client if not already running
             if not self._dogstatsd_client:
-                self._start_dogstatsd_client(
-                    dogstatsd_host or self.DEFAULT_HOSTNAME,
-                    dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
-                )
+                self._start_dogstatsd_client()
 
             self._start_runtime_worker()
 
@@ -271,17 +272,17 @@ class Tracer(object):
         # add it to the current context
         context.add_span(span)
 
+        # check for new process if runtime metrics worker has already been started
+        if self._runtime_worker:
+            self._check_new_process()
+
         # update set of services handled by tracer
-        if service:
+        if service and service not in self._services:
             self._services.add(service)
 
             # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
             self._update_dogstatsd_constant_tags()
-
-        # check for new process if runtime metrics worker has already been started
-        if self._runtime_worker:
-            self._check_new_process()
 
         return span
 
@@ -299,12 +300,15 @@ class Tracer(object):
         log.debug('Updating constant tags {}'.format(tags))
         self._dogstatsd_client.constant_tags = tags
 
-    def _start_dogstatsd_client(self, host, port):
+    def _start_dogstatsd_client(self):
         # start dogstatsd as client with constant tags
-        log.debug('Starting DogStatsd on {}:{}'.format(host, port))
+        log.debug('Connecting to DogStatsd on {}:{}'.format(
+            self._dogstatsd_host,
+            self._dogstatsd_port
+        ))
         self._dogstatsd_client = DogStatsd(
-            host=host,
-            port=port,
+            host=self._dogstatsd_host,
+            port=self._dogstatsd_port,
         )
 
     def _start_runtime_worker(self):
@@ -329,6 +333,10 @@ class Tracer(object):
         self._services = set()
 
         self._start_runtime_worker()
+
+        # force an immediate update constant tags since we have reset services
+        # and generated a new runtime id
+        self._update_dogstatsd_constant_tags()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
