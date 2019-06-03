@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
 import aiobotocore
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
@@ -37,7 +35,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         traces = self.tracer.writer.pop_traces()
 
-        version = aiobotocore.__version__.split(".")
+        version = aiobotocore.__version__.split('.')
         pre_08 = int(version[0]) == 0 and int(version[1]) < 8
         # Version 0.8+ generates only one span for reading an object.
         if pre_08:

@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
 
 from asyncio import BaseEventLoop
@@ -131,7 +129,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         assert 2 == len(spans)
         span = spans[0]
         assert 'f2' == span.name
-        assert 1 == span.error # f2 did not catch the exception
+        assert 1 == span.error  # f2 did not catch the exception
         assert 'f1 error' == span.get_tag('error.msg')
         assert 'Exception: f1 error' in span.get_tag('error.stack')
         span = spans[1]
@@ -163,7 +161,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         assert 2 == len(spans)
         span = spans[0]
         assert 'f2' == span.name
-        assert 0 == span.error # f2 caught the exception
+        assert 0 == span.error  # f2 caught the exception
         span = spans[1]
         assert 'f1' == span.name
         assert 1 == span.error
@@ -296,7 +294,6 @@ class TestAsyncioPropagation(AsyncioTestCase):
     def test_propagation_with_new_context(self):
         # ensures that if a new Context is activated, a trace
         # with the Context arguments is created
-        task = asyncio.Task.current_task()
         ctx = Context(trace_id=100, span_id=101)
         self.tracer.context_provider.activate(ctx)
 

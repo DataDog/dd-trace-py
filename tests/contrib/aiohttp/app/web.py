@@ -1,4 +1,3 @@
-# flake8: noqa
 import os
 import jinja2
 import asyncio
@@ -60,6 +59,7 @@ def route_sub_span(request):
     with tracer.trace('aiohttp.sub_span') as span:
         span.set_tag('sub_span', 'true')
         return web.Response(text='OK')
+
 
 @asyncio.coroutine
 def coro_2(request):
