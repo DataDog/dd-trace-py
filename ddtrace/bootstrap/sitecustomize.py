@@ -18,7 +18,8 @@ DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 
 if logs_injection:
     # immediately patch logging if trace id injected
-    from ddtrace import patch; patch(logging=True)  # noqa
+    from ddtrace import patch
+    patch(logging=True)
 
 debug = os.environ.get('DATADOG_TRACE_DEBUG')
 
@@ -108,7 +109,8 @@ try:
 
     if patch:
         update_patched_modules()
-        from ddtrace import patch_all; patch_all(**EXTRA_PATCHED_MODULES) # noqa
+        from ddtrace import patch_all
+        patch_all(**EXTRA_PATCHED_MODULES)
 
     debug = os.environ.get('DATADOG_TRACE_DEBUG')
     if debug and debug.lower() == 'true':
@@ -143,6 +145,6 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
-except Exception as e:
+except Exception:
     loaded = False
     log.warn('error configuring Datadog tracing', exc_info=True)

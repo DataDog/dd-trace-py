@@ -34,7 +34,7 @@ Available environment variables:
                            (e.g. pylons, flask, django)
                            For tracing without a web integration, prefer setting the service name in code.
     DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
-""" # noqa
+"""  # noqa: E501
 
 
 def _ddtrace_root():
