@@ -1,61 +1,85 @@
+import collections
 import grpc
 
-from ddtrace import Pin
-from .propagation import inject_span
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...settings import config
+from ddtrace import config
+from ...propagation.http import HTTPPropagator
 
 
-class GrpcClientInterceptor(
+def client_interceptor_function(pin):
+    def interceptor_function(client_call_details, request_iterator,
+                             request_streaming, response_streaming):
+        if not pin.enabled:
+            return client_call_details, request_iterator, None
+
+        with pin.tracer.trace(
+                pin.app,
+                span_type='grpc',
+                service=pin.service,
+                resource=client_call_details.method
+        ) as span:
+            if pin.tags:
+                span.set_tags(pin.tags)
+
+            headers = {}
+            if config.grpc.distributed_tracing_enabled:
+                propagator = HTTPPropagator()
+                propagator.inject(span.context, headers)
+
+            metadata = []
+            if client_call_details.metadata is not None:
+                metadata = list(client_call_details.metadata)
+            metadata.extend(headers.items())
+
+            client_call_details = _ClientCallDetails(
+                client_call_details.method,
+                client_call_details.timeout,
+                metadata,
+                client_call_details.credentials
+            )
+
+            return client_call_details, request_iterator, None
+
+    return _GenericClientInterceptor(interceptor_function)
+
+
+class _ClientCallDetails(
+        collections.namedtuple(
+            '_ClientCallDetails',
+            ('method', 'timeout', 'metadata', 'credentials')),
+        grpc.ClientCallDetails):
+    pass
+
+
+class _GenericClientInterceptor(
         grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
         grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
-    """Intercept calls on a channel. It creates span as well as doing the propagation
-    Derived from https://github.com/grpc/grpc/blob/d0cb61eada9d270b9043ec866b55c88617d362be/examples/python/interceptors/headers/generic_client_interceptor.py#L19
-    """  # noqa
 
-    def __init__(self, host, port):
-        self._pin = Pin.get_from(grpc)
-        self._host = host
-        self._port = port
-
-    def _start_span(self, method):
-        span = self._pin.tracer.trace('grpc.client', span_type='grpc', service=self._pin.service, resource=method)
-        span.set_tag('grpc.host', self._host)
-        if (self._port is not None):
-            span.set_tag('grpc.port', self._port)
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
-        # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.grpc.get_analytics_sample_rate()
-        )
-        return span
+    def __init__(self, interceptor_function):
+        self._fn = interceptor_function
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
-        return self.intercept_unary_stream(continuation, client_call_details, request)
+        new_details, new_request_iterator, postprocess = self._fn(
+            client_call_details, iter((request,)), False, False)
+        response = continuation(new_details, next(new_request_iterator))
+        return postprocess(response) if postprocess else response
 
-    def intercept_unary_stream(self, continuation, client_call_details, request):
-        if not self._pin or not self._pin.enabled():
-            return continuation(client_call_details, request)
-        with self._start_span(client_call_details.method) as span:
-            new_details = inject_span(span, client_call_details)
-            try:
-                return continuation(new_details, request)
-            except Exception:
-                span.set_traceback()
-                raise
+    def intercept_unary_stream(self, continuation, client_call_details,
+                               request):
+        new_details, new_request_iterator, postprocess = self._fn(
+            client_call_details, iter((request,)), False, True)
+        response_it = continuation(new_details, next(new_request_iterator))
+        return postprocess(response_it) if postprocess else response_it
 
-    def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
-        return self.intercept_stream_stream(continuation, client_call_details, request_iterator)
+    def intercept_stream_unary(self, continuation, client_call_details,
+                               request_iterator):
+        new_details, new_request_iterator, postprocess = self._fn(
+            client_call_details, request_iterator, True, False)
+        response = continuation(new_details, new_request_iterator)
+        return postprocess(response) if postprocess else response
 
-    def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
-        if not self._pin or not self._pin.enabled():
-            return continuation(client_call_details, request_iterator)
-        with self._start_span(client_call_details.method) as span:
-            new_details = inject_span(span, client_call_details)
-            try:
-                return continuation(new_details, request_iterator)
-            except Exception:
-                span.set_traceback()
-                raise
+    def intercept_stream_stream(self, continuation, client_call_details,
+                                request_iterator):
+        new_details, new_request_iterator, postprocess = self._fn(
+            client_call_details, request_iterator, True, True)
+        response_it = continuation(new_details, new_request_iterator)
+        return postprocess(response_it) if postprocess else response_it
