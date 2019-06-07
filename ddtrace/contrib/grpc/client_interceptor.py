@@ -3,22 +3,29 @@ import grpc
 
 from ddtrace import config
 from ...propagation.http import HTTPPropagator
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+
+# DEV: Follows Python interceptors RFC laid out in
+# https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
 
 
-def client_interceptor_function(pin):
-    def interceptor_function(client_call_details, request_iterator,
-                             request_streaming, response_streaming):
+def create_client_interceptor(pin):
+    def interceptor_function(continuation, client_call_details,
+                             request_or_iterator):
         if not pin.enabled:
-            return client_call_details, request_iterator, None
+            response = continuation(client_call_details, request_or_iterator)
+            return response
 
         with pin.tracer.trace(
-                pin.app,
-                span_type='grpc',
+                '{}.client'.format(pin.app),
+                span_type=config.grpc.span_type,
                 service=pin.service,
                 resource=client_call_details.method
         ) as span:
             if pin.tags:
                 span.set_tags(pin.tags)
+
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
             headers = {}
             if config.grpc.distributed_tracing_enabled:
@@ -37,9 +44,14 @@ def client_interceptor_function(pin):
                 client_call_details.credentials
             )
 
-            return client_call_details, request_iterator, None
+            try:
+                response = continuation(client_call_details, request_or_iterator)
+                return response
+            except Exception:
+                span.set_traceback()
+                raise
 
-    return _GenericClientInterceptor(interceptor_function)
+    return _ClientInterceptor(interceptor_function)
 
 
 class _ClientCallDetails(
@@ -50,7 +62,7 @@ class _ClientCallDetails(
     pass
 
 
-class _GenericClientInterceptor(
+class _ClientInterceptor(
         grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
         grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
 
@@ -58,28 +70,13 @@ class _GenericClientInterceptor(
         self._fn = interceptor_function
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
-        new_details, new_request_iterator, postprocess = self._fn(
-            client_call_details, iter((request,)), False, False)
-        response = continuation(new_details, next(new_request_iterator))
-        return postprocess(response) if postprocess else response
+        return self._fn(continuation, client_call_details, request)
 
-    def intercept_unary_stream(self, continuation, client_call_details,
-                               request):
-        new_details, new_request_iterator, postprocess = self._fn(
-            client_call_details, iter((request,)), False, True)
-        response_it = continuation(new_details, next(new_request_iterator))
-        return postprocess(response_it) if postprocess else response_it
+    def intercept_unary_stream(self, continuation, client_call_details, request):
+        return self._fn(continuation, client_call_details, request)
 
-    def intercept_stream_unary(self, continuation, client_call_details,
-                               request_iterator):
-        new_details, new_request_iterator, postprocess = self._fn(
-            client_call_details, request_iterator, True, False)
-        response = continuation(new_details, new_request_iterator)
-        return postprocess(response) if postprocess else response
+    def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
+        return self._fn(continuation, client_call_details, request_iterator)
 
-    def intercept_stream_stream(self, continuation, client_call_details,
-                                request_iterator):
-        new_details, new_request_iterator, postprocess = self._fn(
-            client_call_details, request_iterator, True, True)
-        response_it = continuation(new_details, new_request_iterator)
-        return postprocess(response_it) if postprocess else response_it
+    def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
+        return self._fn(continuation, client_call_details, request_iterator)
