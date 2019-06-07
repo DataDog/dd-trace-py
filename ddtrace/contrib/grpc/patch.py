@@ -1,20 +1,18 @@
 import grpc
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
 
 from ...ext import AppTypes
 from ...utils.wrappers import unwrap as _u
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 
-from .client_interceptor import client_interceptor_function
+from .client_interceptor import create_client_interceptor
+from .server_interceptor import create_server_interceptor
 
 
 config._add('grpc', dict(
-    service_name_client='grpc.client',
-    app_client='grpc.client',
-    service_name_server='grpc.server',
-    app_server='grpc.server',
+    service_name='grpc',
+    app='grpc',
     span_type='grpc',
     app_type=AppTypes.web,
 
@@ -28,14 +26,13 @@ def patch():
         return
     setattr(grpc, '__datadog_patch', True)
 
-    # server_pin = Pin(
-    #     service=config.grpc_server.service_name,
-    #     app=config.grpc_server.app,
-    #     app_type=config.grpc_server.app_type,
-    # )
+    Pin(service=config.grpc.service_name,
+        app=config.grpc.app,
+        app_type=config.grpc.app_type).onto(grpc)
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)
+    _w('grpc', 'server', _server_constructor_interceptor)
 
 
 def unpatch():
@@ -43,8 +40,13 @@ def unpatch():
         return
     setattr(grpc, '__datadog_patch', False)
 
+    pin = Pin.get_from(grpc)
+    if pin:
+        pin.remove_from(grpc)
+
     _u(grpc, 'secure_channel')
     _u(grpc, 'insecure_channel')
+    _u(grpc, 'server')
 
 
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
@@ -52,22 +54,44 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
     (host, port) = _parse_target_from_arguments(args, kwargs)
 
+    # DEV: we clone the pin on the grpc module and configure it for the client
+    # interceptor
+    pin = Pin.get_from(grpc)
+    if not pin:
+        return channel
+
     tags = {
         'grpc.host': host,
         'grpc.port': port,
-        ANALYTICS_SAMPLE_RATE_KEY: config.grpc.get_analytics_sample_rate()
     }
+    if pin and pin.tags:
+        tags.update(pin.tags)
 
-    pin = Pin(
-        service=config.grpc.service_name_client,
-        app=config.grpc.app_client,
-        app_type=config.grpc.app_type,
-        tags=tags,
-    )
+    pin = pin.clone(tags=tags)
 
-    channel = grpc.intercept_channel(channel, client_interceptor_function(pin))
+    channel = grpc.intercept_channel(channel, create_client_interceptor(pin))
 
     return channel
+
+
+def _server_constructor_interceptor(wrapped, instance, args, kwargs):
+    # DEV: we clone the pin on the grpc module and configure it for the server
+    # interceptor
+
+    pin = Pin.get_from(grpc)
+    if not pin:
+        return wrapped(*args, **kwargs)
+
+    interceptor = create_server_interceptor(pin)
+
+    if 'interceptors' in kwargs:
+        kwargs['interceptors'] = [interceptor] + kwargs['interceptors']
+    else:
+        kwargs['interceptors'] = [interceptor]
+
+    server = wrapped(*args, **kwargs)
+
+    return server
 
 
 def _parse_target_from_arguments(args, kwargs):
