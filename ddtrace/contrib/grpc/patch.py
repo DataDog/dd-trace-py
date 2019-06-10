@@ -3,7 +3,6 @@ import grpc
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
 
-from ...ext import AppTypes
 from ...utils.wrappers import unwrap as _u
 
 from .client_interceptor import create_client_interceptor
@@ -12,10 +11,6 @@ from .server_interceptor import create_server_interceptor
 
 config._add('grpc', dict(
     service_name='grpc',
-    app='grpc',
-    span_type='grpc',
-    app_type=AppTypes.web,
-
     distributed_tracing_enabled=True,
 ))
 
@@ -26,9 +21,7 @@ def patch():
         return
     setattr(grpc, '__datadog_patch', True)
 
-    Pin(service=config.grpc.service_name,
-        app=config.grpc.app,
-        app_type=config.grpc.app_type).onto(grpc)
+    Pin(service=config.grpc.service_name).onto(grpc)
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)
@@ -60,16 +53,8 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
     if not pin:
         return channel
 
-    tags = {
-        'grpc.host': host,
-        'grpc.port': port,
-    }
-    if pin and pin.tags:
-        tags.update(pin.tags)
-
-    pin = pin.clone(tags=tags)
-
-    channel = grpc.intercept_channel(channel, create_client_interceptor(pin))
+    interceptor_function = create_client_interceptor(pin, host, port)
+    channel = grpc.intercept_channel(channel, interceptor_function)
 
     return channel
 

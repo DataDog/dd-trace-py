@@ -11,7 +11,7 @@ from ...base import BaseTracerTestCase
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
 
-GRPC_PORT = 50531
+_GRPC_PORT = 50531
 
 
 class GrpcTestCase(BaseTracerTestCase):
@@ -36,7 +36,7 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def _start_server(self):
         self._server = grpc.server(logging_pool.pool(2))
-        self._server.add_insecure_port('[::]:%d' % (GRPC_PORT))
+        self._server.add_insecure_port('[::]:%d' % (_GRPC_PORT))
         add_HelloServicer_to_server(SendBackDatadogHeaders(), self._server)
         self._server.start()
 
@@ -71,7 +71,7 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def _test_insecure_channel(self, insecure_channel_function):
         # Create a channel and send one request to the server
-        target = 'localhost:%d' % (GRPC_PORT)
+        target = 'localhost:%d' % (_GRPC_PORT)
         with insecure_channel_function(target) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
@@ -99,7 +99,7 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def _test_secure_channel(self, secure_channel_function):
         # Create a channel and send one request to the server
-        target = 'localhost:%d' % (GRPC_PORT)
+        target = 'localhost:%d' % (_GRPC_PORT)
         with secure_channel_function(target, credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
@@ -120,7 +120,7 @@ class GrpcTestCase(BaseTracerTestCase):
         # Setting priority sampling reset the writer, we need to re-override it
 
         # Create a channel and send one request to the server
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='test'))
 
@@ -135,9 +135,9 @@ class GrpcTestCase(BaseTracerTestCase):
         self._check_client_span(client_span)
         self._check_server_span(server_span)
 
-    def test_span_in_error(self):
+    def test_span_aborted(self):
         # Create a channel and send one request to the server
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             with self.assertRaises(Exception):
                 stub.SayError(HelloRequest(name='test'))
@@ -147,16 +147,15 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert '/Hello/SayError' == client_span.resource
-        assert 'status = StatusCode.CANCELLED' in client_span.get_tag(errors.ERROR_MSG)
-        assert 'grpc._channel._Rendezvous' in client_span.get_tag(errors.ERROR_TYPE)
-        assert 'in interceptor_function' in client_span.get_tag(errors.ERROR_STACK)
+        assert client_span.get_tag('rpc_error.status') == 'StatusCode.ABORTED'
+        assert client_span.get_tag('rpc_error.details') == 'aborted'
 
         assert '/Hello/SayError' == server_span.resource
-        assert server_span.get_tag(errors.ERROR_MSG) is not None
+        assert server_span.get_tag(errors.ERROR_MSG) is None
 
     def test_pin_not_activated(self):
         self.tracer.configure(enabled=False)
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
@@ -164,25 +163,26 @@ class GrpcTestCase(BaseTracerTestCase):
         assert len(spans) == 0
 
     def test_pin_tags_are_put_in_span(self):
+        # DEV: stop and restart server to catch overriden pin
+        self._stop_server()
         Pin.override(grpc, tags={'tag1': 'value1'})
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        self._start_server()
+        Pin.override(grpc, tags={'tag1': 'value2'})
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         assert len(spans) == 2
-        assert spans[1].get_tag('tag1') == 'value1'
+        assert spans[0].get_tag('tag1') == 'value1'
+        assert spans[1].get_tag('tag1') == 'value2'
 
     def test_pin_can_be_defined_per_channel(self):
         Pin.override(grpc, service='grpc1')
-        self._stop_server()
-        self._start_server()
-        channel1 = grpc.insecure_channel('localhost:%d' % (GRPC_PORT))
+        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         Pin.override(grpc, service='grpc2')
-        self._stop_server()
-        self._start_server()
-        channel2 = grpc.insecure_channel('localhost:%d' % (GRPC_PORT))
+        channel2 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
         stub2 = HelloStub(channel2)
@@ -192,17 +192,17 @@ class GrpcTestCase(BaseTracerTestCase):
         spans = self.get_spans()
 
         assert len(spans) == 4
-        # FIXME: this is broken, something is wrong with Pins
-        self._check_server_span(spans[0], 'grpc2')
+        # DEV: Server service default, client services override
+        self._check_server_span(spans[0], 'grpc')
         self._check_client_span(spans[1], 'grpc1')
-        self._check_server_span(spans[2], 'grpc2')
+        self._check_server_span(spans[2], 'grpc')
         self._check_client_span(spans[3], 'grpc2')
 
         channel1.close()
         channel2.close()
 
     def test_analytics_default(self):
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
@@ -217,7 +217,7 @@ class GrpcTestCase(BaseTracerTestCase):
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             with grpc.secure_channel(
-                    'localhost:%d' % (GRPC_PORT),
+                    'localhost:%d' % (_GRPC_PORT),
                     credentials=grpc.ChannelCredentials(None)
             ) as channel:
                 stub = HelloStub(channel)
@@ -234,7 +234,7 @@ class GrpcTestCase(BaseTracerTestCase):
             dict(analytics_enabled=True)
         ):
             with grpc.secure_channel(
-                    'localhost:%d' % (GRPC_PORT),
+                    'localhost:%d' % (_GRPC_PORT),
                     credentials=grpc.ChannelCredentials(None)
             ) as channel:
                 stub = HelloStub(channel)
@@ -259,6 +259,5 @@ class SendBackDatadogHeaders(HelloServicer):
         )
 
     def SayError(self, request, context):
-        context.set_code(grpc.StatusCode.ABORTED)
-        context.cancel()
-        return HelloReply(message='cancelled')
+        context.abort(grpc.StatusCode.ABORTED, 'aborted')
+        return HelloReply(message='aborted')
