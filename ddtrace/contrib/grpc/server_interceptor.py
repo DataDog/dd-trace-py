@@ -20,19 +20,17 @@ def create_server_interceptor(pin):
                 pin.tracer.context_provider.activate(context)
 
         with pin.tracer.trace(
-                '{}.server'.format(pin.app),
-                span_type=config.grpc.span_type,
+                'grpc.server',
+                span_type='grpc',
                 service=pin.service,
-                resource=handler_call_details.method
+                resource=handler_call_details.method,
         ) as span:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
-            try:
-                response = continuation(handler_call_details)
-                return response
-            except Exception:
-                span.set_traceback()
-                raise
+            if pin.tags:
+                span.set_tags(pin.tags)
+
+            return continuation(handler_call_details)
 
     return _ServerInterceptor(interceptor_function)
 

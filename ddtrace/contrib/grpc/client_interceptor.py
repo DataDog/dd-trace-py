@@ -8,8 +8,24 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 # DEV: Follows Python interceptors RFC laid out in
 # https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
 
+# DEV: __version__ added in v1.21.4
+# https://github.com/grpc/grpc/commit/dd4830eae80143f5b0a9a3a1a024af4cf60e7d02
 
-def create_client_interceptor(pin):
+try:
+    _GRPC_VERSION = grpc.__version__
+except Exception:
+    import grpc._grpcio_metadata
+    _GRPC_VERSION = grpc._grpcio_metadata.__version__
+finally:
+    _GRPC_VERSION = tuple(int(v) for v in _GRPC_VERSION.split('.')[:3])
+
+
+def _tag_rpc_error(span, rpc_error):
+    span.set_tag('rpc_error.status', str(rpc_error.code()))
+    span.set_tag('rpc_error.details', str(rpc_error.details()))
+
+
+def create_client_interceptor(pin, host, port):
     def interceptor_function(continuation, client_call_details,
                              request_or_iterator):
         if not pin.enabled:
@@ -17,15 +33,17 @@ def create_client_interceptor(pin):
             return response
 
         with pin.tracer.trace(
-                '{}.client'.format(pin.app),
-                span_type=config.grpc.span_type,
+                'grpc.client',
+                span_type='grpc',
                 service=pin.service,
-                resource=client_call_details.method
+                resource=client_call_details.method,
         ) as span:
+            span.set_tag('grpc.host', host)
+            span.set_tag('grpc.port', port)
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+
             if pin.tags:
                 span.set_tags(pin.tags)
-
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
             headers = {}
             if config.grpc.distributed_tracing_enabled:
@@ -46,9 +64,15 @@ def create_client_interceptor(pin):
 
             try:
                 response = continuation(client_call_details, request_or_iterator)
+
+                # DEV: >=1.80.0 grpc.RpcError is caught and returned as response
+                # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
+                if _GRPC_VERSION >= (1, 18, 0) and isinstance(response, grpc.RpcError):
+                    _tag_rpc_error(span, response)
+
                 return response
-            except Exception:
-                span.set_traceback()
+            except grpc.RpcError as rpc_error:
+                _tag_rpc_error(span, rpc_error)
                 raise
 
     return _ClientInterceptor(interceptor_function)
