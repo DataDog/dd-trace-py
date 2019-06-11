@@ -19,7 +19,7 @@ log = get_logger(__name__)
 # http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
 OP_CODES = {
     1: 'reply',
-    1000: 'msg',
+    1000: 'msg',  # DEV: 1000 was deprecated at some point, use 2013 instead
     2001: 'update',
     2002: 'insert',
     2003: 'reserved',
@@ -29,6 +29,7 @@ OP_CODES = {
     2007: 'kill_cursors',
     2010: 'command',
     2011: 'command_reply',
+    2013: 'msg',
 }
 
 # The maximum message length we'll try to parse
