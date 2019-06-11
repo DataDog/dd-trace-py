@@ -8,7 +8,7 @@ from ...propagation.http import HTTPPropagator
 def create_server_interceptor(pin):
     def interceptor_function(continuation, handler_call_details):
         if not pin.enabled:
-            response = continuation(handler_call_details)
+            return continuation(handler_call_details)
             return response
 
         if config.grpc.distributed_tracing_enabled:

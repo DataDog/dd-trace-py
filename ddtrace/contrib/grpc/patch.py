@@ -74,9 +74,8 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     else:
         kwargs['interceptors'] = [interceptor]
 
-    server = wrapped(*args, **kwargs)
+    return wrapped(*args, **kwargs)
 
-    return server
 
 
 def _parse_target_from_arguments(args, kwargs):

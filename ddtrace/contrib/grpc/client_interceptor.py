@@ -59,7 +59,7 @@ def create_client_interceptor(pin, host, port):
                 client_call_details.method,
                 client_call_details.timeout,
                 metadata,
-                client_call_details.credentials
+                client_call_details.credentials,
             )
 
             try:
