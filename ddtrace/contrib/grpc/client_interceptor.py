@@ -13,7 +13,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 
 try:
     _GRPC_VERSION = grpc.__version__
-except Exception:
+except AttributeError:
     import grpc._grpcio_metadata
     _GRPC_VERSION = grpc._grpcio_metadata.__version__
 finally:
