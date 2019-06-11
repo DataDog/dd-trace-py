@@ -7,7 +7,7 @@ from json import loads
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
-from .payload import Payload
+from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
 
 
@@ -148,23 +148,53 @@ class API(object):
         self._set_version(self._fallback)
 
     def send_traces(self, traces):
-        if not traces:
-            return
+        """Send traces to the API.
 
+        :param traces: A list of traces.
+        :return: The list of API HTTP responses.
+        """
         start = time.time()
+        responses = []
         payload = Payload(encoder=self._encoder)
         for trace in traces:
-            payload.add_trace(trace)
+            try:
+                payload.add_trace(trace)
+            except PayloadFull:
+                # Is payload full or is the trace too big?
+                # If payload is not empty, then using a new Payload might allow us to fit the trace.
+                # Let's flush the Payload and try to put the trace in a new empty Payload.
+                if not payload.empty:
+                    responses.append(self._flush(payload))
+                    # Create a new payload
+                    payload = Payload(encoder=self._encoder)
+                    try:
+                        # Add the trace that we were unable to add in that iteration
+                        payload.add_trace(trace)
+                    except PayloadFull:
+                        # If the trace does not fit in a payload on its own, that's bad. Drop it.
+                        log.warn('Trace %r is too big to fit in a payload, dropping it', trace)
 
-        response = self._put(self._traces, payload.get_payload(), payload.length)
+        # Check that the Payload is not empty:
+        # it could be empty if the last trace was too big to fit.
+        if not payload.empty:
+            responses.append(self._flush(payload))
+
+        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
+
+        return responses
+
+    def _flush(self, payload):
+        try:
+            response = self._put(self._traces, payload.get_payload(), payload.length)
+        except (httplib.HTTPException, IOError) as e:
+            return e
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:
             log.debug("calling endpoint '%s' but received %s; downgrading API", self._traces, response.status)
             self._downgrade()
-            return self.send_traces(traces)
+            return self._flush(payload)
 
-        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
         return response
 
     @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')

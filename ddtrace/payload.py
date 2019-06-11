@@ -1,11 +1,12 @@
-import logging
-
 from .encoding import get_encoder
 
-log = logging.getLogger(__name__)
+
+class PayloadFull(Exception):
+    """The payload is full."""
+    pass
 
 
-class Payload:
+class Payload(object):
     """
     Trace agent API payload buffer class
 
@@ -17,8 +18,8 @@ class Payload:
     """
     __slots__ = ('traces', 'size', 'encoder', 'max_payload_size')
 
-    # Default max payload size of 5mb
-    # DEV: Trace agent limit is 10mb, cutoff at 5mb to ensure we don't hit 10mb
+    # Trace agent limit payload size of 10 MB
+    # 5 MB should be a good average efficient size
     DEFAULT_MAX_PAYLOAD_SIZE = 5 * 1000000
 
     def __init__(self, encoder=None, max_payload_size=DEFAULT_MAX_PAYLOAD_SIZE):
@@ -48,6 +49,8 @@ class Payload:
 
         # Encode the trace, append, and add it's length to the size
         encoded = self.encoder.encode_trace(trace)
+        if len(encoded) + self.size > self.max_payload_size:
+            raise PayloadFull()
         self.traces.append(encoded)
         self.size += len(encoded)
 
@@ -71,16 +74,6 @@ class Payload:
         """
         return self.length == 0
 
-    @property
-    def full(self):
-        """
-        Whether this payload is at or over the max allowed payload size
-
-        :returns: Whether we have reached the max payload size yet or not
-        :rtype: bool
-        """
-        return self.size >= self.max_payload_size
-
     def get_payload(self):
         """
         Get the fully encoded payload
@@ -93,4 +86,5 @@ class Payload:
 
     def __repr__(self):
         """Get the string representation of this payload"""
-        return '{0}(length={1}, size={2}b, full={3})'.format(self.__class__.__name__, self.length, self.size, self.full)
+        return '{0}(length={1}, size={2} B, max_payload_size={3} B)'.format(
+            self.__class__.__name__, self.length, self.size, self.max_payload_size)
