@@ -3,7 +3,7 @@ from __future__ import division
 import unittest
 
 from ddtrace.span import Span
-from ddtrace.sampler import RateSampler, AllSampler, _key, _default_key
+from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.compat import iteritems
 from tests.test_tracer import get_dummy_tracer
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
@@ -56,14 +56,16 @@ class RateSamplerTest(unittest.TestCase):
 
 class RateByServiceSamplerTest(unittest.TestCase):
     def test_default_key(self):
-        assert 'service:,env:' == _default_key, 'default key should correspond to no service and no env'
+        assert (
+            'service:,env:' == RateByServiceSampler._default_key
+        ), 'default key should correspond to no service and no env'
 
     def test_key(self):
-        assert _default_key == _key()
-        assert 'service:mcnulty,env:' == _key(service='mcnulty')
-        assert 'service:,env:test' == _key(env='test')
-        assert 'service:mcnulty,env:test' == _key(service='mcnulty', env='test')
-        assert 'service:mcnulty,env:test' == _key('mcnulty', 'test')
+        assert RateByServiceSampler._default_key == RateByServiceSampler._key()
+        assert 'service:mcnulty,env:' == RateByServiceSampler._key(service='mcnulty')
+        assert 'service:,env:test' == RateByServiceSampler._key(env='test')
+        assert 'service:mcnulty,env:test' == RateByServiceSampler._key(service='mcnulty', env='test')
+        assert 'service:mcnulty,env:test' == RateByServiceSampler._key('mcnulty', 'test')
 
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
