@@ -9,7 +9,6 @@ def create_server_interceptor(pin):
     def interceptor_function(continuation, handler_call_details):
         if not pin.enabled:
             return continuation(handler_call_details)
-            return response
 
         if config.grpc.distributed_tracing_enabled:
             headers = dict(handler_call_details.invocation_metadata)

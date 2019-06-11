@@ -77,7 +77,6 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-
 def _parse_target_from_arguments(args, kwargs):
     if 'target' in kwargs:
         target = kwargs['target']
