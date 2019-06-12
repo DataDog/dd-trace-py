@@ -70,9 +70,9 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     interceptor = create_server_interceptor(pin)
 
     if 'interceptors' in kwargs:
-        kwargs['interceptors'] = [interceptor] + kwargs['interceptors']
+        kwargs['interceptors'] = (interceptor,) + tuple(kwargs['interceptors'])
     else:
-        kwargs['interceptors'] = [interceptor]
+        kwargs['interceptors'] = (interceptor,)
 
     return wrapped(*args, **kwargs)
 
