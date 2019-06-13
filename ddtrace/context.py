@@ -35,7 +35,6 @@ class Context(object):
         :param int span_id: span_id of parent span
         """
         self._trace = []
-        self._finished_spans = 0
         self._current_span = None
         self._lock = threading.Lock()
 
@@ -136,7 +135,6 @@ class Context(object):
         cycles inside _trace list.
         """
         with self._lock:
-            self._finished_spans += 1
             self._set_current_span(span._parent)
 
             # notify if the trace is not closed properly; this check is executed only
@@ -147,20 +145,12 @@ class Context(object):
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
             tracer = getattr(span, '_tracer', None)
-            if tracer and tracer.debug_logging and span._parent is None and not self._is_finished():
-                opened_spans = len(self._trace) - self._finished_spans
-                log.debug('Root span "%s" closed, but the trace has %d unfinished spans:', span.name, opened_spans)
-                spans = [x for x in self._trace if not x._finished]
-                for wrong_span in spans:
+            unfinished_spans = [x for x in self._trace if not x._finished]
+            if tracer and tracer.debug_logging and span._parent is None and unfinished_spans:
+                log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
+                          span.name, len(unfinished_spans))
+                for wrong_span in unfinished_spans:
                     log.debug('\n%s', wrong_span.pprint())
-
-    def is_finished(self):
-        """
-        Returns if the trace for the current Context is finished or not. A Context
-        is considered finished if all spans in this context are finished.
-        """
-        with self._lock:
-            return self._is_finished()
 
     def is_sampled(self):
         """
@@ -179,7 +169,9 @@ class Context(object):
         This operation is thread-safe.
         """
         with self._lock:
-            if self._is_finished():
+            finished_spans = [t for t in self._trace if t._finished]
+            # All spans are finished?
+            if len(finished_spans) == len(self._trace):
                 # get the trace
                 trace = self._trace
                 sampled = self._sampled
@@ -199,14 +191,13 @@ class Context(object):
 
                 # clean the current state
                 self._trace = []
-                self._finished_spans = 0
                 self._parent_trace_id = None
                 self._parent_span_id = None
                 self._sampling_priority = None
                 self._sampled = True
                 return trace, sampled
 
-            elif self._partial_flush_enabled and self._finished_spans >= self._partial_flush_min_spans:
+            elif self._partial_flush_enabled and len(finished_spans) >= self._partial_flush_min_spans:
                 # partial flush when enabled and we have more than the minimal required spans
                 trace = self._trace
                 sampled = self._sampled
@@ -226,28 +217,11 @@ class Context(object):
 
                 # Any open spans will remain as `self._trace`
                 # Any finished spans will get returned to be flushed
-                opened_spans = []
-                closed_spans = []
-                for span in trace:
-                    if span._finished:
-                        closed_spans.append(span)
-                    else:
-                        opened_spans.append(span)
+                self._trace = [t for t in self._trace if not t._finished]
 
-                # Update trace spans and stats
-                self._trace = opened_spans
-                self._finished_spans = 0
-
-                return closed_spans, sampled
+                return finished_spans, sampled
             else:
                 return None, None
-
-    def _is_finished(self):
-        """
-        Internal method that checks if the ``Context`` is finished or not.
-        """
-        num_traces = len(self._trace)
-        return num_traces > 0 and num_traces == self._finished_spans
 
 
 class ThreadLocalContext(object):
