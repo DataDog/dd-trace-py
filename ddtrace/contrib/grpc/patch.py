@@ -69,6 +69,7 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
 
     interceptor = create_server_interceptor(pin)
 
+    # DEV: Inject our tracing interceptor first in the list of interceptors
     if 'interceptors' in kwargs:
         kwargs['interceptors'] = (interceptor,) + tuple(kwargs['interceptors'])
     else:

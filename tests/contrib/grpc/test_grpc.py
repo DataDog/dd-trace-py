@@ -3,7 +3,6 @@ from grpc.framework.foundation import logging_pool
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
-from ddtrace.ext import errors
 from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
@@ -151,7 +150,8 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.get_tag('rpc_error.details') == 'aborted'
 
         assert '/Hello/SayError' == server_span.resource
-        assert server_span.get_tag(errors.ERROR_MSG) is None
+        assert server_span.get_tag('rpc_error.status') == 'StatusCode.ABORTED'
+        assert server_span.get_tag('rpc_error.details') == 'aborted'
 
     def test_pin_not_activated(self):
         self.tracer.configure(enabled=False)
@@ -260,4 +260,3 @@ class SendBackDatadogHeaders(HelloServicer):
 
     def SayError(self, request, context):
         context.abort(grpc.StatusCode.ABORTED, 'aborted')
-        return HelloReply(message='aborted')

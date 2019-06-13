@@ -21,8 +21,8 @@ finally:
 
 
 def _tag_rpc_error(span, rpc_error):
-    span.set_tag('rpc_error.status', str(rpc_error.code()))
-    span.set_tag('rpc_error.details', str(rpc_error.details()))
+    span.set_tag('rpc_error.status', rpc_error.code())
+    span.set_tag('rpc_error.details', rpc_error.details())
 
 
 def create_client_interceptor(pin, host, port):
