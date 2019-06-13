@@ -1,9 +1,9 @@
 """
-The Grpc integration will trace queries made using the grpc library.
+The gRPC integration traces the client and server.
 
-Grpc will be automatically instrumented with ``patch_all``, or when using
+gRPC will be automatically instrumented with ``patch_all``, or when using
 the ``ddtrace-run`` command.
-Grpc is instrumented on import. To instrument Grpc manually use the
+gRPC is instrumented on import. To instrument gRPC manually use the
 ``patch`` function.::
 
     import grpc
@@ -12,7 +12,7 @@ Grpc is instrumented on import. To instrument Grpc manually use the
 
     # use grpc like usual
 
-To configure the Grpc integration on an per-channel basis use the
+To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
 
     import grpc

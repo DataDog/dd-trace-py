@@ -47,16 +47,12 @@ def _client_channel_interceptor(wrapped, instance, args, kwargs):
 
     (host, port) = _parse_target_from_arguments(args, kwargs)
 
-    # DEV: we clone the pin on the grpc module and configure it for the client
-    # interceptor
     pin = Pin.get_from(grpc)
     if not pin:
         return channel
 
     interceptor_function = create_client_interceptor(pin, host, port)
-    channel = grpc.intercept_channel(channel, interceptor_function)
-
-    return channel
+    return grpc.intercept_channel(channel, interceptor_function)
 
 
 def _server_constructor_interceptor(wrapped, instance, args, kwargs):
