@@ -243,7 +243,7 @@ def _create_wrapped_request(method, enable_distributed, trace_headers,
         if 'url' in kwargs:
             url = URL(kwargs['url'])
         else:
-            url = args[1]
+            url = URL(args[1])
     else:
         if 'url' in kwargs:
             url = URL(kwargs['url'])
