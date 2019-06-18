@@ -35,3 +35,24 @@ class TestTornadoSettings(TornadoTestCase):
         assert self.tracer.writer._filters is not None
         assert len(self.tracer.writer._filters) == 1
         assert isinstance(self.tracer.writer._filters[0], FilterRequestsOnUrl)
+
+
+class TestTornadoDefaultService(TornadoTestCase):
+    """ Ensure that the default service for a Tornado web application is configured
+    """
+    def get_settings(self):
+        return {
+            'datadog_trace': {
+                'default_service': 'custom-tornado',
+            },
+        }
+
+    def test_service(self):
+        response = self.fetch('/success/')
+        assert 200 == response.code
+
+        spans = self.get_spans()
+        assert 1 == len(spans)
+
+        assert 'custom-tornado' == spans[0].service
+        assert 'tornado.request' == spans[0].name
