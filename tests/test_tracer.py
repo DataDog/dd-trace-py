@@ -449,7 +449,7 @@ class TracerTestCase(BaseTracerTestCase):
 
         self.assertIsNone(root.get_tag('language'))
 
-         self.assertIsNone(child.get_tag('language'))
+        self.assertIsNone(child.get_tag('language'))
 
     def test_only_root_span_runtime(self):
         self.tracer.configure(collect_metrics=True)
