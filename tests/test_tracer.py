@@ -435,12 +435,10 @@ class TracerTestCase(BaseTracerTestCase):
     def test_configure_runtime_worker(self):
         # by default runtime worker not started though runtime id is set
         self.assertIsNone(self.tracer._runtime_worker)
-        self.assertIsNotNone(self.tracer._runtime_id)
 
         # configure tracer with runtime metrics collection
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
-        self.assertIsNotNone(self.tracer._runtime_id)
 
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
@@ -449,11 +447,9 @@ class TracerTestCase(BaseTracerTestCase):
         context = root.context
         child = self.start_span('child', child_of=context)
 
-        self.assertIsNone(root.get_tag('runtime-id'))
         self.assertIsNone(root.get_tag('language'))
 
-        self.assertIsNone(child.get_tag('runtime-id'))
-        self.assertIsNone(child.get_tag('language'))
+         self.assertIsNone(child.get_tag('language'))
 
     def test_only_root_span_runtime(self):
         self.tracer.configure(collect_metrics=True)
@@ -462,8 +458,6 @@ class TracerTestCase(BaseTracerTestCase):
         context = root.context
         child = self.start_span('child', child_of=context)
 
-        self.assertEqual(root.get_tag('runtime-id'), self.tracer._runtime_id)
         self.assertEqual(root.get_tag('language'), 'python')
 
-        self.assertIsNone(child.get_tag('runtime-id'))
         self.assertIsNone(child.get_tag('language'))
