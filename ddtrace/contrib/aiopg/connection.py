@@ -25,7 +25,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             return result
         service = pin.service
 
-        name = (pin.app or 'sql') + "." + method.__name__
+        name = (pin.app or 'sql') + '.' + method.__name__
         with pin.tracer.trace(name, service=service,
                               resource=query or self.query.decode('utf-8'),
                               span_type=SpanTypes.SQL) as s:
@@ -91,7 +91,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         return result
 
     @asyncio.coroutine
-    def scroll(self, value, mode="relative"):
+    def scroll(self, value, mode='relative'):
         result = yield from self._trace_method(
             self.__wrapped__.scroll, None, {}, value, mode)
         return result
