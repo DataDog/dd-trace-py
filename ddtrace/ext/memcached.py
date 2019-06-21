@@ -1,4 +1,4 @@
-CMD = "memcached.command"
-SERVICE = "memcached"
-TYPE = "memcached"
-QUERY = "memcached.query"
+CMD = 'memcached.command'
+SERVICE = 'memcached'
+TYPE = 'memcached'
+QUERY = 'memcached.query'

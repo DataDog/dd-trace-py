@@ -8,6 +8,7 @@ from ...base import BaseTracerTestCase
 from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
+from ddtrace.ext import http
 
 SERVICE = 'bottle-app'
 
@@ -33,7 +34,12 @@ class TraceBottleTest(BaseTracerTestCase):
         self.app.install(TracePlugin(service=SERVICE, tracer=tracer))
         self.app = webtest.TestApp(self.app)
 
-    def test_200(self):
+    def test_200(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+
         # setup our test app
         @self.app.route('/hi/<name>')
         def hi(name):
@@ -41,7 +47,7 @@ class TraceBottleTest(BaseTracerTestCase):
         self._trace_app(self.tracer)
 
         # make a request
-        resp = self.app.get('/hi/dougie')
+        resp = self.app.get('/hi/dougie' + fqs)
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u'hi dougie'
         # validate it's traced
@@ -54,9 +60,16 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.resource == 'GET /hi/<name>'
         assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
 
         services = self.tracer.writer.pop_services()
         assert services == {}
+
+    def test_query_string(self):
+        return self.test_200('foo=bar')
+
+    def test_query_string_multi_keys(self):
+        return self.test_200('foo=bar&foo=baz&x=y')
 
     def test_500(self):
         @self.app.route('/hi')
@@ -79,6 +92,30 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.resource == 'GET /hi'
         assert s.get_tag('http.status_code') == '500'
         assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/hi'
+
+    def test_abort(self):
+        @self.app.route('/hi')
+        def hi():
+            raise bottle.abort(420, 'Enhance Your Calm')
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            resp = self.app.get('/hi')
+            assert resp.status_int == 420
+        except Exception:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi'
+        assert s.get_tag('http.status_code') == '420'
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/hi'
 
     def test_bottle_global_tracer(self):
         # without providing a Tracer instance, it should work
@@ -99,6 +136,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.resource == 'GET /home/'
         assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/home/'
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -248,6 +286,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert dd_span.resource == 'GET /hi/<name>'
         assert dd_span.get_tag('http.status_code') == '200'
         assert dd_span.get_tag('http.method') == 'GET'
+        assert dd_span.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
 
         services = self.tracer.writer.pop_services()
         assert services == {}

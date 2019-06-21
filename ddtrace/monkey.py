@@ -26,6 +26,7 @@ PATCH_MODULES = {
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
+    'algoliasearch': True,
     'futures': False,  # experimental propagation
     'grpc': True,
     'mongoengine': True,
@@ -53,10 +54,10 @@ PATCH_MODULES = {
     'kombu': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
-    "django": False,
-    "falcon": False,
-    "pylons": False,
-    "pyramid": False,
+    'django': False,
+    'falcon': False,
+    'pylons': False,
+    'pyramid': False,
 
     # Standard library modules off by default
     'logging': False,
@@ -134,10 +135,10 @@ def patch(raise_errors=True, **patch_modules):
 
     patched_modules = get_patched_modules()
     log.info(
-        "patched %s/%s modules (%s)",
+        'patched %s/%s modules (%s)',
         len(patched_modules),
         len(modules),
-        ",".join(patched_modules),
+        ','.join(patched_modules),
     )
 
 
@@ -151,7 +152,7 @@ def patch_module(module, raise_errors=True):
     except Exception as exc:
         if raise_errors:
             raise
-        log.debug("failed to patch %s: %s", module, exc)
+        log.debug('failed to patch %s: %s', module, exc)
         return False
 
 
@@ -170,7 +171,7 @@ def _patch_module(module):
     path = 'ddtrace.contrib.%s' % module
     with _LOCK:
         if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
-            log.debug("already patched: %s", path)
+            log.debug('already patched: %s', path)
             return False
 
         try:

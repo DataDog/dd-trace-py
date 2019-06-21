@@ -72,7 +72,7 @@ def _patched_connect(connect_func, _, args, kwargs_param):
                 conn = yield from connect_func(
                     dsn, timeout=timeout, loop=loop, enable_json=enable_json,
                     enable_hstore=enable_hstore, enable_uuid=enable_uuid,
-                    echo=echo, **kwargs)  # noqa: E999
+                    echo=echo, **kwargs)
 
             conn = AIOTracedConnection(conn, pin)
         else:

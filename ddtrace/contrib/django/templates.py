@@ -22,7 +22,7 @@ def patch_template(tracer):
     # patch so we can use multiple tracers at once, but i suspect this is fine
     # in practice.
     if getattr(Template, RENDER_ATTR, None):
-        log.debug("already patched")
+        log.debug('already patched')
         return
 
     setattr(Template, RENDER_ATTR, Template.render)

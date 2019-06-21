@@ -39,7 +39,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
+        cursor.execute('SELECT 1')
         rows = cursor.fetchall()
         assert len(rows) == 1
         spans = writer.pop()
@@ -62,7 +62,7 @@ class MySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -86,7 +86,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
+        query = 'SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m'
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
@@ -100,7 +100,7 @@ class MySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
+            query = 'SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m'
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
@@ -123,26 +123,26 @@ class MySQLCore(object):
                 dummy_value TEXT NOT NULL)""")
         tracer.enabled = True
 
-        stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
+        stmt = 'INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)'
         data = [
             ('foo', 'this is foo'),
             ('bar', 'this is bar'),
         ]
         cursor.executemany(stmt, data)
-        query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+        query = 'SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key'
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 2
-        assert rows[0][0] == "bar"
-        assert rows[0][1] == "this is bar"
-        assert rows[1][0] == "foo"
-        assert rows[1][1] == "this is foo"
+        assert rows[0][0] == 'bar'
+        assert rows[0][1] == 'this is bar'
+        assert rows[1][0] == 'foo'
+        assert rows[1][1] == 'this is foo'
 
         spans = writer.pop()
         assert len(spans) == 2
         span = spans[-1]
         assert span.get_tag('sql.query') is None
-        cursor.execute("drop table if exists dummy")
+        cursor.execute('drop table if exists dummy')
 
     def test_query_many_fetchall(self):
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
@@ -158,26 +158,26 @@ class MySQLCore(object):
                     dummy_value TEXT NOT NULL)""")
             tracer.enabled = True
 
-            stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
+            stmt = 'INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)'
             data = [
                 ('foo', 'this is foo'),
                 ('bar', 'this is bar'),
             ]
             cursor.executemany(stmt, data)
-            query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+            query = 'SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key'
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 2
-            assert rows[0][0] == "bar"
-            assert rows[0][1] == "this is bar"
-            assert rows[1][0] == "foo"
-            assert rows[1][1] == "this is foo"
+            assert rows[0][0] == 'bar'
+            assert rows[0][1] == 'this is bar'
+            assert rows[1][0] == 'foo'
+            assert rows[1][1] == 'this is foo'
 
             spans = writer.pop()
             assert len(spans) == 3
             span = spans[-1]
             assert span.get_tag('sql.query') is None
-            cursor.execute("drop table if exists dummy")
+            cursor.execute('drop table if exists dummy')
 
             assert spans[2].name == 'mysql.query.fetchall'
 
@@ -188,7 +188,7 @@ class MySQLCore(object):
         # create a procedure
         tracer.enabled = False
         cursor = conn.cursor()
-        cursor.execute("DROP PROCEDURE IF EXISTS sp_sum")
+        cursor.execute('DROP PROCEDURE IF EXISTS sp_sum')
         cursor.execute("""
             CREATE PROCEDURE sp_sum (IN p1 INTEGER, IN p2 INTEGER, OUT p3 INTEGER)
             BEGIN
@@ -196,7 +196,7 @@ class MySQLCore(object):
             END;""")
 
         tracer.enabled = True
-        proc = "sp_sum"
+        proc = 'sp_sum'
         data = (40, 2, None)
         output = cursor.callproc(proc, data)
         assert len(output) == 3
@@ -230,7 +230,7 @@ class MySQLCore(object):
 
         with ot_tracer.start_active_span('mysql_op'):
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
 
@@ -267,7 +267,7 @@ class MySQLCore(object):
 
             with ot_tracer.start_active_span('mysql_op'):
                 cursor = conn.cursor()
-                cursor.execute("SELECT 1")
+                cursor.execute('SELECT 1')
                 rows = cursor.fetchall()
                 assert len(rows) == 1
 
@@ -320,7 +320,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
+        cursor.execute('SELECT 1')
         rows = cursor.fetchall()
         assert len(rows) == 1
         spans = writer.pop()
@@ -337,7 +337,7 @@ class MySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -354,7 +354,7 @@ class MySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -407,7 +407,7 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             assert conn.is_connected()
 
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()

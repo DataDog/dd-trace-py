@@ -113,4 +113,4 @@ def _wrap_send(func, instance, args, kwargs):
                     response_headers = dict(getattr(response, 'headers', {}))
                     store_response_headers(response_headers, span, config.requests)
             except Exception:
-                log.debug("requests: error adding tags", exc_info=True)
+                log.debug('requests: error adding tags', exc_info=True)

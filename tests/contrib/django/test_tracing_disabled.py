@@ -37,6 +37,6 @@ class DjangoTracingDisabledTest(TestCase):
         assert len(services) == 0
 
     def test_no_trace_is_written(self):
-        settings.TRACER.trace("client.testing").finish()
+        settings.TRACER.trace('client.testing').finish()
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 0

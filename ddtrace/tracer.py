@@ -31,7 +31,7 @@ class Tracer(object):
     you can use the global tracer instance::
 
         from ddtrace import tracer
-        trace = tracer.trace("app.request", "web-server").finish()
+        trace = tracer.trace('app.request', 'web-server').finish()
     """
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
@@ -69,6 +69,8 @@ class Tracer(object):
         self._runtime_id = generate_runtime_id()
         self._runtime_worker = None
         self._dogstatsd_client = None
+        self._dogstatsd_host = self.DEFAULT_HOSTNAME
+        self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -154,12 +156,11 @@ class Tracer(object):
             self._wrap_executor = wrap_executor
 
         if collect_metrics and self._runtime_worker is None:
+            self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
+            self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
             # start dogstatsd client if not already running
             if not self._dogstatsd_client:
-                self._start_dogstatsd_client(
-                    dogstatsd_host or self.DEFAULT_HOSTNAME,
-                    dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT,
-                )
+                self._start_dogstatsd_client()
 
             self._start_runtime_worker()
 
@@ -177,17 +178,17 @@ class Tracer(object):
 
         To start a new root span, simply::
 
-            span = tracer.start_span("web.request")
+            span = tracer.start_span('web.request')
 
         If you want to create a child for a root span, just::
 
-            root_span = tracer.start_span("web.request")
-            span = tracer.start_span("web.decoder", child_of=root_span)
+            root_span = tracer.start_span('web.request')
+            span = tracer.start_span('web.decoder', child_of=root_span)
 
         Or if you have a ``Context`` object::
 
             context = tracer.get_call_context()
-            span = tracer.start_span("web.worker", child_of=context)
+            span = tracer.start_span('web.worker', child_of=context)
         """
         if child_of is not None:
             # retrieve if the span is a child_of a Span or a of Context
@@ -271,17 +272,17 @@ class Tracer(object):
         # add it to the current context
         context.add_span(span)
 
+        # check for new process if runtime metrics worker has already been started
+        if self._runtime_worker:
+            self._check_new_process()
+
         # update set of services handled by tracer
-        if service:
+        if service and service not in self._services:
             self._services.add(service)
 
             # The constant tags for the dogstatsd client needs to updated with any new
             # service(s) that may have been added.
             self._update_dogstatsd_constant_tags()
-
-        # check for new process if runtime metrics worker has already been started
-        if self._runtime_worker:
-            self._check_new_process()
 
         return span
 
@@ -299,12 +300,15 @@ class Tracer(object):
         log.debug('Updating constant tags {}'.format(tags))
         self._dogstatsd_client.constant_tags = tags
 
-    def _start_dogstatsd_client(self, host, port):
+    def _start_dogstatsd_client(self):
         # start dogstatsd as client with constant tags
-        log.debug('Starting DogStatsd on {}:{}'.format(host, port))
+        log.debug('Connecting to DogStatsd on {}:{}'.format(
+            self._dogstatsd_host,
+            self._dogstatsd_port
+        ))
         self._dogstatsd_client = DogStatsd(
-            host=host,
-            port=port,
+            host=self._dogstatsd_host,
+            port=self._dogstatsd_port,
         )
 
     def _start_runtime_worker(self):
@@ -330,6 +334,10 @@ class Tracer(object):
 
         self._start_runtime_worker()
 
+        # force an immediate update constant tags since we have reset services
+        # and generated a new runtime id
+        self._update_dogstatsd_constant_tags()
+
     def trace(self, name, service=None, resource=None, span_type=None):
         """
         Return a span that will trace an operation called `name`. The context that created
@@ -345,24 +353,24 @@ class Tracer(object):
         You must call `finish` on all spans, either directly or with a context
         manager::
 
-            >>> span = tracer.trace("web.request")
+            >>> span = tracer.trace('web.request')
                 try:
                     # do something
                 finally:
                     span.finish()
 
-            >>> with tracer.trace("web.request") as span:
+            >>> with tracer.trace('web.request') as span:
                     # do something
 
         Trace will store the current active span and subsequent child traces will
         become its children::
 
-            parent = tracer.trace("parent")     # has no parent span
-            child  = tracer.trace("child")      # is a child of a parent
+            parent = tracer.trace('parent')     # has no parent span
+            child  = tracer.trace('child')      # is a child of a parent
             child.finish()
             parent.finish()
 
-            parent2 = tracer.trace("parent2")   # has no parent span
+            parent2 = tracer.trace('parent2')   # has no parent span
             parent2.finish()
         """
         # retrieve the Context using the context provider and create
@@ -387,7 +395,8 @@ class Tracer(object):
             # get the root span
             root_span = tracer.current_root_span()
             # set the host just once on the root span
-            root_span.set_tag('host', '127.0.0.1')
+            if root_span:
+                root_span.set_tag('host', '127.0.0.1')
         """
         ctx = self.get_call_context()
         if ctx:
@@ -422,9 +431,9 @@ class Tracer(object):
             return  # nothing to do
 
         if self.debug_logging:
-            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+            log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
             for span in spans:
-                log.debug("\n%s", span.pprint())
+                log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)

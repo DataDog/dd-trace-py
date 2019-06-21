@@ -31,7 +31,7 @@ To configure the Grpc integration on an per-channel basis use the
 
 from ...utils.importlib import require_modules
 
-required_modules = ["grpc"]
+required_modules = ['grpc']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:

@@ -1,11 +1,9 @@
-# flake8: noqa
-
 import molten
 from molten.testing import TestClient
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import errors
+from ddtrace.ext import errors, http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
@@ -54,7 +52,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.url'), '/hello/Jim/24')
+        self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
 
         # See test_resources below for specifics of this difference
@@ -151,7 +149,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET 404')
-        self.assertEqual(span.get_tag('http.url'), '/goodbye')
+        self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/goodbye')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.status_code'), '404')
 
@@ -175,7 +173,7 @@ class TestMolten(BaseTracerTestCase):
 
     def test_resources(self):
         """ Tests request has expected span resources """
-        response = molten_client()
+        molten_client()
         spans = self.tracer.writer.pop()
 
         # `can_handle_parameter` appears twice since two parameters are in request

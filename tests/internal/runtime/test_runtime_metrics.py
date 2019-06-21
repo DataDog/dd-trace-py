@@ -45,20 +45,30 @@ class TestRuntimeMetrics(BaseTestCase):
 
 
 class TestRuntimeWorker(BaseTracerTestCase):
-    def test_worker_metrics(self):
-        self.tracer.configure(collect_metrics=True)
+    def test_tracer_metrics(self):
+        # mock dogstatsd client before configuring tracer for runtime metrics
+        self.tracer._dogstatsd_client = DogStatsd()
+        self.tracer._dogstatsd_client.socket = FakeSocket()
+
+        default_flush_interval = RuntimeWorker.FLUSH_INTERVAL
+        try:
+            # lower flush interval
+            RuntimeWorker.FLUSH_INTERVAL = 1./4
+
+            # configure tracer for runtime metrics
+            self.tracer.configure(collect_metrics=True)
+        finally:
+            # reset flush interval
+            RuntimeWorker.FLUSH_INTERVAL = default_flush_interval
 
         with self.override_global_tracer(self.tracer):
-            self.tracer._dogstatsd_client = DogStatsd()
-            self.tracer._dogstatsd_client.socket = FakeSocket()
-
             root = self.start_span('parent', service='parent')
             context = root.context
             self.start_span('child', service='child', child_of=context)
 
-            self.worker = RuntimeWorker(self.tracer._dogstatsd_client)
-            self.worker.start()
-            self.worker.stop()
+            time.sleep(self.tracer._runtime_worker.interval * 2)
+            self.tracer._runtime_worker.stop()
+            self.tracer._runtime_worker.join()
 
             # get all received metrics
             received = []
@@ -68,11 +78,10 @@ class TestRuntimeWorker(BaseTracerTestCase):
                     break
 
                 received.append(new)
-                # DEV: sleep since metrics will still be getting collected and written
-                time.sleep(.5)
 
             # expect received all default metrics
-            self.assertEqual(len(received), len(DEFAULT_RUNTIME_METRICS))
+            # we expect more than one flush since it is also called on shutdown
+            assert len(received) / len(DEFAULT_RUNTIME_METRICS) > 1
 
             # expect all metrics in default set are received
             # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
@@ -81,7 +90,8 @@ class TestRuntimeWorker(BaseTracerTestCase):
                 DEFAULT_RUNTIME_METRICS
             )
 
-            for gauge in received:
+            # check to last set of metrics returned to confirm tags were set
+            for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
                 self.assertRegexpMatches(gauge, 'runtime-id:')
                 self.assertRegexpMatches(gauge, 'service:parent')
                 self.assertRegexpMatches(gauge, 'service:child')
