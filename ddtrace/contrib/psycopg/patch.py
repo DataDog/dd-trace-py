@@ -6,9 +6,7 @@ from ddtrace.vendor import wrapt
 from ddtrace import Pin, config
 from ddtrace.contrib import dbapi
 from ddtrace.ext import sql, net, db
-
-# Original connect method
-_connect = psycopg2.connect
+from ...utils.wrappers import unwrap as _u
 
 # psycopg2 versions can end in `-betaN` where `N` is a number
 # in such cases we simply skip version specific patching
@@ -38,7 +36,7 @@ def patch():
 def unpatch():
     if getattr(psycopg2, '_datadog_patch', False):
         setattr(psycopg2, '_datadog_patch', False)
-        psycopg2.connect = _connect
+        _u(psycopg2, 'connect')
 
 
 class Psycopg2TracedCursor(dbapi.TracedCursor):
@@ -70,8 +68,8 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     """ Wrap will patch the instance so that its queries are traced."""
-    # ensure we've patched extensions (this is idempotent) in
-    # case we're only tracing some connections.
+    # ensure we've patched extensions (this is idempotent) in case we're
+    # only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
     c = traced_conn_cls(conn)
@@ -98,7 +96,8 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or \
+                isinstance(getattr(module, func), wrapt.ObjectProxy):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
@@ -122,6 +121,7 @@ def patched_connect(connect_func, _, args, kwargs):
 def _extensions_register_type(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
+
     obj, scope = _unroll_args(*args, **kwargs)
 
     # register_type performs a c-level check of the object

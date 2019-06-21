@@ -16,21 +16,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
-        name = pin.app or 'sql'
-        self._datadog_name = '%s.query' % name
 
     @asyncio.coroutine
-    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, query, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             result = yield from method(*args, **kwargs)
             return result
         service = pin.service
 
-        with pin.tracer.trace(self._datadog_name, service=service,
-                              resource=resource, span_type=SpanTypes.SQL) as s:
+        name = (pin.app or 'sql') + "." + method.__name__
+        with pin.tracer.trace(name, service=service,
+                              resource=query or self.query.decode('utf-8'),
+                              span_type=SpanTypes.SQL) as s:
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -47,24 +46,68 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 s.set_metric('db.rowcount', self.rowcount)
 
     @asyncio.coroutine
-    def executemany(self, query, *args, **kwargs):
+    def executemany(self, operation, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         result = yield from self._trace_method(
-            self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)
+            self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
+            operation, *args, **kwargs)
         return result
 
     @asyncio.coroutine
-    def execute(self, query, *args, **kwargs):
+    def execute(self, operation, *args, **kwargs):
         result = yield from self._trace_method(
-            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+            self.__wrapped__.execute, operation, {}, operation, *args, **kwargs)
         return result
 
     @asyncio.coroutine
-    def callproc(self, proc, args):
+    def callproc(self, procname, args):
         result = yield from self._trace_method(
-            self.__wrapped__.callproc, proc, {}, proc, args)
+            self.__wrapped__.callproc, procname, {}, procname, args)
+        return result
+
+    @asyncio.coroutine
+    def mogrify(self, operation, parameters=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.mogrify, operation, {}, operation, parameters)
+        return result
+
+    @asyncio.coroutine
+    def fetchone(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchone, None, {})
+        return result
+
+    @asyncio.coroutine
+    def fetchmany(self, size=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchmany, None, {}, size)
+        return result
+
+    @asyncio.coroutine
+    def fetchall(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchall, None, {})
+        return result
+
+    @asyncio.coroutine
+    def scroll(self, value, mode="relative"):
+        result = yield from self._trace_method(
+            self.__wrapped__.scroll, None, {}, value, mode)
+        return result
+
+    @asyncio.coroutine
+    def nextset(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.nextset, None, {})
+        return result
+
+    def __aiter__(self):
+        return self.__wrapped__.__aiter__()
+
+    @asyncio.coroutine
+    def __anext__(self):
+        result = yield from self.__wrapped__.__anext__()
         return result
 
     def __aiter__(self):
@@ -86,6 +129,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     def cursor(self, *args, **kwargs):
         # unfortunately we also need to patch this method as otherwise "self"
         # ends up being the aiopg connection object
+        self._last_usage = self._loop.time()  # set like wrapped class
         coro = self._cursor(*args, **kwargs)
         return _ContextManager(coro)
 

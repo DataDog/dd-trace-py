@@ -46,3 +46,18 @@ def mark_asyncio(f):
         loop.run_until_complete(future)
         loop.close()
     return wrapper
+
+
+def mark_sync(f):
+    """
+    Test decorator that wraps an async function so that it can be executed
+    as a synchronous function. This uses the event loop set in the
+    ``TestCase`` class, and runs the loop until it's completed.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(f(*args, **kwargs))
+        return result
+
+    return wrapper

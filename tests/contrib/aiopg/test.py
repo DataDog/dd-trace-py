@@ -40,8 +40,8 @@ class AiopgTestCase(AsyncioTestCase):
 
     @asyncio.coroutine
     def _get_conn_and_tracer(self):
+        Pin(None, tracer=get_dummy_tracer()).onto(aiopg)
         conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
 
@@ -67,13 +67,21 @@ class AiopgTestCase(AsyncioTestCase):
         assert rows
         spans = writer.pop()
         assert spans
-        assert len(spans) == 1
+        assert len(spans) == 2
+
+        # execute
         span = spans[0]
         assert_is_measured(span)
-        assert span.name == 'postgres.query'
-        assert span.resource == q
+        assert span.name == 'postgres.execute'
         assert span.service == service
-        assert span.meta['sql.query'] == q
+        assert span.error == 0
+        assert span.span_type == 'sql'
+        assert start <= span.start <= end
+        assert span.duration <= end - start
+
+        span = spans[1]
+        assert span.name == 'postgres.fetchall'
+        assert span.service == service
         assert span.error == 0
         assert span.span_type == 'sql'
         assert start <= span.start <= end
@@ -87,19 +95,26 @@ class AiopgTestCase(AsyncioTestCase):
             rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
         spans = writer.pop()
-        assert len(spans) == 2
-        ot_span, dd_span = spans
+        assert len(spans) == 3
+        ot_span, dd_execute_span, dd_fetchall_span = spans
         # confirm the parenting
         assert ot_span.parent_id is None
-        assert dd_span.parent_id == ot_span.span_id
         assert ot_span.name == 'aiopg_op'
         assert ot_span.service == 'aiopg_svc'
-        assert dd_span.name == 'postgres.query'
-        assert dd_span.resource == q
-        assert dd_span.service == service
-        assert dd_span.meta['sql.query'] == q
-        assert dd_span.error == 0
-        assert dd_span.span_type == 'sql'
+
+        assert dd_execute_span.parent_id == ot_span.span_id
+        assert dd_execute_span.name == 'postgres.execute'
+        assert dd_execute_span.resource == q
+        assert dd_execute_span.service == service
+        assert dd_execute_span.error == 0
+        assert dd_execute_span.span_type == 'sql'
+
+        assert dd_fetchall_span.parent_id == ot_span.span_id
+        assert dd_fetchall_span.name == 'postgres.fetchall'
+        assert dd_fetchall_span.resource == q
+        assert dd_fetchall_span.service == service
+        assert dd_fetchall_span.error == 0
+        assert dd_fetchall_span.span_type == 'sql'
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
@@ -114,10 +129,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans, spans
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == 'postgres.query'
-        assert span.resource == q
+        assert span.name == 'postgres.execute'
         assert span.service == service
-        assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
         assert span.metrics['out.port'] == TEST_PORT
@@ -128,7 +141,7 @@ class AiopgTestCase(AsyncioTestCase):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
         # these calls were crashing with a previous version of the code.
-        yield from (yield from conn.cursor()).execute(query='select \'blah\'')
+        yield from (yield from conn.cursor()).execute(operation='select \'blah\'')
         yield from (yield from conn.cursor()).execute('select \'blah\'')
         assert not tracer.writer.pop()
 
