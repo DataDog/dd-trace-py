@@ -36,8 +36,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     async def _test_cursor_ctx_manager(self):
         conn, tracer = await self._get_conn_and_tracer()
-        cur = await conn.cursor()
-        t = type(cur)
+        async with conn.cursor() as cur:
+            t = type(cur)
 
         async with conn.cursor() as cur:
             assert t == type(cur), '%s != %s' % (t, type(cur))
