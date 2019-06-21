@@ -21,10 +21,10 @@ def _create_pin(tags):
     # Will propagate info from global pin
     pin = Pin.get_from(asyncpg)
     db_name = tags.get(db.NAME)
-    service = pin.service if pin and pin.service else "postgres_%s" % db_name \
+    service = pin.service if pin and pin.service else 'postgres_%s' % db_name \
         if db_name else 'postgres'
-    app = pin.app if pin and pin.app else "postgres"
-    app_type = pin.app_type if pin and pin.app_type else "db"
+    app = pin.app if pin and pin.app else 'postgres'
+    app_type = pin.app_type if pin and pin.app_type else 'db'
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
@@ -144,7 +144,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
             kwargs_copy['dsn'] = connect_args[0]
             tags = _get_parsed_tags(**kwargs_copy)
         else:
-            warnings.warn("Unrecognized parameters to asyncpg connect")
+            warnings.warn('Unrecognized parameters to asyncpg connect')
 
     pin = _create_pin(tags)
 

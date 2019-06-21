@@ -18,9 +18,9 @@ from ddtrace import Pin
 def _create_pin(tags):
     # Will propagate info from global pin
     pin = Pin.get_from(aiopg)
-    service = pin.service if pin and pin.service else "postgres_%s" % tags[db.NAME]
-    app = pin.app if pin and pin.app else "postgres"
-    app_type = pin.app_type if pin and pin.app_type else "db"
+    service = pin.service if pin and pin.service else 'postgres_%s' % tags[db.NAME]
+    app = pin.app if pin and pin.app else 'postgres'
+    app_type = pin.app_type if pin and pin.app_type else 'db'
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
@@ -55,17 +55,17 @@ def _patched_connect(connect_func, _, args, kwargs_param):
         parsed_dsn = _make_dsn(dsn, **kwargs)
 
         tags = {
-            net.TARGET_HOST: parsed_dsn.get("host"),
-            net.TARGET_PORT: parsed_dsn.get("port"),
-            db.NAME: parsed_dsn.get("dbname"),
-            db.USER: parsed_dsn.get("user"),
-            "db.application": parsed_dsn.get("application_name"),
+            net.TARGET_HOST: parsed_dsn.get('host'),
+            net.TARGET_PORT: parsed_dsn.get('port'),
+            db.NAME: parsed_dsn.get('dbname'),
+            db.USER: parsed_dsn.get('user'),
+            'db.application': parsed_dsn.get('application_name'),
         }
 
         pin = _create_pin(tags)
 
         if pin.enabled():
-            name = (pin.app or 'sql') + ".connect"
+            name = (pin.app or 'sql') + '.connect'
             with pin.tracer.trace(name, service=pin.service) as s:
                 s.span_type = sql.TYPE
                 s.set_tags(pin.tags)
@@ -114,11 +114,11 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
     parsed_dsn = _make_dsn(instance._dsn, **instance._conn_kwargs)
 
     tags = {
-        net.TARGET_HOST: parsed_dsn.get("host"),
-        net.TARGET_PORT: parsed_dsn.get("port"),
-        db.NAME: parsed_dsn.get("dbname"),
-        db.USER: parsed_dsn.get("user"),
-        "db.application": parsed_dsn.get("application_name"),
+        net.TARGET_HOST: parsed_dsn.get('host'),
+        net.TARGET_PORT: parsed_dsn.get('port'),
+        db.NAME: parsed_dsn.get('dbname'),
+        db.USER: parsed_dsn.get('user'),
+        'db.application': parsed_dsn.get('application_name'),
     }
 
     pin = _create_pin(tags)
@@ -141,11 +141,11 @@ def _patched_release(release_func, instance, args, kwargs):
     parsed_dsn = _make_dsn(instance._dsn, **instance._conn_kwargs)
 
     tags = {
-        net.TARGET_HOST: parsed_dsn.get("host"),
-        net.TARGET_PORT: parsed_dsn.get("port"),
-        db.NAME: parsed_dsn.get("dbname"),
-        db.USER: parsed_dsn.get("user"),
-        "db.application": parsed_dsn.get("application_name"),
+        net.TARGET_HOST: parsed_dsn.get('host'),
+        net.TARGET_PORT: parsed_dsn.get('port'),
+        db.NAME: parsed_dsn.get('dbname'),
+        db.USER: parsed_dsn.get('user'),
+        'db.application': parsed_dsn.get('application_name'),
     }
 
     pin = _create_pin(tags)
