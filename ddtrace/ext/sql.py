@@ -38,5 +38,5 @@ def parse_pg_dsn(dsn):
         return parsed_dsn
     except ImportError:
         # FIXME: when we deprecate psycopg2 < 2.7 remove this section
-        return {c.split("=")[0]: c.split("=")[1] for c in dsn.split() if
+        return {c.split('=')[0]: c.split('=')[1] for c in dsn.split() if
                 '=' in c}

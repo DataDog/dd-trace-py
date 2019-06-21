@@ -29,19 +29,19 @@ def _trace_method(method, pin, trace_name, query, rowcount_method, extra_tags, *
 
 
 def _fetch_rowcount(span, result):
-    span.set_metric("db.rowcount", len(result))
+    span.set_metric('db.rowcount', len(result))
 
 
 def _fetchrow_rowcount(span, result):
-    span.set_metric("db.rowcount", 1 if result is not None else 0)
+    span.set_metric('db.rowcount', 1 if result is not None else 0)
 
 
 def _execute_rowcount(span, result):
-    span.set_metric("db.rowcount", len(result[0]))
+    span.set_metric('db.rowcount', len(result[0]))
 
 
 def _forward_rowcount(span, result):
-    span.set_metric("db.rowcount", result)
+    span.set_metric('db.rowcount', result)
 
 
 class AIOTracedProtocol(wrapt.ObjectProxy):
@@ -56,7 +56,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
 
         result = yield from _trace_method(
-            method, pin, self._self_name + "." + method.__name__, query,
+            method, pin, self._self_name + '.' + method.__name__, query,
             rowcount_method, extra_tags, *args, **kwargs)  # noqa: E999
 
         return result
