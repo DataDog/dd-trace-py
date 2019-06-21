@@ -5,7 +5,6 @@ import time
 
 # 3p
 import asyncpg.pool
-from nose.tools import eq_
 
 # project
 from ddtrace.contrib.asyncpg.patch import patch, unpatch
@@ -64,30 +63,30 @@ class TestPsycopgPatch(AsyncioTestCase):
         start = time.time()
         rows = await db.fetch(q, timeout=5)
         end = time.time()
-        eq_(rows, [('foobarblah',)])
+        assert rows == [('foobarblah',)]
         assert rows
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 2)
+        assert len(spans) == 2
 
         # prepare span
         span = spans[0]
-        eq_(span.name, 'postgres.prepare')
-        eq_(span.resource, q)
-        eq_(span.service, service)
-        eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.prepare'
+        assert span.resource == q
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'sql'
         assert start <= span.start <= end
         assert span.duration <= end - start
 
         # execute span
         span = spans[1]
-        eq_(span.name, 'postgres.bind_execute')
-        eq_(span.resource, q)
-        eq_(span.service, service)
-        eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
-        eq_(span.metrics['db.rowcount'], 1)
+        assert span.name == 'postgres.bind_execute'
+        assert span.resource == q
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'sql'
+        assert span.metrics['db.rowcount'] == 1
         assert start <= span.start <= end
         assert span.duration <= end - start
 
@@ -102,15 +101,15 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.name, 'postgres.prepare')
-        eq_(span.resource, q)
-        eq_(span.service, service)
-        eq_(span.error, 1)
-        eq_(span.meta['out.host'], '127.0.0.1')
-        eq_(span.meta['out.port'], TEST_PORT)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.prepare'
+        assert span.resource == q
+        assert span.service == service
+        assert span.error == 1
+        assert span.meta['out.host'] == '127.0.0.1'
+        assert span.meta['out.port'] == TEST_PORT
+        assert span.span_type == 'sql'
 
     @mark_sync
     async def test_pool_dsn(self):
@@ -153,18 +152,18 @@ class TestPsycopgPatch(AsyncioTestCase):
                     await conn.execute('select 1;')
 
             spans = self.tracer.writer.pop()
-            eq_(len(spans), 6)
+            assert len(spans) == 6
 
             if min_size == 0:
-                eq_(spans[0].name, "postgres.pool.acquire")
-                eq_(spans[1].name, "postgres.connect")
+                assert spans[0].name == "postgres.pool.acquire"
+                assert spans[1].name == "postgres.connect"
             else:
-                eq_(spans[0].name, "postgres.connect")
-                eq_(spans[1].name, "postgres.pool.acquire")
-            eq_(spans[2].name, "postgres.query")
-            eq_(spans[3].name, "postgres.query")
-            eq_(spans[4].name, "postgres.pool.release")
-            eq_(spans[5].name, "postgres.close")
+                assert spans[0].name == "postgres.connect"
+                assert spans[1].name == "postgres.pool.acquire"
+            assert spans[2].name == "postgres.query"
+            assert spans[3].name == "postgres.query"
+            assert spans[4].name == "postgres.pool.release"
+            assert spans[5].name == "postgres.close"
 
     @mark_sync
     async def test_disabled_execute(self):
@@ -188,7 +187,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {}
-        eq_(service_meta, expected)
+        assert service_meta == expected
 
     @mark_sync
     async def test_patch_unpatch(self):
@@ -208,7 +207,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 3)
+        assert len(spans) == 3
 
         # Test unpatch
         unpatch()
@@ -228,4 +227,4 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 3)
+        assert len(spans) == 3
