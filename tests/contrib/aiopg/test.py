@@ -22,6 +22,17 @@ from ...utils import assert_is_measured
 TEST_PORT = POSTGRES_CONFIG['port']
 
 
+class CursorCtx:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def __enter__(self):
+        return self._cursor
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cursor.close()
+
+
 class AiopgTestCase(AsyncioTestCase):
     # default service
     TEST_SERVICE = 'postgres'
@@ -59,9 +70,10 @@ class AiopgTestCase(AsyncioTestCase):
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
-        cursor = yield from db.cursor()
-        yield from cursor.execute(q)
-        rows = yield from cursor.fetchall()
+        with CursorCtx((yield from db.cursor())) as cursor:
+            yield from cursor.execute(q)
+            rows = yield from cursor.fetchall()
+
         end = time.time()
         assert rows == [('foobarblah',)]
         assert rows
@@ -90,9 +102,9 @@ class AiopgTestCase(AsyncioTestCase):
         # Ensure OpenTracing compatibility
         ot_tracer = init_tracer('aiopg_svc', tracer)
         with ot_tracer.start_active_span('aiopg_op'):
-            cursor = yield from db.cursor()
-            yield from cursor.execute(q)
-            rows = yield from cursor.fetchall()
+            with CursorCtx((yield from db.cursor())) as cursor:
+                yield from cursor.execute(q)
+                rows = yield from cursor.fetchall()
             assert rows == [('foobarblah',)]
         spans = writer.pop()
         assert len(spans) == 3
@@ -141,8 +153,11 @@ class AiopgTestCase(AsyncioTestCase):
         conn, tracer = yield from self._get_conn_and_tracer()
         tracer.enabled = False
         # these calls were crashing with a previous version of the code.
-        yield from (yield from conn.cursor()).execute(operation='select \'blah\'')
-        yield from (yield from conn.cursor()).execute('select \'blah\'')
+        with CursorCtx((yield from conn.cursor())) as cursor:
+            yield from cursor.execute(operation='select \'blah\'')
+
+        with CursorCtx((yield from conn.cursor())) as cursor:
+            yield from cursor.execute('select \'blah\'')
         assert not tracer.writer.pop()
 
     @mark_asyncio
@@ -229,8 +244,8 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
     @mark_asyncio
     def test_analytics_default(self):
         spans = yield from self.trace_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        assert len(spans) == 2
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     @mark_asyncio
     def test_analytics_with_rate(self):
@@ -239,8 +254,8 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
             spans = yield from self.trace_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+            assert len(spans) == 2
+            assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     @mark_asyncio
     def test_analytics_without_rate(self):
@@ -249,5 +264,5 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
             dict(analytics_enabled=True)
         ):
             spans = yield from self.trace_spans()
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+            assert len(spans) == 2
+            assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
