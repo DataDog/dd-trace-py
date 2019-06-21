@@ -7,9 +7,9 @@ from asyncpg.protocol import Protocol as orig_Protocol
 import asyncpg.protocol
 import asyncpg.connect_utils
 import asyncpg.pool
-import wrapt
 
 # project
+from ddtrace.vendor import wrapt
 from ddtrace.ext import net, db
 from ddtrace.pin import Pin
 from .connection import AIOTracedProtocol
@@ -58,6 +58,8 @@ def protocol_factory(protocol_cls, *args, **kwargs):
 
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs):
+    assert connect_func != _patched_connect
+
     tags = {
         net.TARGET_HOST: kwargs['addr'][0],
         net.TARGET_PORT: kwargs['addr'][1],
