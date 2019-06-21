@@ -108,7 +108,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.error, 1)
-        eq_(span.meta['out.host'], 'localhost')
+        eq_(span.meta['out.host'], '127.0.0.1')
         eq_(span.meta['out.port'], TEST_PORT)
         eq_(span.span_type, 'sql')
 
@@ -187,10 +187,7 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
-        expected = {
-            'db': {'app': 'postgres', 'app_type': 'db'},
-            'another': {'app': 'postgres', 'app_type': 'db'},
-        }
+        expected = {}
         eq_(service_meta, expected)
 
     @mark_sync

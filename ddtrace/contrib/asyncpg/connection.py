@@ -1,8 +1,8 @@
 import asyncio
-import wrapt
 from ...ext import sql
 
 from ddtrace import Pin
+from ddtrace.vendor import wrapt
 
 
 @asyncio.coroutine
