@@ -256,7 +256,7 @@ class Tracer(object):
             else:
                 if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
-                    context.sampling_priority = 0
+                    context.sampling_priority = AUTO_REJECT
 
             # add tags to root span to correlate trace with runtime metrics
             if self._runtime_worker:
