@@ -667,6 +667,17 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  webapp2:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^webapp2_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   unit_tests:
     docker:
       - *test_runner
@@ -962,6 +973,9 @@ workflows:
       - vertica:
           requires:
             - flake8
+      - webapp2:
+          requires:
+            - flake8
       - wait_all_tests:
           requires:
             # Initial jobs
@@ -1020,6 +1034,7 @@ workflows:
             - tracer
             - unit_tests
             - vertica
+            - webapp2
       - deploy_dev:
           requires:
             - wait_all_tests
