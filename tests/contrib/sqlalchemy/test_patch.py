@@ -67,32 +67,38 @@ class SQLAlchemyPatchTestCase(BaseTracerTestCase):
         assert span.duration > 0
 
     def test_analytics_sample_rate(self):
+        # [ <config>, <analytics sample rate metric value> ]
         matrix = [
             # Default, not enabled, not set
-            [dict(), dict()],
+            [dict(), None],
 
             # Not enabled, but sample rate set
-            [dict(analytics_sample_rate=0.5), dict()],
+            [dict(analytics_sample_rate=0.5), None],
 
             # Enabled and rate set
-            [dict(analytics_enabled=True, analytics_sample_rate=0.5), {ANALYTICS_SAMPLE_RATE_KEY: 0.5}],
-            [dict(analytics_enabled=True, analytics_sample_rate=1), {ANALYTICS_SAMPLE_RATE_KEY: 1.0}],
-            [dict(analytics_enabled=True, analytics_sample_rate=0), {ANALYTICS_SAMPLE_RATE_KEY: 0}],
-            [dict(analytics_enabled=True, analytics_sample_rate=True), {ANALYTICS_SAMPLE_RATE_KEY: 1.0}],
-            [dict(analytics_enabled=True, analytics_sample_rate=False), {ANALYTICS_SAMPLE_RATE_KEY: 0}],
+            [dict(analytics_enabled=True, analytics_sample_rate=0.5), 0.5],
+            [dict(analytics_enabled=True, analytics_sample_rate=1), 1.0],
+            [dict(analytics_enabled=True, analytics_sample_rate=0), 0],
+            [dict(analytics_enabled=True, analytics_sample_rate=True), 1.0],
+            [dict(analytics_enabled=True, analytics_sample_rate=False), 0],
 
             # Disabled and rate set
-            [dict(analytics_enabled=False, analytics_sample_rate=0.5), dict()],
+            [dict(analytics_enabled=False, analytics_sample_rate=0.5), None],
 
             # Enabled and rate not set
-            [dict(analytics_enabled=True), dict()],
+            [dict(analytics_enabled=True), 1.0],
         ]
-        for config, metrics in matrix:
+        for config, metric_value in matrix:
             with self.override_config('sqlalchemy', config):
                 self.conn.execute('SELECT 1').fetchall()
-                self.assert_structure(dict(
-                    name='postgres.query',
-                    metrics=metrics,
-                    meta=dict(),
-                ))
+
+                root = self.get_root_span()
+                root.assert_matches(name='postgres.query')
+
+                # If the value is None assert it was not set, otherwise assert the expected value
+                # DEV: root.assert_metrics(metrics, exact=True) won't work here since we have another sample rate keys getting added
+                if metric_value is None:
+                    assert ANALYTICS_SAMPLE_RATE_KEY not in root.metrics
+                else:
+                    assert root.metrics[ANALYTICS_SAMPLE_RATE_KEY] == metric_value
                 self.reset()
