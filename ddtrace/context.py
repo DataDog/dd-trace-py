@@ -48,7 +48,6 @@ class Context(object):
         self._root_state = {
             'parent_trace_id': trace_id,
             'parent_span_id': span_id,
-            'sampled': sampled,
             'sampling_priority': sampling_priority
         }
 
