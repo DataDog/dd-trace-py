@@ -1,31 +1,33 @@
 import sqlalchemy
 
-from unittest import TestCase
-
 from ddtrace import Pin
 from ddtrace.contrib.sqlalchemy import patch, unpatch
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 
 from ..config import POSTGRES_CONFIG
-from ...test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 
 
-class SQLAlchemyPatchTestCase(TestCase):
+class SQLAlchemyPatchTestCase(BaseTracerTestCase):
     """TestCase that checks if the engine is properly traced
     when the `patch()` method is used.
     """
     def setUp(self):
+        super(SQLAlchemyPatchTestCase, self).setUp()
+
         # create a traced engine with the given arguments
         # and configure the current PIN instance
         patch()
         dsn = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s' % POSTGRES_CONFIG
         self.engine = sqlalchemy.create_engine(dsn)
-        self.tracer = get_dummy_tracer()
         Pin.override(self.engine, tracer=self.tracer)
 
         # prepare a connection
         self.conn = self.engine.connect()
 
     def tearDown(self):
+        super(SQLAlchemyPatchTestCase, self).tearDown()
+
         # clear the database and dispose the engine
         self.conn.close()
         self.engine.dispose()
@@ -63,3 +65,34 @@ class SQLAlchemyPatchTestCase(TestCase):
         assert span.service == 'replica-db'
         assert span.error == 0
         assert span.duration > 0
+
+    def test_analytics_sample_rate(self):
+        matrix = [
+            # Default, not enabled, not set
+            [dict(), dict()],
+
+            # Not enabled, but sample rate set
+            [dict(analytics_sample_rate=0.5), dict()],
+
+            # Enabled and rate set
+            [dict(analytics_enabled=True, analytics_sample_rate=0.5), {ANALYTICS_SAMPLE_RATE_KEY: 0.5}],
+            [dict(analytics_enabled=True, analytics_sample_rate=1), {ANALYTICS_SAMPLE_RATE_KEY: 1.0}],
+            [dict(analytics_enabled=True, analytics_sample_rate=0), {ANALYTICS_SAMPLE_RATE_KEY: 0}],
+            [dict(analytics_enabled=True, analytics_sample_rate=True), {ANALYTICS_SAMPLE_RATE_KEY: 1.0}],
+            [dict(analytics_enabled=True, analytics_sample_rate=False), {ANALYTICS_SAMPLE_RATE_KEY: 0}],
+
+            # Disabled and rate set
+            [dict(analytics_enabled=False, analytics_sample_rate=0.5), dict()],
+
+            # Enabled and rate not set
+            [dict(analytics_enabled=True), dict()],
+        ]
+        for config, metrics in matrix:
+            with self.override_config('sqlalchemy', config):
+                self.conn.execute('SELECT 1').fetchall()
+                self.assert_structure(dict(
+                    name='postgres.query',
+                    metrics=metrics,
+                    meta=dict(),
+                ))
+                self.reset()
