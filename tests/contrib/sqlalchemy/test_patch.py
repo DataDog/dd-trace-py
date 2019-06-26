@@ -96,7 +96,8 @@ class SQLAlchemyPatchTestCase(BaseTracerTestCase):
                 root.assert_matches(name='postgres.query')
 
                 # If the value is None assert it was not set, otherwise assert the expected value
-                # DEV: root.assert_metrics(metrics, exact=True) won't work here since we have another sample rate keys getting added
+                # DEV: root.assert_metrics(metrics, exact=True) won't work here since we have another sample
+                #      rate keys getting added
                 if metric_value is None:
                     assert ANALYTICS_SAMPLE_RATE_KEY not in root.metrics
                 else:
