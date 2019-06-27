@@ -1,6 +1,5 @@
 from .collector import ValueCollector
 from .constants import (
-    RUNTIME_ID,
     SERVICE,
     LANG_INTERPRETER,
     LANG_VERSION,
@@ -19,8 +18,7 @@ class TracerTagCollector(RuntimeTagCollector):
 
     def collect_fn(self, keys):
         ddtrace = self.modules.get('ddtrace')
-        tags = [(RUNTIME_ID, ddtrace.tracer._runtime_id)]
-        tags += [(SERVICE, service) for service in ddtrace.tracer._services]
+        tags = [(SERVICE, service) for service in ddtrace.tracer._services]
         return tags
 
 

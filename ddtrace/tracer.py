@@ -13,7 +13,6 @@ from .sampler import AllSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated
-from .utils.runtime import generate_runtime_id
 from .vendor.dogstatsd import DogStatsd
 from .writer import AgentWriter
 from . import compat
@@ -66,7 +65,6 @@ class Tracer(object):
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
-        self._runtime_id = generate_runtime_id()
         self._runtime_worker = None
         self._dogstatsd_client = None
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
@@ -260,7 +258,6 @@ class Tracer(object):
 
             # add tags to root span to correlate trace with runtime metrics
             if self._runtime_worker:
-                span.set_tag('runtime-id', self._runtime_id)
                 span.set_tag('language', 'python')
 
         # add common tags
@@ -324,9 +321,6 @@ class Tracer(object):
             return
 
         self._pid = pid
-
-        # generate a new runtime-id per process.
-        self._runtime_id = generate_runtime_id()
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.
