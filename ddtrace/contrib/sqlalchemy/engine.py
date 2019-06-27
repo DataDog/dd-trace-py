@@ -88,10 +88,9 @@ class EngineTracer(object):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.sqlalchemy.get_analytics_sample_rate()
-        )
+        sample_rate = config.sqlalchemy.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
