@@ -27,7 +27,7 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', 'false'))
     _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', 500))
 
-    def __init__(self, trace_id=None, span_id=None, sampled=True, sampling_priority=None, _dd_origin=None):
+    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -40,7 +40,6 @@ class Context(object):
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
-        self._sampled = sampled
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
 
@@ -55,12 +54,6 @@ class Context(object):
         """Return current context span_id."""
         with self._lock:
             return self._parent_span_id
-
-    @property
-    def sampled(self):
-        """Return current context sampled flag."""
-        with self._lock:
-            return self._sampled
 
     @property
     def sampling_priority(self):
@@ -83,7 +76,6 @@ class Context(object):
             new_ctx = Context(
                 trace_id=self._parent_trace_id,
                 span_id=self._parent_span_id,
-                sampled=self._sampled,
                 sampling_priority=self._sampling_priority,
             )
             new_ctx._current_span = self._current_span
@@ -115,7 +107,6 @@ class Context(object):
         if span:
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
-            self._sampled = span.sampled
         else:
             self._parent_span_id = None
 
@@ -152,12 +143,8 @@ class Context(object):
                 for wrong_span in unfinished_spans:
                     log.debug('\n%s', wrong_span.pprint())
 
-    def is_sampled(self):
-        """
-        Returns if the ``Context`` contains sampled spans.
-        """
-        with self._lock:
-            return self._sampled
+    def _is_sampled(self):
+        return any(span.sampled for span in self._trace)
 
     def get(self):
         """
@@ -174,7 +161,7 @@ class Context(object):
             if len(finished_spans) == len(self._trace):
                 # get the trace
                 trace = self._trace
-                sampled = self._sampled
+                sampled = self._is_sampled()
                 sampling_priority = self._sampling_priority
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
@@ -194,13 +181,12 @@ class Context(object):
                 self._parent_trace_id = None
                 self._parent_span_id = None
                 self._sampling_priority = None
-                self._sampled = True
                 return trace, sampled
 
             elif self._partial_flush_enabled and len(finished_spans) >= self._partial_flush_min_spans:
                 # partial flush when enabled and we have more than the minimal required spans
                 trace = self._trace
-                sampled = self._sampled
+                sampled = self._is_sampled()
                 sampling_priority = self._sampling_priority
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
