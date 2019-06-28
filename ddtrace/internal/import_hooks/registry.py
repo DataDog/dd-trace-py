@@ -1,6 +1,10 @@
 from collections import defaultdict
 import sys
 
+from ..logger import get_logger
+
+log = get_logger(__name__)
+
 
 class ModuleHookRegistry:
     """
@@ -77,7 +81,10 @@ class ModuleHookRegistry:
 
         # Call all hooks for this module
         for hook in self.hooks[name]:
-            hook(module)
+            try:
+                hook(module)
+            except Exception:
+                log.debug('Failed to call hook %r for module %r', hook, name, exec_info=True)
 
     def reset(self):
         """Reset/remove all registered hooks"""
