@@ -144,7 +144,10 @@ def _unpatch():
         import importlib
 
         if isinstance(importlib._bootstrap._find_and_load_unlocked, wrapt.FunctionWrapper):
-            setattr(importlib._bootstrap, '_find_and_load_unlocked', importlib._bootstrap._find_and_load_unlocked.__wrapped__)
+            setattr(
+                importlib._bootstrap, '_find_and_load_unlocked',
+                importlib._bootstrap._find_and_load_unlocked.__wrapped__,
+            )
         if isinstance(importlib.reload, wrapt.FunctionWrapper):
             setattr(importlib, 'reload', importlib.reload.__wrapped__)
 
