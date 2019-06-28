@@ -9,7 +9,7 @@ from ddtrace.internal.runtime.constants import (
     DEFAULT_RUNTIME_METRICS,
     DEFAULT_RUNTIME_TAGS,
     GC_COUNT_GEN0,
-    RUNTIME_ID,
+    SERVICE
 )
 from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -30,8 +30,8 @@ class TestRuntimeTags(BaseTracerTestCase):
     def test_one_tag(self):
         with self.override_global_tracer():
             with self.trace('test', service='test'):
-                tags = [k for (k, v) in RuntimeTags(enabled=[RUNTIME_ID])]
-                self.assertEqual(tags, [RUNTIME_ID])
+                tags = [k for (k, v) in RuntimeTags(enabled=[SERVICE])]
+                self.assertEqual(tags, [SERVICE])
 
 
 class TestRuntimeMetrics(BaseTestCase):
@@ -92,6 +92,5 @@ class TestRuntimeWorker(BaseTracerTestCase):
 
             # check to last set of metrics returned to confirm tags were set
             for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
-                self.assertRegexpMatches(gauge, 'runtime-id:')
                 self.assertRegexpMatches(gauge, 'service:parent')
                 self.assertRegexpMatches(gauge, 'service:child')

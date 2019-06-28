@@ -44,7 +44,9 @@ class TestTracingContext(BaseTestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        assert ctx._sampled is True
+        span.finish()
+        trace, sampled = ctx.get()
+        assert sampled is True
         assert ctx.sampling_priority is None
 
     def test_context_priority(self):
@@ -54,12 +56,14 @@ class TestTracingContext(BaseTestCase):
             ctx.sampling_priority = priority
             span = Span(tracer=None, name=('fake_span_%s' % repr(priority)))
             ctx.add_span(span)
+            span.finish()
             # It's "normal" to have sampled be true even when priority sampling is
             # set to 0 or -1. It would stay false even even with priority set to 2.
             # The only criteria to send (or not) the spans to the agent should be
             # this "sampled" attribute, as it's tightly related to the trace weight.
-            assert ctx._sampled is True, 'priority has no impact on sampled status'
             assert priority == ctx.sampling_priority
+            trace, sampled = ctx.get()
+            assert sampled is True, 'priority has no impact on sampled status'
 
     def test_current_span(self):
         # it should return the current active span
@@ -102,7 +106,6 @@ class TestTracingContext(BaseTestCase):
         # the context should be empty
         assert 0 == len(ctx._trace)
         assert ctx._current_span is None
-        assert ctx._sampled is True
 
     def test_get_trace_empty(self):
         # it should return None if the Context is not finished
@@ -427,7 +430,6 @@ class TestTracingContext(BaseTestCase):
         cloned_ctx = ctx.clone()
         assert cloned_ctx._parent_trace_id == ctx._parent_trace_id
         assert cloned_ctx._parent_span_id == ctx._parent_span_id
-        assert cloned_ctx._sampled == ctx._sampled
         assert cloned_ctx._sampling_priority == ctx._sampling_priority
         assert cloned_ctx._dd_origin == ctx._dd_origin
         assert cloned_ctx._current_span == ctx._current_span

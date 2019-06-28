@@ -419,7 +419,7 @@ class TestTracer(object):
 @pytest.fixture
 def nop_span_ctx():
 
-    return SpanContext(sampling_priority=AUTO_KEEP, sampled=True)
+    return SpanContext(sampling_priority=AUTO_KEEP)
 
 
 class TestTracerSpanContextPropagation(object):
