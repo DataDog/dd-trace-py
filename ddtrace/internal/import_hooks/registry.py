@@ -12,7 +12,7 @@ class ModuleHookRegistry:
         """
         Initialize a new registry
         """
-        self.hooks = defaultdict(set)
+        self.reset()
 
     def register(self, name, func):
         """
@@ -78,6 +78,10 @@ class ModuleHookRegistry:
         # Call all hooks for this module
         for hook in self.hooks[name]:
             hook(module)
+
+    def reset(self):
+        """Reset/remove all registered hooks"""
+        self.hooks = defaultdict(set)
 
 
 # Default/global module hook registry
