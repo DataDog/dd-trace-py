@@ -109,6 +109,13 @@ class ResponseMock:
         return self.content
 
 
+def test_api_str():
+    api = API('localhost', 8126)
+    assert str(api) == 'localhost:8126'
+    api = API('localhost', 8126, '/path/to/uds')
+    assert str(api) == '/path/to/uds'
+
+
 class APITests(TestCase):
 
     def setUp(self):
