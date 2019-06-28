@@ -151,6 +151,11 @@ class API(object):
             'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
 
+    def __str__(self):
+        if self.uds_path:
+            return self.uds_path
+        return '%s:%s' % (self.hostname, self.port)
+
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
             version = 'v0.2'

@@ -107,13 +107,11 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         if now > self._last_error_ts + LOG_ERR_INTERVAL:
             log_level = log.error
             self._last_error_ts = now
-        if self.api.uds_path:
-            prefix = 'Failed to send traces to Datadog Agent at %s: ' % self.api.uds_path
-        else:
-            prefix = 'Failed to send traces to Datadog Agent at %s:%s: ' % (self.api.hostname, self.api.port)
+        prefix = 'Failed to send traces to Datadog Agent at %s: '
         if isinstance(response, api.Response):
             log_level(
                 prefix + 'HTTP error status %s, reason %s, message %s',
+                self.api,
                 response.status,
                 response.reason,
                 response.msg,
@@ -121,6 +119,7 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         else:
             log_level(
                 prefix + '%s',
+                self.api,
                 response,
             )
 
