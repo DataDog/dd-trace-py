@@ -1,3 +1,55 @@
+"""
+Module for patching Python's internal import system for import hooks.
+
+There are a few ways to monitor Python imports, but we have found the follow method
+of patching internal Python functions and builtin functions the most reliable and
+least invassive process.
+
+Given the challenges faced by implementing PEP 302, and our experience with monkey patching
+monkey patching and wrapping internal Python functions was an easier and more reliable way
+of implementing this feature in a way that has little effect on other packages.
+
+For us to successfully use import hooks, we need to ensure that the hooks are always called
+regardless of the condition or means of importing the module.
+
+
+PEP 302
+-------
+
+https://www.python.org/dev/peps/pep-0302/
+
+PEP 302 defines a process for adding import hooks.
+
+The way it works is by adding a custom "finder" onto `sys.meta_path`,
+for example: `sys.meta_path.append(MyFinder)`
+
+Finders are a way for users to customize the way the Python import system
+finds and loads modules.
+
+This approach has a few flaws
+
+1) Finders are called in order. In order for us to always ensure we are able to capture
+every import we would need to make sure that our Finder is always first in `sys.meta_path`.
+
+This can become tricky when the user uses another package that adds to `sys.meta_path`
+(e.g. `six`, or `newrelic`).
+
+If another Finder runs before ours and finds the module they are looking for, then ours will
+never get called.
+
+2) Finders were never meant to be used this way. An example of a good finder is a custom
+finder that looks for and loads a module off of a shared central server instead of a
+location on the existing Python path, or one that knows how to load modules from a `.zip`
+or another file format.
+
+3) The code is a little complex. In order to write a no-op finder we need to ensure
+other finders are called by us, and then at the end we look if they found a module and return it.
+
+This is the approach `wrapt` went for and requires locking and keep state of the current module
+being loaded and re-calling `__import__` for the module to trigger the other finders.
+
+4) Reloading a module is a weird case.
+"""
 import sys
 
 import wrapt
@@ -100,6 +152,8 @@ def _patch():
         # 3.6: https://github.com/python/cpython/blob/3.6/Lib/importlib/_bootstrap.py#L936-L960
         # 3.7: https://github.com/python/cpython/blob/3.7/Lib/importlib/_bootstrap.py#L948-L972
         # 3.8: https://github.com/python/cpython/blob/3.8/Lib/importlib/_bootstrap.py#L956-L980
+        # DEV: If we ever experience issues here we can always look at the code that executes/builds
+        #      an imported module instead since that should always get called when it is loaded
         wrapt.wrap_function_wrapper('importlib._bootstrap', '_find_and_load_unlocked', wrapped_find_and_load_unlocked)
 
         # 3.4: https://github.com/python/cpython/blob/3.4/Lib/importlib/__init__.py#L115-L156
@@ -127,7 +181,7 @@ def patch():
     try:
         _patch()
     except Exception:
-        log.debug('Failed to patch module importing', exec_info=True)
+        log.debug('Failed to patch module importing, import hooks will not work', exec_info=True)
 
 
 def _unpatch():
