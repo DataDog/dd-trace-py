@@ -82,10 +82,14 @@ class IntegrationConfig(AttrDict):
         if self._is_analytics_enabled(use_global_config):
             analytics_sample_rate = getattr(self, 'analytics_sample_rate', None)
             # return True if attribute is None or attribute not found
-            if not analytics_sample_rate:
+            if analytics_sample_rate is None:
                 return True
             # otherwise return rate
             return analytics_sample_rate
+
+        # Use `None` as a way to say that it was not defined,
+        #   `False` would mean `0` which is a different thing
+        return None
 
     def __repr__(self):
         cls = self.__class__
