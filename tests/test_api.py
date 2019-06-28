@@ -12,7 +12,7 @@ import pytest
 from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
 from ddtrace.compat import iteritems, httplib, PY3
-from ddtrace.vendor.six.moves import BaseHTTPServer
+from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
 
 
 class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
@@ -22,6 +22,12 @@ class _BaseHTTPRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     @staticmethod
     def log_message(format, *args):  # noqa: A002
         pass
+
+
+class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
+
+    def do_PUT(self):
+        self.send_error(200, 'OK')
 
 
 class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
@@ -39,6 +45,30 @@ class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
 _HOST = '0.0.0.0'
 _TIMEOUT_PORT = 8743
 _RESET_PORT = _TIMEOUT_PORT + 1
+
+
+class UDSHTTPServer(socketserver.UnixStreamServer, BaseHTTPServer.HTTPServer):
+    def server_bind(self):
+        BaseHTTPServer.HTTPServer.server_bind(self)
+
+
+def _make_uds_server(path, request_handler):
+    server = UDSHTTPServer(path, request_handler)
+    t = threading.Thread(target=server.serve_forever)
+    # Set daemon just in case something fails
+    t.daemon = True
+    t.start()
+    return server, t
+
+
+@pytest.fixture
+def endpoint_uds_server(tmp_path):
+    server, thread = _make_uds_server(str(tmp_path / 'uds_server_socket'), _APIEndpointRequestHandlerTest)
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        thread.join()
 
 
 def _make_server(port, request_handler):
@@ -212,3 +242,12 @@ def test_flush_connection_reset(endpoint_test_reset_server):
         assert isinstance(response, (httplib.BadStatusLine, ConnectionResetError))  # noqa: F821
     else:
         assert isinstance(response, httplib.BadStatusLine)
+
+
+def test_flush_connection_uds(endpoint_uds_server):
+    payload = mock.Mock()
+    payload.get_payload.return_value = 'foobar'
+    payload.length = 12
+    api = API(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
+    response = api._flush(payload)
+    assert response.status == 200

@@ -93,7 +93,7 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, dogstatsd_host=None,
+    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, dogstatsd_host=None,
                   dogstatsd_port=None, sampler=None, context_provider=None, wrap_executor=None,
                   priority_sampling=None, settings=None, collect_metrics=None):
         """
@@ -104,6 +104,7 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
+        :param str uds_path: The Unix Domain Socket path of the agent.
         :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
@@ -132,7 +133,7 @@ class Tracer(object):
         elif priority_sampling is False:
             self.priority_sampler = None
 
-        if hostname is not None or port is not None or filters is not None or \
+        if hostname is not None or port is not None or uds_path is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
             default_hostname = self.DEFAULT_HOSTNAME
@@ -143,6 +144,7 @@ class Tracer(object):
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
+                uds_path=uds_path,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
             )

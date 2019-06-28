@@ -96,6 +96,40 @@ class TestWorkers(TestCase):
 
         return None, None
 
+    @skipUnless(
+        os.environ.get('TEST_DATADOG_INTEGRATION_UDS', False),
+        'You should have a running trace agent on a socket and set TEST_DATADOG_INTEGRATION_UDS=1 env variable'
+    )
+    def test_worker_single_trace_uds(self):
+        self.tracer.configure(uds_path='/tmp/ddagent/trace.sock')
+        # Write a first trace so we get a _worker
+        self.tracer.trace('client.testing').finish()
+        worker = self.tracer.writer._worker
+        worker._log_error_status = mock.Mock(
+            worker._log_error_status, wraps=worker._log_error_status,
+        )
+        self.tracer.trace('client.testing').finish()
+
+        # one send is expected
+        self._wait_thread_flush()
+        # Check that no error was logged
+        assert worker._log_error_status.call_count == 0
+
+    def test_worker_single_trace_uds_wrong_socket_path(self):
+        self.tracer.configure(uds_path='/tmp/ddagent/nosockethere')
+        # Write a first trace so we get a _worker
+        self.tracer.trace('client.testing').finish()
+        worker = self.tracer.writer._worker
+        worker._log_error_status = mock.Mock(
+            worker._log_error_status, wraps=worker._log_error_status,
+        )
+        self.tracer.trace('client.testing').finish()
+
+        # one send is expected
+        self._wait_thread_flush()
+        # Check that no error was logged
+        assert worker._log_error_status.call_count == 1
+
     def test_worker_single_trace(self):
         # create a trace block and send it using the transport system
         tracer = self.tracer
