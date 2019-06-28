@@ -2,7 +2,11 @@ import sys
 
 import wrapt
 
+from ..logger import get_logger
 from .registry import hooks
+
+
+log = get_logger(__name__)
 
 
 def exec_and_call_hooks(module_name, wrapped, args, kwargs):
@@ -17,7 +21,7 @@ def exec_and_call_hooks(module_name, wrapped, args, kwargs):
         try:
             hooks.call(module_name)
         except Exception:
-            pass
+            log.debug('Failed to call hooks for module %r', module_name, exec_info=True)
 
 
 def wrapped_reload(wrapped, instance, args, kwargs):
@@ -35,7 +39,7 @@ def wrapped_reload(wrapped, instance, args, kwargs):
         else:
             module_name = args[0].__name__
     except Exception:
-        pass
+        log.debug('Failed to determine module name when calling `reload`: %r', args, exec_info=True)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
@@ -51,17 +55,21 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
     try:
         module_name = args[0]
     except Exception:
+        log.debug('Failed to determine module name when importing module: %r', args, exec_info=True)
         return wrapped(*args, **kwargs)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
 
 def wrapped_import(wrapped, instance, args, kwargs):
+    """
+    Wrapper for `__import__` so we can trigger hooks on module loading
+    """
     module_name = None
     try:
         module_name = args[0]
-    except Exception as ex:
-        print(ex)
+    except Exception:
+        log.debug('Failed to determine module name when importing module: %r', args, exec_info=True)
         return wrapped(*args, **kwargs)
 
     # Do not call the hooks every time `import <module>` is called,
@@ -102,7 +110,7 @@ def _patch():
         wrapt.wrap_function_wrapper('importlib', 'reload', wrapped_reload)
 
     # 2.7
-    # DEV: Slightly more direct approach
+    # DEV: Slightly more direct approach of patching `__import__` and `reload` functions
     elif sys.version_info >= (2, 7):
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L35-L68
         __builtins__['__import__'] = wrapt.FunctionWrapper(__builtins__['__import__'], wrapped_import)
@@ -112,11 +120,14 @@ def _patch():
 
 
 def patch():
+    """
+    Patch Python import system, enabling import hooks
+    """
     # This should never cause their application to not load
     try:
         _patch()
     except Exception:
-        pass
+        log.debug('Failed to patch module importing', exec_info=True)
 
 
 def _unpatch():
@@ -147,8 +158,11 @@ def _unpatch():
 
 
 def unpatch():
+    """
+    Unpatch Python import system, disabling import hooks
+    """
     # This should never cause their application to not load
     try:
         _unpatch()
     except Exception:
-        pass
+        log.debug('Failed to unpatch module importing', exec_info=True)
