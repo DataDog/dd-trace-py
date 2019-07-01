@@ -79,42 +79,42 @@ def parse_msg(msg_bytes):
         log.debug('unknown op code: %s', op_code)
         return None
 
+    # Only parse query messages
+    # NOTE[matt] inserts, updates and queries can all use this opcode
+    if op != 'query':
+        return None
+
     db = None
     coll = None
 
     offset = header_struct.size
-    cmd = None
-    if op == 'query':
-        # NOTE[matt] inserts, updates and queries can all use this opcode
+    offset += 4  # skip flags
+    ns = _cstring(msg_bytes[offset:])
+    offset += len(ns) + 1  # include null terminator
 
-        offset += 4  # skip flags
-        ns = _cstring(msg_bytes[offset:])
-        offset += len(ns) + 1  # include null terminator
+    # note: here coll could be '$cmd' because it can be overridden in the
+    # query itself (like {'insert':'songs'})
+    db, coll = _split_namespace(ns)
 
-        # note: here coll could be '$cmd' because it can be overridden in the
-        # query itself (like {'insert':'songs'})
-        db, coll = _split_namespace(ns)
+    offset += 8  # skip numberToSkip & numberToReturn
+    if msg_len <= MAX_MSG_PARSE_LEN:
+        # FIXME[matt] don't try to parse large messages for performance
+        # reasons. ideally we'd just peek at the first bytes to get
+        # the critical info (op type, collection, query, # of docs)
+        # rather than parse the whole thing. i suspect only massive
+        # inserts will be affected.
+        codec = CodecOptions(SON)
+        spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
+        cmd = parse_spec(spec, db)
+    else:
+        # let's still note that a command happened.
+        cmd = Command('command', db, 'untraced_message_too_large')
 
-        offset += 8  # skip numberToSkip & numberToReturn
-        if msg_len <= MAX_MSG_PARSE_LEN:
-            # FIXME[matt] don't try to parse large messages for performance
-            # reasons. ideally we'd just peek at the first bytes to get
-            # the critical info (op type, collection, query, # of docs)
-            # rather than parse the whole thing. i suspect only massive
-            # inserts will be affected.
-            codec = CodecOptions(SON)
-            spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
-            cmd = parse_spec(spec, db)
-        else:
-            # let's still note that a command happened.
-            cmd = Command('command', db, 'untraced_message_too_large')
+    # If the command didn't contain namespace info, set it here.
+    if not cmd.coll:
+        cmd.coll = coll
 
-        # If the command didn't contain namespace info, set it here.
-        if not cmd.coll:
-            cmd.coll = coll
-
-    if cmd:
-        cmd.metrics[netx.BYTES_OUT] = msg_len
+    cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
 
