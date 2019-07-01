@@ -13,12 +13,8 @@ For us to successfully use import hooks, we need to ensure that the hooks are al
 regardless of the condition or means of importing the module.
 
 
-PEP 302
--------
-
+PEP 302 defines a process for adding import "hooks".
 https://www.python.org/dev/peps/pep-0302/
-
-PEP 302 defines a process for adding import hooks.
 
 The way it works is by adding a custom "finder" onto `sys.meta_path`,
 for example: `sys.meta_path.append(MyFinder)`
@@ -48,7 +44,10 @@ other finders are called by us, and then at the end we look if they found a modu
 This is the approach `wrapt` went for and requires locking and keep state of the current module
 being loaded and re-calling `__import__` for the module to trigger the other finders.
 
-4) Reloading a module is a weird case.
+4) Reloading a module is a weird case that doesn't always trigger a module finder.
+
+
+For these reasons we have decided to patch Python's internal module loading functions instead.
 """
 import sys
 
