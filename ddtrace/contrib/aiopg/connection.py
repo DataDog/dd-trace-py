@@ -11,7 +11,7 @@ from ...settings import config
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces it's queries. """
+    """ TracedCursor wraps a psql cursor and traces its queries. """
 
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
