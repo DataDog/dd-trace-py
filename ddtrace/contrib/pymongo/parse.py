@@ -116,7 +116,7 @@ def parse_msg(msg_bytes):
         offset += 4
 
         # Parse the msg kind
-        kind = int(msg_bytes[offset:offset+1].encode('hex'), 16)
+        kind = ord(msg_bytes[offset:offset+1])
         offset += 1
 
         # Kinds: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#sections
