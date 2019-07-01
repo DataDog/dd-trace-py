@@ -113,7 +113,8 @@ def parse_msg(msg_bytes):
         if not cmd.coll:
             cmd.coll = coll
 
-    cmd.metrics[netx.BYTES_OUT] = msg_len
+    if cmd:
+        cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
 
