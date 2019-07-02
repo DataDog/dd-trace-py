@@ -79,12 +79,14 @@ def parse_msg(msg_bytes):
         log.debug('unknown op code: %s', op_code)
         return None
 
-    # Only parse query messages
-    # NOTE[matt] inserts, updates and queries can all use this opcode
     db = None
     coll = None
+
+    offset = header_struct.size
+    cmd = None
     if op == 'query':
-        offset = header_struct.size
+        # NOTE[matt] inserts, updates and queries can all use this opcode
+
         offset += 4  # skip flags
         ns = _cstring(msg_bytes[offset:])
         offset += len(ns) + 1  # include null terminator
@@ -112,7 +114,6 @@ def parse_msg(msg_bytes):
             cmd.coll = coll
     elif op == 'msg':
         # Skip header and flag bits
-        offset = header_struct.size
         offset += 4
 
         # Parse the msg kind
