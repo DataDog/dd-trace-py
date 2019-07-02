@@ -67,6 +67,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self.__wrapped__.callproc, proc, {}, proc, args)
         return result
 
+    def __aiter__(self):
+        return self.__wrapped__.__aiter__()
+
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     """ TracedConnection wraps a Connection with tracing code. """
