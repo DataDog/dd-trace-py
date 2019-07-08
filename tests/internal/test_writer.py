@@ -3,7 +3,7 @@ from unittest import TestCase
 import pytest
 
 from ddtrace.span import Span
-from ddtrace.writer import AsyncWorker, Q, Empty
+from ddtrace.internal.writer import AsyncWorker, Q, Empty
 
 
 class RemoveAllFilter():

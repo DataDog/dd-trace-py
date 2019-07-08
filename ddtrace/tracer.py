@@ -7,6 +7,7 @@ from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
+from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
@@ -14,7 +15,6 @@ from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated
 from .vendor.dogstatsd import DogStatsd
-from .writer import AgentWriter
 from . import compat
 
 

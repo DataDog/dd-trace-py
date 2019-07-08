@@ -190,7 +190,7 @@ class TestWorkers(TestCase):
         self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
         tracer.trace('client.testing').finish()
 
-        log = logging.getLogger('ddtrace.writer')
+        log = logging.getLogger('ddtrace.internal.writer')
         log_handler = MockedLogHandler(level='DEBUG')
         log.addHandler(log_handler)
 

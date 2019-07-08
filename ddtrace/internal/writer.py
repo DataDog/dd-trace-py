@@ -3,9 +3,9 @@ import random
 import os
 import time
 
-from . import api
-from . import _worker
-from .internal.logger import get_logger
+from .. import api
+from .. import _worker
+from ..internal.logger import get_logger
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
 log = get_logger(__name__)
@@ -59,7 +59,7 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
 
-    def __init__(self, api, trace_queue, service_queue=None, shutdown_timeout=DEFAULT_TIMEOUT,
+    def __init__(self, api, trace_queue, shutdown_timeout=DEFAULT_TIMEOUT,
                  filters=None, priority_sampler=None):
         super(AsyncWorker, self).__init__(interval=self.QUEUE_PROCESSING_INTERVAL,
                                           exit_timeout=shutdown_timeout,
