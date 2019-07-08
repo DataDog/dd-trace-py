@@ -19,14 +19,14 @@ LOG_ERR_INTERVAL = 60
 
 class AgentWriter(object):
 
-    def __init__(self, hostname='localhost', port=8126, filters=None, priority_sampler=None):
+    def __init__(self, hostname='localhost', port=8126, uds_path=None, filters=None, priority_sampler=None):
         self._pid = None
         self._traces = None
         self._worker = None
         self._filters = filters
         self._priority_sampler = priority_sampler
         priority_sampling = priority_sampler is not None
-        self.api = api.API(hostname, port, priority_sampling=priority_sampling)
+        self.api = api.API(hostname, port, uds_path=uds_path, priority_sampling=priority_sampling)
 
     def write(self, spans=None, services=None):
         # if the worker needs to be reset, do it.
@@ -107,12 +107,11 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         if now > self._last_error_ts + LOG_ERR_INTERVAL:
             log_level = log.error
             self._last_error_ts = now
-        prefix = 'Failed to send traces to Datadog Agent at %s:%s: '
+        prefix = 'Failed to send traces to Datadog Agent at %s: '
         if isinstance(response, api.Response):
             log_level(
                 prefix + 'HTTP error status %s, reason %s, message %s',
-                self.api.hostname,
-                self.api.port,
+                self.api,
                 response.status,
                 response.reason,
                 response.msg,
@@ -120,8 +119,7 @@ class AsyncWorker(_worker.PeriodicWorkerThread):
         else:
             log_level(
                 prefix + '%s',
-                self.api.hostname,
-                self.api.port,
+                self.api,
                 response,
             )
 
