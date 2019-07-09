@@ -77,14 +77,14 @@ class TestWorkers(TestCase):
         """
         Stop running worker
         """
-        self.tracer.writer._worker.stop()
+        self._wait_thread_flush()
 
     def _wait_thread_flush(self):
         """
         Helper that waits for the thread flush
         """
-        self.tracer.writer._worker.stop()
-        self.tracer.writer._worker.join(None)
+        self.tracer.writer.stop()
+        self.tracer.writer.join(None)
 
     def _get_endpoint_payload(self, calls, endpoint):
         """
@@ -105,7 +105,7 @@ class TestWorkers(TestCase):
         self.tracer.configure(uds_path='/tmp/ddagent/trace.sock')
         # Write a first trace so we get a _worker
         self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer._worker
+        worker = self.tracer.writer
         worker._log_error_status = mock.Mock(
             worker._log_error_status, wraps=worker._log_error_status,
         )
@@ -120,7 +120,7 @@ class TestWorkers(TestCase):
         self.tracer.configure(uds_path='/tmp/ddagent/nosockethere')
         # Write a first trace so we get a _worker
         self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer._worker
+        worker = self.tracer.writer
         worker._log_error_status = mock.Mock(
             worker._log_error_status, wraps=worker._log_error_status,
         )
@@ -195,7 +195,7 @@ class TestWorkers(TestCase):
         log.addHandler(log_handler)
 
         self._wait_thread_flush()
-        assert tracer.writer._worker._last_error_ts < time.time()
+        assert tracer.writer._last_error_ts < time.time()
 
         logged_errors = log_handler.messages['error']
         assert len(logged_errors) == 1
