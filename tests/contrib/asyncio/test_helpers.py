@@ -1,10 +1,15 @@
 import asyncio
+import pytest
 
-from ddtrace.context import Context
+from ddtrace.context import Context, DATADOG_CONTEXT
 from ddtrace.contrib.asyncio import helpers
 from .utils import AsyncioTestCase, mark_asyncio
 
 
+@pytest.mark.skipif(
+    DATADOG_CONTEXT is not None,
+    reason='only applicable to legacy asyncio integration'
+)
 class TestAsyncioHelpers(AsyncioTestCase):
     """
     Ensure that helpers set the ``Context`` properly when creating

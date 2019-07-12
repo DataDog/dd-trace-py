@@ -4,6 +4,7 @@ import sys
 import unittest
 
 import ddtrace
+from ddtrace.context import DATADOG_CONTEXT
 
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
@@ -126,6 +127,10 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
 
         self.reset()
         delattr(self, 'tracer')
+
+        # reset global contextvars if present
+        if DATADOG_CONTEXT is not None:
+            DATADOG_CONTEXT.set(None)
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""

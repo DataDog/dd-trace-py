@@ -5,13 +5,10 @@ Context and Spans in instrumented ``asyncio`` code.
 """
 import asyncio
 import ddtrace
-from asyncio.base_events import BaseEventLoop
 
 from .provider import CONTEXT_ATTR
+from ..utils.asyncio import asyncio_current_task
 from ...context import Context
-
-
-_orig_create_task = BaseEventLoop.create_task
 
 
 def set_call_context(task, ctx):
@@ -103,7 +100,7 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
           however was not actually triggered by B10
     """
     new_task = wrapped(*args, **kwargs)
-    current_task = asyncio.Task.current_task()
+    current_task = asyncio_current_task()
 
     ctx = getattr(current_task, CONTEXT_ATTR, None)
     if ctx:
@@ -116,3 +113,27 @@ def _wrapped_create_task(wrapped, instance, args, kwargs):
         set_call_context(new_task, new_ctx)
 
     return new_task
+
+
+def _wrapped_create_task_contextvars(wrapped, instance, args, kwargs):
+    """Wrapper for ``create_task(coro)`` that propagates the current active
+    ``Context`` to the new ``Task``. This function is useful to connect traces
+    of detached executions. Uses contextvars for task-local storage.
+    """
+    current_task_ctx = ddtrace.tracer.get_call_context()
+
+    if not current_task_ctx:
+        # no current context exists so nothing special to be done in handling
+        # context for new task
+        return wrapped(*args, **kwargs)
+
+    # clone and activate current task's context for new task to support
+    # detached executions
+    new_task_ctx = current_task_ctx.clone()
+    ddtrace.tracer.context_provider.activate(new_task_ctx)
+    try:
+        # activated context will now be copied to new task
+        return wrapped(*args, **kwargs)
+    finally:
+        # reactivate current task context
+        ddtrace.tracer.context_provider.activate(current_task_ctx)

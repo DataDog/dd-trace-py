@@ -6,7 +6,7 @@ from .base import BaseTestCase
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
-from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.context import Context, ContextManager
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
@@ -436,32 +436,32 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._trace == []
 
 
-class TestThreadContext(BaseTestCase):
+class TestContextManager(BaseTestCase):
     """
-    Ensures that a ``ThreadLocalContext`` makes the Context
-    local to each thread.
+    Ensures that a ``ContextManager`` makes the Context
+    local to each thread or task.
     """
     def test_get_or_create(self):
         # asking the Context multiple times should return
         # always the same instance
-        l_ctx = ThreadLocalContext()
-        assert l_ctx.get() == l_ctx.get()
+        ctxm = ContextManager()
+        assert ctxm.get() == ctxm.get()
 
     def test_set_context(self):
         # the Context can be set in the current Thread
         ctx = Context()
-        local = ThreadLocalContext()
-        assert local.get() is not ctx
+        ctxm = ContextManager()
+        assert ctxm.get() is not ctx
 
-        local.set(ctx)
-        assert local.get() is ctx
+        ctxm.set(ctx)
+        assert ctxm.get() is ctx
 
     def test_multiple_threads_multiple_context(self):
         # each thread should have it's own Context
-        l_ctx = ThreadLocalContext()
+        ctxm = ContextManager()
 
         def _fill_ctx():
-            ctx = l_ctx.get()
+            ctx = ctxm.get()
             span = Span(tracer=None, name='fake_span')
             ctx.add_span(span)
             assert 1 == len(ctx._trace)
@@ -477,5 +477,8 @@ class TestThreadContext(BaseTestCase):
 
         # the main instance should have an empty Context
         # because it has not been used in this thread
-        ctx = l_ctx.get()
+        ctx = ctxm.get()
         assert 0 == len(ctx._trace)
+
+    def test_multiple_tasks_multiple_context(self):
+        pass

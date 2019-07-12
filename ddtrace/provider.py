@@ -1,4 +1,4 @@
-from .context import ThreadLocalContext
+from .context import ContextManager
 
 
 class BaseContextProvider(object):
@@ -33,7 +33,7 @@ class DefaultContextProvider(BaseContextProvider):
     Python WSGI frameworks.
     """
     def __init__(self):
-        self._local = ThreadLocalContext()
+        self._local = ContextManager()
 
     def _has_active_context(self):
         """
