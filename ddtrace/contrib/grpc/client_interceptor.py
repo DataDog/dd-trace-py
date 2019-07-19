@@ -4,6 +4,8 @@ import grpc
 from ddtrace import config
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from . import constants
+from .utils import parse_method_path
 
 # DEV: Follows Python interceptors RFC laid out in
 # https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
@@ -26,20 +28,27 @@ def _tag_rpc_error(span, rpc_error):
 
 
 def create_client_interceptor(pin, host, port):
-    def interceptor_function(continuation, client_call_details,
+    def interceptor_function(method_kind, continuation, client_call_details,
                              request_or_iterator):
         if not pin.enabled:
             response = continuation(client_call_details, request_or_iterator)
             return response
 
         with pin.tracer.trace(
-                'grpc.client',
+                'grpc',
                 span_type='grpc',
                 service=pin.service,
                 resource=client_call_details.method,
         ) as span:
-            span.set_tag('grpc.host', host)
-            span.set_tag('grpc.port', port)
+            method_path = client_call_details.method
+            method_package, method_service, method_name = parse_method_path(method_path)
+            span.set_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+            span.set_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+            span.set_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+            span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
+            span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+            span.set_tag(constants.GRPC_HOST_KEY, host)
+            span.set_tag(constants.GRPC_PORT_KEY, port)
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
             if pin.tags:
@@ -94,13 +103,17 @@ class _ClientInterceptor(
         self._fn = interceptor_function
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
-        return self._fn(continuation, client_call_details, request)
+        return self._fn(constants.GRPC_METHOD_KIND_UNARY,
+                        continuation, client_call_details, request)
 
     def intercept_unary_stream(self, continuation, client_call_details, request):
-        return self._fn(continuation, client_call_details, request)
+        return self._fn(constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+                        continuation, client_call_details, request)
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
-        return self._fn(continuation, client_call_details, request_iterator)
+        return self._fn(constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+                        continuation, client_call_details, request_iterator)
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
-        return self._fn(continuation, client_call_details, request_iterator)
+        return self._fn(constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+                        continuation, client_call_details, request_iterator)

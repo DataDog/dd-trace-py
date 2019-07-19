@@ -6,6 +6,8 @@ from ddtrace import config
 from ...compat import to_unicode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...propagation.http import HTTPPropagator
+from . import constants
+from .utils import parse_method_path
 
 
 def create_server_interceptor(pin):
@@ -31,11 +33,17 @@ def _wrapper(pin, handler_call_details):
                 pin.tracer.context_provider.activate(context)
 
         with pin.tracer.trace(
-                'grpc.server',
+                'grpc',
                 span_type='grpc',
                 service=pin.service,
                 resource=handler_call_details.method,
         ) as span:
+            method_path = handler_call_details.method
+            method_package, method_service, method_name = parse_method_path(method_path)
+            span.set_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+            span.set_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+            span.set_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+            span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
             if pin.tags:

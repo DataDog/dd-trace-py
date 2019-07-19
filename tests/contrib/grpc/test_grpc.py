@@ -1,6 +1,5 @@
 import grpc
 from grpc.framework.foundation import logging_pool
-
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace import Pin
@@ -43,20 +42,29 @@ class GrpcTestCase(BaseTracerTestCase):
         self._server.stop(0)
 
     def _check_client_span(self, span, service='grpc'):
-        assert span.name == 'grpc.client'
-        assert span.resource == '/Hello/SayHello'
+        assert span.name == 'grpc'
+        assert span.resource == '/helloworld.Hello/SayHello'
         assert span.service == service
         assert span.error == 0
         assert span.span_type == 'grpc'
+        assert span.get_tag('grpc.method.path') == '/helloworld.Hello/SayHello'
+        assert span.get_tag('grpc.method.package') == 'helloworld'
+        assert span.get_tag('grpc.method.service') == 'Hello'
+        assert span.get_tag('grpc.method.name') == 'SayHello'
+        assert span.get_tag('grpc.method.kind') == 'unary'
         assert span.get_tag('grpc.host') == 'localhost'
         assert span.get_tag('grpc.port') == '50531'
 
     def _check_server_span(self, span, service='grpc'):
-        assert span.name == 'grpc.server'
-        assert span.resource == '/Hello/SayHello'
+        assert span.name == 'grpc'
+        assert span.resource == '/helloworld.Hello/SayHello'
         assert span.service == service
         assert span.error == 0
         assert span.span_type == 'grpc'
+        assert span.get_tag('grpc.method.path') == '/helloworld.Hello/SayHello'
+        assert span.get_tag('grpc.method.package') == 'helloworld'
+        assert span.get_tag('grpc.method.service') == 'Hello'
+        assert span.get_tag('grpc.method.name') == 'SayHello'
 
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):
@@ -145,11 +153,11 @@ class GrpcTestCase(BaseTracerTestCase):
         assert len(spans) == 2
         server_span, client_span = spans
 
-        assert '/Hello/SayError' == client_span.resource
+        assert client_span.resource == '/helloworld.Hello/SayError'
         assert client_span.get_tag('rpc_error.status') == 'StatusCode.ABORTED'
         assert client_span.get_tag('rpc_error.details') == 'aborted'
 
-        assert '/Hello/SayError' == server_span.resource
+        assert server_span.resource == '/helloworld.Hello/SayError'
         assert server_span.get_tag('rpc_error.status') == 'StatusCode.ABORTED'
         assert server_span.get_tag('rpc_error.details') == 'aborted'
 
