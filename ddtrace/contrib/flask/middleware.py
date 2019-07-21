@@ -62,7 +62,7 @@ class TraceMiddleware(object):
             s = getattr(signals, name, None)
             if not s:
                 connected = False
-                log.warn('trying to instrument missing signal %s', name)
+                log.warning('trying to instrument missing signal %s', name)
                 continue
             # we should connect to the signal without using weak references
             # otherwise they will be garbage collected and our handlers
