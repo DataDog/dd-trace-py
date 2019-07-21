@@ -89,7 +89,7 @@ class TestValueCollector(BaseTestCase):
                 'Disabling collector.'
             ))
         ]
-        log_mock.warn.assert_has_calls(calls)
+        log_mock.warning.assert_has_calls(calls)
 
     def test_collected_values(self):
         class V(ValueCollector):
