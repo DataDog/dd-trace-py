@@ -49,7 +49,8 @@ jobs:
   # Test that we can build the package properly and package long description will render
   test_build:
     docker:
-      - *test_runner
+      # DEV: Explicitly use Python 3.7 image instead of *test_runner to ensure we use 3.7
+      - image: python:3.7-alpine
     resource_class: *resource_class
     steps:
       - checkout
