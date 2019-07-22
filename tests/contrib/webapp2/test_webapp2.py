@@ -55,7 +55,7 @@ class Webapp2TestCase(BaseTracerTestCase):
         # When doing a basic POST request
         data = {'valid': 'test'}
         payload = json.dumps(data)
-        request = webapp2.Request.blank('/tests/', POST=payload)
+        request = webapp2.Request.blank('/tests/?q=example', POST=payload)
         request.get_response(self.traced_app)
 
         # Then the tracer will contain a span with the correct tags for
@@ -65,7 +65,7 @@ class Webapp2TestCase(BaseTracerTestCase):
         assert span.service == 'test-service'
         assert span.resource == 'tests.contrib.webapp2.test_webapp2.MyHandler'
         assert span.error == 0
-        assert span.get_tag(http.URL) == 'http://localhost/tests/'
+        assert span.get_tag(http.URL) == 'http://localhost/tests/?q=example'
         assert span.get_tag(http.METHOD) == 'POST'
         assert span.get_tag(http.STATUS_CODE) == '200'
 
