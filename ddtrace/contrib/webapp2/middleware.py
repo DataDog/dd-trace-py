@@ -30,7 +30,9 @@ class Webapp2TraceMiddleware(object):
 
         with self._tracer.trace('webapp2.request', service=self._service) as span:
             span.span_type = http.TYPE
-            span.set_tag(http.URL, request.url)
+            # don't include the query string because that might contain
+            # sensitive information
+            span.set_tag(http.URL, request.path_url)
             span.set_tag(http.METHOD, request.method)
 
             if not span.sampled:

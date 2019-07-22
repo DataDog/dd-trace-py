@@ -44,7 +44,7 @@ class Webapp2TestCase(BaseTracerTestCase):
         assert span.service == 'test-service'
         assert span.resource == 'tests.contrib.webapp2.test_webapp2.MyHandler'
         assert span.error == 0
-        assert span.get_tag(http.URL) == 'http://localhost/tests/?q=example'
+        assert span.get_tag(http.URL) == 'http://localhost/tests/'
         assert span.get_tag(http.METHOD) == 'POST'
         assert span.get_tag(http.STATUS_CODE) == '200'
 
