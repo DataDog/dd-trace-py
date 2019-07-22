@@ -81,7 +81,7 @@ class Webapp2TestCase(BaseTracerTestCase):
         assert span.span_type == 'http'
         assert span.service == 'test-service'
         assert span.resource == 'http://localhost/non-existent'
-        assert span.error == 1
+        assert span.error == 0
         assert span.get_tag(http.URL) == 'http://localhost/non-existent'
         assert span.get_tag(http.METHOD) == 'GET'
         assert span.get_tag(http.STATUS_CODE) == '404'

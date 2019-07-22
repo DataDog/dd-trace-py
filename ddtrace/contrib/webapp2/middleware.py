@@ -42,7 +42,7 @@ class Webapp2TraceMiddleware(object):
                 """Patched response callback to get the status_code."""
                 http_code = int(status.split()[0])
                 span.set_tag(http.STATUS_CODE, http_code)
-                if http_code >= 400:
+                if http_code >= 500:
                     span.error = 1
                 return start_response(status, *args, **kwargs)
 
