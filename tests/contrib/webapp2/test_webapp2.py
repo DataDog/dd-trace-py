@@ -26,39 +26,18 @@ class Webapp2TestCase(BaseTracerTestCase):
         self.traced_app = Webapp2TraceMiddleware(
             self.app, self.tracer, service='test-service')
 
-    def test_basic_post(self):
-        # Given a webapp2 app with a simple POST endpoint
-        # When doing a valid POST request
-        data = {'valid': 'test'}
-        payload = json.dumps(data)
-        request = webapp2.Request.blank('/tests/', POST=payload)
-        response = request.get_response(self.app)
-
-        # Then the response is successful
-        assert response.status_code == 200
-        assert response.text == payload
-
-    def test_apm_middleware_is_transparent(self):
-        # Given an application instrumented with our tracing middleware
-        # When doing a basic POST request
-        data = {'valid': 'test'}
-        payload = json.dumps(data)
-        request = webapp2.Request.blank('/tests/', POST=payload)
-        response = request.get_response(self.traced_app)
-
-        # Then the response will be the same as without the middleware
-        assert response.status_code == 200
-        assert response.text == payload
-
     def test_apm_middleware_valid_post(self):
         # Given an application instrumented with a tracer which captures spans
         # When doing a basic POST request
         data = {'valid': 'test'}
         payload = json.dumps(data)
         request = webapp2.Request.blank('/tests/?q=example', POST=payload)
-        request.get_response(self.traced_app)
+        response = request.get_response(self.traced_app)
 
-        # Then the tracer will contain a span with the correct tags for
+        # Then the response will be successful
+        assert response.status_code == 200
+        assert response.text == payload
+        # And the tracer will contain a span with the correct tags for
         # a POST request
         span, = self.tracer.writer.pop()
         assert span.span_type == 'http'
