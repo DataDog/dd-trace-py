@@ -136,12 +136,13 @@ class Context(object):
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
             tracer = getattr(span, '_tracer', None)
-            unfinished_spans = [x for x in self._trace if not x._finished]
-            if tracer and tracer.debug_logging and span._parent is None and unfinished_spans:
-                log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                          span.name, len(unfinished_spans))
-                for wrong_span in unfinished_spans:
-                    log.debug('\n%s', wrong_span.pprint())
+            if tracer and tracer.debug_logging and span._parent is None:
+                unfinished_spans = [x for x in self._trace if not x._finished]
+                if unfinished_spans:
+                    log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
+                              span.name, len(unfinished_spans))
+                    for wrong_span in unfinished_spans:
+                        log.debug('\n%s', wrong_span.pprint())
 
     def _is_sampled(self):
         return any(span.sampled for span in self._trace)
