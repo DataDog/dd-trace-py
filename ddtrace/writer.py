@@ -160,7 +160,7 @@ class Q(Queue):
                 if qsize != 0:
                     idx = random.randrange(0, qsize)
                     self.queue[idx] = item
-                    log.warn('Writer queue is full has more than %d traces, some traces will be lost', self.maxsize)
+                    log.warning('Writer queue is full has more than %d traces, some traces will be lost', self.maxsize)
                     return
             # The queue has been emptied, simply retry putting item
             return self.put(item)

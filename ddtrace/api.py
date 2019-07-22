@@ -207,7 +207,7 @@ class API(object):
                         payload.add_trace(trace)
                     except PayloadFull:
                         # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warn('Trace %r is too big to fit in a payload, dropping it', trace)
+                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
         # Check that the Payload is not empty:
         # it could be empty if the last trace was too big to fit.
