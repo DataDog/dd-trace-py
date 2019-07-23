@@ -2,7 +2,7 @@ import django
 from django.apps import apps
 from unittest import skipIf
 
-from tests.contrib.django.utils import DjangoTraceTestCase
+from tests.contrib.django_old.utils import DjangoTraceTestCase
 
 
 @skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
@@ -35,7 +35,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert len(spans) == 1
         sp = spans[0]
         assert sp.name == 'django.request'
-        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
+        assert sp.resource == 'tests.contrib.djangorestframework_old.app.views.UserViewSet'
         assert sp.error == 0
         assert sp.span_type == 'http'
         assert sp.get_tag('http.status_code') == '500'
@@ -52,7 +52,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert len(spans) == 1
         sp = spans[0]
         assert sp.name == 'django.request'
-        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
+        assert sp.resource == 'tests.contrib.djangorestframework_old.app.views.UserViewSet'
         assert sp.error == 1
         assert sp.span_type == 'http'
         assert sp.get_tag('http.method') == 'GET'

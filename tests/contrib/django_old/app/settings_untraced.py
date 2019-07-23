@@ -48,7 +48,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'tests.contrib.django.app.views'
+ROOT_URLCONF = 'tests.contrib.django_old.app.views'
 
 TEMPLATES = [
     {
@@ -101,6 +101,6 @@ INSTALLED_APPS = [
 
 DATADOG_TRACE = {
     # tracer with a DummyWriter
-    'TRACER': 'tests.contrib.django.utils.tracer',
+    'TRACER': 'tests.contrib.django_old.utils.tracer',
     'ENABLED': True,
 }
