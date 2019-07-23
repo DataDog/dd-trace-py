@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -ex
 
-# DEV: `${VERSION_SUFFIX-}` means don't fail if it doesn't exist, use empty string instead (which is fine)
-echo "Building with version suffix: ${VERSION_SUFFIX-}"
-
 # Determine where "../dist" is
 PARENT_DIR="$( cd "$(dirname "${0}")/../" ; pwd -P )"
 DIST_DIR="${PARENT_DIR}/dist"
@@ -33,9 +30,7 @@ EOF
 python setup.py sdist --dist-dir dist
 
 # Build x86_64 linux and manylinux wheels
-# DEV: `${VERSION_SUFFIX-}` means don't fail if it doesn't exist, use empty string instead (which is fine)
-docker run -it --rm -v "${PARENT_DIR}:/dd-trace-py" -e "ARCH=x86_64" -e "VERSION_SUFFIX=${VERSION_SUFFIX-}" quay.io/pypa/manylinux1_x86_64 /bin/bash -c "${build_script}"
+docker run -it --rm -v "${PARENT_DIR}:/dd-trace-py" -e "ARCH=x86_64" quay.io/pypa/manylinux1_x86_64 /bin/bash -c "${build_script}"
 
 # Build i686 linux and manylinux wheels
-# DEV: `${VERSION_SUFFIX-}` means don't fail if it doesn't exist, use empty string instead (which is fine)
-docker run -it --rm -v "${PARENT_DIR}:/dd-trace-py" -e "ARCH=i686" -e "VERSION_SUFFIX=${VERSION_SUFFIX-}" quay.io/pypa/manylinux1_i686 linux32 /bin/bash -c "${build_script}"
+docker run -it --rm -v "${PARENT_DIR}:/dd-trace-py" -e "ARCH=i686" quay.io/pypa/manylinux1_i686 linux32 /bin/bash -c "${build_script}"
