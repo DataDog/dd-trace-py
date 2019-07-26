@@ -16,40 +16,12 @@ DATABASES = {
     }
 }
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-    },
-    'redis': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-    },
-    'pylibmc': {
-        'BACKEND': 'django.core.cache.backends.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:11211',
-    },
-    'python_memcached': {
-        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        'LOCATION': '127.0.0.1:11211',
-    },
-    'django_pylibmc': {
-        'BACKEND': 'django_pylibmc.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:11211',
-        'BINARY': True,
-        'OPTIONS': {
-            'tcp_nodelay': True,
-            'ketama': True
-        }
-    },
-}
-
 SITE_ID = 1
 SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'tests.contrib.django.app.views'
+ROOT_URLCONF = 'tests.contrib.djangorestframework_old.app.views'
 
 TEMPLATES = [
     {
@@ -80,7 +52,7 @@ if (1, 10) <= django.VERSION < (2, 0):
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
     ]
 
 # Django 2.0 has different defaults
@@ -94,7 +66,7 @@ elif django.VERSION >= (2, 0):
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
     ]
 
 # Pre 1.10 style
@@ -109,7 +81,7 @@ else:
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
     ]
 
 INSTALLED_APPS = [
@@ -120,13 +92,24 @@ INSTALLED_APPS = [
 
     # tracer app
     'ddtrace.contrib.django',
+
+    # djangorestframework
+    'rest_framework'
 ]
 
 DATADOG_TRACE = {
     # tracer with a DummyWriter
-    'TRACER': 'tests.contrib.django.utils.tracer',
+    'TRACER': 'tests.contrib.django_old.utils.tracer',
     'ENABLED': True,
     'TAGS': {
         'env': 'test',
     },
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAdminUser',
+    ],
+
+    'EXCEPTION_HANDLER': 'tests.contrib.djangorestframework_old.app.exceptions.custom_exception_handler'
 }
