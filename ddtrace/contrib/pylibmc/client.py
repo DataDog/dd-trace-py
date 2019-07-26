@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import random
 
 # 3p
@@ -121,22 +122,28 @@ class TracedClient(ObjectProxy):
 
             return method(*args, **kwargs)
 
+    @contextmanager
+    def _no_span(self):
+        yield None
+
     def _span(self, cmd_name):
         """ Return a span timing the given command. """
         pin = ddtrace.Pin.get_from(self)
-        if pin and pin.enabled():
-            span = pin.tracer.trace(
-                'memcached.cmd',
-                service=pin.service,
-                resource=cmd_name,
-                # TODO(Benjamin): set a better span type
-                span_type='cache')
+        if not pin or not pin.enabled():
+            return self._no_span()
 
-            try:
-                self._tag_span(span)
-            except Exception:
-                log.debug('error tagging span', exc_info=True)
-            return span
+        span = pin.tracer.trace(
+            'memcached.cmd',
+            service=pin.service,
+            resource=cmd_name,
+            # TODO(Benjamin): set a better span type
+            span_type='cache')
+
+        try:
+            self._tag_span(span)
+        except Exception:
+            log.debug('error tagging span', exc_info=True)
+        return span
 
     def _tag_span(self, span):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually
