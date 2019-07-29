@@ -4,9 +4,7 @@ import django
 import django.conf.urls
 import django.conf.urls.static
 import django.core.handlers.base
-import django.core.handlers.exception
 import django.template.base
-import django.urls
 import django.views.generic.base
 
 from ... import config
@@ -47,8 +45,12 @@ def patch():
     _w(django.core.handlers.base, 'BaseHandler.get_response', wrap_get_response)
 
     # Wrap function used to wrap all middleware
-    _w(django.core.handlers.base, 'convert_exception_to_response', wrap_convert_exception_to_response)
-    _w(django.core.handlers.exception, 'convert_exception_to_response', wrap_convert_exception_to_response)
+    if django.VERSION >= (2, 0, 0):
+        import django.core.handlers.exception
+        _w(django.core.handlers.base, 'convert_exception_to_response', wrap_convert_exception_to_response)
+        _w(django.core.handlers.exception, 'convert_exception_to_response', wrap_convert_exception_to_response)
+    else:
+        _w(django.core.handlers.base, 'BaseHandler.load_middleware', wrap_load_middleware)
 
     # Wrap template rendering
     _w(django.template.base, 'Template.render', wrap_template_render)
@@ -56,8 +58,10 @@ def patch():
     # Wrap URL helpers
     _w(django.conf.urls.static, 'static', wrap_urls_path)
     _w(django.conf.urls, 'url', wrap_urls_path)
-    _w(django.urls, 'path', wrap_urls_path)
-    _w(django.urls, 're_path', wrap_urls_path)
+    if django.VERSION >= (2, 0, 0):
+        import django.urls
+        _w(django.urls, 'path', wrap_urls_path)
+        _w(django.urls, 're_path', wrap_urls_path)
 
     # Wrap view methods
     _w(django.views.generic.base, 'View.as_view', wrap_as_view)
@@ -86,6 +90,36 @@ def unpatch():
     _u(django.conf.urls.url)
     _u(django.conf.urls.static.static)
     _u(django.views.generic.base.View.as_view)
+
+
+def wrap_load_middleware(wrapped, instance, args, kwargs):
+    """
+    Wrapper for Django 1.x BaseHandler.load_middleware
+    """
+    try:
+        # Generate middleware first
+        return wrapped(*args, **kwargs)
+    finally:
+        # Middleware holding properties
+        middleware_props = (
+            '_request_middleware',
+            '_view_middleware',
+            '_template_response_middleware',
+            '_response_middleware',
+            '_exception_middleware',
+        )
+        for prop in middleware_props:
+            middleware = getattr(instance, prop, None)
+            # Continue if no middleware found or not a list
+            if not middleware or not isinstance(middleware, list):
+                continue
+
+            middleware = [
+                decorate_func('django.middleware')(func)
+                for func in middleware
+                if callable(func) and not isinstance(func, wrapt.ObjectProxy)
+            ]
+            setattr(instance, prop, middleware)
 
 
 def wrap_urls_path(wrapped, instance, args, kwargs):
