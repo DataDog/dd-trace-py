@@ -43,16 +43,26 @@ def patch():
         return
     setattr(django, '_datadog_patch', True)
 
+    # Wrap main request entrypoint
     _w(django.core.handlers.base, 'BaseHandler.get_response', wrap_get_response)
+
+    # Wrap function used to wrap all middleware
     _w(django.core.handlers.base, 'convert_exception_to_response', wrap_convert_exception_to_response)
     _w(django.core.handlers.exception, 'convert_exception_to_response', wrap_convert_exception_to_response)
+
+    # Wrap template rendering
     _w(django.template.base, 'Template.render', wrap_template_render)
+
+    # Wrap URL helpers
     _w(django.conf.urls.static, 'static', wrap_urls_path)
     _w(django.conf.urls, 'url', wrap_urls_path)
     _w(django.urls, 'path', wrap_urls_path)
     _w(django.urls, 're_path', wrap_urls_path)
+
+    # Wrap view methods
     _w(django.views.generic.base, 'View.as_view', wrap_as_view)
 
+    # Setup pin on `django` module
     Pin(
         service=config.django['service_name'],
         app=config.django['app'],
@@ -79,6 +89,9 @@ def unpatch():
 
 
 def wrap_urls_path(wrapped, instance, args, kwargs):
+    """
+    Wrapper for url path helpers to ensure all views registered as urls are traced
+    """
     try:
         if 'view' in kwargs:
             kwargs['view'] = wrap_view(kwargs['view'])
@@ -141,15 +154,21 @@ def wrap_view(view):
     """
     Helper to wrap a Django views
     """
+    # All views should be callable, double check before doing anything
     if not callable(view):
         return view
 
-    # Patch View methods
+    # Ensure the view is not already wrapped
+    if isinstance(view, wrapt.ObjectProxy):
+        return view
+
+    # Patch View HTTP methods and lifecycle methods
     http_method_names = getattr(view, 'http_method_names', ('get', 'delete', 'post', 'options', 'head'))
-    methods = ('setup', 'dispatch', 'http_method_not_allowed')
-    for name in list(http_method_names) + list(methods):
+    lifecycle_methods = ('setup', 'dispatch', 'http_method_not_allowed')
+    for name in list(http_method_names) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
+            # Do not wrap if the method does not exist or is already wrapped
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
@@ -166,6 +185,7 @@ def wrap_view(view):
         for name in methods:
             try:
                 func = getattr(response_cls, name, None)
+                # Do not wrap if the method does not exist or is already wrapped
                 if not func or isinstance(func, wrapt.ObjectProxy):
                     continue
 
@@ -175,6 +195,7 @@ def wrap_view(view):
             except Exception:
                 log.debug('Failed to patch django response %r function %s', response_cls, name, exc_info=True)
 
+    # Return a wrapped version of this view
     return decorate_func('django.view')(view)
 
 
@@ -182,20 +203,22 @@ def wrap_convert_exception_to_response(wrapped, instance, args, kwargs):
     """
     Wrapper used to intercept and wrap all middleware
     """
-    get_response = args[0] if len(args) else None
+    get_response = args[0] if len(args) else kwargs.get('get_response')
     if not get_response:
         return wrapped(*args, **kwargs)
 
     try:
         # Wrap the middleware class
+        # TODO: Should we treat `BaseHandler._get_response` differently?
         get_response = decorate_func('django.middleware')(get_response)
 
         # Wrap methods of the middleware class
         for attr in ('process_view', 'process_template_response', 'process_exception'):
-            if not hasattr(get_response, attr):
+            func = getattr(get_response, attr, None)
+            # Do not wrap if the method does not exist or is already wrapped
+            if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
-            func = getattr(get_response, attr)
             func = decorate_func('django.middleware.{}'.format(attr))(func)
             setattr(get_response, attr, func)
 
@@ -209,11 +232,13 @@ def wrap_get_response(wrapped, instance, args, kwargs):
     """
     Wrap the main entrypoint for handling a django web request
     """
+    # Ensure the pin exists and is enabled
     pin = Pin.get_from(django)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    request = args[0] if len(args) else None
+    # Ensure we have a request
+    request = args[0] if len(args) else kwargs.get('request')
     if not request:
         return wrapped(*args, **kwargs)
 
@@ -228,20 +253,22 @@ def wrap_get_response(wrapped, instance, args, kwargs):
         # Configure distributed tracing
         if config.django.get('distributed_tracing_enabled', False):
             propagator = HTTPPropagator()
+            # DEV: HTTPPropagator knows how to handle `request.headers` and `request.META` keys
             context = propagator.extract(request_headers)
             # Only need to activate the new context if something was propagated
             if context.trace_id:
                 pin.tracer.context_provider.activate(context)
 
+        # Determine the resolver and resource name for this request
         if hasattr(request, 'urlconf'):
             urlconf = request.urlconf
             resolver = get_resolver(urlconf)
         else:
             resolver = get_resolver()
 
-        # Determine the resolver and resource name for this request
         resolver_match = None
         try:
+            # Resolve the requested url
             resolver_match = resolver.resolve(request.path_info)
             callback, callback_args, callback_kwargs = resolver_match
 
