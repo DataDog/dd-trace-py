@@ -35,11 +35,6 @@ class HelloStub(object):
         request_serializer=hello__pb2.HelloRequest.SerializeToString,
         response_deserializer=hello__pb2.HelloReply.FromString,
         )
-    self.SayError = channel.unary_unary(
-        '/helloworld.Hello/SayError',
-        request_serializer=hello__pb2.HelloRequest.SerializeToString,
-        response_deserializer=hello__pb2.HelloReply.FromString,
-        )
 
 
 class HelloServicer(object):
@@ -74,13 +69,6 @@ class HelloServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def SayError(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
 
 def add_HelloServicer_to_server(servicer, server):
   rpc_method_handlers = {
@@ -101,11 +89,6 @@ def add_HelloServicer_to_server(servicer, server):
       ),
       'SayHelloLast': grpc.stream_unary_rpc_method_handler(
           servicer.SayHelloLast,
-          request_deserializer=hello__pb2.HelloRequest.FromString,
-          response_serializer=hello__pb2.HelloReply.SerializeToString,
-      ),
-      'SayError': grpc.unary_unary_rpc_method_handler(
-          servicer.SayError,
           request_deserializer=hello__pb2.HelloRequest.FromString,
           response_serializer=hello__pb2.HelloReply.SerializeToString,
       ),

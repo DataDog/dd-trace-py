@@ -7,7 +7,6 @@ service Hello {
   rpc SayHelloTwice (HelloRequest) returns (stream HelloReply) {}
   rpc SayHelloRepeatedly (stream HelloRequest) returns (stream HelloReply) {}
   rpc SayHelloLast (stream HelloRequest) returns (HelloReply) {}
-  rpc SayError (HelloRequest) returns (HelloReply) {}
 }
 
 // The request message containing the user's name.

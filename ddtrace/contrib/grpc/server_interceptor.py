@@ -1,9 +1,9 @@
 import grpc
+import sys
 from ddtrace.vendor import wrapt
 
 from ddtrace import config
 
-from ...compat import to_unicode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...propagation.http import HTTPPropagator
 from . import constants
@@ -16,70 +16,104 @@ def create_server_interceptor(pin):
             return continuation(handler_call_details)
 
         rpc_method_handler = continuation(handler_call_details)
-        wrapper = _wrapper(pin, handler_call_details)
-        return _TracedRpcMethodHandler(rpc_method_handler, wrapper)
+        return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
     return _ServerInterceptor(interceptor_function)
 
 
-def _wrapper(pin, handler_call_details):
-    def wrapped(func, instance, fargs, fkwargs):
+def _wrap_response_iterator(response_iterator, span):
+    try:
+        for response in response_iterator:
+            yield response
+    except Exception:
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        span.set_exc_info(exc_type, exc_val, exc_tb)
+        raise
+    finally:
+        span.finish()
+
+
+class _TracedRpcMethodHandler(wrapt.ObjectProxy):
+    def __init__(self, pin, handler_call_details, wrapped):
+        super(_TracedRpcMethodHandler, self).__init__(wrapped)
+        self._pin = pin
+        self._handler_call_details = handler_call_details
+
+    def _fn(self, method_kind, func, args, kwargs):
         if config.grpc.distributed_tracing_enabled:
-            headers = dict(handler_call_details.invocation_metadata)
+            headers = dict(self._handler_call_details.invocation_metadata)
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
 
             if context.trace_id:
-                pin.tracer.context_provider.activate(context)
+                self._pin.tracer.context_provider.activate(context)
 
-        with pin.tracer.trace(
-                'grpc',
-                span_type='grpc',
-                service=pin.service,
-                resource=handler_call_details.method,
-        ) as span:
-            method_path = handler_call_details.method
-            method_package, method_service, method_name = parse_method_path(method_path)
-            span.set_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
-            span.set_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
-            span.set_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
-            span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+        tracer = self._pin.tracer
+        span = tracer.trace(
+            'grpc',
+            span_type='grpc',
+            service=self._pin.service,
+            resource=self._handler_call_details.method,
+        )
 
-            if pin.tags:
-                span.set_tags(pin.tags)
+        method_path = self._handler_call_details.method
+        method_package, method_service, method_name = parse_method_path(method_path)
+        span.set_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+        span.set_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+        span.set_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+        span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
+        span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
-            try:
-                response = func(*fargs, **fkwargs)
-                return response
-            except Exception:
-                # DEV: access state code from internal gRPC state of context
-                # DEV: context is second positional argument to func
-                context = fargs[1]
-                span.set_tag('rpc_error.status', context._state.code)
-                # DEV: details can be encoded as bytes with PY3 so convert first
-                span.set_tag('rpc_error.details', to_unicode(context._state.details))
-                raise
+        if self._pin.tags:
+            span.set_tags(self._pin.tags)
 
-    return wrapped
+        try:
+            response_or_iterator = func(*args, **kwargs)
 
+            if self.__wrapped__.response_streaming:
+                response_or_iterator = _wrap_response_iterator(response_or_iterator, span)
+        except Exception:
+            exc_type, exc_val, exc_tb = sys.exc_info()
+            span.set_exc_info(exc_type, exc_val, exc_tb)
+            raise
+        finally:
+            if not self.__wrapped__.response_streaming:
+                span.finish()
 
-class _TracedRpcMethodHandler(wrapt.ObjectProxy):
-    def __init__(self, wrapped, wrapper):
-        super(_TracedRpcMethodHandler, self).__init__(wrapped)
-        self._wrapper = wrapper
+        return response_or_iterator
 
     def unary_unary(self, *args, **kwargs):
-        return self._wrapper(self.__wrapped__.unary_unary, self.__wrapped__, args, kwargs)
+        return self._fn(
+            constants.GRPC_METHOD_KIND_UNARY,
+            self.__wrapped__.unary_unary,
+            args,
+            kwargs
+        )
 
     def unary_stream(self, *args, **kwargs):
-        return self._wrapper(self.__wrapped__.unary_stream, self.__wrapped__, args, kwargs)
+        return self._fn(
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
+            self.__wrapped__.unary_stream,
+            args,
+            kwargs
+        )
 
     def stream_unary(self, *args, **kwargs):
-        return self._wrapper(self.__wrapped__.stream_unary, self.__wrapped__, args, kwargs)
+        return self._fn(
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+            self.__wrapped__.stream_unary,
+            args,
+            kwargs
+        )
 
     def stream_stream(self, *args, **kwargs):
-        return self._wrapper(self.__wrapped__.stream_stream, self.__wrapped__, args, kwargs)
+        return self._fn(
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
+            self.__wrapped__.stream_stream,
+            args,
+            kwargs
+        )
 
 
 class _ServerInterceptor(grpc.ServerInterceptor):
