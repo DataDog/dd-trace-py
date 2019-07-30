@@ -37,6 +37,7 @@ config._add('django', dict(
 def patch():
     """Patch the instrumented methods
     """
+    global django
     if getattr(django, '_datadog_patch', False):
         return
     setattr(django, '_datadog_patch', True)
@@ -77,19 +78,27 @@ def patch():
 def unpatch():
     """Unpatch the instrumented methods
     """
+    global django
     if not getattr(django, '_datadog_patch', False):
         return
     setattr(django, '_datadog_patch', False)
 
-    _u(django.core.handlers.base.BaseHandler.get_response)
-    _u(django.core.handlers.base.BaseHandler.convert_exception_to_response)
-    _u(django.core.handlers.exception.convert_exception_to_response)
-    _u(django.template.base.Template.render)
-    _u(django.urls.path)
-    _u(django.urls.re_path)
-    _u(django.conf.urls.url)
-    _u(django.conf.urls.static.static)
-    _u(django.views.generic.base.View.as_view)
+    _u(django.core.handlers.base.BaseHandler, 'get_response')
+
+    if django.VERSION >= (2, 0, 0):
+        _u(django.core.handlers.base.BaseHandler, 'convert_exception_to_response')
+        _u(django.core.handlers.exception, 'convert_exception_to_response')
+    else:
+        _u(django.core.handlers.base.BaseHandler, 'load_middleware')
+
+    _u(django.template.base.Template, 'render')
+
+    if django.VERSION >= (2, 0, 0):
+        _u(django.urls, 'path')
+        _u(django.urls, 're_path')
+    _u(django.conf.urls, 'url')
+    _u(django.conf.urls.static, 'static')
+    _u(django.views.generic.base.View, 'as_view')
 
 
 def wrap_load_middleware(wrapped, instance, args, kwargs):
@@ -241,6 +250,10 @@ def wrap_convert_exception_to_response(wrapped, instance, args, kwargs):
     if not get_response:
         return wrapped(*args, **kwargs)
 
+    # Do not double wrap
+    if isinstance(get_response, wrapt.ObjectProxy):
+        return wrapped(*args, **kwargs)
+
     try:
         # Wrap the middleware class
         # TODO: Should we treat `BaseHandler._get_response` differently?
@@ -300,24 +313,38 @@ def wrap_get_response(wrapped, instance, args, kwargs):
         else:
             resolver = get_resolver()
 
+        route = None
         resolver_match = None
+        resource = request.method
         try:
             # Resolve the requested url
             resolver_match = resolver.resolve(request.path_info)
-            callback, callback_args, callback_kwargs = resolver_match
 
             # Determine the resource name to use
-            # In Django >= 2.2.0 we have access to the original route regex
+            # In Django >= 2.2.0 we can access the original route or regex pattern
             if django.VERSION >= (2, 2, 0):
-                resource = '{0} {1}'.format(request.method, resolver_match.route)
+                route = get_django_2_route(resolver, resolver_match)
+                if route:
+                    resource = '{0} {1}'.format(request.method, route)
+                else:
+                    resource = request.method
 
-                # Older versions just use the view/handler name, e.g. `views.MyView.handler`
+            # Older versions just use the view/handler name, e.g. `views.MyView.handler`
             else:
+                # TODO: Validate if `resolver.pattern.regex.pattern` is available or not
+                callback, callback_args, callback_kwargs = resolver_match
                 resource = '{0} {1}'.format(request.method, func_name(callback))
         except django.urls.exceptions.Resolver404:
             # Normalize all 404 requests into a single resource name
             # DEV: This is for potential cardinality issues
             resource = '{0} 404'.format(request.method)
+        except Exception as ex:
+            log.warning(
+                'Failed to resolve request path %r with path info %r, %r',
+                request,
+                getattr(request, 'path_info', 'not-set'),
+                ex,
+            )
 
         # Start the `django.request` span
         with pin.tracer.trace(
@@ -337,8 +364,8 @@ def wrap_get_response(wrapped, instance, args, kwargs):
                 _set_tag_array(span, 'django.namespace', resolver_match.namespaces)
                 _set_tag_array(span, 'django.app', resolver_match.app_names)
 
-                if django.VERSION >= (2, 2, 0):
-                    span.set_tag('http.route', resolver_match.route)
+            if route:
+                span.set_tag('http.route', route)
 
             # Set HTTP Request tags
             # Build `http.url` tag value from request info
@@ -389,3 +416,18 @@ def _set_tag_array(span, prefix, value):
     else:
         for i, v in enumerate(value, start=0):
             span.set_tag('{0}.{1}'.format(prefix, i), v)
+
+
+def get_django_2_route(resolver, resolver_match):
+    # Try to use `resolver_match.route` if available
+    # Otherwise, look for `resolver.pattern.regex.pattern`
+    route = resolver_match.route
+    if not route:
+        # DEV: USe all these `getattr`s to protect against changes between versions
+        pattern = getattr(resolver, 'pattern', None)
+        if pattern:
+            regex = getattr(pattern, 'regex', None)
+            if regex:
+                route = getattr(regex, 'pattern', '')
+
+    return route
