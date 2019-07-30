@@ -109,6 +109,10 @@ services:
             - ./tox.ini:/src/tox.ini:ro
             - ./.ddtox:/src/.tox
             - ./scripts:/src/scripts
+            # setuptools_scm needs `.git` to figure out what version we are on
+            # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
+            #      to get the same behavior as during releases
+            - ./.git:/src/.git:ro
         command: bash
 
 volumes:
