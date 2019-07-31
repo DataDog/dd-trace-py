@@ -8,6 +8,7 @@ import socket
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
+from .internal.runtime import container
 from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
 
@@ -150,6 +151,13 @@ class API(object):
             'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
             'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
+
+        # Add container information if we have it
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update({
+                'Datadog-Container-Id': self._container_info.container_id,
+            })
 
     def __str__(self):
         if self.uds_path:
