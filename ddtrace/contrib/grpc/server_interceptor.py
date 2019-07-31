@@ -1,8 +1,9 @@
 import grpc
-import sys
 from ddtrace.vendor import wrapt
 
 from ddtrace import config
+from ddtrace.ext import errors
+from ddtrace.compat import to_unicode
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...propagation.http import HTTPPropagator
@@ -21,13 +22,21 @@ def create_server_interceptor(pin):
     return _ServerInterceptor(interceptor_function)
 
 
-def _wrap_response_iterator(response_iterator, span):
+def _handle_server_exception(server_context, span):
+    code = to_unicode(server_context._state.code)
+    details = to_unicode(server_context._state.details)
+    span.error = 1
+    span.set_tag(errors.ERROR_MSG, details)
+    span.set_tag(errors.ERROR_TYPE, code)
+
+
+def _wrap_response_iterator(response_iterator, server_context, span):
     try:
         for response in response_iterator:
             yield response
     except Exception:
-        exc_type, exc_val, exc_tb = sys.exc_info()
-        span.set_exc_info(exc_type, exc_val, exc_tb)
+        span.set_traceback()
+        _handle_server_exception(server_context, span)
         raise
     finally:
         span.finish()
@@ -65,6 +74,9 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
+        # access server context by take second argument as server context to tag span
+        server_context = args[1]
+
         if self._pin.tags:
             span.set_tags(self._pin.tags)
 
@@ -72,10 +84,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             response_or_iterator = func(*args, **kwargs)
 
             if self.__wrapped__.response_streaming:
-                response_or_iterator = _wrap_response_iterator(response_or_iterator, span)
+                response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)
         except Exception:
-            exc_type, exc_val, exc_tb = sys.exc_info()
-            span.set_exc_info(exc_type, exc_val, exc_tb)
+            span.set_traceback()
+            _handle_server_exception(server_context, span)
             raise
         finally:
             if not self.__wrapped__.response_streaming:

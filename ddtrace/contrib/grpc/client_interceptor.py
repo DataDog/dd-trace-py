@@ -2,6 +2,7 @@ import collections
 import grpc
 
 from ddtrace import config
+from ddtrace.compat import to_unicode
 from ddtrace.ext import errors
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -21,11 +22,6 @@ except AttributeError:
     _GRPC_VERSION = grpc._grpcio_metadata.__version__
 finally:
     _GRPC_VERSION = tuple(int(v) for v in _GRPC_VERSION.split('.')[:3])
-
-
-def _tag_rpc_error(span, code, details):
-    span.set_tag('rpc_error.status', code)
-    span.set_tag('rpc_error.details', details)
 
 
 def create_client_interceptor(pin, host, port):
@@ -98,8 +94,8 @@ class _ClientInterceptor(
         def callback(response):
             exception = response.exception()
             if exception is not None:
-                code = response.code()
-                details = response.details()
+                code = to_unicode(response.code())
+                details = to_unicode(response.details())
                 span.error = 1
                 span.set_tag(errors.ERROR_MSG, details)
                 span.set_tag(errors.ERROR_TYPE, code)
@@ -119,8 +115,8 @@ class _ClientInterceptor(
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.80.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            code = rpc_error.code()
-            details = rpc_error.details()
+            code = to_unicode(rpc_error.code())
+            details = to_unicode(rpc_error.details())
             span.error = 1
             span.set_tag(errors.ERROR_MSG, details)
             span.set_tag(errors.ERROR_TYPE, code)

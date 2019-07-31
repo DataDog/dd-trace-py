@@ -1,7 +1,6 @@
 import grpc
 from grpc.framework.foundation import logging_pool
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.compat import PY3
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace.ext import errors
 from ddtrace import Pin
@@ -302,11 +301,8 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHello'
-        assert server_span.get_tag(errors.ERROR_MSG) == ''
-        if PY3:
-            assert server_span.get_tag(errors.ERROR_TYPE) == 'builtins.Exception'
-        else:
-            assert server_span.get_tag(errors.ERROR_TYPE) == 'exceptions.Exception'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.INVALID_ARGUMENT' in server_span.get_tag(errors.ERROR_STACK)
 
@@ -325,11 +321,8 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloTwice'
-        assert server_span.get_tag(errors.ERROR_MSG) == ''
-        if PY3:
-            assert server_span.get_tag(errors.ERROR_TYPE) == 'builtins.Exception'
-        else:
-            assert server_span.get_tag(errors.ERROR_TYPE) == 'exceptions.Exception'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
 
