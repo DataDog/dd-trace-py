@@ -4,15 +4,20 @@ from ddtrace.compat import StringIO
 from ddtrace.internal.runtime.container import CGroupInfo
 
 
-class StringIOContext(StringIO):
+class StringIOContext():
     """
     Wrapper for :class:`StringIO` to provide `__enter__` and `__exit__` methods
     """
+    __slots__ = ('io', )
+
+    def __init__(self, *args, **kwargs):
+        self.io = StringIO(*args, **kwargs)
+
     def __enter__(self):
-        return self
+        return self.io
 
     def __exit__(self, *args, **kwargs):
-        self.close()
+        self.io.close()
 
 
 def cgroup_line_valid_test_cases():
