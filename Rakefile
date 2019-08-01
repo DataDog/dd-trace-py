@@ -45,7 +45,7 @@ namespace :pypi do
       abort if $stdin.gets.to_s.strip.downcase != 'y'
     end
 
-    puts "WARNING: This task will build and release a new wheel to https://pypi.org/project/ddtrace/, this action cannot be undone"
+    puts "WARNING: This task will build and release new wheels to https://pypi.org/project/ddtrace/, this action cannot be undone"
     print "         To proceed please type the version '#{ddtrace_version}': "
     $stdout.flush
 
@@ -62,21 +62,16 @@ namespace :pypi do
 
   task :build => :clean do
     puts "building release in #{RELEASE_DIR}"
-    # TODO: Use `scripts/build-dist` instead to build sdist and wheels
-    sh "python setup.py -q sdist -d #{RELEASE_DIR}"
+    sh "scripts/build-dist"
   end
 
   task :release => [:confirm, :install, :build] do
     builds = Dir.entries(RELEASE_DIR).reject {|f| f == '.' || f == '..'}
     if builds.length == 0
         fail "no build found in #{RELEASE_DIR}"
-    elsif builds.length > 1
-        fail "multiple builds found in #{RELEASE_DIR}"
     end
 
-    build = "#{RELEASE_DIR}/#{builds[0]}"
-
-    puts "uploading #{build}"
-    sh "twine upload #{build}"
+    puts "uploading #{RELEASE_DIR}/*"
+    sh "twine upload #{RELEASE_DIR}/*"
   end
 end

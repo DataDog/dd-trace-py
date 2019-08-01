@@ -54,24 +54,27 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
+      # Create and activate a Python3.7 virtualenv
+      - run: virtualenv --python python3.7 .venv/build
+
       # Install required dependencies
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel
+      - run: .venv/build/bin/pip install twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
       # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
+      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py build_ext --force
       # Ensure source package will build
-      - run: python setup.py sdist
+      - run: .venv/build/bin/python setup.py sdist
       # Ensure wheel will build
       # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py bdist_wheel
+      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py bdist_wheel
       # Ensure package long description is valid and will render
       # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: twine check dist/*
+      - run: .venv/build/bin/twine check dist/*
       - *save_cache_step
 
   tracer:
@@ -703,7 +706,6 @@ jobs:
       - run: sudo apt-get -y install rake
       - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:docs
-      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
 
   jinja2:
     docker:

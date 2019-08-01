@@ -1,21 +1,11 @@
 import copy
 import os
 import sys
-import re
 
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
-
-
-def get_version(package):
-    """
-    Return package version as listed in `__version__` in `__init__.py`.
-    This method prevents to import packages at setup-time.
-    """
-    init_py = open(os.path.join(package, '__init__.py')).read()
-    return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
 
 class Tox(TestCommand):
@@ -41,14 +31,6 @@ class Tox(TestCommand):
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
-
-version = get_version('ddtrace')
-# Append a suffix to the version for dev builds
-if os.environ.get('VERSION_SUFFIX'):
-    version = '{v}+{s}'.format(
-        v=version,
-        s=os.environ.get('VERSION_SUFFIX'),
-    )
 
 long_description = """
 # dd-trace-py
@@ -76,7 +58,6 @@ documentation][visualization docs].
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
     name='ddtrace',
-    version=version,
     description='Datadog tracing code',
     url='https://github.com/DataDog/dd-trace-py',
     author='Datadog, Inc.',
@@ -109,6 +90,8 @@ setup_kwargs = dict(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
     ],
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
 )
 
 

@@ -7,7 +7,7 @@ from ddtrace.vendor import wrapt
 
 from .connection import AIOTracedConnection
 from ..psycopg.patch import _patch_extensions, \
-    _unpatch_extensions, patch_conn as psycppg_patch_conn
+    _unpatch_extensions, patch_conn as psycopg_patch_conn
 from ...utils.wrappers import unwrap as _u
 
 
@@ -33,7 +33,7 @@ def unpatch():
 @asyncio.coroutine
 def patched_connect(connect_func, _, args, kwargs):
     conn = yield from connect_func(*args, **kwargs)
-    return psycppg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
+    return psycopg_patch_conn(conn, traced_conn_cls=AIOTracedConnection)
 
 
 def _extensions_register_type(func, _, args, kwargs):

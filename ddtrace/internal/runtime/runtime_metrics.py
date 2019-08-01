@@ -73,7 +73,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     def flush(self):
         if not self._statsd_client:
-            log.warn('Attempted flush with uninitialized or failed statsd client')
+            log.warning('Attempted flush with uninitialized or failed statsd client')
             return
 
         for key, value in self._runtime_metrics:

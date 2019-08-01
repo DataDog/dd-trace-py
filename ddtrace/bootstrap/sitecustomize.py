@@ -147,4 +147,4 @@ try:
     loaded = True
 except Exception:
     loaded = False
-    log.warn('error configuring Datadog tracing', exc_info=True)
+    log.warning('error configuring Datadog tracing', exc_info=True)

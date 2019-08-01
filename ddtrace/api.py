@@ -2,6 +2,7 @@
 import time
 import ddtrace
 from json import loads
+import socket
 
 # project
 from .encoding import get_encoder, JSONEncoder
@@ -95,6 +96,21 @@ class Response(object):
         )
 
 
+class UDSHTTPConnection(httplib.HTTPConnection):
+    """An HTTP connection established over a Unix Domain Socket."""
+
+    # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
+    # mechanism, they are actually used as HTTP headers such as `Host`.
+    def __init__(self, path, *args, **kwargs):
+        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+        self.path = path
+
+    def connect(self):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(self.path)
+        self.sock = sock
+
+
 class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
@@ -106,9 +122,19 @@ class API(object):
     # This ought to be enough as the agent is local
     TIMEOUT = 2
 
-    def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
+    def __init__(self, hostname, port, uds_path=None, headers=None, encoder=None, priority_sampling=False):
+        """Create a new connection to the Tracer API.
+
+        :param hostname: The hostname.
+        :param port: The TCP port to use.
+        :param uds_path: The path to use if the connection is to be established with a Unix Domain Socket.
+        :param headers: The headers to pass along the request.
+        :param encoder: The encoder to use to serialize data.
+        :param priority_sampling: Whether to use priority sampling.
+        """
         self.hostname = hostname
         self.port = int(port)
+        self.uds_path = uds_path
 
         self._headers = headers or {}
         self._version = None
@@ -124,6 +150,11 @@ class API(object):
             'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
             'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
+
+    def __str__(self):
+        if self.uds_path:
+            return self.uds_path
+        return '%s:%s' % (self.hostname, self.port)
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
@@ -176,7 +207,7 @@ class API(object):
                         payload.add_trace(trace)
                     except PayloadFull:
                         # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warn('Trace %r is too big to fit in a payload, dropping it', trace)
+                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
         # Check that the Payload is not empty:
         # it could be empty if the last trace was too big to fit.
@@ -209,7 +240,10 @@ class API(object):
         headers = self._headers.copy()
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
-        conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+        if self.uds_path is None:
+            conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+        else:
+            conn = UDSHTTPConnection(self.uds_path, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)

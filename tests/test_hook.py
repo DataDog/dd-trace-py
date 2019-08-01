@@ -176,7 +176,7 @@ class TestHook(SubprocessTestCase):
             calls = [
                 mock.call('hook "{}" for module "tests.utils.test_module" failed: test_hook_failed'.format(test_hook))
             ]
-            log_mock.warn.assert_has_calls(calls)
+            log_mock.warning.assert_has_calls(calls)
 
     def test_hook_called_with_module(self):
         """

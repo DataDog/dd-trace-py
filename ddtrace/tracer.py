@@ -13,7 +13,6 @@ from .sampler import AllSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated
-from .utils.runtime import generate_runtime_id
 from .vendor.dogstatsd import DogStatsd
 from .writer import AgentWriter
 from . import compat
@@ -66,7 +65,6 @@ class Tracer(object):
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
-        self._runtime_id = generate_runtime_id()
         self._runtime_worker = None
         self._dogstatsd_client = None
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
@@ -95,7 +93,7 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, dogstatsd_host=None,
+    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, dogstatsd_host=None,
                   dogstatsd_port=None, sampler=None, context_provider=None, wrap_executor=None,
                   priority_sampling=None, settings=None, collect_metrics=None):
         """
@@ -106,6 +104,7 @@ class Tracer(object):
             Otherwise they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
+        :param str uds_path: The Unix Domain Socket path of the agent.
         :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
@@ -134,7 +133,7 @@ class Tracer(object):
         elif priority_sampling is False:
             self.priority_sampler = None
 
-        if hostname is not None or port is not None or filters is not None or \
+        if hostname is not None or port is not None or uds_path is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
             default_hostname = self.DEFAULT_HOSTNAME
@@ -145,6 +144,7 @@ class Tracer(object):
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
+                uds_path=uds_path,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
             )
@@ -256,11 +256,10 @@ class Tracer(object):
             else:
                 if self.priority_sampler:
                     # If dropped by the local sampler, distributed instrumentation can drop it too.
-                    context.sampling_priority = 0
+                    context.sampling_priority = AUTO_REJECT
 
             # add tags to root span to correlate trace with runtime metrics
             if self._runtime_worker:
-                span.set_tag('runtime-id', self._runtime_id)
                 span.set_tag('language', 'python')
 
         # add common tags
@@ -324,9 +323,6 @@ class Tracer(object):
             return
 
         self._pid = pid
-
-        # generate a new runtime-id per process.
-        self._runtime_id = generate_runtime_id()
 
         # Assume that the services of the child are not necessarily a subset of those
         # of the parent.

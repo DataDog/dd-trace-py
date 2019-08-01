@@ -117,13 +117,18 @@ class Span(object):
             # be defensive so we don't die if start isn't set
             self.duration = ft - (self.start or ft)
 
-        # if a tracer is available to process the current context
-        if self._tracer and self._context:
+        if self._context:
             try:
                 self._context.close_span(self)
-                self._tracer.record(self._context)
             except Exception:
                 log.exception('error recording finished trace')
+            else:
+                # if a tracer is available to process the current context
+                if self._tracer:
+                    try:
+                        self._tracer.record(self._context)
+                    except Exception:
+                        log.exception('error recording finished trace')
 
     def set_tag(self, key, value=None):
         """ Set the given key / value tag pair on the span. Keys and values
