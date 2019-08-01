@@ -1,5 +1,6 @@
 import collections
 import grpc
+from ddtrace.vendor import wrapt
 
 from ddtrace import config
 from ddtrace.compat import to_unicode
@@ -15,14 +16,6 @@ from .utils import parse_method_path
 # DEV: __version__ added in v1.21.4
 # https://github.com/grpc/grpc/commit/dd4830eae80143f5b0a9a3a1a024af4cf60e7d02
 
-try:
-    _GRPC_VERSION = grpc.__version__
-except AttributeError:
-    import grpc._grpcio_metadata
-    _GRPC_VERSION = grpc._grpcio_metadata.__version__
-finally:
-    _GRPC_VERSION = tuple(int(v) for v in _GRPC_VERSION.split('.')[:3])
-
 
 def create_client_interceptor(pin, host, port):
     return _ClientInterceptor(pin, host, port)
@@ -34,6 +27,41 @@ class _ClientCallDetails(
             ('method', 'timeout', 'metadata', 'credentials')),
         grpc.ClientCallDetails):
     pass
+
+
+def _handle_response(span, response):
+    exception = response.exception()
+    if exception is not None:
+        code = to_unicode(exception.code())
+        details = to_unicode(exception.details())
+        span.error = 1
+        span.set_tag(errors.ERROR_MSG, details)
+        span.set_tag(errors.ERROR_TYPE, code)
+
+    span.finish()
+
+
+class _WrappedResponseCallFuture(wrapt.ObjectProxy):
+    def __init__(self, wrapped, span):
+        super(_WrappedResponseCallFuture, self).__init__(wrapped)
+        self._span = span
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            response = next(self.__wrapped__)
+            return response
+        except StopIteration:
+            self._span.finish()
+            raise
+        except grpc.RpcError as rpc_error:
+            _handle_response(self._span, rpc_error)
+            raise
+
+    def next(self):
+        return self.__next__()
 
 
 class _ClientInterceptor(
@@ -64,6 +92,7 @@ class _ClientInterceptor(
         span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span.set_tag(constants.GRPC_HOST_KEY, self._host)
         span.set_tag(constants.GRPC_PORT_KEY, self._port)
+        span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
         # inject tags from pin
@@ -90,20 +119,6 @@ class _ClientInterceptor(
 
         return span, client_call_details
 
-    def _response_done_callback(self, span):
-        def callback(response):
-            exception = response.exception()
-            if exception is not None:
-                code = to_unicode(response.code())
-                details = to_unicode(response.details())
-                span.error = 1
-                span.set_tag(errors.ERROR_MSG, details)
-                span.set_tag(errors.ERROR_TYPE, code)
-
-            span.finish()
-
-        return callback
-
     def intercept_unary_unary(self, continuation, client_call_details, request):
         span, client_call_details = self._intercept_client_call(
             constants.GRPC_METHOD_KIND_UNARY,
@@ -111,16 +126,11 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request)
-            response.add_done_callback(self._response_done_callback(span))
+            _handle_response(span, response)
         except grpc.RpcError as rpc_error:
-            # DEV: grpcio<1.80.0 grpc.RpcError is raised rather than returned as response
+            # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            code = to_unicode(rpc_error.code())
-            details = to_unicode(rpc_error.details())
-            span.error = 1
-            span.set_tag(errors.ERROR_MSG, details)
-            span.set_tag(errors.ERROR_TYPE, code)
-            span.finish()
+            _handle_response(span, rpc_error)
             raise
 
         return response
@@ -131,7 +141,7 @@ class _ClientInterceptor(
             client_call_details,
         )
         response_iterator = continuation(client_call_details, request)
-        response_iterator.add_done_callback(self._response_done_callback(span))
+        response_iterator = _WrappedResponseCallFuture(response_iterator, span)
         return response_iterator
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
@@ -139,8 +149,14 @@ class _ClientInterceptor(
             constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
             client_call_details,
         )
-        response = continuation(client_call_details, request_iterator)
-        response.add_done_callback(self._response_done_callback(span))
+        try:
+            response = continuation(client_call_details, request_iterator)
+            _handle_response(span, response)
+        except grpc.RpcError as rpc_error:
+            # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
+            # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
+            _handle_response(span, rpc_error)
+            raise
         return response
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
@@ -149,5 +165,5 @@ class _ClientInterceptor(
             client_call_details,
         )
         response_iterator = continuation(client_call_details, request_iterator)
-        response_iterator.add_done_callback(self._response_done_callback(span))
+        response_iterator = _WrappedResponseCallFuture(response_iterator, span)
         return response_iterator

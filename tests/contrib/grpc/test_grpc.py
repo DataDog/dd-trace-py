@@ -37,13 +37,6 @@ class GrpcTestCase(BaseTracerTestCase):
     def _stop_server(self):
         self._server.stop(0)
 
-    def get_spans(self):
-        # shutdown server to avoid async issues with running server and client
-        # in same test process
-        self._server._state.thread_pool.shutdown()
-        self._server.stop(0)
-        return super(GrpcTestCase, self).get_spans()
-
     def _check_client_span(self, span, service, method_name, method_kind):
         assert span.name == 'grpc'
         assert span.resource == '/helloworld.Hello/{}'.format(method_name)
@@ -212,8 +205,8 @@ class GrpcTestCase(BaseTracerTestCase):
     def test_server_stream(self):
         with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
-            responses = stub.SayHelloTwice(HelloRequest(name='test'))
-            assert len(list(responses)) == 2
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name='test'))
+            assert len(list(responses_iterator)) == 2
 
         spans = self.get_spans()
         assert len(spans) == 2
@@ -306,6 +299,31 @@ class GrpcTestCase(BaseTracerTestCase):
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.INVALID_ARGUMENT' in server_span.get_tag(errors.ERROR_STACK)
 
+    def test_client_stream_exception(self):
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['first', 'exception']
+        )
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError):
+                stub.SayHelloLast(requests_iterator)
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+
+        assert server_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+        assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
+        assert 'grpc.StatusCode.INVALID_ARGUMENT' in server_span.get_tag(errors.ERROR_STACK)
+
     def test_server_stream_exception(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
@@ -357,6 +375,10 @@ class _HelloServicer(HelloServicer):
 
     def SayHelloLast(self, request_iterator, context):
         names = [r.name for r in list(request_iterator)]
+
+        if 'exception' in names:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, 'exception')
+
         return HelloReply(message='{}'.format(
             ';'.join(names)))
 
