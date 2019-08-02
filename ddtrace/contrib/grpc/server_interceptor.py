@@ -23,11 +23,14 @@ def create_server_interceptor(pin):
 
 
 def _handle_server_exception(server_context, span):
-    code = to_unicode(server_context._state.code)
-    details = to_unicode(server_context._state.details)
-    span.error = 1
-    span.set_tag(errors.ERROR_MSG, details)
-    span.set_tag(errors.ERROR_TYPE, code)
+    if server_context is not None and \
+       hasattr(server_context, '_state') and \
+       server_context._state is not None:
+        code = to_unicode(server_context._state.code)
+        details = to_unicode(server_context._state.details)
+        span.error = 1
+        span.set_tag(errors.ERROR_MSG, details)
+        span.set_tag(errors.ERROR_TYPE, code)
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
@@ -48,7 +51,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         self._pin = pin
         self._handler_call_details = handler_call_details
 
-    def _fn(self, method_kind, func, args, kwargs):
+    def _fn(self, method_kind, behavior, args, kwargs):
         if config.grpc.distributed_tracing_enabled:
             headers = dict(self._handler_call_details.invocation_metadata)
             propagator = HTTPPropagator()
@@ -75,14 +78,15 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
-        # access server context by take second argument as server context to tag span
-        server_context = args[1]
+        # access server context by taking second argument as server context
+        # if not found, skip using context to tag span with server state information
+        server_context = args[1] if isinstance(args[1], grpc.ServicerContext) else None
 
         if self._pin.tags:
             span.set_tags(self._pin.tags)
 
         try:
-            response_or_iterator = func(*args, **kwargs)
+            response_or_iterator = behavior(*args, **kwargs)
 
             if self.__wrapped__.response_streaming:
                 response_or_iterator = _wrap_response_iterator(response_or_iterator, server_context, span)

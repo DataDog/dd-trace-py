@@ -29,16 +29,14 @@ class _ClientCallDetails(
     pass
 
 
-def _handle_response(span, response):
-    exception = response.exception()
+def _handle_response_or_error(span, response_or_error):
+    exception = response_or_error.exception()
     if exception is not None:
         code = to_unicode(exception.code())
         details = to_unicode(exception.details())
         span.error = 1
         span.set_tag(errors.ERROR_MSG, details)
         span.set_tag(errors.ERROR_TYPE, code)
-
-    span.finish()
 
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
@@ -51,13 +49,13 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
 
     def __next__(self):
         try:
-            response = next(self.__wrapped__)
-            return response
+            return next(self.__wrapped__)
         except StopIteration:
             self._span.finish()
             raise
         except grpc.RpcError as rpc_error:
-            _handle_response(self._span, rpc_error)
+            _handle_response_or_error(self._span, rpc_error)
+            self._span.finish()
             raise
 
     def next(self):
@@ -126,12 +124,14 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request)
-            _handle_response(span, response)
+            _handle_response_or_error(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            _handle_response(span, rpc_error)
+            _handle_response_or_error(span, rpc_error)
             raise
+        finally:
+            span.finish()
 
         return response
 
@@ -151,12 +151,15 @@ class _ClientInterceptor(
         )
         try:
             response = continuation(client_call_details, request_iterator)
-            _handle_response(span, response)
+            _handle_response_or_error(span, response)
         except grpc.RpcError as rpc_error:
             # DEV: grpcio<1.18.0 grpc.RpcError is raised rather than returned as response
             # https://github.com/grpc/grpc/commit/8199aff7a66460fbc4e9a82ade2e95ef076fd8f9
-            _handle_response(span, rpc_error)
+            _handle_response_or_error(span, rpc_error)
             raise
+        finally:
+            span.finish()
+
         return response
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
