@@ -7,7 +7,7 @@ import asyncio
 import ddtrace
 
 from .provider import CONTEXT_ATTR
-from ..utils.asyncio import asyncio_current_task
+from .compat import asyncio_current_task
 from ...context import Context
 
 
