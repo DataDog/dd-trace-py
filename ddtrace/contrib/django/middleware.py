@@ -1,6 +1,7 @@
 # project
 from .conf import settings
 from .compat import user_is_authenticated, get_resolver
+from .utils import get_request_uri
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
@@ -129,11 +130,12 @@ class TraceMiddleware(InstrumentationMixin):
                     settings.ANALYTICS_SAMPLE_RATE
                 )
 
+            # Set HTTP Request tags
             span.set_tag(http.METHOD, request.method)
-            span.set_tag(http.URL, request.build_absolute_uri(request.path))
+            span.set_tag(http.URL, get_request_uri(request))
             _set_req_span(request, span)
-        except Exception:
-            log.debug('error tracing request', exc_info=True)
+        except Exception as e:
+            log.debug('error tracing request: %s', e)
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
@@ -178,8 +180,8 @@ class TraceMiddleware(InstrumentationMixin):
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
-        except Exception:
-            log.debug('error tracing request', exc_info=True)
+        except Exception as e:
+            log.debug('error tracing request: %s', e)
         finally:
             return response
 
