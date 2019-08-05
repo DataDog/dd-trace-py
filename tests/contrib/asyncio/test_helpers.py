@@ -1,13 +1,14 @@
 import asyncio
 import pytest
 
-from ddtrace.context import Context, DATADOG_CONTEXT
-from ddtrace.contrib.asyncio import helpers
+from ddtrace.context import Context
+from ddtrace.provider import DefaultContextProvider
+from ddtrace.contrib.asyncio import context_provider, helpers
 from .utils import AsyncioTestCase, mark_asyncio
 
 
 @pytest.mark.skipif(
-    DATADOG_CONTEXT is not None,
+    isinstance(context_provider, DefaultContextProvider),
     reason='only applicable to legacy asyncio integration'
 )
 class TestAsyncioHelpers(AsyncioTestCase):

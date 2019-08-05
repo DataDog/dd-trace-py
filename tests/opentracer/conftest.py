@@ -6,7 +6,6 @@ https://docs.pytest.org/en/latest/writing_plugins.html#testing-plugins
 """
 import pytest
 
-from ddtrace.context import DATADOG_CONTEXT
 from ddtrace.opentracer import Tracer, set_global_tracer
 
 from tests.test_tracer import get_dummy_tracer
@@ -32,9 +31,8 @@ def ot_tracer_factory():
         # attach the dummy tracer to the opentracer
         tracer._dd_tracer = dd_tracer
 
-        # clear contextvars storage if available
-        if DATADOG_CONTEXT is not None:
-            DATADOG_CONTEXT.set(None)
+        # clear context provider
+        dd_tracer.context_provider.reset()
 
         return tracer
 

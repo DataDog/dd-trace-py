@@ -3,8 +3,9 @@ import pytest
 import time
 
 
-from ddtrace.context import Context, DATADOG_CONTEXT
+from ddtrace.context import Context
 from ddtrace.provider import DefaultContextProvider
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio.helpers import set_call_context
 
@@ -21,7 +22,7 @@ class TestAsyncioTracer(AsyncioTestCase):
     """
     @mark_asyncio
     @pytest.mark.skipif(
-        DATADOG_CONTEXT is not None,
+        isinstance(context_provider, DefaultContextProvider),
         reason='only applicable to legacy asyncio provider'
     )
     def test_get_call_context(self):
@@ -285,7 +286,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         assert main_task_child.parent_id == main_task.span_id
 
     @pytest.mark.skipif(
-        DATADOG_CONTEXT is not None,
+        isinstance(context_provider, DefaultContextProvider),
         reason='only applicable to legacy asyncio provider'
     )
     @mark_asyncio

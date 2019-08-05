@@ -2,8 +2,9 @@ import asyncio
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...context import DATADOG_CONTEXT
-from .helpers import _wrapped_create_task, _wrapped_create_task_contextvars
+from . import context_provider
+from .provider import AsyncioContextProvider
+from .wrappers import wrapped_create_task, wrapped_create_task_contextvars
 from ...utils.wrappers import unwrap as _u
 
 
@@ -16,10 +17,10 @@ def patch():
     setattr(asyncio, '_datadog_patch', True)
 
     loop = asyncio.get_event_loop()
-    if not DATADOG_CONTEXT:
-        _w(loop, 'create_task', _wrapped_create_task)
+    if isinstance(context_provider, AsyncioContextProvider):
+        _w(loop, 'create_task', wrapped_create_task)
     else:
-        _w(loop, 'create_task', _wrapped_create_task_contextvars)
+        _w(loop, 'create_task', wrapped_create_task_contextvars)
 
 
 def unpatch():

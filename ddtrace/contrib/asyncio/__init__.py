@@ -19,8 +19,12 @@ of ``asyncio``. To trace asynchronous execution, you must::
     loop.run_until_complete(some_work())
     loop.close()
 
-Many helpers are provided to simplify how the tracing ``Context`` is handled
-between scheduled coroutines and ``Future`` invoked in separated threads:
+If ``contextvars`` is available, we use the ``DefaultContextProvider``,
+otherwise we use the legacy ``AsyncioContextProvider``.
+
+In addition, helpers are provided to simplify how the tracing ``Context`` is
+handled between scheduled coroutines and ``Future`` invoked in separated
+threads:
 
     * ``set_call_context(task, ctx)``: attach the context to the given ``Task``
       so that it will be available from the ``tracer.get_call_context()``
@@ -47,10 +51,10 @@ required_modules = ['asyncio']
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .provider import AsyncioContextProvider
-        from ...context import DATADOG_CONTEXT
+        from ...internal.context_manager import CONTEXTVARS_IS_AVAILABLE
         from ...provider import DefaultContextProvider
 
-        if DATADOG_CONTEXT is None:
+        if not CONTEXTVARS_IS_AVAILABLE:
             context_provider = AsyncioContextProvider()
         else:
             context_provider = DefaultContextProvider()

@@ -84,3 +84,12 @@ class AsyncioContextProvider(DefaultContextProvider):
         ctx = Context()
         setattr(task, CONTEXT_ATTR, ctx)
         return ctx
+
+    def reset(self):
+        loop = self._get_loop()
+        if not loop:
+            return self._local.reset()
+
+        task = asyncio.Task.current_task(loop=loop)
+        if task is not None:
+            setattr(task, CONTEXT_ATTR, None)

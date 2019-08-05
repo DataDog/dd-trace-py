@@ -3,7 +3,6 @@ import pytest
 from opentracing.scope_managers.asyncio import AsyncioScopeManager
 
 import ddtrace
-from ddtrace.context import DATADOG_CONTEXT
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
 
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
@@ -170,7 +169,8 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
 
 
 @pytest.mark.skipif(
-    DATADOG_CONTEXT is not None,
+    not isinstance(ddtrace.contrib.asyncio.context_provider,
+                   ddtrace.contrib.asyncio.provider.AsyncioContextProvider),
     reason='only applicable to legacy asyncio provider'
 )
 class TestUtilsAsyncio(object):

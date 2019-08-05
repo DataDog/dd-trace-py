@@ -1,7 +1,5 @@
 import asyncio
-import pytest
 
-from ddtrace.context import DATADOG_CONTEXT
 from ddtrace.provider import DefaultContextProvider
 from .utils import AsyncioTestCase, mark_asyncio
 
@@ -17,10 +15,6 @@ class TestAsyncioSafety(AsyncioTestCase):
         super(TestAsyncioSafety, self).setUp()
         self.tracer.configure(context_provider=DefaultContextProvider())
 
-    @pytest.mark.skipif(
-        DATADOG_CONTEXT is not None,
-        reason='only applicable to legacy asyncio integration'
-    )
     @mark_asyncio
     def test_get_call_context(self):
         # it should return a context even if not attached to the Task
