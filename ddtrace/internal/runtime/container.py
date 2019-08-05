@@ -85,11 +85,6 @@ class CGroupInfo(object):
         )
 
 
-def _open_file(*args, **kwargs):
-    """Wrapper for `builtins.open` to make testing easier"""
-    return open(*args, **kwargs)
-
-
 def get_container_info(pid='self'):
     """
     Helper to fetch the current container id, if we are running in a container
@@ -105,10 +100,7 @@ def get_container_info(pid='self'):
     """
     try:
         cgroup_file = '/proc/{0}/cgroup'.format(pid)
-        if not os.path.exists(cgroup_file):
-            return None
-
-        with _open_file(cgroup_file, mode='r') as fp:
+        with open(cgroup_file, mode='r') as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:

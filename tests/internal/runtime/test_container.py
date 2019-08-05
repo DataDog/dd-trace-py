@@ -4,19 +4,12 @@ import pytest
 
 from ddtrace.internal.runtime.container import CGroupInfo, get_container_info
 
-from .utils import cgroup_line_valid_test_cases, StringIOContext
+from .utils import cgroup_line_valid_test_cases
 
 
-@pytest.fixture
-def mock_open():
-    with mock.patch('ddtrace.internal.runtime.container._open_file') as mocked:
-        yield mocked
-
-
-@pytest.fixture
-def mock_exists():
-    with mock.patch('os.path.exists') as mocked:
-        yield mocked
+def get_mock_open(read_data=None):
+    mock_open = mock.mock_open(read_data=read_data)
+    return mock.patch('ddtrace.internal.runtime.container.open', mock_open)
 
 
 def test_cgroup_info_init():
@@ -253,27 +246,20 @@ def test_cgroup_info_from_line(line, expected_info):
         )
     )
 )
-def test_get_container_info(file_contents, container_id, mock_open, mock_exists):
-    mock_exists.return_value = file_contents is not None
-    if file_contents:
-        mock_open.return_value = StringIOContext(file_contents)
-    else:
-        mock_open.side_effect = AssertionError
+def test_get_container_info(file_contents, container_id):
+    with get_mock_open(read_data=file_contents) as mock_open:
+        # simulate the file not being found
+        if file_contents is None:
+            mock_open.side_effect = FileNotFoundError
 
-    info = get_container_info()
+        info = get_container_info()
 
-    if container_id is None:
-        assert info is None
-    else:
-        assert info.container_id == container_id
+        if container_id is None:
+            assert info is None
+        else:
+            assert info.container_id == container_id
 
-    mock_exists.assert_called_once_with('/proc/self/cgroup')
-
-    if file_contents is not None:
         mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
-    else:
-        mock_open.assert_not_called()
-
 
 @pytest.mark.parametrize(
     'pid,file_name',
@@ -283,34 +269,27 @@ def test_get_container_info(file_contents, container_id, mock_open, mock_exists)
         ('self', '/proc/self/cgroup'),
     )
 )
-def test_get_container_info_with_pid(pid, file_name, mock_open, mock_exists):
-    mock_exists.return_value = True
-
+def test_get_container_info_with_pid(pid, file_name):
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
-    mock_open.return_value = StringIOContext('\r\n')
+    with get_mock_open(read_data='\r\n') as mock_open:
+        assert get_container_info(pid=pid) is None
 
-    assert get_container_info(pid=pid) is None
-
-    mock_exists.assert_called_once_with(file_name)
-    mock_open.assert_called_once_with(file_name, mode='r')
+        mock_open.assert_called_once_with(file_name, mode='r')
 
 
 @mock.patch('ddtrace.internal.runtime.container.CGroupInfo.from_line')
 @mock.patch('ddtrace.internal.runtime.container.log')
-def test_get_container_info_exception(mock_log, mock_from_line, mock_open, mock_exists):
+def test_get_container_info_exception(mock_log, mock_from_line):
     mock_from_line.side_effect = Exception
-    mock_exists.return_value = True
 
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
-    mock_open.return_value = StringIOContext('\r\n')
+    with get_mock_open(read_data='\r\n') as mock_open:
+        # Assert calling `get_container_info()` does not bubble up the exception
+        assert get_container_info() is None
 
-    # Assert calling `get_container_info()` does not bubble up the exception
-    assert get_container_info() is None
+        # Assert we called everything we expected
+        mock_from_line.assert_called_once_with('\r\n')
+        mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
 
-    # Assert we called everything we expected
-    mock_from_line.assert_called_once_with('\r\n')
-    mock_exists.assert_called_once_with('/proc/self/cgroup')
-    mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
-
-    # Ensure we logged the exception
-    mock_log.exception.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self')
+        # Ensure we logged the exception
+        mock_log.exception.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self')
