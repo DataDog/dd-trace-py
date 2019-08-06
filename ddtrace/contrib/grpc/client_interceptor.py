@@ -61,7 +61,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             _handle_response_or_error(self._span, rpc_error)
             self._span.finish()
             raise
-        except:
+        except Exception:
             # DEV: added for safety though should not be reached since wrapped response
             log.debug('unexpected non-grpc exception raised, closing open span', exc_info=True)
             self._span.set_traceback()
