@@ -4,7 +4,7 @@ from ddtrace.context import Context
 from ddtrace.internal.context_manager import DefaultContextManager
 from ddtrace.span import Span
 
-from .base import BaseTestCase
+from ..base import BaseTestCase
 
 
 class TestDefaultContextManager(BaseTestCase):
@@ -51,12 +51,10 @@ class TestDefaultContextManager(BaseTestCase):
         ctx = ctxm.get()
         assert 0 == len(ctx._trace)
 
-    def test_multiple_tasks_multiple_context(self):
-        pass
-
-    def test_reset(self):
+    def test_reset_context_manager(self):
         ctxm = DefaultContextManager()
         ctx = ctxm.get()
 
-        ctxm.reset()
+        # new context manager should not share same context
+        ctxm = DefaultContextManager()
         assert ctxm.get() is not ctx

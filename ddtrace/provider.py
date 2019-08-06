@@ -25,11 +25,6 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     def active(self):
         pass
 
-    @abc.abstractmethod
-    def reset(self):
-        """ Resets current active context to default """
-        pass
-
     def __call__(self, *args, **kwargs):
         """Method available for backward-compatibility. It proxies the call to
         ``self.active()`` and must not do anything more.
@@ -67,6 +62,3 @@ class DefaultContextProvider(BaseContextProvider):
         implementation.
         """
         return self._local.get()
-
-    def reset(self):
-        self._local.reset()

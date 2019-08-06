@@ -53,7 +53,3 @@ class GeventContextProvider(BaseContextProvider):
             ctx = Context()
             setattr(current_g, CONTEXT_ATTR, ctx)
             return ctx
-
-    def reset(self):
-        current_g = gevent.getcurrent()
-        setattr(current_g, CONTEXT_ATTR, None)

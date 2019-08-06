@@ -54,10 +54,10 @@ with require_modules(required_modules) as missing_modules:
         from ...internal.context_manager import CONTEXTVARS_IS_AVAILABLE
         from ...provider import DefaultContextProvider
 
-        if not CONTEXTVARS_IS_AVAILABLE:
-            context_provider = AsyncioContextProvider()
-        else:
+        if CONTEXTVARS_IS_AVAILABLE:
             context_provider = DefaultContextProvider()
+        else:
+            context_provider = AsyncioContextProvider()
 
         from .helpers import set_call_context, ensure_future, run_in_executor
         from .patch import patch
