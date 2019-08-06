@@ -5,10 +5,14 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 from ddtrace.compat import to_unicode
 from ddtrace.ext import errors
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from . import constants
 from .utils import parse_method_path
+
+
+log = get_logger(__name__)
 
 # DEV: Follows Python interceptors RFC laid out in
 # https://github.com/grpc/proposal/blob/master/L13-python-interceptors.md
@@ -55,6 +59,12 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             raise
         except grpc.RpcError as rpc_error:
             _handle_response_or_error(self._span, rpc_error)
+            self._span.finish()
+            raise
+        except:
+            # DEV: added for safety though should not be reached since wrapped response
+            log.debug('unexpected non-grpc exception raised, closing open span', exc_info=True)
+            self._span.set_traceback()
             self._span.finish()
             raise
 

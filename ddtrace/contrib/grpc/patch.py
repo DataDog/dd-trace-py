@@ -45,11 +45,11 @@ def unpatch():
 def _client_channel_interceptor(wrapped, instance, args, kwargs):
     channel = wrapped(*args, **kwargs)
 
-    (host, port) = _parse_target_from_arguments(args, kwargs)
-
     pin = Pin.get_from(grpc)
-    if not pin:
+    if not pin or not pin.enabled():
         return channel
+
+    (host, port) = _parse_target_from_arguments(args, kwargs)
 
     interceptor_function = create_client_interceptor(pin, host, port)
     return grpc.intercept_channel(channel, interceptor_function)
