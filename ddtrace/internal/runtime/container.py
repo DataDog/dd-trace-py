@@ -1,4 +1,3 @@
-import os
 import re
 
 from ..logger import get_logger
