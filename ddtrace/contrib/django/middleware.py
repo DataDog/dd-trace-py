@@ -40,6 +40,13 @@ _django_default_views = {
 }
 
 
+def _analytics_enabled():
+    return (
+        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False)
+        or settings.ANALYTICS_ENABLED is True
+    ) and settings.ANALYTICS_SAMPLE_RATE is not None
+
+
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
     If middleware cannot be found, returns None for the middleware collection."""
@@ -122,12 +129,10 @@ class TraceMiddleware(InstrumentationMixin):
 
             # set analytics sample rate
             # DEV: django is special case maintains separate configuration from config api
-            if (
-                config.analytics_enabled and settings.ANALYTICS_ENABLED is not False
-            ) or settings.ANALYTICS_ENABLED is True:
+            if _analytics_enabled():
                 span.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
-                    settings.ANALYTICS_SAMPLE_RATE
+                    settings.ANALYTICS_SAMPLE_RATE,
                 )
 
             # Set HTTP Request tags
