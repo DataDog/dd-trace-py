@@ -97,7 +97,7 @@ class _ClientInterceptor(
         if self._pin.tags:
             span.set_tags(self._pin.tags)
 
-        # propogate distributed tracing headers if available
+        # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
             propagator = HTTPPropagator()
