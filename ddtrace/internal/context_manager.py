@@ -16,10 +16,6 @@ except ImportError:
 
 
 class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
-    @property
-    def contextvars_enabled(self):
-        return False
-
     @abc.abstractmethod
     def _has_active_context(self):
         pass
@@ -30,10 +26,6 @@ class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
 
     @abc.abstractmethod
     def get(self):
-        pass
-
-    @abc.abstractmethod
-    def reset(self):
         pass
 
 
@@ -69,9 +61,6 @@ class ThreadLocalContext(BaseContextManager):
 
         return ctx
 
-    def reset(self):
-        self.set(None)
-
 
 class ContextVarContextManager(BaseContextManager):
     """
@@ -79,19 +68,16 @@ class ContextVarContextManager(BaseContextManager):
     3.7 and above to manage different ``Context`` objects for each thread and
     async task.
     """
-    @property
-    def contextvars_enabled(self):
-        return True
-
     def __init__(self):
-        self.token = None
+        super(ContextVarContextManager, self).__init__()
+        self._reset()
 
     def _has_active_context(self):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
     def set(self, ctx):
-        self.token = _DD_CONTEXTVAR.set(ctx)
+        _DD_CONTEXTVAR.set(ctx)
 
     def get(self):
         ctx = _DD_CONTEXTVAR.get()
@@ -101,7 +87,7 @@ class ContextVarContextManager(BaseContextManager):
 
         return ctx
 
-    def reset(self):
+    def _reset(self):
         _DD_CONTEXTVAR.set(None)
 
 

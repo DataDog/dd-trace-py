@@ -134,7 +134,6 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
     def reset(self):
         """Helper to reset the existing list of spans created"""
         self.tracer.writer.pop()
-        self.tracer.context_provider.reset()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""

@@ -31,9 +31,6 @@ def ot_tracer_factory():
         # attach the dummy tracer to the opentracer
         tracer._dd_tracer = dd_tracer
 
-        # clear context provider
-        dd_tracer.context_provider.reset()
-
         return tracer
 
     return make_ot_tracer

@@ -15,6 +15,7 @@ class Context(object):
     execution flow. During each logical execution, the same ``Context`` is
     used to represent a single logical trace, even if the trace is built
     asynchronously.
+
     A single code execution may use multiple ``Context`` if part of the execution
     must not be related to the current tracing. As example, a delayed job may
     compose a standalone trace instead of being related to the same trace that
