@@ -134,6 +134,30 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=None)
+    def test_analytics_global_off_integration_on_and_none(self):
+        """
+        When making a request
+            When an integration trace search is enabled
+            Sample rate is set to None
+            Globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 3
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+        assert sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+        assert sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
         # to get repatched. However since django tests are a atomic transaction
