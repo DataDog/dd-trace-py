@@ -2,9 +2,14 @@ import mock
 
 import pytest
 
+from ddtraace.compat import PY2
 from ddtrace.internal.runtime.container import CGroupInfo, get_container_info
 
 from .utils import cgroup_line_valid_test_cases
+
+# Map expected Py2 exception to Py3 name
+if PY2:
+    FileNotFoundError = IOError
 
 
 def get_mock_open(read_data=None):
