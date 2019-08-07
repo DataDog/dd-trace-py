@@ -12,6 +12,7 @@ import pytest
 from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
 from ddtrace.compat import iteritems, httplib, PY3
+from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
 
 
@@ -258,3 +259,22 @@ def test_flush_connection_uds(endpoint_uds_server):
     api = API(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
     response = api._flush(payload)
     assert response.status == 200
+
+
+@mock.patch('ddtrace.internal.runtime.container.get_container_info')
+def test_api_container_info(get_container_info):
+    # When we have container information
+    # DEV: `get_container_info` will return a `CGroupInfo` with a `container_id` or `None`
+    info = CGroupInfo(container_id='test-container-id')
+    get_container_info.return_value = info
+
+    api = API(_HOST, 8126)
+    assert api._container_info is info
+    assert api._headers['Datadog-Container-Id'] == 'test-container-id'
+
+    # When we do not have container information
+    get_container_info.return_value = None
+
+    api = API(_HOST, 8126)
+    assert api._container_info is None
+    assert 'Datadog-Container-Id' not in api._headers
