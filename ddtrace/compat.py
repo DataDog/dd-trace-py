@@ -1,4 +1,5 @@
 import platform
+import re
 import sys
 import textwrap
 
@@ -43,6 +44,10 @@ msgpack_type = six.binary_type
 # DEV: `six` doesn't have `float` in `integer_types`
 numeric_types = six.integer_types + (float, )
 
+if PY3:
+    pattern_type = re.Pattern
+else:
+    pattern_type = re._pattern_type
 
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
     from asyncio import iscoroutinefunction
