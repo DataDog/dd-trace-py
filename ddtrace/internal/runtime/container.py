@@ -104,7 +104,7 @@ def get_container_info(pid='self'):
                 info = CGroupInfo.from_line(line)
                 if info and info.container_id:
                     return info
-    except Exception:
-        log.exception('Failed to parse cgroup file for pid %r', pid)
+    except Exception as err:
+        log.debug('Failed to parse cgroup file for pid %r: %s', pid, err)
 
     return None
