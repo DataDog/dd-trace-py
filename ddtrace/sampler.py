@@ -216,13 +216,16 @@ class SamplingRule(object):
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(
-                'SamplingRule sample_rate {!r} must be greater than or equal to 0.0 and less than or equal to 1.0',
+                'SamplingRule(sample_rate={!r}) must be greater than or equal to 0.0 and less than or equal to 1.0',
             )
 
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
         self.resource = resource
+
+        if tags is not self.NO_RULE and not isinstance(tags, dict):
+            raise TypeError('SamplingRule(tags={!r}) must be a dict')
         self.tags = tags
 
     @property
@@ -257,7 +260,7 @@ class SamplingRule(object):
                 pass
 
         # Exact match on the values
-        return prop == pattern
+        return prop is pattern
 
     def _tags_match(self, span):
         # No rule was set, then assume it matches

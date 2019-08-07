@@ -1,12 +1,16 @@
 from __future__ import division
-
+import re
 import unittest
 
-from ddtrace.span import Span
-from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
+import pytest
+
 from ddtrace.compat import iteritems
-from tests.test_tracer import get_dummy_tracer
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
+from ddtrace.sampler import DatadogSampler, SamplingRule
+from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
+from ddtrace.span import Span
+
+from .test_tracer import get_dummy_tracer
 
 
 class RateSamplerTest(unittest.TestCase):
@@ -140,3 +144,132 @@ class RateByServiceSamplerTest(unittest.TestCase):
             for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
             assert case == rates, '%s != %s' % (case, rates)
+
+
+@pytest.mark.parametrize(
+    'sample_rate,allowed',
+    [
+        # Min/max allowed values
+        (0.0, True),
+        (1.0, True),
+
+        # Accepted boundaries
+        (0.000001, True),
+        (0.999999, True),
+
+        # Outside the bounds
+        (-0.000000001, False),
+        (1.0000000001, False),
+    ] + [
+        # Try a bunch of decimal values between 0 and 1
+        (1 / i, True) for i in range(1, 50)
+    ] + [
+        # Try a bunch of decimal values less than 0
+        (-(1 / i), False) for i in range(1, 50)
+    ] + [
+        # Try a bunch of decimal values greater than 1
+        (1 + (1 / i), False) for i in range(1, 50)
+    ]
+)
+def test_sampling_rule_init_sample_rate(sample_rate, allowed):
+    if allowed:
+        rule = SamplingRule(sample_rate=sample_rate)
+        assert rule.sample_rate == sample_rate
+    else:
+        with pytest.raises(ValueError):
+            SamplingRule(sample_rate=sample_rate)
+
+
+def test_sampling_rule_init_defaults():
+    rule = SamplingRule(sample_rate=1.0)
+    assert rule.sample_rate == 1.0
+    assert rule.service == SamplingRule.NO_RULE
+    assert rule.name == SamplingRule.NO_RULE
+    assert rule.resource == SamplingRule.NO_RULE
+    assert rule.tags == SamplingRule.NO_RULE
+
+
+def test_sampling_rule_init_tags():
+    # Not supplied
+    SamplingRule(sample_rate=1.0)
+
+    # As a dict
+    SamplingRule(sample_rate=1.0, tags=dict())
+
+    # Non-dict
+    for value in [
+        None,
+        'value',
+        re.compile('value'),
+        lambda tags: True,
+    ]:
+        with pytest.raises(TypeError):
+            SamplingRule(sample_rate=1.0, tags=value)
+
+
+def test_sampling_rule_init():
+    name_regex = re.compile(r'\.request$')
+
+    def resource_check(resource):
+        return 'healthcheck' in resource
+
+    tag_regex = re.compile(r'^(GET)|(POST)$')
+
+    def tag_check(tag):
+        return 'healthcheck' in tag
+
+    rule = SamplingRule(
+        sample_rate=0.0,
+        # Value
+        service='my-service',
+        # Regex
+        name=name_regex,
+        # Callable
+        resource=resource_check,
+        tags={
+            'http.status': 202,
+            'http.method': tag_regex,
+            'http.url': tag_check,
+        },
+    )
+
+    assert rule.sample_rate == 0.0
+    assert rule.service == 'my-service'
+    assert rule.name == name_regex
+    assert rule.resource == resource_check
+    assert rule.tags == {
+        'http.status': 202,
+        'http.method': tag_regex,
+        'http.url': tag_check,
+    }
+
+
+@pytest.mark.parametrize(
+    'prop,pattern,matches',
+    [
+        # Object equality success
+        ('test', 'test', True),
+        (1, 1, True),
+        (True, True, True),
+        (False, False, True),
+        (None, None, True),
+
+        # Object euqality failure
+        ('test', ' test ', False),
+        (1, 2, False),
+        (1.0, 1, False),
+        (True, False, False),
+        (False, True, False),
+        (None, False, False),
+        (1, True, False),
+        (0, False, False),
+    ]
+)
+def test_sampling_rule_pattern_matches(prop, pattern, matches):
+    rule = SamplingRule(sample_rate=1)
+
+    assert rule._pattern_matches(prop, pattern) is matches, '_pattern_matches({!r}, {!r})'.format(prop, pattern)
+
+
+def test_datadog_sampler():
+    pass
