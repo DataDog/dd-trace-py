@@ -19,7 +19,9 @@ config._add('grpc_server', dict(
 # TODO[tbutt]: keeping name for client config unchanged to maintain backwards
 # compatibility but should change in future
 config._add('grpc', dict(
-    service_name=os.environ.get('DATADOG_SERVICE_NAME', constants.GRPC_SERVICE_CLIENT),
+    service_name='{}-{}'.format(
+        os.environ.get('DATADOG_SERVICE_NAME'), constants.GRPC_SERVICE_CLIENT
+    ) if os.environ.get('DATADOG_SERVICE_NAME') else constants.GRPC_SERVICE_CLIENT,
     distributed_tracing_enabled=True,
 ))
 
@@ -98,7 +100,7 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     # interceptor
 
     pin = Pin.get_from(constants.GRPC_PIN_MODULE_SERVER)
-    if not pin:
+    if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
     interceptor = create_server_interceptor(pin)
