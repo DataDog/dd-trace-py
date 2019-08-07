@@ -1,9 +1,9 @@
 """
-The Grpc integration will trace queries made using the grpc library.
+The gRPC integration traces the client and server using interceptor pattern.
 
-Grpc will be automatically instrumented with ``patch_all``, or when using
+gRPC will be automatically instrumented with ``patch_all``, or when using
 the ``ddtrace-run`` command.
-Grpc is instrumented on import. To instrument Grpc manually use the
+gRPC is instrumented on import. To instrument gRPC manually use the
 ``patch`` function.::
 
     import grpc
@@ -12,7 +12,7 @@ Grpc is instrumented on import. To instrument Grpc manually use the
 
     # use grpc like usual
 
-To configure the Grpc integration on an per-channel basis use the
+To configure the gRPC integration on an per-channel basis use the
 ``Pin`` API::
 
     import grpc
@@ -21,11 +21,28 @@ To configure the Grpc integration on an per-channel basis use the
     patch(grpc=True)
     custom_tracer = Tracer()
 
-    # override the service and tracer to be used
-    Pin.override(grpc, service='mygrpc', tracer=custom_tracer)
-    with grpc.insecure_channel('localhost:50051' as channel:
+    # override the pin on the client
+    Pin.override(grpc.Channel, service='mygrpc', tracer=custom_tracer)
+    with grpc.insecure_channel('localhost:50051') as channel:
         # create stubs and send requests
         pass
+
+To configure the gRPC integration on the server use the ``Pin`` API::
+
+    import grpc
+    from grpc.framework.foundation import logging_pool
+
+    from ddtrace import Pin, patch, Tracer
+
+    patch(grpc=True)
+    custom_tracer = Tracer()
+
+    # override the pin on the server
+    Pin.override(grpc.Server, service='mygrpc', tracer=custom_tracer)
+    server = grpc.server(logging_pool.pool(2))
+    server.add_insecure_port('localhost:50051')
+    add_MyServicer_to_server(MyServicer(), server)
+    server.start()
 """
 
 
