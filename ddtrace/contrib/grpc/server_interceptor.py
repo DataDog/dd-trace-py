@@ -52,7 +52,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
-        if config.grpc.distributed_tracing_enabled:
+        if config.grpc_server.distributed_tracing_enabled:
             headers = dict(self._handler_call_details.invocation_metadata)
             propagator = HTTPPropagator()
             context = propagator.extract(headers)
@@ -61,10 +61,14 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
                 self._pin.tracer.context_provider.activate(context)
 
         tracer = self._pin.tracer
+
+        # set service name for server to {<service name>|grpc-server}
+        service = self._pin.service if self._pin.service is not None else constants.GRPC_SERVICE_SERVER
+
         span = tracer.trace(
             'grpc',
             span_type='grpc',
-            service=self._pin.service,
+            service=service,
             resource=self._handler_call_details.method,
         )
 
@@ -76,7 +80,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
         span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc_server.get_analytics_sample_rate())
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

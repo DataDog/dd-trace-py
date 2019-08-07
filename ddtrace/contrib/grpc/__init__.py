@@ -21,11 +21,28 @@ To configure the gRPC integration on an per-channel basis use the
     patch(grpc=True)
     custom_tracer = Tracer()
 
-    # override the service and tracer to be used
-    Pin.override(grpc, service='mygrpc', tracer=custom_tracer)
-    with grpc.insecure_channel('localhost:50051' as channel:
+    # override the pin on the client
+    Pin.override(grpc.Channel, service='mygrpc', tracer=custom_tracer)
+    with grpc.insecure_channel('localhost:50051') as channel:
         # create stubs and send requests
         pass
+
+To configure the gRPC integration on the server use the ``Pin`` API::
+
+    import grpc
+    from grpc.framework.foundation import logging_pool
+
+    from ddtrace import Pin, patch, Tracer
+
+    patch(grpc=True)
+    custom_tracer = Tracer()
+
+    # override the pin on the server
+    Pin.override(grpc.Server, service='mygrpc', tracer=custom_tracer)
+    server = grpc.server(logging_pool.pool(2))
+    server.add_insecure_port('localhost:50051')
+    add_MyServicer_to_server(MyServicer(), server)
+    server.start()
 """
 
 

@@ -2,6 +2,7 @@ import grpc
 from grpc.framework.foundation import logging_pool
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
+from ddtrace.contrib.grpc import constants
 from ddtrace.ext import errors
 from ddtrace import Pin
 
@@ -17,7 +18,8 @@ class GrpcTestCase(BaseTracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
         patch()
-        Pin.override(grpc, tracer=self.tracer)
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
         self._start_server()
 
     def tearDown(self):
@@ -83,8 +85,8 @@ class GrpcTestCase(BaseTracerTestCase):
         assert len(spans) == 2
         server_span, client_span = spans
 
-        self._check_client_span(client_span, 'grpc', 'SayHello', 'unary')
-        self._check_server_span(server_span, 'grpc', 'SayHello', 'unary')
+        self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
+        self._check_server_span(server_span, 'grpc-server', 'SayHello', 'unary')
 
     def test_secure_channel_using_args_parameter(self):
         def secure_channel_using_args(target, **kwargs):
@@ -106,8 +108,8 @@ class GrpcTestCase(BaseTracerTestCase):
         assert len(spans) == 2
         server_span, client_span = spans
 
-        self._check_client_span(client_span, 'grpc', 'SayHello', 'unary')
-        self._check_server_span(server_span, 'grpc', 'SayHello', 'unary')
+        self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
+        self._check_server_span(server_span, 'grpc-server', 'SayHello', 'unary')
 
     def test_pin_not_activated(self):
         self.tracer.configure(enabled=False)
@@ -122,23 +124,23 @@ class GrpcTestCase(BaseTracerTestCase):
     def test_pin_tags_are_put_in_span(self):
         # DEV: stop and restart server to catch overriden pin
         self._stop_server()
-        Pin.override(grpc, tags={'tag1': 'value1'})
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={'tag1': 'server'})
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tags={'tag2': 'client'})
         self._start_server()
-        Pin.override(grpc, tags={'tag1': 'value2'})
         with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         assert len(spans) == 2
-        assert spans[0].get_tag('tag1') == 'value1'
-        assert spans[1].get_tag('tag1') == 'value2'
+        assert spans[0].get_tag('tag1') == 'server'
+        assert spans[1].get_tag('tag2') == 'client'
 
     def test_pin_can_be_defined_per_channel(self):
-        Pin.override(grpc, service='grpc1')
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service='grpc1')
         channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
-        Pin.override(grpc, service='grpc2')
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service='grpc2')
         channel2 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
@@ -150,10 +152,10 @@ class GrpcTestCase(BaseTracerTestCase):
 
         assert len(spans) == 4
         # DEV: Server service default, client services override
-        self._check_server_span(spans[0], 'grpc', 'SayHello', 'unary')
-        self._check_client_span(spans[1], 'grpc1', 'SayHello', 'unary')
-        self._check_server_span(spans[2], 'grpc', 'SayHello', 'unary')
-        self._check_client_span(spans[3], 'grpc2', 'SayHello', 'unary')
+        self._check_server_span(spans[0], 'grpc-server', 'SayHello', 'unary')
+        self._check_client_span(spans[1], 'grpc1-grpc-client', 'SayHello', 'unary')
+        self._check_server_span(spans[2], 'grpc-server', 'SayHello', 'unary')
+        self._check_client_span(spans[3], 'grpc2-grpc-client', 'SayHello', 'unary')
 
         channel1.close()
         channel2.close()
@@ -170,32 +172,40 @@ class GrpcTestCase(BaseTracerTestCase):
 
     def test_analytics_with_rate(self):
         with self.override_config(
-            'grpc',
-            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+            'grpc_server',
+            dict(analytics_enabled=True, analytics_sample_rate=0.75)
         ):
-            with grpc.secure_channel(
-                    'localhost:%d' % (_GRPC_PORT),
-                    credentials=grpc.ChannelCredentials(None)
-            ) as channel:
-                stub = HelloStub(channel)
-                stub.SayHello(HelloRequest(name='test'))
+            with self.override_config(
+                'grpc_client',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+            ):
+                with grpc.secure_channel(
+                        'localhost:%d' % (_GRPC_PORT),
+                        credentials=grpc.ChannelCredentials(None)
+                ) as channel:
+                    stub = HelloStub(channel)
+                    stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         assert len(spans) == 2
-        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_analytics_without_rate(self):
         with self.override_config(
-            'grpc',
+            'grpc_server',
             dict(analytics_enabled=True)
         ):
-            with grpc.secure_channel(
-                    'localhost:%d' % (_GRPC_PORT),
-                    credentials=grpc.ChannelCredentials(None)
-            ) as channel:
-                stub = HelloStub(channel)
-                stub.SayHello(HelloRequest(name='test'))
+            with self.override_config(
+                'grpc_client',
+                dict(analytics_enabled=True)
+            ):
+                with grpc.secure_channel(
+                        'localhost:%d' % (_GRPC_PORT),
+                        credentials=grpc.ChannelCredentials(None)
+                ) as channel:
+                    stub = HelloStub(channel)
+                    stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
         assert len(spans) == 2
@@ -211,8 +221,8 @@ class GrpcTestCase(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 2
         server_span, client_span = spans
-        self._check_client_span(client_span, 'grpc', 'SayHelloTwice', 'server_streaming')
-        self._check_server_span(server_span, 'grpc', 'SayHelloTwice', 'server_streaming')
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloTwice', 'server_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloTwice', 'server_streaming')
 
     def test_client_stream(self):
         requests_iterator = iter(
@@ -228,8 +238,8 @@ class GrpcTestCase(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 2
         server_span, client_span = spans
-        self._check_client_span(client_span, 'grpc', 'SayHelloLast', 'client_streaming')
-        self._check_server_span(server_span, 'grpc', 'SayHelloLast', 'client_streaming')
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloLast', 'client_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloLast', 'client_streaming')
 
     def test_bidi_stream(self):
         requests_iterator = iter(
@@ -246,8 +256,8 @@ class GrpcTestCase(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 2
         server_span, client_span = spans
-        self._check_client_span(client_span, 'grpc', 'SayHelloRepeatedly', 'bidi_streaming')
-        self._check_server_span(server_span, 'grpc', 'SayHelloRepeatedly', 'bidi_streaming')
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloRepeatedly', 'bidi_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloRepeatedly', 'bidi_streaming')
 
     def test_priority_sampling(self):
         # DEV: Priority sampling is enabled by default
