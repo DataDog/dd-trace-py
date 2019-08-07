@@ -3,7 +3,6 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
-import random
 
 from .compat import iteritems, pattern_type
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
