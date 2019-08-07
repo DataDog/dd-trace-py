@@ -62,13 +62,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         tracer = self._pin.tracer
 
-        # set service name for server to {<service name>|grpc-server}
-        service = self._pin.service if self._pin.service is not None else constants.GRPC_SERVICE_SERVER
-
         span = tracer.trace(
             'grpc',
             span_type='grpc',
-            service=service,
+            service=self._pin.service,
             resource=self._handler_call_details.method,
         )
 

@@ -1,4 +1,5 @@
 import grpc
+import os
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
@@ -11,12 +12,14 @@ from .server_interceptor import create_server_interceptor
 
 
 config._add('grpc_server', dict(
-    service_name=constants.GRPC_SERVICE_SERVER,
+    service_name=os.environ.get('DATADOG_SERVICE_NAME', constants.GRPC_SERVICE_SERVER),
     distributed_tracing_enabled=True,
 ))
 
-config._add('grpc_client', dict(
-    service_name=constants.GRPC_SERVICE_CLIENT,
+# TODO[tbutt]: keeping name for client config unchanged to maintain backwards
+# compatibility but should change in future
+config._add('grpc', dict(
+    service_name=os.environ.get('DATADOG_SERVICE_NAME', constants.GRPC_SERVICE_CLIENT),
     distributed_tracing_enabled=True,
 ))
 
@@ -36,7 +39,7 @@ def _patch_client():
         return
     setattr(constants.GRPC_PIN_MODULE_CLIENT, '__datadog_patch', True)
 
-    Pin(service=config.grpc_client.service_name).onto(constants.GRPC_PIN_MODULE_CLIENT)
+    Pin(service=config.grpc.service_name).onto(constants.GRPC_PIN_MODULE_CLIENT)
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)

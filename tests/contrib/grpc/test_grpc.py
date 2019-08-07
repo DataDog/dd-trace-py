@@ -124,6 +124,7 @@ class GrpcTestCase(BaseTracerTestCase):
     def test_pin_tags_are_put_in_span(self):
         # DEV: stop and restart server to catch overriden pin
         self._stop_server()
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, service='server1')
         Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={'tag1': 'server'})
         Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tags={'tag2': 'client'})
         self._start_server()
@@ -133,6 +134,7 @@ class GrpcTestCase(BaseTracerTestCase):
 
         spans = self.get_spans()
         assert len(spans) == 2
+        assert spans[0].service == 'server1'
         assert spans[0].get_tag('tag1') == 'server'
         assert spans[1].get_tag('tag2') == 'client'
 
@@ -153,9 +155,9 @@ class GrpcTestCase(BaseTracerTestCase):
         assert len(spans) == 4
         # DEV: Server service default, client services override
         self._check_server_span(spans[0], 'grpc-server', 'SayHello', 'unary')
-        self._check_client_span(spans[1], 'grpc1-grpc-client', 'SayHello', 'unary')
+        self._check_client_span(spans[1], 'grpc1', 'SayHello', 'unary')
         self._check_server_span(spans[2], 'grpc-server', 'SayHello', 'unary')
-        self._check_client_span(spans[3], 'grpc2-grpc-client', 'SayHello', 'unary')
+        self._check_client_span(spans[3], 'grpc2', 'SayHello', 'unary')
 
         channel1.close()
         channel2.close()
@@ -176,7 +178,7 @@ class GrpcTestCase(BaseTracerTestCase):
             dict(analytics_enabled=True, analytics_sample_rate=0.75)
         ):
             with self.override_config(
-                'grpc_client',
+                'grpc',
                 dict(analytics_enabled=True, analytics_sample_rate=0.5)
             ):
                 with grpc.secure_channel(
@@ -197,7 +199,7 @@ class GrpcTestCase(BaseTracerTestCase):
             dict(analytics_enabled=True)
         ):
             with self.override_config(
-                'grpc_client',
+                'grpc',
                 dict(analytics_enabled=True)
             ):
                 with grpc.secure_channel(

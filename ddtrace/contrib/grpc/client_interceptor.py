@@ -84,16 +84,10 @@ class _ClientInterceptor(
     def _intercept_client_call(self, method_kind, client_call_details):
         tracer = self._pin.tracer
 
-        # set service name for client to [<service name>-]grpc-client
-        service = '{}{}'.format(
-            '{}-'.format(self._pin.service) if self._pin.service is not constants.GRPC_SERVICE_CLIENT else '',
-            constants.GRPC_SERVICE_CLIENT
-        )
-
         span = tracer.trace(
             'grpc',
             span_type='grpc',
-            service=service,
+            service=self._pin.service,
             resource=client_call_details.method,
         )
 
@@ -108,7 +102,7 @@ class _ClientInterceptor(
         span.set_tag(constants.GRPC_HOST_KEY, self._host)
         span.set_tag(constants.GRPC_PORT_KEY, self._port)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc_client.get_analytics_sample_rate())
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
 
         # inject tags from pin
         if self._pin.tags:
@@ -116,7 +110,7 @@ class _ClientInterceptor(
 
         # propagate distributed tracing headers if available
         headers = {}
-        if config.grpc_client.distributed_tracing_enabled:
+        if config.grpc.distributed_tracing_enabled:
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
 
