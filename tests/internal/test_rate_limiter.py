@@ -49,7 +49,7 @@ def test_rate_limiter_is_allowed(rate_limit):
     def check_limit():
         # Up to the allowed limit is allowed
         for _ in range(rate_limit):
-            assert limiter.is_allowed()
+            assert limiter.is_allowed() is True
 
         # Any over the limit is disallowed
         for _ in range(1000):
@@ -77,14 +77,14 @@ def test_rate_limiter_is_allowed_large_gap():
         mock_time.return_value = now
 
         for _ in range(100):
-            assert limiter.is_allowed()
+            assert limiter.is_allowed() is True
 
     # Large gap before next call to `is_allowed()`
     with mock.patch('time.time') as mock_time:
         mock_time.return_value = now + 100
 
         for _ in range(100):
-            assert limiter.is_allowed()
+            assert limiter.is_allowed() is True
 
 
 def test_rate_limiter_is_allowed_small_gaps():
@@ -92,11 +92,11 @@ def test_rate_limiter_is_allowed_small_gaps():
 
     # Start time
     now = time.time()
-    gap = 1 / 100
+    gap = 1.0 / 100.0
     # Keep incrementing by a gap to keep us at our rate limit
     with mock.patch('time.time') as mock_time:
         for i in range(10000):
             # Keep the same timeframe
             mock_time.return_value = now + (gap * i)
 
-            assert limiter.is_allowed()
+            assert limiter.is_allowed() is True
