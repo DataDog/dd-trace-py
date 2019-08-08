@@ -286,7 +286,8 @@ def test_get_container_info_with_pid(pid, file_name):
 @mock.patch('ddtrace.internal.runtime.container.CGroupInfo.from_line')
 @mock.patch('ddtrace.internal.runtime.container.log')
 def test_get_container_info_exception(mock_log, mock_from_line):
-    mock_from_line.side_effect = Exception
+    exception = Exception()
+    mock_from_line.side_effect = exception
 
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
     with get_mock_open(read_data='\r\n') as mock_open:
@@ -298,4 +299,4 @@ def test_get_container_info_exception(mock_log, mock_from_line):
         mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
 
         # Ensure we logged the exception
-        mock_log.exception.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self')
+        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r: %s', 'self', exception)
