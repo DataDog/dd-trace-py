@@ -1,5 +1,4 @@
 from __future__ import division
-import itertools
 import re
 import unittest
 
@@ -7,7 +6,7 @@ import pytest
 
 from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
-from ddtrace.sampler import DatadogSampler, SamplingRule
+from ddtrace.sampler import SamplingRule
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.span import Span
 
@@ -278,7 +277,7 @@ def test_sampling_rule_init():
     ]
 )
 def test_sampling_rule_should_sample_name(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expecte)
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
