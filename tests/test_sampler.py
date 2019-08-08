@@ -1,4 +1,5 @@
 from __future__ import division
+import itertools
 import re
 import unittest
 
@@ -11,6 +12,14 @@ from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.span import Span
 
 from .test_tracer import get_dummy_tracer
+
+
+def create_span(name='test.span', meta=None, *args, **kwargs):
+    tracer = get_dummy_tracer()
+    span = Span(tracer=tracer, name=name, *args, **kwargs)
+    if meta:
+        span.set_tags(meta)
+    return span
 
 
 class RateSamplerTest(unittest.TestCase):
@@ -245,31 +254,271 @@ def test_sampling_rule_init():
 
 
 @pytest.mark.parametrize(
-    'prop,pattern,matches',
+    'span,rule,expected',
     [
-        # Object equality success
-        ('test', 'test', True),
-        (1, 1, True),
-        (True, True, True),
-        (False, False, True),
-        (None, None, True),
-
-        # Object euqality failure
-        ('test', ' test ', False),
-        (1, 2, False),
-        (1.0, 1, False),
-        (True, False, False),
-        (False, True, False),
-        (None, False, False),
-        (1, True, False),
-        (0, False, False),
+        # DEV: Use sample_rate=1 to ensure SamplingRule._sample always returns True
+        (create_span(name=name), SamplingRule(
+            sample_rate=1, name=pattern), expected)
+        for name, pattern, expected in [
+            ('test.span', SamplingRule.NO_RULE, True),
+            # DEV: `span.name` cannot be `None`
+            ('test.span', None, False),
+            ('test.span', 'test.span', True),
+            ('test.span', 'test_span', False),
+            ('test.span', re.compile(r'^test\.span$'), True),
+            ('test_span', re.compile(r'^test.span$'), True),
+            ('test.span', re.compile(r'^test_span$'), False),
+            ('test.span', re.compile(r'test'), True),
+            ('test.span', re.compile(r'test\.span|another\.span'), True),
+            ('another.span', re.compile(r'test\.span|another\.span'), True),
+            ('test.span', lambda name: 'span' in name, True),
+            ('test.span', lambda name: 'span' not in name, False),
+            ('test.span', lambda name: 1/0, False),
+        ]
     ]
 )
-def test_sampling_rule_pattern_matches(prop, pattern, matches):
-    rule = SamplingRule(sample_rate=1)
-
-    assert rule._pattern_matches(prop, pattern) is matches, '_pattern_matches({!r}, {!r})'.format(prop, pattern)
+def test_sampling_rule_should_sample_name(span, rule, expected):
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expecte)
 
 
-def test_datadog_sampler():
-    pass
+@pytest.mark.parametrize(
+    'span,rule,expected',
+    [
+        # DEV: Use sample_rate=1 to ensure SamplingRule._sample always returns True
+        (create_span(service=service), SamplingRule(sample_rate=1, service=pattern), expected)
+        for service, pattern, expected in [
+                ('my-service', SamplingRule.NO_RULE, True),
+                ('my-service', None, False),
+                (None, None, True),
+                (None, 'my-service', False),
+                (None, re.compile(r'my-service'), False),
+                (None, lambda service: 'service' in service, False),
+                ('my-service', 'my-service', True),
+                ('my-service', 'my_service', False),
+                ('my-service', re.compile(r'^my-'), True),
+                ('my_service', re.compile(r'^my[_-]'), True),
+                ('my-service', re.compile(r'^my_'), False),
+                ('my-service', re.compile(r'my-service'), True),
+                ('my-service', re.compile(r'my'), True),
+                ('my-service', re.compile(r'my-service|another-service'), True),
+                ('another-service', re.compile(r'my-service|another-service'), True),
+                ('my-service', lambda service: 'service' in service, True),
+                ('my-service', lambda service: 'service' not in service, False),
+                ('my-service', lambda service: 1/0, False),
+        ]
+    ]
+)
+def test_sampling_rule_should_sample_service(span, rule, expected):
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+
+
+@pytest.mark.parametrize(
+    'span,rule,expected',
+    [
+        # DEV: Use sample_rate=1 to ensure SamplingRule._sample always returns True
+        (create_span(resource=resource), SamplingRule(sample_rate=1, resource=pattern), expected)
+        for resource, pattern, expected in [
+                ('GET /healthcheck', SamplingRule.NO_RULE, True),
+                ('GET /healthcheck', None, False),
+                # False because `resource=None` inherits from the span name
+                (None, None, False),
+                # True because `resource=None` inherits from the span name
+                (None, re.compile(r'(test|another)[._]span'), True),
+                (None, 'GET /healthcheck', False),
+                (None, re.compile(r'GET /healthcheck'), False),
+                (None, lambda resource: 'healthcheck' in resource, False),
+                ('GET /healthcheck', 'GET /healthcheck', True),
+                ('GET /healthcheck', 'GET /users', False),
+                ('GET /healthcheck', re.compile(r'^GET'), True),
+                ('POST /healthcheck', re.compile(r'^(GET|POST) /healthcheck'), True),
+                ('GET /healthcheck', re.compile(r'^POST'), False),
+                ('GET /healthcheck', re.compile(r'GET /healthcheck'), True),
+                ('GET /healthcheck', re.compile(r'GET'), True),
+                ('GET /healthcheck', re.compile(r'(GET /healthcheck)|(POST /users/create)'), True),
+                ('POST /users/create', re.compile(r'(GET /healthcheck)|(POST /users/create)'), True),
+                ('GET /healthcheck', lambda resource: 'healthcheck' in resource, True),
+                ('GET /healthcheck', lambda resource: 'healthcheck' not in resource, False),
+                ('GET /healthcheck', lambda resource: 1/0, False),
+        ]
+    ]
+)
+def test_sampling_rule_should_sample_resource(span, rule, expected):
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+
+
+@pytest.mark.parametrize(
+    'span,rule,expected',
+    [
+        # DEV: Use sample_rate=1 to ensure SamplingRule._sample always returns True
+        (create_span(meta=meta), SamplingRule(sample_rate=1, tags=pattern), expected)
+        for meta, pattern, expected in [
+            (None, SamplingRule.NO_RULE, True),
+            (None, dict(), True),
+            (dict(key='value'), dict(key='value'), True),
+            (dict(key='value'), dict(key='wrong'), False),
+            (dict(a=1, b=2), dict(a='1', b='2'), True),
+            (dict(a=1, b=2), dict(a=1, b=2), False),
+            (dict(a=1, b=2), dict(a='2', b='1'), False),
+            (dict(key='localhost:8126'), dict(key=re.compile(r'localhost:[0-9]+')), True),
+            (dict(key='localhost:8126'), dict(key=re.compile(r'localhost:[0-9]{3}$')), False),
+            (dict(key='localhost:8126'), dict(key=lambda tag: tag.endswith('8126')), True),
+            (dict(key='localhost:8126'), dict(key=lambda tag: not tag.endswith('8126')), False),
+            (dict(key='localhost:8126'), dict(key=lambda tag: 1/0), False),
+            (
+                dict(
+                    string='value',
+                    regex='ca6089f3519040ad802c5abb85d3a32d',
+                    func='GET /healthcheck',
+                ),
+                dict(
+                    string='value',
+                    regex=re.compile(r'^[a-f0-9]{32}$'),
+                    func=lambda tag: 'healthcheck' in tag,
+                ),
+                True,
+            ),
+            (
+                dict(
+                    string='value',
+                    regex='ca6089f3519040ad802c5abb85d3a32d',
+                    func='GET /healthcheck',
+                ),
+                dict(
+                    string='value',
+                    # This regex will not match
+                    regex=re.compile(r'^[a-f0-9]{30}$'),
+                    func=lambda tag: 'healthcheck' in tag,
+                ),
+                False,
+            ),
+            (
+                dict(
+                    string='value',
+                    regex='ca6089f3519040ad802c5abb85d3a32d',
+                    func='GET /healthcheck',
+                ),
+                dict(
+                    # Mismatch on string comparision
+                    string='another',
+                    regex=re.compile(r'^[a-f0-9]{32}$'),
+                    func=lambda tag: 'healthcheck' in tag,
+                ),
+                False,
+            ),
+            (
+                dict(
+                    string='value',
+                    regex='ca6089f3519040ad802c5abb85d3a32d',
+                    func='GET /healthcheck',
+                ),
+                dict(
+                    string='value',
+                    regex=re.compile(r'^[a-f0-9]{32}$'),
+                    # Function returns False
+                    func=lambda tag: 'healthcheck' not in tag,
+                ),
+                False,
+            ),
+        ]
+    ]
+)
+def test_sampling_rule_should_sample_meta(span, rule, expected):
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+
+
+@pytest.mark.parametrize(
+    'span,rule,expected',
+    [
+        # All match
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name='test.span',
+                service=re.compile(r'^my-'),
+                resource=lambda resource: resource.endswith('/healthcheck'),
+                tags={'http.status': '200'},
+            ),
+            True
+        ),
+
+        # Name doesn't match
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name='test_span',
+                service=re.compile(r'^my-'),
+                resource=lambda resource: resource.endswith('/healthcheck'),
+                tags={'http.status': '200'},
+            ),
+            False,
+        ),
+
+        # Service doesn't match
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name='test.span',
+                service=re.compile(r'^service-'),
+                resource=lambda resource: resource.endswith('/healthcheck'),
+                tags={'http.status': '200'},
+            ),
+            False,
+        ),
+
+        # Resource doesn't match
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name='test.span',
+                service=re.compile(r'^my-'),
+                resource=lambda resource: resource.endswith('/users/create'),
+                tags={'http.status': '200'},
+            ),
+            False,
+        ),
+
+        # Tags do not match
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=1,
+                name='test.span',
+                service=re.compile(r'^my-'),
+                resource=lambda resource: resource.endswith('/healthcheck'),
+                tags={'http.status': '202'},
+            ),
+            False,
+        ),
+    ],
+)
+def test_sampling_rule_should_sample(span, rule, expected):
+    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
