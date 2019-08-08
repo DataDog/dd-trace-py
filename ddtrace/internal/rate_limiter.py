@@ -67,7 +67,6 @@ class RateLimiter(object):
             self.max_tokens,
             self.tokens + (elapsed * self.rate_limit),
         )
-        print(now, elapsed, self.tokens)
 
     def __repr__(self):
         return '{}(rate_limit={!r}, tokens={!r}, last_update={!r})'.format(
