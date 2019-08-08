@@ -443,7 +443,25 @@ def test_sampling_rule_should_sample_meta(span, rule, expected):
                 resource=lambda resource: resource.endswith('/healthcheck'),
                 tags={'http.status': '200'},
             ),
-            True
+            True,
+        ),
+
+        # All match,  but sample rate of 0%
+        (
+            create_span(
+                name='test.span',
+                service='my-service',
+                resource='GET /healthcheck',
+                meta={'http.status': '200'},
+            ),
+            SamplingRule(
+                sample_rate=0,
+                name='test.span',
+                service=re.compile(r'^my-'),
+                resource=lambda resource: resource.endswith('/healthcheck'),
+                tags={'http.status': '200'},
+            ),
+            False,
         ),
 
         # Name doesn't match
@@ -521,3 +539,43 @@ def test_sampling_rule_should_sample_meta(span, rule, expected):
 )
 def test_sampling_rule_should_sample(span, rule, expected):
     assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+
+
+@pytest.mark.parametrize('sample_rate', [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
+def test_sampling_rule_should_sample_sample_rate(sample_rate):
+    tracer = get_dummy_tracer()
+    rule = SamplingRule(sample_rate=sample_rate)
+
+    iterations = int(1e4 / sample_rate)
+    sampled = sum(
+        rule.should_sample(Span(tracer=tracer, name=i))
+        for i in range(iterations)
+    )
+
+    # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
+    deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
+    assert deviation < 0.05, (
+        'Deviation {!r} too high with sample_rate {!r} for {} sampled'.format(deviation, sample_rate, sampled)
+    )
+
+
+def test_sampling_rule_should_sample_sample_rate_1():
+    tracer = get_dummy_tracer()
+    rule = SamplingRule(sample_rate=1)
+
+    iterations = int(1e4)
+    assert all(
+        rule.should_sample(Span(tracer=tracer, name=i))
+        for i in range(iterations)
+    )
+
+
+def test_sampling_rule_should_sample_sample_rate_0():
+    tracer = get_dummy_tracer()
+    rule = SamplingRule(sample_rate=0)
+
+    iterations = int(1e4)
+    assert sum(
+        rule.should_sample(Span(tracer=tracer, name=i))
+        for i in range(iterations)
+    ) == 0
