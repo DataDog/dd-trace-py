@@ -149,14 +149,13 @@ class DatadogSampler(BaseSampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
+        sampled_by_rule = None
         if self.rules:
-            sampled_by_rule = False
-
             # Go through all rules and grab the last one that matched
             # DEV: This means rules should be ordered by the user from least specific to most specific
             for rule in self.rules:
                 if rule.should_sample(span):
-                    sampled_by_rule = True
+                    sampled_by_rule = rule
 
             # If no rule wanted to sample this, then do not sample
             if not sampled_by_rule:
@@ -168,6 +167,8 @@ class DatadogSampler(BaseSampler):
             span._context.sampling_priority = AUTO_REJECT
             return False
 
+        # TODO: Set `_sampling_priority_rate_v1` tag based on
+        #       sampled_by_rule.sample_rate and effective rate from self.limiter
         # We made it by all of checks, sample this trace
         span._context.sampling_priority = AUTO_KEEP
         return True
@@ -247,7 +248,12 @@ class SamplingRule(object):
         # If the pattern is callable (e.g. a function) then call it passing the prop
         #   The expected return value is a boolean so cast the response in case it isn't
         if callable(pattern):
-            return bool(pattern(prop))
+            try:
+                return bool(pattern(prop))
+            except Exception:
+                # TODO: Log that the pattern function failed
+                # Their function failed to validate, assume it is a False
+                return False
 
         # The pattern is a regular expression and the prop is a string
         if isinstance(pattern, pattern_type):
@@ -260,15 +266,15 @@ class SamplingRule(object):
                 pass
 
         # Exact match on the values
-        return prop is pattern
+        return prop == pattern
 
     def _tags_match(self, span):
         # No rule was set, then assume it matches
-        if self._tags is self.NO_RULE:
+        if self.tags is self.NO_RULE:
             return True
 
         # No tags were provided to check, so it passes
-        if not self._tags:
+        if not self.tags:
             return True
 
         # Check patterns from all tags
@@ -312,14 +318,17 @@ class SamplingRule(object):
 
         return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self._sampling_id_threshold
 
+    def _no_rule_or_self(self, val):
+        return 'NO_RULE' if val is self.NO_RULE else val
+
     def __repr__(self):
-        return '%s(sample_rate=%r, service=%r, name=%r, resource=%r, tags=%r)'.format(
+        return '{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})'.format(
             self.__class__.__name__,
             self.sample_rate,
-            self.service,
-            self.name,
-            self.resource,
-            self.tags,
+            self._no_rule_or_self(self.service),
+            self._no_rule_or_self(self.name),
+            self._no_rule_or_self(self.resource),
+            self._no_rule_or_self(self.tags),
         )
 
     __str__ = __repr__
