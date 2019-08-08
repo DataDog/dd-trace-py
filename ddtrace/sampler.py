@@ -262,8 +262,7 @@ class SamplingRule(object):
             except (ValueError, TypeError):
                 # This is to guard us against the casting to a string (shouldn't happen, but still)
                 # TODO: Log that we could not apply the pattern to the prop?
-                # TODO: Do we return here?
-                pass
+                return False
 
         # Exact match on the values
         return prop == pattern
