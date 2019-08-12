@@ -16,9 +16,9 @@ except ImportError:
 
 
 class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
-    @abc.abstractmethod
-    def __init__(self, reset=False):
-        pass
+    def __init__(self, reset=True):
+        if reset:
+            self.reset()
 
     @abc.abstractmethod
     def _has_active_context(self):
@@ -32,6 +32,9 @@ class BaseContextManager(six.with_metaclass(abc.ABCMeta)):
     def get(self):
         pass
 
+    def reset(self):
+        pass
+
 
 class ThreadLocalContext(BaseContextManager):
     """
@@ -40,8 +43,9 @@ class ThreadLocalContext(BaseContextManager):
     is required to prevent multiple threads sharing the same ``Context``
     in different executions.
     """
-    def __init__(self, **kwargs):
-        self._locals = threading.local()
+    def __init__(self, reset=True):
+        # always initialize a new thread-local context holder
+        self.reset()
 
     def _has_active_context(self):
         """
@@ -65,6 +69,9 @@ class ThreadLocalContext(BaseContextManager):
 
         return ctx
 
+    def reset(self):
+        self._locals = threading.local()
+
 
 class ContextVarContextManager(BaseContextManager):
     """
@@ -72,11 +79,6 @@ class ContextVarContextManager(BaseContextManager):
     3.7 and above to manage different ``Context`` objects for each thread and
     async task.
     """
-    def __init__(self, reset=True):
-        super(ContextVarContextManager, self).__init__()
-        if reset:
-            self._reset()
-
     def _has_active_context(self):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
@@ -92,7 +94,7 @@ class ContextVarContextManager(BaseContextManager):
 
         return ctx
 
-    def _reset(self):
+    def reset(self):
         _DD_CONTEXTVAR.set(None)
 
 
