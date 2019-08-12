@@ -20,7 +20,7 @@ class TracerStackContext(DefaultContextProvider):
     https://github.com/tornadoweb/tornado/issues/1063
     """
     def __init__(self):
-        super(TracerStackContext, self).__init__()
+        super(TracerStackContext, self).__init__(reset_context_manager=False)
         self._active = True
         self._context = Context()
 

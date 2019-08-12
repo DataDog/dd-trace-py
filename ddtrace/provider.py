@@ -38,8 +38,8 @@ class DefaultContextProvider(BaseContextProvider):
     thread-local storage. It is suitable for synchronous programming and
     Python WSGI frameworks.
     """
-    def __init__(self):
-        self._local = DefaultContextManager()
+    def __init__(self, reset_context_manager=True):
+        self._local = DefaultContextManager(reset=reset_context_manager)
 
     def _has_active_context(self):
         """
