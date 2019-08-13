@@ -97,7 +97,7 @@ class TracedServer(ObjectProxy):
             try:
                 cmd = parse_query(operation)
             except Exception:
-                log.exception("error parsing query")
+                log.exception('error parsing query')
 
         pin = ddtrace.Pin.get_from(self)
 
@@ -109,7 +109,7 @@ class TracedServer(ObjectProxy):
                 **kwargs)
 
         with pin.tracer.trace(
-                "pymongo.cmd",
+                'pymongo.cmd',
                 span_type=mongox.TYPE,
                 service=pin.service) as span:
 
@@ -159,7 +159,7 @@ class TracedSocket(ObjectProxy):
         try:
             cmd = parse_spec(spec, dbname)
         except Exception:
-            log.exception("error parsing spec. skipping trace")
+            log.exception('error parsing spec. skipping trace')
 
         pin = ddtrace.Pin.get_from(self)
         # skip tracing if we don't have a piece of data we need
@@ -175,7 +175,7 @@ class TracedSocket(ObjectProxy):
         try:
             cmd = parse_msg(msg)
         except Exception:
-            log.exception("error parsing msg")
+            log.exception('error parsing msg')
 
         pin = ddtrace.Pin.get_from(self)
         # if we couldn't parse it, don't try to trace it.
@@ -185,13 +185,13 @@ class TracedSocket(ObjectProxy):
         with self.__trace(cmd) as s:
             result = self.__wrapped__.write_command(request_id, msg)
             if result:
-                s.set_metric(mongox.ROWS, result.get("n", -1))
+                s.set_metric(mongox.ROWS, result.get('n', -1))
             return result
 
     def __trace(self, cmd):
         pin = ddtrace.Pin.get_from(self)
         s = pin.tracer.trace(
-            "pymongo.cmd",
+            'pymongo.cmd',
             span_type=mongox.TYPE,
             service=pin.service)
 
@@ -228,9 +228,9 @@ def normalize_filter(f=None):
         #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         out = {}
         for k, v in iteritems(f):
-            if k == "$in" or k == "$nin":
+            if k == '$in' or k == '$nin':
                 # special case $in queries so we don't loop over lists.
-                out[k] = "?"
+                out[k] = '?'
             elif isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
                 out[k] = normalize_filter(v)

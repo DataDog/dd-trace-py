@@ -15,11 +15,11 @@ from ...base import BaseTracerTestCase
 def test_redis_legacy():
     # ensure the old interface isn't broken, but doesn't trace
     tracer = get_dummy_tracer()
-    TracedRedisCache = get_traced_redis(tracer, "foo")
+    TracedRedisCache = get_traced_redis(tracer, 'foo')
     r = TracedRedisCache(port=REDIS_CONFIG['port'])
-    r.set("a", "b")
-    got = r.get("a")
-    assert compat.to_unicode(got) == "b"
+    r.set('a', 'b')
+    got = r.get('a')
+    assert compat.to_unicode(got) == 'b'
     assert not tracer.writer.pop()
 
 
@@ -164,7 +164,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
         Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert spans, spans
@@ -174,7 +174,7 @@ class TestRedisPatch(BaseTracerTestCase):
         unpatch()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert not spans, spans
@@ -184,7 +184,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
         Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert spans, spans

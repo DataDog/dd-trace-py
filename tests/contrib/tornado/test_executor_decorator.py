@@ -1,6 +1,7 @@
 import unittest
 
 from ddtrace.contrib.tornado.compat import futures_available
+from ddtrace.ext import http
 
 from tornado import version_info
 
@@ -30,7 +31,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/executor_handler/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
 
@@ -61,7 +62,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorSubmitHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/executor_submit_handler/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_submit_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
 
@@ -91,7 +92,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
-        assert '/executor_exception/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_exception/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
         assert 'Exception: Ouch!' in request_span.get_tag('error.stack')
@@ -128,7 +129,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorCustomHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
-        assert '/executor_custom_handler/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_custom_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
 
@@ -161,7 +162,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'tests.contrib.tornado.web.app.ExecutorCustomArgsHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
-        assert '/executor_custom_args_handler/' == request_span.get_tag('http.url')
+        assert self.get_url('/executor_custom_args_handler/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'cannot combine positional and keyword args' == request_span.get_tag('error.msg')
         assert 'ValueError' in request_span.get_tag('error.stack')
@@ -170,7 +171,8 @@ class TestTornadoExecutor(TornadoTestCase):
     def test_futures_double_instrumentation(self):
         # it should not double wrap `ThreadpPoolExecutor.submit` method if
         # `futures` is already instrumented
-        from ddtrace import patch; patch(futures=True)  # noqa
+        from ddtrace import patch
+        patch(futures=True)
         from concurrent.futures import ThreadPoolExecutor
         from ddtrace.vendor.wrapt import BoundFunctionWrapper
 

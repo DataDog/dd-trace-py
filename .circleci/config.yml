@@ -8,8 +8,6 @@ httpbin_local: &httpbin_local
   name: httpbin.org
 test_runner: &test_runner
   image: datadog/docker-library:ddtrace_py
-  env:
-    TOX_SKIP_DIST: True
 restore_cache_step: &restore_cache_step
   restore_cache:
     keys:
@@ -56,20 +54,27 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
+      # Create and activate a Python3.7 virtualenv
+      - run: virtualenv --python python3.7 .venv/build
+
       # Install required dependencies
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel
+      - run: .venv/build/bin/pip install twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
-      - run: rm -rf dist/
+      - run: rm -rf build/ dist/
+      # Manually build any extensions to ensure they succeed
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py build_ext --force
       # Ensure source package will build
-      - run: python setup.py sdist
+      - run: .venv/build/bin/python setup.py sdist
       # Ensure wheel will build
-      - run: python setup.py bdist_wheel
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py bdist_wheel
       # Ensure package long description is valid and will render
       # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: twine check dist/*
+      - run: .venv/build/bin/twine check dist/*
       - *save_cache_step
 
   tracer:
@@ -79,7 +84,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-tracer' --result-json /tmp/tracer.results
+      - run: scripts/run-tox-scenario '^py..-tracer$'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -90,7 +95,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-internal' --result-json /tmp/internal.results
+      - run: scripts/run-tox-scenario '^py..-internal'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -101,11 +106,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-opentracer' --result-json /tmp/opentracer.results
-      - run: tox -e '{py34,py35,py36}-opentracer_asyncio' --result-json /tmp/opentracer-asyncio.results
-      - run: tox -e '{py34,py35,py36}-opentracer_tornado-tornado{40,41,42,43,44}' --result-json /tmp/opentracer-tornado.results
-      - run: tox -e '{py27}-opentracer_gevent-gevent{10}' --result-json /tmp/opentracer-gevent.1.results
-      - run: tox -e '{py27,py34,py35,py36}-opentracer_gevent-gevent{11,12}' --result-json /tmp/opentracer-gevent.2.results
+      - run: scripts/run-tox-scenario '^py..-opentracer'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -113,7 +114,6 @@ jobs:
     docker:
       - <<: *test_runner
         env:
-          TOX_SKIP_DIST: True
           TEST_DATADOG_INTEGRATION: 1
       - image: datadog/docker-dd-agent
         env:
@@ -124,7 +124,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-integration' --result-json /tmp/integration.results
+      - run: scripts/run-tox-scenario '^py..-integration$'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -135,8 +135,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'futures_contrib-{py27}-futures{30,31,32}' --result-json /tmp/futures.1.results
-      - run: tox -e 'futures_contrib-{py34,py35,py36}' --result-json /tmp/futures.2.results
+      - run: scripts/run-tox-scenario '^futures_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -147,8 +146,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'boto_contrib-{py27,py34}-boto' --result-json /tmp/boto.1.results
-      - run: tox -e 'botocore_contrib-{py27,py34,py35,py36}-botocore' --result-json /tmp/boto.2.results
+      - run: scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -156,12 +154,10 @@ jobs:
     docker:
       - *test_runner
       - image: redis:4.0-alpine
-    environment:
-      TOX_SKIP_DIST: False
     resource_class: *resource_class
     steps:
       - checkout
-      - run: tox -e '{py27,py34,py35,py36}-ddtracerun' --result-json /tmp/ddtracerun.results
+      - run: scripts/run-tox-scenario '^py..-ddtracerun$'
       - *persist_to_workspace_step
 
   test_utils:
@@ -171,7 +167,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-test_utils' --result-json /tmp/test_utils.results
+      - run: scripts/run-tox-scenario '^py..-test_utils$'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -182,7 +178,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e '{py27,py34,py35,py36}-test_logging' --result-json /tmp/test_logging.results
+      - run: scripts/run-tox-scenario '^py..-test_logging$'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -193,7 +189,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'asyncio_contrib-{py34,py35,py36}' --result-json /tmp/asyncio.results
+      - run: scripts/run-tox-scenario '^asyncio_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -204,7 +200,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pylons_contrib-{py27}-pylons{096,097,010,10}' --result-json /tmp/pylons.results
+      - run: scripts/run-tox-scenario '^pylons_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -215,7 +211,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'aiohttp_contrib-{py34,py35,py36}-aiohttp{12,13,20,21,22}-aiohttp_jinja{012,013}-yarl,aiohttp_contrib-{py34,py35,py36}-aiohttp23-aiohttp_jinja015-yarl10,aiohttp_contrib-{py35,py36}-aiohttp{30,31,32,33,34,35}-aiohttp_jinja015-yarl10' --result-json /tmp/aiohttp.results
+      - run: scripts/run-tox-scenario '^aiohttp_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -226,8 +222,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'tornado_contrib-{py27,py34,py35,py36}-tornado{40,41,42,43,44,45}' --result-json /tmp/tornado.1.results
-      - run: tox -e 'tornado_contrib-{py27}-tornado{40,41,42,43,44,45}-futures{30,31,32}' --result-json /tmp/tornado.2.results
+      - run: scripts/run-tox-scenario '^tornado_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -238,7 +233,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'bottle_contrib{,_autopatch}-{py27,py34,py35,py36}-bottle{11,12}-webtest' --result-json /tmp/bottle.results
+      - run: scripts/run-tox-scenario '^bottle_contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -246,7 +241,6 @@ jobs:
     docker:
       - <<: *test_runner
         env:
-          TOX_SKIP_DIST: True
           CASS_DRIVER_NO_EXTENSIONS: 1
       - image: spotify/cassandra:latest
         env:
@@ -257,24 +251,19 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e wait cassandra
-      - run: tox -e 'cassandra_contrib-{py27,py34,py35,py36}-cassandra{35,36,37,38,315}' --result-json /tmp/cassandra.results
+      - run: scripts/run-tox-scenario '^cassandra_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
   celery:
     docker:
-      - <<: *test_runner
-        env:
-          TOX_SKIP_DIST: False
+      - *test_runner
       - image: redis:4.0-alpine
     resource_class: *resource_class
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{31}-redis{210}' --result-json /tmp/celery31.results
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery{40,41}-{redis210-kombu43,redis320-kombu44}' --result-json /tmp/celery40-41.results
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery42-redis210-kombu43' --result-json /tmp/celery42.results
-      - run: tox -e 'celery_contrib-{py27,py34,py35,py36}-celery43-redis320-kombu44' --result-json /tmp/celery43.results
+      - run: scripts/run-tox-scenario '^celery_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -286,13 +275,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run:
-          command: |
-            tox -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch{16,17,18,23,24,51,52,53,54,63}' \
-                -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch1{100}' \
-                -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch2{50}' \
-                -e 'elasticsearch_contrib-{py27,py34,py35,py36}-elasticsearch5{50}' \
-                --result-json /tmp/elasticsearch.results
+      - run: scripts/run-tox-scenario '^elasticsearch_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -321,10 +304,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'django_contrib{,_autopatch}-{py27,py34,py35,py36}-django{18,111}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.1.results
-      - run: tox -e 'django_drf_contrib-{py27,py34,py35,py36}-django{111}-djangorestframework{34,37,38}' --result-json /tmp/django.2.results
-      - run: tox -e 'django_contrib{,_autopatch}-{py34,py35,py36}-django{200}-djangopylibmc06-djangoredis45-pylibmc-redis{210}-memcached' --result-json /tmp/django.3.results
-      - run: tox -e 'django_drf_contrib-{py34,py35,py36}-django{200}-djangorestframework{37,38}' --result-json /tmp/django.4.results
+      - run: scripts/run-tox-scenario '^django_'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -337,14 +317,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'flask_contrib-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.1.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012,10}-blinker' --result-json /tmp/flask.2.results
-      - run: tox -e 'flask_contrib-{py27}-flask{09}-blinker' --result-json /tmp/flask.3.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_contrib_autopatch-{py27}-flask{09}-blinker' --result-json /tmp/flask.4.results
-      - run: tox -e 'flask_cache_contrib-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.5.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27,py34,py35,py36}-flask{010,011,012}-flaskcache{013}-memcached-redis{210}-blinker' --result-json /tmp/flask.6.results
-      - run: tox -e 'flask_cache_contrib-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.7.results
-      - run: TOX_SKIP_DIST=False tox -e 'flask_cache_contrib_autopatch-{py27}-flask{010,011}-flaskcache{012}-memcached-redis{210}-blinker' --result-json /tmp/flask.8.results
+      - run: scripts/run-tox-scenario '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -355,8 +328,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'gevent_contrib-{py27,py34,py35,py36}-gevent{11,12,13}' --result-json /tmp/gevent.1.results
-      - run: tox -e 'gevent_contrib-{py27}-gevent{10}' --result-json /tmp/gevent.2.results
+      - run: scripts/run-tox-scenario '^gevent_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -367,7 +339,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'httplib_contrib-{py27,py34,py35,py36}' --result-json /tmp/httplib.results
+      - run: scripts/run-tox-scenario '^httplib_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -378,7 +350,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'grpc_contrib-{py27,py34,py35,py36}-grpc' --result-json /tmp/grpc.results
+      - run: scripts/run-tox-scenario '^grpc_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -389,7 +361,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'molten_contrib-{py36}-molten{070,072}' --result-json /tmp/molten.results
+      - run: scripts/run-tox-scenario '^molten_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -407,7 +379,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' mysql
-      - run: tox -e 'mysql_contrib-{py27,py34,py35,py36}-mysqlconnector' --result-json /tmp/mysqlconnector.results
+      - run: scripts/run-tox-scenario '^mysql_contrib-.*-mysqlconnector'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -425,7 +397,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' mysql
-      - run: tox -e 'mysqldb_contrib-{py27,py34,py35,py36}-mysqlclient{13}' --result-json /tmp/mysqlpython.results
+      - run: scripts/run-tox-scenario '^mysqldb_contrib-.*-mysqlclient'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -443,7 +415,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' mysql
-      - run: tox -e 'mysqldb_contrib-{py27}-mysqldb{12}' --result-json /tmp/mysqldb.results
+      - run: scripts/run-tox-scenario '^mysqldb_contrib-.*-mysqldb'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -461,7 +433,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' mysql
-      - run: tox -e 'pymysql_contrib-{py27,py34,py35,py36}-pymysql{07,08,09}' --result-json /tmp/pymysql.results
+      - run: scripts/run-tox-scenario '^pymysql_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -473,7 +445,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pylibmc_contrib-{py27,py34,py35,py36}-pylibmc{140,150}' --result-json /tmp/pylibmc.results
+      - run: scripts/run-tox-scenario '^pylibmc_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -485,7 +457,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pymemcache_contrib{,_autopatch}-{py27,py34,py35,py36}-pymemcache{130,140}' --result-json /tmp/pymemcache.results
+      - run: scripts/run-tox-scenario '^pymemcache_contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -497,7 +469,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'mongoengine_contrib-{py27,py34,py35,py36}-mongoengine{015}' --result-json /tmp/mongoengine.results
+      - run: scripts/run-tox-scenario '^mongoengine_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -509,7 +481,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pymongo_contrib-{py27,py34,py35,py36}-pymongo{30,31,32,33,34,36}-mongoengine{015}' --result-json /tmp/pymongo.results
+      - run: scripts/run-tox-scenario '^pymongo_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -520,7 +492,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'pyramid_contrib{,_autopatch}-{py27,py34,py35,py36}-pyramid{17,18,19}-webtest' --result-json /tmp/pyramid.results
+      - run: scripts/run-tox-scenario '^pyramid_contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -532,7 +504,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'requests_contrib{,_autopatch}-{py27,py34,py35,py36}-requests{208,209,210,211,212,213,219}' --result-json /tmp/requests.results
+      - run: scripts/run-tox-scenario '^requests_contrib\(_autopatch\)\?-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -543,7 +515,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'requests_gevent_contrib-{py36}-requests{208,209,210,211,212,213,219}-gevent{12,13}' --result-json /tmp/requestsgevent.results
+      - run: scripts/run-tox-scenario '^requests_gevent_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -566,7 +538,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres mysql
-      - run: tox -e 'sqlalchemy_contrib-{py27,py34,py35,py36}-sqlalchemy{10,11,12}-psycopg228-mysqlconnector' --result-json /tmp/sqlalchemy.results
+      - run: scripts/run-tox-scenario '^sqlalchemy_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -577,7 +549,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'dbapi_contrib-{py27,py34,py35,py36}' --result-json /tmp/dbapi.results
+      - run: scripts/run-tox-scenario '^dbapi_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -594,7 +566,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres
-      - run: tox -e 'psycopg_contrib-{py27,py34,py35,py36}-psycopg2{24,25,26,27,28}' --result-json /tmp/psycopg.results
+      - run: scripts/run-tox-scenario '^psycopg_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -606,7 +578,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'aiobotocore_contrib-py34-aiobotocore{02,03,04},aiobotocore_contrib-{py35,py36}-aiobotocore{02,03,04,05,07,08,09,010}' --result-json /tmp/aiobotocore.results
+      - run: scripts/run-tox-scenario '^aiobotocore_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -623,7 +595,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e 'wait' postgres
-      - run: tox -e 'aiopg_contrib-{py34,py35,py36}-aiopg{012,015}' --result-json /tmp/aiopg.results
+      - run: scripts/run-tox-scenario '^aiopg_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -635,7 +607,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'redis_contrib-{py27,py34,py35,py36}-redis{26,27,28,29,210,300}' --result-json /tmp/redis.results
+      - run: scripts/run-tox-scenario '^redis_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -650,7 +622,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e wait rediscluster
-      - run: tox -e 'rediscluster_contrib-{py27,py34,py35,py36}-rediscluster{135,136}-redis210' --result-json /tmp/rediscluster.results
+      - run: scripts/run-tox-scenario '^rediscluster_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -667,7 +639,7 @@ jobs:
       - checkout
       - *restore_cache_step
       - run: tox -e wait vertica
-      - run: tox -e 'vertica_contrib-{py27,py34,py35,py36}-vertica{060,070}' --result-json /tmp/vertica.results
+      - run: scripts/run-tox-scenario '^vertica_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -680,7 +652,7 @@ jobs:
     - checkout
     - *restore_cache_step
     - run: tox -e wait rabbitmq
-    - run: tox -e 'kombu_contrib-{py27,py34,py35,py36}-kombu{40,41,42}' --result-json /tmp/kombu.results
+    - run: scripts/run-tox-scenario '^kombu_contrib-'
     - *persist_to_workspace_step
     - *save_cache_step
 
@@ -691,18 +663,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'sqlite3_contrib-{py27,py34,py35,py36}-sqlite3' --result-json /tmp/sqlite3.results
-      - *persist_to_workspace_step
-      - *save_cache_step
-
-  msgpack:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
-    steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'msgpack_contrib-{py27,py34}-msgpack{03,04,05}' --result-json /tmp/msgpack.results
+      - run: scripts/run-tox-scenario '^sqlite3_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -713,12 +674,30 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'unit_tests-{py27,py34,py35,py36}' --result-json /tmp/unit_tests.results
+      - run: scripts/run-tox-scenario '^unit_tests-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
+  benchmarks:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run:
+          command: |
+            mkdir -p /tmp/test-reports
+            tox -e 'benchmarks-{py27,py34,py35,py36,py37}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
+      - store_test_results:
+          path: /tmp/test-reports
+      - store_artifacts:
+          path: /tmp/test-reports
       - *persist_to_workspace_step
       - *save_cache_step
 
   deploy_dev:
-    # build the master/*-dev branch releasing development docs and wheels
+    # build the master branch releasing development docs and wheels
     docker:
       - image: circleci/python:3.6
     resource_class: *resource_class
@@ -736,7 +715,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'jinja2_contrib-{py27,py34,py35,py36}-jinja{27,28,29,210}' --result-json /tmp/jinja2.results
+      - run: scripts/run-tox-scenario '^jinja2_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -747,7 +726,18 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: tox -e 'mako_contrib-{py27,py34,py35,py36}-mako{010,100}' --result-json /tmp/mako.results
+      - run: scripts/run-tox-scenario '^mako_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
+  algoliasearch:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^algoliasearch_contrib-'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -834,6 +824,12 @@ workflows:
       - asyncio:
           requires:
             - flake8
+      - algoliasearch:
+          requires:
+            - flake8
+      - benchmarks:
+          requires:
+            - flake8
       - boto:
           requires:
             - flake8
@@ -895,9 +891,6 @@ workflows:
           requires:
             - flake8
       - mongoengine:
-          requires:
-            - flake8
-      - msgpack:
           requires:
             - flake8
       - mysqlconnector:
@@ -981,6 +974,8 @@ workflows:
             - aiohttp
             - aiopg
             - asyncio
+            - algoliasearch
+            - benchmarks
             - boto
             - bottle
             - cassandra
@@ -1002,7 +997,6 @@ workflows:
             - mako
             - molten
             - mongoengine
-            - msgpack
             - mysqlconnector
             - mysqldb
             - mysqlpython
@@ -1031,4 +1025,4 @@ workflows:
             - wait_all_tests
           filters:
             branches:
-              only: /(master|.*-dev)/
+              only: master

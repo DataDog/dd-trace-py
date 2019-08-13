@@ -1,4 +1,4 @@
-from ddtrace.settings import Config, IntegrationConfig, HttpConfig
+from ddtrace.settings import Config, HttpConfig, IntegrationConfig
 
 from ..base import BaseTestCase
 
@@ -10,6 +10,31 @@ class TestConfig(BaseTestCase):
             self.assertTrue(config.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+    def test_environment_analytics_overrides(self):
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False', DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False', DD_TRACE_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True', DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True', DD_TRACE_ANALYTICS_ENABLED='False')):
             config = Config()
             self.assertFalse(config.analytics_enabled)
 

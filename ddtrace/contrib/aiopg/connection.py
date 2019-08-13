@@ -11,7 +11,7 @@ from ...settings import config
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces it's queries. """
+    """ TracedCursor wraps a psql cursor and traces its queries. """
 
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
@@ -23,7 +23,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
-            result = yield from method(*args, **kwargs)  # noqa: E999
+            result = yield from method(*args, **kwargs)
             return result
         service = pin.service
 
@@ -44,7 +44,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = yield from method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric("db.rowcount", self.rowcount)
+                s.set_metric('db.rowcount', self.rowcount)
 
     @asyncio.coroutine
     def executemany(self, query, *args, **kwargs):
@@ -52,7 +52,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # with different libs.
         result = yield from self._trace_method(
             self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)  # noqa: E999
+            query, *args, **kwargs)
         return result
 
     @asyncio.coroutine
@@ -64,8 +64,11 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     @asyncio.coroutine
     def callproc(self, proc, args):
         result = yield from self._trace_method(
-            self.__wrapped__.callproc, proc, {}, proc, args)  # noqa: E999
+            self.__wrapped__.callproc, proc, {}, proc, args)
         return result
+
+    def __aiter__(self):
+        return self.__wrapped__.__aiter__()
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):
@@ -88,7 +91,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
 
     @asyncio.coroutine
     def _cursor(self, *args, **kwargs):
-        cursor = yield from self.__wrapped__._cursor(*args, **kwargs)  # noqa: E999
+        cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
         pin = Pin.get_from(self)
         if not pin:
             return cursor

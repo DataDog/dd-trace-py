@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 # stdlib
 import time
 import asyncio
@@ -90,7 +88,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
-        assert ot_span.parent_id == None
+        assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
         assert ot_span.name == 'aiopg_op'
         assert ot_span.service == 'aiopg_svc'
@@ -202,7 +200,6 @@ class AiopgTestCase(AsyncioTestCase):
 class AiopgAnalyticsTestCase(AiopgTestCase):
     @asyncio.coroutine
     def trace_spans(self):
-        service = 'db'
         conn, _ = yield from self._get_conn_and_tracer()
 
         Pin.get_from(conn).clone(service='db', tracer=self.tracer).onto(conn)

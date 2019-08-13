@@ -18,7 +18,7 @@ class TestKombuPatch(BaseTracerTestCase):
     def setUp(self):
         super(TestKombuPatch, self).setUp()
 
-        conn = kombu.Connection("amqp://guest:guest@127.0.0.1:{p}//".format(p=self.TEST_PORT))
+        conn = kombu.Connection('amqp://guest:guest@127.0.0.1:{p}//'.format(p=self.TEST_PORT))
         conn.connect()
         producer = conn.Producer()
         Pin.override(producer, service=self.TEST_SERVICE, tracer=self.tracer)

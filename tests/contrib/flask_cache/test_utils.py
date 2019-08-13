@@ -13,7 +13,7 @@ from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 
 
 class FlaskCacheUtilsTest(unittest.TestCase):
-    SERVICE = "test-flask-cache"
+    SERVICE = 'test-flask-cache'
 
     def test_extract_redis_connection_metadata(self):
         # create the TracedCache instance for a Flask app
@@ -21,8 +21,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
-            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
+            'CACHE_TYPE': 'redis',
+            'CACHE_REDIS_PORT': REDIS_CONFIG['port'],
         }
         traced_cache = Cache(app, config=config)
         # extract client data
@@ -36,8 +36,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "memcached",
-            "CACHE_MEMCACHED_SERVERS": ["127.0.0.1:{}".format(MEMCACHED_CONFIG['port'])],
+            'CACHE_TYPE': 'memcached',
+            'CACHE_MEMCACHED_SERVERS': ['127.0.0.1:{}'.format(MEMCACHED_CONFIG['port'])],
         }
         traced_cache = Cache(app, config=config)
         # extract client data
@@ -51,10 +51,10 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "memcached",
-            "CACHE_MEMCACHED_SERVERS": [
-                "127.0.0.1:{}".format(MEMCACHED_CONFIG['port']),
-                "localhost:{}".format(MEMCACHED_CONFIG['port']),
+            'CACHE_TYPE': 'memcached',
+            'CACHE_MEMCACHED_SERVERS': [
+                '127.0.0.1:{}'.format(MEMCACHED_CONFIG['port']),
+                'localhost:{}'.format(MEMCACHED_CONFIG['port']),
             ],
         }
         traced_cache = Cache(app, config=config)
@@ -72,14 +72,14 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
-            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
-            "CACHE_KEY_PREFIX": "users",
+            'CACHE_TYPE': 'redis',
+            'CACHE_REDIS_PORT': REDIS_CONFIG['port'],
+            'CACHE_KEY_PREFIX': 'users',
         }
         traced_cache = Cache(app, config=config)
         # expect a resource with a prefix
-        expected_resource = "get users"
-        resource = _resource_from_cache_prefix("GET", traced_cache.cache)
+        expected_resource = 'get users'
+        resource = _resource_from_cache_prefix('GET', traced_cache.cache)
         assert resource == expected_resource
 
     def test_resource_from_cache_with_empty_prefix(self):
@@ -88,14 +88,14 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
         config = {
-            "CACHE_TYPE": "redis",
-            "CACHE_REDIS_PORT": REDIS_CONFIG['port'],
-            "CACHE_KEY_PREFIX": "",
+            'CACHE_TYPE': 'redis',
+            'CACHE_REDIS_PORT': REDIS_CONFIG['port'],
+            'CACHE_KEY_PREFIX': '',
         }
         traced_cache = Cache(app, config=config)
         # expect a resource with a prefix
-        expected_resource = "get"
-        resource = _resource_from_cache_prefix("GET", traced_cache.cache)
+        expected_resource = 'get'
+        resource = _resource_from_cache_prefix('GET', traced_cache.cache)
         assert resource == expected_resource
 
     def test_resource_from_cache_without_prefix(self):
@@ -103,8 +103,8 @@ class FlaskCacheUtilsTest(unittest.TestCase):
         tracer = Tracer()
         Cache = get_traced_cache(tracer, service=self.SERVICE)
         app = Flask(__name__)
-        traced_cache = Cache(app, config={"CACHE_TYPE": "redis"})
+        traced_cache = Cache(app, config={'CACHE_TYPE': 'redis'})
         # expect only the resource name
-        expected_resource = "get"
-        resource = _resource_from_cache_prefix("GET", traced_cache.config)
+        expected_resource = 'get'
+        resource = _resource_from_cache_prefix('GET', traced_cache.config)
         assert resource == expected_resource

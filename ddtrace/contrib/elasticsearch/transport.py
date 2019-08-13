@@ -24,7 +24,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-            with self._datadog_tracer.trace("elasticsearch.query") as s:
+            with self._datadog_tracer.trace('elasticsearch.query') as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:
                     return super(TracedTransport, self).perform_request(
@@ -35,7 +35,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)
                 s.set_tag(metadata.PARAMS, urlencode(params))
-                if method == "GET":
+                if method == 'GET':
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
                 s = quantize(s)
 
@@ -57,7 +57,7 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 if status:
                     s.set_tag(http.STATUS_CODE, status)
 
-                took = data.get("took")
+                took = data.get('took')
                 if took:
                     s.set_metric(metadata.TOOK, int(took))
 

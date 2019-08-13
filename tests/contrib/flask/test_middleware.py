@@ -35,7 +35,7 @@ class TestFlask(TestCase):
         # and `TraceMiddleware` are used together. `traced_app` MUST
         # be assigned otherwise it's not possible to reproduce the
         # problem (the test scope must keep a strong reference)
-        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa
+        traced_app = TraceMiddleware(self.flask_app, self.tracer)  # noqa: F841
         rv = self.app.get('/child')
         assert rv.status_code == 200
         spans = self.tracer.writer.pop()
@@ -76,7 +76,7 @@ class TestFlask(TestCase):
         assert s.trace_id
         assert not s.parent_id
         assert s.service == 'test.flask.service'
-        assert s.resource == "child"
+        assert s.resource == 'child'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -106,7 +106,7 @@ class TestFlask(TestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.service == 'test.flask.service'
-        assert s.resource == "index"
+        assert s.resource == 'index'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -131,17 +131,17 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
-        s = by_name["flask.request"]
-        assert s.service == "test.flask.service"
-        assert s.resource == "tmpl"
+        s = by_name['flask.request']
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'tmpl'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
         assert s.meta.get(http.STATUS_CODE) == '200'
         assert s.meta.get(http.METHOD) == 'GET'
 
-        t = by_name["flask.template"]
-        assert t.get_tag("flask.template") == "test.html"
+        t = by_name['flask.template']
+        assert t.get_tag('flask.template') == 'test.html'
         assert t.parent_id == s.span_id
         assert t.trace_id == s.trace_id
         assert s.start < t.start < t.start + t.duration < end
@@ -160,8 +160,8 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
-        assert s.resource == "handle_me"
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'handle_me'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
@@ -183,9 +183,9 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         by_name = {s.name: s for s in spans}
-        s = by_name["flask.request"]
-        assert s.service == "test.flask.service"
-        assert s.resource == "tmpl_err"
+        s = by_name['flask.request']
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'tmpl_err'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
@@ -208,16 +208,16 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
-        s = by_name["flask.request"]
-        assert s.service == "test.flask.service"
-        assert s.resource == "tmpl_render_err"
+        s = by_name['flask.request']
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'tmpl_render_err'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
         assert s.meta.get(http.STATUS_CODE) == '500'
         assert s.meta.get(http.METHOD) == 'GET'
-        t = by_name["flask.template"]
-        assert t.get_tag("flask.template") == "render_err.html"
+        t = by_name['flask.template']
+        assert t.get_tag('flask.template') == 'render_err.html'
         assert t.error == 1
         assert t.parent_id == s.span_id
         assert t.trace_id == s.trace_id
@@ -236,8 +236,8 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
-        assert s.resource == "error"
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'error'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.meta.get(http.STATUS_CODE) == '500'
@@ -261,14 +261,14 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
-        assert s.resource == "fatal"
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'fatal'
         assert s.start >= start
         assert s.duration <= end - start
         assert s.meta.get(http.STATUS_CODE) == '500'
         assert s.meta.get(http.METHOD) == 'GET'
-        assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE), s.meta
-        assert "by zero" in s.meta.get(errors.ERROR_MSG)
+        assert 'ZeroDivisionError' in s.meta.get(errors.ERROR_TYPE), s.meta
+        assert 'by zero' in s.meta.get(errors.ERROR_MSG)
         assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
 
     def test_unicode(self):
@@ -285,7 +285,7 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
+        assert s.service == 'test.flask.service'
         assert s.resource == u'üŋïĉóđē'
         assert s.start >= start
         assert s.duration <= end - start
@@ -307,7 +307,7 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
+        assert s.service == 'test.flask.service'
         assert s.resource == u'404'
         assert s.start >= start
         assert s.duration <= end - start
@@ -346,8 +346,8 @@ class TestFlask(TestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.service == "test.flask.service"
-        assert s.resource == "overridden"
+        assert s.service == 'test.flask.service'
+        assert s.resource == 'overridden'
         assert s.error == 0
         assert s.meta.get(http.STATUS_CODE) == '200'
         assert s.meta.get(http.METHOD) == 'GET'
@@ -379,7 +379,7 @@ class TestFlask(TestCase):
         assert ot_span.resource == 'ot_span'
         assert ot_span.service == 'my_svc'
 
-        assert dd_span.resource == "index"
+        assert dd_span.resource == 'index'
         assert dd_span.start >= start
         assert dd_span.duration <= end - start
         assert dd_span.error == 0

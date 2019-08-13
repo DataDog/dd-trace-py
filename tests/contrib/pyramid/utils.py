@@ -7,6 +7,7 @@ import webtest
 from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
+from ddtrace.ext import http
 
 from .app import create_app
 
@@ -60,7 +61,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
-        assert s.meta.get('http.url') == '/'
+        assert s.meta.get(http.URL) == 'http://localhost/'
         assert s.meta.get('pyramid.route.name') == 'index'
 
         # ensure services are set correctly
@@ -138,7 +139,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '404'
-        assert s.meta.get('http.url') == '/404'
+        assert s.meta.get(http.URL) == 'http://localhost/404'
 
     def test_302(self):
         self.app.get('/redirect', status=302)
@@ -153,7 +154,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '302'
-        assert s.meta.get('http.url') == '/redirect'
+        assert s.meta.get(http.URL) == 'http://localhost/redirect'
 
     def test_204(self):
         self.app.get('/nocontent', status=204)
@@ -168,7 +169,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '204'
-        assert s.meta.get('http.url') == '/nocontent'
+        assert s.meta.get(http.URL) == 'http://localhost/nocontent'
 
     def test_exception(self):
         try:
@@ -186,7 +187,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '500'
-        assert s.meta.get('http.url') == '/exception'
+        assert s.meta.get(http.URL) == 'http://localhost/exception'
         assert s.meta.get('pyramid.route.name') == 'exception'
 
     def test_500(self):
@@ -202,7 +203,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '500'
-        assert s.meta.get('http.url') == '/error'
+        assert s.meta.get(http.URL) == 'http://localhost/error'
         assert s.meta.get('pyramid.route.name') == 'error'
         assert type(s.error) == int
 
@@ -222,7 +223,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
-        assert s.meta.get('http.url') == '/json'
+        assert s.meta.get(http.URL) == 'http://localhost/json'
         assert s.meta.get('pyramid.route.name') == 'json'
 
         s = spans_by_name['pyramid.render']
@@ -246,7 +247,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
-        assert s.meta.get('http.url') == '/renderer'
+        assert s.meta.get(http.URL) == 'http://localhost/renderer'
         assert s.meta.get('pyramid.route.name') == 'renderer'
 
         s = spans_by_name['pyramid.render']
@@ -268,7 +269,7 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == 'http'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '404'
-        assert s.meta.get('http.url') == '/404/raise_exception'
+        assert s.meta.get(http.URL) == 'http://localhost/404/raise_exception'
 
     def test_insert_tween_if_needed_already_set(self):
         settings = {'pyramid.tweens': 'ddtrace.contrib.pyramid:trace_tween_factory'}
@@ -340,5 +341,5 @@ class PyramidTestCase(PyramidBase):
         assert dd_span.span_type == 'http'
         assert dd_span.meta.get('http.method') == 'GET'
         assert dd_span.meta.get('http.status_code') == '200'
-        assert dd_span.meta.get('http.url') == '/'
+        assert dd_span.meta.get(http.URL) == 'http://localhost/'
         assert dd_span.meta.get('pyramid.route.name') == 'index'

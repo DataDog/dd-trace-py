@@ -2,8 +2,6 @@
 
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
-from threading import Lock
-
 from .compat import iteritems
 from .internal.logger import get_logger
 
@@ -31,14 +29,14 @@ class RateSampler(object):
 
     def __init__(self, sample_rate=1):
         if sample_rate <= 0:
-            log.error("sample_rate is negative or null, disable the Sampler")
+            log.error('sample_rate is negative or null, disable the Sampler')
             sample_rate = 1
         elif sample_rate > 1:
             sample_rate = 1
 
         self.set_sample_rate(sample_rate)
 
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
+        log.debug('initialized RateSampler, sample %s%% of traces', 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate):
         self.sample_rate = sample_rate
@@ -50,15 +48,6 @@ class RateSampler(object):
         return sampled
 
 
-def _key(service=None, env=None):
-    service = service or ""
-    env = env or ""
-    return "service:" + service + ",env:" + env
-
-
-_default_key = _key()
-
-
 class RateByServiceSampler(object):
     """Sampler based on a rate, by service
 
@@ -66,34 +55,40 @@ class RateByServiceSampler(object):
     The sample rate is kept independently for each service/env tuple.
     """
 
+    @staticmethod
+    def _key(service=None, env=None):
+        """Compute a key with the same format used by the Datadog agent API."""
+        service = service or ''
+        env = env or ''
+        return 'service:' + service + ',env:' + env
+
     def __init__(self, sample_rate=1):
-        self._lock = Lock()
-        self._by_service_samplers = {}
-        self._by_service_samplers[_default_key] = RateSampler(sample_rate)
+        self.sample_rate = sample_rate
+        self._by_service_samplers = self._get_new_by_service_sampler()
 
-    def _set_sample_rate_by_key(self, sample_rate, key):
-        with self._lock:
-            if key in self._by_service_samplers:
-                self._by_service_samplers[key].set_sample_rate(sample_rate)
-            else:
-                self._by_service_samplers[key] = RateSampler(sample_rate)
+    def _get_new_by_service_sampler(self):
+        return {
+            self._default_key: RateSampler(self.sample_rate)
+        }
 
-    def set_sample_rate(self, sample_rate, service="", env=""):
-        self._set_sample_rate_by_key(sample_rate, _key(service, env))
+    def set_sample_rate(self, sample_rate, service='', env=''):
+        self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
     def sample(self, span):
         tags = span.tracer().tags
         env = tags['env'] if 'env' in tags else None
-        key = _key(span.service, env)
-        with self._lock:
-            if key in self._by_service_samplers:
-                return self._by_service_samplers[key].sample(span)
-            return self._by_service_samplers[_default_key].sample(span)
+        key = self._key(span.service, env)
+        return self._by_service_samplers.get(
+            key, self._by_service_samplers[self._default_key]
+        ).sample(span)
 
     def set_sample_rate_by_service(self, rate_by_service):
+        new_by_service_samplers = self._get_new_by_service_sampler()
         for key, sample_rate in iteritems(rate_by_service):
-            self._set_sample_rate_by_key(sample_rate, key)
-        with self._lock:
-            for key in list(self._by_service_samplers):
-                if key not in rate_by_service and key != _default_key:
-                    del self._by_service_samplers[key]
+            new_by_service_samplers[key] = RateSampler(sample_rate)
+
+        self._by_service_samplers = new_by_service_samplers
+
+
+# Default key for service with no specific rate
+RateByServiceSampler._default_key = RateByServiceSampler._key()

@@ -2,15 +2,16 @@ import contextlib
 import mock
 import threading
 
-from unittest import TestCase
+from .base import BaseTestCase
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.span import Span
 from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
 
-class TestTracingContext(TestCase):
+class TestTracingContext(BaseTestCase):
     """
     Tests related to the ``Context`` class that hosts the trace for the
     current execution flow.
@@ -43,7 +44,9 @@ class TestTracingContext(TestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        assert ctx._sampled is True
+        span.finish()
+        trace, sampled = ctx.get()
+        assert sampled is True
         assert ctx.sampling_priority is None
 
     def test_context_priority(self):
@@ -53,12 +56,14 @@ class TestTracingContext(TestCase):
             ctx.sampling_priority = priority
             span = Span(tracer=None, name=('fake_span_%s' % repr(priority)))
             ctx.add_span(span)
+            span.finish()
             # It's "normal" to have sampled be true even when priority sampling is
             # set to 0 or -1. It would stay false even even with priority set to 2.
             # The only criteria to send (or not) the spans to the agent should be
             # this "sampled" attribute, as it's tightly related to the trace weight.
-            assert ctx._sampled is True, 'priority has no impact on sampled status'
             assert priority == ctx.sampling_priority
+            trace, sampled = ctx.get()
+            assert sampled is True, 'priority has no impact on sampled status'
 
     def test_current_span(self):
         # it should return the current active span
@@ -86,7 +91,6 @@ class TestTracingContext(TestCase):
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
         ctx.close_span(span)
-        assert 1 == ctx._finished_spans
         assert ctx.get_current_span() is None
 
     def test_get_trace(self):
@@ -95,16 +99,13 @@ class TestTracingContext(TestCase):
         ctx = Context()
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
-        ctx.close_span(span)
+        span.finish()
         trace, sampled = ctx.get()
-        assert 1 == len(trace)
-        assert span == trace[0]
+        assert [span] == trace
         assert sampled is True
         # the context should be empty
         assert 0 == len(ctx._trace)
-        assert 0 == ctx._finished_spans
         assert ctx._current_span is None
-        assert ctx._sampled is True
 
     def test_get_trace_empty(self):
         # it should return None if the Context is not finished
@@ -114,6 +115,62 @@ class TestTracingContext(TestCase):
         trace, sampled = ctx.get()
         assert trace is None
         assert sampled is None
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_enabled(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        with self.override_global_config(dict(report_hostname=True)):
+            # Create a context and add a span and finish it
+            ctx = Context()
+            span = Span(tracer=None, name='fake_span')
+            ctx.add_span(span)
+            span.finish()
+
+            # Assert that we have not added the tag to the span yet
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+            # Assert that retrieving the trace sets the tag
+            trace, _ = ctx.get()
+            assert trace[0].get_tag(HOSTNAME_KEY) == 'test-hostname'
+            assert span.get_tag(HOSTNAME_KEY) == 'test-hostname'
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_disabled(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        with self.override_global_config(dict(report_hostname=False)):
+            # Create a context and add a span and finish it
+            ctx = Context()
+            span = Span(tracer=None, name='fake_span')
+            ctx.add_span(span)
+            span.finish()
+
+            # Assert that we have not added the tag to the span yet
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+            # Assert that retrieving the trace does not set the tag
+            trace, _ = ctx.get()
+            assert trace[0].get_tag(HOSTNAME_KEY) is None
+            assert span.get_tag(HOSTNAME_KEY) is None
+
+    @mock.patch('ddtrace.internal.hostname.get_hostname')
+    def test_get_report_hostname_default(self, get_hostname):
+        get_hostname.return_value = 'test-hostname'
+
+        # Create a context and add a span and finish it
+        ctx = Context()
+        span = Span(tracer=None, name='fake_span')
+        ctx.add_span(span)
+        span.finish()
+
+        # Assert that we have not added the tag to the span yet
+        assert span.get_tag(HOSTNAME_KEY) is None
+
+        # Assert that retrieving the trace does not set the tag
+        trace, _ = ctx.get()
+        assert trace[0].get_tag(HOSTNAME_KEY) is None
+        assert span.get_tag(HOSTNAME_KEY) is None
 
     def test_partial_flush(self):
         """
@@ -148,7 +205,6 @@ class TestTracingContext(TestCase):
         )
 
         # Ensure we clear/reset internal stats as expected
-        self.assertEqual(ctx._finished_spans, 0)
         self.assertEqual(ctx._trace, [root])
         with self.override_partial_flush(ctx, enabled=True, min_spans=5):
             trace, sampled = ctx.get()
@@ -188,7 +244,6 @@ class TestTracingContext(TestCase):
         )
 
         # Ensure we clear/reset internal stats as expected
-        self.assertEqual(ctx._finished_spans, 0)
         self.assertEqual(ctx._trace, [root])
         with self.override_partial_flush(ctx, enabled=True, min_spans=5):
             trace, sampled = ctx.get()
@@ -223,7 +278,6 @@ class TestTracingContext(TestCase):
         self.assertIsNone(sampled)
 
         self.assertEqual(len(ctx._trace), 6)
-        self.assertEqual(ctx._finished_spans, 5)
         self.assertEqual(
             set(['root', 'child_0', 'child_1', 'child_2', 'child_3', 'child_4']),
             set([span.name for span in ctx._trace])
@@ -265,7 +319,6 @@ class TestTracingContext(TestCase):
 
         # Assert remaining unclosed spans
         self.assertEqual(len(ctx._trace), 6)
-        self.assertEqual(ctx._finished_spans, 0)
         self.assertEqual(
             set(['root', 'child_5', 'child_6', 'child_7', 'child_8', 'child_9']),
             set([span.name for span in ctx._trace]),
@@ -277,12 +330,6 @@ class TestTracingContext(TestCase):
         span = Span(tracer=None, name='fake_span')
         ctx.add_span(span)
         ctx.close_span(span)
-        assert ctx.is_finished()
-
-    def test_finished_empty(self):
-        # a Context is not finished if it's empty
-        ctx = Context()
-        assert ctx.is_finished() is False
 
     @mock.patch('logging.Logger.debug')
     def test_log_unfinished_spans(self, log):
@@ -301,7 +348,6 @@ class TestTracingContext(TestCase):
         ctx.add_span(child_2)
         # close only the parent
         root.finish()
-        assert ctx.is_finished() is False
         unfinished_spans_log = log.call_args_list[-3][0][2]
         child_1_log = log.call_args_list[-2][0][1]
         child_2_log = log.call_args_list[-1][0][1]
@@ -328,7 +374,6 @@ class TestTracingContext(TestCase):
         ctx.add_span(child_2)
         # close only the parent
         root.finish()
-        assert ctx.is_finished() is False
         # the logger has never been invoked to print unfinished spans
         for call, _ in log.call_args_list:
             msg = call[0]
@@ -385,15 +430,13 @@ class TestTracingContext(TestCase):
         cloned_ctx = ctx.clone()
         assert cloned_ctx._parent_trace_id == ctx._parent_trace_id
         assert cloned_ctx._parent_span_id == ctx._parent_span_id
-        assert cloned_ctx._sampled == ctx._sampled
         assert cloned_ctx._sampling_priority == ctx._sampling_priority
         assert cloned_ctx._dd_origin == ctx._dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []
-        assert cloned_ctx._finished_spans == 0
 
 
-class TestThreadContext(TestCase):
+class TestThreadContext(BaseTestCase):
     """
     Ensures that a ``ThreadLocalContext`` makes the Context
     local to each thread.

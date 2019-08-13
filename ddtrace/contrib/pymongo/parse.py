@@ -18,23 +18,24 @@ log = get_logger(__name__)
 # MongoDB wire protocol commands
 # http://docs.mongodb.com/manual/reference/mongodb-wire-protocol
 OP_CODES = {
-    1: "reply",
-    1000: "msg",
-    2001: "update",
-    2002: "insert",
-    2003: "reserved",
-    2004: "query",
-    2005: "get_more",
-    2006: "delete",
-    2007: "kill_cursors",
-    2010: "command",
-    2011: "command_reply",
+    1: 'reply',
+    1000: 'msg',  # DEV: 1000 was deprecated at some point, use 2013 instead
+    2001: 'update',
+    2002: 'insert',
+    2003: 'reserved',
+    2004: 'query',
+    2005: 'get_more',
+    2006: 'delete',
+    2007: 'kill_cursors',
+    2010: 'command',
+    2011: 'command_reply',
+    2013: 'msg',
 }
 
 # The maximum message length we'll try to parse
 MAX_MSG_PARSE_LEN = 1024 * 1024
 
-header_struct = struct.Struct("<iiii")
+header_struct = struct.Struct('<iiii')
 
 
 class Command(object):
@@ -52,10 +53,10 @@ class Command(object):
 
     def __repr__(self):
         return (
-            "Command("
-            "name=%s,"
-            "db=%s,"
-            "coll=%s)"
+            'Command('
+            'name=%s,'
+            'db=%s,'
+            'coll=%s)'
         ) % (self.name, self.db, self.coll)
 
 
@@ -75,7 +76,7 @@ def parse_msg(msg_bytes):
 
     op = OP_CODES.get(op_code)
     if not op:
-        log.debug("unknown op code: %s", op_code)
+        log.debug('unknown op code: %s', op_code)
         return None
 
     db = None
@@ -83,7 +84,7 @@ def parse_msg(msg_bytes):
 
     offset = header_struct.size
     cmd = None
-    if op == "query":
+    if op == 'query':
         # NOTE[matt] inserts, updates and queries can all use this opcode
 
         offset += 4  # skip flags
@@ -91,7 +92,7 @@ def parse_msg(msg_bytes):
         offset += len(ns) + 1  # include null terminator
 
         # note: here coll could be '$cmd' because it can be overridden in the
-        # query itself (like {"insert":"songs"})
+        # query itself (like {'insert':'songs'})
         db, coll = _split_namespace(ns)
 
         offset += 8  # skip numberToSkip & numberToReturn
@@ -106,27 +107,50 @@ def parse_msg(msg_bytes):
             cmd = parse_spec(spec, db)
         else:
             # let's still note that a command happened.
-            cmd = Command("command", db, "untraced_message_too_large")
+            cmd = Command('command', db, 'untraced_message_too_large')
 
         # If the command didn't contain namespace info, set it here.
         if not cmd.coll:
             cmd.coll = coll
+    elif op == 'msg':
+        # Skip header and flag bits
+        offset += 4
 
-    cmd.metrics[netx.BYTES_OUT] = msg_len
+        # Parse the msg kind
+        kind = ord(msg_bytes[offset:offset+1])
+        offset += 1
+
+        # Kinds: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#sections
+        #   - 0: BSON Object
+        #   - 1: Document Sequence
+        if kind == 0:
+            if msg_len <= MAX_MSG_PARSE_LEN:
+                codec = CodecOptions(SON)
+                spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
+                cmd = parse_spec(spec, db)
+            else:
+                # let's still note that a command happened.
+                cmd = Command('command', db, 'untraced_message_too_large')
+        else:
+            # let's still note that a command happened.
+            cmd = Command('command', db, 'unsupported_msg_kind')
+
+    if cmd:
+        cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
 
 def parse_query(query):
     """ Return a command parsed from the given mongo db query. """
     db, coll = None, None
-    ns = getattr(query, "ns", None)
+    ns = getattr(query, 'ns', None)
     if ns:
         # version < 3.1 stores the full namespace
         db, coll = _split_namespace(ns)
     else:
         # version >= 3.1 stores the db and coll seperately
-        coll = getattr(query, "coll", None)
-        db = getattr(query, "db", None)
+        coll = getattr(query, 'coll', None)
+        db = getattr(query, 'db', None)
 
     # pymongo < 3.1 _Query does not have a name field, so default to 'query'
     cmd = Command(getattr(query, 'name', 'query'), db, coll)
@@ -144,7 +168,7 @@ def parse_spec(spec, db=None):
     if not items:
         return None
     name, coll = items[0]
-    cmd = Command(name, db, coll)
+    cmd = Command(name, db or spec.get('$db'), coll)
 
     if 'ordered' in spec:  # in insert and update
         cmd.tags['mongodb.ordered'] = spec['ordered']
@@ -157,13 +181,13 @@ def parse_spec(spec, db=None):
         updates = spec.get('updates')
         if updates:
             # FIXME[matt] is there ever more than one here?
-            cmd.query = updates[0].get("q")
+            cmd.query = updates[0].get('q')
 
     elif cmd.name == 'delete':
         dels = spec.get('deletes')
         if dels:
             # FIXME[matt] is there ever more than one here?
-            cmd.query = dels[0].get("q")
+            cmd.query = dels[0].get('q')
 
     return cmd
 
@@ -174,11 +198,11 @@ def _cstring(raw):
 
 
 def _split_namespace(ns):
-    """ Return a tuple of (db, collecton) from the "db.coll" string. """
+    """ Return a tuple of (db, collecton) from the 'db.coll' string. """
     if ns:
         # NOTE[matt] ns is unicode or bytes depending on the client version
         # so force cast to unicode
-        split = to_unicode(ns).split(".", 1)
+        split = to_unicode(ns).split('.', 1)
         if len(split) == 1:
             raise Exception("namespace doesn't contain period: %s" % ns)
         return split

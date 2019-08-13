@@ -1,21 +1,11 @@
 import copy
 import os
 import sys
-import re
 
 from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
-
-
-def get_version(package):
-    """
-    Return package version as listed in `__version__` in `__init__.py`.
-    This method prevents to import packages at setup-time.
-    """
-    init_py = open(os.path.join(package, '__init__.py')).read()
-    return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
 
 class Tox(TestCommand):
@@ -41,14 +31,6 @@ class Tox(TestCommand):
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
-
-version = get_version('ddtrace')
-# Append a suffix to the version for dev builds
-if os.environ.get('VERSION_SUFFIX'):
-    version = '{v}+{s}'.format(
-        v=version,
-        s=os.environ.get('VERSION_SUFFIX'),
-    )
 
 long_description = """
 # dd-trace-py
@@ -76,7 +58,6 @@ documentation][visualization docs].
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
     name='ddtrace',
-    version=version,
     description='Datadog tracing code',
     url='https://github.com/DataDog/dd-trace-py',
     author='Datadog, Inc.',
@@ -86,8 +67,7 @@ setup_kwargs = dict(
     license='BSD',
     packages=find_packages(exclude=['tests*']),
     install_requires=[
-        'msgpack-python',
-        'psutil',
+        'psutil>=5.0.0',
     ],
     extras_require={
         # users can include opentracing by having:
@@ -108,15 +88,21 @@ setup_kwargs = dict(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
 )
 
 
-# The following from here to the end of the file is borrowed from wrapt's `setup.py`:
+# The following from here to the end of the file is borrowed from wrapt's and msgpack's `setup.py`:
 #   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
+#   https://github.com/msgpack/msgpack-python/blob/381c2eff5f8ee0b8669fd6daf1fd1ecaffe7c931/setup.py
 # These helpers are useful for attempting build a C-extension and then retrying without it if it fails
 
+libraries = []
 if sys.platform == 'win32':
+    libraries.append('ws2_32')
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
 else:
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
@@ -141,16 +127,37 @@ class optional_build_ext(build_ext):
             raise BuildExtFailed()
 
 
+macros = []
+if sys.byteorder == 'big':
+    macros = [('__BIG_ENDIAN__', '1')]
+else:
+    macros = [('__LITTLE_ENDIAN__', '1')]
+
+
 # Try to build with C extensions first, fallback to only pure-Python if building fails
 try:
     kwargs = copy.deepcopy(setup_kwargs)
     kwargs['ext_modules'] = [
-        Extension('ddtrace.vendor.wrapt._wrappers', sources=['ddtrace/vendor/wrapt/_wrappers.c']),
+        Extension(
+            'ddtrace.vendor.wrapt._wrappers',
+            sources=['ddtrace/vendor/wrapt/_wrappers.c'],
+        ),
+        Extension(
+            'ddtrace.vendor.msgpack._cmsgpack',
+            sources=['ddtrace/vendor/msgpack/_cmsgpack.cpp'],
+            libraries=libraries,
+            include_dirs=['ddtrace/vendor/'],
+            define_macros=macros,
+        ),
     ]
     # DEV: Make sure `cmdclass` exists
-    kwargs.update(dict(cmdclass=dict()))
+    kwargs.setdefault('cmdclass', dict())
     kwargs['cmdclass']['build_ext'] = optional_build_ext
     setup(**kwargs)
 except BuildExtFailed:
-    print('WARNING: Failed to install wrapt C-extension, using pure-Python wrapt instead')
+    # Set `DDTRACE_BUILD_TRACE=TRUE` in CI to raise any build errors
+    if os.environ.get('DDTRACE_BUILD_RAISE') == 'TRUE':
+        raise
+
+    print('WARNING: Failed to install wrapt/msgpack C-extensions, using pure-Python wrapt/msgpack instead')
     setup(**setup_kwargs)

@@ -7,9 +7,9 @@ instance you are using::
     from sqlalchemy import create_engine
 
     engine = create_engine('sqlite:///:memory:')
-    trace_engine(engine, tracer, "my-database")
+    trace_engine(engine, tracer, 'my-database')
 
-    engine.connect().execute("select count(*) from users")
+    engine.connect().execute('select count(*) from users')
 """
 # 3p
 from sqlalchemy.event import listen
@@ -57,7 +57,7 @@ class EngineTracer(object):
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = service or self.vendor
-        self.name = "%s.query" % self.vendor
+        self.name = '%s.query' % self.vendor
 
         # attach the PIN
         Pin(
@@ -88,10 +88,9 @@ class EngineTracer(object):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.sqlalchemy.get_analytics_sample_rate()
-        )
+        sample_rate = config.sqlalchemy.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
@@ -144,6 +143,6 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, 'dsn', None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span.set_tag(sqlx.DB, d.get("dbname"))
-                span.set_tag(netx.TARGET_HOST, d.get("host"))
-                span.set_tag(netx.TARGET_PORT, d.get("port"))
+                span.set_tag(sqlx.DB, d.get('dbname'))
+                span.set_tag(netx.TARGET_HOST, d.get('host'))
+                span.set_tag(netx.TARGET_PORT, d.get('port'))

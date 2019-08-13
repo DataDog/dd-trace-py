@@ -1,9 +1,9 @@
-# flake8: noqa
 import asyncio
 
 from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
+from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
 
@@ -29,7 +29,7 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request('GET', '/')
         assert 200 == request.status
         text = yield from request.text()
-        assert "What's tracing?" == text
+        assert 'What\'s tracing?' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
@@ -40,16 +40,19 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'aiohttp-web' == span.service
         assert 'http' == span.span_type
         assert 'GET /' == span.resource
-        assert '/' == span.get_tag('http.url')
+        assert str(self.client.make_url('/')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '200' == span.get_tag('http.status_code')
         assert 0 == span.error
 
-    @unittest_run_loop
     @asyncio.coroutine
-    def test_param_handler(self):
+    def _test_param_handler(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
         # it should manage properly handlers with params
-        request = yield from self.client.request('GET', '/echo/team')
+        request = yield from self.client.request('GET', '/echo/team' + fqs)
         assert 200 == request.status
         text = yield from request.text()
         assert 'Hello team' == text
@@ -60,8 +63,20 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # with the right fields
         assert 'GET /echo/{name}' == span.resource
-        assert '/echo/team' == span.get_tag('http.url')
+        assert str(self.client.make_url('/echo/team')) == span.get_tag(http.URL)
         assert '200' == span.get_tag('http.status_code')
+
+    @unittest_run_loop
+    def test_param_handler(self):
+        return self._test_param_handler()
+
+    @unittest_run_loop
+    def test_query_string(self):
+        return self._test_param_handler('foo=bar')
+
+    @unittest_run_loop
+    def test_query_string_duplicate_keys(self):
+        return self._test_param_handler('foo=bar&foo=baz&x=y')
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -76,7 +91,7 @@ class TestTraceMiddleware(TraceTestCase):
         span = traces[0][0]
         # with the right fields
         assert '404' == span.resource
-        assert '/404/not_found' == span.get_tag('http.url')
+        assert str(self.client.make_url('/404/not_found')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '404' == span.get_tag('http.status_code')
 
@@ -98,7 +113,7 @@ class TestTraceMiddleware(TraceTestCase):
         # root span created in the middleware
         assert 'aiohttp.request' == root.name
         assert 'GET /chaining/' == root.resource
-        assert '/chaining/' == root.get_tag('http.url')
+        assert str(self.client.make_url('/chaining/')) == root.get_tag(http.URL)
         assert 'GET' == root.get_tag('http.method')
         assert '200' == root.get_tag('http.status_code')
         # span created in the coroutine_chaining handler
@@ -126,7 +141,7 @@ class TestTraceMiddleware(TraceTestCase):
         # root span created in the middleware
         assert 'aiohttp.request' == span.name
         assert 'GET /statics' == span.resource
-        assert '/statics/empty.txt' == span.get_tag('http.url')
+        assert str(self.client.make_url('/statics/empty.txt')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
         assert '200' == span.get_tag('http.status_code')
 
@@ -198,7 +213,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /wrapped_coroutine' == span.resource
         span = spans[1]
         assert 'nested' == span.name
-        assert span.duration > 0.25, "span.duration={0}".format(span.duration)
+        assert span.duration > 0.25, 'span.duration={0}'.format(span.duration)
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -221,7 +236,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right trace_id and parent_id
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == None
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -293,8 +308,8 @@ class TestTraceMiddleware(TraceTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
         # distributed tracing must be ignored by default
-        assert span.trace_id is not 100
-        assert span.parent_id is not 42
+        assert span.trace_id != 100
+        assert span.parent_id != 42
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -311,7 +326,7 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request('GET', '/sub_span', headers=tracing_headers)
         assert 200 == request.status
         text = yield from request.text()
-        assert "OK" == text
+        assert 'OK' == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
@@ -324,7 +339,7 @@ class TestTraceMiddleware(TraceTestCase):
         # check parenting is OK with custom sub-span created within server code
         assert 100 == sub_span.trace_id
         assert span.span_id == sub_span.parent_id
-        assert None == sub_span.get_metric(SAMPLING_PRIORITY_KEY)
+        assert sub_span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
     def _assert_200_parenting(self, traces):
         """Helper to assert parenting when handling aiohttp requests.
@@ -341,8 +356,8 @@ class TestTraceMiddleware(TraceTestCase):
         outer_span = traces[1][0]
 
         # confirm the parenting
-        assert outer_span.parent_id == None
-        assert inner_span.parent_id == None
+        assert outer_span.parent_id is None
+        assert inner_span.parent_id is None
 
         assert outer_span.name == 'aiohttp_op'
 
@@ -351,7 +366,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'aiohttp-web' == inner_span.service
         assert 'http' == inner_span.span_type
         assert 'GET /' == inner_span.resource
-        assert '/' == inner_span.get_tag('http.url')
+        assert str(self.client.make_url('/')) == inner_span.get_tag(http.URL)
         assert 'GET' == inner_span.get_tag('http.method')
         assert '200' == inner_span.get_tag('http.status_code')
         assert 0 == inner_span.error

@@ -1,148 +1,149 @@
-# Thirdparty
 import grpc
 from grpc.framework.foundation import logging_pool
-
-# Internal
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
+from ddtrace.contrib.grpc import constants
+from ddtrace.ext import errors
 from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
 
 from .hello_pb2 import HelloRequest, HelloReply
-from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub
+from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
 
-GRPC_PORT = 50531
+_GRPC_PORT = 50531
 
 
 class GrpcTestCase(BaseTracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
-
         patch()
-        Pin.override(grpc, tracer=self.tracer)
-        self._server = grpc.server(logging_pool.pool(2))
-        self._server.add_insecure_port('[::]:%d' % (GRPC_PORT))
-        add_HelloServicer_to_server(SendBackDatadogHeaders(), self._server)
-        self._server.start()
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tracer=self.tracer)
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tracer=self.tracer)
+        self._start_server()
 
     def tearDown(self):
+        self._stop_server()
+        # Remove any remaining spans
+        self.tracer.writer.pop()
+        # Unpatch grpc
         unpatch()
-        self._server.stop(5)
-
         super(GrpcTestCase, self).tearDown()
 
-    def _check_span(self, span, service='grpc'):
-        self.assertEqual(span.name, 'grpc.client')
-        self.assertEqual(span.resource, '/Hello/SayHello')
-        self.assertEqual(span.service, service)
-        self.assertEqual(span.error, 0)
-        self.assertEqual(span.span_type, 'grpc')
-        self.assertEqual(span.meta['grpc.host'], 'localhost')
-        self.assertEqual(span.meta['grpc.port'], '50531')
+    def _start_server(self):
+        self._server = grpc.server(logging_pool.pool(2))
+        self._server.add_insecure_port('[::]:%d' % (_GRPC_PORT))
+        add_HelloServicer_to_server(_HelloServicer(), self._server)
+        self._server.start()
 
-    def test_insecure_channel(self):
-        # Create a channel and send one request to the server
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+    def _stop_server(self):
+        self._server.stop(0)
+
+    def _check_client_span(self, span, service, method_name, method_kind):
+        assert span.name == 'grpc'
+        assert span.resource == '/helloworld.Hello/{}'.format(method_name)
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'grpc'
+        assert span.get_tag('grpc.method.path') == '/helloworld.Hello/{}'.format(method_name)
+        assert span.get_tag('grpc.method.package') == 'helloworld'
+        assert span.get_tag('grpc.method.service') == 'Hello'
+        assert span.get_tag('grpc.method.name') == method_name
+        assert span.get_tag('grpc.method.kind') == method_kind
+        assert span.get_tag('grpc.host') == 'localhost'
+        assert span.get_tag('grpc.port') == '50531'
+
+    def _check_server_span(self, span, service, method_name, method_kind):
+        assert span.name == 'grpc'
+        assert span.resource == '/helloworld.Hello/{}'.format(method_name)
+        assert span.service == service
+        assert span.error == 0
+        assert span.span_type == 'grpc'
+        assert span.get_tag('grpc.method.path') == '/helloworld.Hello/{}'.format(method_name)
+        assert span.get_tag('grpc.method.package') == 'helloworld'
+        assert span.get_tag('grpc.method.service') == 'Hello'
+        assert span.get_tag('grpc.method.name') == method_name
+        assert span.get_tag('grpc.method.kind') == method_kind
+
+    def test_insecure_channel_using_args_parameter(self):
+        def insecure_channel_using_args(target):
+            return grpc.insecure_channel(target)
+        self._test_insecure_channel(insecure_channel_using_args)
+
+    def test_insecure_channel_using_kwargs_parameter(self):
+        def insecure_channel_using_kwargs(target):
+            return grpc.insecure_channel(target=target)
+        self._test_insecure_channel(insecure_channel_using_kwargs)
+
+    def _test_insecure_channel(self, insecure_channel_function):
+        target = 'localhost:%d' % (_GRPC_PORT)
+        with insecure_channel_function(target) as channel:
             stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name='test'))
+            stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-        self.assertEqual(
-            response.message,
-            (
-                # DEV: Priority sampling is enabled by default
-                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
-                (span.trace_id, span.span_id)
-            ),
-        )
-        self._check_span(span)
+        assert len(spans) == 2
+        server_span, client_span = spans
 
-    def test_secure_channel(self):
-        # Create a channel and send one request to the server
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
+        self._check_server_span(server_span, 'grpc-server', 'SayHello', 'unary')
+
+    def test_secure_channel_using_args_parameter(self):
+        def secure_channel_using_args(target, **kwargs):
+            return grpc.secure_channel(target, **kwargs)
+        self._test_secure_channel(secure_channel_using_args)
+
+    def test_secure_channel_using_kwargs_parameter(self):
+        def secure_channel_using_kwargs(target, **kwargs):
+            return grpc.secure_channel(target=target, **kwargs)
+        self._test_secure_channel(secure_channel_using_kwargs)
+
+    def _test_secure_channel(self, secure_channel_function):
+        target = 'localhost:%d' % (_GRPC_PORT)
+        with secure_channel_function(target, credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name='test'))
+            stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
+        assert len(spans) == 2
+        server_span, client_span = spans
 
-        span = spans[0]
-        self.assertEqual(
-            response.message,
-            (
-                # DEV: Priority sampling is enabled by default
-                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
-                (span.trace_id, span.span_id)
-            ),
-        )
-        self._check_span(span)
-
-    def test_priority_sampling(self):
-        # DEV: Priority sampling is enabled by default
-        # Setting priority sampling reset the writer, we need to re-override it
-
-        # Create a channel and send one request to the server
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
-            stub = HelloStub(channel)
-            response = stub.SayHello(HelloRequest(name='test'))
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-
-        self.assertEqual(
-            response.message,
-            (
-                'x-datadog-trace-id=%d;x-datadog-parent-id=%d;x-datadog-sampling-priority=1' %
-                (span.trace_id, span.span_id)
-            ),
-        )
-        self._check_span(span)
-
-    def test_span_in_error(self):
-        # Create a channel and send one request to the server
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
-            stub = HelloStub(channel)
-            with self.assertRaises(Exception):
-                stub.SayError(HelloRequest(name='test'))
-
-        spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-
-        span = spans[0]
-        self.assertEqual(span.error, 1)
-        self.assertIsNotNone(span.meta['error.stack'])
+        self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
+        self._check_server_span(server_span, 'grpc-server', 'SayHello', 'unary')
 
     def test_pin_not_activated(self):
         self.tracer.configure(enabled=False)
-        Pin.override(grpc, tracer=self.tracer)
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 0)
+        spans = self.get_spans()
+        assert len(spans) == 0
 
     def test_pin_tags_are_put_in_span(self):
-        Pin.override(grpc, tags={'tag1': 'value1'})
-        with grpc.insecure_channel('localhost:%d' % (GRPC_PORT)) as channel:
+        # DEV: stop and restart server to catch overriden pin
+        self._stop_server()
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, service='server1')
+        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={'tag1': 'server'})
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tags={'tag2': 'client'})
+        self._start_server()
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        span = spans[0]
-        self.assertEqual(span.meta['tag1'], 'value1')
+        assert len(spans) == 2
+        assert spans[0].service == 'server1'
+        assert spans[0].get_tag('tag1') == 'server'
+        assert spans[1].get_tag('tag2') == 'client'
 
     def test_pin_can_be_defined_per_channel(self):
-        Pin.override(grpc, service='grpc1')
-        channel1 = grpc.insecure_channel('localhost:%d' % (GRPC_PORT))
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service='grpc1')
+        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
-        Pin.override(grpc, service='grpc2')
-        channel2 = grpc.insecure_channel('localhost:%d' % (GRPC_PORT))
+        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service='grpc2')
+        channel2 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
         stub2 = HelloStub(channel2)
@@ -151,70 +152,259 @@ class GrpcTestCase(BaseTracerTestCase):
 
         spans = self.get_spans()
 
-        self.assertEqual(len(spans), 2)
-        span1 = spans[0]
-        span2 = spans[1]
-        self._check_span(span1, 'grpc1')
-        self._check_span(span2, 'grpc2')
+        assert len(spans) == 4
+        # DEV: Server service default, client services override
+        self._check_server_span(spans[0], 'grpc-server', 'SayHello', 'unary')
+        self._check_client_span(spans[1], 'grpc1', 'SayHello', 'unary')
+        self._check_server_span(spans[2], 'grpc-server', 'SayHello', 'unary')
+        self._check_client_span(spans[3], 'grpc2', 'SayHello', 'unary')
 
         channel1.close()
         channel2.close()
 
     def test_analytics_default(self):
-        with grpc.secure_channel('localhost:%d' % (GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        assert len(spans) == 2
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_analytics_with_rate(self):
         with self.override_config(
-            'grpc',
-            dict(analytics_enabled=True, analytics_sample_rate=0.5)
+            'grpc_server',
+            dict(analytics_enabled=True, analytics_sample_rate=0.75)
         ):
-            with grpc.secure_channel(
-                    'localhost:%d' % (GRPC_PORT),
-                    credentials=grpc.ChannelCredentials(None)
-            ) as channel:
-                stub = HelloStub(channel)
-                stub.SayHello(HelloRequest(name='test'))
+            with self.override_config(
+                'grpc',
+                dict(analytics_enabled=True, analytics_sample_rate=0.5)
+            ):
+                with grpc.secure_channel(
+                        'localhost:%d' % (_GRPC_PORT),
+                        credentials=grpc.ChannelCredentials(None)
+                ) as channel:
+                    stub = HelloStub(channel)
+                    stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        assert len(spans) == 2
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
+        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_analytics_without_rate(self):
         with self.override_config(
-            'grpc',
+            'grpc_server',
             dict(analytics_enabled=True)
         ):
-            with grpc.secure_channel(
-                    'localhost:%d' % (GRPC_PORT),
-                    credentials=grpc.ChannelCredentials(None)
-            ) as channel:
-                stub = HelloStub(channel)
-                stub.SayHello(HelloRequest(name='test'))
+            with self.override_config(
+                'grpc',
+                dict(analytics_enabled=True)
+            ):
+                with grpc.secure_channel(
+                        'localhost:%d' % (_GRPC_PORT),
+                        credentials=grpc.ChannelCredentials(None)
+                ) as channel:
+                    stub = HelloStub(channel)
+                    stub.SayHello(HelloRequest(name='test'))
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+        assert len(spans) == 2
+        assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
+        assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    def test_server_stream(self):
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name='test'))
+            assert len(list(responses_iterator)) == 2
 
-class SendBackDatadogHeaders(object):
-    def SayHello(self, request, context):
-        """Returns all the headers begining by x-datadog with the following format:
-        header1=value1;header2=value2;...
-        It is used to test propagation
-        """
-        metadata = context.invocation_metadata()
-        context.set_code(grpc.StatusCode.OK)
-        return HelloReply(
-            message=';'.join(w.key + '=' + w.value for w in metadata if w.key.startswith('x-datadog')),
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloTwice', 'server_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloTwice', 'server_streaming')
+
+    def test_client_stream(self):
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['first', 'second']
         )
 
-    def SayError(self, request, context):
-        context.set_code(grpc.StatusCode.ABORTED)
-        context.cancel()
-        return HelloReply(message='cancelled')
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            response = stub.SayHelloLast(requests_iterator)
+            assert response.message == 'first;second'
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloLast', 'client_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloLast', 'client_streaming')
+
+    def test_bidi_stream(self):
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['first', 'second', 'third', 'fourth', 'fifth']
+        )
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses = stub.SayHelloRepeatedly(requests_iterator)
+            messages = [r.message for r in responses]
+            assert list(messages) == ['first;second', 'third;fourth', 'fifth']
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+        self._check_client_span(client_span, 'grpc-client', 'SayHelloRepeatedly', 'bidi_streaming')
+        self._check_server_span(server_span, 'grpc-server', 'SayHelloRepeatedly', 'bidi_streaming')
+
+    def test_priority_sampling(self):
+        # DEV: Priority sampling is enabled by default
+        # Setting priority sampling reset the writer, we need to re-override it
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            response = stub.SayHello(HelloRequest(name='propogator'))
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert 'x-datadog-trace-id={}'.format(client_span.trace_id) in response.message
+        assert 'x-datadog-parent-id={}'.format(client_span.span_id) in response.message
+        assert 'x-datadog-sampling-priority=1' in response.message
+
+    def test_unary_abort(self):
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError):
+                stub.SayHello(HelloRequest(name='abort'))
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'aborted'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.ABORTED'
+
+    def test_unary_exception(self):
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError):
+                stub.SayHello(HelloRequest(name='exception'))
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+
+        assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+        assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
+        assert 'grpc.StatusCode.INVALID_ARGUMENT' in server_span.get_tag(errors.ERROR_STACK)
+
+    def test_client_stream_exception(self):
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['first', 'exception']
+        )
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError):
+                stub.SayHelloLast(requests_iterator)
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+
+        assert server_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+        assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
+        assert 'grpc.StatusCode.INVALID_ARGUMENT' in server_span.get_tag(errors.ERROR_STACK)
+
+    def test_server_stream_exception(self):
+        with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
+            stub = HelloStub(channel)
+            with self.assertRaises(grpc.RpcError):
+                list(stub.SayHelloTwice(HelloRequest(name='exception')))
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
+
+        assert server_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
+        assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
+        assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
+        assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
+
+
+class _HelloServicer(HelloServicer):
+    def SayHello(self, request, context):
+        if request.name == 'propogator':
+            metadata = context.invocation_metadata()
+            context.set_code(grpc.StatusCode.OK)
+            message = ';'.join(
+                w.key + '=' + w.value
+                for w in metadata
+                if w.key.startswith('x-datadog')
+            )
+            return HelloReply(message=message)
+
+        if request.name == 'abort':
+            context.abort(grpc.StatusCode.ABORTED, 'aborted')
+
+        if request.name == 'exception':
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, 'exception')
+
+        return HelloReply(message='Hello {}'.format(request.name))
+
+    def SayHelloTwice(self, request, context):
+        yield HelloReply(message='first response')
+
+        if request.name == 'exception':
+            context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, 'exception')
+
+        yield HelloReply(message='secondresponse')
+
+    def SayHelloLast(self, request_iterator, context):
+        names = [r.name for r in list(request_iterator)]
+
+        if 'exception' in names:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, 'exception')
+
+        return HelloReply(message='{}'.format(
+            ';'.join(names)))
+
+    def SayHelloRepeatedly(self, request_iterator, context):
+        last_request = None
+        for request in request_iterator:
+            if last_request is not None:
+                yield HelloReply(message='{}'.format(
+                    ';'.join([last_request.name, request.name])
+                ))
+                last_request = None
+            else:
+                last_request = request
+
+        # response for dangling request
+        if last_request is not None:
+            yield HelloReply(message='{}'.format(last_request.name))

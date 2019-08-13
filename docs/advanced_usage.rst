@@ -12,7 +12,14 @@ is a small example showcasing this::
 
     tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
 
-By default, these will be set to localhost and 8126 respectively.
+By default, these will be set to ``localhost`` and ``8126`` respectively.
+
+You can also use a Unix Domain Socket to connect to the agent::
+
+    from ddtrace import tracer
+
+    tracer.configure(uds_path="/path/to/socket")
+
 
 Distributed Tracing
 -------------------
@@ -182,7 +189,7 @@ Trace Search & Analytics
 
 Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
 
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_ANALYTICS_ENABLED=true``:
+Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
 * :ref:`aiohttp`
 * :ref:`bottle`

@@ -3,9 +3,9 @@ import os
 import sys
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # define django defaults
-    app_to_test = "tests/contrib/djangorestframework"
+    app_to_test = 'tests/contrib/djangorestframework'
 
     # project_root is the path of dd-trace-py (ex: ~/go/src/DataDog/dd-trace-py/)
     # We need to append the project_root path to the PYTHONPATH
@@ -15,4 +15,4 @@ if __name__ == "__main__":
     sys.path.append(project_root)
 
     from django.core.management import execute_from_command_line
-    execute_from_command_line([sys.argv[0], "test", app_to_test])
+    execute_from_command_line([sys.argv[0], 'test', app_to_test])

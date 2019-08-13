@@ -87,7 +87,7 @@ def notify_module_loaded(module):
         try:
             hook(module)
         except Exception as err:
-            log.warn('hook "{}" for module "{}" failed: {}'.format(hook, name, err))
+            log.warning('hook "{}" for module "{}" failed: {}'.format(hook, name, err))
 
 
 class _ImportHookLoader(object):

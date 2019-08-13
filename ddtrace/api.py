@@ -2,18 +2,19 @@
 import time
 import ddtrace
 from json import loads
+import socket
 
 # project
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
-from .payload import Payload
+from .internal.runtime import container
+from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
 
-TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
 
 _VERSIONS = {'v0.4': {'traces': '/v0.4/traces',
                       'services': '/v0.4/services',
@@ -96,13 +97,45 @@ class Response(object):
         )
 
 
+class UDSHTTPConnection(httplib.HTTPConnection):
+    """An HTTP connection established over a Unix Domain Socket."""
+
+    # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
+    # mechanism, they are actually used as HTTP headers such as `Host`.
+    def __init__(self, path, *args, **kwargs):
+        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+        self.path = path
+
+    def connect(self):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(self.path)
+        self.sock = sock
+
+
 class API(object):
     """
     Send data to the trace agent using the HTTP protocol and JSON format
     """
-    def __init__(self, hostname, port, headers=None, encoder=None, priority_sampling=False):
+
+    TRACE_COUNT_HEADER = 'X-Datadog-Trace-Count'
+
+    # Default timeout when establishing HTTP connection and sending/receiving from socket.
+    # This ought to be enough as the agent is local
+    TIMEOUT = 2
+
+    def __init__(self, hostname, port, uds_path=None, headers=None, encoder=None, priority_sampling=False):
+        """Create a new connection to the Tracer API.
+
+        :param hostname: The hostname.
+        :param port: The TCP port to use.
+        :param uds_path: The path to use if the connection is to be established with a Unix Domain Socket.
+        :param headers: The headers to pass along the request.
+        :param encoder: The encoder to use to serialize data.
+        :param priority_sampling: Whether to use priority sampling.
+        """
         self.hostname = hostname
-        self.port = port
+        self.port = int(port)
+        self.uds_path = uds_path
 
         self._headers = headers or {}
         self._version = None
@@ -118,6 +151,18 @@ class API(object):
             'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
             'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
+
+        # Add container information if we have it
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update({
+                'Datadog-Container-Id': self._container_info.container_id,
+            })
+
+    def __str__(self):
+        if self.uds_path:
+            return self.uds_path
+        return '%s:%s' % (self.hostname, self.port)
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
@@ -146,38 +191,70 @@ class API(object):
         self._set_version(self._fallback)
 
     def send_traces(self, traces):
-        if not traces:
-            return
+        """Send traces to the API.
 
+        :param traces: A list of traces.
+        :return: The list of API HTTP responses.
+        """
         start = time.time()
+        responses = []
         payload = Payload(encoder=self._encoder)
         for trace in traces:
-            payload.add_trace(trace)
+            try:
+                payload.add_trace(trace)
+            except PayloadFull:
+                # Is payload full or is the trace too big?
+                # If payload is not empty, then using a new Payload might allow us to fit the trace.
+                # Let's flush the Payload and try to put the trace in a new empty Payload.
+                if not payload.empty:
+                    responses.append(self._flush(payload))
+                    # Create a new payload
+                    payload = Payload(encoder=self._encoder)
+                    try:
+                        # Add the trace that we were unable to add in that iteration
+                        payload.add_trace(trace)
+                    except PayloadFull:
+                        # If the trace does not fit in a payload on its own, that's bad. Drop it.
+                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
-        response = self._put(self._traces, payload.get_payload(), payload.length)
+        # Check that the Payload is not empty:
+        # it could be empty if the last trace was too big to fit.
+        if not payload.empty:
+            responses.append(self._flush(payload))
+
+        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
+
+        return responses
+
+    def _flush(self, payload):
+        try:
+            response = self._put(self._traces, payload.get_payload(), payload.length)
+        except (httplib.HTTPException, OSError, IOError) as e:
+            return e
 
         # the API endpoint is not available so we should downgrade the connection and re-try the call
         if response.status in [404, 415] and self._fallback:
-            log.debug('calling endpoint "%s" but received %s; downgrading API', self._traces, response.status)
+            log.debug("calling endpoint '%s' but received %s; downgrading API", self._traces, response.status)
             self._downgrade()
-            return self.send_traces(traces)
+            return self._flush(payload)
 
-        log.debug("reported %d traces in %.5fs", len(traces), time.time() - start)
         return response
 
     @deprecated(message='Sending services to the API is no longer necessary', version='1.0.0')
     def send_services(self, *args, **kwargs):
         return
 
-    def _put(self, endpoint, data, count=0):
-        conn = httplib.HTTPConnection(self.hostname, self.port)
-        try:
-            headers = self._headers
-            if count:
-                headers = dict(self._headers)
-                headers[TRACE_COUNT_HEADER] = str(count)
+    def _put(self, endpoint, data, count):
+        headers = self._headers.copy()
+        headers[self.TRACE_COUNT_HEADER] = str(count)
 
-            conn.request("PUT", endpoint, data, headers)
+        if self.uds_path is None:
+            conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+        else:
+            conn = UDSHTTPConnection(self.uds_path, self.hostname, self.port, timeout=self.TIMEOUT)
+
+        try:
+            conn.request('PUT', endpoint, data, headers)
 
             # Parse the HTTPResponse into an API.Response
             # DEV: This will call `resp.read()` which must happen before the `conn.close()` below,
