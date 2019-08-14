@@ -262,6 +262,10 @@ class Tracer(object):
                         context.sampling_priority = AUTO_REJECT
             else:
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                # TODO: This is a hack to make the new DatadogSampler work with existing logic in Context
+                #       See the logic in `Context.get`, we only set the priority sampling metric if it was
+                #       sampled, all priority sampled spans are "sampled" regardless of their priority sampling value
+                span.sampled = True
 
             # add tags to root span to correlate trace with runtime metrics
             if self._runtime_worker:

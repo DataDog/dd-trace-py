@@ -264,7 +264,7 @@ class SamplingRule(object):
             try:
                 return bool(pattern(prop))
             except Exception as e:
-                log.warning('{!r} pattern {!r} failed with {!r}: {}', self, pattern, prop, e)
+                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
                 # Their function failed to validate, assume it is a False
                 return False
 
@@ -274,7 +274,7 @@ class SamplingRule(object):
                 return bool(pattern.match(str(prop)))
             except (ValueError, TypeError) as e:
                 # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning('{!r} pattern {!r} failed with {!r}: {}', self, pattern, prop, e)
+                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
                 return False
 
         # Exact match on the values

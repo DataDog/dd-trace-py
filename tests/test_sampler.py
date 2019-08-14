@@ -562,7 +562,7 @@ def test_sampling_rule_matches_exception():
     with mock.patch('ddtrace.sampler.log') as mock_log:
         assert rule.matches(span) is False
         mock_log.warning.assert_called_once_with(
-            '{!r} pattern {!r} failed with {!r}: {}',
+            '%r pattern %r failed with %r: %s',
             rule,
             pattern,
             'test.span',
@@ -649,6 +649,7 @@ def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     mock_is_allowed.return_value = True
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
+    assert span.sampled is True
     mock_is_allowed.assert_called_once_with()
     mock_is_allowed.reset_mock()
 
@@ -656,6 +657,7 @@ def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     mock_is_allowed.return_value = False
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
+    assert span.sampled is True
     mock_is_allowed.assert_called_once_with()
 
 
@@ -682,6 +684,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
 
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
+    assert span.sampled is True
     mock_is_allowed.assert_not_called()
     for rule in rules:
         rule.matches.assert_called_once_with(span)
@@ -698,6 +701,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
 
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
+    assert span.sampled is True
     mock_is_allowed.assert_called_once_with()
 
     rules[0].matches.assert_called_once_with(span)
@@ -722,6 +726,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
 
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
+    assert span.sampled is True
     mock_is_allowed.assert_called_once_with()
     rules[0].matches.assert_called_once_with(span)
     rules[0].sample.assert_called_once_with(span)
@@ -745,6 +750,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
 
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
+    assert span.sampled is True
     mock_is_allowed.assert_not_called()
 
     rules[0].matches.assert_called_once_with(span)
@@ -781,7 +787,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
         limiter_spy.is_allowed.assert_called_once_with()
 
         # We know it was sampled because we have a sample rate of 1.0
-        assert span.sampled
+        assert span.sampled is True
         assert span._context.sampling_priority is AUTO_KEEP
 
 
@@ -807,7 +813,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         limiter_spy.is_allowed.assert_called_once_with()
 
         # We know it was not sampled because of our limiter
-        assert span.sampled is False
+        assert span.sampled is True
         assert span._context.sampling_priority is AUTO_REJECT
 
 
@@ -832,7 +838,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         limiter_spy.is_allowed.assert_not_called()
 
         # We know it was not sampled because we have a sample rate of 0.0
-        assert span.sampled is False
+        assert span.sampled is True
         assert span._context.sampling_priority is AUTO_REJECT
 
 
