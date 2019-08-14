@@ -111,6 +111,7 @@ class DatadogSampler(BaseSampler):
     __slots__ = ('rules', 'rate_limit')
 
     DEFAULT_RATE_LIMIT = 100
+    NO_RATE_LIMIT = -1
 
     def __init__(self, rules=None, rate_limit=None):
         """
@@ -149,28 +150,40 @@ class DatadogSampler(BaseSampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
-        sampled_by_rule = None
+        matching_rule = None
         if self.rules:
-            # Go through all rules and grab the last one that matched
-            # DEV: This means rules should be ordered by the user from least specific to most specific
+            # Go through all rules and grab the first one that matched
+            # DEV: This means rules should be ordered by the user from most specific to least specific
             for rule in self.rules:
-                if rule.should_sample(span):
-                    sampled_by_rule = rule
-
-            # If no rule wanted to sample this, then do not sample
-            if not sampled_by_rule:
-                span._context.sampling_priority = AUTO_REJECT
+                if rule.matches(span):
+                    matching_rule = rule
+                    break
+            else:
+                # No rule matched, reject
+                if span._context:
+                    span._context.sampling_priority = AUTO_REJECT
                 return False
+
+            if not matching_rule.sample(span):
+                if span._context:
+                    span._context.sampling_priority = AUTO_REJECT
+                return False
+            else:
+                # Do not return here, we need to apply rate limit
+                if span._context:
+                    span._context.sampling_priority = AUTO_KEEP
 
         # Ensure all allowed traces adhere to the global rate limit
         if not self.limiter.is_allowed():
-            span._context.sampling_priority = AUTO_REJECT
+            if span._context:
+                span._context.sampling_priority = AUTO_REJECT
             return False
 
         # TODO: Set `_sampling_priority_rate_v1` tag based on
-        #       sampled_by_rule.sample_rate and effective rate from self.limiter
+        #       matching_rule.sample_rate and effective rate from self.limiter
         # We made it by all of checks, sample this trace
-        span._context.sampling_priority = AUTO_KEEP
+        if span._context:
+            span._context.sampling_priority = AUTO_KEEP
         return True
 
 
@@ -250,8 +263,8 @@ class SamplingRule(object):
         if callable(pattern):
             try:
                 return bool(pattern(prop))
-            except Exception:
-                # TODO: Log that the pattern function failed
+            except Exception as e:
+                log.warning('{!r} pattern {!r} failed with {!r}: {}', self, pattern, prop, e)
                 # Their function failed to validate, assume it is a False
                 return False
 
@@ -259,9 +272,9 @@ class SamplingRule(object):
         if isinstance(pattern, pattern_type):
             try:
                 return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
                 # This is to guard us against the casting to a string (shouldn't happen, but still)
-                # TODO: Log that we could not apply the pattern to the prop?
+                log.warning('{!r} pattern {!r} failed with {!r}: {}', self, pattern, prop, e)
                 return False
 
         # Exact match on the values
@@ -282,13 +295,13 @@ class SamplingRule(object):
             for tag, pattern in self.tags.items()
         )
 
-    def should_sample(self, span):
+    def matches(self, span):
         """
-        Return if this rule chooses to sample the span
+        Return if this span matches this rule
 
-        :param span: The span to sample against
+        :param span: The span to match against
         :type span: :class:`ddtrace.span.Span`
-        :returns: Whether this span matches and was sampled
+        :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
         # make sure service, name, and resource match
@@ -306,10 +319,17 @@ class SamplingRule(object):
         if not self._tags_match(span):
             return False
 
-        # All patterns match, check against our sample rate
-        return self._sample(span)
+        return True
 
-    def _sample(self, span):
+    def sample(self, span):
+        """
+        Return if this rule chooses to sample the span
+
+        :param span: The span to sample against
+        :type span: :class:`ddtrace.span.Span`
+        :returns: Whether this span was sampled
+        :rtype: :obj:`bool`
+        """
         if self.sample_rate == 1:
             return True
         elif self.sample_rate == 0:

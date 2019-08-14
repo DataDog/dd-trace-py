@@ -1,4 +1,5 @@
 from __future__ import division
+import mock
 import re
 import unittest
 
@@ -6,11 +7,18 @@ import pytest
 
 from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
-from ddtrace.sampler import SamplingRule
+from ddtrace.ext.priority import AUTO_KEEP, AUTO_REJECT
+from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.sampler import DatadogSampler, SamplingRule
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.span import Span
 
 from .test_tracer import get_dummy_tracer
+
+
+@pytest.fixture
+def dummy_tracer():
+    return get_dummy_tracer()
 
 
 def create_span(name='test.span', meta=None, *args, **kwargs):
@@ -276,8 +284,8 @@ def test_sampling_rule_init():
         ]
     ]
 )
-def test_sampling_rule_should_sample_name(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+def test_sampling_rule_matches_name(span, rule, expected):
+    assert rule.matches(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -307,8 +315,8 @@ def test_sampling_rule_should_sample_name(span, rule, expected):
         ]
     ]
 )
-def test_sampling_rule_should_sample_service(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+def test_sampling_rule_matches_service(span, rule, expected):
+    assert rule.matches(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -341,8 +349,8 @@ def test_sampling_rule_should_sample_service(span, rule, expected):
         ]
     ]
 )
-def test_sampling_rule_should_sample_resource(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+def test_sampling_rule_matches_resource(span, rule, expected):
+    assert rule.matches(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -421,8 +429,8 @@ def test_sampling_rule_should_sample_resource(span, rule, expected):
         ]
     ]
 )
-def test_sampling_rule_should_sample_meta(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+def test_sampling_rule_matches_meta(span, rule, expected):
+    assert rule.matches(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -447,6 +455,7 @@ def test_sampling_rule_should_sample_meta(span, rule, expected):
         ),
 
         # All match,  but sample rate of 0%
+        # DEV: We are checking if it is a match, not computing sampling rate, sample_rate=0 is not considered
         (
             create_span(
                 name='test.span',
@@ -461,7 +470,7 @@ def test_sampling_rule_should_sample_meta(span, rule, expected):
                 resource=lambda resource: resource.endswith('/healthcheck'),
                 tags={'http.status': '200'},
             ),
-            False,
+            True,
         ),
 
         # Name doesn't match
@@ -537,18 +546,38 @@ def test_sampling_rule_should_sample_meta(span, rule, expected):
         ),
     ],
 )
-def test_sampling_rule_should_sample(span, rule, expected):
-    assert rule.should_sample(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+def test_sampling_rule_matches(span, rule, expected):
+    assert rule.matches(span) is expected, '{} -> {} -> {}'.format(rule, span, expected)
+
+
+def test_sampling_rule_matches_exception():
+    e = Exception('an error occurred')
+
+    def pattern(prop):
+        raise e
+
+    rule = SamplingRule(sample_rate=1.0, name=pattern)
+    span = create_span('test.span')
+
+    with mock.patch('ddtrace.sampler.log') as mock_log:
+        assert rule.matches(span) is False
+        mock_log.warning.assert_called_once_with(
+            '{!r} pattern {!r} failed with {!r}: {}',
+            rule,
+            pattern,
+            'test.span',
+            e,
+        )
 
 
 @pytest.mark.parametrize('sample_rate', [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
-def test_sampling_rule_should_sample_sample_rate(sample_rate):
+def test_sampling_rule_sample(sample_rate):
     tracer = get_dummy_tracer()
     rule = SamplingRule(sample_rate=sample_rate)
 
     iterations = int(1e4 / sample_rate)
     sampled = sum(
-        rule.should_sample(Span(tracer=tracer, name=i))
+        rule.sample(Span(tracer=tracer, name=i))
         for i in range(iterations)
     )
 
@@ -559,23 +588,306 @@ def test_sampling_rule_should_sample_sample_rate(sample_rate):
     )
 
 
-def test_sampling_rule_should_sample_sample_rate_1():
+def test_sampling_rule_sample_rate_1():
     tracer = get_dummy_tracer()
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
     assert all(
-        rule.should_sample(Span(tracer=tracer, name=i))
+        rule.sample(Span(tracer=tracer, name=i))
         for i in range(iterations)
     )
 
 
-def test_sampling_rule_should_sample_sample_rate_0():
+def test_sampling_rule_sample_rate_0():
     tracer = get_dummy_tracer()
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)
     assert sum(
-        rule.should_sample(Span(tracer=tracer, name=i))
+        rule.sample(Span(tracer=tracer, name=i))
         for i in range(iterations)
     ) == 0
+
+
+def test_datadog_sampler_init():
+    # No args
+    sampler = DatadogSampler()
+    assert sampler.rules == []
+    assert isinstance(sampler.limiter, RateLimiter)
+    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+
+    # With rules
+    rule = SamplingRule(sample_rate=1)
+    sampler = DatadogSampler(rules=[rule])
+    assert sampler.rules == [rule]
+    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+
+    # With rate limit
+    sampler = DatadogSampler(rate_limit=10)
+    assert sampler.limiter.rate_limit == 10
+
+    # Invalid rules
+    for val in (None, True, False, object(), 1, Exception()):
+        with pytest.raises(TypeError):
+            DatadogSampler(rules=[val])
+
+    # Ensure rule order
+    rule_1 = SamplingRule(sample_rate=1)
+    rule_2 = SamplingRule(sample_rate=0.5, service='test')
+    rule_3 = SamplingRule(sample_rate=0.25, resource='GET /healthcheck')
+    sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3])
+    assert sampler.rules == [rule_1, rule_2, rule_3]
+
+
+@mock.patch('ddtrace.internal.rate_limiter.RateLimiter.is_allowed')
+def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
+    sampler = DatadogSampler()
+    span = dummy_tracer.trace(name='test.span')
+
+    # RateLimiter is allowed, it is sampled
+    mock_is_allowed.return_value = True
+    assert sampler.sample(span) is True
+    assert span._context.sampling_priority is AUTO_KEEP
+    mock_is_allowed.assert_called_once_with()
+    mock_is_allowed.reset_mock()
+
+    # RateLimit not allowed, it is not sampled
+    mock_is_allowed.return_value = False
+    assert sampler.sample(span) is False
+    assert span._context.sampling_priority is AUTO_REJECT
+    mock_is_allowed.assert_called_once_with()
+
+
+@mock.patch('ddtrace.internal.rate_limiter.RateLimiter.is_allowed')
+def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
+    # Do not let the limiter get in the way of our test
+    mock_is_allowed.return_value = True
+
+    span = dummy_tracer.trace('test.span')
+
+    rules = [
+        mock.Mock(spec=SamplingRule),
+        mock.Mock(spec=SamplingRule),
+        mock.Mock(spec=SamplingRule),
+    ]
+    sampler = DatadogSampler(rules=rules)
+
+    # No rules want to sample
+    #   It is rejected
+    #   All rules SamplingRule.matches are called
+    #   No calls to SamplingRule.sample happen
+    for rule in rules:
+        rule.matches.return_value = False
+
+    assert sampler.sample(span) is False
+    assert span._context.sampling_priority is AUTO_REJECT
+    mock_is_allowed.assert_not_called()
+    for rule in rules:
+        rule.matches.assert_called_once_with(span)
+        rule.sample.assert_not_called()
+
+    [rule.reset_mock() for rule in rules]
+
+    # One rule thinks it should be sampled
+    #   All following rule's SamplingRule.matches are not called
+    #   It goes through limiter
+    #   It is allowed
+    rules[1].matches.return_value = True
+    rules[1].sample.return_value = True
+
+    assert sampler.sample(span) is True
+    assert span._context.sampling_priority is AUTO_KEEP
+    mock_is_allowed.assert_called_once_with()
+
+    rules[0].matches.assert_called_once_with(span)
+    rules[0].sample.assert_not_called()
+
+    rules[1].matches.assert_called_once_with(span)
+    rules[1].sample.assert_called_once_with(span)
+
+    rules[2].matches.assert_not_called()
+    rules[2].sample.assert_not_called()
+
+    mock_is_allowed.reset_mock()
+    [rule.reset_mock() for rule in rules]
+
+    # All rules think it should be sampled
+    #   The first rule's SamplingRule.matches is called
+    #   It goes through limiter
+    #   It is allowed
+    for rule in rules:
+        rule.matches.return_value = True
+    rules[0].sample.return_value = True
+
+    assert sampler.sample(span) is True
+    assert span._context.sampling_priority is AUTO_KEEP
+    mock_is_allowed.assert_called_once_with()
+    rules[0].matches.assert_called_once_with(span)
+    rules[0].sample.assert_called_once_with(span)
+    for rule in rules[1:]:
+        rule.matches.assert_not_called()
+        rule.sample.assert_not_called()
+
+    mock_is_allowed.reset_mock()
+    [rule.reset_mock() for rule in rules]
+
+    # Rule matches but does not think it should be sampled
+    #   The rule's SamplingRule.matches is called
+    #   The rule's SamplingRule.sample is called
+    #   Rate limiter is not called
+    #   The span is rejected
+    rules[0].matches.return_value = False
+    rules[2].matches.return_value = False
+
+    rules[1].matches.return_value = True
+    rules[1].sample.return_value = False
+
+    assert sampler.sample(span) is False
+    assert span._context.sampling_priority is AUTO_REJECT
+    mock_is_allowed.assert_not_called()
+
+    rules[0].matches.assert_called_once_with(span)
+    rules[0].sample.assert_not_called()
+
+    rules[1].matches.assert_called_once_with(span)
+    rules[1].sample.assert_called_once_with(span)
+
+    rules[2].matches.assert_not_called()
+    rules[2].sample.assert_not_called()
+
+    mock_is_allowed.reset_mock()
+    [rule.reset_mock() for rule in rules]
+
+
+def test_datadog_sampler_tracer(dummy_tracer):
+    rule = SamplingRule(sample_rate=1.0, name='test.span')
+    rule_spy = mock.Mock(spec=rule, wraps=rule)
+
+    sampler = DatadogSampler(rules=[rule_spy])
+    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
+    sampler.limiter = limiter_spy
+    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
+
+    dummy_tracer.configure(sampler=sampler_spy)
+
+    assert dummy_tracer.sampler is sampler_spy
+
+    with dummy_tracer.trace('test.span') as span:
+        # Assert all of our expected functions were called
+        sampler_spy.sample.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.sample.assert_called_once_with(span)
+        limiter_spy.is_allowed.assert_called_once_with()
+
+        # We know it was sampled because we have a sample rate of 1.0
+        assert span.sampled
+        assert span._context.sampling_priority is AUTO_KEEP
+
+
+def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
+    rule = SamplingRule(sample_rate=1.0, name='test.span')
+    rule_spy = mock.Mock(spec=rule, wraps=rule)
+
+    sampler = DatadogSampler(rules=[rule_spy])
+    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
+    limiter_spy.is_allowed.return_value = False  # Have the limiter deny the span
+    sampler.limiter = limiter_spy
+    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
+
+    dummy_tracer.configure(sampler=sampler_spy)
+
+    assert dummy_tracer.sampler is sampler_spy
+
+    with dummy_tracer.trace('test.span') as span:
+        # Assert all of our expected functions were called
+        sampler_spy.sample.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.sample.assert_called_once_with(span)
+        limiter_spy.is_allowed.assert_called_once_with()
+
+        # We know it was not sampled because of our limiter
+        assert span.sampled is False
+        assert span._context.sampling_priority is AUTO_REJECT
+
+
+def test_datadog_sampler_tracer_rate_0(dummy_tracer):
+    rule = SamplingRule(sample_rate=0, name='test.span')  # Sample rate of 0 means never sample
+    rule_spy = mock.Mock(spec=rule, wraps=rule)
+
+    sampler = DatadogSampler(rules=[rule_spy])
+    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
+    sampler.limiter = limiter_spy
+    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
+
+    dummy_tracer.configure(sampler=sampler_spy)
+
+    assert dummy_tracer.sampler is sampler_spy
+
+    with dummy_tracer.trace('test.span') as span:
+        # Assert all of our expected functions were called
+        sampler_spy.sample.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.sample.assert_called_once_with(span)
+        limiter_spy.is_allowed.assert_not_called()
+
+        # We know it was not sampled because we have a sample rate of 0.0
+        assert span.sampled is False
+        assert span._context.sampling_priority is AUTO_REJECT
+
+
+def test_datadog_sampler_tracer_child(dummy_tracer):
+    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
+    rule_spy = mock.Mock(spec=rule, wraps=rule)
+
+    sampler = DatadogSampler(rules=[rule_spy])
+    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
+    sampler.limiter = limiter_spy
+    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
+
+    dummy_tracer.configure(sampler=sampler_spy)
+
+    assert dummy_tracer.sampler is sampler_spy
+
+    with dummy_tracer.trace('parent.span') as parent:
+        with dummy_tracer.trace('child.span') as child:
+            # Assert all of our expected functions were called
+            # DEV: `assert_called_once_with` ensures we didn't also call with the child span
+            sampler_spy.sample.assert_called_once_with(parent)
+            rule_spy.matches.assert_called_once_with(parent)
+            rule_spy.sample.assert_called_once_with(parent)
+            limiter_spy.is_allowed.assert_called_once_with()
+
+            # We know it was sampled because we have a sample rate of 1.0
+            assert parent.sampled is True
+            assert parent._context.sampling_priority is AUTO_KEEP
+
+            assert child.sampled is True
+            assert child._parent is parent
+            assert child._context.sampling_priority is AUTO_KEEP
+
+
+def test_datadog_sampler_tracer_start_span(dummy_tracer):
+    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
+    rule_spy = mock.Mock(spec=rule, wraps=rule)
+
+    sampler = DatadogSampler(rules=[rule_spy])
+    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
+    sampler.limiter = limiter_spy
+    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
+
+    dummy_tracer.configure(sampler=sampler_spy)
+
+    assert dummy_tracer.sampler is sampler_spy
+
+    span = dummy_tracer.start_span('test.span')
+
+    # Assert all of our expected functions were called
+    sampler_spy.sample.assert_called_once_with(span)
+    rule_spy.matches.assert_called_once_with(span)
+    rule_spy.sample.assert_called_once_with(span)
+    limiter_spy.is_allowed.assert_called_once_with()
+
+    # We know it was sampled because we have a sample rate of 1.0
+    assert span.sampled is True
+    assert span._context.sampling_priority is AUTO_KEEP
