@@ -126,7 +126,7 @@ class TracedServer(ObjectProxy):
                 sock_info,
                 operation,
                 *args,
-                **kwargs,
+                **kwargs
             )
 
         try:
@@ -134,7 +134,8 @@ class TracedServer(ObjectProxy):
                 sock_info,
                 operation,
                 *args,
-                **kwargs)
+                **kwargs
+            )
 
             if result and result.address:
                 _set_address_tags(span, result.address)
