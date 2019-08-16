@@ -218,6 +218,21 @@ class PylibmcCore(object):
         self.assertEqual(len(spans), 1)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    def test_disabled(self):
+        """
+        Ensure client works when the tracer is disabled
+        """
+        client, tracer = self.get_client()
+        try:
+            tracer.enabled = False
+
+            client.set('a', 'crow')
+
+            spans = self.get_spans()
+            assert len(spans) == 0
+        finally:
+            tracer.enabled = True
+
 
 class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
