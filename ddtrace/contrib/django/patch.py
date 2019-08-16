@@ -25,9 +25,8 @@ from .compat import get_resolver
 log = get_logger(__name__)
 
 config._add('django', dict(
-    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
     service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'django',
-    app='flask',
+    app='django',
     app_type=AppTypes.web,
 
     distributed_tracing_enabled=True,
