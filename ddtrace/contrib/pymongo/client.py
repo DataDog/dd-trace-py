@@ -150,14 +150,15 @@ class TracedServer(ObjectProxy):
             return self.__wrapped__.send_message_with_response(
                 operation,
                 *args,
-                **kwargs,
+                **kwargs
             )
 
         try:
             result = self.__wrapped__.send_message_with_response(
                 operation,
                 *args,
-                **kwargs)
+                **kwargs
+            )
 
             if result and result.address:
                 _set_address_tags(span, result.address)
