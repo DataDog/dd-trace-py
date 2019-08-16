@@ -79,7 +79,6 @@ The available settings are:
   remotely from an instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
 * ``analytics_enabled`` (default: `None`): enable generating APM events for Trace Search & Analytics.
-  We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
