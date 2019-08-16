@@ -22,6 +22,9 @@ done
 for whl in /dd-trace-py/dist/*-linux_${ARCH}.whl;
 do
   auditwheel repair "${whl}" -w /dd-trace-py/dist
+
+  # Remove linux wheel since we only want the manylinux wheels
+  rm "${whl}"
 done
 EOF
 )
