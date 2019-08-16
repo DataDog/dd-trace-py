@@ -14,6 +14,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
@@ -235,10 +236,14 @@ class TestAPITransport(TestCase):
     of integration tests so real calls are triggered and you have to execute
     a real trace-agent to let them pass.
     """
-    def setUp(self):
+    @mock.patch('ddtrace.internal.runtime.container.get_container_info')
+    def setUp(self, get_container_info):
         """
         Create a tracer without workers, while spying the ``send()`` method
         """
+        # Mock the container id we use for making requests
+        get_container_info.return_value = CGroupInfo(container_id='test-container-id')
+
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
         self.api_json = API('localhost', 8126, encoder=JSONEncoder())
@@ -258,12 +263,13 @@ class TestAPITransport(TestCase):
 
         # retrieve the headers from the mocked request call
         expected_headers = {
-                'Datadog-Meta-Lang': 'python',
-                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-                'X-Datadog-Trace-Count': '1',
-                'Content-Type': 'application/msgpack'
+            'Datadog-Container-Id': 'test-container-id',  # mocked in setUp()
+            'Datadog-Meta-Lang': 'python',
+            'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+            'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+            'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+            'X-Datadog-Trace-Count': '1',
+            'Content-Type': 'application/msgpack',
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
