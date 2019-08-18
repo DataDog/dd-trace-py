@@ -11,16 +11,16 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.utils import get_wsgi_header
 
 
-def assert_trace_count(test_spans):
-    test_spans.assert_trace_count(1)
+def assert_trace_count(test_spans, trace_count=1, span_count=-1):
+    test_spans.assert_trace_count(trace_count)
 
-    span_count = -1
-    if django.VERSION >= (2, 0, 0):
-        span_count = 10
-    elif django.VERSION < (1, 10, 0):
-        span_count = 15
-    else:
-        span_count = 16
+    if span_count == -1:
+        if django.VERSION >= (2, 0, 0):
+            span_count = 10
+        elif django.VERSION >= (1, 11, 0):
+            span_count = 16
+        else:
+            span_count = 15
     test_spans.assert_span_count(span_count)
 
 
@@ -151,10 +151,10 @@ def test_django_request_middleware_2_0_0(client, test_spans):
 
 
 @pytest.mark.skipif(
-    django.VERSION < (1, 10, 0) or django.VERSION > (2, 0, 0),
-    reason='Skipping Django >=1.10.0,<2.0.0 test with Django {}'.format(django.VERSION),
+    django.VERSION < (1, 11, 0) or django.VERSION > (2, 0, 0),
+    reason='Skipping Django >=1.11.0,<2.0.0 test with Django {}'.format(django.VERSION),
 )
-def test_django_request_middleware_1_10_0(client, test_spans):
+def test_django_request_middleware_1_11_0(client, test_spans):
     """
     When making a request to a Django app
         We properly create the `django.middleware` spans
@@ -207,8 +207,8 @@ def test_django_request_middleware_1_10_0(client, test_spans):
 
 
 @pytest.mark.skipif(
-    django.VERSION >= (1, 10, 0),
-    reason='Skipping Django >= 1.10.0 test with Django {}'.format(django.VERSION),
+    django.VERSION >= (1, 11, 0),
+    reason='Skipping Django >= 1.11.0 test with Django {}'.format(django.VERSION),
 )
 def test_django_request_middleware_1_0_0(client, test_spans):
     """
@@ -243,7 +243,7 @@ def test_django_request_middleware_1_0_0(client, test_spans):
     expected_resources = [
         'django.contrib.sessions.middleware.process_request',
         'django.middleware.common.process_request',
-        # 'django.middleware.csrf.process_request',  # Not in <1.10.0
+        # 'django.middleware.csrf.process_request',  # Not in < 1.11.0
         'django.contrib.auth.middleware.process_request',
         'django.contrib.auth.middleware.process_request',
         'django.contrib.messages.middleware.process_request',
@@ -375,28 +375,27 @@ def test_django_request_not_found(client, test_spans):
     resp = client.get('/unknown/endpoint')
     assert resp.status_code == 404
 
-    content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
-    if django.VERSION < (1, 10, 0):
-        content = b'<h1>Not Found</h1><p>The requested URL /unknown/endpoint was not found on this server.</p>'
-    elif django.VERSION >= (3, 0, 0):
+    if django.VERSION >= (3, 0, 0):
         content = (
             b'\n<!doctype html>\n<html lang="en">\n<head>\n  <title>Not Found</title>\n'
             b'</head>\n<body>\n  <h1>Not Found</h1><p>The requested resource was not found '
             b'on this server.</p>\n</body>\n</html>\n'
         )
+    elif django.VERSION >= (1, 11, 0):
+         content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
+    else:
+        content = b'<h1>Not Found</h1><p>The requested URL /unknown/endpoint was not found on this server.</p>'
     assert resp.content == content
 
     # Assert the correct number of traces and spans
-    test_spans.assert_trace_count(1)
-
     span_count = -1
     if django.VERSION >= (2, 0, 0):
         span_count = 10
-    elif django.VERSION >= (1, 10, 0):
+    elif django.VERSION >= (1, 11, 0):
         span_count = 15
     else:
         span_count = 14
-    test_spans.assert_span_count(span_count)
+    assert_trace_count(test_spans, span_count=span_count)
 
     # Assert the structure of the root `django.request` span
     root = test_spans.get_root_span()
