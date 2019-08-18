@@ -367,7 +367,10 @@ def wrap_get_response(wrapped, instance, args, kwargs):
             if resolver_match:
                 span.set_tag('django.view', resolver_match.view_name)
                 _set_tag_array(span, 'django.namespace', resolver_match.namespaces)
-                _set_tag_array(span, 'django.app', resolver_match.app_names)
+
+                # Django >= 2.0.0
+                if hasattr(resolver_match, 'app_names'):
+                    _set_tag_array(span, 'django.app', resolver_match.app_names)
 
             if route:
                 span.set_tag('http.route', route)
