@@ -382,7 +382,7 @@ def test_django_request_not_found(client, test_spans):
             b'on this server.</p>\n</body>\n</html>\n'
         )
     elif django.VERSION >= (1, 11, 0):
-         content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
+        content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
     else:
         content = b'<h1>Not Found</h1><p>The requested URL /unknown/endpoint was not found on this server.</p>'
     assert resp.content == content
