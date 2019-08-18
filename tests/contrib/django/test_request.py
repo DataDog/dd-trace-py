@@ -14,7 +14,13 @@ from ddtrace.propagation.utils import get_wsgi_header
 def assert_trace_count(test_spans):
     test_spans.assert_trace_count(1)
 
-    span_count = 10 if django.VERSION >= (2, 0, 0) else 16
+    span_count = -1
+    if django.VERSION >= (2, 0, 0):
+        span_count = 10
+    elif django.VERSION < (1, 10, 0):
+        span_count = 15
+    else:
+        span_count = 16
     test_spans.assert_span_count(span_count)
 
 
@@ -86,7 +92,10 @@ def test_django_request_root_span_pin_disabled(client, test_spans):
     test_spans.assert_span_count(0)
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason='Skipping Django 2.x.x test with Django 1.x.x')
+@pytest.mark.skipif(
+    django.VERSION < (2, 0, 0),
+    reason='Skipping Django >= 2.0.0 test with Django {}'.format(django.VERSION),
+)
 def test_django_request_middleware_2_0_0(client, test_spans):
     """
     When making a request to a Django app
@@ -141,8 +150,11 @@ def test_django_request_middleware_2_0_0(client, test_spans):
     assert first_middleware.parent_id == root_span.span_id
 
 
-@pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='Skipping Django 1.x.x test with Django 2.x.x')
-def test_django_request_middleware_1_0_0(client, test_spans):
+@pytest.mark.skipif(
+    django.VERSION < (1, 10, 0) or django.VERSION > (2, 0, 0),
+    reason='Skipping Django >=1.10.0,<2.0.0 test with Django {}'.format(django.VERSION),
+)
+def test_django_request_middleware_1_10_0(client, test_spans):
     """
     When making a request to a Django app
         We properly create the `django.middleware` spans
@@ -194,7 +206,66 @@ def test_django_request_middleware_1_0_0(client, test_spans):
     assert span_resources == expected_resources
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason='Skipping Django 2.x.x test with Django 1.x.x')
+@pytest.mark.skipif(
+    django.VERSION >= (1, 10, 0),
+    reason='Skipping Django >= 1.10.0 test with Django {}'.format(django.VERSION),
+)
+def test_django_request_middleware_1_0_0(client, test_spans):
+    """
+    When making a request to a Django app
+        We properly create the `django.middleware` spans
+    """
+    resp = client.get('/')
+    assert resp.status_code == 200
+    assert resp.content == b'Hello, test app.'
+
+    # Assert the correct number of traces and spans
+    assert_trace_count(test_spans)
+
+    # Get all the `django.middleware` spans in this trace
+    middleware_spans = list(test_spans.filter_spans(name='django.middleware'))
+    assert len(middleware_spans) == 13
+
+    root = test_spans.get_root_span()
+    root.assert_matches(name='django.request')
+
+    # Assert common span structure
+    for span in middleware_spans:
+        span.assert_matches(
+            name='django.middleware',
+            service='django',
+            error=0,
+            span_type=None,
+            parent_id=root.span_id,  # They are all children of the root django.request
+        )
+
+    # DEV: Order matters here, we want all `process_request` before `process_view`, before `process_response`
+    expected_resources = [
+        'django.contrib.sessions.middleware.process_request',
+        'django.middleware.common.process_request',
+        # 'django.middleware.csrf.process_request',  # Not in <1.10.0
+        'django.contrib.auth.middleware.process_request',
+        'django.contrib.auth.middleware.process_request',
+        'django.contrib.messages.middleware.process_request',
+        'django.middleware.security.process_request',
+        'django.middleware.csrf.process_view',
+        'django.middleware.security.process_response',
+        'django.middleware.clickjacking.process_response',
+        'django.contrib.messages.middleware.process_response',
+        'django.middleware.csrf.process_response',
+        'django.middleware.common.process_response',
+        'django.contrib.sessions.middleware.process_response',
+    ]
+
+    middleware_spans = sorted(middleware_spans, key=lambda s: s.start)
+    span_resources = [s.resource for s in middleware_spans]
+    assert span_resources == expected_resources
+
+
+@pytest.mark.skipif(
+    django.VERSION < (2, 0, 0),
+    reason='Skipping Django < 2.0.0 test with Django {}'.format(django.VERSION),
+)
 def test_django_request_view_2_0_0(client, test_spans):
     """
     When making a request to a Django app
@@ -230,7 +301,10 @@ def test_django_request_view_2_0_0(client, test_spans):
     assert view_span.parent_id == last_middleware_span.span_id
 
 
-@pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='Skipping Django 1.x.x test with Django 2.x.x')
+@pytest.mark.skipif(
+    django.VERSION >= (2, 0, 0),
+    reason='Skipping Django < 2.0.0 test with Django {}'.format(django.VERSION),
+)
 def test_django_request_view_1_0_0(client, test_spans):
     """
     When making a request to a Django app
@@ -300,13 +374,29 @@ def test_django_request_not_found(client, test_spans):
     """
     resp = client.get('/unknown/endpoint')
     assert resp.status_code == 404
-    assert (
-        resp.content == b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
-    )
+
+    content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
+    if django.VERSION < (1, 10, 0):
+        content = b'<h1>Not Found</h1><p>The requested URL /unknown/endpoint was not found on this server.</p>'
+    elif django.VERSION >= (3, 0, 0):
+        content = (
+            b'\n<!doctype html>\n<html lang="en">\n<head>\n  <title>Not Found</title>\n'
+            b'</head>\n<body>\n  <h1>Not Found</h1><p>The requested resource was not found '
+            b'on this server.</p>\n</body>\n</html>\n'
+        )
+    assert resp.content == content
 
     # Assert the correct number of traces and spans
     test_spans.assert_trace_count(1)
-    test_spans.assert_span_count(10 if django.VERSION >= (2, 0, 0) else 15)
+
+    span_count = -1
+    if django.VERSION >= (2, 0, 0):
+        span_count = 10
+    elif django.VERSION >= (1, 10, 0):
+        span_count = 15
+    else:
+        span_count = 14
+    test_spans.assert_span_count(span_count)
 
     # Assert the structure of the root `django.request` span
     root = test_spans.get_root_span()
