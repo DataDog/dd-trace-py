@@ -312,6 +312,12 @@ def wrap_get_response(wrapped, instance, args, kwargs):
         else:
             resolver = get_resolver()
 
+        error_type_404 = None
+        if django.VERSION < (1, 10, 0):
+            error_type_404 = django.core.urlresolvers.Resolver404
+        else:
+            error_type_404 = django.urls.exceptions.Resolver404
+
         route = None
         resolver_match = None
         resource = request.method
@@ -333,7 +339,7 @@ def wrap_get_response(wrapped, instance, args, kwargs):
                 # TODO: Validate if `resolver.pattern.regex.pattern` is available or not
                 callback, callback_args, callback_kwargs = resolver_match
                 resource = '{0} {1}'.format(request.method, func_name(callback))
-        except django.urls.exceptions.Resolver404:
+        except error_type_404:
             # Normalize all 404 requests into a single resource name
             # DEV: This is for potential cardinality issues
             resource = '{0} 404'.format(request.method)
