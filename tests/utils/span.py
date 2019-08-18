@@ -278,7 +278,8 @@ class TestSpanContainer(object):
 
     def assert_trace_count(self, count):
         """Assert the number of root spans (traces) this container has"""
-        trace_count = len(self.get_root_spans())
+        trace_ids = set([s.trace_id for s in self.spans])
+        trace_count = len(trace_ids)
         assert trace_count == count, 'Trace count {0} != {1}'.format(trace_count, count)
 
     def assert_span_count(self, count):
