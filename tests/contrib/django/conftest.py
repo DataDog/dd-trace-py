@@ -12,10 +12,10 @@ from ...utils.tracer import DummyTracer
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`
-if django.VERSION < (2, 0, 0):
-    app_name = 'testapp_1'
-else:
+if django.VERSION >= (2, 0, 0):
     app_name = 'testapp_2'
+else:
+    app_name = 'testapp_1'
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.contrib.django.{0}.settings'.format(app_name))
 
 
