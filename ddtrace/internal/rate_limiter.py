@@ -34,16 +34,16 @@ class RateLimiter(object):
         :returns: Whether the current transaction is allowed or not
         :rtype: :obj:`bool`
         """
+        # Rate limit of 0 blocks everything
+        if self.rate_limit == 0:
+            return False
+
+        # Negative rate limit disables rate limiting
+        elif self.rate_limit < 0:
+            return True
+
         # Lock, we need this to be thread safe, it should be shared by all threads
         with self._lock:
-            # Rate limit of 0 blocks everything
-            if self.rate_limit == 0:
-                return False
-
-            # Negative rate limit disables rate limiting
-            elif self.rate_limit < 0:
-                return True
-
             self._replenish()
 
             if self.tokens >= 1:
