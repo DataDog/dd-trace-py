@@ -197,7 +197,6 @@ class TestSpanContainer(object):
 
     Subclasses of this class must implement a `get_spans` method::
 
-        @property
         def get_spans(self):
             return []
 
@@ -277,6 +276,11 @@ class TestSpanContainer(object):
 
         return sorted(roots, key=lambda s: s.start)
 
+    def assert_trace_count(self, count):
+        """Assert the number of unique trace ids this container has"""
+        trace_count = len(self.get_root_spans())
+        assert trace_count == count, 'Trace count {0} != {1}'.format(trace_count, count)
+
     def assert_span_count(self, count):
         """Assert this container has the expected number of spans"""
         assert len(self.spans) == count, 'Span count {0} != {1}'.format(len(self.spans), count)
@@ -329,6 +333,29 @@ class TestSpanContainer(object):
             .format(args, kwargs, len(self.spans))
         )
         return span
+
+
+class TracerSpanContainer(TestSpanContainer):
+    """
+    A class to wrap a :class:`tests.utils.tracer.DummyTracer` with a
+    :class:`tests.utils.span.TestSpanContainer` to use in tests
+    """
+    def __init__(self, tracer):
+        self.tracer = tracer
+        super(TracerSpanContainer, self).__init__()
+
+    def get_spans(self):
+        """
+        Overridden method to return all spans attached to this tracer
+
+        :returns: List of spans attached to this tracer
+        :rtype: list
+        """
+        return self.tracer.writer.spans
+
+    def reset(self):
+        """Helper to reset the existing list of spans created"""
+        self.tracer.writer.pop()
 
 
 class TestSpanNode(TestSpan, TestSpanContainer):
@@ -428,3 +455,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             root, _children = child
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
+
+    def pprint(self):
+        parts = [super(TestSpanNode, self).pprint()]
+        for child in self._children:
+            parts.append('-' * 20)
+            parts.append(child.pprint())
+        return '\r\n'.join(parts)
