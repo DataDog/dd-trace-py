@@ -25,7 +25,7 @@ task :'release:docs' => :docs do
 end
 
 namespace :pypi do
-  RELEASE_DIR = '/tmp/dd-trace-py-release'
+  RELEASE_DIR = './dist/'
 
   def get_version()
     return `python setup.py --version`.strip
