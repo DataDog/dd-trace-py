@@ -1,5 +1,6 @@
-import time
 import threading
+
+from ..vendor import monotonic
 
 
 class RateLimiter(object):
@@ -22,7 +23,7 @@ class RateLimiter(object):
         self.tokens = rate_limit
         self.max_tokens = rate_limit
 
-        self.last_update = time.time()
+        self.last_update = monotonic.monotonic()
         self._lock = threading.Lock()
 
     def is_allowed(self):
@@ -58,7 +59,7 @@ class RateLimiter(object):
             return
 
         # Add more available tokens based on how much time has passed
-        now = time.time()
+        now = monotonic.monotonic()
         elapsed = now - self.last_update
         self.last_update = now
 
