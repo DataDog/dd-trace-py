@@ -21,7 +21,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'app.views'
+ROOT_URLCONF = 'tests.contrib.djangorestframework.app.views'
 
 TEMPLATES = [
     {
@@ -111,5 +111,5 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAdminUser',
     ],
 
-    'EXCEPTION_HANDLER': 'app.exceptions.custom_exception_handler'
+    'EXCEPTION_HANDLER': 'tests.contrib.djangorestframework.app.exceptions.custom_exception_handler'
 }
