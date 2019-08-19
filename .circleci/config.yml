@@ -706,7 +706,7 @@ jobs:
       - run: sudo apt-get -y install rake
       - run: sudo pip install mkwheelhouse sphinx awscli
       - run: S3_DIR=trace-dev rake release:docs
-      - run: VERSION_SUFFIX=$CIRCLE_BRANCH$CIRCLE_BUILD_NUM S3_DIR=trace-dev rake release:wheel
+      - run: S3_DIR=trace-dev rake release:wheel
 
   jinja2:
     docker:
