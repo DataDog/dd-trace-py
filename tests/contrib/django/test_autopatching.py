@@ -76,3 +76,23 @@ class DjangoAutopatchTest(DjangoTraceTestCase):
 
         found_mw = settings.MIDDLEWARE.count('ddtrace.contrib.django.TraceExceptionMiddleware')
         assert found_mw == 1
+
+
+class DjangoAutopatchCustomMiddlewareTest(DjangoTraceTestCase):
+    @skipIf(django.VERSION < (1, 10), 'skip if version is below 1.10')
+    def test_autopatching_empty_middleware(self):
+        with self.settings(MIDDLEWARE=[]):
+            patch(django=True)
+            django.setup()
+        assert django._datadog_patch
+        assert 'ddtrace.contrib.django' in settings.INSTALLED_APPS
+        assert settings.MIDDLEWARE[0] == 'ddtrace.contrib.django.TraceMiddleware'
+        # MIDDLEWARE_CLASSES gets created internally in django 1.10 & 1.11 but doesn't
+        # exist at all in 2.0.
+        assert not getattr(settings, 'MIDDLEWARE_CLASSES', None) or \
+            'ddtrace.contrib.django.TraceMiddleware' \
+            not in settings.MIDDLEWARE_CLASSES
+        assert settings.MIDDLEWARE[-1] == 'ddtrace.contrib.django.TraceExceptionMiddleware'
+        assert not getattr(settings, 'MIDDLEWARE_CLASSES', None) or \
+            'ddtrace.contrib.django.TraceExceptionMiddleware' \
+            not in settings.MIDDLEWARE_CLASSES
