@@ -35,7 +35,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert len(spans) == 1
         sp = spans[0]
         assert sp.name == 'django.request'
-        assert sp.resource == 'app.views.UserViewSet'
+        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
         assert sp.error == 0
         assert sp.span_type == 'http'
         assert sp.get_tag('http.status_code') == '500'
@@ -52,7 +52,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert len(spans) == 1
         sp = spans[0]
         assert sp.name == 'django.request'
-        assert sp.resource == 'app.views.UserViewSet'
+        assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
         assert sp.error == 1
         assert sp.span_type == 'http'
         assert sp.get_tag('http.method') == 'GET'
