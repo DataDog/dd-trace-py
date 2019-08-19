@@ -13,10 +13,10 @@ class RateLimiter(object):
         """
         Constructor for RateLimiter
 
-        :param rate_limit: The rate limit to apply for number of transactions per second.
-            rate limit > 0 max number of transactions to allow per second,
-            rate limit == 0 to disallow any transactions,
-            rate limit < 0 to disable any rate limiting
+        :param rate_limit: The rate limit to apply for number of requests per second.
+            rate limit > 0 max number of requests to allow per second,
+            rate limit == 0 to disallow all requests,
+            rate limit < 0 to allow all requests
         :type rate_limit: :obj:`int`
         """
         self.rate_limit = rate_limit
@@ -28,11 +28,11 @@ class RateLimiter(object):
 
     def is_allowed(self):
         """
-        Check whether the current transaction is allowed or not
+        Check whether the current request is allowed or not
 
-        This method will also reduce the number of available transactions by 1
+        This method will also reduce the number of available tokens by 1
 
-        :returns: Whether the current transaction is allowed or not
+        :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
         # Rate limit of 0 blocks everything
