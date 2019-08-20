@@ -20,6 +20,9 @@ class TracerStackContext(DefaultContextProvider):
     https://github.com/tornadoweb/tornado/issues/1063
     """
     def __init__(self):
+        # DEV: skip resetting context manager since TracerStackContext is used
+        # as a with-statement context where we do not want to be clearing the
+        # current context for a thread or task
         super(TracerStackContext, self).__init__(reset_context_manager=False)
         self._active = True
         self._context = Context()

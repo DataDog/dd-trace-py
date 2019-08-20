@@ -45,7 +45,7 @@ class ThreadLocalContext(BaseContextManager):
     """
     def __init__(self, reset=True):
         # always initialize a new thread-local context holder
-        self.reset()
+        super(ThreadLocalContext, self).__init__(reset=True)
 
     def _has_active_context(self):
         """

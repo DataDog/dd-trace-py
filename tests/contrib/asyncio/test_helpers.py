@@ -2,13 +2,13 @@ import asyncio
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.provider import DefaultContextProvider
-from ddtrace.contrib.asyncio import context_provider, helpers
+from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.contrib.asyncio import helpers
 from .utils import AsyncioTestCase, mark_asyncio
 
 
 @pytest.mark.skipif(
-    isinstance(context_provider, DefaultContextProvider),
+    CONTEXTVARS_IS_AVAILABLE,
     reason='only applicable to legacy asyncio integration'
 )
 class TestAsyncioHelpers(AsyncioTestCase):

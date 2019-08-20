@@ -19,8 +19,9 @@ of ``asyncio``. To trace asynchronous execution, you must::
     loop.run_until_complete(some_work())
     loop.close()
 
-If ``contextvars`` is available, we use the ``DefaultContextProvider``,
-otherwise we use the legacy ``AsyncioContextProvider``.
+If ``contextvars`` is available, we use the
+:class:`ddtrace.provider.DefaultContextProvider`, otherwise we use the legacy
+:class:`ddtrace.contrib.asyncio.provider.AsyncioContextProvider`.
 
 In addition, helpers are provided to simplify how the tracing ``Context`` is
 handled between scheduled coroutines and ``Future`` invoked in separated

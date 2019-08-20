@@ -169,8 +169,7 @@ class TestTracerAsyncioCompatibility(AsyncioTestCase):
 
 
 @pytest.mark.skipif(
-    not isinstance(ddtrace.contrib.asyncio.context_provider,
-                   ddtrace.contrib.asyncio.provider.AsyncioContextProvider),
+    ddtrace.internal.context_manager.CONTEXTVARS_IS_AVAILABLE,
     reason='only applicable to legacy asyncio provider'
 )
 class TestUtilsAsyncio(object):
