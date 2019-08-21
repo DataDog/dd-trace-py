@@ -214,36 +214,3 @@ class Context(object):
 
                     return finished_spans, sampled
             return None, None
-
-
-class ThreadLocalContext(object):
-    """
-    ThreadLocalContext can be used as a tracer global reference to create
-    a different ``Context`` for each thread. In synchronous tracer, this
-    is required to prevent multiple threads sharing the same ``Context``
-    in different executions.
-    """
-    def __init__(self):
-        self._locals = threading.local()
-
-    def _has_active_context(self):
-        """
-        Determine whether we have a currently active context for this thread
-
-        :returns: Whether an active context exists
-        :rtype: bool
-        """
-        ctx = getattr(self._locals, 'context', None)
-        return ctx is not None
-
-    def set(self, ctx):
-        setattr(self._locals, 'context', ctx)
-
-    def get(self):
-        ctx = getattr(self._locals, 'context', None)
-        if not ctx:
-            # create a new Context if it's not available
-            ctx = Context()
-            self._locals.context = ctx
-
-        return ctx
