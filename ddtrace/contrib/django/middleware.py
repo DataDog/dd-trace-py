@@ -129,7 +129,7 @@ class TraceMiddleware(InstrumentationMixin):
 
             # set analytics sample rate
             # DEV: django is special case maintains separate configuration from config api
-            if _analytics_enabled():
+            if _analytics_enabled() and settings.ANALYTICS_SAMPLE_RATE is not None:
                 span.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
                     settings.ANALYTICS_SAMPLE_RATE,
