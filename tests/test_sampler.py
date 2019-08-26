@@ -1,4 +1,5 @@
 from __future__ import division
+import contextlib
 import mock
 import re
 import unittest
@@ -674,96 +675,110 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         mock.Mock(spec=SamplingRule),
     ]
     sampler = DatadogSampler(rules=rules)
+    sampler.default_sampler = mock.Mock(spec=SamplingRule)
+    sampler.default_sampler.return_value = True
+
+    # Reset all of our mocks
+    @contextlib.contextmanager
+    def reset_mocks():
+        def reset():
+            mock_is_allowed.reset_mock()
+            [rule.reset_mock() for rule in rules]
+            sampler.default_sampler.reset_mock()
+
+        reset()  # Reset before, just in case
+        try:
+            yield
+        finally:
+            reset()  # Must reset after
 
     # No rules want to sample
-    #   It is rejected
+    #   It is allowed because of default rate sampler
     #   All rules SamplingRule.matches are called
     #   No calls to SamplingRule.sample happen
-    for rule in rules:
-        rule.matches.return_value = False
+    with reset_mocks():
+        for rule in rules:
+            rule.matches.return_value = False
 
-    assert sampler.sample(span) is False
-    assert span._context.sampling_priority is AUTO_REJECT
-    assert span.sampled is True
-    mock_is_allowed.assert_not_called()
-    for rule in rules:
-        rule.matches.assert_called_once_with(span)
-        rule.sample.assert_not_called()
-
-    [rule.reset_mock() for rule in rules]
+        assert sampler.sample(span) is True
+        assert span._context.sampling_priority is AUTO_KEEP
+        assert span.sampled is True
+        mock_is_allowed.assert_called_once_with()
+        for rule in rules:
+            rule.matches.assert_called_once_with(span)
+            rule.sample.assert_not_called()
+        sampler.default_sampler.matches.assert_not_called()
+        sampler.default_sampler.sample.assert_called_once_with(span)
 
     # One rule thinks it should be sampled
     #   All following rule's SamplingRule.matches are not called
     #   It goes through limiter
     #   It is allowed
-    rules[1].matches.return_value = True
-    rules[1].sample.return_value = True
+    with reset_mocks():
+        rules[1].matches.return_value = True
+        rules[1].sample.return_value = True
 
-    assert sampler.sample(span) is True
-    assert span._context.sampling_priority is AUTO_KEEP
-    assert span.sampled is True
-    mock_is_allowed.assert_called_once_with()
+        assert sampler.sample(span) is True
+        assert span._context.sampling_priority is AUTO_KEEP
+        assert span.sampled is True
+        mock_is_allowed.assert_called_once_with()
+        sampler.default_sampler.sample.assert_not_called()
 
-    rules[0].matches.assert_called_once_with(span)
-    rules[0].sample.assert_not_called()
+        rules[0].matches.assert_called_once_with(span)
+        rules[0].sample.assert_not_called()
 
-    rules[1].matches.assert_called_once_with(span)
-    rules[1].sample.assert_called_once_with(span)
+        rules[1].matches.assert_called_once_with(span)
+        rules[1].sample.assert_called_once_with(span)
 
-    rules[2].matches.assert_not_called()
-    rules[2].sample.assert_not_called()
-
-    mock_is_allowed.reset_mock()
-    [rule.reset_mock() for rule in rules]
+        rules[2].matches.assert_not_called()
+        rules[2].sample.assert_not_called()
 
     # All rules think it should be sampled
     #   The first rule's SamplingRule.matches is called
     #   It goes through limiter
     #   It is allowed
-    for rule in rules:
-        rule.matches.return_value = True
-    rules[0].sample.return_value = True
+    with reset_mocks():
+        for rule in rules:
+            rule.matches.return_value = True
+        rules[0].sample.return_value = True
 
-    assert sampler.sample(span) is True
-    assert span._context.sampling_priority is AUTO_KEEP
-    assert span.sampled is True
-    mock_is_allowed.assert_called_once_with()
-    rules[0].matches.assert_called_once_with(span)
-    rules[0].sample.assert_called_once_with(span)
-    for rule in rules[1:]:
-        rule.matches.assert_not_called()
-        rule.sample.assert_not_called()
-
-    mock_is_allowed.reset_mock()
-    [rule.reset_mock() for rule in rules]
+        assert sampler.sample(span) is True
+        assert span._context.sampling_priority is AUTO_KEEP
+        assert span.sampled is True
+        mock_is_allowed.assert_called_once_with()
+        sampler.default_sampler.sample.assert_not_called()
+        rules[0].matches.assert_called_once_with(span)
+        rules[0].sample.assert_called_once_with(span)
+        for rule in rules[1:]:
+            rule.matches.assert_not_called()
+            rule.sample.assert_not_called()
 
     # Rule matches but does not think it should be sampled
     #   The rule's SamplingRule.matches is called
     #   The rule's SamplingRule.sample is called
     #   Rate limiter is not called
     #   The span is rejected
-    rules[0].matches.return_value = False
-    rules[2].matches.return_value = False
+    with reset_mocks():
+        rules[0].matches.return_value = False
+        rules[2].matches.return_value = False
 
-    rules[1].matches.return_value = True
-    rules[1].sample.return_value = False
+        rules[1].matches.return_value = True
+        rules[1].sample.return_value = False
 
-    assert sampler.sample(span) is False
-    assert span._context.sampling_priority is AUTO_REJECT
-    assert span.sampled is True
-    mock_is_allowed.assert_not_called()
+        assert sampler.sample(span) is False
+        assert span._context.sampling_priority is AUTO_REJECT
+        assert span.sampled is True
+        mock_is_allowed.assert_not_called()
+        sampler.default_sampler.sample.assert_not_called()
 
-    rules[0].matches.assert_called_once_with(span)
-    rules[0].sample.assert_not_called()
+        rules[0].matches.assert_called_once_with(span)
+        rules[0].sample.assert_not_called()
 
-    rules[1].matches.assert_called_once_with(span)
-    rules[1].sample.assert_called_once_with(span)
+        rules[1].matches.assert_called_once_with(span)
+        rules[1].sample.assert_called_once_with(span)
 
-    rules[2].matches.assert_not_called()
-    rules[2].sample.assert_not_called()
-
-    mock_is_allowed.reset_mock()
-    [rule.reset_mock() for rule in rules]
+        rules[2].matches.assert_not_called()
+        rules[2].sample.assert_not_called()
 
 
 def test_datadog_sampler_tracer(dummy_tracer):

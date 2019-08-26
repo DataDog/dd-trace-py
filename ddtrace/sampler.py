@@ -108,17 +108,19 @@ RateByServiceSampler._default_key = RateByServiceSampler._key()
 class DatadogSampler(BaseSampler):
     """
     """
-    __slots__ = ('rules', 'rate_limit')
+    __slots__ = ('default_sampler', 'rules', 'rate_limit')
 
     DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1
 
-    def __init__(self, rules=None, rate_limit=None):
+    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=None):
         """
         Constructor for DatadogSampler sampler
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
         :type rules: :obj:`list` of :class:`SamplingRule`
+        :param default_sample_rate: The default sample rate to apply if no rules matched (default: 1.0)
+        :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, default 100 traces per second
         :type rate_limit: :obj:`int`
@@ -137,6 +139,7 @@ class DatadogSampler(BaseSampler):
         if rate_limit is None:
             rate_limit = self.DEFAULT_RATE_LIMIT
         self.limiter = RateLimiter(rate_limit)
+        self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
     def sample(self, span):
         """
@@ -159,10 +162,8 @@ class DatadogSampler(BaseSampler):
                     matching_rule = rule
                     break
             else:
-                # No rule matched, reject
-                if span._context:
-                    span._context.sampling_priority = AUTO_REJECT
-                return False
+                # No rule matches, use the default rate sampler
+                matching_rule = self.default_sampler
 
             if not matching_rule.sample(span):
                 if span._context:
@@ -202,7 +203,7 @@ class SamplingRule(object):
         .. code:: python
 
             DatadogSampler([
-                # Sample 100% of all traces by default
+                # Sample 100% of any trace
                 SamplingRule(sample_rate=1.0),
 
                 # Sample no healthcheck traces
