@@ -108,12 +108,14 @@ RateByServiceSampler._default_key = RateByServiceSampler._key()
 class DatadogSampler(BaseSampler):
     """
     """
-    __slots__ = ('default_sampler', 'rules', 'rate_limit')
+    # TODO: Remove '_priority_sampler' when we no longer use the fallback
+    __slots__ = ('default_sampler', 'rules', 'rate_limit', '_priority_sampler')
 
     DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1
 
-    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=None):
+    # TODO: Remove _priority_sampler=None when we no longer use the fallback
+    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=None, _priority_sampler=None):
         """
         Constructor for DatadogSampler sampler
 
@@ -141,6 +143,14 @@ class DatadogSampler(BaseSampler):
         self.limiter = RateLimiter(rate_limit)
         self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
+        # TODO: Remove when we no longer use the fallback
+        self._priority_sampler = _priority_sampler
+
+    def _set_priority(self, span, priority):
+        if span._context:
+            span._context.sampling_priority = priority
+        span.sampled = priority is AUTO_KEEP
+
     def sample(self, span):
         """
         Decide whether the provided span should be sampled or not
@@ -162,29 +172,33 @@ class DatadogSampler(BaseSampler):
                     matching_rule = rule
                     break
             else:
-                # No rule matches, use the default rate sampler
+                # No rule matches, fallback to priority sampling if set
+                if self._priority_sampler:
+                    if self._priority_sampler.sample(span):
+                        self._set_priority(span, AUTO_KEEP)
+                        return True
+                    else:
+                        self._set_priority(span, AUTO_REJECT)
+                        return False
+
+                # No rule matches, no priority sampler, use the default sampler
                 matching_rule = self.default_sampler
 
+            # Sample with the matching sampling rule
             if not matching_rule.sample(span):
-                if span._context:
-                    span._context.sampling_priority = AUTO_REJECT
+                self._set_priority(span, AUTO_REJECT)
                 return False
             else:
                 # Do not return here, we need to apply rate limit
-                if span._context:
-                    span._context.sampling_priority = AUTO_KEEP
+                self._set_priority(span, AUTO_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
         if not self.limiter.is_allowed():
-            if span._context:
-                span._context.sampling_priority = AUTO_REJECT
+            self._set_priority(span, AUTO_REJECT)
             return False
 
-        # TODO: Set `_sampling_priority_rate_v1` tag based on
-        #       matching_rule.sample_rate and effective rate from self.limiter
         # We made it by all of checks, sample this trace
-        if span._context:
-            span._context.sampling_priority = AUTO_KEEP
+        self._set_priority(span, AUTO_KEEP)
         return True
 
 

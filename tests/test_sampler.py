@@ -658,7 +658,7 @@ def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     mock_is_allowed.return_value = False
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
-    assert span.sampled is True
+    assert span.sampled is False
     mock_is_allowed.assert_called_once_with()
 
 
@@ -767,7 +767,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
 
         assert sampler.sample(span) is False
         assert span._context.sampling_priority is AUTO_REJECT
-        assert span.sampled is True
+        assert span.sampled is False
         mock_is_allowed.assert_not_called()
         sampler.default_sampler.sample.assert_not_called()
 
@@ -790,7 +790,8 @@ def test_datadog_sampler_tracer(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    dummy_tracer.configure(sampler=sampler_spy)
+    # TODO: Remove `priority_sampling=False` when we remove fallback
+    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -816,7 +817,8 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    dummy_tracer.configure(sampler=sampler_spy)
+    # TODO: Remove `priority_sampling=False` when we remove fallback
+    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -828,7 +830,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         limiter_spy.is_allowed.assert_called_once_with()
 
         # We know it was not sampled because of our limiter
-        assert span.sampled is True
+        assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
 
 
@@ -841,7 +843,8 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    dummy_tracer.configure(sampler=sampler_spy)
+    # TODO: Remove `priority_sampling=False` when we remove fallback
+    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -853,7 +856,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         limiter_spy.is_allowed.assert_not_called()
 
         # We know it was not sampled because we have a sample rate of 0.0
-        assert span.sampled is True
+        assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
 
 
@@ -866,7 +869,8 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    dummy_tracer.configure(sampler=sampler_spy)
+    # TODO: Remove `priority_sampling=False` when we remove fallback
+    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -897,7 +901,8 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    dummy_tracer.configure(sampler=sampler_spy)
+    # TODO: Remove `priority_sampling=False` when we remove fallback
+    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
 
     assert dummy_tracer.sampler is sampler_spy
 
