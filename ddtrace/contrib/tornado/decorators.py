@@ -1,4 +1,3 @@
-import sys
 import ddtrace
 
 from functools import wraps
@@ -22,10 +21,14 @@ def _finish_span(future):
             if exc_info:
                 span.set_exc_info(*exc_info)
         elif callable(getattr(future, 'exception', None)):
+            # DEV: exc_info not supported in future PY37
             # retrieve the exception from the Future object
             # that is executed in a different Thread
-            if future.exception():
-                span.set_exc_info(*sys.exc_info())
+            exc = future.exception()
+            if exc:
+                exc_type = type(exc)
+                exc_tb = getattr(exc, '__traceback__', None)
+                span.set_exc_info(exc_type, exc, exc_tb)
 
         span.finish()
 

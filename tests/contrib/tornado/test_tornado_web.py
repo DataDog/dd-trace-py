@@ -3,8 +3,9 @@ from .utils import TornadoTestCase
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
+import pytest
+import tornado
 
-from opentracing.scope_managers.tornado import TornadoScopeManager
 from tests.opentracer.utils import init_tracer
 
 
@@ -265,8 +266,11 @@ class TestTornadoWeb(TornadoTestCase):
         assert 4567 == request_span.parent_id
         assert 2 == request_span.get_metric(SAMPLING_PRIORITY_KEY)
 
+    @pytest.mark.skipif(tornado.version_info >= (6, 0),
+                        reason='Opentracing ScopeManager not available for Tornado 6.0')
     def test_success_handler_ot(self):
         """OpenTracing version of test_success_handler."""
+        from opentracing.scope_managers.tornado import TornadoScopeManager
         ot_tracer = init_tracer('tornado_svc', self.tracer, scope_manager=TornadoScopeManager())
 
         with ot_tracer.start_active_span('tornado_op'):
