@@ -780,6 +780,64 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         rules[2].matches.assert_not_called()
         rules[2].sample.assert_not_called()
 
+    # No rules match and priority sampler is defined
+    #   All rules SamplingRule.matches are called
+    #   Priority sampler's `sample` method is called
+    #   Result of priority sampler is returned
+    #   Rate limiter is not called
+    # TODO: Remove this case when we remove fallback to priority sampling
+    with reset_mocks():
+        # Configure mock priority sampler
+        priority_sampler = mock.Mock()
+        priority_sampler.sample.return_value = True
+        sampler._priority_sampler = priority_sampler
+
+        for rule in rules:
+            rule.matches.return_value = False
+            rule.sample.return_value = False
+
+        assert sampler.sample(span) is True
+        assert span._context.sampling_priority is AUTO_KEEP
+        assert span.sampled is True
+        mock_is_allowed.assert_not_called()
+        sampler.default_sampler.sample.assert_not_called()
+        priority_sampler.sample.assert_called_once_with(span)
+
+        [r.matches.assert_called_once_with(span) for r in rules]
+        [r.sample.assert_not_called() for r in rules]
+
+        # Reset priority sampler property
+        sampler._priority_sampler = None
+
+    # No rules match and priority sampler is defined
+    #   All rules SamplingRule.matches are called
+    #   Priority sampler's `sample` method is called
+    #   Result of priority sampler is returned
+    #   Rate limiter is not called
+    # TODO: Remove this case when we remove fallback to priority sampling
+    with reset_mocks():
+        # Configure mock priority sampler
+        priority_sampler = mock.Mock()
+        priority_sampler.sample.return_value = False
+        sampler._priority_sampler = priority_sampler
+
+        for rule in rules:
+            rule.matches.return_value = False
+            rule.sample.return_value = False
+
+        assert sampler.sample(span) is False
+        assert span._context.sampling_priority is AUTO_REJECT
+        assert span.sampled is False
+        mock_is_allowed.assert_not_called()
+        sampler.default_sampler.sample.assert_not_called()
+        priority_sampler.sample.assert_called_once_with(span)
+
+        [r.matches.assert_called_once_with(span) for r in rules]
+        [r.sample.assert_not_called() for r in rules]
+
+        # Reset priority sampler property
+        sampler._priority_sampler = None
+
 
 def test_datadog_sampler_tracer(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name='test.span')
