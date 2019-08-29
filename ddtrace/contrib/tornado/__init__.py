@@ -48,7 +48,7 @@ the ``trace()`` method as usual::
         def notify(self):
             # do something
 
-If you are overriding the `RequestHandler.on_finish` or `Request.log_exception`
+If you are overriding the `RequestHandler.on_finish` or `RequestHandler.log_exception`
 methods, you will need to call the super method to ensure the tracer's patched
 methods are called:
 
