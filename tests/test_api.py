@@ -9,7 +9,6 @@ from unittest import TestCase
 
 import pytest
 
-from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
 from ddtrace.compat import iteritems, httplib, PY3
 from ddtrace.internal.runtime.container import CGroupInfo
@@ -134,9 +133,6 @@ class APITests(TestCase):
 
     @mock.patch('logging.Logger.debug')
     def test_parse_response_json(self, log):
-        tracer = get_dummy_tracer()
-        tracer.debug_logging = True
-
         test_cases = {
             'OK': dict(
                 js=None,

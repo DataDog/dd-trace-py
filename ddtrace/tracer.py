@@ -1,4 +1,5 @@
 import functools
+import logging
 from os import environ, getpid
 
 
@@ -53,9 +54,6 @@ class Tracer(object):
             context_provider=DefaultContextProvider(),
         )
 
-        # A hook for local debugging. shouldn't be needed or used in production
-        self.debug_logging = False
-
         # globally set tags
         self.tags = {}
 
@@ -73,6 +71,16 @@ class Tracer(object):
         self._dogstatsd_client = None
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
         self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
+        self.log = log
+
+    @property
+    def debug_logging(self):
+        return self.log.isEnabledFor(logging.DEBUG)
+
+    @debug_logging.setter
+    @deprecated(message='Use logging.setLevel instead', version='1.0.0')
+    def debug_logging(self, value):
+        self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated('Use .tracer, not .tracer()', '1.0.0')
     def __call__(self):
@@ -313,12 +321,12 @@ class Tracer(object):
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
-        log.debug('Updating constant tags {}'.format(tags))
+        self.log.debug('Updating constant tags {}'.format(tags))
         self._dogstatsd_client.constant_tags = tags
 
     def _start_dogstatsd_client(self):
         # start dogstatsd as client with constant tags
-        log.debug('Connecting to DogStatsd on {}:{}'.format(
+        self.log.debug('Connecting to DogStatsd on {}:{}'.format(
             self._dogstatsd_host,
             self._dogstatsd_port
         ))
@@ -443,10 +451,10 @@ class Tracer(object):
         if not spans:
             return  # nothing to do
 
-        if self.debug_logging:
-            log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
             for span in spans:
-                log.debug('\n%s', span.pprint())
+                self.log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)
