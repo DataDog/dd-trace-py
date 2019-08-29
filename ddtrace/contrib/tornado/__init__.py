@@ -1,7 +1,11 @@
 """
 The Tornado integration traces all ``RequestHandler`` defined in a Tornado web application.
 Auto instrumentation is available using the ``patch`` function that **must be called before**
-importing the tornado library. The following is an example::
+importing the tornado library.
+
+**Note:** Tornado 5 and 6 supported only for Python 3.7.
+
+The following is an example::
 
     # patch before importing tornado and concurrent.futures
     from ddtrace import tracer, patch

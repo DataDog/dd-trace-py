@@ -5,10 +5,10 @@ import sys
 from ...context import Context
 from ...provider import DefaultContextProvider
 
-# tornado.stack_context removed in >=6.0
+# tornado.stack_context deprecated in Tornado 5 removed in Tornado 6
 # instead use DefaultContextProvider with ContextVarContextManager for asyncio
 _USE_STACK_CONTEXT = not (
-    sys.version_info >= (3, 7) and tornado.version_info >= (6, 0)
+    sys.version_info >= (3, 7) and tornado.version_info >= (5, 0)
 )
 
 if _USE_STACK_CONTEXT:
@@ -123,7 +123,7 @@ if _USE_STACK_CONTEXT:
                         stack_ctx._context = ctx
             return ctx
 else:
-    # DEV: no-op for Tornado>=6 since stack_context has been removed
+    # no-op when not using stack_context
     class TracerStackContext(DefaultContextProvider):
         def __enter__(self):
             pass
