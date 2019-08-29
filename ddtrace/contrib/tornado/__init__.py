@@ -48,6 +48,23 @@ the ``trace()`` method as usual::
         def notify(self):
             # do something
 
+If you are overriding the `RequestHandler.on_finish` or `Request.log_exception`
+methods, you will need to call the super method to ensure the tracer's patched
+methods are called:
+
+    class MainHandler(tornado.web.RequestHandler):
+        @tornado.gen.coroutine
+        def get(self):
+            self.write("Hello, world")
+
+        def on_finish(self):
+            super(MainHandler, self).on_finish()
+            # do other clean-up
+
+        def log_exception(self, typ, value, tb):
+            super(MainHandler, self).log_exception(typ, value, tb)
+            # do other logging
+
 Tornado settings can be used to change some tracing configuration, like::
 
     settings = {
