@@ -43,10 +43,6 @@ class ThreadLocalContext(BaseContextManager):
     is required to prevent multiple threads sharing the same ``Context``
     in different executions.
     """
-    def __init__(self, reset=True):
-        # always initialize a new thread-local context holder
-        super(ThreadLocalContext, self).__init__(reset=True)
-
     def _has_active_context(self):
         """
         Determine whether we have a currently active context for this thread
