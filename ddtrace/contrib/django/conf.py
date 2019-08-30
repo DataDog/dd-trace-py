@@ -34,7 +34,7 @@ DEFAULTS = {
     'DEFAULT_SERVICE': 'django',
     'DEFAULT_CACHE_SERVICE': '',
     'ENABLED': True,
-    'DISTRIBUTED_TRACING': False,
+    'DISTRIBUTED_TRACING': True,
     'ANALYTICS_ENABLED': None,
     'ANALYTICS_SAMPLE_RATE': True,
     'TAGS': {},

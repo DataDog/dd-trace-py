@@ -1,9 +1,11 @@
+import mock
 import time
 
 # 3rd party
 from django.contrib.auth.models import User
 
 from ddtrace.contrib.django.conf import settings
+from ddtrace.contrib.django.apps import apply_django_patches, connections
 
 # testing
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
@@ -61,3 +63,10 @@ class DjangoConnectionTest(DjangoTraceTestCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         assert span.service == 'my_prefix_db-defaultdb'
+
+    def test_apply_django_patches_calls_connections_all(self):
+        with mock.patch.object(connections, 'all') as mock_connections:
+            apply_django_patches(patch_rest_framework=False)
+
+        assert mock_connections.call_count == 1
+        assert mock_connections.mock_calls == [mock.call()]

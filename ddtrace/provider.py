@@ -1,7 +1,10 @@
-from .context import ThreadLocalContext
+import abc
+from ddtrace.vendor import six
+
+from .internal.context_manager import DefaultContextManager
 
 
-class BaseContextProvider(object):
+class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     """
     A ``ContextProvider`` is an interface that provides the blueprint
     for a callable class, capable to retrieve the current active
@@ -10,14 +13,17 @@ class BaseContextProvider(object):
         * the ``active`` method, that returns the current active ``Context``
         * the ``activate`` method, that sets the current active ``Context``
     """
+    @abc.abstractmethod
     def _has_active_context(self):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def activate(self, context):
-        raise NotImplementedError
+        pass
 
+    @abc.abstractmethod
     def active(self):
-        raise NotImplementedError
+        pass
 
     def __call__(self, *args, **kwargs):
         """Method available for backward-compatibility. It proxies the call to
@@ -32,8 +38,8 @@ class DefaultContextProvider(BaseContextProvider):
     thread-local storage. It is suitable for synchronous programming and
     Python WSGI frameworks.
     """
-    def __init__(self):
-        self._local = ThreadLocalContext()
+    def __init__(self, reset_context_manager=True):
+        self._local = DefaultContextManager(reset=reset_context_manager)
 
     def _has_active_context(self):
         """

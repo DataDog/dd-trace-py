@@ -59,4 +59,17 @@ Notes:
   `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
   Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
+
+monotonic
+---------
+
+Website: https://pypi.org/project/monotonic/
+Source: https://github.com/atdt/monotonic
+Version: 1.5
+License: Apache License 2.0
+
+Notes:
+  The source `monotonic.py` was added as `monotonic/__init__.py`
+
+  No other changes were made
 """
