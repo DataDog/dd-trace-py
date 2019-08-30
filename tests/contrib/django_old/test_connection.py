@@ -5,7 +5,7 @@ import time
 from django.contrib.auth.models import User
 
 from ddtrace.contrib.django.conf import settings
-from ddtrace.contrib.django.patch import apply_django_patches, connections
+from ddtrace.contrib.django.apps import apply_django_patches, connections
 
 # testing
 from .utils import DjangoTraceTestCase, override_ddtrace_settings
