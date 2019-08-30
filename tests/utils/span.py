@@ -315,6 +315,18 @@ class TestSpanContainer(object):
                 yield span
 
     def find_span(self, *args, **kwargs):
+        """
+        Find a single span matches the provided filter parameters.
+
+        This function will find the first span whose `TestSpan.matches` function return `True`
+
+        :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type *args: list
+        :param *kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type **kwargs: dict
+        :returns: The first matching span
+        :rtype: :class:`tests.utils.span.TestSpan`
+        """
         span = next(self.filter_spans(*args, **kwargs), None)
         assert span is not None, (
             'No span found for filter {0!r} {1!r}, have {2} spans'
