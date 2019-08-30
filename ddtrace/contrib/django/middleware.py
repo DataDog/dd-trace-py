@@ -52,7 +52,7 @@ def get_middleware_insertion_point():
     If middleware cannot be found, returns None for the middleware collection."""
     middleware = getattr(django_settings, MIDDLEWARE, None)
     # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
-    if middleware and django.VERSION >= (1, 10):
+    if middleware is not None and django.VERSION >= (1, 10):
         return MIDDLEWARE, middleware
     return MIDDLEWARE_CLASSES, getattr(django_settings, MIDDLEWARE_CLASSES, None)
 
@@ -129,7 +129,7 @@ class TraceMiddleware(InstrumentationMixin):
 
             # set analytics sample rate
             # DEV: django is special case maintains separate configuration from config api
-            if _analytics_enabled():
+            if _analytics_enabled() and settings.ANALYTICS_SAMPLE_RATE is not None:
                 span.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
                     settings.ANALYTICS_SAMPLE_RATE,
