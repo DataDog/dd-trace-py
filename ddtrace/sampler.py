@@ -75,7 +75,7 @@ class RateByServiceSampler(object):
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
     def sample(self, span):
-        tags = span.tracer().tags
+        tags = span.tracer.tags
         env = tags['env'] if 'env' in tags else None
         key = self._key(span.service, env)
         return self._by_service_samplers.get(
