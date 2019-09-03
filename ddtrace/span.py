@@ -29,10 +29,10 @@ class Span(object):
         'span_type',
         'start',
         'duration',
+        'tracer',
         # Sampler attributes
         'sampled',
         # Internal attributes
-        '_tracer',
         '_context',
         '_finished',
         '_parent',
@@ -90,11 +90,11 @@ class Span(object):
         self.trace_id = trace_id or _new_id()
         self.span_id = span_id or _new_id()
         self.parent_id = parent_id
+        self.tracer = tracer
 
         # sampling
         self.sampled = True
 
-        self._tracer = tracer
         self._context = context
         self._parent = None
 
@@ -124,9 +124,9 @@ class Span(object):
                 log.exception('error recording finished trace')
             else:
                 # if a tracer is available to process the current context
-                if self._tracer:
+                if self.tracer:
                     try:
-                        self._tracer.record(self._context)
+                        self.tracer.record(self._context)
                     except Exception:
                         log.exception('error recording finished trace')
 
@@ -309,9 +309,6 @@ class Span(object):
         larger trace.
         """
         return self._context
-
-    def tracer(self):
-        return self._tracer
 
     def __enter__(self):
         return self

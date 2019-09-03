@@ -363,7 +363,7 @@ class TracerTestCase(BaseTracerTestCase):
         span = self.start_span('web.request')
         span.assert_matches(
             name='web.request',
-            _tracer=self.tracer,
+            tracer=self.tracer,
             _parent=None,
             parent_id=None,
         )
@@ -390,14 +390,14 @@ class TracerTestCase(BaseTracerTestCase):
             parent_id=None,
             _context=child._context,
             _parent=None,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
         child.assert_matches(
             name='web.worker',
             parent_id=parent.span_id,
             _context=parent._context,
             _parent=parent,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
 
         self.assertEqual(child._context._current_span, child)
@@ -420,7 +420,7 @@ class TracerTestCase(BaseTracerTestCase):
             trace_id=root.trace_id,
             _context=root._context,
             _parent=root,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
         self.assertEqual(child._context._current_span, child)
 

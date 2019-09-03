@@ -70,6 +70,10 @@ class Tracer(object):
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
         self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
+    @deprecated('Use .tracer, not .tracer()', '1.0.0')
+    def __call__(self):
+        return self
+
     def get_call_context(self, *args, **kwargs):
         """
         Return the current active ``Context`` for this traced execution. This method is
