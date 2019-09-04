@@ -1,6 +1,7 @@
 import flask
 
 from ddtrace import Pin
+from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.contrib.flask import unpatch
 from ddtrace.compat import StringIO
 
@@ -49,7 +50,9 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, 'flask.jsonify')
         self.assertEqual(spans[0].resource, 'flask.jsonify')
-        self.assertEqual(set(['system.pid']), set(spans[0].meta.keys()))
+        self.assertEqual(set([
+            'system.pid', SAMPLING_AGENT_DECISION,
+        ]), set(spans[0].meta.keys()))
 
         self.assertEqual(spans[1].name, 'flask.do_teardown_request')
         self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
@@ -96,7 +99,9 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[0].service, 'flask')
         self.assertEqual(spans[0].name, 'flask.send_file')
         self.assertEqual(spans[0].resource, 'flask.send_file')
-        self.assertEqual(set(['system.pid']), set(spans[0].meta.keys()))
+        self.assertEqual(set([
+            'system.pid', SAMPLING_AGENT_DECISION,
+        ]), set(spans[0].meta.keys()))
 
         self.assertEqual(spans[1].name, 'flask.do_teardown_request')
         self.assertEqual(spans[2].name, 'flask.do_teardown_appcontext')
