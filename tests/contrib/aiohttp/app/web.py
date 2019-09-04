@@ -153,4 +153,4 @@ def get_tracer(request):
     Utility function to retrieve the tracer from the given ``request``.
     It is meant to be used only for testing purposes.
     """
-    return request['__datadog_request_span']._tracer
+    return request['__datadog_request_span'].tracer

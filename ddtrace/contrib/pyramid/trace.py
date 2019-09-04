@@ -49,8 +49,7 @@ def trace_render(func, instance, args, kwargs):
         log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
-    tracer = span.tracer()
-    with tracer.trace('pyramid.render') as span:
+    with span.tracer.trace('pyramid.render') as span:
         span.span_type = http.TEMPLATE
         return func(*args, **kwargs)
 

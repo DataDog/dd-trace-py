@@ -1,3 +1,6 @@
+import pytest
+import tornado
+
 from ddtrace.context import Context
 from ddtrace.contrib.tornado import TracerStackContext
 
@@ -6,6 +9,8 @@ from .web.compat import sleep
 
 
 class TestStackContext(TornadoTestCase):
+    @pytest.mark.skipif(tornado.version_info >= (5, 0),
+                        reason='tornado.stack_context deprecated in Tornado 5.0 and removed in Tornado 6.0')
     def test_without_stack_context(self):
         # without a TracerStackContext, propagation is not available
         ctx = self.tracer.context_provider.active()
@@ -33,6 +38,8 @@ class TestStackContext(TornadoTestCase):
         assert traces[0][0].trace_id == 100
         assert traces[0][0].parent_id == 101
 
+    @pytest.mark.skipif(tornado.version_info >= (5, 0),
+                        reason='tornado.stack_context deprecated in Tornado 5.0 and removed in Tornado 6.0')
     def test_propagation_without_stack_context(self):
         # a Context is discarded if not set inside a TracerStackContext
         ctx = Context(trace_id=100, span_id=101)

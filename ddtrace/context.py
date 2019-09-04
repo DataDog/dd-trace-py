@@ -137,8 +137,7 @@ class Context(object):
             # In asynchronous environments, it's legit to close the root span before
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
-            tracer = getattr(span, '_tracer', None)
-            if tracer and tracer.debug_logging and span._parent is None:
+            if span.tracer and span.tracer.debug_logging and span._parent is None:
                 unfinished_spans = [x for x in self._trace if not x._finished]
                 if unfinished_spans:
                     log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
