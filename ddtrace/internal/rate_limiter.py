@@ -7,7 +7,15 @@ class RateLimiter(object):
     """
     A token bucket rate limiter implementation
     """
-    __slots__ = ('rate_limit', 'tokens', 'max_tokens', 'last_update', '_lock')
+    __slots__ = (
+        '_lock',
+        'last_update',
+        'max_tokens',
+        'rate_limit',
+        'tokens',
+        'current_window',
+        ''
+    )
 
     def __init__(self, rate_limit):
         """
@@ -24,6 +32,7 @@ class RateLimiter(object):
         self.max_tokens = rate_limit
 
         self.last_update = monotonic.monotonic()
+        self.current_window = self.last_update
         self._lock = threading.Lock()
 
     def is_allowed(self):
@@ -68,6 +77,13 @@ class RateLimiter(object):
             self.max_tokens,
             self.tokens + (elapsed * self.rate_limit),
         )
+
+    @property
+    def effective_rate(self):
+        if self.rate_limit == 0:
+            return 0.0
+        elif self.rate_limit < 0:
+            return 1.0
 
     def __repr__(self):
         return '{}(rate_limit={!r}, tokens={!r}, last_update={!r})'.format(
