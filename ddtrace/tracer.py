@@ -136,12 +136,10 @@ class Tracer(object):
 
         if sampler is not None:
             self.sampler = sampler
-            # TODO: Remove when we remove the fallback to priority sampling
-            if isinstance(self.sampler, DatadogSampler):
-                if self.priority_sampler:
-                    self.sampler._priority_sampler = self.priority_sampler
-                else:
-                    self.sampler._priority_sampler = None
+
+        # TODO: Remove when we remove the fallback to priority sampling
+        if isinstance(self.sampler, DatadogSampler):
+            self.sampler._priority_sampler = self.priority_sampler
 
         if hostname is not None or port is not None or uds_path is not None or filters is not None or \
                 priority_sampling is not None:

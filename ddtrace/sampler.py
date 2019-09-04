@@ -115,7 +115,7 @@ class DatadogSampler(BaseSampler):
     NO_RATE_LIMIT = -1
 
     # TODO: Remove _priority_sampler=None when we no longer use the fallback
-    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=None, _priority_sampler=None):
+    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=DEFAULT_RATE_LIMIT, _priority_sampler=None):
         """
         Constructor for DatadogSampler sampler
 
@@ -138,8 +138,6 @@ class DatadogSampler(BaseSampler):
         self.rules = rules
 
         # Configure rate limiter
-        if rate_limit is None:
-            rate_limit = self.DEFAULT_RATE_LIMIT
         self.limiter = RateLimiter(rate_limit)
         self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
 
@@ -319,22 +317,14 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # make sure service, name, and resource match
-        if not all(
+        return all(
             self._pattern_matches(prop, pattern)
             for prop, pattern in [
                     (span.service, self.service),
                     (span.name, self.name),
                     (span.resource, self.resource),
             ]
-        ):
-            return False
-
-        # Make sure tags match
-        if not self._tags_match(span):
-            return False
-
-        return True
+        ) and self._tags_match(span)
 
     def sample(self, span):
         """
