@@ -5,7 +5,6 @@ ANALYTICS_SAMPLE_RATE_KEY = '_dd1.sr.eausr'
 SAMPLING_AGENT_DECISION = '_dd.agent_psr'
 SAMPLING_RULE_DECISION = '_dd.rule_psr'
 SAMPLING_LIMIT_DECISION = '_dd.limit_psr'
-SAMPLING_USER_DECISION = '_dd.user_psr'
 ORIGIN_KEY = '_dd.origin'
 HOSTNAME_KEY = '_dd.hostname'
 

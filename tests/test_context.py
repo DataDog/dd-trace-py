@@ -8,7 +8,6 @@ from tests.test_tracer import get_dummy_tracer
 from ddtrace.span import Span
 from ddtrace.context import Context
 from ddtrace.constants import HOSTNAME_KEY
-from ddtrace.constants import SAMPLING_USER_DECISION
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
 
 
@@ -65,11 +64,6 @@ class TestTracingContext(BaseTestCase):
             assert priority == ctx.sampling_priority
             trace, sampled = ctx.get()
             assert sampled is True, 'priority has no impact on sampled status'
-
-            if priority in [USER_REJECT, USER_KEEP]:
-                assert trace[0].get_tag(SAMPLING_USER_DECISION) == str(priority)
-            else:
-                assert trace[0].get_tag(SAMPLING_USER_DECISION) is None
 
     def test_current_span(self):
         # it should return the current active span
