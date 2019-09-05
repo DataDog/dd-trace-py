@@ -1,7 +1,6 @@
 import threading
 
 from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
-from .ext.priority import USER_KEEP, USER_REJECT
 from .internal.logger import get_logger
 from .internal import hostname
 from .settings import config
