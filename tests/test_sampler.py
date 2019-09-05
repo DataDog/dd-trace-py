@@ -8,9 +8,7 @@ import pytest
 
 from ddtrace.compat import iteritems
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, SAMPLE_RATE_METRIC_KEY
-from ddtrace.constants import (
-    SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION, SAMPLING_USER_DECISION,
-)
+from ddtrace.constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION
 from ddtrace.ext.priority import AUTO_KEEP, AUTO_REJECT
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import DatadogSampler, SamplingRule
@@ -25,9 +23,8 @@ def dummy_tracer():
     return get_dummy_tracer()
 
 
-def assert_sampling_decision_tags(span, agent=None, user=None, limit=None, rule=None):
+def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
     assert span.get_metric(SAMPLING_AGENT_DECISION) == agent
-    assert span.get_metric(SAMPLING_USER_DECISION) == user
     assert span.get_metric(SAMPLING_LIMIT_DECISION) == limit
     assert span.get_metric(SAMPLING_RULE_DECISION) == rule
 
