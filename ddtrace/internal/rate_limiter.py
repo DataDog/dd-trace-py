@@ -10,14 +10,14 @@ class RateLimiter(object):
     """
     __slots__ = (
         '_lock',
+        'current_window',
         'last_update',
         'max_tokens',
+        'prev_window_rate',
         'rate_limit',
         'tokens',
-        'current_window',
         'tokens_allowed',
         'tokens_total',
-        'prev_window_rate',
     )
 
     def __init__(self, rate_limit):
@@ -54,22 +54,29 @@ class RateLimiter(object):
         """
         # Determine if it is allowed
         allowed = self._is_allowed()
+        # Update counts used to determine effective rate
+        self._update_rate_counts(allowed)
+        return allowed
 
-        # Keep track of total tokens seen and allowed in any 1s window
+    def _update_rate_counts(self, allowed):
         now = monotonic.monotonic()
+
+        # No tokens have been seen yet, start a new window
         if not self.current_window:
             self.current_window = now
-        elif now - self.current_window > 1.0:
+
+        # If more than 1 second has past since last window, reset
+        elif now - self.current_window >= 1.0:
+            # Store previous window's rate to average with current for `.effective_rate`
             self.prev_window_rate = self._current_window_rate()
             self.tokens_allowed = 0
             self.tokens_total = 0
             self.current_window = now
 
+        # Keep track of total tokens seen vs allowed
         if allowed:
             self.tokens_allowed += 1
         self.tokens_total += 1
-
-        return allowed
 
     def _is_allowed(self):
         # Rate limit of 0 blocks everything
@@ -107,8 +114,12 @@ class RateLimiter(object):
         )
 
     def _current_window_rate(self):
+        # No tokens have been seen, effectively 100% sample rate
+        # DEV: This is to avoid division by zero error
         if not self.tokens_total:
-            return 0.0
+            return 1.0
+
+        # Get rate of tokens allowed
         return self.tokens_allowed / self.tokens_total
 
     @property
@@ -119,17 +130,19 @@ class RateLimiter(object):
         :returns: Effective sample rate value 0.0 <= rate <= 1.0
         :rtype: :obj:`float``
         """
+        # If we have not had a previous window yet, return current rate
         if self.prev_window_rate is None:
             return self._current_window_rate()
 
-        return (self._current_window_rate() + self.prev_window_rate) / 2
+        return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return '{}(rate_limit={!r}, tokens={!r}, last_update={!r})'.format(
+        return '{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})'.format(
             self.__class__.__name__,
             self.rate_limit,
             self.tokens,
             self.last_update,
+            self.effective_rate,
         )
 
     __str__ = __repr__

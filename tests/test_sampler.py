@@ -29,8 +29,10 @@ def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
     assert span.get_metric(SAMPLING_RULE_DECISION) == rule
 
 
-def create_span(name='test.span', meta=None, *args, **kwargs):
-    tracer = get_dummy_tracer()
+def create_span(tracer=None, name='test.span', meta=None, *args, **kwargs):
+    tracer = tracer or get_dummy_tracer()
+    if 'context' not in kwargs:
+        kwargs['context'] = tracer.get_call_context()
     span = Span(tracer=tracer, name=name, *args, **kwargs)
     if meta:
         span.set_tags(meta)
@@ -565,7 +567,7 @@ def test_sampling_rule_matches_exception():
         raise e
 
     rule = SamplingRule(sample_rate=1.0, name=pattern)
-    span = create_span('test.span')
+    span = create_span(name='test.span')
 
     with mock.patch('ddtrace.sampler.log') as mock_log:
         assert rule.matches(span) is False
@@ -651,26 +653,32 @@ def test_datadog_sampler_init():
 @mock.patch('ddtrace.internal.rate_limiter.RateLimiter.is_allowed')
 def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     sampler = DatadogSampler()
-    span = dummy_tracer.trace(name='test.span')
+    span = create_span(tracer=dummy_tracer)
 
+    # Default SamplingRule(sample_rate=1.0) is applied
+    #   No priority sampler configured
+    #   No rules configured
     # RateLimiter is allowed, it is sampled
     mock_is_allowed.return_value = True
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
     assert span.sampled is True
-    assert span.get_metric(SAMPLING_RULE_DECISION) is None
-    assert_sampling_decision_tags(span, agent=1)
+    assert_sampling_decision_tags(span, rule=1.0, limit=1.0)
     mock_is_allowed.assert_called_once_with()
     mock_is_allowed.reset_mock()
 
-    span = dummy_tracer.trace(name='test.span')
+    span = create_span(tracer=dummy_tracer)
+
+    # Default SamplingRule(sample_rate=1.0) is applied
+    #   No priority sampler configured
+    #   No rules configured
     # RateLimit not allowed, it is not sampled
     mock_is_allowed.return_value = False
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
     assert span.sampled is False
-    # TODO: When we add `_dd.limit_psr` update this
-    assert_sampling_decision_tags(span, limit=None)
+    # DEV: Is `None` since we only add tag to non-rate limited traces
+    assert_sampling_decision_tags(span, rule=1.0, limit=None)
     mock_is_allowed.assert_called_once_with()
 
 
@@ -679,7 +687,6 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     # Do not let the limiter get in the way of our test
     mock_is_allowed.return_value = True
 
-    context = dummy_tracer.get_call_context()
     rules = [
         mock.Mock(spec=SamplingRule),
         mock.Mock(spec=SamplingRule),
@@ -711,7 +718,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     #   All rules SamplingRule.matches are called
     #   No calls to SamplingRule.sample happen
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
         for rule in rules:
             rule.matches.return_value = False
 
@@ -724,14 +731,14 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
             rule.sample.assert_not_called()
         sampler.default_sampler.matches.assert_not_called()
         sampler.default_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, rule=1.0)
+        assert_sampling_decision_tags(span, rule=1.0, limit=1.0)
 
     # One rule thinks it should be sampled
     #   All following rule's SamplingRule.matches are not called
     #   It goes through limiter
     #   It is allowed
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
 
         rules[1].matches.return_value = True
         rules[1].sample.return_value = True
@@ -741,7 +748,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert span.sampled is True
         mock_is_allowed.assert_called_once_with()
         sampler.default_sampler.sample.assert_not_called()
-        assert_sampling_decision_tags(span, rule=0.5)
+        assert_sampling_decision_tags(span, rule=0.5, limit=1.0)
 
         rules[0].matches.assert_called_once_with(span)
         rules[0].sample.assert_not_called()
@@ -757,7 +764,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     #   It goes through limiter
     #   It is allowed
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
 
         for rule in rules:
             rule.matches.return_value = True
@@ -768,7 +775,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert span.sampled is True
         mock_is_allowed.assert_called_once_with()
         sampler.default_sampler.sample.assert_not_called()
-        assert_sampling_decision_tags(span, rule=0.5)
+        assert_sampling_decision_tags(span, rule=0.5, limit=1.0)
 
         rules[0].matches.assert_called_once_with(span)
         rules[0].sample.assert_called_once_with(span)
@@ -782,7 +789,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     #   Rate limiter is not called
     #   The span is rejected
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
 
         rules[0].matches.return_value = False
         rules[2].matches.return_value = False
@@ -813,7 +820,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     #   Rate limiter is not called
     # TODO: Remove this case when we remove fallback to priority sampling
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
 
         # Configure mock priority sampler
         priority_sampler = RateByServiceSampler()
@@ -848,7 +855,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
     #   Rate limiter is not called
     # TODO: Remove this case when we remove fallback to priority sampling
     with reset_mocks():
-        span = Span(dummy_tracer, name='test.span', context=context)
+        span = create_span(tracer=dummy_tracer)
 
         # Configure mock priority sampler
         priority_sampler = RateByServiceSampler()
@@ -931,7 +938,6 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         # We know it was not sampled because of our limiter
         assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
-        # TODO: Update limit= when we get _dd.limit_psr set correctly
         assert_sampling_decision_tags(span, rule=1.0, limit=None)
 
 
