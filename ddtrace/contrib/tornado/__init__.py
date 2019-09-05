@@ -52,9 +52,9 @@ the ``trace()`` method as usual::
         def notify(self):
             # do something
 
-If you are overriding the `RequestHandler.on_finish` or `RequestHandler.log_exception`
-methods, you will need to call the super method to ensure the tracer's patched
-methods are called:
+If you are overriding the ``on_finish`` or ``log_exception`` methods on a
+``RequestHandler``, you will need to call the super method to ensure the
+tracer's patched methods are called::
 
     class MainHandler(tornado.web.RequestHandler):
         @tornado.gen.coroutine
