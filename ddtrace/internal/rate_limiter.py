@@ -1,3 +1,4 @@
+from __future__ import division
 import threading
 
 from ..vendor import monotonic
@@ -16,6 +17,7 @@ class RateLimiter(object):
         'current_window',
         'tokens_allowed',
         'tokens_total',
+        'prev_window_rate',
     )
 
     def __init__(self, rate_limit):
@@ -33,9 +35,11 @@ class RateLimiter(object):
         self.max_tokens = rate_limit
 
         self.last_update = monotonic.monotonic()
-        self.current_window = self.last_update
+
+        self.current_window = 0
         self.tokens_allowed = 0
         self.tokens_total = 0
+        self.prev_window_rate = None
 
         self._lock = threading.Lock()
 
@@ -53,7 +57,10 @@ class RateLimiter(object):
 
         # Keep track of total tokens seen and allowed in any 1s window
         now = monotonic.monotonic()
-        if now - self.current_window > 1.0:
+        if not self.current_window:
+            self.current_window = now
+        elif now - self.current_window > 1.0:
+            self.prev_window_rate = self._current_window_rate()
             self.tokens_allowed = 0
             self.tokens_total = 0
             self.current_window = now
@@ -99,19 +106,23 @@ class RateLimiter(object):
             self.tokens + (elapsed * self.rate_limit),
         )
 
+    def _current_window_rate(self):
+        if not self.tokens_total:
+            return 0.0
+        return self.tokens_allowed / self.tokens_total
+
     @property
     def effective_rate(self):
         """
         Return the effective sample rate of this rate limiter
 
-        The value is determined from the total number of tokens seen vs allowed
-        in a 1s rolling window
-
         :returns: Effective sample rate value 0.0 <= rate <= 1.0
         :rtype: :obj:`float``
         """
-        # (tokens allowed) / (total tokens seen)
-        return self.tokens_allowed / self.tokens_seen
+        if self.prev_window_rate is None:
+            return self._current_window_rate()
+
+        return (self._current_window_rate() + self.prev_window_rate) / 2
 
     def __repr__(self):
         return '{}(rate_limit={!r}, tokens={!r}, last_update={!r})'.format(
