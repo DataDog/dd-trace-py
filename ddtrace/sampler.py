@@ -92,7 +92,7 @@ class RateByServiceSampler(BaseSampler):
         sampler = self._by_service_samplers.get(
             key, self._by_service_samplers[self._default_key]
         )
-        span.set_tag(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
         return sampler.sample(span)
 
     def set_sample_rate_by_service(self, rate_by_service):
@@ -185,7 +185,7 @@ class DatadogSampler(BaseSampler):
                 matching_rule = self.default_sampler
 
             # Sample with the matching sampling rule
-            span.set_tag(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
+            span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
             if not matching_rule.sample(span):
                 self._set_priority(span, AUTO_REJECT)
                 return False
@@ -196,7 +196,7 @@ class DatadogSampler(BaseSampler):
         # Ensure all allowed traces adhere to the global rate limit
         if not self.limiter.is_allowed():
             # TODO: How do we figure out the rate here?
-            # span.set_tag(SAMPLING_LIMIT_DECISION, self.limiter.rate_limit)
+            # span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.rate_limit)
             self._set_priority(span, AUTO_REJECT)
             return False
 

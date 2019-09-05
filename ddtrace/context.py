@@ -170,7 +170,7 @@ class Context(object):
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
                     if sampling_priority in (USER_KEEP, USER_REJECT):
-                        trace[0].set_tag(SAMPLING_USER_DECISION, sampling_priority)
+                        trace[0].set_metric(SAMPLING_USER_DECISION, sampling_priority)
                 origin = self._dd_origin
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
@@ -200,7 +200,7 @@ class Context(object):
                     if sampled and sampling_priority is not None and trace:
                         trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
                         if sampling_priority in (USER_KEEP, USER_REJECT):
-                            trace[0].set_tag(SAMPLING_USER_DECISION, sampling_priority)
+                            trace[0].set_metric(SAMPLING_USER_DECISION, sampling_priority)
                     origin = self._dd_origin
                     # attach the origin to the root span tag
                     if sampled and origin is not None and trace:
