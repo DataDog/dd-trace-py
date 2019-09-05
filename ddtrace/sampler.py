@@ -5,6 +5,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 import abc
 
 from .compat import iteritems, pattern_type
+from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
@@ -54,9 +55,7 @@ class RateSampler(BaseSampler):
         self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
-        sampled = ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
-
-        return sampled
+        return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
 
 
 class RateByServiceSampler(BaseSampler):
@@ -89,9 +88,12 @@ class RateByServiceSampler(BaseSampler):
         tags = span.tracer.tags
         env = tags['env'] if 'env' in tags else None
         key = self._key(span.service, env)
-        return self._by_service_samplers.get(
+
+        sampler = self._by_service_samplers.get(
             key, self._by_service_samplers[self._default_key]
-        ).sample(span)
+        )
+        span.set_tag(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+        return sampler.sample(span)
 
     def set_sample_rate_by_service(self, rate_by_service):
         new_by_service_samplers = self._get_new_by_service_sampler()
@@ -183,6 +185,7 @@ class DatadogSampler(BaseSampler):
                 matching_rule = self.default_sampler
 
             # Sample with the matching sampling rule
+            span.set_tag(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
             if not matching_rule.sample(span):
                 self._set_priority(span, AUTO_REJECT)
                 return False
@@ -192,6 +195,8 @@ class DatadogSampler(BaseSampler):
 
         # Ensure all allowed traces adhere to the global rate limit
         if not self.limiter.is_allowed():
+            # TODO: How do we figure out the rate here?
+            # span.set_tag(SAMPLING_LIMIT_DECISION, self.limiter.rate_limit)
             self._set_priority(span, AUTO_REJECT)
             return False
 

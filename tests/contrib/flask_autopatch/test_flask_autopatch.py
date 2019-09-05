@@ -4,6 +4,7 @@ import unittest
 import flask
 
 from ddtrace.vendor import wrapt
+from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.ext import http
 from ddtrace import Pin
 
@@ -83,7 +84,8 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
+                 SAMPLING_AGENT_DECISION]),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')

@@ -1,6 +1,8 @@
 import threading
 
 from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import SAMPLING_USER_DECISION
+from .ext.priority import USER_KEEP, USER_REJECT
 from .internal.logger import get_logger
 from .internal import hostname
 from .settings import config
@@ -167,6 +169,8 @@ class Context(object):
                 # attach the sampling priority to the context root span
                 if sampled and sampling_priority is not None and trace:
                     trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                    if sampling_priority in (USER_KEEP, USER_REJECT):
+                        trace[0].set_tag(SAMPLING_USER_DECISION, sampling_priority)
                 origin = self._dd_origin
                 # attach the origin to the root span tag
                 if sampled and origin is not None and trace:
@@ -195,6 +199,8 @@ class Context(object):
                     # attach the sampling priority to the context root span
                     if sampled and sampling_priority is not None and trace:
                         trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
+                        if sampling_priority in (USER_KEEP, USER_REJECT):
+                            trace[0].set_tag(SAMPLING_USER_DECISION, sampling_priority)
                     origin = self._dd_origin
                     # attach the origin to the root span tag
                     if sampled and origin is not None and trace:
