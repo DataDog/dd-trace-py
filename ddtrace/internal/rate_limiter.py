@@ -14,7 +14,8 @@ class RateLimiter(object):
         'rate_limit',
         'tokens',
         'current_window',
-        ''
+        'tokens_allowed',
+        'tokens_total',
     )
 
     def __init__(self, rate_limit):
@@ -33,6 +34,9 @@ class RateLimiter(object):
 
         self.last_update = monotonic.monotonic()
         self.current_window = self.last_update
+        self.tokens_allowed = 0
+        self.tokens_total = 0
+
         self._lock = threading.Lock()
 
     def is_allowed(self):
@@ -44,6 +48,23 @@ class RateLimiter(object):
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
+        # Determine if it is allowed
+        allowed = self._is_allowed()
+
+        # Keep track of total tokens seen and allowed in any 1s window
+        now = monotonic.monotonic()
+        if now - self.current_window > 1.0:
+            self.tokens_allowed = 0
+            self.tokens_total = 0
+            self.current_window = now
+
+        if allowed:
+            self.tokens_allowed += 1
+        self.tokens_total += 1
+
+        return allowed
+
+    def _is_allowed(self):
         # Rate limit of 0 blocks everything
         if self.rate_limit == 0:
             return False
@@ -80,10 +101,17 @@ class RateLimiter(object):
 
     @property
     def effective_rate(self):
-        if self.rate_limit == 0:
-            return 0.0
-        elif self.rate_limit < 0:
-            return 1.0
+        """
+        Return the effective sample rate of this rate limiter
+
+        The value is determined from the total number of tokens seen vs allowed
+        in a 1s rolling window
+
+        :returns: Effective sample rate value 0.0 <= rate <= 1.0
+        :rtype: :obj:`float``
+        """
+        # (tokens allowed) / (total tokens seen)
+        return self.tokens_allowed / self.tokens_seen
 
     def __repr__(self):
         return '{}(rate_limit={!r}, tokens={!r}, last_update={!r})'.format(
