@@ -67,9 +67,9 @@ class TestTracingContext(BaseTestCase):
             assert sampled is True, 'priority has no impact on sampled status'
 
             if priority in [USER_REJECT, USER_KEEP]:
-                assert trace[0].get_tag(SAMPLING_USER_DECISION) == str(priority)
+                assert trace[0].get_metric(SAMPLING_USER_DECISION) == priority
             else:
-                assert trace[0].get_tag(SAMPLING_USER_DECISION) is None
+                assert trace[0].get_metric(SAMPLING_USER_DECISION) is None
 
     def test_current_span(self):
         # it should return the current active span
