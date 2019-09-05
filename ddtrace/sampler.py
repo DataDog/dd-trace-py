@@ -5,7 +5,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 import abc
 
 from .compat import iteritems, pattern_type
-from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION
+from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
@@ -164,41 +164,39 @@ class DatadogSampler(BaseSampler):
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
         matching_rule = None
-        if self.rules:
-            # Go through all rules and grab the first one that matched
-            # DEV: This means rules should be ordered by the user from most specific to least specific
-            for rule in self.rules:
-                if rule.matches(span):
-                    matching_rule = rule
-                    break
-            else:
-                # No rule matches, fallback to priority sampling if set
-                if self._priority_sampler:
-                    if self._priority_sampler.sample(span):
-                        self._set_priority(span, AUTO_KEEP)
-                        return True
-                    else:
-                        self._set_priority(span, AUTO_REJECT)
-                        return False
+        # Go through all rules and grab the first one that matched
+        # DEV: This means rules should be ordered by the user from most specific to least specific
+        for rule in self.rules:
+            if rule.matches(span):
+                matching_rule = rule
+                break
+        else:
+            # No rule matches, fallback to priority sampling if set
+            if self._priority_sampler:
+                if self._priority_sampler.sample(span):
+                    self._set_priority(span, AUTO_KEEP)
+                    return True
+                else:
+                    self._set_priority(span, AUTO_REJECT)
+                    return False
 
-                # No rule matches, no priority sampler, use the default sampler
-                matching_rule = self.default_sampler
+            # No rule matches, no priority sampler, use the default sampler
+            matching_rule = self.default_sampler
 
-            # Sample with the matching sampling rule
-            span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
-            if not matching_rule.sample(span):
-                self._set_priority(span, AUTO_REJECT)
-                return False
-            else:
-                # Do not return here, we need to apply rate limit
-                self._set_priority(span, AUTO_KEEP)
+        # Sample with the matching sampling rule
+        span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
+        if not matching_rule.sample(span):
+            self._set_priority(span, AUTO_REJECT)
+            return False
+        else:
+            # Do not return here, we need to apply rate limit
+            self._set_priority(span, AUTO_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
         if not self.limiter.is_allowed():
-            # TODO: How do we figure out the rate here?
-            # span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.rate_limit)
             self._set_priority(span, AUTO_REJECT)
             return False
+        span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         # We made it by all of checks, sample this trace
         self._set_priority(span, AUTO_KEEP)
