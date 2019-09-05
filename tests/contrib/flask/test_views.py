@@ -1,6 +1,5 @@
 from flask.views import MethodView, View
 
-from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.compat import PY2
 from ddtrace.ext import http
 
@@ -40,8 +39,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(
             set(req_span.meta.keys()),
             set(['flask.endpoint', 'flask.url_rule', 'flask.version', 'flask.view_args.name',
-                 'http.method', 'http.status_code', 'http.url', 'system.pid',
-                 SAMPLING_AGENT_DECISION]),
+                 'http.method', 'http.status_code', 'http.url', 'system.pid']),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'hello')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
@@ -83,8 +81,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(
             set(req_span.meta.keys()),
             set(['flask.endpoint', 'flask.url_rule', 'flask.version', 'flask.view_args.name',
-                 'http.method', 'http.status_code', 'http.url', 'system.pid',
-                 SAMPLING_AGENT_DECISION]),
+                 'http.method', 'http.status_code', 'http.url', 'system.pid']),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'hello')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
@@ -131,8 +128,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(
             set(req_span.meta.keys()),
             set(['flask.endpoint', 'flask.url_rule', 'flask.version', 'flask.view_args.name',
-                 'http.method', 'http.status_code', 'http.url', 'system.pid',
-                 SAMPLING_AGENT_DECISION]),
+                 'http.method', 'http.status_code', 'http.url', 'system.pid']),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'hello')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
@@ -172,8 +168,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(
             set(req_span.meta.keys()),
             set(['flask.endpoint', 'flask.url_rule', 'flask.version', 'flask.view_args.name',
-                 'http.method', 'http.status_code', 'http.url', 'system.pid',
-                 SAMPLING_AGENT_DECISION]),
+                 'http.method', 'http.status_code', 'http.url', 'system.pid']),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'hello')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')

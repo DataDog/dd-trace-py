@@ -26,10 +26,10 @@ def dummy_tracer():
 
 
 def assert_sampling_decision_tags(span, agent=None, user=None, limit=None, rule=None):
-    assert span.get_tag(SAMPLING_AGENT_DECISION) == agent
-    assert span.get_tag(SAMPLING_USER_DECISION) == user
-    assert span.get_tag(SAMPLING_LIMIT_DECISION) == limit
-    assert span.get_tag(SAMPLING_RULE_DECISION) == rule
+    assert span.get_metric(SAMPLING_AGENT_DECISION) == agent
+    assert span.get_metric(SAMPLING_USER_DECISION) == user
+    assert span.get_metric(SAMPLING_LIMIT_DECISION) == limit
+    assert span.get_metric(SAMPLING_RULE_DECISION) == rule
 
 
 def create_span(name='test.span', meta=None, *args, **kwargs):
@@ -127,7 +127,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                     assert (
                         0 == sample.get_metric(SAMPLING_PRIORITY_KEY)
                     ), 'when priority sampling is on, priority should be 0 when trace is to be dropped'
-                assert_sampling_decision_tags(sample, agent=str(sample_rate))
+                assert_sampling_decision_tags(sample, agent=sample_rate)
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
@@ -661,8 +661,8 @@ def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
     assert span.sampled is True
-    assert span.get_tag(SAMPLING_RULE_DECISION) is None
-    assert_sampling_decision_tags(span, agent='1')
+    assert span.get_metric(SAMPLING_RULE_DECISION) is None
+    assert_sampling_decision_tags(span, agent=1)
     mock_is_allowed.assert_called_once_with()
     mock_is_allowed.reset_mock()
 
@@ -727,7 +727,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
             rule.sample.assert_not_called()
         sampler.default_sampler.matches.assert_not_called()
         sampler.default_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, rule='1.0')
+        assert_sampling_decision_tags(span, rule=1.0)
 
     # One rule thinks it should be sampled
     #   All following rule's SamplingRule.matches are not called
@@ -744,7 +744,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert span.sampled is True
         mock_is_allowed.assert_called_once_with()
         sampler.default_sampler.sample.assert_not_called()
-        assert_sampling_decision_tags(span, rule='0.5')
+        assert_sampling_decision_tags(span, rule=0.5)
 
         rules[0].matches.assert_called_once_with(span)
         rules[0].sample.assert_not_called()
@@ -771,7 +771,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert span.sampled is True
         mock_is_allowed.assert_called_once_with()
         sampler.default_sampler.sample.assert_not_called()
-        assert_sampling_decision_tags(span, rule='0.5')
+        assert_sampling_decision_tags(span, rule=0.5)
 
         rules[0].matches.assert_called_once_with(span)
         rules[0].sample.assert_called_once_with(span)
@@ -798,7 +798,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert span.sampled is False
         mock_is_allowed.assert_not_called()
         sampler.default_sampler.sample.assert_not_called()
-        assert_sampling_decision_tags(span, rule='0.5')
+        assert_sampling_decision_tags(span, rule=0.5)
 
         rules[0].matches.assert_called_once_with(span)
         rules[0].sample.assert_not_called()
@@ -836,7 +836,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         mock_is_allowed.assert_not_called()
         sampler.default_sampler.sample.assert_not_called()
         spy_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, agent='1')
+        assert_sampling_decision_tags(span, agent=1)
 
         [r.matches.assert_called_once_with(span) for r in rules]
         [r.sample.assert_not_called() for r in rules]
@@ -871,7 +871,7 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         mock_is_allowed.assert_not_called()
         sampler.default_sampler.sample.assert_not_called()
         spy_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, agent='0')
+        assert_sampling_decision_tags(span, agent=0)
 
         [r.matches.assert_called_once_with(span) for r in rules]
         [r.sample.assert_not_called() for r in rules]
@@ -905,7 +905,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
         # We know it was sampled because we have a sample rate of 1.0
         assert span.sampled is True
         assert span._context.sampling_priority is AUTO_KEEP
-        assert_sampling_decision_tags(span, rule='1.0')
+        assert_sampling_decision_tags(span, rule=1.0)
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
@@ -935,7 +935,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
         # TODO: Update limit= when we get _dd.limit_psr set correctly
-        assert_sampling_decision_tags(span, rule='1.0', limit=None)
+        assert_sampling_decision_tags(span, rule=1.0, limit=None)
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
@@ -963,7 +963,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         # We know it was not sampled because we have a sample rate of 0.0
         assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
-        assert_sampling_decision_tags(span, rule='0')
+        assert_sampling_decision_tags(span, rule=0)
 
 
 def test_datadog_sampler_tracer_child(dummy_tracer):
@@ -993,7 +993,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
             # We know it was sampled because we have a sample rate of 1.0
             assert parent.sampled is True
             assert parent._context.sampling_priority is AUTO_KEEP
-            assert_sampling_decision_tags(parent, rule='1.0')
+            assert_sampling_decision_tags(parent, rule=1.0)
 
             assert child.sampled is True
             assert child._parent is parent
@@ -1026,4 +1026,4 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     # We know it was sampled because we have a sample rate of 1.0
     assert span.sampled is True
     assert span._context.sampling_priority is AUTO_KEEP
-    assert_sampling_decision_tags(span, rule='1.0')
+    assert_sampling_decision_tags(span, rule=1.0)

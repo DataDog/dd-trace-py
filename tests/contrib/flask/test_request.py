@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from ddtrace.compat import PY2
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_AGENT_DECISION
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
@@ -62,8 +62,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
@@ -287,8 +286,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
@@ -355,8 +353,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'unicode')
@@ -415,10 +412,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Request tags
         self.assertEqual(
-            set([
-                'system.pid', 'flask.version', 'http.url', 'http.method', 'http.status_code',
-                SAMPLING_AGENT_DECISION,
-            ]),
+            set(['system.pid', 'flask.version', 'http.url', 'http.method', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
@@ -484,7 +478,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.endpoint', 'flask.url_rule', 'flask.version',
-                 'http.url', 'http.method', 'http.status_code', SAMPLING_AGENT_DECISION]),
+                 'http.url', 'http.method', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
@@ -561,8 +555,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
@@ -650,8 +643,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
@@ -763,8 +755,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Request tags
         self.assertEqual(
             set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code',
-                 SAMPLING_AGENT_DECISION]),
+                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
