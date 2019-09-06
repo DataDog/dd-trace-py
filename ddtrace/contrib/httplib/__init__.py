@@ -21,7 +21,7 @@ Usage::
     resp = urllib.request.urlopen('http://www.datadog.com/')
 
 ``httplib`` spans do not include a default service name. Before HTTP calls are
-made, ensure a parent span has been started with the service name to be used for
+made, ensure a parent span has been started with a service name to be used for
 spans generated from those calls::
 
     with tracer.trace('main', service='my-httplib-operation'):
