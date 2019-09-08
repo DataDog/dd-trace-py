@@ -207,11 +207,11 @@ class SamplingRule(object):
     """
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
-    __slots__ = ('_sample_rate', '_sampling_id_threshold', 'service', 'name', 'resource', 'tags')
+    __slots__ = ('_sample_rate', '_sampling_id_threshold', 'service', 'name')
 
     NO_RULE = object()
 
-    def __init__(self, sample_rate, service=NO_RULE, name=NO_RULE, resource=NO_RULE, tags=NO_RULE):
+    def __init__(self, sample_rate, service=NO_RULE, name=NO_RULE):
         """
         Configure a new :class:`SamplingRule`
 
@@ -222,7 +222,7 @@ class SamplingRule(object):
                 SamplingRule(sample_rate=1.0),
 
                 # Sample no healthcheck traces
-                SamplingRule(sample_rate=0, name='flask.request', resource='GET /healthcheck'),
+                SamplingRule(sample_rate=0, name='flask.request'),
 
                 # Sample all services ending in `-db` based on a regular expression
                 SamplingRule(sample_rate=0.5, service=re.compile('-db$')),
@@ -237,11 +237,6 @@ class SamplingRule(object):
         :type service: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
         :param name: Rule to match the `span.name` on, default no rule defined
         :type name: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        :param resource: Rule to match the `span.resource` on, default no rule defined
-        :type resource: :obj:`object` to directly compare, :obj:`function` to evaluate, or :class:`re.Pattern` to match
-        :param tags: Dictionary of tag -> pattern to match on the `span.meta`, default no rule defined
-        :type tags: :obj:`dict` mapping :obj:`str` tag names to either :obj:`object` to directly compare,
-            :obj:`function` to evaluate, or :class:`re.Pattern` to match
         """
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
@@ -252,11 +247,6 @@ class SamplingRule(object):
         self.sample_rate = sample_rate
         self.service = service
         self.name = name
-        self.resource = resource
-
-        if tags is not self.NO_RULE and not isinstance(tags, dict):
-            raise TypeError('SamplingRule(tags={!r}) must be a dict')
-        self.tags = tags
 
     @property
     def sample_rate(self):
@@ -296,21 +286,6 @@ class SamplingRule(object):
         # Exact match on the values
         return prop == pattern
 
-    def _tags_match(self, span):
-        # No rule was set, then assume it matches
-        if self.tags is self.NO_RULE:
-            return True
-
-        # No tags were provided to check, so it passes
-        if not self.tags:
-            return True
-
-        # Check patterns from all tags
-        return all(
-            self._pattern_matches(span.get_tag(tag), pattern)
-            for tag, pattern in self.tags.items()
-        )
-
     def matches(self, span):
         """
         Return if this span matches this rule
@@ -325,9 +300,8 @@ class SamplingRule(object):
             for prop, pattern in [
                     (span.service, self.service),
                     (span.name, self.name),
-                    (span.resource, self.resource),
             ]
-        ) and self._tags_match(span)
+        )
 
     def sample(self, span):
         """
@@ -349,13 +323,11 @@ class SamplingRule(object):
         return 'NO_RULE' if val is self.NO_RULE else val
 
     def __repr__(self):
-        return '{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r})'.format(
+        return '{}(sample_rate={!r}, service={!r}, name={!r})'.format(
             self.__class__.__name__,
             self.sample_rate,
             self._no_rule_or_self(self.service),
             self._no_rule_or_self(self.name),
-            self._no_rule_or_self(self.resource),
-            self._no_rule_or_self(self.tags),
         )
 
     __str__ = __repr__
