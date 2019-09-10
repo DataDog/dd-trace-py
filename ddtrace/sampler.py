@@ -3,6 +3,7 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 from .compat import iteritems
+from .constants import ENV_KEY
 from .internal.logger import get_logger
 
 log = get_logger(__name__)
@@ -76,7 +77,7 @@ class RateByServiceSampler(object):
 
     def sample(self, span):
         tags = span.tracer.tags
-        env = tags['env'] if 'env' in tags else None
+        env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
         return self._by_service_samplers.get(
             key, self._by_service_samplers[self._default_key]

@@ -10,6 +10,7 @@ import logging
 
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.internal.logger import get_logger
+from ddtrace import constants
 
 logs_injection = asbool(get_env('logs', 'injection'))
 DD_LOG_FORMAT = '%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s'.format(
@@ -117,7 +118,7 @@ try:
         tracer.debug_logging = True
 
     if 'DATADOG_ENV' in os.environ:
-        tracer.set_tags({'env': os.environ['DATADOG_ENV']})
+        tracer.set_tags({constants.ENV_KEY: os.environ['DATADOG_ENV']})
 
     if 'DD_TRACE_GLOBAL_TAGS' in os.environ:
         add_global_tags(tracer)
