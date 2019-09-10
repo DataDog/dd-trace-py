@@ -25,6 +25,7 @@ PATCH_MODULES = {
     'bottle': False,
     'cassandra': True,
     'celery': True,
+    'consul': True,
     'elasticsearch': True,
     'algoliasearch': True,
     'futures': False,  # experimental propagation

@@ -50,6 +50,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert span.get_tag('grpc.method.service') == 'Hello'
         assert span.get_tag('grpc.method.name') == method_name
         assert span.get_tag('grpc.method.kind') == method_kind
+        assert span.get_tag('grpc.status.code') == 'StatusCode.OK'
         assert span.get_tag('grpc.host') == 'localhost'
         assert span.get_tag('grpc.port') == '50531'
 
@@ -290,6 +291,36 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.resource == '/helloworld.Hello/SayHello'
         assert client_span.get_tag(errors.ERROR_MSG) == 'aborted'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.ABORTED'
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.ABORTED'
+
+    def test_custom_interceptor_exception(self):
+        # add an interceptor that raises a custom exception and check error tags
+        # are added to spans
+        raise_exception_interceptor = _RaiseExceptionClientInterceptor()
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            with self.assertRaises(_CustomException):
+                intercept_channel = grpc.intercept_channel(
+                    channel,
+                    raise_exception_interceptor
+                )
+                stub = HelloStub(intercept_channel)
+                stub.SayHello(HelloRequest(name='custom-exception'))
+
+        spans = self.get_spans()
+        assert len(spans) == 2
+        server_span, client_span = spans
+
+        assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.get_tag(errors.ERROR_MSG) == 'custom'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'tests.contrib.grpc.test_grpc._CustomException'
+        assert client_span.get_tag(errors.ERROR_STACK) is not None
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.INTERNAL'
+
+        # no exception on server end
+        assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.get_tag(errors.ERROR_MSG) is None
+        assert server_span.get_tag(errors.ERROR_TYPE) is None
+        assert server_span.get_tag(errors.ERROR_STACK) is None
 
     def test_unary_exception(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -304,6 +335,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.resource == '/helloworld.Hello/SayHello'
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHello'
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
@@ -329,6 +361,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.resource == '/helloworld.Hello/SayHelloLast'
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloLast'
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
@@ -349,6 +382,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert client_span.resource == '/helloworld.Hello/SayHelloTwice'
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.RESOURCE_EXHAUSTED'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloTwice'
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
@@ -408,3 +442,19 @@ class _HelloServicer(HelloServicer):
         # response for dangling request
         if last_request is not None:
             yield HelloReply(message='{}'.format(last_request.name))
+
+
+class _CustomException(Exception):
+    pass
+
+
+class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
+    def _intercept_call(self, continuation, client_call_details,
+                        request_or_iterator):
+        # allow computation to complete
+        continuation(client_call_details, request_or_iterator).result()
+
+        raise _CustomException('custom')
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        return self._intercept_call(continuation, client_call_details, request)
