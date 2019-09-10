@@ -5,6 +5,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 import abc
 
 from .compat import iteritems, pattern_type
+from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING_LIMIT_DECISION
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
@@ -86,7 +87,7 @@ class RateByServiceSampler(BaseSampler):
 
     def sample(self, span):
         tags = span.tracer.tags
-        env = tags['env'] if 'env' in tags else None
+        env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
 
         sampler = self._by_service_samplers.get(

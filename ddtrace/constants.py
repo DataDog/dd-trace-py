@@ -7,6 +7,7 @@ SAMPLING_RULE_DECISION = '_dd.rule_psr'
 SAMPLING_LIMIT_DECISION = '_dd.limit_psr'
 ORIGIN_KEY = '_dd.origin'
 HOSTNAME_KEY = '_dd.hostname'
+ENV_KEY = 'env'
 
 NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY, )
 
