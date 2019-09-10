@@ -4,6 +4,7 @@ from .constants import (
     LANG_INTERPRETER,
     LANG_VERSION,
 )
+from ...constants import ENV_KEY
 
 
 class RuntimeTagCollector(ValueCollector):
@@ -19,6 +20,8 @@ class TracerTagCollector(RuntimeTagCollector):
     def collect_fn(self, keys):
         ddtrace = self.modules.get('ddtrace')
         tags = [(SERVICE, service) for service in ddtrace.tracer._services]
+        if ddtrace.tracer._env is not None:
+            tags.append((ENV_KEY, ddtrace.tracer._env))
         return tags
 
 

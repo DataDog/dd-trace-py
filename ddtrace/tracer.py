@@ -2,7 +2,7 @@ import functools
 from os import environ, getpid
 
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
@@ -61,6 +61,10 @@ class Tracer(object):
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()
+
+        # store env used for traces for matching them to the env used for
+        # runtime metrics
+        self._env = None
 
         # Runtime id used for associating data collected during runtime to
         # traces
@@ -537,4 +541,7 @@ class Tracer(object):
 
         :param dict tags: dict of tags to set at tracer level
         """
+        # capture env tag
+        if ENV_KEY in tags:
+            self._env = tags[ENV_KEY]
         self.tags.update(tags)
