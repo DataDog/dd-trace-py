@@ -1,5 +1,6 @@
 import consul
 from ddtrace import Pin
+from ddtrace.ext import consul as consulx
 from ddtrace.vendor.wrapt import BoundFunctionWrapper
 from ddtrace.contrib.consul.patch import patch, unpatch
 
@@ -35,11 +36,11 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == 'Consul.KV.put'
-        assert span.resource == key
+        assert span.name == consulx.CMD
+        assert span.resource == 'PUT %s' % key
         assert span.error == 0
         tags = {
-            'consul.key': key,
+            consulx.KEY: key,
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -53,11 +54,11 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == 'Consul.KV.get'
-        assert span.resource == key
+        assert span.name == consulx.CMD
+        assert span.resource == 'GET %s' % key
         assert span.error == 0
         tags = {
-            'consul.key': key,
+            consulx.KEY: key,
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -71,11 +72,11 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == 'Consul.KV.delete'
-        assert span.resource == key
+        assert span.name == consulx.CMD
+        assert span.resource == 'DELETE %s' % key
         assert span.error == 0
         tags = {
-            'consul.key': key,
+            consulx.KEY: key,
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -90,11 +91,11 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == self.TEST_SERVICE
-        assert span.name == 'Consul.KV.put'
-        assert span.resource == key
+        assert span.name == consulx.CMD
+        assert span.resource == 'PUT %s' % key
         assert span.error == 0
         tags = {
-            'consul.key': key,
+            consulx.KEY: key,
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
