@@ -42,10 +42,11 @@ def wrap_function(name):
             return wrapped(*args, **kwargs)
 
         path = kwargs.get('key') or args[0]
-        resource = '%s %s' % (name.upper(), path)
+        resource = name.upper()
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource) as span:
             span.set_tag(consulx.KEY, path)
+            span.set_tag(consulx.CMD, resource)
             return wrapped(*args, **kwargs)
 
     return trace_func

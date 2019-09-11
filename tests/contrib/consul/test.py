@@ -37,10 +37,11 @@ class TestConsulPatch(BaseTracerTestCase):
         span = spans[0]
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
-        assert span.resource == 'PUT %s' % key
+        assert span.resource == 'PUT'
         assert span.error == 0
         tags = {
             consulx.KEY: key,
+            consulx.CMD: 'PUT',
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -55,10 +56,11 @@ class TestConsulPatch(BaseTracerTestCase):
         span = spans[0]
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
-        assert span.resource == 'GET %s' % key
+        assert span.resource == 'GET'
         assert span.error == 0
         tags = {
             consulx.KEY: key,
+            consulx.CMD: 'GET',
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -73,10 +75,11 @@ class TestConsulPatch(BaseTracerTestCase):
         span = spans[0]
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
-        assert span.resource == 'DELETE %s' % key
+        assert span.resource == 'DELETE'
         assert span.error == 0
         tags = {
             consulx.KEY: key,
+            consulx.CMD: 'DELETE',
         }
         for k, v in tags.items():
             assert span.get_tag(k) == v
@@ -92,7 +95,7 @@ class TestConsulPatch(BaseTracerTestCase):
         span = spans[0]
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
-        assert span.resource == 'PUT %s' % key
+        assert span.resource == 'PUT'
         assert span.error == 0
         tags = {
             consulx.KEY: key,
