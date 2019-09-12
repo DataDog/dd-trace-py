@@ -38,11 +38,14 @@ class Tracer(object):
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
     DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
+    DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
-    def __init__(self):
+    def __init__(self, url=DEFAULT_AGENT_URL):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
+
+        :param url: The Datadog agent URL.
         """
         self.log = log
         self.sampler = None
@@ -52,11 +55,36 @@ class Tracer(object):
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
         self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
+        uds_path = None
+        https = None
+        hostname = self.DEFAULT_HOSTNAME
+        port = self.DEFAULT_PORT
+        if url is not None:
+            url_parsed = compat.parse.urlparse(url)
+            if url_parsed.scheme in ('http', 'https'):
+                hostname = url_parsed.hostname
+                port = url_parsed.port
+                https = url_parsed.scheme == 'https'
+                # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
+                # to be "no port set so let's use the default".
+                # It should go away when we remove configure()
+                if port is None:
+                    if https:
+                        port = 443
+                    else:
+                        port = 80
+            elif url_parsed.scheme == 'unix':
+                uds_path = url_parsed.path
+            else:
+                raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
+
         # Apply the default configuration
         self.configure(
             enabled=True,
-            hostname=self.DEFAULT_HOSTNAME,
-            port=self.DEFAULT_PORT,
+            hostname=hostname,
+            port=port,
+            https=https,
+            uds_path=uds_path,
             sampler=AllSampler(),
             context_provider=DefaultContextProvider(),
         )
@@ -112,6 +140,7 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
+    # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
                   dogstatsd_host=None, dogstatsd_port=None, sampler=None, context_provider=None,
                   wrap_executor=None, priority_sampling=None, settings=None, collect_metrics=None):
@@ -172,13 +201,16 @@ class Tracer(object):
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
                 filters is not None or priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
-            default_hostname = self.DEFAULT_HOSTNAME
-            default_port = self.DEFAULT_PORT
+            # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
                 default_hostname = self.writer.api.hostname
                 default_port = self.writer.api.port
                 if https is None:
                     https = self.writer.api.https
+            else:
+                default_hostname = self.DEFAULT_HOSTNAME
+                default_port = self.DEFAULT_PORT
+
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
