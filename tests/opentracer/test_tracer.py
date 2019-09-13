@@ -100,7 +100,7 @@ class TestTracer(object):
             pass
 
         # span should be finished when the context manager exits
-        assert span._finished
+        assert span.finished
 
         spans = writer.pop()
         assert len(spans) == 1
@@ -144,8 +144,8 @@ class TestTracer(object):
                 pass
 
         # span should be finished when the context manager exits
-        assert span._finished
-        assert span2._finished
+        assert span.finished
+        assert span2.finished
 
         spans = writer.pop()
         assert len(spans) == 2
@@ -174,9 +174,9 @@ class TestTracer(object):
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span._finished
-        assert scope2.span._finished
-        assert scope3.span._finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = writer.pop()
 
@@ -207,9 +207,9 @@ class TestTracer(object):
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span._finished
-        assert scope2.span._finished
-        assert scope3.span._finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = writer.pop()
 
@@ -369,7 +369,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert scope.span._finished
+        assert scope.span.finished
         spans = writer.pop()
         assert spans
 
@@ -378,7 +378,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert not scope.span._finished
+        assert not scope.span.finished
         spans = writer.pop()
         assert not spans
 
