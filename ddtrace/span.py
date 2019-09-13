@@ -34,7 +34,7 @@ class Span(object):
         'sampled',
         # Internal attributes
         '_context',
-        '_finished',
+        'finished',
         '_parent',
         '__weakref__',
     ]
@@ -99,7 +99,7 @@ class Span(object):
         self._parent = None
 
         # state
-        self._finished = False
+        self.finished = False
 
     def finish(self, finish_time=None):
         """ Mark the end time of the span and submit it to the tracer.
@@ -108,9 +108,9 @@ class Span(object):
             :param int finish_time: the end time of the span in seconds.
                                     Defaults to now.
         """
-        if self._finished:
+        if self.finished:
             return
-        self._finished = True
+        self.finished = True
 
         if self.duration is None:
             ft = finish_time or time.time()

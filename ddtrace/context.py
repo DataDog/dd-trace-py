@@ -138,7 +138,7 @@ class Context(object):
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
             if span.tracer and span.tracer.debug_logging and span._parent is None:
-                unfinished_spans = [x for x in self._trace if not x._finished]
+                unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
                     log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
                               span.name, len(unfinished_spans))
@@ -186,7 +186,7 @@ class Context(object):
                 return trace, sampled
 
             elif self._partial_flush_enabled:
-                finished_spans = [t for t in self._trace if t._finished]
+                finished_spans = [t for t in self._trace if t.finished]
                 if len(finished_spans) >= self._partial_flush_min_spans:
                     # partial flush when enabled and we have more than the minimal required spans
                     trace = self._trace
@@ -209,7 +209,7 @@ class Context(object):
 
                     # Any open spans will remain as `self._trace`
                     # Any finished spans will get returned to be flushed
-                    self._trace = [t for t in self._trace if not t._finished]
+                    self._trace = [t for t in self._trace if not t.finished]
 
                     return finished_spans, sampled
             return None, None

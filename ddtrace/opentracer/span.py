@@ -21,7 +21,7 @@ class Span(OpenTracingSpan):
 
         super(Span, self).__init__(tracer, context)
 
-        self._finished = False
+        self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
         self._dd_span = DatadogSpan(tracer._dd_tracer, operation_name,
@@ -36,12 +36,12 @@ class Span(OpenTracingSpan):
             per time.time()
         :type timestamp: float
         """
-        if self._finished:
+        if self.finished:
             return
 
         # finish the datadog span
         self._dd_span.finish(finish_time)
-        self._finished = True
+        self.finished = True
 
     def set_baggage_item(self, key, value):
         """Sets a baggage item in the span context of this span.
