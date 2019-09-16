@@ -2,6 +2,8 @@ import consul
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import consul as consulx
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
@@ -45,6 +47,9 @@ def wrap_function(name):
         resource = name.upper()
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource) as span:
+            rate = config.consul.get_analytics_sample_rate()
+            if rate is not None:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
             span.set_tag(consulx.KEY, path)
             span.set_tag(consulx.CMD, resource)
             return wrapped(*args, **kwargs)
