@@ -2,12 +2,14 @@ import consul
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...ext import AppTypes
+from ddtrace import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import consul as consulx
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 
 
-_KV_FUNCS = ['Consul.KV.put', 'Consul.KV.get', 'Consul.KV.delete']
+_KV_FUNCS = ['put', 'get', 'delete']
 
 
 def patch():
@@ -15,11 +17,11 @@ def patch():
         return
     setattr(consul, '__datadog_patch', True)
 
-    pin = Pin(service='consul', app='consul', app_type=AppTypes.cache)
+    pin = Pin(service=consulx.SERVICE, app=consulx.APP, app_type=consulx.APP_TYPE)
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:
-        _w('consul', f_name, wrap_function(f_name))
+        _w('consul', 'Consul.KV.%s' % f_name, wrap_function(f_name))
 
 
 def unpatch():
@@ -28,8 +30,7 @@ def unpatch():
     setattr(consul, '__datadog_patch', False)
 
     for f_name in _KV_FUNCS:
-        name = f_name.split('.')[-1]
-        _u(consul.Consul.KV, name)
+        _u(consul.Consul.KV, f_name)
 
 
 def wrap_function(name):
@@ -43,9 +44,14 @@ def wrap_function(name):
             return wrapped(*args, **kwargs)
 
         path = kwargs.get('key') or args[0]
+        resource = name.upper()
 
-        with pin.tracer.trace(name, service=pin.service, resource=path) as span:
-            span.set_tag('consul.key', path)
+        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource) as span:
+            rate = config.consul.get_analytics_sample_rate()
+            if rate is not None:
+                span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
+            span.set_tag(consulx.KEY, path)
+            span.set_tag(consulx.CMD, resource)
             return wrapped(*args, **kwargs)
 
     return trace_func
