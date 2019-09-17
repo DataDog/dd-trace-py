@@ -261,7 +261,7 @@ def _sanitize_query(span, query):
         resource = getattr(query, 'query_string', query)
     elif t == 'BatchStatement':
         resource = 'BatchStatement'
-        q = '; '.join(q[1] for q in query._statements_and_parameters[:2])
+        q = '; '.join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
         span.set_tag('cassandra.query', q)
         span.set_metric('cassandra.batch_size', len(query._statements_and_parameters))
     elif t == 'BoundStatement':
