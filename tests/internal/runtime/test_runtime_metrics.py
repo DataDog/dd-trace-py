@@ -107,14 +107,15 @@ class TestRuntimeWorker(BaseTracerTestCase):
 
                 received.append(new)
 
-            # expect received all default metrics
             # we expect more than one flush since it is also called on shutdown
-            assert len(received) / len(DEFAULT_RUNTIME_METRICS) > 1
+            assert len(received) > 1
 
             # expect all metrics in default set are received
             # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
             self.assertSetEqual(
-                set([gauge.split(':')[0] for gauge in received]),
+                set([gauge.split(':')[0]
+                     for packet in received
+                     for gauge in packet.split('\n')]),
                 DEFAULT_RUNTIME_METRICS
             )
 
