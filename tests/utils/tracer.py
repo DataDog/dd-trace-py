@@ -1,7 +1,7 @@
 from collections import deque
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.tracer import Tracer
-from ddtrace.writer import AgentWriter
 from ddtrace.compat import PY3
 
 
