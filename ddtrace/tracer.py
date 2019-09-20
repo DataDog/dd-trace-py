@@ -152,6 +152,17 @@ class Tracer(object):
         if isinstance(self.sampler, DatadogSampler):
             self.sampler._priority_sampler = self.priority_sampler
 
+        self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
+        self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
+        self.log.debug('Connecting to DogStatsd on {}:{}'.format(
+            self._dogstatsd_host,
+            self._dogstatsd_port,
+        ))
+        self._dogstatsd_client = DogStatsd(
+            host=self._dogstatsd_host,
+            port=self._dogstatsd_port,
+        )
+
         if hostname is not None or port is not None or uds_path is not None or filters is not None or \
                 priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
@@ -166,24 +177,17 @@ class Tracer(object):
                 uds_path=uds_path,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
+                dogstatsd=self._dogstatsd_client,
             )
+
+        # HACK: since we recreated our dogstatsd agent, replace the old write one
+        self.writer.dogstatsd = self._dogstatsd_client
 
         if context_provider is not None:
             self._context_provider = context_provider
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
-
-        self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
-        self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
-        self.log.debug('Connecting to DogStatsd on {}:{}'.format(
-            self._dogstatsd_host,
-            self._dogstatsd_port
-        ))
-        self._dogstatsd_client = DogStatsd(
-            host=self._dogstatsd_host,
-            port=self._dogstatsd_port,
-        )
 
         # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
         if self._runtime_worker:
