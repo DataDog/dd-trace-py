@@ -354,6 +354,7 @@ class CassandraBase(object):
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'BatchStatement'
+        assert s.get_tag('cassandra.query') == ''
 
 
 class TestCassPatchDefault(unittest.TestCase, CassandraBase):
