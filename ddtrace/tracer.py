@@ -49,7 +49,6 @@ class Tracer(object):
         self.priority_sampler = None
 
         self._runtime_worker = None
-        self._dogstatsd_client = None
         self._dogstatsd_host = self.DEFAULT_HOSTNAME
         self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
@@ -175,27 +174,28 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if collect_metrics is not None:
-            running = self._runtime_worker is not None
-            if collect_metrics and not running:
-                # Start collecting
-                self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
-                self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
-                self.log.debug('Connecting to DogStatsd on {}:{}'.format(
-                    self._dogstatsd_host,
-                    self._dogstatsd_port
-                ))
-                self._dogstatsd_client = DogStatsd(
-                    host=self._dogstatsd_host,
-                    port=self._dogstatsd_port,
-                )
-                self._start_runtime_worker()
-            elif not collect_metrics and running:
-                # Stop collecting
-                self._runtime_worker.stop()
-                self._runtime_worker.join()
-                self._runtime_worker = None
-                self._dogstatsd_client = None
+        self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
+        self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
+        self.log.debug('Connecting to DogStatsd on {}:{}'.format(
+            self._dogstatsd_host,
+            self._dogstatsd_port
+        ))
+        self._dogstatsd_client = DogStatsd(
+            host=self._dogstatsd_host,
+            port=self._dogstatsd_port,
+        )
+
+        # Since we've recreated our dogstatsd agent, we need to restart metric collection with that new agent
+        if self._runtime_worker:
+            runtime_metrics_was_running = True
+            self._runtime_worker.stop()
+            self._runtime_worker.join()
+            self._runtime_worker = None
+        else:
+            runtime_metrics_was_running = False
+
+        if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
+            self._start_runtime_worker()
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -326,9 +326,6 @@ class Tracer(object):
     def _update_dogstatsd_constant_tags(self):
         """ Prepare runtime tags for ddstatsd.
         """
-        if not self._dogstatsd_client:
-            return
-
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         tags = [
             '{}:{}'.format(k, v)
