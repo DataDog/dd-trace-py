@@ -4,6 +4,7 @@ import flask
 import werkzeug
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ddtrace import compat
 from ddtrace import config, Pin
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -328,6 +329,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
         s.set_tag(http.URL, request.base_url)
         s.set_tag(http.METHOD, request.method)
+        if config.flask.trace_query_string:
+            s.set_tag(http.QUERY_STRING, compat.to_unicode(request.query_string))
 
         return wrapped(environ, start_response)
 

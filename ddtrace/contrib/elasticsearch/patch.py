@@ -66,6 +66,8 @@ def _get_perform_request(elasticsearch):
             span.set_tag(metadata.METHOD, method)
             span.set_tag(metadata.URL, url)
             span.set_tag(metadata.PARAMS, urlencode(params))
+            if config.elasticsearch.trace_query_string:
+                span.set_tag(http.QUERY_STRING, urlencode(params))
             if method == 'GET':
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None
