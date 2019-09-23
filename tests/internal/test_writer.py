@@ -93,13 +93,20 @@ class AgentWriterTests(TestCase):
 
 def test_queue_full():
     q = Q(maxsize=3)
-    q.put(1)
+    q.put([1])
     q.put(2)
-    q.put(3)
-    q.put(4)
-    assert (list(q.queue) == [1, 2, 4] or
-            list(q.queue) == [1, 4, 3] or
-            list(q.queue) == [4, 2, 3])
+    q.put([3])
+    q.put([4, 4])
+    assert (list(q.queue) == [[1], 2, [4, 4]] or
+            list(q.queue) == [[1], [4, 4], [3]] or
+            list(q.queue) == [[4, 4], 2, [3]])
+    assert q.dropped == 1
+    assert q.enqueued == 4
+    assert q.enqueued_lengths == 5
+    dropped, enqueued, enqueued_lengths = q.reset_stats()
+    assert dropped == 1
+    assert enqueued == 4
+    assert enqueued_lengths == 5
 
 
 def test_queue_get():
