@@ -20,8 +20,8 @@ class TracerTagCollector(RuntimeTagCollector):
     def collect_fn(self, keys):
         ddtrace = self.modules.get('ddtrace')
         tags = [(SERVICE, service) for service in ddtrace.tracer._services]
-        if ddtrace.tracer._env is not None:
-            tags.append((ENV_KEY, ddtrace.tracer._env))
+        if ENV_KEY in ddtrace.tracer.tags:
+            tags.append((ENV_KEY, ddtrace.tracer.tags[ENV_KEY]))
         return tags
 
 
