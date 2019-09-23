@@ -1,6 +1,7 @@
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
+from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
 import pytest
@@ -34,10 +35,18 @@ class TestTornadoWeb(TornadoTestCase):
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
         assert self.get_url('/success/') == request_span.get_tag(http.URL)
+        if config.tornado.trace_query_string:
+            assert query_string == request_span.get_tag(http.QUERY_STRING)
+        else:
+            assert http.QUERY_STRING not in request_span.meta
         assert 0 == request_span.error
 
     def test_success_handler_query_string(self):
         self.test_success_handler('foo=bar')
+
+    def test_success_handler_query_string_trace(self):
+        with self.override_http_config('tornado', dict(trace_query_string=True)):
+            self.test_success_handler('foo=bar')
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method

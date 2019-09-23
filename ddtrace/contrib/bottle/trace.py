@@ -61,5 +61,7 @@ class TracePlugin(object):
                     s.set_tag(http.STATUS_CODE, code or response.status_code)
                     s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
                     s.set_tag(http.METHOD, request.method)
+                    if config.bottle.trace_query_string:
+                        s.set_tag(http.QUERY_STRING, request.query_string)
 
         return wrapped

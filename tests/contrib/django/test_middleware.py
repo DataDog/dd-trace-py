@@ -3,6 +3,7 @@ from django.test import modify_settings
 from django.db import connections
 
 # project
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.ext import errors, http
@@ -41,12 +42,28 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag('http.method') == 'GET'
         assert sp_request.span_type == 'http'
         assert sp_request.resource == 'tests.contrib.django.app.views.UserList'
+        if config.django.trace_query_string:
+            assert sp_request.get_tag(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in sp_request.meta
 
     def test_middleware_trace_request_qs(self):
         return self.test_middleware_trace_request('foo=bar')
 
     def test_middleware_trace_request_multi_qs(self):
         return self.test_middleware_trace_request('foo=bar&foo=baz&x=y')
+
+    def test_middleware_trace_request_no_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request()
+
+    def test_middleware_trace_request_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request('foo=bar')
+
+    def test_middleware_trace_request_multi_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request('foo=bar&foo=baz&x=y')
 
     def test_analytics_global_on_integration_default(self):
         """
