@@ -88,6 +88,27 @@ class BaseTestCase(unittest.TestCase):
 
     @staticmethod
     @contextlib.contextmanager
+    def override_http_config(integration, values):
+        """
+        Temporarily override an integration configuration for HTTP value
+        >>> with self.override_http_config('flask', dict(trace_query_string=True)):
+            # Your test
+        """
+        options = getattr(ddtrace.config, integration).http
+
+        original = {}
+        for key, value in values.items():
+            original[key] = getattr(options, key)
+            setattr(options, key, value)
+
+        try:
+            yield
+        finally:
+            for key, value in original.items():
+                setattr(options, key, value)
+
+    @staticmethod
+    @contextlib.contextmanager
     def override_sys_modules(modules):
         """
         Temporarily override ``sys.modules`` with provided dictionary of modules

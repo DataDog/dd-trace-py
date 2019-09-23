@@ -125,11 +125,24 @@ class Q(Queue):
     """
     Q is a threadsafe queue that let's you pop everything at once and
     will randomly overwrite elements when it's over the max size.
+
+    This queue also exposes some statistics about its length, the number of items dropped, etc.
     """
+
+    def __init__(self, maxsize=0):
+        # Cannot use super() here because Queue in Python2 is old style class
+        Queue.__init__(self, maxsize)
+        # Number of item dropped (queue full)
+        self.dropped = 0
+        # Number of items enqueued
+        self.enqueued = 0
+        # Cumulative length of enqueued items
+        self.enqueued_lengths = 0
+
     def put(self, item):
         try:
             # Cannot use super() here because Queue in Python2 is old style class
-            return Queue.put(self, item, block=False)
+            Queue.put(self, item, block=False)
         except Full:
             # If the queue is full, replace a random item. We need to make sure
             # the queue is not emptied was emptied in the meantime, so we lock
@@ -140,9 +153,33 @@ class Q(Queue):
                     idx = random.randrange(0, qsize)
                     self.queue[idx] = item
                     log.warning('Writer queue is full has more than %d traces, some traces will be lost', self.maxsize)
+                    self.dropped += 1
+                    self._update_stats(item)
                     return
             # The queue has been emptied, simply retry putting item
             return self.put(item)
+        else:
+            with self.mutex:
+                self._update_stats(item)
+
+    def _update_stats(self, item):
+        # self.mutex needs to be locked to make sure we don't lose data when resetting
+        self.enqueued += 1
+        if hasattr(item, '__len__'):
+            item_length = len(item)
+        else:
+            item_length = 1
+        self.enqueued_lengths += item_length
+
+    def reset_stats(self):
+        """Reset the stats to 0.
+
+        :return: The current value of dropped, enqueued and enqueued_lengths.
+        """
+        with self.mutex:
+            dropped, enqueued, enqueued_lengths = self.dropped, self.enqueued, self.enqueued_lengths
+            self.dropped, self.enqueued, self.enqueued_lengths = 0, 0, 0
+        return dropped, enqueued, enqueued_lengths
 
     def _get(self):
         things = self.queue

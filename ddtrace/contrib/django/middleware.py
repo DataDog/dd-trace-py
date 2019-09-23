@@ -138,6 +138,11 @@ class TraceMiddleware(InstrumentationMixin):
             # Set HTTP Request tags
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, get_request_uri(request))
+            trace_query_string = settings.TRACE_QUERY_STRING
+            if trace_query_string is None:
+                trace_query_string = config.django.trace_query_string
+            if trace_query_string:
+                span.set_tag(http.QUERY_STRING, request.META['QUERY_STRING'])
             _set_req_span(request, span)
         except Exception as e:
             log.debug('error tracing request: %s', e)

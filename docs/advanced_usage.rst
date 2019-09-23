@@ -347,8 +347,26 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-Http layer
+HTTP layer
 ----------
+
+Query String Tracing
+^^^^^^^^^^^^^^^^^^^^
+
+It is possible to store the query string of the URL — the part after the ``?``
+in your URL — in the ``url.query.string`` tag.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.http.trace_query_string = True
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_query_string = True
 
 ..  _http-headers-tracing:
 

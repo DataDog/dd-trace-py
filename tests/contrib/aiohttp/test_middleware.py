@@ -2,7 +2,7 @@ import asyncio
 
 from aiohttp.test_utils import unittest_run_loop
 
-from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware
+from ddtrace.contrib.aiohttp.middlewares import trace_app, trace_middleware, CONFIG_KEY
 from ddtrace.ext import http
 from ddtrace.sampler import RateSampler
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ANALYTICS_SAMPLE_RATE_KEY
@@ -65,6 +65,10 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /echo/{name}' == span.resource
         assert str(self.client.make_url('/echo/team')) == span.get_tag(http.URL)
         assert '200' == span.get_tag('http.status_code')
+        if self.app[CONFIG_KEY].get('trace_query_string'):
+            assert query_string == span.get_tag(http.QUERY_STRING)
+        else:
+            assert http.QUERY_STRING not in span.meta
 
     @unittest_run_loop
     def test_param_handler(self):
@@ -76,6 +80,21 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     def test_query_string_duplicate_keys(self):
+        return self._test_param_handler('foo=bar&foo=baz&x=y')
+
+    @unittest_run_loop
+    def test_param_handler_trace(self):
+        self.app[CONFIG_KEY]['trace_query_string'] = True
+        return self._test_param_handler()
+
+    @unittest_run_loop
+    def test_query_string_trace(self):
+        self.app[CONFIG_KEY]['trace_query_string'] = True
+        return self._test_param_handler('foo=bar')
+
+    @unittest_run_loop
+    def test_query_string_duplicate_keys_trace(self):
+        self.app[CONFIG_KEY]['trace_query_string'] = True
         return self._test_param_handler('foo=bar&foo=baz&x=y')
 
     @unittest_run_loop

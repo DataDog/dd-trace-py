@@ -79,6 +79,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         span.set_tag(ext_http.URL, sanitized_url)
         span.set_tag(ext_http.METHOD, method)
+        if config.httplib.trace_query_string:
+            span.set_tag(ext_http.QUERY_STRING, parsed.query)
 
         # set analytics sample rate
         span.set_tag(
