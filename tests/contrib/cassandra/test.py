@@ -338,6 +338,24 @@ class CassandraBase(object):
         assert s.get_metric('cassandra.batch_size') == 2
         assert 'test.person' in s.get_tag('cassandra.query')
 
+    def test_batched_bound_statement(self):
+        session, tracer = self._traced_session()
+        writer = tracer.writer
+
+        batch = BatchStatement()
+
+        prepared_statement = session.prepare('INSERT INTO test.person_write (name, age, description) VALUES (?, ?, ?)')
+        batch.add(
+            prepared_statement.bind(('matt', 34, 'can'))
+        )
+        session.execute(batch)
+
+        spans = writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.resource == 'BatchStatement'
+        assert s.get_tag('cassandra.query') == ''
+
 
 class TestCassPatchDefault(unittest.TestCase, CassandraBase):
     """Test Cassandra instrumentation with patching and default configuration"""
