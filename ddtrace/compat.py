@@ -129,3 +129,9 @@ def get_connection_response(conn):
         return conn.getresponse(buffering=True)
     else:
         return conn.getresponse()
+
+
+def string_escape(s):
+    if PY2:
+        return s.encode('string_escape')
+    return to_unicode(s.encode('unicode_escape'))

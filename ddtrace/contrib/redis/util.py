@@ -1,7 +1,7 @@
 """
 Some utils used by the dogtrace redis integration
 """
-from ...compat import stringify
+from ...compat import stringify, string_escape
 from ...ext import redis as redisx, net
 
 VALUE_PLACEHOLDER = '?'
@@ -29,11 +29,13 @@ def format_command_args(args):
       - Skip binary content
       - Truncate
     """
+
     length = 0
     out = []
     for arg in args:
         try:
             cmd = stringify(arg)
+            cmd = string_escape(cmd)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
