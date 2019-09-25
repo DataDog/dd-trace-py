@@ -519,8 +519,8 @@ class Tracer(object):
                 span.set_tag('a', 'b')
         """
         if self.enabled is False:
-            def noop(ob):
-                return ob
+            def noop(f):
+                return f
             return noop
 
         def wrap_decorator(f):
