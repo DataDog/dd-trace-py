@@ -5,6 +5,7 @@ import time
 
 from .. import api
 from .. import _worker
+from ..utils import sizeof
 from ..internal.logger import get_logger
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
@@ -134,10 +135,12 @@ class Q(Queue):
         Queue.__init__(self, maxsize)
         # Number of item dropped (queue full)
         self.dropped = 0
-        # Number of items enqueued
-        self.enqueued = 0
-        # Cumulative length of enqueued items
-        self.enqueued_lengths = 0
+        # Number of items accepted
+        self.accepted = 0
+        # Cumulative length of accepted items
+        self.accepted_lengths = 0
+        # Cumulative size of accepted items
+        self.accepted_size = 0
 
     def put(self, item):
         try:
@@ -164,22 +167,25 @@ class Q(Queue):
 
     def _update_stats(self, item):
         # self.mutex needs to be locked to make sure we don't lose data when resetting
-        self.enqueued += 1
+        self.accepted += 1
         if hasattr(item, '__len__'):
             item_length = len(item)
         else:
             item_length = 1
-        self.enqueued_lengths += item_length
+        self.accepted_lengths += item_length
+        self.accepted_size += sizeof.sizeof(item)
 
     def reset_stats(self):
         """Reset the stats to 0.
 
-        :return: The current value of dropped, enqueued and enqueued_lengths.
+        :return: The current value of dropped, accepted and accepted_lengths.
         """
         with self.mutex:
-            dropped, enqueued, enqueued_lengths = self.dropped, self.enqueued, self.enqueued_lengths
-            self.dropped, self.enqueued, self.enqueued_lengths = 0, 0, 0
-        return dropped, enqueued, enqueued_lengths
+            dropped, accepted, accepted_lengths, accepted_size = (
+                self.dropped, self.accepted, self.accepted_lengths, self.accepted_size
+            )
+            self.dropped, self.accepted, self.accepted_lengths, self.accepted_size = 0, 0, 0, 0
+        return dropped, accepted, accepted_lengths, accepted_size
 
     def _get(self):
         things = self.queue
