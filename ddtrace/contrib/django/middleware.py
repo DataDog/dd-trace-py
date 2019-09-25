@@ -129,7 +129,7 @@ class TraceMiddleware(InstrumentationMixin):
 
             # set analytics sample rate
             # DEV: django is special case maintains separate configuration from config api
-            if _analytics_enabled():
+            if _analytics_enabled() and settings.ANALYTICS_SAMPLE_RATE is not None:
                 span.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
                     settings.ANALYTICS_SAMPLE_RATE,
@@ -138,6 +138,11 @@ class TraceMiddleware(InstrumentationMixin):
             # Set HTTP Request tags
             span.set_tag(http.METHOD, request.method)
             span.set_tag(http.URL, get_request_uri(request))
+            trace_query_string = settings.TRACE_QUERY_STRING
+            if trace_query_string is None:
+                trace_query_string = config.django.trace_query_string
+            if trace_query_string:
+                span.set_tag(http.QUERY_STRING, request.META['QUERY_STRING'])
             _set_req_span(request, span)
         except Exception as e:
             log.debug('error tracing request: %s', e)

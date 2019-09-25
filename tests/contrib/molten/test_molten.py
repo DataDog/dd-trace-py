@@ -16,13 +16,11 @@ def hello(name: str, age: int) -> str:
     return f'Hello {age} year old named {name}!'
 
 
-def molten_client(headers=None):
+def molten_client(headers=None, params=None):
     app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
     client = TestClient(app)
     uri = app.reverse_uri('hello', name='Jim', age=24)
-    if headers:
-        return client.request('GET', uri, headers=headers)
-    return client.get(uri)
+    return client.request('GET', uri, headers=headers, params=params)
 
 
 class TestMolten(BaseTracerTestCase):
@@ -54,6 +52,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
         self.assertEqual(span.get_tag('http.status_code'), '200')
+        assert http.QUERY_STRING not in span.meta
 
         # See test_resources below for specifics of this difference
         if MOLTEN_VERSION >= (0, 7, 2):
@@ -66,6 +65,23 @@ class TestMolten(BaseTracerTestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(spans[0].service, 'molten-patch')
+
+    def test_route_success_query_string(self):
+        with self.override_http_config('molten', dict(trace_query_string=True)):
+            response = molten_client(params={'foo': 'bar'})
+        spans = self.tracer.writer.pop()
+        self.assertEqual(response.status_code, 200)
+        # TestResponse from TestClient is wrapper around Response so we must
+        # access data property
+        self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+        span = spans[0]
+        self.assertEqual(span.service, 'molten')
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
+        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_tag(http.QUERY_STRING), 'foo=bar')
 
     def test_analytics_global_on_integration_default(self):
         """

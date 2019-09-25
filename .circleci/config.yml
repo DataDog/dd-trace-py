@@ -267,6 +267,18 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  consul:
+    docker:
+      - *test_runner
+      - image: consul:1.6.0
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^consul_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   elasticsearch:
     docker:
       - *test_runner
@@ -842,6 +854,9 @@ workflows:
       - celery:
           requires:
             - flake8
+      - consul:
+          requires:
+            - flake8
       - dbapi:
           requires:
             - flake8
@@ -980,6 +995,7 @@ workflows:
             - bottle
             - cassandra
             - celery
+            - consul
             - dbapi
             - ddtracerun
             - django

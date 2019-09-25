@@ -1,10 +1,12 @@
 from .web.app import CustomDefaultHandler
 from .utils import TornadoTestCase
 
+from ddtrace import config
 from ddtrace.constants import SAMPLING_PRIORITY_KEY, ORIGIN_KEY, ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import http
+import pytest
+import tornado
 
-from opentracing.scope_managers.tornado import TornadoScopeManager
 from tests.opentracer.utils import init_tracer
 
 
@@ -33,10 +35,18 @@ class TestTornadoWeb(TornadoTestCase):
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
         assert self.get_url('/success/') == request_span.get_tag(http.URL)
+        if config.tornado.trace_query_string:
+            assert query_string == request_span.get_tag(http.QUERY_STRING)
+        else:
+            assert http.QUERY_STRING not in request_span.meta
         assert 0 == request_span.error
 
     def test_success_handler_query_string(self):
         self.test_success_handler('foo=bar')
+
+    def test_success_handler_query_string_trace(self):
+        with self.override_http_config('tornado', dict(trace_query_string=True)):
+            self.test_success_handler('foo=bar')
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
@@ -265,8 +275,13 @@ class TestTornadoWeb(TornadoTestCase):
         assert 4567 == request_span.parent_id
         assert 2 == request_span.get_metric(SAMPLING_PRIORITY_KEY)
 
+    # Opentracing support depends on new AsyncioScopeManager
+    # See: https://github.com/opentracing/opentracing-python/pull/118
+    @pytest.mark.skipif(tornado.version_info >= (5, 0),
+                        reason='Opentracing ScopeManager not available for Tornado >= 5')
     def test_success_handler_ot(self):
         """OpenTracing version of test_success_handler."""
+        from opentracing.scope_managers.tornado import TornadoScopeManager
         ot_tracer = init_tracer('tornado_svc', self.tracer, scope_manager=TornadoScopeManager())
 
         with ot_tracer.start_active_span('tornado_op'):

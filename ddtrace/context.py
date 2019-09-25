@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
@@ -131,15 +132,14 @@ class Context(object):
             self._set_current_span(span._parent)
 
             # notify if the trace is not closed properly; this check is executed only
-            # if the tracer debug_logging is enabled and when the root span is closed
+            # if the debug logging is enabled and when the root span is closed
             # for an unfinished trace. This logging is meant to be used for debugging
             # reasons, and it doesn't mean that the trace is wrongly generated.
             # In asynchronous environments, it's legit to close the root span before
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
-            tracer = getattr(span, '_tracer', None)
-            if tracer and tracer.debug_logging and span._parent is None:
-                unfinished_spans = [x for x in self._trace if not x._finished]
+            if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
+                unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
                     log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
                               span.name, len(unfinished_spans))
@@ -187,7 +187,7 @@ class Context(object):
                 return trace, sampled
 
             elif self._partial_flush_enabled:
-                finished_spans = [t for t in self._trace if t._finished]
+                finished_spans = [t for t in self._trace if t.finished]
                 if len(finished_spans) >= self._partial_flush_min_spans:
                     # partial flush when enabled and we have more than the minimal required spans
                     trace = self._trace
@@ -210,7 +210,7 @@ class Context(object):
 
                     # Any open spans will remain as `self._trace`
                     # Any finished spans will get returned to be flushed
-                    self._trace = [t for t in self._trace if not t._finished]
+                    self._trace = [t for t in self._trace if not t.finished]
 
                     return finished_spans, sampled
             return None, None

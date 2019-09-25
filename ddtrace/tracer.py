@@ -1,4 +1,5 @@
 import functools
+import logging
 from os import environ, getpid
 
 
@@ -7,14 +8,14 @@ from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
+from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, RateSampler, RateByServiceSampler
+from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated
 from .vendor.dogstatsd import DogStatsd
-from .writer import AgentWriter
 from . import compat
 
 
@@ -32,6 +33,8 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace('app.request', 'web-server').finish()
     """
+    _RUNTIME_METRICS_INTERVAL = 10
+
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
     DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
@@ -41,8 +44,14 @@ class Tracer(object):
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
         """
+        self.log = log
         self.sampler = None
         self.priority_sampler = None
+
+        self._runtime_worker = None
+        self._dogstatsd_client = None
+        self._dogstatsd_host = self.DEFAULT_HOSTNAME
+        self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
         # Apply the default configuration
         self.configure(
@@ -53,9 +62,6 @@ class Tracer(object):
             context_provider=DefaultContextProvider(),
         )
 
-        # A hook for local debugging. shouldn't be needed or used in production
-        self.debug_logging = False
-
         # globally set tags
         self.tags = {}
 
@@ -65,10 +71,19 @@ class Tracer(object):
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
-        self._runtime_worker = None
-        self._dogstatsd_client = None
-        self._dogstatsd_host = self.DEFAULT_HOSTNAME
-        self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
+
+    @property
+    def debug_logging(self):
+        return self.log.isEnabledFor(logging.DEBUG)
+
+    @debug_logging.setter
+    @deprecated(message='Use logging.setLevel instead', version='1.0.0')
+    def debug_logging(self, value):
+        self.log.setLevel(logging.DEBUG if value else logging.WARN)
+
+    @deprecated('Use .tracer, not .tracer()', '1.0.0')
+    def __call__(self):
+        return self
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -115,6 +130,7 @@ class Tracer(object):
             from the default value
         :param priority_sampling: enable priority sampling, this is required for
             complete distributed tracing support. Enabled by default.
+        :param collect_metrics: Whether to enable runtime metrics collection.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -123,15 +139,19 @@ class Tracer(object):
         if settings is not None:
             filters = settings.get(FILTERS_KEY)
 
-        if sampler is not None:
-            self.sampler = sampler
-
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self.priority_sampler:
             self.priority_sampler = RateByServiceSampler()
         # Explicitly disable priority sampling
         elif priority_sampling is False:
             self.priority_sampler = None
+
+        if sampler is not None:
+            self.sampler = sampler
+
+        # TODO: Remove when we remove the fallback to priority sampling
+        if isinstance(self.sampler, DatadogSampler):
+            self.sampler._priority_sampler = self.priority_sampler
 
         if hostname is not None or port is not None or uds_path is not None or filters is not None or \
                 priority_sampling is not None:
@@ -155,14 +175,27 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if collect_metrics and self._runtime_worker is None:
-            self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
-            self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
-            # start dogstatsd client if not already running
-            if not self._dogstatsd_client:
-                self._start_dogstatsd_client()
-
-            self._start_runtime_worker()
+        if collect_metrics is not None:
+            running = self._runtime_worker is not None
+            if collect_metrics and not running:
+                # Start collecting
+                self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
+                self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
+                self.log.debug('Connecting to DogStatsd on {}:{}'.format(
+                    self._dogstatsd_host,
+                    self._dogstatsd_port
+                ))
+                self._dogstatsd_client = DogStatsd(
+                    host=self._dogstatsd_host,
+                    port=self._dogstatsd_port,
+                )
+                self._start_runtime_worker()
+            elif not collect_metrics and running:
+                # Stop collecting
+                self._runtime_worker.stop()
+                self._runtime_worker.join()
+                self._runtime_worker = None
+                self._dogstatsd_client = None
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -239,24 +272,29 @@ class Tracer(object):
             )
 
             span.sampled = self.sampler.sample(span)
-            if span.sampled:
-                # When doing client sampling in the client, keep the sample rate so that we can
-                # scale up statistics in the next steps of the pipeline.
-                if isinstance(self.sampler, RateSampler):
-                    span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
+            # Old behavior
+            # DEV: The new sampler sets metrics and priority sampling on the span for us
+            if not isinstance(self.sampler, DatadogSampler):
+                if span.sampled:
+                    # When doing client sampling in the client, keep the sample rate so that we can
+                    # scale up statistics in the next steps of the pipeline.
+                    if isinstance(self.sampler, RateSampler):
+                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
 
-                if self.priority_sampler:
-                    # At this stage, it's important to have the service set. If unset,
-                    # priority sampler will use the default sampling rate, which might
-                    # lead to oversampling (that is, dropping too many traces).
-                    if self.priority_sampler.sample(span):
-                        context.sampling_priority = AUTO_KEEP
-                    else:
+                    if self.priority_sampler:
+                        # At this stage, it's important to have the service set. If unset,
+                        # priority sampler will use the default sampling rate, which might
+                        # lead to oversampling (that is, dropping too many traces).
+                        if self.priority_sampler.sample(span):
+                            context.sampling_priority = AUTO_KEEP
+                        else:
+                            context.sampling_priority = AUTO_REJECT
+                else:
+                    if self.priority_sampler:
+                        # If dropped by the local sampler, distributed instrumentation can drop it too.
                         context.sampling_priority = AUTO_REJECT
             else:
-                if self.priority_sampler:
-                    # If dropped by the local sampler, distributed instrumentation can drop it too.
-                    context.sampling_priority = AUTO_REJECT
+                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
 
             # add tags to root span to correlate trace with runtime metrics
             if self._runtime_worker:
@@ -296,22 +334,11 @@ class Tracer(object):
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
-        log.debug('Updating constant tags {}'.format(tags))
+        self.log.debug('Updating constant tags {}'.format(tags))
         self._dogstatsd_client.constant_tags = tags
 
-    def _start_dogstatsd_client(self):
-        # start dogstatsd as client with constant tags
-        log.debug('Connecting to DogStatsd on {}:{}'.format(
-            self._dogstatsd_host,
-            self._dogstatsd_port
-        ))
-        self._dogstatsd_client = DogStatsd(
-            host=self._dogstatsd_host,
-            port=self._dogstatsd_port,
-        )
-
     def _start_runtime_worker(self):
-        self._runtime_worker = RuntimeWorker(self._dogstatsd_client)
+        self._runtime_worker = RuntimeWorker(self._dogstatsd_client, self._RUNTIME_METRICS_INTERVAL)
         self._runtime_worker.start()
 
     def _check_new_process(self):
@@ -328,7 +355,8 @@ class Tracer(object):
         # of the parent.
         self._services = set()
 
-        self._start_runtime_worker()
+        if self._runtime_worker is not None:
+            self._start_runtime_worker()
 
         # force an immediate update constant tags since we have reset services
         # and generated a new runtime id
@@ -426,10 +454,10 @@ class Tracer(object):
         if not spans:
             return  # nothing to do
 
-        if self.debug_logging:
-            log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
             for span in spans:
-                log.debug('\n%s', span.pprint())
+                self.log.debug('\n%s', span.pprint())
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)

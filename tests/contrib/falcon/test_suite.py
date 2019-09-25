@@ -23,6 +23,7 @@ class FalconTestCase(object):
         assert span.resource == 'GET 404'
         assert span.get_tag(httpx.STATUS_CODE) == '404'
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/fake_endpoint'
+        assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
 
     def test_exception(self):
@@ -44,8 +45,8 @@ class FalconTestCase(object):
         assert span.get_tag(httpx.URL) == 'http://falconframework.org/exception'
         assert span.parent_id is None
 
-    def test_200(self):
-        out = self.simulate_get('/200')
+    def test_200(self, query_string=''):
+        out = self.simulate_get('/200', query_string=query_string)
         assert out.status_code == 200
         assert out.content.decode('utf-8') == 'Success'
 
@@ -57,9 +58,28 @@ class FalconTestCase(object):
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
         assert span.get_tag(httpx.STATUS_CODE) == '200'
-        assert span.get_tag(httpx.URL) == 'http://falconframework.org/200'
+        fqs = ('?' + query_string) if query_string else ''
+        assert span.get_tag(httpx.URL) == 'http://falconframework.org/200' + fqs
+        if config.falcon.trace_query_string:
+            assert span.get_tag(httpx.QUERY_STRING) == query_string
+        else:
+            assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
         assert span.span_type == 'http'
+
+    def test_200_qs(self):
+        return self.test_200('foo=bar')
+
+    def test_200_multi_qs(self):
+        return self.test_200('foo=bar&foo=baz&x=y')
+
+    def test_200_qs_trace(self):
+        with self.override_http_config('falcon', dict(trace_query_string=True)):
+            return self.test_200('foo=bar')
+
+    def test_200_multi_qs_trace(self):
+        with self.override_http_config('falcon', dict(trace_query_string=True)):
+            return self.test_200('foo=bar&foo=baz&x=y')
 
     def test_analytics_global_on_integration_default(self):
         """

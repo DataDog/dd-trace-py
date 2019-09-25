@@ -83,7 +83,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_debug_enabling(self):
         """
-        DATADOG_TRACE_DEBUG=true allows setting debug_logging of the global tracer
+        DATADOG_TRACE_DEBUG=true allows setting debug logging of the global tracer
         """
         with self.override_env(dict(DATADOG_TRACE_DEBUG='false')):
             out = subprocess.check_output(
