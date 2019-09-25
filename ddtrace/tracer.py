@@ -397,6 +397,9 @@ class Tracer(object):
             parent2 = tracer.trace('parent2')   # has no parent span
             parent2.finish()
         """
+        if self.enabled is False:
+            return
+
         # retrieve the Context using the context provider and create
         # a new Span that could be a root or a nested span
         context = self.get_call_context()
@@ -515,6 +518,11 @@ class Tracer(object):
                 span = tracer.current_span()
                 span.set_tag('a', 'b')
         """
+        if self.enabled is False:
+            def noop(ob):
+                return ob
+            return noop
+
         def wrap_decorator(f):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
