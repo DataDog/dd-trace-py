@@ -52,8 +52,8 @@ class RateSampler(BaseSampler):
         log.debug('initialized RateSampler, sample %s%% of traces', 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate):
-        self.sample_rate = sample_rate
-        self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
+        self.sample_rate = float(sample_rate)
+        self.sampling_id_threshold = self.sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
         return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
