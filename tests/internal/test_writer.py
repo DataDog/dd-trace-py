@@ -101,12 +101,14 @@ def test_queue_full():
             list(q.queue) == [[1], [4, 4], [3]] or
             list(q.queue) == [[4, 4], 2, [3]])
     assert q.dropped == 1
-    assert q.enqueued == 4
-    assert q.enqueued_lengths == 5
-    dropped, enqueued, enqueued_lengths = q.reset_stats()
+    assert q.accepted == 4
+    assert q.accepted_lengths == 5
+    assert q.accepted_size >= 100
+    dropped, accepted, accepted_lengths, accepted_size = q.reset_stats()
     assert dropped == 1
-    assert enqueued == 4
-    assert enqueued_lengths == 5
+    assert accepted == 4
+    assert accepted_lengths == 5
+    assert accepted_size >= 100
 
 
 def test_queue_get():
