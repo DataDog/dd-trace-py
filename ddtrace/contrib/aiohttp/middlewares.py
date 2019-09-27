@@ -30,8 +30,6 @@ def trace_middleware(app, handler):
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
 
-        context = tracer.context_provider.active()
-
         # Create a new context based on the propagated information.
         if distributed_tracing:
             propagator = HTTPPropagator()
@@ -97,6 +95,9 @@ def on_prepare(request, response):
 
         # prefix the resource name by the http method
         resource = '{} {}'.format(request.method, resource)
+
+    if 500 <= response.status < 600:
+        request_span.error = 1
 
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)

@@ -116,6 +116,40 @@ class TestTraceMiddleware(TraceTestCase):
 
     @unittest_run_loop
     @asyncio.coroutine
+    def test_server_error(self):
+        """
+        When a server error occurs (uncaught exception)
+            The span should be flagged as an error
+        """
+        request = yield from self.client.request('GET', '/uncaught_server_error')
+        assert 500 == request.status
+        traces = self.tracer.writer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        span = traces[0][0]
+        assert 'GET' == span.get_tag('http.method')
+        assert '500' == span.get_tag('http.status_code')
+        assert span.error == 1
+
+    @unittest_run_loop
+    @asyncio.coroutine
+    def test_500_response_code(self):
+        """
+        When a 5XX response code is returned
+            The span should be flagged as an error
+        """
+        request = yield from self.client.request('GET', '/caught_server_error')
+        assert request.status == 503
+        traces = self.tracer.writer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        span = traces[0][0]
+        assert 'GET' == span.get_tag('http.method')
+        assert '503' == span.get_tag('http.status_code')
+        assert span.error == 1
+
+    @unittest_run_loop
+    @asyncio.coroutine
     def test_coroutine_chaining(self):
         # it should create a trace with multiple spans
         request = yield from self.client.request('GET', '/chaining/')
