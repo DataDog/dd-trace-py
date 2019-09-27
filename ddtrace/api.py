@@ -196,6 +196,9 @@ class API(object):
         :param traces: A list of traces.
         :return: The list of API HTTP responses.
         """
+        if not traces:
+            return []
+
         start = time.time()
         responses = []
         payload = Payload(encoder=self._encoder)

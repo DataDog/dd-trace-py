@@ -1,6 +1,9 @@
+import time
 from unittest import TestCase
 
 import pytest
+
+import mock
 
 from ddtrace.span import Span
 from ddtrace.internal.writer import AgentWriter, Q, Empty
@@ -36,21 +39,34 @@ class AddTagFilter():
         return trace
 
 
-class DummmyAPI():
+class DummyAPI(object):
     def __init__(self):
         self.traces = []
 
     def send_traces(self, traces):
+        responses = []
         for trace in traces:
             self.traces.append(trace)
+            response = mock.Mock()
+            response.status = 200
+            responses.append(response)
+        return responses
+
+
+class FailingAPI(object):
+
+    @staticmethod
+    def send_traces(traces):
+        return [Exception('oops')]
 
 
 class AgentWriterTests(TestCase):
     N_TRACES = 11
 
-    def create_worker(self, filters):
-        worker = AgentWriter(filters=filters)
-        self.api = DummmyAPI()
+    def create_worker(self, filters=None, api_class=DummyAPI):
+        self.dogstatsd = mock.Mock()
+        worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
+        self.api = api_class()
         worker.api = self.api
         for i in range(self.N_TRACES):
             worker.write([
@@ -89,6 +105,49 @@ class AgentWriterTests(TestCase):
         self.create_worker(filters)
         self.assertEqual(len(self.api.traces), 0)
         self.assertEqual(filtr.filtered_traces, 0)
+
+    def test_dogstatsd(self):
+        self.create_worker()
+        assert [
+            mock.call('datadog.tracer.queue.max_length', 1000),
+            mock.call('datadog.tracer.queue.length', 11),
+            mock.call('datadog.tracer.queue.size', mock.ANY),
+            mock.call('datadog.tracer.queue.spans', 77),
+        ] == self.dogstatsd.gauge.mock_calls
+        increment_calls = [
+            mock.call('datadog.tracer.queue.dropped', 0),
+            mock.call('datadog.tracer.queue.accepted', 11),
+            mock.call('datadog.tracer.queue.accepted_lengths', 77),
+            mock.call('datadog.tracer.queue.accepted_size', mock.ANY),
+            mock.call('datadog.tracer.traces.filtered', 0),
+            mock.call('datadog.tracer.api.requests', 11),
+            mock.call('datadog.tracer.api.errors', 0),
+            mock.call('datadog.tracer.api.responses', 11, tags=['status:200']),
+        ]
+        if hasattr(time, 'thread_time_ns'):
+            increment_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
+        assert increment_calls == self.dogstatsd.increment.mock_calls
+
+    def test_dogstatsd_failing_api(self):
+        self.create_worker(api_class=FailingAPI)
+        assert [
+            mock.call('datadog.tracer.queue.max_length', 1000),
+            mock.call('datadog.tracer.queue.length', 11),
+            mock.call('datadog.tracer.queue.size', mock.ANY),
+            mock.call('datadog.tracer.queue.spans', 77),
+        ] == self.dogstatsd.gauge.mock_calls
+        increment_calls = [
+            mock.call('datadog.tracer.queue.dropped', 0),
+            mock.call('datadog.tracer.queue.accepted', 11),
+            mock.call('datadog.tracer.queue.accepted_lengths', 77),
+            mock.call('datadog.tracer.queue.accepted_size', mock.ANY),
+            mock.call('datadog.tracer.traces.filtered', 0),
+            mock.call('datadog.tracer.api.requests', 1),
+            mock.call('datadog.tracer.api.errors', 1),
+        ]
+        if hasattr(time, 'thread_time_ns'):
+            increment_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
+        assert increment_calls == self.dogstatsd.increment.mock_calls
 
 
 def test_queue_full():
