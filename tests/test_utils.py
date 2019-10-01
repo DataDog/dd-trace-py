@@ -106,3 +106,25 @@ def test_sizeof():
     assert one_three > sizeof_list
     x = {'a': 1}
     assert sizeof.sizeof([x, x]) < sizeof.sizeof([{'a': 1}, {'a': 1}])
+
+
+class Slots(object):
+
+    __slots__ = ('foobar',)
+
+    def __init__(self):
+        self.foobar = 123
+
+
+def test_sizeof_slots():
+    assert sizeof.sizeof(Slots()) >= 1
+
+
+class BrokenSlots(object):
+
+    __slots__ = ('foobar',)
+
+
+def test_sizeof_broken_slots():
+    """https://github.com/DataDog/dd-trace-py/issues/1079"""
+    assert sizeof.sizeof(BrokenSlots()) >= 1
