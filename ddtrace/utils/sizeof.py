@@ -2,10 +2,16 @@ import collections
 import sys
 from itertools import chain
 
+_UNSET = object()
+
 
 def iter_object(o):
     if hasattr(o, '__slots__'):
-        return (getattr(o, slot) for slot in o.__slots__)
+        return (
+            s
+            for s in (getattr(o, slot, _UNSET) for slot in o.__slots__)
+            if s != _UNSET
+        )
     elif hasattr(o, '__dict__'):
         return list(o.__dict__.items())
     elif isinstance(o, dict):
