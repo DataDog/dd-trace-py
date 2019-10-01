@@ -113,7 +113,7 @@ class DatadogSampler(BaseSampler):
     This sampler is currently in ALPHA and it's API may change at any time, use at your own risk.
     """
     # TODO: Remove '_priority_sampler' when we no longer use the fallback
-    __slots__ = ('default_sampler', 'rules', 'rate_limit', '_priority_sampler')
+    __slots__ = ('default_sampler', 'rules', '_priority_sampler')
 
     DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1
