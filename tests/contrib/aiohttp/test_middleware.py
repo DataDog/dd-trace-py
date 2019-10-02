@@ -122,13 +122,13 @@ class TestTraceMiddleware(TraceTestCase):
             The span should be flagged as an error
         """
         request = yield from self.client.request('GET', '/uncaught_server_error')
-        assert 500 == request.status
+        assert request.status == 500
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 1 == len(traces[0])
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        assert 'GET' == span.get_tag('http.method')
-        assert '500' == span.get_tag('http.status_code')
+        assert span.get_tag('http.method') == 'GET'
+        assert span.get_tag('http.status_code') == '500'
         assert span.error == 1
 
     @unittest_run_loop
@@ -141,11 +141,11 @@ class TestTraceMiddleware(TraceTestCase):
         request = yield from self.client.request('GET', '/caught_server_error')
         assert request.status == 503
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 1 == len(traces[0])
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
         span = traces[0][0]
-        assert 'GET' == span.get_tag('http.method')
-        assert '503' == span.get_tag('http.status_code')
+        assert span.get_tag('http.method') == 'GET'
+        assert span.get_tag('http.status_code') == '503'
         assert span.error == 1
 
     @unittest_run_loop

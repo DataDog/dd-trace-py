@@ -68,7 +68,7 @@ def uncaught_server_error(request):
 
 @asyncio.coroutine
 def caught_server_error(request):
-    return web.Response(text='OK', status=503)
+    return web.Response(text='NOT OK', status=503)
 
 
 @asyncio.coroutine
