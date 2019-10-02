@@ -10,9 +10,9 @@ is a small example showcasing this::
 
     from ddtrace import tracer
 
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
-By default, these will be set to ``localhost`` and ``8126`` respectively.
+By default, these will be set to ``localhost``, ``8126``, and ``False`` respectively.
 
 You can also use a Unix Domain Socket to connect to the agent::
 
@@ -440,6 +440,8 @@ for usage.
 | `debug`             | enable debug logging                   | `False`       |
 +---------------------+----------------------------------------+---------------+
 | `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
++---------------------+----------------------------------------+---------------+
+| `agent_https`       | use https to connect to the agent      | `False`       |
 +---------------------+----------------------------------------+---------------+
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+
