@@ -102,8 +102,11 @@ class UDSHTTPConnection(httplib.HTTPConnection):
 
     # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
     # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path, *args, **kwargs):
-        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+    def __init__(self, path, https, *args, **kwargs):
+        if https:
+            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
+        else:
+            httplib.HTTPConnection.__init__(self, *args, **kwargs)
         self.path = path
 
     def connect(self):
@@ -123,7 +126,7 @@ class API(object):
     # This ought to be enough as the agent is local
     TIMEOUT = 2
 
-    def __init__(self, hostname, port, uds_path=None, headers=None, encoder=None, priority_sampling=False):
+    def __init__(self, hostname, port, uds_path=None, https=False, headers=None, encoder=None, priority_sampling=False):
         """Create a new connection to the Tracer API.
 
         :param hostname: The hostname.
@@ -136,6 +139,7 @@ class API(object):
         self.hostname = hostname
         self.port = int(port)
         self.uds_path = uds_path
+        self.https = https
 
         self._headers = headers or {}
         self._version = None
@@ -161,8 +165,12 @@ class API(object):
 
     def __str__(self):
         if self.uds_path:
-            return self.uds_path
-        return '%s:%s' % (self.hostname, self.port)
+            return 'unix://' + self.uds_path
+        if self.https:
+            scheme = 'https://'
+        else:
+            scheme = 'http://'
+        return '%s%s:%s' % (scheme, self.hostname, self.port)
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
@@ -252,9 +260,12 @@ class API(object):
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
         if self.uds_path is None:
-            conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            if self.https:
+                conn = httplib.HTTPSConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            else:
+                conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
         else:
-            conn = UDSHTTPConnection(self.uds_path, self.hostname, self.port, timeout=self.TIMEOUT)
+            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)
