@@ -84,6 +84,11 @@ class Tracer(object):
     def __call__(self):
         return self
 
+    def global_excepthook(self, type, value, traceback):
+        """The global tracer except hook."""
+        self._dogstatsd_client.increment('datadog.tracer.uncaught_exceptions', 1,
+                                         tags=['class:%s' % type.__name__])
+
     def get_call_context(self, *args, **kwargs):
         """
         Return the current active ``Context`` for this traced execution. This method is
