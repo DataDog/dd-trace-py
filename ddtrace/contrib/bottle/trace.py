@@ -58,7 +58,11 @@ class TracePlugin(object):
                     code = 500
                     raise
                 finally:
-                    s.set_tag(http.STATUS_CODE, code or response.status_code)
+                    response_code = code or response.status_code
+                    if 500 <= response_code < 600:
+                        s.error = 1
+
+                    s.set_tag(http.STATUS_CODE, response_code)
                     s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
                     s.set_tag(http.METHOD, request.method)
                     if config.bottle.trace_query_string:
