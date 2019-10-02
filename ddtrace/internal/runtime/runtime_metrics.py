@@ -12,6 +12,7 @@ from .metric_collectors import (
     PSUtilRuntimeMetricCollector,
 )
 from .tag_collectors import (
+    PlatformTagCollector,
     TracerTagCollector,
 )
 
@@ -41,6 +42,7 @@ class RuntimeCollectorsIterable(object):
 class RuntimeTags(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_TAGS
     COLLECTORS = [
+        PlatformTagCollector,
         TracerTagCollector,
     ]
 
