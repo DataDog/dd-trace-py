@@ -92,8 +92,7 @@ class TraceBottleTest(BaseTracerTestCase):
         # make a request
         try:
             resp = self.app.get('/hi')
-            assert resp.status_int == 500
-        except Exception:
+        except webtest.AppError:
             pass
 
         spans = self.tracer.writer.pop()
@@ -105,6 +104,51 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.get_tag('http.status_code') == '500'
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
+        assert s.error == 1
+
+    def test_5XX_response(self):
+        """
+        When a 5XX response is returned
+            The span error attribute should be 1
+        """
+        @self.app.route('/5XX-1')
+        def handled500():
+            raise bottle.HTTPResponse(status=503)
+
+        @self.app.route('/5XX-2')
+        def handled500():
+            raise bottle.HTTPError(status=502)
+
+        @self.app.route('/5XX-3')
+        def handled500():
+            bottle.response.status = 503
+            return 'hmmm'
+
+        self._trace_app(self.tracer)
+
+        try:
+            self.app.get('/5XX-1')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
+
+        try:
+            self.app.get('/5XX-2')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
+
+        try:
+            self.app.get('/5XX-3')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
 
     def test_abort(self):
         @self.app.route('/hi')
@@ -115,8 +159,7 @@ class TraceBottleTest(BaseTracerTestCase):
         # make a request
         try:
             resp = self.app.get('/hi')
-            assert resp.status_int == 420
-        except Exception:
+        except webtest.AppError:
             pass
 
         spans = self.tracer.writer.pop()
