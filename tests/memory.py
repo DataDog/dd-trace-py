@@ -24,7 +24,6 @@ from tests.contrib import config
 
 # verbosity
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-ddtrace.tracer.debug_logging = False
 
 ddtrace.patch_all()
 ddtrace.tracer.writer = None

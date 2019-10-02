@@ -261,7 +261,15 @@ def _sanitize_query(span, query):
         resource = getattr(query, 'query_string', query)
     elif t == 'BatchStatement':
         resource = 'BatchStatement'
-        q = '; '.join(q[1] for q in query._statements_and_parameters[:2])
+        # Each element in `_statements_and_parameters` is:
+        #   (is_prepared, statement, parameters)
+        #  ref:https://github.com/datastax/python-driver/blob/13d6d72be74f40fcef5ec0f2b3e98538b3b87459/cassandra/query.py#L844
+        #
+        # For prepared statements, the `statement` value is just the query_id
+        #   which is not a statement and when trying to join with other strings
+        #   raises an error in python3 around joining bytes to unicode, so this
+        #   just filters out prepared statements from this tag value
+        q = '; '.join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
         span.set_tag('cassandra.query', q)
         span.set_metric('cassandra.batch_size', len(query._statements_and_parameters))
     elif t == 'BoundStatement':

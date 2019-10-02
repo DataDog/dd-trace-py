@@ -41,6 +41,8 @@ class TraceMiddleware(object):
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)
+        if config.falcon.trace_query_string:
+            span.set_tag(httpx.QUERY_STRING, req.query_string)
 
         # Note: any request header set after this line will not be stored in the span
         store_request_headers(req.headers, span, config.falcon)

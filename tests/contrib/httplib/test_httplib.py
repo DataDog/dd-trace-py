@@ -11,6 +11,7 @@ from ddtrace.compat import httplib, PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.httplib import patch, unpatch
 from ddtrace.contrib.httplib.patch import should_skip_request
+from ddtrace.ext import http
 from ddtrace.pin import Pin
 
 from tests.opentracer.utils import init_tracer
@@ -127,15 +128,19 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
-    def test_httplib_request_get_request(self):
+    def test_httplib_request_get_request(self, query_string=''):
         """
         When making a GET request via httplib.HTTPConnection.request
             we return the original response
             we capture a span for the request
         """
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
-            conn.request('GET', '/status/200')
+            conn.request('GET', '/status/200' + fqs)
             resp = conn.getresponse()
             self.assertEqual(self.to_str(resp.read()), '')
             self.assertEqual(resp.status, 200)
@@ -155,6 +160,18 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
                 'http.url': URL_200,
             }
         )
+        if config.httplib.trace_query_string:
+            assert span.get_tag(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in span.meta
+
+    def test_httplib_request_get_request_qs(self):
+        with self.override_http_config('httplib', dict(trace_query_string=True)):
+            return self.test_httplib_request_get_request('foo=bar')
+
+    def test_httplib_request_get_request_multiqs(self):
+        with self.override_http_config('httplib', dict(trace_query_string=True)):
+            return self.test_httplib_request_get_request('foo=bar&foo=baz&x=y')
 
     def test_httplib_request_get_request_https(self):
         """
