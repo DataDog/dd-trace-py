@@ -12,6 +12,7 @@ from .metric_collectors import (
     PSUtilRuntimeMetricCollector,
 )
 from .tag_collectors import (
+    PlatformTagCollector,
     TracerTagCollector,
 )
 
@@ -41,6 +42,7 @@ class RuntimeCollectorsIterable(object):
 class RuntimeTags(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_TAGS
     COLLECTORS = [
+        PlatformTagCollector,
         TracerTagCollector,
     ]
 
@@ -60,30 +62,20 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
 
     FLUSH_INTERVAL = 10
 
-    def __init__(self, statsd_client, flush_interval=None):
-        flush_interval = self.FLUSH_INTERVAL if flush_interval is None else flush_interval
+    def __init__(self, statsd_client, flush_interval=FLUSH_INTERVAL):
         super(RuntimeWorker, self).__init__(interval=flush_interval,
                                             name=self.__class__.__name__)
         self._statsd_client = statsd_client
         self._runtime_metrics = RuntimeMetrics()
 
-    def _write_metric(self, key, value):
-        log.debug('Writing metric {}:{}'.format(key, value))
-        self._statsd_client.gauge(key, value)
-
     def flush(self):
-        if not self._statsd_client:
-            log.warning('Attempted flush with uninitialized or failed statsd client')
-            return
-
-        for key, value in self._runtime_metrics:
-            self._write_metric(key, value)
+        with self._statsd_client:
+            for key, value in self._runtime_metrics:
+                log.debug('Writing metric {}:{}'.format(key, value))
+                self._statsd_client.gauge(key, value)
 
     run_periodic = flush
     on_shutdown = flush
-
-    def reset(self):
-        self._runtime_metrics = RuntimeMetrics()
 
     def __repr__(self):
         return '{}(runtime_metrics={})'.format(

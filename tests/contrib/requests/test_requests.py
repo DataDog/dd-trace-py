@@ -108,6 +108,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert s.get_tag(http.STATUS_CODE) == '200'
         assert s.error == 0
         assert s.span_type == http.TYPE
+        assert http.QUERY_STRING not in s.meta
 
     def test_200_send(self):
         # when calling send directly
@@ -127,7 +128,9 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
 
     def test_200_query_string(self):
         # ensure query string is removed before adding url to metadata
-        out = self.session.get(URL_200 + '?key=value&key2=value2')
+        query_string = 'key=value&key2=value2'
+        with self.override_http_config('requests', dict(trace_query_string=True)):
+            out = self.session.get(URL_200 + '?' + query_string)
         assert out.status_code == 200
         # validation
         spans = self.tracer.writer.pop()
@@ -138,6 +141,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
         assert s.span_type == http.TYPE
+        assert s.get_tag(http.QUERY_STRING) == query_string
 
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without

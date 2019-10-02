@@ -7,7 +7,7 @@ from ddtrace import config, Pin
 from ...utils.wrappers import unwrap as _u
 
 from . import constants
-from .client_interceptor import create_client_interceptor
+from .client_interceptor import create_client_interceptor, intercept_channel
 from .server_interceptor import create_server_interceptor
 
 
@@ -45,6 +45,7 @@ def _patch_client():
 
     _w('grpc', 'insecure_channel', _client_channel_interceptor)
     _w('grpc', 'secure_channel', _client_channel_interceptor)
+    _w('grpc', 'intercept_channel', intercept_channel)
 
 
 def _unpatch_client():

@@ -10,6 +10,7 @@ from ...settings import config
 
 CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
+REQUEST_CONFIG_KEY = '__datadog_trace_config'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
 
@@ -28,8 +29,6 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
-
-        context = tracer.context_provider.active()
 
         # Create a new context based on the propagated information.
         if distributed_tracing:
@@ -59,6 +58,7 @@ def trace_middleware(app, handler):
         # may be freely used by the application code
         request[REQUEST_CONTEXT_KEY] = request_span.context
         request[REQUEST_SPAN_KEY] = request_span
+        request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
             response = yield from handler(request)
             return response
@@ -96,10 +96,19 @@ def on_prepare(request, response):
         # prefix the resource name by the http method
         resource = '{} {}'.format(request.method, resource)
 
+    if 500 <= response.status < 600:
+        request_span.error = 1
+
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)
     request_span.set_tag('http.status_code', response.status)
     request_span.set_tag(http.URL, request.url.with_query(None))
+    # DEV: aiohttp is special case maintains separate configuration from config api
+    trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
+    if trace_query_string is None:
+        trace_query_string = config._http.trace_query_string
+    if trace_query_string:
+        request_span.set_tag(http.QUERY_STRING, request.query_string)
     request_span.finish()
 
 

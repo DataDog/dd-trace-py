@@ -58,6 +58,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`cassandra`                                 | >= 3.5        | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`consul`                                    | >= 0.7        | Yes [3]_       |
++--------------------------------------------------+---------------+----------------+
 | :ref:`django`                                    | >= 1.8        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`djangorestframework <djangorestframework>` | >= 3.4        | No             |
@@ -122,6 +124,8 @@ contacting support.
   your Python entrypoint.
 
 .. [2] only third-party modules such as aiohttp_jinja2
+
+.. [3] only the syncronous client
 
 
 Indices and tables

@@ -25,6 +25,7 @@ PATCH_MODULES = {
     'bottle': False,
     'cassandra': True,
     'celery': True,
+    'consul': True,
     'elasticsearch': True,
     'algoliasearch': True,
     'futures': False,  # experimental propagation
@@ -38,6 +39,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
+    'rediscluster': True,
     'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,

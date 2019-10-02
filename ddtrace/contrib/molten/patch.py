@@ -4,6 +4,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 import molten
 
 from ... import Pin, config
+from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import AppTypes, http
 from ...propagation.http import HTTPPropagator
@@ -125,6 +126,8 @@ def patch_app_call(wrapped, instance, args, kwargs):
         span.set_tag(http.URL, '%s://%s:%s%s' % (
             request.scheme, request.host, request.port, request.path,
         ))
+        if config.molten.trace_query_string:
+            span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
         span.set_tag('molten.version', molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 

@@ -25,6 +25,19 @@ def create_client_interceptor(pin, host, port):
     return _ClientInterceptor(pin, host, port)
 
 
+def intercept_channel(wrapped, instance, args, kwargs):
+    channel = args[0]
+    interceptors = args[1:]
+    if isinstance(getattr(channel, '_interceptor', None), _ClientInterceptor):
+        dd_interceptor = channel._interceptor
+        base_channel = getattr(channel, '_channel', None)
+        if base_channel:
+            new_channel = wrapped(channel._channel, *interceptors)
+            return grpc.intercept_channel(new_channel, dd_interceptor)
+
+    return wrapped(*args, **kwargs)
+
+
 class _ClientCallDetails(
         collections.namedtuple(
             '_ClientCallDetails',
@@ -34,13 +47,36 @@ class _ClientCallDetails(
 
 
 def _handle_response_or_error(span, response_or_error):
+    # response_of_error should be a grpc.Future and so we expect to have
+    # exception() and traceback() methods if a computation has resulted in
+    # an exception being raised
+    if (
+        not callable(getattr(response_or_error, 'exception', None)) and
+        not callable(getattr(response_or_error, 'traceback', None))
+    ):
+        return
+
     exception = response_or_error.exception()
-    if exception is not None:
-        code = to_unicode(exception.code())
-        details = to_unicode(exception.details())
-        span.error = 1
-        span.set_tag(errors.ERROR_MSG, details)
-        span.set_tag(errors.ERROR_TYPE, code)
+    traceback = response_or_error.traceback()
+
+    # pull out status code from gRPC response to use both for `grpc.status.code`
+    # tag and the error type tag if the response is an exception
+    status_code = to_unicode(response_or_error.code())
+
+    if exception is not None and traceback is not None:
+        if isinstance(exception, grpc.RpcError):
+            # handle internal gRPC exceptions separately to get status code and
+            # details as tags properly
+            exc_val = to_unicode(response_or_error.details())
+            span.set_tag(errors.ERROR_MSG, exc_val)
+            span.set_tag(errors.ERROR_TYPE, status_code)
+            span.set_tag(errors.ERROR_STACK, traceback)
+        else:
+            exc_type = type(exception)
+            span.set_exc_info(exc_type, exception, traceback)
+            status_code = to_unicode(response_or_error.code())
+
+    span.set_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
 
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
@@ -55,6 +91,8 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
         try:
             return next(self.__wrapped__)
         except StopIteration:
+            # at end of iteration handle response status from wrapped future
+            _handle_response_or_error(self._span, self.__wrapped__)
             self._span.finish()
             raise
         except grpc.RpcError as rpc_error:
