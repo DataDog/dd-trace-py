@@ -91,7 +91,7 @@ class TraceBottleTest(BaseTracerTestCase):
 
         # make a request
         try:
-            resp = self.app.get('/hi')
+            self.app.get('/hi')
         except webtest.AppError:
             pass
 
@@ -112,15 +112,15 @@ class TraceBottleTest(BaseTracerTestCase):
             The span error attribute should be 1
         """
         @self.app.route('/5XX-1')
-        def handled500():
+        def handled500_1():
             raise bottle.HTTPResponse(status=503)
 
         @self.app.route('/5XX-2')
-        def handled500():
+        def handled500_2():
             raise bottle.HTTPError(status=502)
 
         @self.app.route('/5XX-3')
-        def handled500():
+        def handled500_3():
             bottle.response.status = 503
             return 'hmmm'
 
@@ -158,7 +158,7 @@ class TraceBottleTest(BaseTracerTestCase):
 
         # make a request
         try:
-            resp = self.app.get('/hi')
+            self.app.get('/hi')
         except webtest.AppError:
             pass
 
