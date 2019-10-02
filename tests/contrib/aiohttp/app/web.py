@@ -70,6 +70,7 @@ def uncaught_server_error(request):
 def caught_server_error(request):
     return web.Response(text='OK', status=503)
 
+
 @asyncio.coroutine
 def coro_2(request):
     tracer = get_tracer(request)
