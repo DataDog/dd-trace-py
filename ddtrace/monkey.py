@@ -39,6 +39,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
+    'rediscluster': True,
     'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
