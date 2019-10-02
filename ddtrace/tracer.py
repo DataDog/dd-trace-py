@@ -112,9 +112,9 @@ class Tracer(object):
         """Returns the current Tracer Context Provider"""
         return self._context_provider
 
-    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, dogstatsd_host=None,
-                  dogstatsd_port=None, sampler=None, context_provider=None, wrap_executor=None,
-                  priority_sampling=None, settings=None, collect_metrics=None):
+    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
+                  dogstatsd_host=None, dogstatsd_port=None, sampler=None, context_provider=None,
+                  wrap_executor=None, priority_sampling=None, settings=None, collect_metrics=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -124,6 +124,7 @@ class Tracer(object):
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param str uds_path: The Unix Domain Socket path of the agent.
+        :param bool https: Whether to use HTTPS or HTTP.
         :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
@@ -168,18 +169,21 @@ class Tracer(object):
             port=self._dogstatsd_port,
         )
 
-        if hostname is not None or port is not None or uds_path is not None or filters is not None or \
-                priority_sampling is not None:
+        if hostname is not None or port is not None or uds_path is not None or https is not None or \
+                filters is not None or priority_sampling is not None:
             # Preserve hostname and port when overriding filters or priority sampling
             default_hostname = self.DEFAULT_HOSTNAME
             default_port = self.DEFAULT_PORT
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
                 default_hostname = self.writer.api.hostname
                 default_port = self.writer.api.port
+                if https is None:
+                    https = self.writer.api.https
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
                 uds_path=uds_path,
+                https=https,
                 filters=filters,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,

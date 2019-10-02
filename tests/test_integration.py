@@ -199,7 +199,7 @@ class TestWorkers(TestCase):
 
         logged_errors = log_handler.messages['error']
         assert len(logged_errors) == 1
-        assert 'Failed to send traces to Datadog Agent at localhost:8126: ' \
+        assert 'Failed to send traces to Datadog Agent at http://localhost:8126: ' \
             'HTTP error status 400, reason Bad Request, message Content-Type:' \
             in logged_errors[0]
 
