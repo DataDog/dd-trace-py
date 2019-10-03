@@ -199,12 +199,13 @@ Testing integrations is hard. There are often many versions of the library to go
 along with the different versions of Python.
 
 
-Testing checklist:
+Testing checklist (with the ``redis`` integration as an example):
 
-    - tox.ini configuration
-    - docker-compose.yml configuration
-    - The integration is configurable and all the configuration options are
+    - [ ] `tox.ini configuration <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/tox.ini#L97>`_
+    - [ ] `docker-compose.yml configuration (if applicable) <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/docker-compose.yml#L37-L40>`_
+    - [ ] `.circleci/config.yml <https://github.com/DataDog/dd-trace-py/blob/96dc6403e329da87fe40a1e912ce72f2b452d65c/.circleci/config.yml#L614-L624>`_
+    - [ ] Integration is configurable and all the configuration options are
       hooked up and functional
-    - Spans contain meaningful/correct data
-    - No uncaught exceptions are raised from the integration
-    - Distributed tracing (if applicable)
+    - [ ] Spans contain meaningful/correct data
+    - [ ] No uncaught exceptions are raised from the integration
+    - [ ] Distributed tracing (if applicable)

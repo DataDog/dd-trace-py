@@ -10,8 +10,8 @@
     patch(redis=True)
 
     # This will report a span with the default settings
-    client = redis.StrictRedis(host="localhost", port=6379)
-    client.get("my-key")
+    client = redis.StrictRedis(host='localhost', port=6379)
+    client.get('my-key')
 
     # Use a pin to specify metadata related to this client
     Pin.override(client, service='redis-queue')
