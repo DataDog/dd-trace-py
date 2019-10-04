@@ -1,4 +1,4 @@
-"""Patch librairies to be automatically instrumented.
+"""Patch libraries to be automatically instrumented.
 
 It can monkey patch supported standard libraries and third party modules.
 A patched module will automatically report spans with its default configuration.
@@ -53,6 +53,7 @@ PATCH_MODULES = {
     'mako': True,
     'flask': True,
     'kombu': False,
+    'rq': True,
 
     # Ignore some web framework integrations that might be configured explicitly in code
     'django': False,
@@ -178,7 +179,7 @@ def _patch_module(module):
         try:
             imported_module = importlib.import_module(path)
             imported_module.patch()
-        except ImportError:
+        except ImportError as e:
             # if the import fails, the integration is not available
             raise PatchException('integration not available')
         except AttributeError:
