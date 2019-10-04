@@ -103,6 +103,8 @@ def _wrap_send(func, instance, args, kwargs):
             try:
                 span.set_tag(http.METHOD, request.method.upper())
                 span.set_tag(http.URL, sanitized_url)
+                if config.requests.trace_query_string:
+                    span.set_tag(http.QUERY_STRING, parsed_uri.query)
                 if response is not None:
                     span.set_tag(http.STATUS_CODE, response.status_code)
                     # `span.error` must be an integer

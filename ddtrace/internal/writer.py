@@ -1,10 +1,12 @@
 # stdlib
+import itertools
 import random
 import os
 import time
 
 from .. import api
 from .. import _worker
+from ..utils import sizeof
 from ..internal.logger import get_logger
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
@@ -21,9 +23,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
 
-    def __init__(self, hostname='localhost', port=8126, uds_path=None,
+    def __init__(self, hostname='localhost', port=8126, uds_path=None, https=False,
                  shutdown_timeout=DEFAULT_TIMEOUT,
-                 filters=None, priority_sampler=None):
+                 filters=None, priority_sampler=None,
+                 dogstatsd=None):
         super(AgentWriter, self).__init__(interval=self.QUEUE_PROCESSING_INTERVAL,
                                           exit_timeout=shutdown_timeout,
                                           name=self.__class__.__name__)
@@ -31,7 +34,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._filters = filters
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
-        self.api = api.API(hostname, port, uds_path=uds_path,
+        self.dogstatsd = dogstatsd
+        self.api = api.API(hostname, port, uds_path=uds_path, https=https,
                            priority_sampling=priority_sampler is not None)
         self.start()
 
@@ -56,6 +60,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         except Empty:
             return
 
+        if self.dogstatsd:
+            traces_queue_length = len(traces)
+            traces_queue_size = sum(map(sizeof.sizeof, traces))
+            traces_queue_spans = sum(map(len, traces))
+
         # Before sending the traces, make them go through the
         # filters
         try:
@@ -64,8 +73,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             log.error('error while filtering traces: {0}'.format(err))
             return
 
-        if not traces:
-            return
+        if self.dogstatsd:
+            traces_filtered = len(traces) - traces_queue_length
 
         # If we have data, let's try to send it.
         traces_responses = self.api.send_traces(traces)
@@ -76,6 +85,43 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 result_traces_json = response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
                     self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
+
+        # Dump statistics
+        # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
+        # https://github.com/DataDog/datadogpy/issues/439
+        if self.dogstatsd:
+            # Statistics about the queue length, size and number of spans
+            self.dogstatsd.gauge('datadog.tracer.queue.max_length', self._trace_queue.maxsize)
+            self.dogstatsd.gauge('datadog.tracer.queue.length', traces_queue_length)
+            self.dogstatsd.gauge('datadog.tracer.queue.size', traces_queue_size)
+            self.dogstatsd.gauge('datadog.tracer.queue.spans', traces_queue_spans)
+
+            # Statistics about the rate at which spans are inserted in the queue
+            dropped, enqueued, enqueued_lengths, enqueued_size = self._trace_queue.reset_stats()
+            self.dogstatsd.increment('datadog.tracer.queue.dropped', dropped)
+            self.dogstatsd.increment('datadog.tracer.queue.accepted', enqueued)
+            self.dogstatsd.increment('datadog.tracer.queue.accepted_lengths', enqueued_lengths)
+            self.dogstatsd.increment('datadog.tracer.queue.accepted_size', enqueued_size)
+
+            # Statistics about the filtering
+            self.dogstatsd.increment('datadog.tracer.traces.filtered', traces_filtered)
+
+            # Statistics about API
+            self.dogstatsd.increment('datadog.tracer.api.requests', len(traces_responses))
+            self.dogstatsd.increment('datadog.tracer.api.errors',
+                                     len(list(t for t in traces_responses
+                                              if isinstance(t, Exception))))
+            for status, grouped_responses in itertools.groupby(
+                    sorted((t for t in traces_responses if not isinstance(t, Exception)),
+                           key=lambda r: r.status),
+                    key=lambda r: r.status):
+                self.dogstatsd.increment('datadog.tracer.api.responses',
+                                         len(list(grouped_responses)),
+                                         tags=['status:%d' % status])
+
+            # Statistics about the writer thread
+            if hasattr(time, 'thread_time_ns'):
+                self.dogstatsd.increment('datadog.tracer.writer.cpu_time', time.thread_time_ns())
 
     run_periodic = flush_queue
     on_shutdown = flush_queue
@@ -134,10 +180,12 @@ class Q(Queue):
         Queue.__init__(self, maxsize)
         # Number of item dropped (queue full)
         self.dropped = 0
-        # Number of items enqueued
-        self.enqueued = 0
-        # Cumulative length of enqueued items
-        self.enqueued_lengths = 0
+        # Number of items accepted
+        self.accepted = 0
+        # Cumulative length of accepted items
+        self.accepted_lengths = 0
+        # Cumulative size of accepted items
+        self.accepted_size = 0
 
     def put(self, item):
         try:
@@ -164,22 +212,25 @@ class Q(Queue):
 
     def _update_stats(self, item):
         # self.mutex needs to be locked to make sure we don't lose data when resetting
-        self.enqueued += 1
+        self.accepted += 1
         if hasattr(item, '__len__'):
             item_length = len(item)
         else:
             item_length = 1
-        self.enqueued_lengths += item_length
+        self.accepted_lengths += item_length
+        self.accepted_size += sizeof.sizeof(item)
 
     def reset_stats(self):
         """Reset the stats to 0.
 
-        :return: The current value of dropped, enqueued and enqueued_lengths.
+        :return: The current value of dropped, accepted and accepted_lengths.
         """
         with self.mutex:
-            dropped, enqueued, enqueued_lengths = self.dropped, self.enqueued, self.enqueued_lengths
-            self.dropped, self.enqueued, self.enqueued_lengths = 0, 0, 0
-        return dropped, enqueued, enqueued_lengths
+            dropped, accepted, accepted_lengths, accepted_size = (
+                self.dropped, self.accepted, self.accepted_lengths, self.accepted_size
+            )
+            self.dropped, self.accepted, self.accepted_lengths, self.accepted_size = 0, 0, 0, 0
+        return dropped, accepted, accepted_lengths, accepted_size
 
     def _get(self):
         things = self.queue

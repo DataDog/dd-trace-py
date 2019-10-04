@@ -32,6 +32,8 @@ SERVICE = 'service'
 ENV = 'env'
 LANG_INTERPRETER = 'lang_interpreter'
 LANG_VERSION = 'lang_version'
+LANG = 'lang'
+TRACER_VERSION = 'tracer_version'
 
 TRACER_TAGS = set([
     SERVICE,
@@ -40,7 +42,9 @@ TRACER_TAGS = set([
 
 PLATFORM_TAGS = set([
     LANG_INTERPRETER,
-    LANG_VERSION
+    LANG_VERSION,
+    LANG,
+    TRACER_VERSION,
 ])
 
-DEFAULT_RUNTIME_TAGS = TRACER_TAGS
+DEFAULT_RUNTIME_TAGS = TRACER_TAGS | PLATFORM_TAGS
