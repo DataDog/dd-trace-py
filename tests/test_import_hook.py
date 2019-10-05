@@ -106,7 +106,5 @@ class TestInstallUtils(SubprocessTestCase):
             calls = [
                 mock.call('failed to call hook for module "tests.utils.test_module": module hook failed'),
             ]
-            import sys
-            sys.stderr.write(str(log_mock.warn.mock_calls))
             log_mock.warn.assert_has_calls(calls, any_order=True)
 

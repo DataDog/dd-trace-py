@@ -19,7 +19,7 @@ def install_module_import_hook(modulename, modulehook):
         _mark_module_patched(module)
         modulehook(module)
     setattr(check_patched_hook, '_datadog_hook', True)
-    register_post_import_hook(check_patched_hook, modulename)
+    register_post_import_hook(modulename, check_patched_hook)
 
 
 def _hook_matcher(hook):
