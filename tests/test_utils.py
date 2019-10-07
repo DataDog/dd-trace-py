@@ -128,3 +128,42 @@ class BrokenSlots(object):
 def test_sizeof_broken_slots():
     """https://github.com/DataDog/dd-trace-py/issues/1079"""
     assert sizeof.sizeof(BrokenSlots()) >= 1
+
+
+class WithAttributes(object):
+
+    def __init__(self):
+        self.foobar = list(range(100000))
+
+
+class IgnoreAttributes(object):
+
+    __sizeof_ignore_attributes__ = ('foobar',)
+
+    def __init__(self):
+        self.foobar = list(range(100000))
+
+
+def test_sizeof_ignore_attributes():
+    assert sizeof.sizeof(WithAttributes()) > sizeof.sizeof(IgnoreAttributes())
+
+
+class SlotsWithAttributes(object):
+
+    __slots__ = ('foobar',)
+
+    def __init__(self):
+        self.foobar = list(range(100000))
+
+
+class SlotsIgnoreAttributes(object):
+
+    __slots__ = ('foobar',)
+    __sizeof_ignore_attributes__ = ('foobar',)
+
+    def __init__(self):
+        self.foobar = list(range(100000))
+
+
+def test_sizeof_slots_ignore_attributes():
+    assert sizeof.sizeof(SlotsWithAttributes()) > sizeof.sizeof(SlotsIgnoreAttributes())
