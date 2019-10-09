@@ -8,6 +8,7 @@ import sys
 from unittest.case import SkipTest
 
 import mock
+import pytest
 
 import ddtrace
 from ddtrace.ext import system
@@ -499,3 +500,30 @@ def test_excepthook():
         mock.call('datadog.tracer.uncaught_exceptions', 1, tags=['class:Foobar']),
     ))
     assert called
+
+
+def test_tracer_url():
+    t = ddtrace.Tracer()
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 8126
+
+    t = ddtrace.Tracer(url='http://foobar:12')
+    assert t.writer.api.hostname == 'foobar'
+    assert t.writer.api.port == 12
+
+    t = ddtrace.Tracer(url='unix:///foobar')
+    assert t.writer.api.uds_path == '/foobar'
+
+    t = ddtrace.Tracer(url='http://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 80
+    assert not t.writer.api.https
+
+    t = ddtrace.Tracer(url='https://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 443
+    assert t.writer.api.https
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(url='foo://foobar:12')
+        assert str(e) == 'Unknown scheme `https` for agent URL'
