@@ -179,7 +179,7 @@ def _patch_module(module):
         try:
             imported_module = importlib.import_module(path)
             imported_module.patch()
-        except ImportError as e:
+        except ImportError:
             # if the import fails, the integration is not available
             raise PatchException('integration not available')
         except AttributeError:

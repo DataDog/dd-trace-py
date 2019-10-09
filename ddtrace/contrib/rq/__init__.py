@@ -16,6 +16,7 @@ __all__ = [
 
 config._add('rq', dict(
     service_name='rq',
+    worker_service_name='rq-worker',
     app='rq',
     app_type=AppTypes.web,
     distributed_tracing_enabled=True,
@@ -80,7 +81,6 @@ def traced_queue_enqueue(pin, func, instance, args, kwargs):
             propagator.inject(span.context, meta)
             kwargs['meta'] = meta
 
-
         return func(*args, **kwargs)
 
 
@@ -95,13 +95,16 @@ def _patch_queue(rq_queue):
 
 
 @with_instance_pin
-def traced_job_result(pin, func, job, args, kwargs):
+def traced_job_result(pin, func, instance, args, kwargs):
     """Trace a job result.
     """
     #context = propagator.extract(job.meta)
     #if context.trace_id:
     #    pin.tracer.context_provider.activate(context)
 
+    # TODO job.origin
+
+    job = instance
     # Create a span representing the job computation
     status = job.get_status()
     start_time = job.started_at
@@ -119,7 +122,54 @@ def _patch_job(rq_job):
     _w(rq_job, 'Job.result', traced_job_result)
 
 
+@with_instance_pin
+def traced_handle_job_success(pin, func, instance, args, kwargs):
+    print('\n\n\ntest\n\n\n')
+    return func(*args, **kwargs)
+
+
+@with_instance_pin
+def traced_perform_job(pin, func, instance, args, kwargs):
+    # `perform_job` is executed in a freshly forked, short-lived instance
+    job = args[0]
+    print(f'\n\n\n{job.meta}\n\n\n')
+
+    ctx = propagator.extract(job.meta)
+    if ctx.trace_id:
+        pin.tracer.context_provider.activate(ctx)
+
+    try:
+        with pin.tracer.trace('rq.job.{}'.format(job.func_name), service='rq-worker', resource=job.func_name) as span:
+            span.set_tag('id', job.get_id())
+            return func(*args, **kwargs)
+    finally:
+        # force a writer write since the process will terminate
+        # TODO: probably a better way to get this
+        from rq.job import JobStatus
+        if job.get_status() == JobStatus.FAILED:
+            span.error = 1
+        span.set_tag('status', job.get_status())
+        span.set_tag('ended_at', job.ended_at)
+        pin.tracer.writer.stop()
+        pin.tracer.writer.flush_queue()
+        # job.origin?
+        print(f'\n\n\n{job.get_status()}\n\n\n')
+
+
+def _patch_worker(rq_worker):
+    # DEV: When jobs are finished either Worker.handle_job_success or
+    #      Worker.handle_job_failure will be called.
+    # Use these to create the span for the job.
+
+
+    # Note that workers run in a very short-lived forked process
+    _w(rq_worker, 'Worker.perform_job', traced_perform_job)
+    _w(rq_worker, 'Worker.handle_job_success', traced_handle_job_success)
+    # _w(rq_worker, 'Worker.handle_job_failure', traced_job_result)
+
+
 def patch():
     install_module_import_hook('rq', _trace_init)
     install_module_import_hook('rq.queue', _patch_queue)
     install_module_import_hook('rq.job', _patch_job)
+    install_module_import_hook('rq.worker', _patch_worker)
