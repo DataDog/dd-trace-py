@@ -1,5 +1,5 @@
 # DEV: This will import the first available module from:
-#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
+#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`, 'elasticsearch6'
 from .elasticsearch import elasticsearch
 
 from .quantize import quantize
