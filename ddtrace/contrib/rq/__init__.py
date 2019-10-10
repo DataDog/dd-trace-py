@@ -2,15 +2,16 @@
 TODO
 """
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace.compat import string_type
 from ddtrace import config, Pin, Span
 from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
 from ...utils.import_hook import install_module_import_hook
+from ...utils.wrappers import unwrap as _uw
 
 
 __all__ = [
     'patch',
+    'unpatch',
 ]
 
 
@@ -37,10 +38,11 @@ def with_instance_pin(func):
 
 
 def unpatch():
-    pass
+    import rq
+    _uw(rq.queue.Queue, 'enqueue_job')
 
 
-def _trace_init(rq):
+def trace_init(rq):
     """Install a pin on the rq module to fallback on if no pins are found.
     """
     Pin(service=config.rq['service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq)
@@ -50,89 +52,35 @@ propagator = HTTPPropagator()
 
 
 @with_instance_pin
-def traced_queue_enqueue(pin, func, instance, args, kwargs):
-    """Trace an rq.Queue.enqueue call.
-    """
-    # According to rq `f` can be:
-    #  * A reference to a function
-    #  * A reference to an object's instance method
-    #  * A string, representing the location of a function (must be
-    #    meaningful to the import context of the workers)
-    f = args[0]
-    if isinstance(f, string_type):
-        job_name = f
-    elif hasattr(f, '__name__'):
-        job_name = getattr(f, '__name__')
-    else:
-        job_name = 'job'
-
-    with pin.tracer.trace('rq.enqueue', service=pin.service, resource=job_name) as span:
-        span.set_tag('queue', instance.name)
-
-        # Add non-None tags
-        for tag_key, kwarg_key in (('description', 'description'), ('timeout', 'timeout'), ('job_id', 'job_id')):
-            val = kwargs.get(kwarg_key, None)
-            if val is not None:
-                span.set_tag(tag_key, val)
-
-        # If the queue is_async then add distributed tracing headers
-        if instance.is_async and config.rq['distributed_tracing_enabled']:
-            meta = kwargs.get('meta', {})
-            propagator.inject(span.context, meta)
-            kwargs['meta'] = meta
-
-        return func(*args, **kwargs)
-
-
-@with_instance_pin
 def traced_queue_enqueue_job(pin, func, instance, args, kwargs):
-    # TODO
-    pass
+    job = args[0]
+
+    with pin.tracer.trace('rq.enqueue_job', service=pin.service, resource=job.func_name) as span:
+        span.set_tag('queue', instance.name)
+        span.set_tag('job.id', job.get_id())
+        span.set_tag('job.func_name', job.func_name)
+
+        # If the queue is_async then add distributed tracing headers to the job
+        if instance.is_async and config.rq['distributed_tracing_enabled']:
+            propagator.inject(span.context, job.meta)
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            # If the queue is not async then the job is run immediately so we can
+            # report the results
+            if not instance.is_async:
+                span.set_tag('job.status', job.get_status())
 
 
-def _patch_queue(rq_queue):
-    _w('rq.queue', 'Queue.enqueue', traced_queue_enqueue)
-
-
-@with_instance_pin
-def traced_job_result(pin, func, instance, args, kwargs):
-    """Trace a job result.
-    """
-    #context = propagator.extract(job.meta)
-    #if context.trace_id:
-    #    pin.tracer.context_provider.activate(context)
-
-    # TODO job.origin
-
-    job = instance
-    # Create a span representing the job computation
-    status = job.get_status()
-    start_time = job.started_at
-    span = Span(start=start_time)
-    if status == 'finished':
-        pass
-    elif status == 'failed':
-        pass
-
-    return func(*args, **kwargs)
-
-
-def _patch_job(rq_job):
-    # TODO: wrapt doesn't seem to support @property :/
-    _w(rq_job, 'Job.result', traced_job_result)
-
-
-@with_instance_pin
-def traced_handle_job_success(pin, func, instance, args, kwargs):
-    print('\n\n\ntest\n\n\n')
-    return func(*args, **kwargs)
+def patch_queue(rq_queue):
+    _w('rq.queue', 'Queue.enqueue_job', traced_queue_enqueue_job)
 
 
 @with_instance_pin
 def traced_perform_job(pin, func, instance, args, kwargs):
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = args[0]
-    print(f'\n\n\n{job.meta}\n\n\n')
 
     ctx = propagator.extract(job.meta)
     if ctx.trace_id:
@@ -140,36 +88,49 @@ def traced_perform_job(pin, func, instance, args, kwargs):
 
     try:
         with pin.tracer.trace('rq.job.{}'.format(job.func_name), service='rq-worker', resource=job.func_name) as span:
-            span.set_tag('id', job.get_id())
+            span.set_tag('job.id', job.get_id())
             return func(*args, **kwargs)
     finally:
-        # force a writer write since the process will terminate
-        # TODO: probably a better way to get this
+        # DEV: we can replace this by adding to the with_instance_pin
+        # decorator an argument which contains the current module
         from rq.job import JobStatus
         if job.get_status() == JobStatus.FAILED:
             span.error = 1
+            span.set_tag('exc_info', job.exc_info)
         span.set_tag('status', job.get_status())
-        span.set_tag('ended_at', job.ended_at)
+        span.set_tag('origin', job.origin)
+
+        # DEV: force flush to agent since the process `os.exit()`s
+        #      immediately after this method returns
         pin.tracer.writer.stop()
         pin.tracer.writer.flush_queue()
-        # job.origin?
-        print(f'\n\n\n{job.get_status()}\n\n\n')
 
 
-def _patch_worker(rq_worker):
+@with_instance_pin
+def traced_perform(pin, func, instance, args, kwargs):
+    """Trace rq.Job.perform(...)
+    """
+    job = instance
+
+    with pin.tracer.trace('rq.perform', service=pin.service, resource=job.func_name):
+        return func(*args, **kwargs)
+
+
+def patch_job(rq_job):
+    _w(rq_job, 'Job.perform', traced_perform)
+
+
+def patch_worker(rq_worker):
     # DEV: When jobs are finished either Worker.handle_job_success or
     #      Worker.handle_job_failure will be called.
     # Use these to create the span for the job.
 
-
     # Note that workers run in a very short-lived forked process
     _w(rq_worker, 'Worker.perform_job', traced_perform_job)
-    _w(rq_worker, 'Worker.handle_job_success', traced_handle_job_success)
-    # _w(rq_worker, 'Worker.handle_job_failure', traced_job_result)
 
 
 def patch():
-    install_module_import_hook('rq', _trace_init)
-    install_module_import_hook('rq.queue', _patch_queue)
-    install_module_import_hook('rq.job', _patch_job)
-    install_module_import_hook('rq.worker', _patch_worker)
+    install_module_import_hook('rq', trace_init)
+    install_module_import_hook('rq.queue', patch_queue)
+    install_module_import_hook('rq.job', patch_job)
+    install_module_import_hook('rq.worker', patch_worker)
