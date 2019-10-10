@@ -2,7 +2,7 @@
 TODO
 """
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from ddtrace import config, Pin, Span
+from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
 from ...utils.import_hook import install_module_import_hook
@@ -27,7 +27,7 @@ config._add('rq', dict(
 def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
     def wrapper(wrapped, instance, args, kwargs):
-        import rq  # performance impact of this?
+        import rq  # performance impact of this? # TODO fix with module wrapper
 
         pin = Pin._find(wrapped, instance, rq)
         if not pin or not pin.enabled():
@@ -55,8 +55,8 @@ propagator = HTTPPropagator()
 def traced_queue_enqueue_job(pin, func, instance, args, kwargs):
     job = args[0]
 
-    with pin.tracer.trace('rq.enqueue_job', service=pin.service, resource=job.func_name) as span:
-        span.set_tag('queue', instance.name)
+    with pin.tracer.trace('rq.queue.enqueue_job', service=pin.service, resource=job.func_name) as span:
+        span.set_tag('queue.name', instance.name)
         span.set_tag('job.id', job.get_id())
         span.set_tag('job.func_name', job.func_name)
 
@@ -87,7 +87,7 @@ def traced_perform_job(pin, func, instance, args, kwargs):
         pin.tracer.context_provider.activate(ctx)
 
     try:
-        with pin.tracer.trace('rq.job.{}'.format(job.func_name), service='rq-worker', resource=job.func_name) as span:
+        with pin.tracer.trace('rq.worker.perform_job', service=pin.service, resource=job.func_name) as span:
             span.set_tag('job.id', job.get_id())
             return func(*args, **kwargs)
     finally:
@@ -112,19 +112,17 @@ def traced_perform(pin, func, instance, args, kwargs):
     """
     job = instance
 
-    with pin.tracer.trace('rq.perform', service=pin.service, resource=job.func_name):
+    with pin.tracer.trace('rq.job.perform', service=pin.service, resource=job.func_name):
         return func(*args, **kwargs)
 
 
 def patch_job(rq_job):
+    Pin(service=config.rq['worker_service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq_job)
     _w(rq_job, 'Job.perform', traced_perform)
 
 
 def patch_worker(rq_worker):
-    # DEV: When jobs are finished either Worker.handle_job_success or
-    #      Worker.handle_job_failure will be called.
-    # Use these to create the span for the job.
-
+    Pin(service=config.rq['worker_service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq_worker)
     # Note that workers run in a very short-lived forked process
     _w(rq_worker, 'Worker.perform_job', traced_perform_job)
 

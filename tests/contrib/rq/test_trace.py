@@ -26,9 +26,16 @@ class TestRqTracingNotAsync(BaseTracerTestCase):
         self.q.enqueue(job1, 1)
         spans = self.get_spans()
         assert len(spans) == 2
+
         span = spans[0]
+        assert span.name == 'rq.queue.enqueue_job'
         assert span.service == 'rq'
         assert span.error == 0
         assert span.get_tag('job.id')
         assert span.get_tag('job.func_name') == 'tests.contrib.rq.test_trace.job1'
         assert span.get_tag('job.status') == 'finished'
+
+        span = spans[1]
+        assert span.name == 'rq.job.perform'
+        assert span.service == 'rq-worker'
+        assert span.error == 0
