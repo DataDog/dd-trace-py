@@ -469,6 +469,7 @@ class TracerTestCase(BaseTracerTestCase):
 
 
 def test_installed_excepthook():
+    ddtrace.install_excepthook()
     assert sys.excepthook is ddtrace._excepthook
     ddtrace.uninstall_excepthook()
     assert sys.excepthook is not ddtrace._excepthook
@@ -477,6 +478,8 @@ def test_installed_excepthook():
 
 
 def test_excepthook():
+    ddtrace.install_excepthook()
+
     class Foobar(Exception):
         pass
 
