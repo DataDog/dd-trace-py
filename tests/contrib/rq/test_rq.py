@@ -33,6 +33,8 @@ class TestRqConfig(BaseTracerTestCase, SubprocessTestCase):
         patch()
         import rq
         assert Pin.get_from(rq) is not None
-        assert Pin.get_from(rq.job) is not None
-        assert Pin.get_from(rq.queue) is not None
+        assert Pin.get_from(rq.job.Job) is not None
+        assert Pin.get_from(rq.Queue) is not None
+        assert Pin.get_from(rq.queue.Queue) is not None
+        assert Pin.get_from(rq.Worker) is not None
 
