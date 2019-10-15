@@ -257,12 +257,16 @@ class Tracer(opentracing.Tracer):
 
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
-        if tags is not None:
-            ddspan.set_tags(tags)
 
         otspan = Span(self, ot_parent_context, operation_name)
         # sync up the OT span with the DD span
         otspan._associate_dd_span(ddspan)
+
+        if tags is not None:
+            for k in tags:
+                # Make sure we set the tags on the otspan to ensure that the special compatibility tags
+                # are handled correctly (resource name, span type, sampling priority, etc).
+                otspan.set_tag(k, tags[k])
 
         return otspan
 

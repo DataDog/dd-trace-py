@@ -49,6 +49,3 @@ def install_excepthook():
 def uninstall_excepthook():
     """Uninstall the global tracer except hook."""
     sys.excepthook = _ORIGINAL_EXCEPTHOOK
-
-
-install_excepthook()
