@@ -63,10 +63,8 @@ def _future_done_callback(span):
 
 
 def _handle_response(span, response):
-    if not isinstance(response, grpc.Future):
-        return response
-
-    response.add_done_callback(_future_done_callback(span))
+    if isinstance(response, grpc.Future):
+        response.add_done_callback(_future_done_callback(span))
 
 
 def _handle_error(span, response_error, status_code):
