@@ -1,11 +1,13 @@
 """
 TODO
 """
+import sys
+
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
-from ...utils.import_hook import install_module_import_hook, uninstall_module_import_hook
+from ...utils.import_hook import install_module_import_hook, uninstall_module_import_hook, module_patched, _mark_module_patched
 from ...utils.wrappers import unwrap as _uw
 
 
@@ -39,8 +41,17 @@ def with_instance_pin(func):
 
 
 def unpatch():
-    import rq
-    _uw(rq.queue.Queue, 'enqueue_job')
+    if 'rq' in sys.modules:
+        import rq
+        _uw(rq.job.Job, 'fetch')
+        _uw(rq.job.Job, 'perform')
+        _uw(rq.queue.Queue, 'enqueue_job')
+        _uw(rq.queue.Queue, 'fetch_job')
+        _uw(rq.worker.Worker, 'perform_job')
+    uninstall_module_import_hook('rq')
+    uninstall_module_import_hook('rq.job')
+    uninstall_module_import_hook('rq.queue')
+    uninstall_module_import_hook('rq.worker')
 
 
 def trace_init(rq):
@@ -115,7 +126,8 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
     """
     job = instance
 
-    with pin.tracer.trace('rq.job.perform', service=pin.service, resource=job.func_name):
+    with pin.tracer.trace('rq.job.perform', service=pin.service, resource=job.func_name) as span:
+        span.set_tag('job.id', job.get_id())
         return func(*args, **kwargs)
 
 
@@ -131,11 +143,9 @@ def traced_job_fetch(rq, pin, func, instance, args, kwargs):
             job = func(*args, **kwargs)
             return job
     finally:
-        # Continue a distributed trace if the returned job is finished
-        if job and job.get_status() == rq.job.JobStatus.FINISHED:
-            ctx = propagator.extract(job.meta)
-            if ctx.trace_id:
-                pin.tracer.context_provider.activate(ctx)
+        if job:
+            job_status = job.get_status()
+            span.set_tag('job.status', job_status)
 
 
 @with_instance_pin
@@ -147,16 +157,16 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def patch_queue(rq_queue):
-    Pin(service=config.rq['service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq_queue.Queue)
-    _w('rq.queue', 'Queue.enqueue_job', traced_queue_enqueue_job(rq_queue.Queue))
-    _w('rq.queue', 'Queue.fetch_job', traced_queue_fetch_job(rq_queue.Queue))
-
-
 def patch_job(rq_job):
     Pin(service=config.rq['worker_service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq_job.Job)
     _w(rq_job, 'Job.perform', traced_job_perform(rq_job.Job))
     _w(rq_job, 'Job.fetch', traced_job_fetch(rq_job.Job))
+
+
+def patch_queue(rq_queue):
+    Pin(service=config.rq['service_name'], app=config.rq['app'], app_type=config.rq['app_type']).onto(rq_queue.Queue)
+    _w('rq.queue', 'Queue.enqueue_job', traced_queue_enqueue_job(rq_queue.Queue))
+    _w('rq.queue', 'Queue.fetch_job', traced_queue_fetch_job(rq_queue.Queue))
 
 
 def patch_worker(rq_worker):
@@ -165,7 +175,17 @@ def patch_worker(rq_worker):
 
 
 def patch():
-    install_module_import_hook('rq', trace_init)
-    install_module_import_hook('rq.job', patch_job)
-    install_module_import_hook('rq.queue', patch_queue)
-    install_module_import_hook('rq.worker', patch_worker)
+    if 'rq' not in sys.modules:
+        install_module_import_hook('rq', trace_init)
+        install_module_import_hook('rq.job', patch_job)
+        install_module_import_hook('rq.queue', patch_queue)
+        install_module_import_hook('rq.worker', patch_worker)
+    else:
+        import rq
+
+        if not module_patched(rq):
+            _mark_module_patched(rq)
+            trace_init(rq)
+            patch_job(rq.job)
+            patch_queue(rq.queue)
+            patch_worker(rq.worker)

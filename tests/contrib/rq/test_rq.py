@@ -2,10 +2,9 @@ from ddtrace import Pin
 from ddtrace.contrib.rq import patch, unpatch
 from tests.base import BaseTracerTestCase
 from tests.contrib.patch import PatchTestCase
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
 
 
-"""
 class RqPatchTestCase(PatchTestCase.Base):
     __integration_name__ = 'rq'
     __module_name__ = 'rq'
@@ -22,8 +21,6 @@ class RqPatchTestCase(PatchTestCase.Base):
     def assert_not_module_double_patched(self, rq):
         self.assert_not_double_wrapped(rq.queue.Queue.enqueue_job)
 
-"""
-
 
 class TestRqConfig(BaseTracerTestCase, SubprocessTestCase):
     # Pin.override all the stuff
@@ -37,4 +34,5 @@ class TestRqConfig(BaseTracerTestCase, SubprocessTestCase):
         assert Pin.get_from(rq.Queue) is not None
         assert Pin.get_from(rq.queue.Queue) is not None
         assert Pin.get_from(rq.Worker) is not None
+        assert Pin.get_from(rq.worker.Worker) is not None
 
