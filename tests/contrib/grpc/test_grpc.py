@@ -165,9 +165,15 @@ class GrpcTestCase(BaseTracerTestCase):
         channel2 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
-        stub2 = HelloStub(channel2)
         stub1.SayHello(HelloRequest(name='test'))
+        channel1.close()
+
+        # DEV: make sure we have two spans before proceeding
+        spans = self.get_spans(size=2)
+
+        stub2 = HelloStub(channel2)
         stub2.SayHello(HelloRequest(name='test'))
+        channel2.close()
 
         spans = self.get_spans(size=4)
 
@@ -176,9 +182,6 @@ class GrpcTestCase(BaseTracerTestCase):
         self._check_client_span(spans[1], 'grpc1', 'SayHello', 'unary')
         self._check_server_span(spans[2], 'grpc-server', 'SayHello', 'unary')
         self._check_client_span(spans[3], 'grpc2', 'SayHello', 'unary')
-
-        channel1.close()
-        channel2.close()
 
     def test_analytics_default(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
