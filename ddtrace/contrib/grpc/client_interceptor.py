@@ -49,12 +49,14 @@ class _ClientCallDetails(
 def _future_done_callback(span):
     def func(response):
         try:
-            # pull out status code from gRPC response to use both for `grpc.status.code`
+            # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
-            status_code = to_unicode(response.code())
+            response_code = response.code()
+            # cast code to unicode for tags
+            status_code = to_unicode(response_code)
             span.set_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
 
-            if status_code != grpc.StatusCode.OK:
+            if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, status_code)
         finally:
             span.finish()
