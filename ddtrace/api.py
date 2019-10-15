@@ -8,6 +8,7 @@ import socket
 from .encoding import get_encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
+from .internal.runtime import container
 from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
 
@@ -101,8 +102,11 @@ class UDSHTTPConnection(httplib.HTTPConnection):
 
     # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
     # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path, *args, **kwargs):
-        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+    def __init__(self, path, https, *args, **kwargs):
+        if https:
+            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
+        else:
+            httplib.HTTPConnection.__init__(self, *args, **kwargs)
         self.path = path
 
     def connect(self):
@@ -122,7 +126,7 @@ class API(object):
     # This ought to be enough as the agent is local
     TIMEOUT = 2
 
-    def __init__(self, hostname, port, uds_path=None, headers=None, encoder=None, priority_sampling=False):
+    def __init__(self, hostname, port, uds_path=None, https=False, headers=None, encoder=None, priority_sampling=False):
         """Create a new connection to the Tracer API.
 
         :param hostname: The hostname.
@@ -135,6 +139,7 @@ class API(object):
         self.hostname = hostname
         self.port = int(port)
         self.uds_path = uds_path
+        self.https = https
 
         self._headers = headers or {}
         self._version = None
@@ -151,10 +156,21 @@ class API(object):
             'Datadog-Meta-Tracer-Version': ddtrace.__version__,
         })
 
+        # Add container information if we have it
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update({
+                'Datadog-Container-Id': self._container_info.container_id,
+            })
+
     def __str__(self):
         if self.uds_path:
-            return self.uds_path
-        return '%s:%s' % (self.hostname, self.port)
+            return 'unix://' + self.uds_path
+        if self.https:
+            scheme = 'https://'
+        else:
+            scheme = 'http://'
+        return '%s%s:%s' % (scheme, self.hostname, self.port)
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
@@ -188,6 +204,9 @@ class API(object):
         :param traces: A list of traces.
         :return: The list of API HTTP responses.
         """
+        if not traces:
+            return []
+
         start = time.time()
         responses = []
         payload = Payload(encoder=self._encoder)
@@ -207,7 +226,7 @@ class API(object):
                         payload.add_trace(trace)
                     except PayloadFull:
                         # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warn('Trace %r is too big to fit in a payload, dropping it', trace)
+                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
         # Check that the Payload is not empty:
         # it could be empty if the last trace was too big to fit.
@@ -241,9 +260,12 @@ class API(object):
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
         if self.uds_path is None:
-            conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            if self.https:
+                conn = httplib.HTTPSConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            else:
+                conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
         else:
-            conn = UDSHTTPConnection(self.uds_path, self.hostname, self.port, timeout=self.TIMEOUT)
+            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)

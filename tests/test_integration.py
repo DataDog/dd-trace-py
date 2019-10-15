@@ -14,6 +14,7 @@ from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
+from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
@@ -76,14 +77,14 @@ class TestWorkers(TestCase):
         """
         Stop running worker
         """
-        self.tracer.writer._worker.stop()
+        self._wait_thread_flush()
 
     def _wait_thread_flush(self):
         """
         Helper that waits for the thread flush
         """
-        self.tracer.writer._worker.stop()
-        self.tracer.writer._worker.join(None)
+        self.tracer.writer.stop()
+        self.tracer.writer.join(None)
 
     def _get_endpoint_payload(self, calls, endpoint):
         """
@@ -104,7 +105,7 @@ class TestWorkers(TestCase):
         self.tracer.configure(uds_path='/tmp/ddagent/trace.sock')
         # Write a first trace so we get a _worker
         self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer._worker
+        worker = self.tracer.writer
         worker._log_error_status = mock.Mock(
             worker._log_error_status, wraps=worker._log_error_status,
         )
@@ -119,7 +120,7 @@ class TestWorkers(TestCase):
         self.tracer.configure(uds_path='/tmp/ddagent/nosockethere')
         # Write a first trace so we get a _worker
         self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer._worker
+        worker = self.tracer.writer
         worker._log_error_status = mock.Mock(
             worker._log_error_status, wraps=worker._log_error_status,
         )
@@ -189,16 +190,16 @@ class TestWorkers(TestCase):
         self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
         tracer.trace('client.testing').finish()
 
-        log = logging.getLogger('ddtrace.writer')
+        log = logging.getLogger('ddtrace.internal.writer')
         log_handler = MockedLogHandler(level='DEBUG')
         log.addHandler(log_handler)
 
         self._wait_thread_flush()
-        assert tracer.writer._worker._last_error_ts < time.time()
+        assert tracer.writer._last_error_ts < time.time()
 
         logged_errors = log_handler.messages['error']
         assert len(logged_errors) == 1
-        assert 'Failed to send traces to Datadog Agent at localhost:8126: ' \
+        assert 'Failed to send traces to Datadog Agent at http://localhost:8126: ' \
             'HTTP error status 400, reason Bad Request, message Content-Type:' \
             in logged_errors[0]
 
@@ -235,10 +236,14 @@ class TestAPITransport(TestCase):
     of integration tests so real calls are triggered and you have to execute
     a real trace-agent to let them pass.
     """
-    def setUp(self):
+    @mock.patch('ddtrace.internal.runtime.container.get_container_info')
+    def setUp(self, get_container_info):
         """
         Create a tracer without workers, while spying the ``send()`` method
         """
+        # Mock the container id we use for making requests
+        get_container_info.return_value = CGroupInfo(container_id='test-container-id')
+
         # create a new API object to test the transport using synchronous calls
         self.tracer = get_dummy_tracer()
         self.api_json = API('localhost', 8126, encoder=JSONEncoder())
@@ -258,12 +263,13 @@ class TestAPITransport(TestCase):
 
         # retrieve the headers from the mocked request call
         expected_headers = {
-                'Datadog-Meta-Lang': 'python',
-                'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
-                'Datadog-Meta-Lang-Version': PYTHON_VERSION,
-                'Datadog-Meta-Tracer-Version': ddtrace.__version__,
-                'X-Datadog-Trace-Count': '1',
-                'Content-Type': 'application/msgpack'
+            'Datadog-Container-Id': 'test-container-id',  # mocked in setUp()
+            'Datadog-Meta-Lang': 'python',
+            'Datadog-Meta-Lang-Interpreter': PYTHON_INTERPRETER,
+            'Datadog-Meta-Lang-Version': PYTHON_VERSION,
+            'Datadog-Meta-Tracer-Version': ddtrace.__version__,
+            'X-Datadog-Trace-Count': '1',
+            'Content-Type': 'application/msgpack',
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]

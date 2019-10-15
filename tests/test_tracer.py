@@ -3,13 +3,19 @@ tests for Tracer and utilities.
 """
 
 from os import getpid
+import sys
 
 from unittest.case import SkipTest
 
+import mock
+import pytest
+
+import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
 
 from .base import BaseTracerTestCase
+from .util import override_global_tracer
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
 
@@ -363,7 +369,7 @@ class TracerTestCase(BaseTracerTestCase):
         span = self.start_span('web.request')
         span.assert_matches(
             name='web.request',
-            _tracer=self.tracer,
+            tracer=self.tracer,
             _parent=None,
             parent_id=None,
         )
@@ -390,14 +396,14 @@ class TracerTestCase(BaseTracerTestCase):
             parent_id=None,
             _context=child._context,
             _parent=None,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
         child.assert_matches(
             name='web.worker',
             parent_id=parent.span_id,
             _context=parent._context,
             _parent=parent,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
 
         self.assertEqual(child._context._current_span, child)
@@ -420,7 +426,7 @@ class TracerTestCase(BaseTracerTestCase):
             trace_id=root.trace_id,
             _context=root._context,
             _parent=root,
-            _tracer=self.tracer,
+            tracer=self.tracer,
         )
         self.assertEqual(child._context._current_span, child)
 
@@ -461,3 +467,66 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertEqual(root.get_tag('language'), 'python')
 
         self.assertIsNone(child.get_tag('language'))
+
+
+def test_installed_excepthook():
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook
+    ddtrace.uninstall_excepthook()
+    assert sys.excepthook is not ddtrace._excepthook
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook
+
+
+def test_excepthook():
+    ddtrace.install_excepthook()
+
+    class Foobar(Exception):
+        pass
+
+    called = {}
+
+    def original(type, value, traceback):
+        called['yes'] = True
+
+    sys.excepthook = original
+    ddtrace.install_excepthook()
+
+    e = Foobar()
+
+    tracer = ddtrace.Tracer()
+    tracer._dogstatsd_client = mock.Mock()
+    with override_global_tracer(tracer):
+        sys.excepthook(e.__class__, e, None)
+
+    tracer._dogstatsd_client.increment.assert_has_calls((
+        mock.call('datadog.tracer.uncaught_exceptions', 1, tags=['class:Foobar']),
+    ))
+    assert called
+
+
+def test_tracer_url():
+    t = ddtrace.Tracer()
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 8126
+
+    t = ddtrace.Tracer(url='http://foobar:12')
+    assert t.writer.api.hostname == 'foobar'
+    assert t.writer.api.port == 12
+
+    t = ddtrace.Tracer(url='unix:///foobar')
+    assert t.writer.api.uds_path == '/foobar'
+
+    t = ddtrace.Tracer(url='http://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 80
+    assert not t.writer.api.https
+
+    t = ddtrace.Tracer(url='https://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 443
+    assert t.writer.api.https
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(url='foo://foobar:12')
+        assert str(e) == 'Unknown scheme `https` for agent URL'

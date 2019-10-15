@@ -3,8 +3,8 @@ The Django integration will trace users requests, template renderers, database a
 calls.
 
 **Note:** by default the tracer is **disabled** (will not send spans) when
-``Debug=True``. This can be overridden by explicitly enabling the tracer with
-``DATADOG_TRACE['ENABLED'] = True``, as described below.
+the Django setting ``DEBUG`` is ``True``. This can be overridden by explicitly enabling
+the tracer with ``DATADOG_TRACE['ENABLED'] = True``, as described below.
 
 To enable the Django integration, add the application to your installed
 apps, as follows::
@@ -63,7 +63,7 @@ The available settings are:
   are sent to the trace agent. This setting cannot be changed at runtime
   and a restart is required. By default the tracer is disabled when in ``DEBUG``
   mode, enabled otherwise.
-* ``DISTRIBUTED_TRACING`` (default: ``False``): defines if the tracer should
+* ``DISTRIBUTED_TRACING`` (default: ``True``): defines if the tracer should
   use incoming X-DATADOG-* HTTP headers to extend a trace created remotely. It is
   required for distributed tracing if this application is called remotely from another
   instrumented application.

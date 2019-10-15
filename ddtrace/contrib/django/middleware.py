@@ -1,6 +1,7 @@
 # project
 from .conf import settings
 from .compat import user_is_authenticated, get_resolver
+from .utils import get_request_uri
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
@@ -39,12 +40,19 @@ _django_default_views = {
 }
 
 
+def _analytics_enabled():
+    return (
+        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False)
+        or settings.ANALYTICS_ENABLED is True
+    ) and settings.ANALYTICS_SAMPLE_RATE is not None
+
+
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
     If middleware cannot be found, returns None for the middleware collection."""
     middleware = getattr(django_settings, MIDDLEWARE, None)
     # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
-    if middleware and django.VERSION >= (1, 10):
+    if middleware is not None and django.VERSION >= (1, 10):
         return MIDDLEWARE, middleware
     return MIDDLEWARE_CLASSES, getattr(django_settings, MIDDLEWARE_CLASSES, None)
 
@@ -121,19 +129,23 @@ class TraceMiddleware(InstrumentationMixin):
 
             # set analytics sample rate
             # DEV: django is special case maintains separate configuration from config api
-            if (
-                config.analytics_enabled and settings.ANALYTICS_ENABLED is not False
-            ) or settings.ANALYTICS_ENABLED is True:
+            if _analytics_enabled() and settings.ANALYTICS_SAMPLE_RATE is not None:
                 span.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
-                    settings.ANALYTICS_SAMPLE_RATE
+                    settings.ANALYTICS_SAMPLE_RATE,
                 )
 
+            # Set HTTP Request tags
             span.set_tag(http.METHOD, request.method)
-            span.set_tag(http.URL, request.build_absolute_uri(request.path))
+            span.set_tag(http.URL, get_request_uri(request))
+            trace_query_string = settings.TRACE_QUERY_STRING
+            if trace_query_string is None:
+                trace_query_string = config.django.trace_query_string
+            if trace_query_string:
+                span.set_tag(http.QUERY_STRING, request.META['QUERY_STRING'])
             _set_req_span(request, span)
-        except Exception:
-            log.debug('error tracing request', exc_info=True)
+        except Exception as e:
+            log.debug('error tracing request: %s', e)
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
@@ -178,8 +190,8 @@ class TraceMiddleware(InstrumentationMixin):
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
-        except Exception:
-            log.debug('error tracing request', exc_info=True)
+        except Exception as e:
+            log.debug('error tracing request: %s', e)
         finally:
             return response
 

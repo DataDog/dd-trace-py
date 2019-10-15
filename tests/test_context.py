@@ -1,14 +1,55 @@
 import contextlib
+import logging
 import mock
 import threading
 
 from .base import BaseTestCase
 from tests.test_tracer import get_dummy_tracer
 
+import pytest
+
 from ddtrace.span import Span
-from ddtrace.context import Context, ThreadLocalContext
+from ddtrace.context import Context
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.ext.priority import USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP
+
+
+@pytest.fixture
+def tracer_with_debug_logging():
+    # All the tracers, dummy or not, shares the same logging object.
+    tracer = get_dummy_tracer()
+    level = tracer.log.level
+    tracer.log.setLevel(logging.DEBUG)
+    try:
+        yield tracer
+    finally:
+        tracer.log.setLevel(level)
+
+
+@mock.patch('logging.Logger.debug')
+def test_log_unfinished_spans(log, tracer_with_debug_logging):
+    # when the root parent is finished, notify if there are spans still pending
+    tracer = tracer_with_debug_logging
+    ctx = Context()
+    # manually create a root-child trace
+    root = Span(tracer=tracer, name='root')
+    child_1 = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
+    child_2 = Span(tracer=tracer, name='child_2', trace_id=root.trace_id, parent_id=root.span_id)
+    child_1._parent = root
+    child_2._parent = root
+    ctx.add_span(root)
+    ctx.add_span(child_1)
+    ctx.add_span(child_2)
+    # close only the parent
+    root.finish()
+    unfinished_spans_log = log.call_args_list[-3][0][2]
+    child_1_log = log.call_args_list[-2][0][1]
+    child_2_log = log.call_args_list[-1][0][1]
+    assert 2 == unfinished_spans_log
+    assert 'name child_1' in child_1_log
+    assert 'name child_2' in child_2_log
+    assert 'duration 0.000000s' in child_1_log
+    assert 'duration 0.000000s' in child_2_log
 
 
 class TestTracingContext(BaseTestCase):
@@ -188,7 +229,7 @@ class TestTracingContext(BaseTestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child._finished = True
+            child.finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
@@ -227,7 +268,7 @@ class TestTracingContext(BaseTestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child._finished = True
+            child.finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
@@ -266,7 +307,7 @@ class TestTracingContext(BaseTestCase):
         for i in range(5):
             child = Span(tracer=tracer, name='child_{}'.format(i), trace_id=root.trace_id, parent_id=root.span_id)
             child._parent = root
-            child._finished = True
+            child.finished = True
             ctx.add_span(child)
             ctx.close_span(child)
 
@@ -303,7 +344,7 @@ class TestTracingContext(BaseTestCase):
 
             # CLose the first 5 only
             if i < 5:
-                child._finished = True
+                child.finished = True
                 ctx.close_span(child)
 
         with self.override_partial_flush(ctx, enabled=True, min_spans=5):
@@ -332,36 +373,9 @@ class TestTracingContext(BaseTestCase):
         ctx.close_span(span)
 
     @mock.patch('logging.Logger.debug')
-    def test_log_unfinished_spans(self, log):
-        # when the root parent is finished, notify if there are spans still pending
-        tracer = get_dummy_tracer()
-        tracer.debug_logging = True
-        ctx = Context()
-        # manually create a root-child trace
-        root = Span(tracer=tracer, name='root')
-        child_1 = Span(tracer=tracer, name='child_1', trace_id=root.trace_id, parent_id=root.span_id)
-        child_2 = Span(tracer=tracer, name='child_2', trace_id=root.trace_id, parent_id=root.span_id)
-        child_1._parent = root
-        child_2._parent = root
-        ctx.add_span(root)
-        ctx.add_span(child_1)
-        ctx.add_span(child_2)
-        # close only the parent
-        root.finish()
-        unfinished_spans_log = log.call_args_list[-3][0][2]
-        child_1_log = log.call_args_list[-2][0][1]
-        child_2_log = log.call_args_list[-1][0][1]
-        assert 2 == unfinished_spans_log
-        assert 'name child_1' in child_1_log
-        assert 'name child_2' in child_2_log
-        assert 'duration 0.000000s' in child_1_log
-        assert 'duration 0.000000s' in child_2_log
-
-    @mock.patch('logging.Logger.debug')
     def test_log_unfinished_spans_disabled(self, log):
         # the trace finished status logging is disabled
         tracer = get_dummy_tracer()
-        tracer.debug_logging = False
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name='root')
@@ -383,7 +397,6 @@ class TestTracingContext(BaseTestCase):
     def test_log_unfinished_spans_when_ok(self, log):
         # if the unfinished spans logging is enabled but the trace is finished, don't log anything
         tracer = get_dummy_tracer()
-        tracer.debug_logging = True
         ctx = Context()
         # manually create a root-child trace
         root = Span(tracer=tracer, name='root')
@@ -434,48 +447,3 @@ class TestTracingContext(BaseTestCase):
         assert cloned_ctx._dd_origin == ctx._dd_origin
         assert cloned_ctx._current_span == ctx._current_span
         assert cloned_ctx._trace == []
-
-
-class TestThreadContext(BaseTestCase):
-    """
-    Ensures that a ``ThreadLocalContext`` makes the Context
-    local to each thread.
-    """
-    def test_get_or_create(self):
-        # asking the Context multiple times should return
-        # always the same instance
-        l_ctx = ThreadLocalContext()
-        assert l_ctx.get() == l_ctx.get()
-
-    def test_set_context(self):
-        # the Context can be set in the current Thread
-        ctx = Context()
-        local = ThreadLocalContext()
-        assert local.get() is not ctx
-
-        local.set(ctx)
-        assert local.get() is ctx
-
-    def test_multiple_threads_multiple_context(self):
-        # each thread should have it's own Context
-        l_ctx = ThreadLocalContext()
-
-        def _fill_ctx():
-            ctx = l_ctx.get()
-            span = Span(tracer=None, name='fake_span')
-            ctx.add_span(span)
-            assert 1 == len(ctx._trace)
-
-        threads = [threading.Thread(target=_fill_ctx) for _ in range(100)]
-
-        for t in threads:
-            t.daemon = True
-            t.start()
-
-        for t in threads:
-            t.join()
-
-        # the main instance should have an empty Context
-        # because it has not been used in this thread
-        ctx = l_ctx.get()
-        assert 0 == len(ctx._trace)

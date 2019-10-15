@@ -100,7 +100,7 @@ class TestTracer(object):
             pass
 
         # span should be finished when the context manager exits
-        assert span._finished
+        assert span.finished
 
         spans = writer.pop()
         assert len(spans) == 1
@@ -144,8 +144,8 @@ class TestTracer(object):
                 pass
 
         # span should be finished when the context manager exits
-        assert span._finished
-        assert span2._finished
+        assert span.finished
+        assert span2.finished
 
         spans = writer.pop()
         assert len(spans) == 2
@@ -162,6 +162,20 @@ class TestTracer(object):
         assert span._dd_span.get_tag('key') == 'value'
         assert span._dd_span.get_tag('key2') == 'value2'
 
+    def test_start_span_with_resource_name_tag(self, ot_tracer):
+        """Create a span with the tag to set the resource name"""
+        tags = {'resource.name': 'value', 'key2': 'value2'}
+        with ot_tracer.start_span('myop', tags=tags) as span:
+            pass
+
+        # Span resource name should be set to tag value, and should not get set as
+        # a tag on the underlying span.
+        assert span._dd_span.resource == 'value'
+        assert span._dd_span.get_tag('resource.name') is None
+
+        # Other tags are set as normal
+        assert span._dd_span.get_tag('key2') == 'value2'
+
     def test_start_active_span_multi_child(self, ot_tracer, writer):
         """Start and finish multiple child spans.
         This should ensure that child spans can be created 2 levels deep.
@@ -174,9 +188,9 @@ class TestTracer(object):
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span._finished
-        assert scope2.span._finished
-        assert scope3.span._finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = writer.pop()
 
@@ -207,9 +221,9 @@ class TestTracer(object):
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
-        assert scope1.span._finished
-        assert scope2.span._finished
-        assert scope3.span._finished
+        assert scope1.span.finished
+        assert scope2.span.finished
+        assert scope3.span.finished
 
         spans = writer.pop()
 
@@ -369,7 +383,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert scope.span._finished
+        assert scope.span.finished
         spans = writer.pop()
         assert spans
 
@@ -378,7 +392,7 @@ class TestTracer(object):
             pass
 
         assert scope.span._dd_span.name == 'one'
-        assert not scope.span._finished
+        assert not scope.span.finished
         spans = writer.pop()
         assert not spans
 

@@ -111,6 +111,7 @@ class ElasticsearchTest(unittest.TestCase):
 
         assert span.get_tag('elasticsearch.body').replace(' ', '') == '{"query":{"match_all":{}}}'
         assert set(span.get_tag('elasticsearch.params').split('&')) == {'sort=name%3Adesc', 'size=100'}
+        assert http.QUERY_STRING not in span.meta
 
         self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 
@@ -265,15 +266,16 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
 
         # search data
         args = {'index': self.ES_INDEX, 'doc_type': self.ES_TYPE}
-        es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
-        es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
-        es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
-        result = es.search(
-            sort=['name:desc'],
-            size=100,
-            body={'query': {'match_all': {}}},
-            **args
-        )
+        with self.override_http_config('elasticsearch', dict(trace_query_string=True)):
+            es.index(id=10, body={'name': 'ten', 'created': datetime.date(2016, 1, 1)}, **args)
+            es.index(id=11, body={'name': 'eleven', 'created': datetime.date(2016, 2, 1)}, **args)
+            es.index(id=12, body={'name': 'twelve', 'created': datetime.date(2016, 3, 1)}, **args)
+            result = es.search(
+                sort=['name:desc'],
+                size=100,
+                body={'query': {'match_all': {}}},
+                **args
+            )
 
         assert len(result['hits']['hits']) == 3, result
         spans = self.get_spans()
@@ -286,6 +288,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert span.get_tag('elasticsearch.url') == '/%s/%s/_search' % (self.ES_INDEX, self.ES_TYPE)
         assert span.get_tag('elasticsearch.body').replace(' ', '') == '{"query":{"match_all":{}}}'
         assert set(span.get_tag('elasticsearch.params').split('&')) == {'sort=name%3Adesc', 'size=100'}
+        assert set(span.get_tag(http.QUERY_STRING).split('&')) == {'sort=name%3Adesc', 'size=100'}
 
         self.assertTrue(span.get_metric('elasticsearch.took') > 0)
 

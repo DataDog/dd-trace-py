@@ -9,9 +9,9 @@ from unittest import TestCase
 
 import pytest
 
-from tests.test_tracer import get_dummy_tracer
 from ddtrace.api import API, Response
 from ddtrace.compat import iteritems, httplib, PY3
+from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor.six.moves import BaseHTTPServer, socketserver
 
 
@@ -110,10 +110,10 @@ class ResponseMock:
 
 
 def test_api_str():
-    api = API('localhost', 8126)
-    assert str(api) == 'localhost:8126'
+    api = API('localhost', 8126, https=True)
+    assert str(api) == 'https://localhost:8126'
     api = API('localhost', 8126, '/path/to/uds')
-    assert str(api) == '/path/to/uds'
+    assert str(api) == 'unix:///path/to/uds'
 
 
 class APITests(TestCase):
@@ -133,9 +133,6 @@ class APITests(TestCase):
 
     @mock.patch('logging.Logger.debug')
     def test_parse_response_json(self, log):
-        tracer = get_dummy_tracer()
-        tracer.debug_logging = True
-
         test_cases = {
             'OK': dict(
                 js=None,
@@ -217,6 +214,16 @@ class APITests(TestCase):
         self.conn.close.assert_called_once()
 
 
+def test_https():
+    conn = mock.MagicMock(spec=httplib.HTTPSConnection)
+    api = API('localhost', 8126, https=True)
+    with mock.patch('ddtrace.compat.httplib.HTTPSConnection') as HTTPSConnection:
+        HTTPSConnection.return_value = conn
+        api._put('/test', '<test data>', 1)
+    conn.request.assert_called_once()
+    conn.close.assert_called_once()
+
+
 def test_flush_connection_timeout_connect():
     payload = mock.Mock()
     payload.get_payload.return_value = 'foobar'
@@ -258,3 +265,22 @@ def test_flush_connection_uds(endpoint_uds_server):
     api = API(_HOST, 2019, uds_path=endpoint_uds_server.server_address)
     response = api._flush(payload)
     assert response.status == 200
+
+
+@mock.patch('ddtrace.internal.runtime.container.get_container_info')
+def test_api_container_info(get_container_info):
+    # When we have container information
+    # DEV: `get_container_info` will return a `CGroupInfo` with a `container_id` or `None`
+    info = CGroupInfo(container_id='test-container-id')
+    get_container_info.return_value = info
+
+    api = API(_HOST, 8126)
+    assert api._container_info is info
+    assert api._headers['Datadog-Container-Id'] == 'test-container-id'
+
+    # When we do not have container information
+    get_container_info.return_value = None
+
+    api = API(_HOST, 8126)
+    assert api._container_info is None
+    assert 'Datadog-Container-Id' not in api._headers

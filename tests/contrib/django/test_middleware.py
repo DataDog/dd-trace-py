@@ -3,6 +3,7 @@ from django.test import modify_settings
 from django.db import connections
 
 # project
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.django.db import unpatch_conn
 from ddtrace.ext import errors, http
@@ -41,12 +42,28 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag('http.method') == 'GET'
         assert sp_request.span_type == 'http'
         assert sp_request.resource == 'tests.contrib.django.app.views.UserList'
+        if config.django.trace_query_string:
+            assert sp_request.get_tag(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in sp_request.meta
 
     def test_middleware_trace_request_qs(self):
         return self.test_middleware_trace_request('foo=bar')
 
     def test_middleware_trace_request_multi_qs(self):
         return self.test_middleware_trace_request('foo=bar&foo=baz&x=y')
+
+    def test_middleware_trace_request_no_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request()
+
+    def test_middleware_trace_request_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request('foo=bar')
+
+    def test_middleware_trace_request_multi_qs_trace(self):
+        with self.override_global_config(dict(trace_query_string=True)):
+            return self.test_middleware_trace_request('foo=bar&foo=baz&x=y')
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -133,6 +150,30 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         self.assertEqual(sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
         self.assertIsNone(sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
         self.assertIsNone(sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+
+    @override_ddtrace_settings(ANALYTICS_ENABLED=True, ANALYTICS_SAMPLE_RATE=None)
+    def test_analytics_global_off_integration_on_and_none(self):
+        """
+        When making a request
+            When an integration trace search is enabled
+            Sample rate is set to None
+            Globally trace search is disabled
+                We expect the root span to have the appropriate tag
+        """
+        with self.override_global_config(dict(analytics_enabled=False)):
+            url = reverse('users-list')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 3
+        sp_request = spans[0]
+        sp_template = spans[1]
+        sp_database = spans[2]
+        self.assertEqual(sp_request.name, 'django.request')
+        assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+        assert sp_template.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+        assert sp_database.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_database_patch(self):
         # We want to test that a connection-recreation event causes connections
@@ -262,7 +303,6 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag('http.status_code') == '200'
         assert sp_request.get_tag('django.user.is_authenticated') is None
 
-    @override_ddtrace_settings(DISTRIBUTED_TRACING=True)
     def test_middleware_propagation(self):
         # ensures that we properly propagate http context
         url = reverse('users-list')
@@ -284,6 +324,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.parent_id == 42
         assert sp_request.get_metric(SAMPLING_PRIORITY_KEY) == 2
 
+    @override_ddtrace_settings(DISTRIBUTED_TRACING=False)
     def test_middleware_no_propagation(self):
         # ensures that we properly propagate http context
         url = reverse('users-list')

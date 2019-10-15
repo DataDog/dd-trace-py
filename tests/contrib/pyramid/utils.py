@@ -5,6 +5,7 @@ import pytest
 import webtest
 
 from ddtrace import compat
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
@@ -47,8 +48,12 @@ class PyramidTestCase(PyramidBase):
             'datadog_trace_service': 'foobar',
         }
 
-    def test_200(self):
-        res = self.app.get('/', status=200)
+    def test_200(self, query_string=''):
+        if query_string:
+            fqs = '?' + query_string
+        else:
+            fqs = ''
+        res = self.app.get('/' + fqs, status=200)
         assert b'idx' in res.body
 
         writer = self.tracer.writer
@@ -62,12 +67,23 @@ class PyramidTestCase(PyramidBase):
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/'
+        if config.pyramid.trace_query_string:
+            assert s.meta.get(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in s.meta
         assert s.meta.get('pyramid.route.name') == 'index'
 
         # ensure services are set correctly
         services = writer.pop_services()
         expected = {}
         assert services == expected
+
+    def test_200_query_string(self):
+        return self.test_200('foo=bar')
+
+    def test_200_query_string_trace(self):
+        with self.override_http_config('pyramid', dict(trace_query_string=True)):
+            return self.test_200('foo=bar')
 
     def test_analytics_global_on_integration_default(self):
         """

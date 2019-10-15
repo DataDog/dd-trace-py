@@ -69,7 +69,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
-    """ Wrap will patch the instance so that it's queries are traced."""
+    """ Wrap will patch the instance so that its queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)

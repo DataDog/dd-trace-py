@@ -34,6 +34,28 @@ For more advanced usage of ``ddtrace-run`` refer to the documentation :ref:`here
 To find out how to trace your own code manually refer to the documentation :ref:`here<basic usage>`.
 
 
+Configuration
+~~~~~~~~~~~~~
+
+You can configure some parameters of the library by setting environment
+variable before starting your application and importing the library:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 1 1 2
+
+   * - Configuration Variable
+     - Configuration Type
+     - Default Value
+     - Value Description
+   * - ``DD_TRACE_AGENT_URL``
+     - URL
+     - ``http://localhost:8126``
+     - The URL to use to connect the Datadog agent. The url can starts with
+       ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
+       Domain Socket.
+
+
 OpenTracing
 -----------
 

@@ -49,8 +49,7 @@ def trace_render(func, instance, args, kwargs):
         log.debug('No span found in request, will not be traced')
         return func(*args, **kwargs)
 
-    tracer = span.tracer()
-    with tracer.trace('pyramid.render') as span:
+    with span.tracer.trace('pyramid.render') as span:
         span.span_type = http.TEMPLATE
         return func(*args, **kwargs)
 
@@ -105,6 +104,8 @@ def trace_tween_factory(handler, registry):
                     # set request tags
                     span.set_tag(http.URL, request.path_url)
                     span.set_tag(http.METHOD, request.method)
+                    if config.pyramid.trace_query_string:
+                        span.set_tag(http.QUERY_STRING, request.query_string)
                     if request.matched_route:
                         span.resource = '{} {}'.format(request.method, request.matched_route.name)
                         span.set_tag('pyramid.route.name', request.matched_route.name)

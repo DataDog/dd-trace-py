@@ -94,3 +94,6 @@ ENV/
 *.swp
 # IDEA
 .idea/
+
+# VS Code
+.vscode/

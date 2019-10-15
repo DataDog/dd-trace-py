@@ -107,3 +107,5 @@ class PylonsTraceMiddleware(object):
                     'pylons.route.controller': controller,
                     'pylons.route.action': action,
                 })
+                if ddconfig.pylons.trace_query_string:
+                    span.set_tag(http.QUERY_STRING, environ.get('QUERY_STRING'))
