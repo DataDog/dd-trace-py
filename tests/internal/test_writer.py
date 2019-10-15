@@ -63,9 +63,11 @@ class FailingAPI(object):
 class AgentWriterTests(TestCase):
     N_TRACES = 11
 
-    def create_worker(self, filters=None, api_class=DummyAPI):
+    def create_worker(self, filters=None, api_class=DummyAPI, enable_stats=False):
         self.dogstatsd = mock.Mock()
         worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
+        worker._ENABLE_STATS = enable_stats
+        worker._STATS_EVERY_INTERVAL = 1
         self.api = api_class()
         worker.api = self.api
         for i in range(self.N_TRACES):
@@ -106,8 +108,14 @@ class AgentWriterTests(TestCase):
         self.assertEqual(len(self.api.traces), 0)
         self.assertEqual(filtr.filtered_traces, 0)
 
+    def test_no_dogstats(self):
+        worker = self.create_worker()
+        assert worker._ENABLE_STATS is False
+        assert [
+        ] == self.dogstatsd.gauge.mock_calls
+
     def test_dogstatsd(self):
-        self.create_worker()
+        self.create_worker(enable_stats=True)
         assert [
             mock.call('datadog.tracer.queue.max_length', 1000),
             mock.call('datadog.tracer.queue.length', 11),
@@ -129,7 +137,7 @@ class AgentWriterTests(TestCase):
         assert increment_calls == self.dogstatsd.increment.mock_calls
 
     def test_dogstatsd_failing_api(self):
-        self.create_worker(api_class=FailingAPI)
+        self.create_worker(api_class=FailingAPI, enable_stats=True)
         assert [
             mock.call('datadog.tracer.queue.max_length', 1000),
             mock.call('datadog.tracer.queue.length', 11),

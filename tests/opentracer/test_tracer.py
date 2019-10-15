@@ -162,6 +162,20 @@ class TestTracer(object):
         assert span._dd_span.get_tag('key') == 'value'
         assert span._dd_span.get_tag('key2') == 'value2'
 
+    def test_start_span_with_resource_name_tag(self, ot_tracer):
+        """Create a span with the tag to set the resource name"""
+        tags = {'resource.name': 'value', 'key2': 'value2'}
+        with ot_tracer.start_span('myop', tags=tags) as span:
+            pass
+
+        # Span resource name should be set to tag value, and should not get set as
+        # a tag on the underlying span.
+        assert span._dd_span.resource == 'value'
+        assert span._dd_span.get_tag('resource.name') is None
+
+        # Other tags are set as normal
+        assert span._dd_span.get_tag('key2') == 'value2'
+
     def test_start_active_span_multi_child(self, ot_tracer, writer):
         """Start and finish multiple child spans.
         This should ensure that child spans can be created 2 levels deep.
