@@ -65,16 +65,31 @@ def raise_if_no_attrs(f):
     required_attrs = [
         '__module_name__',
         '__integration_name__',
-        '__unpatch_func__',
     ]
 
     @functools.wraps(f)
     def checked_method(self, *args, **kwargs):
+        if getattr(self, '__unpatch_func__') is None:
+            return
+
         for attr in required_attrs:
             if not getattr(self, attr):
                 raise NotImplementedError(f.__doc__)
         return f(self, *args, **kwargs)
     return checked_method
+
+
+def noop_if_no_unpatch(f):
+    """
+    A helper for PatchTestCase test methods that will no-op the test if the
+    __unpatch_func__ attribute is None
+    """
+    @functools.wraps(f)
+    def wrapper(self, *args, **kwargs):
+        if getattr(self, '__unpatch_func__') is None:
+            return
+        return f(self, *args, **kwargs)
+    return wrapper
 
 
 class PatchTestCase(object):

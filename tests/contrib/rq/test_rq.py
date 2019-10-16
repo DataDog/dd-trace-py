@@ -1,5 +1,5 @@
 from ddtrace import Pin
-from ddtrace.contrib.rq import patch, unpatch
+from ddtrace.contrib.rq import patch
 from tests.base import BaseTracerTestCase
 from tests.contrib.patch import PatchTestCase
 from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
@@ -8,7 +8,7 @@ from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
 class RqPatchTestCase(PatchTestCase.Base):
     __integration_name__ = 'rq'
     __module_name__ = 'rq'
-    __unpatch_func__ = unpatch
+    __unpatch_func__ = None
 
     def assert_module_patched(self, rq):
         self.assert_wrapped(rq.queue.Queue.enqueue_job)
@@ -23,7 +23,6 @@ class RqPatchTestCase(PatchTestCase.Base):
 
 
 class TestRqConfig(BaseTracerTestCase, SubprocessTestCase):
-    # Pin.override all the stuff
 
     @run_in_subprocess
     def test_pin_installation(self):
@@ -35,4 +34,3 @@ class TestRqConfig(BaseTracerTestCase, SubprocessTestCase):
         assert Pin.get_from(rq.queue.Queue) is not None
         assert Pin.get_from(rq.Worker) is not None
         assert Pin.get_from(rq.worker.Worker) is not None
-
