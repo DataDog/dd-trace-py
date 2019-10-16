@@ -1,4 +1,6 @@
 import grpc
+from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
+import time
 from grpc.framework.foundation import logging_pool
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
@@ -12,6 +14,7 @@ from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
 
 _GRPC_PORT = 50531
+_GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])
 
 
 class GrpcTestCase(BaseTracerTestCase):
@@ -29,6 +32,25 @@ class GrpcTestCase(BaseTracerTestCase):
         # Unpatch grpc
         unpatch()
         super(GrpcTestCase, self).tearDown()
+
+    def get_spans_with_sync_and_assert(self, size=0, retry=20):
+        # testing instrumentation with grpcio < 1.14.0 presents a problem for
+        # checking spans written to the dummy tracer
+        # see https://github.com/grpc/grpc/issues/14621
+
+        spans = super(GrpcTestCase, self).get_spans()
+
+        if _GRPC_VERSION >= (1, 14):
+            assert len(spans) == size
+            return spans
+
+        for _ in range(retry):
+            if len(spans) == size:
+                assert len(spans) == size
+                return spans
+            time.sleep(0.1)
+
+        return spans
 
     def _start_server(self):
         self._server = grpc.server(logging_pool.pool(2))
@@ -82,8 +104,7 @@ class GrpcTestCase(BaseTracerTestCase):
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
@@ -105,8 +126,7 @@ class GrpcTestCase(BaseTracerTestCase):
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         self._check_client_span(client_span, 'grpc-client', 'SayHello', 'unary')
@@ -118,8 +138,7 @@ class GrpcTestCase(BaseTracerTestCase):
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        spans = self.get_spans()
+        spans = self.get_spans_with_sync_and_assert()
         assert len(spans) == 0
 
     def test_pin_tags_are_put_in_span(self):
@@ -133,8 +152,7 @@ class GrpcTestCase(BaseTracerTestCase):
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         assert spans[0].service == 'server1'
         assert spans[0].get_tag('tag1') == 'server'
         assert spans[1].get_tag('tag2') == 'client'
@@ -147,29 +165,30 @@ class GrpcTestCase(BaseTracerTestCase):
         channel2 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
-        stub2 = HelloStub(channel2)
         stub1.SayHello(HelloRequest(name='test'))
+        channel1.close()
+
+        # DEV: make sure we have two spans before proceeding
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        stub2 = HelloStub(channel2)
         stub2.SayHello(HelloRequest(name='test'))
+        channel2.close()
 
-        spans = self.get_spans()
+        spans = self.get_spans_with_sync_and_assert(size=4)
 
-        assert len(spans) == 4
         # DEV: Server service default, client services override
         self._check_server_span(spans[0], 'grpc-server', 'SayHello', 'unary')
         self._check_client_span(spans[1], 'grpc1', 'SayHello', 'unary')
         self._check_server_span(spans[2], 'grpc-server', 'SayHello', 'unary')
         self._check_client_span(spans[3], 'grpc2', 'SayHello', 'unary')
 
-        channel1.close()
-        channel2.close()
-
     def test_analytics_default(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -189,8 +208,7 @@ class GrpcTestCase(BaseTracerTestCase):
                     stub = HelloStub(channel)
                     stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -210,8 +228,7 @@ class GrpcTestCase(BaseTracerTestCase):
                     stub = HelloStub(channel)
                     stub.SayHello(HelloRequest(name='test'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
         assert spans[1].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -221,8 +238,7 @@ class GrpcTestCase(BaseTracerTestCase):
             responses_iterator = stub.SayHelloTwice(HelloRequest(name='test'))
             assert len(list(responses_iterator)) == 2
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
         self._check_client_span(client_span, 'grpc-client', 'SayHelloTwice', 'server_streaming')
         self._check_server_span(server_span, 'grpc-server', 'SayHelloTwice', 'server_streaming')
@@ -238,8 +254,7 @@ class GrpcTestCase(BaseTracerTestCase):
             response = stub.SayHelloLast(requests_iterator)
             assert response.message == 'first;second'
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
         self._check_client_span(client_span, 'grpc-client', 'SayHelloLast', 'client_streaming')
         self._check_server_span(server_span, 'grpc-server', 'SayHelloLast', 'client_streaming')
@@ -256,8 +271,7 @@ class GrpcTestCase(BaseTracerTestCase):
             messages = [r.message for r in responses]
             assert list(messages) == ['first;second', 'third;fourth', 'fifth']
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
         self._check_client_span(client_span, 'grpc-client', 'SayHelloRepeatedly', 'bidi_streaming')
         self._check_server_span(server_span, 'grpc-server', 'SayHelloRepeatedly', 'bidi_streaming')
@@ -270,8 +284,7 @@ class GrpcTestCase(BaseTracerTestCase):
             stub = HelloStub(channel)
             response = stub.SayHello(HelloRequest(name='propogator'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert 'x-datadog-trace-id={}'.format(client_span.trace_id) in response.message
@@ -284,8 +297,7 @@ class GrpcTestCase(BaseTracerTestCase):
             with self.assertRaises(grpc.RpcError):
                 stub.SayHello(HelloRequest(name='abort'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
@@ -306,8 +318,7 @@ class GrpcTestCase(BaseTracerTestCase):
                 stub = HelloStub(intercept_channel)
                 stub.SayHello(HelloRequest(name='custom-exception'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
@@ -328,8 +339,7 @@ class GrpcTestCase(BaseTracerTestCase):
             with self.assertRaises(grpc.RpcError):
                 stub.SayHello(HelloRequest(name='exception'))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
@@ -354,8 +364,7 @@ class GrpcTestCase(BaseTracerTestCase):
             with self.assertRaises(grpc.RpcError):
                 stub.SayHelloLast(requests_iterator)
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloLast'
@@ -375,8 +384,7 @@ class GrpcTestCase(BaseTracerTestCase):
             with self.assertRaises(grpc.RpcError):
                 list(stub.SayHelloTwice(HelloRequest(name='exception')))
 
-        spans = self.get_spans()
-        assert len(spans) == 2
+        spans = self.get_spans_with_sync_and_assert(size=2)
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloTwice'
