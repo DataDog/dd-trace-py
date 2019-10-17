@@ -4,6 +4,7 @@ tests for Tracer and utilities.
 
 from os import getpid
 import sys
+import warnings
 
 from unittest.case import SkipTest
 
@@ -447,14 +448,26 @@ class TracerTestCase(BaseTracerTestCase):
         self.assertIsNotNone(self.tracer._runtime_worker)
 
     def test_configure_dogstatsd_host(self):
-        self.tracer.configure(dogstatsd_host='foo')
-        assert self.tracer._dogstatsd_client.host == 'foo'
-        assert self.tracer._dogstatsd_client.port == 8125
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 8125
+            # verify warnings triggered
+            assert len(w) == 1
+            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use dogstatsd_url' in str(w[-1].message)
 
     def test_configure_dogstatsd_host_port(self):
-        self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
-        assert self.tracer._dogstatsd_client.host == 'foo'
-        assert self.tracer._dogstatsd_client.port == 1234
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 1234
+            # verify warnings triggered
+            assert len(w) == 1
+            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use dogstatsd_url' in str(w[-1].message)
 
     def test_configure_dogstatsd_url_host_port(self):
         self.tracer.configure(dogstatsd_url='foo:1234')

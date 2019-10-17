@@ -14,7 +14,7 @@ from .context import Context
 from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
-from .utils.deprecation import deprecated
+from .utils.deprecation import deprecated, warn
 from .vendor.dogstatsd import DogStatsd
 from . import compat
 
@@ -205,6 +205,8 @@ class Tracer(object):
 
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
+                  'Use dogstatsd_url').format(dogstatsd_url))
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
