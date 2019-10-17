@@ -50,6 +50,16 @@ if PYTHON_VERSION_INFO >= (3, 7):
 else:
     pattern_type = re._pattern_type
 
+
+try:
+    from time import time_ns
+except ImportError:
+    from time import time as _time
+
+    def time_ns():
+        return int(_time() * 10e5) * 1000
+
+
 if PYTHON_VERSION_INFO[0:2] >= (3, 4):
     from asyncio import iscoroutinefunction
 
