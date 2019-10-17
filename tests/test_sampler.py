@@ -489,8 +489,7 @@ def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
     assert span.sampled is False
-    # DEV: Is `None` since we only add tag to non-rate limited traces
-    assert_sampling_decision_tags(span, rule=1.0, limit=None)
+    assert_sampling_decision_tags(span, rule=1.0, limit=1.0)
     mock_is_allowed.assert_called_once_with()
 
 
