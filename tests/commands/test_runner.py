@@ -127,14 +127,35 @@ class DdtraceRunTest(BaseTestCase):
             )
             assert out.startswith(b'Test success')
 
-    def test_runtime_metrics(self):
+    def test_dogstatsd_client_env_host_and_port(self):
         """
         DD_AGENT_HOST|DD_DOGSTATSD_PORT point to the tracer
         to the correct host/port for submission
         """
-        with self.override_env(dict(DD_RUNTIME_METRICS_ENABLED='True',
-                                    DD_AGENT_HOST='172.10.0.1',
+        with self.override_env(dict(DD_AGENT_HOST='172.10.0.1',
                                     DD_DOGSTATSD_PORT='8120')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_host_and_port(self):
+        """
+        DD_AGENT_HOST|DD_DOGSTATSD_PORT point to the tracer
+        to the correct host/port for submission
+        """
+        with self.override_env(dict(DD_DOGSTATSD_URL='172.10.0.1:8120')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_unix(self):
+        """
+        DD_STATSD_URL set to a unix socket
+        """
+        dogstatsd_url = 'unix:///dogstatsd.sock'
+        with self.override_env(dict(DD_DOGSTATSD_URL=dogstatsd_url)):
             out = subprocess.check_output(
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
             )

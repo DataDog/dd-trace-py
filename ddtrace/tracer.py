@@ -22,6 +22,20 @@ from . import compat
 log = get_logger(__name__)
 
 
+def _parse_dogstatsd_url(dogstatsd_url):
+    if dogstatsd_url is not None:
+        url_parsed = compat.parse.urlparse(dogstatsd_url)
+        if url_parsed.scheme == 'unix':
+            return dict(socket_path=url_parsed.path)
+        else:
+            try:
+                # otherwise url is in format <host>:<port>
+                hostname, port = url_parsed.path.split(':')
+                return dict(host=hostname, port=int(port))
+            except ValueError:
+                raise ValueError('Unknown url format for `{}`'.format(url_parsed.path))
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -38,9 +52,10 @@ class Tracer(object):
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
     DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
+    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url', '{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
     DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
-    def __init__(self, url=DEFAULT_AGENT_URL):
+    def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -50,10 +65,7 @@ class Tracer(object):
         self.log = log
         self.sampler = None
         self.priority_sampler = None
-
         self._runtime_worker = None
-        self._dogstatsd_host = self.DEFAULT_HOSTNAME
-        self._dogstatsd_port = self.DEFAULT_DOGSTATSD_PORT
 
         uds_path = None
         https = None
@@ -87,6 +99,7 @@ class Tracer(object):
             uds_path=uds_path,
             sampler=AllSampler(),
             context_provider=DefaultContextProvider(),
+            dogstatsd_url=dogstatsd_url,
         )
 
         # globally set tags
@@ -142,8 +155,8 @@ class Tracer(object):
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  dogstatsd_host=None, dogstatsd_port=None, sampler=None, context_provider=None,
-                  wrap_executor=None, priority_sampling=None, settings=None, collect_metrics=None):
+                  dogstatsd_url=None, sampler=None, context_provider=None, wrap_executor=None,
+                  priority_sampling=None, settings=None, collect_metrics=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -187,16 +200,12 @@ class Tracer(object):
         if isinstance(self.sampler, DatadogSampler):
             self.sampler._priority_sampler = self.priority_sampler
 
-        self._dogstatsd_host = dogstatsd_host or self._dogstatsd_host
-        self._dogstatsd_port = dogstatsd_port or self._dogstatsd_port
-        self.log.debug('Connecting to DogStatsd on {}:{}'.format(
-            self._dogstatsd_host,
-            self._dogstatsd_port,
-        ))
-        self._dogstatsd_client = DogStatsd(
-            host=self._dogstatsd_host,
-            port=self._dogstatsd_port,
-        )
+        if dogstatsd_url is not None:
+            dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
+            self.log.debug('Connecting to DogStatsd({})'.format(
+                ','.join('{0}={1!r}'.format(k, v) for (k, v) in dogstatsd_kwargs.items())
+            ))
+            self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
                 filters is not None or priority_sampling is not None:

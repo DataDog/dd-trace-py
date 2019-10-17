@@ -530,3 +530,20 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url='foo://foobar:12')
         assert str(e) == 'Unknown scheme `https` for agent URL'
+
+
+def test_tracer_dogstatsd_url():
+    t = ddtrace.Tracer()
+    assert t._dogstatsd_client.host == 'localhost'
+    assert t._dogstatsd_client.port == 8125
+
+    t = ddtrace.Tracer(dogstatsd_url='foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='unix:///var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(dogstatsd_url='foo://foobar:12')
+        assert str(e) == 'Unknown url format for `foo://foobar:12`'
