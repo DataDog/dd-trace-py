@@ -23,17 +23,19 @@ log = get_logger(__name__)
 
 
 def _parse_dogstatsd_url(dogstatsd_url):
-    if dogstatsd_url is not None:
-        url_parsed = compat.parse.urlparse(dogstatsd_url)
-        if url_parsed.scheme == 'unix':
-            return dict(socket_path=url_parsed.path)
-        else:
-            try:
-                # otherwise url is in format <host>:<port>
-                hostname, port = url_parsed.path.split(':')
-                return dict(host=hostname, port=int(port))
-            except ValueError:
-                raise ValueError('Unknown url format for `{}`'.format(url_parsed.path))
+    if dogstatsd_url is None:
+        return
+
+    # url can be either of the form `<host>:<port>` or `unix://<path>`
+    if dogstatsd_url.startswith('unix://'):
+        path = dogstatsd_url[len('unix://'):]
+        return dict(socket_path=path)
+    else:
+        try:
+            hostname, port = dogstatsd_url.split(':')
+            return dict(host=hostname, port=int(port))
+        except ValueError:
+            raise ValueError('Unknown url format for `{}`'.format(dogstatsd_url))
 
 
 class Tracer(object):
