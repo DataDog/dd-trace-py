@@ -530,3 +530,18 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url='foo://foobar:12')
         assert str(e) == 'Unknown scheme `https` for agent URL'
+
+
+def test_tracer_shutdown():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+
+    t.shutdown()
+    t.writer.stop.assert_called_once_with()
+    t.writer.join.assert_called_once_with(timeout=None)
+
+    t.writer.reset_mock()
+
+    t.shutdown(timeout=2)
+    t.writer.stop.assert_called_once_with()
+    t.writer.join.assert_called_once_with(timeout=2)

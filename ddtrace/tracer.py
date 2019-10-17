@@ -604,3 +604,15 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self.tags.update(tags)
+
+    def shutdown(self, timeout=None):
+        """ Shutdown the tracer
+
+        This will stop the background writer/worker and flush any finished traces in the buffer
+
+        :param timeout: How long in seconds to wait for the background worker to flush traces
+            before exiting (default: :obj:`None`)
+        :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
+        """
+        self.writer.stop()
+        self.writer.join(timeout=timeout)
