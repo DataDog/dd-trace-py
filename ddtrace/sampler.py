@@ -52,8 +52,8 @@ class RateSampler(BaseSampler):
         log.debug('initialized RateSampler, sample %s%% of traces', 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate):
-        self.sample_rate = sample_rate
-        self.sampling_id_threshold = sample_rate * MAX_TRACE_ID
+        self.sample_rate = float(sample_rate)
+        self.sampling_id_threshold = self.sample_rate * MAX_TRACE_ID
 
     def sample(self, span):
         return ((span.trace_id * KNUTH_FACTOR) % MAX_TRACE_ID) <= self.sampling_id_threshold
@@ -113,7 +113,7 @@ class DatadogSampler(BaseSampler):
     This sampler is currently in ALPHA and it's API may change at any time, use at your own risk.
     """
     # TODO: Remove '_priority_sampler' when we no longer use the fallback
-    __slots__ = ('default_sampler', 'rules', 'rate_limit', '_priority_sampler')
+    __slots__ = ('default_sampler', 'rules', '_priority_sampler')
 
     DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1

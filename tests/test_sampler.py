@@ -41,6 +41,22 @@ def create_span(tracer=None, name='test.span', meta=None, *args, **kwargs):
 
 class RateSamplerTest(unittest.TestCase):
 
+    def test_set_sample_rate(self):
+        sampler = RateSampler()
+        assert sampler.sample_rate == 1.0
+
+        for rate in [0.001, 0.01, 0.1, 0.25, 0.5, 0.75, 0.99999999, 1.0, 1]:
+            sampler.set_sample_rate(rate)
+            assert sampler.sample_rate == float(rate)
+
+            sampler.set_sample_rate(str(rate))
+            assert sampler.sample_rate == float(rate)
+
+    def test_set_sample_rate_str(self):
+        sampler = RateSampler()
+        sampler.set_sample_rate('0.5')
+        assert sampler.sample_rate == 0.5
+
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = get_dummy_tracer()

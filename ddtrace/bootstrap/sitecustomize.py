@@ -113,10 +113,6 @@ try:
         from ddtrace import patch_all
         patch_all(**EXTRA_PATCHED_MODULES)
 
-    debug = os.environ.get('DATADOG_TRACE_DEBUG')
-    if debug and debug.lower() == 'true':
-        tracer.debug_logging = True
-
     if 'DATADOG_ENV' in os.environ:
         tracer.set_tags({constants.ENV_KEY: os.environ['DATADOG_ENV']})
 

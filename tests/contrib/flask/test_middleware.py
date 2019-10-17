@@ -193,7 +193,6 @@ class TestFlask(TestCase):
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_template_render_err(self):
-        self.tracer.debug_logging = True
         start = time.time()
         try:
             self.app.get('/tmpl/render_err')

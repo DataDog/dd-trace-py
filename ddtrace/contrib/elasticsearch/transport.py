@@ -1,5 +1,5 @@
 # DEV: This will import the first available module from:
-#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`
+#   `elasticsearch`, `elasticsearch1`, `elasticsearch2`, `elasticsearch5`, 'elasticsearch6'
 from .elasticsearch import elasticsearch
 
 from .quantize import quantize
@@ -7,6 +7,7 @@ from .quantize import quantize
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
 from ...ext import http, elasticsearch as metadata
+from ...settings import config
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
@@ -35,6 +36,8 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)
                 s.set_tag(metadata.PARAMS, urlencode(params))
+                if config.elasticsearch.trace_query_string:
+                    s.set_tag(http.QUERY_STRING, urlencode(params))
                 if method == 'GET':
                     s.set_tag(metadata.BODY, self.serializer.dumps(body))
                 s = quantize(s)

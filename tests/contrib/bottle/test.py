@@ -61,6 +61,10 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
+        if ddtrace.config.bottle.trace_query_string:
+            assert s.get_tag(http.QUERY_STRING) == query_string
+        else:
+            assert http.QUERY_STRING not in s.meta
 
         services = self.tracer.writer.pop_services()
         assert services == {}
@@ -71,6 +75,14 @@ class TraceBottleTest(BaseTracerTestCase):
     def test_query_string_multi_keys(self):
         return self.test_200('foo=bar&foo=baz&x=y')
 
+    def test_query_string_trace(self):
+        with self.override_http_config('bottle', dict(trace_query_string=True)):
+            return self.test_200('foo=bar')
+
+    def test_query_string_multi_keys_trace(self):
+        with self.override_http_config('bottle', dict(trace_query_string=True)):
+            return self.test_200('foo=bar&foo=baz&x=y')
+
     def test_500(self):
         @self.app.route('/hi')
         def hi():
@@ -79,9 +91,8 @@ class TraceBottleTest(BaseTracerTestCase):
 
         # make a request
         try:
-            resp = self.app.get('/hi')
-            assert resp.status_int == 500
-        except Exception:
+            self.app.get('/hi')
+        except webtest.AppError:
             pass
 
         spans = self.tracer.writer.pop()
@@ -93,6 +104,51 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.get_tag('http.status_code') == '500'
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
+        assert s.error == 1
+
+    def test_5XX_response(self):
+        """
+        When a 5XX response is returned
+            The span error attribute should be 1
+        """
+        @self.app.route('/5XX-1')
+        def handled500_1():
+            raise bottle.HTTPResponse(status=503)
+
+        @self.app.route('/5XX-2')
+        def handled500_2():
+            raise bottle.HTTPError(status=502)
+
+        @self.app.route('/5XX-3')
+        def handled500_3():
+            bottle.response.status = 503
+            return 'hmmm'
+
+        self._trace_app(self.tracer)
+
+        try:
+            self.app.get('/5XX-1')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
+
+        try:
+            self.app.get('/5XX-2')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
+
+        try:
+            self.app.get('/5XX-3')
+        except webtest.AppError:
+            pass
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].error == 1
 
     def test_abort(self):
         @self.app.route('/hi')
@@ -102,9 +158,8 @@ class TraceBottleTest(BaseTracerTestCase):
 
         # make a request
         try:
-            resp = self.app.get('/hi')
-            assert resp.status_int == 420
-        except Exception:
+            self.app.get('/hi')
+        except webtest.AppError:
             pass
 
         spans = self.tracer.writer.pop()

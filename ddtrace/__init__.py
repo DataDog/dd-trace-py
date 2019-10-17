@@ -1,3 +1,5 @@
+import sys
+
 import pkg_resources
 
 from .monkey import patch, patch_all
@@ -26,3 +28,24 @@ __all__ = [
     'Tracer',
     'config',
 ]
+
+
+_ORIGINAL_EXCEPTHOOK = sys.excepthook
+
+
+def _excepthook(type, value, traceback):
+    tracer.global_excepthook(type, value, traceback)
+    if _ORIGINAL_EXCEPTHOOK:
+        return _ORIGINAL_EXCEPTHOOK(type, value, traceback)
+
+
+def install_excepthook():
+    """Install a hook that intercepts unhandled exception and send metrics about them."""
+    global _ORIGINAL_EXCEPTHOOK
+    _ORIGINAL_EXCEPTHOOK = sys.excepthook
+    sys.excepthook = _excepthook
+
+
+def uninstall_excepthook():
+    """Uninstall the global tracer except hook."""
+    sys.excepthook = _ORIGINAL_EXCEPTHOOK
