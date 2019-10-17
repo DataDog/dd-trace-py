@@ -129,8 +129,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_dogstatsd_client_env_host_and_port(self):
         """
-        DD_AGENT_HOST|DD_DOGSTATSD_PORT point to the tracer
-        to the correct host/port for submission
+        DD_AGENT_HOST and DD_DOGSTATSD_PORT used to configure dogstatsd in tracer
         """
         with self.override_env(dict(DD_AGENT_HOST='172.10.0.1',
                                     DD_DOGSTATSD_PORT='8120')):
@@ -141,8 +140,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_dogstatsd_client_env_url_host_and_port(self):
         """
-        DD_AGENT_HOST|DD_DOGSTATSD_PORT point to the tracer
-        to the correct host/port for submission
+        DD_DOGSTATSD_URL=<host>:<port> used to configure dogstatsd in tracer
         """
         with self.override_env(dict(DD_DOGSTATSD_URL='172.10.0.1:8120')):
             out = subprocess.check_output(
@@ -152,7 +150,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_dogstatsd_client_env_url_unix(self):
         """
-        DD_STATSD_URL set to a unix socket
+        DD_DOGSTATSD_URL=unix://<path> used to configure dogstatsd in tracer
         """
         dogstatsd_url = 'unix:///dogstatsd.sock'
         with self.override_env(dict(DD_DOGSTATSD_URL=dogstatsd_url)):
