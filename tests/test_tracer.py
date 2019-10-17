@@ -446,6 +446,22 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
 
+    def test_configure_dogstatsd_host_port(self):
+        self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
+        assert self.tracer._dogstatsd_client.host == 'foo'
+        assert self.tracer._dogstatsd_client.port == 1234
+
+    def test_configure_dogstatsd_url_host_port(self):
+        self.tracer.configure(dogstatsd_url='foo:1234')
+        assert self.tracer._dogstatsd_client.host == 'foo'
+        assert self.tracer._dogstatsd_client.port == 1234
+
+    def test_configure_dogstatsd_url_socket(self):
+        self.tracer.configure(dogstatsd_url='unix:///foo.sock')
+        assert self.tracer._dogstatsd_client.host is None
+        assert self.tracer._dogstatsd_client.port is None
+        assert self.tracer._dogstatsd_client.socket_path == '/foo.sock'
+
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
 

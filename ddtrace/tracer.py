@@ -155,8 +155,9 @@ class Tracer(object):
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  dogstatsd_url=None, sampler=None, context_provider=None, wrap_executor=None,
-                  priority_sampling=None, settings=None, collect_metrics=None):
+                  dogstatsd_host=None, dogstatsd_port=None, sampler=None, context_provider=None,
+                  wrap_executor=None, priority_sampling=None, settings=None, collect_metrics=None,
+                  dogstatsd_url=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -200,11 +201,12 @@ class Tracer(object):
         if isinstance(self.sampler, DatadogSampler):
             self.sampler._priority_sampler = self.priority_sampler
 
+        if dogstatsd_host is not None and dogstatsd_port is not None and dogstatsd_url is None:
+            dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port)
+
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug('Connecting to DogStatsd({})'.format(
-                ','.join('{0}={1!r}'.format(k, v) for (k, v) in dogstatsd_kwargs.items())
-            ))
+            self.log.debug('Connecting to DogStatsd({})'.format(dogstatsd_url))
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
