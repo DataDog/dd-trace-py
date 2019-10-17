@@ -446,6 +446,11 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
 
+    def test_configure_dogstatsd_host(self):
+        self.tracer.configure(dogstatsd_host='foo')
+        assert self.tracer._dogstatsd_client.host == 'foo'
+        assert self.tracer._dogstatsd_client.port == 8125
+
     def test_configure_dogstatsd_host_port(self):
         self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
         assert self.tracer._dogstatsd_client.host == 'foo'

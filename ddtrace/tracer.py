@@ -201,8 +201,8 @@ class Tracer(object):
         if isinstance(self.sampler, DatadogSampler):
             self.sampler._priority_sampler = self.priority_sampler
 
-        if dogstatsd_host is not None and dogstatsd_port is not None and dogstatsd_url is None:
-            dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port)
+        if dogstatsd_host is not None and dogstatsd_url is None:
+            dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
