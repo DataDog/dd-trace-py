@@ -59,7 +59,7 @@ class Tracer(object):
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
     DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
-    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url', '{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
+    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url', 'udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
     DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
     def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
