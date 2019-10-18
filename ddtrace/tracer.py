@@ -22,20 +22,25 @@ from . import compat
 log = get_logger(__name__)
 
 
-def _parse_dogstatsd_url(dogstatsd_url):
-    if dogstatsd_url is None:
+def _parse_dogstatsd_url(url):
+    if url is None:
         return
 
-    # url can be either of the form `<host>:<port>` or `unix://<path>`
-    if dogstatsd_url.startswith('unix://'):
-        path = dogstatsd_url[len('unix://'):]
-        return dict(socket_path=path)
+    # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
+    # also support without url scheme included
+    if url.startswith('/'):
+        url = 'unix://' + url
+    elif '://' not in url:
+        url = 'udp://' + url
+
+    parsed = compat.parse.urlparse(url)
+
+    if parsed.scheme == 'unix':
+        return dict(socket_path=parsed.path)
+    elif parsed.scheme == 'udp':
+        return dict(host=parsed.hostname, port=parsed.port)
     else:
-        try:
-            hostname, port = dogstatsd_url.split(':')
-            return dict(host=hostname, port=int(port))
-        except ValueError:
-            raise ValueError('Unknown url format for `{}`'.format(dogstatsd_url))
+        raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
 
 
 class Tracer(object):
