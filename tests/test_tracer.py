@@ -575,6 +575,13 @@ def test_tracer_dogstatsd_url():
     assert t._dogstatsd_client.host == 'foobar'
     assert t._dogstatsd_client.port == 12
 
+    t = ddtrace.Tracer(dogstatsd_url='udp://foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='/var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
     t = ddtrace.Tracer(dogstatsd_url='unix:///var/run/statsd.sock')
     assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
 
