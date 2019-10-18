@@ -209,7 +209,7 @@ class Tracer(object):
             self.sampler._priority_sampler = self.priority_sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
             warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
                   'Use dogstatsd_url={!r}').format(dogstatsd_url))
 
