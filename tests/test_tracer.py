@@ -4,6 +4,7 @@ tests for Tracer and utilities.
 
 from os import getpid
 import sys
+import warnings
 
 from unittest.case import SkipTest
 
@@ -446,6 +447,39 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
 
+    def test_configure_dogstatsd_host(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 8125
+            # verify warnings triggered
+            assert len(w) == 1
+            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use dogstatsd_url' in str(w[-1].message)
+
+    def test_configure_dogstatsd_host_port(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 1234
+            # verify warnings triggered
+            assert len(w) == 1
+            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use dogstatsd_url' in str(w[-1].message)
+
+    def test_configure_dogstatsd_url_host_port(self):
+        self.tracer.configure(dogstatsd_url='foo:1234')
+        assert self.tracer._dogstatsd_client.host == 'foo'
+        assert self.tracer._dogstatsd_client.port == 1234
+
+    def test_configure_dogstatsd_url_socket(self):
+        self.tracer.configure(dogstatsd_url='unix:///foo.sock')
+        assert self.tracer._dogstatsd_client.host is None
+        assert self.tracer._dogstatsd_client.port is None
+        assert self.tracer._dogstatsd_client.socket_path == '/foo.sock'
+
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
 
@@ -530,3 +564,27 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url='foo://foobar:12')
         assert str(e) == 'Unknown scheme `https` for agent URL'
+
+
+def test_tracer_dogstatsd_url():
+    t = ddtrace.Tracer()
+    assert t._dogstatsd_client.host == 'localhost'
+    assert t._dogstatsd_client.port == 8125
+
+    t = ddtrace.Tracer(dogstatsd_url='foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='udp://foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='/var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
+    t = ddtrace.Tracer(dogstatsd_url='unix:///var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(dogstatsd_url='foo://foobar:12')
+        assert str(e) == 'Unknown url format for `foo://foobar:12`'
