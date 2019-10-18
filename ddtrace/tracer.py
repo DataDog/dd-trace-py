@@ -68,6 +68,7 @@ class Tracer(object):
         for common usage, so there is no need to initialize your own ``Tracer``.
 
         :param url: The Datadog agent URL.
+        :param url: The DogStatsD URL.
         """
         self.log = log
         self.sampler = None
@@ -162,8 +163,8 @@ class Tracer(object):
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  dogstatsd_host=None, dogstatsd_port=None, sampler=None, context_provider=None,
-                  wrap_executor=None, priority_sampling=None, settings=None, collect_metrics=None,
+                  sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
+                  settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
                   dogstatsd_url=None):
         """
         Configure an existing Tracer the easy way.
@@ -175,7 +176,6 @@ class Tracer(object):
         :param int port: Port of the Trace Agent
         :param str uds_path: The Unix Domain Socket path of the agent.
         :param bool https: Whether to use HTTPS or HTTP.
-        :param int metric_port: Port of DogStatsd
         :param object sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
@@ -186,6 +186,9 @@ class Tracer(object):
         :param priority_sampling: enable priority sampling, this is required for
             complete distributed tracing support. Enabled by default.
         :param collect_metrics: Whether to enable runtime metrics collection.
+        :param str dogstatsd_host: Host for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
+        :param int dogstatsd_port: Port for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
+        :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
             self.enabled = enabled
