@@ -211,7 +211,7 @@ class Tracer(object):
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = '{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
             warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
-                  'Use dogstatsd_url').format(dogstatsd_url))
+                  'Use dogstatsd_url={!r}').format(dogstatsd_url))
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
