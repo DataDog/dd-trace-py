@@ -13,7 +13,7 @@ from ...settings import config
 
 
 def _es_modules():
-    module_names = ('elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5')
+    module_names = ('elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5', 'elasticsearch6')
     for module_name in module_names:
         try:
             yield import_module(module_name)
