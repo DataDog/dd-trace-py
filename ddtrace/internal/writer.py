@@ -1,7 +1,6 @@
 # stdlib
 import itertools
 import random
-import os
 import time
 
 from .. import api

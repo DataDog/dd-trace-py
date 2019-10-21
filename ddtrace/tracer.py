@@ -427,7 +427,7 @@ class Tracer(object):
         self._update_dogstatsd_constant_tags()
 
         # Re-create the background writer thread
-        self.writer = self.writer.recreate( )
+        self.writer = self.writer.recreate()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """
