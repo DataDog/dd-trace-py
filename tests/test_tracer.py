@@ -640,7 +640,7 @@ def test_tracer_fork():
         assert t.writer == original_writer
         assert t.writer._trace_queue == original_writer._trace_queue
 
-        # Stop the background worker so we don't accidetnally flush the
+        # Stop the background worker so we don't accidentally flush the
         # queue before we can assert on it
         t.writer.stop()
         t.writer.join()
