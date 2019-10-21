@@ -43,6 +43,23 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self._stats_rate_counter = 0
         self.start()
 
+    def recreate(self):
+        """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
+
+        :rtype: :class:`AgentWriter`
+        :returns: A new :class:`AgentWriter` instance
+        """
+        return self.__class__(
+            hostname=self.api.hostname,
+            port=self.api.port,
+            uds_path=self.api.uds_path,
+            https=self.api.https,
+            shutdown_timeout=self.exit_timeout,
+            filters=self._filters,
+            priority_sampler=self._priority_sampler,
+            dogstatsd=self.dogstatsd,
+        )
+
     def _send_stats(self):
         """Determine if we're sending stats or not.
 
