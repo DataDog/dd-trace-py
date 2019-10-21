@@ -605,14 +605,25 @@ def test_tracer_fork():
 
     def task(t, errors):
         # Start a new span to trigger process checking
-        t.trace('test', service='test')
+        with t.trace('test', service='test') as span:
 
-        # Assert we recreated the writer and have a new queue
-        with capture_failures(errors):
-            assert t._pid != original_pid
-            assert t.writer != original_writer
-            assert t.writer._trace_queue != original_writer._trace_queue
+            # Assert we recreated the writer and have a new queue
+            with capture_failures(errors):
+                assert t._pid != original_pid
+                assert t.writer != original_writer
+                assert t.writer._trace_queue != original_writer._trace_queue
 
+            # Stop the background worker so we don't accidetnally flush the
+            # queue before we can assert on it
+            t.writer.stop()
+            t.writer.join()
+
+        # Assert the trace got written into the correct queue
+        assert original_writer._trace_queue.qsize() == 0
+        assert t.writer._trace_queue.qsize() == 1
+        assert [[span]] == list(t.writer._trace_queue.get())
+
+    # Assert tracer in a new process correctly recreates the writer
     errors = multiprocessing.Queue()
     p = multiprocessing.Process(target=task, args=(t, errors))
     try:
@@ -622,3 +633,19 @@ def test_tracer_fork():
 
     while errors.qsize() > 0:
         raise errors.get()
+
+    # Ensure writing into the tracer in this process still works as expected
+    with t.trace('test', service='test') as span:
+        assert t._pid == original_pid
+        assert t.writer == original_writer
+        assert t.writer._trace_queue == original_writer._trace_queue
+
+        # Stop the background worker so we don't accidetnally flush the
+        # queue before we can assert on it
+        t.writer.stop()
+        t.writer.join()
+
+    # Assert the trace got written into the correct queue
+    assert original_writer._trace_queue.qsize() == 1
+    assert t.writer._trace_queue.qsize() == 1
+    assert [[span]] == list(t.writer._trace_queue.get())
