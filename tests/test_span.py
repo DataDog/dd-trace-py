@@ -306,3 +306,9 @@ class SpanTestCase(BaseTracerTestCase):
         s.set_tag('custom.key', None)
 
         assert s.meta == {'custom.key': 'None'}
+
+    def test_duration_zero(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        s.finish(finish_time=123)
+        assert s.duration_ns == 0
+        assert s.duration == 0
