@@ -3,11 +3,10 @@ from django.apps import apps
 from django.test import TestCase
 
 # project
-from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
 
 # testing
-from ...test_tracer import DummyWriter
+from ...utils.tracer import DummyTracer
 
 
 class DjangoTracingDisabledTest(TestCase):
@@ -18,8 +17,7 @@ class DjangoTracingDisabledTest(TestCase):
 
         # Use a new tracer to be sure that a new service
         # would be sent to the the writer
-        self.tracer = Tracer()
-        self.tracer.writer = DummyWriter()
+        self.tracer = DummyTracer()
 
         # Restart app with tracing disabled
         settings.ENABLED = False

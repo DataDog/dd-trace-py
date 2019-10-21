@@ -5,7 +5,6 @@ from django.apps import apps
 from django.test import TestCase
 
 # project
-from ddtrace.tracer import Tracer
 from ddtrace.contrib.django.conf import settings
 from ddtrace.contrib.django.db import patch_db, unpatch_db
 from ddtrace.contrib.django.cache import unpatch_cache
@@ -14,12 +13,11 @@ from ddtrace.contrib.django.middleware import remove_exception_middleware, remov
 
 # testing
 from ...base import BaseTestCase
-from ...test_tracer import DummyWriter
+from ...utils.tracer import DummyTracer
 
 
 # testing tracer
-tracer = Tracer()
-tracer.writer = DummyWriter()
+tracer = DummyTracer()
 
 
 class DjangoTraceTestCase(BaseTestCase, TestCase):

@@ -51,12 +51,8 @@ def apply_django_patches(patch_rest_framework):
         tracer.set_tags(settings.TAGS)
 
     # configure the tracer instance
-    # TODO[manu]: we may use configure() but because it creates a new
-    # AgentWriter, it breaks all tests. The configure() behavior must
-    # be changed to use it in this integration
     tracer.enabled = settings.ENABLED
-    tracer.writer.api.hostname = settings.AGENT_HOSTNAME
-    tracer.writer.api.port = settings.AGENT_PORT
+    tracer.configure(hostname=settings.AGENT_HOSTNAME, port=settings.AGENT_PORT)
 
     if settings.AUTO_INSTRUMENT:
         # trace Django internals
