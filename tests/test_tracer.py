@@ -1,7 +1,8 @@
 """
 tests for Tracer and utilities.
 """
-
+import contextlib
+import multiprocessing
 from os import getpid
 import sys
 import warnings
@@ -588,3 +589,36 @@ def test_tracer_dogstatsd_url():
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(dogstatsd_url='foo://foobar:12')
         assert str(e) == 'Unknown url format for `foo://foobar:12`'
+
+
+def test_tracer_fork():
+    t = ddtrace.Tracer()
+    original_pid = t._pid
+    original_writer = t.writer
+
+    @contextlib.contextmanager
+    def capture_failures(errors):
+        try:
+            yield
+        except AssertionError as e:
+            errors.put(e)
+
+    def task(t, errors):
+        # Start a new span to trigger process checking
+        t.trace('test', service='test')
+
+        # Assert we recreated the writer and have a new queue
+        with capture_failures(errors):
+            assert t._pid != original_pid
+            assert t.writer != original_writer
+            assert t.writer._trace_queue != original_writer._trace_queue
+
+    errors = multiprocessing.Queue()
+    p = multiprocessing.Process(target=task, args=(t, errors))
+    try:
+        p.start()
+    finally:
+        p.join(timeout=2)
+
+    while errors.qsize() > 0:
+        raise errors.get()
