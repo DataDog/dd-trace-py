@@ -144,7 +144,7 @@ class Tracer(object):
         automatically called in the ``tracer.trace()``, but it can be used in the application
         code during manual instrumentation like::
 
-            from ddtrace import import tracer
+            from ddtrace import tracer
 
             async def web_handler(request):
                 context = tracer.get_call_context()
