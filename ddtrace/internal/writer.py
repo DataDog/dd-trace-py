@@ -7,6 +7,7 @@ from .. import api
 from .. import _worker
 from ..utils import sizeof
 from ..internal.logger import get_logger
+from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
 log = get_logger(__name__)
@@ -158,7 +159,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def _log_error_status(self, response):
         log_level = log.debug
-        now = time.time()
+        now = monotonic.monotonic()
         if now > self._last_error_ts + LOG_ERR_INTERVAL:
             log_level = log.error
             self._last_error_ts = now

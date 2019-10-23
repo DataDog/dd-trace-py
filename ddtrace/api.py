@@ -1,5 +1,4 @@
 # stdlib
-import time
 import ddtrace
 from json import loads
 import socket
@@ -11,6 +10,7 @@ from .internal.logger import get_logger
 from .internal.runtime import container
 from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
+from .utils import time
 
 
 log = get_logger(__name__)
@@ -207,33 +207,33 @@ class API(object):
         if not traces:
             return []
 
-        start = time.time()
-        responses = []
-        payload = Payload(encoder=self._encoder)
-        for trace in traces:
-            try:
-                payload.add_trace(trace)
-            except PayloadFull:
-                # Is payload full or is the trace too big?
-                # If payload is not empty, then using a new Payload might allow us to fit the trace.
-                # Let's flush the Payload and try to put the trace in a new empty Payload.
-                if not payload.empty:
-                    responses.append(self._flush(payload))
-                    # Create a new payload
-                    payload = Payload(encoder=self._encoder)
-                    try:
-                        # Add the trace that we were unable to add in that iteration
-                        payload.add_trace(trace)
-                    except PayloadFull:
-                        # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
+        with time.StopWatch() as sw:
+            responses = []
+            payload = Payload(encoder=self._encoder)
+            for trace in traces:
+                try:
+                    payload.add_trace(trace)
+                except PayloadFull:
+                    # Is payload full or is the trace too big?
+                    # If payload is not empty, then using a new Payload might allow us to fit the trace.
+                    # Let's flush the Payload and try to put the trace in a new empty Payload.
+                    if not payload.empty:
+                        responses.append(self._flush(payload))
+                        # Create a new payload
+                        payload = Payload(encoder=self._encoder)
+                        try:
+                            # Add the trace that we were unable to add in that iteration
+                            payload.add_trace(trace)
+                        except PayloadFull:
+                            # If the trace does not fit in a payload on its own, that's bad. Drop it.
+                            log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
-        # Check that the Payload is not empty:
-        # it could be empty if the last trace was too big to fit.
-        if not payload.empty:
-            responses.append(self._flush(payload))
+            # Check that the Payload is not empty:
+            # it could be empty if the last trace was too big to fit.
+            if not payload.empty:
+                responses.append(self._flush(payload))
 
-        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
+        log.debug('reported %d traces in %.5fs', len(traces), sw.elapsed())
 
         return responses
 
