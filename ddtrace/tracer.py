@@ -144,7 +144,7 @@ class Tracer(object):
         automatically called in the ``tracer.trace()``, but it can be used in the application
         code during manual instrumentation like::
 
-            from ddtrace import import tracer
+            from ddtrace import tracer
 
             async def web_handler(request):
                 context = tracer.get_call_context()
@@ -378,8 +378,7 @@ class Tracer(object):
         context.add_span(span)
 
         # check for new process if runtime metrics worker has already been started
-        if self._runtime_worker:
-            self._check_new_process()
+        self._check_new_process()
 
         # update set of services handled by tracer
         if service and service not in self._services:
@@ -426,6 +425,9 @@ class Tracer(object):
         # force an immediate update constant tags since we have reset services
         # and generated a new runtime id
         self._update_dogstatsd_constant_tags()
+
+        # Re-create the background writer thread
+        self.writer = self.writer.recreate()
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

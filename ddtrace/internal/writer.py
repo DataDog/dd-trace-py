@@ -1,7 +1,6 @@
 # stdlib
 import itertools
 import random
-import os
 import time
 
 from .. import api
@@ -33,7 +32,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(interval=self.QUEUE_PROCESSING_INTERVAL,
                                           exit_timeout=shutdown_timeout,
                                           name=self.__class__.__name__)
-        self._reset_queue()
+        self._trace_queue = Q(maxsize=MAX_TRACES)
         self._filters = filters
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
@@ -42,6 +41,23 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                            priority_sampling=priority_sampler is not None)
         self._stats_rate_counter = 0
         self.start()
+
+    def recreate(self):
+        """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
+
+        :rtype: :class:`AgentWriter`
+        :returns: A new :class:`AgentWriter` instance
+        """
+        return self.__class__(
+            hostname=self.api.hostname,
+            port=self.api.port,
+            uds_path=self.api.uds_path,
+            https=self.api.https,
+            shutdown_timeout=self.exit_timeout,
+            filters=self._filters,
+            priority_sampler=self._priority_sampler,
+            dogstatsd=self.dogstatsd,
+        )
 
     def _send_stats(self):
         """Determine if we're sending stats or not.
@@ -62,18 +78,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         return False
 
-    def _reset_queue(self):
-        self._pid = os.getpid()
-        self._trace_queue = Q(maxsize=MAX_TRACES)
-
     def write(self, spans=None, services=None):
-        # if this queue was created in a different process (i.e. this was
-        # forked) reset everything so that we can safely work from it.
-        pid = os.getpid()
-        if self._pid != pid:
-            log.debug('resetting queues. pids(old:%s new:%s)', self._pid, pid)
-            self._reset_queue()
-
         if spans:
             self._trace_queue.put(spans)
 
