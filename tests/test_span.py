@@ -322,6 +322,11 @@ class SpanTestCase(BaseTracerTestCase):
         assert s.start == 123.123
         assert s.start_ns == 123123000000
 
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.123)
+        s.start = 234567890.0
+        assert s.start == 234567890
+        assert s.start_ns == 234567890000000000
+
     def test_duration_int(self):
         s = Span(tracer=None, name='foo.bar', service='s', resource='r')
         s.finish()
