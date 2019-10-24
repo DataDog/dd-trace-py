@@ -113,7 +113,7 @@ class Span(object):
 
     @start.setter
     def start(self, value):
-        self.start_ns = value * 1e9
+        self.start_ns = int(value * 1e9)
 
     @property
     def duration(self):
