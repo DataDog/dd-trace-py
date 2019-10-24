@@ -312,3 +312,33 @@ class SpanTestCase(BaseTracerTestCase):
         s.finish(finish_time=123)
         assert s.duration_ns == 0
         assert s.duration == 0
+
+    def test_start_int(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        assert s.start == 123
+        assert s.start_ns == 123000000000
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.123)
+        assert s.start == 123.123
+        assert s.start_ns == 123123000000
+
+    def test_duration_int(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r')
+        s.finish()
+        assert isinstance(s.duration_ns, int)
+        assert isinstance(s.duration, float)
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        s.finish(finish_time=123.2)
+        assert s.duration_ns == 200000000
+        assert s.duration == 0.2
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.1)
+        s.finish(finish_time=123.2)
+        assert s.duration_ns == 100000000
+        assert s.duration == 0.1
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=122)
+        s.finish(finish_time=123)
+        assert s.duration_ns == 1000000000
+        assert s.duration == 1

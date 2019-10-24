@@ -88,7 +88,7 @@ class Span(object):
         self.metrics = {}
 
         # timing
-        self.start_ns = time_ns() if start is None else (start * 1e9)
+        self.start_ns = time_ns() if start is None else int(start * 1e9)
         self.duration_ns = None
 
         # tracing
@@ -137,7 +137,7 @@ class Span(object):
         self.finished = True
 
         if self.duration_ns is None:
-            ft = time_ns() if finish_time is None else (finish_time * 1e9)
+            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
             # be defensive so we don't die if start isn't set
             self.duration_ns = ft - (self.start_ns or ft)
 
