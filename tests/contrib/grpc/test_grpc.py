@@ -301,6 +301,7 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'aborted'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.ABORTED'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.ABORTED'
@@ -322,6 +323,7 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'custom'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'tests.contrib.grpc.test_grpc._CustomException'
         assert client_span.get_tag(errors.ERROR_STACK) is not None
@@ -329,6 +331,7 @@ class GrpcTestCase(BaseTracerTestCase):
 
         # no exception on server end
         assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.error == 0
         assert server_span.get_tag(errors.ERROR_MSG) is None
         assert server_span.get_tag(errors.ERROR_TYPE) is None
         assert server_span.get_tag(errors.ERROR_STACK) is None
@@ -343,11 +346,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
@@ -368,11 +373,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
@@ -388,11 +395,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.RESOURCE_EXHAUSTED'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
