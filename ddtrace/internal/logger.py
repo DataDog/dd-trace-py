@@ -110,7 +110,8 @@ class DDLogger(logging.Logger):
         if logging_bucket.bucket != current_bucket:
             # Append count of skipped messages if we have skipped some since our last logging
             if logging_bucket.skipped:
-                record.msg = '{}, {} additional messages skipped'.format(record.msg, logging_bucket.skipped)
+                record.msg = '{}, %s additional messages skipped'.format(record.msg)
+                record.args = record.args + (logging_bucket.skipped,)
 
             # Reset our bucket
             self.buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)
