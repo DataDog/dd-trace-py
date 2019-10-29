@@ -264,8 +264,8 @@ class DDLoggerTestCase(BaseTestCase):
 
         # Create log record to handle
         original_msg = 'hello %s'
-        original_args = (1,)
-        record = self._make_record(log, msg=original_msg, args=(1,))
+        original_args = (1, )
+        record = self._make_record(log, msg=original_msg, args=(1, ))
 
         # Create a bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
@@ -280,7 +280,7 @@ class DDLoggerTestCase(BaseTestCase):
         base_handle.assert_called_once_with(record)
 
         self.assertEqual(record.msg, original_msg + ', %s additional messages skipped')
-        self.assertEqual(record.args, original_args + (20,))
+        self.assertEqual(record.args, original_args + (20, ))
         self.assertEqual(record.getMessage(), 'hello 1, 20 additional messages skipped')
 
     def test_logger_handle_bucket_key(self):
