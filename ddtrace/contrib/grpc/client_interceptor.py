@@ -83,6 +83,7 @@ def _handle_error(span, response_error, status_code):
     traceback = response_error.traceback()
 
     if exception is not None and traceback is not None:
+        span.error = 1
         if isinstance(exception, grpc.RpcError):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
