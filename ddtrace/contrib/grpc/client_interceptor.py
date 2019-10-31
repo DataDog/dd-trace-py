@@ -70,13 +70,22 @@ def _handle_response(span, response):
 
 
 def _handle_error(span, response_error, status_code):
-    # response_error should be a grpc.Future and so we expect to have
-    # exception() and traceback() methods if a computation has resulted in
-    # an exception being raised
+    # response_error should be a grpc.Future and so we expect to have cancelled(),
+    # exception() and traceback() methods if a computation has resulted in an
+    # exception being raised
     if (
+        not callable(getattr(response_error, 'cancelled', None)) and
         not callable(getattr(response_error, 'exception', None)) and
         not callable(getattr(response_error, 'traceback', None))
     ):
+        return
+
+    if response_error.cancelled():
+        # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
+        span.error = 1
+        exc_val = to_unicode(response_error.details())
+        span.set_tag(errors.ERROR_MSG, exc_val)
+        span.set_tag(errors.ERROR_TYPE, status_code)
         return
 
     exception = response_error.exception()
