@@ -162,7 +162,8 @@ class Span(object):
 
         if key in NUMERIC_TAGS:
             try:
-                self.set_metric(key, float(value))
+                # DEV: `set_metric` will try to cast to `float()` for us
+                self.set_metric(key, value)
             except (TypeError, ValueError):
                 log.debug('error setting numeric metric {}:{}'.format(key, value))
 
