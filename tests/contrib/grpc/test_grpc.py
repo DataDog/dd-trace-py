@@ -5,6 +5,7 @@ from grpc.framework.foundation import logging_pool
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace.contrib.grpc import constants
+from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from ddtrace import Pin
 
@@ -335,6 +336,36 @@ class GrpcTestCase(BaseTracerTestCase):
         assert server_span.get_tag(errors.ERROR_MSG) is None
         assert server_span.get_tag(errors.ERROR_TYPE) is None
         assert server_span.get_tag(errors.ERROR_STACK) is None
+
+    def test_client_cancellation(self):
+        # unpatch and restart server since we are only testing here caller cancellation
+        self._stop_server()
+        _unpatch_server()
+        self._start_server()
+
+        # have servicer sleep whenever request is handled to ensure we can cancel before server responds
+        # to requests
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['sleep']
+        )
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            with self.assertRaises(grpc.RpcError):
+                stub = HelloStub(channel)
+                responses = stub.SayHelloRepeatedly(requests_iterator)
+                responses.cancel()
+                next(responses)
+
+        spans = self.get_spans_with_sync_and_assert(size=1)
+        client_span = spans[0]
+
+        assert client_span.resource == '/helloworld.Hello/SayHelloRepeatedly'
+        assert client_span.error == 1
+        assert client_span.get_tag(errors.ERROR_MSG) == 'Locally cancelled by application!'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.CANCELLED'
+        assert client_span.get_tag(errors.ERROR_STACK) is None
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.CANCELLED'
 
     def test_unary_exception(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
