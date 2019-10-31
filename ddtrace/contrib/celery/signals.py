@@ -15,6 +15,7 @@ def trace_prerun(*args, **kwargs):
     # changes in Celery
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
+    log.debug('prerun signal start task_id=%s', task_id)
     if task is None or task_id is None:
         log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
@@ -22,6 +23,7 @@ def trace_prerun(*args, **kwargs):
     # retrieve the task Pin or fallback to the global one
     pin = Pin.get_from(task) or Pin.get_from(task.app)
     if pin is None:
+        log.debug('no pin found on task or task.app task_id=%s', task_id)
         return
 
     # propagate the `Span` in the current task Context
@@ -35,6 +37,7 @@ def trace_postrun(*args, **kwargs):
     # changes in Celery
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
+    log.debug('postrun signal task_id=%s', task_id)
     if task is None or task_id is None:
         log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
@@ -42,6 +45,7 @@ def trace_postrun(*args, **kwargs):
     # retrieve and finish the Span
     span = retrieve_span(task, task_id)
     if span is None:
+        log.warning('no existing span found for task_id=%s', task_id)
         return
     else:
         # request context tags
