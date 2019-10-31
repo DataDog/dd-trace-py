@@ -4,7 +4,7 @@ import sys
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns
-from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY, ANALYTICS_SAMPLE_RATE_KEY
+from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
 from .ext import errors, priority
 from .internal.logger import get_logger
 
