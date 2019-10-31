@@ -287,10 +287,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     resource = u'{} {}'.format(request.method, request.path)
     with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
         # set analytics sample rate with global config enabled
-        s.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.flask.get_analytics_sample_rate(use_global_config=True)
-        )
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         s.set_tag(FLASK_VERSION, flask_version_str)
 
