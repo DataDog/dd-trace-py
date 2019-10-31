@@ -168,7 +168,10 @@ class _ClientInterceptor(
         span.set_tag(constants.GRPC_HOST_KEY, self._host)
         span.set_tag(constants.GRPC_PORT_KEY, self._port)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+
+        sample_rate = config.grpc.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # inject tags from pin
         if self._pin.tags:

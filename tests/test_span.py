@@ -1,3 +1,4 @@
+import mock
 import time
 
 from unittest.case import SkipTest
@@ -213,12 +214,20 @@ class SpanTestCase(BaseTracerTestCase):
         assert d['error'] == 1
         assert type(d['error']) == int
 
-    def test_numeric_tags_none(self):
+    @mock.patch('ddtrace.span.log')
+    def test_numeric_tags_none(self, span_log):
         s = Span(tracer=None, name='test.span')
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
         d = s.to_dict()
         assert d
         assert 'metrics' not in d
+
+        # Ensure we log a debug message
+        span_log.debug.assert_called_once_with(
+            'ignoring not number metric %s:%s',
+            ANALYTICS_SAMPLE_RATE_KEY,
+            None,
+        )
 
     def test_numeric_tags_true(self):
         s = Span(tracer=None, name='test.span')
