@@ -4,7 +4,6 @@ DogStatsd is a Python client for DogStatsd, a Statsd fork for Datadog.
 """
 # stdlib
 from random import random
-import logging
 import os
 import socket
 from threading import Lock
@@ -14,8 +13,11 @@ from .context import TimedContextManagerDecorator
 from .route import get_default_route
 from .compat import text
 
+# ddtrace
+from ...internal.logger import get_logger
+
 # Logging
-log = logging.getLogger('datadog.dogstatsd')
+log = get_logger('ddtrace.vendor.datadog.dogstatsd')
 
 # Default config
 DEFAULT_HOST = 'localhost'

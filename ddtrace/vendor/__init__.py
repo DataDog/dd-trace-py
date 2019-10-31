@@ -59,6 +59,7 @@ Notes:
   `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
   Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
+  `datadog/base.py` was updated to use `ddtrace.internal.logger.get_logger` instead of `logging.getLogger` to utilize internal rate limited logger
 
 monotonic
 ---------
