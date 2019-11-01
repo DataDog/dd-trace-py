@@ -73,3 +73,11 @@ Notes:
 
   No other changes were made
 """
+
+# Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
+# DEV: This helps ensure if there are connection issues we do not spam their logs
+# DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
+#      not conflict with any non-vendored datadog.dogstatsd logger
+from ..internal.logger import get_logger
+from .dogstatsd import base
+base.log = get_logger('ddtrace.vendor.dogstatsd')
