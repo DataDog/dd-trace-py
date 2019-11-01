@@ -88,7 +88,7 @@ class Span(object):
         self.metrics = {}
 
         # timing
-        self.start_ns = time_ns() if start is None else (start * 1e9)
+        self.start_ns = time_ns() if start is None else int(start * 1e9)
         self.duration_ns = None
 
         # tracing
@@ -113,7 +113,7 @@ class Span(object):
 
     @start.setter
     def start(self, value):
-        self.start_ns = value * 1e9
+        self.start_ns = int(value * 1e9)
 
     @property
     def duration(self):
@@ -137,7 +137,7 @@ class Span(object):
         self.finished = True
 
         if self.duration_ns is None:
-            ft = time_ns() if finish_time is None else (finish_time * 1e9)
+            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
             # be defensive so we don't die if start isn't set
             self.duration_ns = ft - (self.start_ns or ft)
 
@@ -162,7 +162,8 @@ class Span(object):
 
         if key in NUMERIC_TAGS:
             try:
-                self.set_metric(key, float(value))
+                # DEV: `set_metric` will try to cast to `float()` for us
+                self.set_metric(key, value)
             except (TypeError, ValueError):
                 log.debug('error setting numeric metric {}:{}'.format(key, value))
 
