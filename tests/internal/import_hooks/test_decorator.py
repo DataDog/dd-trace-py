@@ -2,7 +2,7 @@ import mock
 import pytest
 
 from ddtrace.internal import import_hooks
-from ddtrace.internal.import_hooks.decorator import register_module_hook
+from ddtrace.internal.import_hooks import register_module_hook
 
 
 @pytest.fixture

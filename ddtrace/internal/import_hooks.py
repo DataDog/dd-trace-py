@@ -53,12 +53,102 @@ import sys
 
 import wrapt
 
-from ...compat import PY3
-from ..logger import get_logger
-from .registry import hooks
+from ..compat import PY3
+from .logger import get_logger
 
+__all__ = ['hooks', 'register_module_hook', 'patch', 'unpatch']
 
 log = get_logger(__name__)
+
+
+class ModuleHookRegistry(object):
+    """
+    Registry to keep track of all module import hooks defined
+    """
+    __slots__ = ('hooks', )
+
+    def __init__(self):
+        """
+        Initialize a new registry
+        """
+        self.reset()
+
+    def register(self, name, func):
+        """
+        Register a new hook function for the provided module name
+
+        If the module is already loaded, then ``func`` is called immediately
+
+        :param name: The name of the module to add the hook for (e.g. 'requests', 'flask.app', etc)
+        :type name: str
+        :param func: The function to register as a hook
+        :type func: function(module)
+        """
+        if name not in self.hooks:
+            self.hooks[name] = set([func])
+        else:
+            self.hooks[name].add(func)
+
+        # Module is already loaded, call hook right away
+        if name in sys.modules:
+            func(sys.modules[name])
+
+    def deregister(self, name, func):
+        """
+        Deregister an already registered hook function
+
+        :param name: The name of the module the hook was for (e.g. 'requests', 'flask.app', etc)
+        :type name: str
+        :param func: The function that was registered previously
+        :type func: function(module)
+        """
+        # If no hooks exist for this module, return
+        if name not in self.hooks:
+            return
+
+        # Remove this function from the hooks if exists
+        if func in self.hooks[name]:
+            self.hooks[name].remove(func)
+
+    def call(self, name, module=None):
+        """
+        Call all hooks for the provided module
+
+        If no module was provided then we will attempt to grab from ``sys.modules`` first
+
+        :param name: The name of the module to call hooks for (e.g. 'requests', 'flask.app', etc)
+        :type name: str
+        :param module: Optional, the module object to pass to hook functions
+        :type module: Module|None
+        """
+        # Make sure we have hooks for this module
+        if not self.hooks.get(name):
+            log.debug('No hooks registered for module %r', name)
+            return
+
+        # Try to fetch from `sys.modules` if one wasn't given directly
+        if module is None:
+            module = sys.modules.get(name)
+
+        # No module found, don't call anything
+        if not module:
+            log.warning('Tried to call hooks for unloaded module %r', name)
+            return
+
+        # Call all hooks for this module
+        for hook in self.hooks[name]:
+            try:
+                hook(module)
+            except Exception:
+                log.warning('Failed to call hook %r for module %r', hook, name, exc_info=True)
+
+    def reset(self):
+        """Reset/remove all registered hooks"""
+        self.hooks = dict()
+
+
+# Default/global module hook registry
+hooks = ModuleHookRegistry()
 
 
 def exec_and_call_hooks(module_name, wrapped, args, kwargs):
@@ -174,6 +264,7 @@ def _patch():
     _patched = True
 
 
+# DEV: This is called at the end of this module to ensure we always patch
 def patch():
     """
     Patch Python import system, enabling import hooks
@@ -224,3 +315,44 @@ def unpatch():
         _unpatch()
     except Exception:
         log.debug('Failed to unpatch module importing', exc_info=True)
+
+
+def register_module_hook(module_name, func=None):
+    """
+    Register a function as a module import hook
+
+    .. code:: python
+
+        @register_module_hook('requests')
+        def requests_hook(requests_module):
+            pass
+
+
+        def requests_hook(requests_module):
+            pass
+
+
+        register_module_hook('requests', requests_hook)
+
+
+    :param module_name: The name of the module to add a hook for (e.g. 'requests', 'flask.app', etc)
+    :type module_name: str
+    :param func: The hook function to call when the ``module_name`` is imported
+    :type func: function(module)
+    :returns: Either a decorator function if ``func`` is not provided, or else the original function
+    :rtype: func
+
+    """
+    # If they did not give us a function, then return a decorator function
+    if not func:
+        def wrapper(func):
+            return register_module_hook(module_name, func)
+        return wrapper
+
+    # Register this function as an import hook
+    hooks.register(module_name, func)
+    return func
+
+
+# Make sure we always patch
+patch()

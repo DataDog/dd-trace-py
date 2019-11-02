@@ -3,12 +3,13 @@ import sys
 
 import pytest
 
-from ddtrace.internal.import_hooks import registry
+from ddtrace.internal.import_hooks import ModuleHookRegistry
+from ddtrace.internal.import_hooks import hooks as global_hooks
 
 
 @pytest.fixture
 def hooks():
-    return registry.ModuleHookRegistry()
+    return ModuleHookRegistry()
 
 
 @pytest.fixture
@@ -23,10 +24,10 @@ def test_global_hooks():
         Is has no hooks registered
     """
     # Is an instance of expected class
-    assert isinstance(registry.hooks, registry.ModuleHookRegistry)
+    assert isinstance(global_hooks, ModuleHookRegistry)
 
     # No hooks are registered by default
-    assert len(registry.hooks.hooks) == 0
+    assert len(global_hooks.hooks) == 0
 
 
 def test_registry_init(hooks):
@@ -241,8 +242,8 @@ def test_registry_call_with_no_module(hooks):
     hook_three.assert_not_called()
 
 
-@mock.patch('ddtrace.internal.import_hooks.registry.log')
-def test_registry_call_with_hook_exception(registry_log, hooks):
+@mock.patch('ddtrace.internal.import_hooks.log')
+def test_registry_call_with_hook_exception(hooks_log, hooks):
     """
     When calling module hooks
         When the a hook raises an exception
@@ -271,7 +272,7 @@ def test_registry_call_with_hook_exception(registry_log, hooks):
     hook_three.assert_called_once_with(module)
 
     # Assert we logged a warning about the hook failing
-    registry_log.warning.assert_called_once_with(
+    hooks_log.warning.assert_called_once_with(
         'Failed to call hook %r for module %r',
         hook_two,
         module_name,
