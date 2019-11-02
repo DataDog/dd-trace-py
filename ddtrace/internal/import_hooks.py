@@ -317,7 +317,7 @@ def unpatch():
         log.debug('Failed to unpatch module importing', exc_info=True)
 
 
-def register_module_hook(module_name, func=None):
+def register_module_hook(module_name, func=None, registry=hooks):
     """
     Register a function as a module import hook
 
@@ -339,6 +339,8 @@ def register_module_hook(module_name, func=None):
     :type module_name: str
     :param func: The hook function to call when the ``module_name`` is imported
     :type func: function(module)
+    :param registry: The hook registry to add this hook to (default: default global registry)
+    :type registry: :class:`ModuleHookRegistry`
     :returns: Either a decorator function if ``func`` is not provided, or else the original function
     :rtype: func
 
@@ -346,11 +348,11 @@ def register_module_hook(module_name, func=None):
     # If they did not give us a function, then return a decorator function
     if not func:
         def wrapper(func):
-            return register_module_hook(module_name, func)
+            return register_module_hook(module_name, func, registry=registry)
         return wrapper
 
     # Register this function as an import hook
-    hooks.register(module_name, func)
+    registry.register(module_name, func)
     return func
 
 

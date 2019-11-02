@@ -1,16 +1,12 @@
 import mock
 import pytest
 
-from ddtrace.internal import import_hooks
-from ddtrace.internal.import_hooks import register_module_hook
+from ddtrace.internal.import_hooks import register_module_hook, ModuleHookRegistry
 
 
 @pytest.fixture
 def hooks():
-    try:
-        yield import_hooks.hooks
-    finally:
-        import_hooks.hooks.reset()
+    yield ModuleHookRegistry()
 
 
 def test_register_module_hook_func(hooks):
@@ -21,7 +17,7 @@ def test_register_module_hook_func(hooks):
     """
     # Create and register a module hook
     module_hook = mock.Mock()
-    hook_res = register_module_hook('module', module_hook)
+    hook_res = register_module_hook('module', module_hook, registry=hooks)
 
     # Ensure the returned value is our original function
     assert hook_res == module_hook
@@ -45,7 +41,7 @@ def test_register_module_hook_decorator(hooks):
     #   @register_module_hook('module')
     #   def module_hook(module):
     #       pass
-    hook_res = register_module_hook('module')(module_hook)
+    hook_res = register_module_hook('module', registry=hooks)(module_hook)
 
     # Ensure the returned value is our original function
     assert hook_res == module_hook
