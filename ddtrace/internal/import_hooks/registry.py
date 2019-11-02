@@ -6,7 +6,7 @@ from ..logger import get_logger
 log = get_logger(__name__)
 
 
-class ModuleHookRegistry:
+class ModuleHookRegistry(object):
     """
     Registry to keep track of all module import hooks defined
     """

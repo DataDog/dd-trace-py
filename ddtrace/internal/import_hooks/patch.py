@@ -6,7 +6,7 @@ of patching internal Python functions and builtin functions the most reliable an
 least invassive process.
 
 Given the challenges faced by implementing PEP 302, and our experience with monkey patching
-monkey patching and wrapping internal Python functions was an easier and more reliable way
+and wrapping internal Python functions was an easier and more reliable way
 of implementing this feature in a way that has little effect on other packages.
 
 For us to successfully use import hooks, we need to ensure that the hooks are always called
@@ -53,6 +53,7 @@ import sys
 
 import wrapt
 
+from ...compat import PY3
 from ..logger import get_logger
 from .registry import hooks
 
@@ -82,7 +83,7 @@ def wrapped_reload(wrapped, instance, args, kwargs):
     module_name = None
     try:
         # Python 3 added specs, no need to even check for `__spec__` if we are in Python 2
-        if sys.version_info >= (3, 4):
+        if PY3:
             try:
                 module_name = args[0].__spec__.name
             except AttributeError:
@@ -140,12 +141,9 @@ def _patch():
     global _patched
     if _patched:
         return
-    _patched = True
 
-    # 3.4 -> 3.8
-    # DEV: Explicitly stop at 3.8 in case the functions we are patching change in any way,
-    #      we need to validate them before adding support here
-    if (3, 4) <= sys.version_info <= (3, 8):
+    # 3.x
+    if PY3:
         # 3.4: https://github.com/python/cpython/blob/3.4/Lib/importlib/_bootstrap.py#L2207-L2231
         # 3.5: https://github.com/python/cpython/blob/3.5/Lib/importlib/_bootstrap.py#L938-L962
         # 3.6: https://github.com/python/cpython/blob/3.6/Lib/importlib/_bootstrap.py#L936-L960
@@ -170,6 +168,9 @@ def _patch():
 
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L2147-L2160
         __builtins__['reload'] = wrapt.FunctionWrapper(__builtins__['reload'], wrapped_reload)
+
+    # Update after we have successfully patched
+    _patched = True
 
 
 def patch():
