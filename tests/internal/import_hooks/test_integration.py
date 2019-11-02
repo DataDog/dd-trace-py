@@ -17,16 +17,16 @@ def hooks():
 
 
 @contextlib.contextmanager
-def remove_module():
-    was_loaded = 'urllib' in sys.modules
+def remove_module(name):
+    was_loaded = name in sys.modules
     try:
         # Ensure urllib is not loaded
         if was_loaded:
-            del sys.modules['urllib']
+            del sys.modules[name]
         yield
     finally:
         if not was_loaded:
-            del sys.modules['urllib']
+            del sys.modules[name]
 
 
 def test_import_hooks(hooks):
@@ -35,10 +35,11 @@ def test_import_hooks(hooks):
         Gets called after the module was imported
     """
     # Ensure our module is not yet loaded
-    with remove_module():
+    mod_name = 'urllib'
+    with remove_module(mod_name):
         # Register our hook (when the module is not loaded)
         module_hook = mock.Mock()
-        import_hooks.register_module_hook('urllib', module_hook)
+        import_hooks.register_module_hook(mod_name, module_hook)
 
         # Import the module being hooked
         import urllib
@@ -46,4 +47,4 @@ def test_import_hooks(hooks):
         # Ensure we called our hook with the module
         # DEV: Slightly redundant to check twice, but good to be sure
         module_hook.assert_called_once_with(urllib)
-        module_hook.assert_called_once_with(sys.modules['urllib'])
+        module_hook.assert_called_once_with(sys.modules[mod_name])

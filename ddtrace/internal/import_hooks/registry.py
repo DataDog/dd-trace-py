@@ -1,4 +1,3 @@
-from collections import defaultdict
 import sys
 
 from ..logger import get_logger
@@ -29,7 +28,10 @@ class ModuleHookRegistry(object):
         :param func: The function to register as a hook
         :type func: function(module)
         """
-        self.hooks[name].add(func)
+        if name not in self.hooks:
+            self.hooks[name] = set([func])
+        else:
+            self.hooks[name].add(func)
 
         # Module is already loaded, call hook right away
         if name in sys.modules:
@@ -63,12 +65,9 @@ class ModuleHookRegistry(object):
         :param module: Optional, the module object to pass to hook functions
         :type module: Module|None
         """
-        # If no name was provided, exit early
-        if not name:
-            return
-
         # Make sure we have hooks for this module
-        if name not in self.hooks:
+        if not self.hooks.get(name):
+            log.debug('No hooks registered for module %r', name)
             return
 
         # Try to fetch from `sys.modules` if one wasn't given directly
@@ -77,6 +76,7 @@ class ModuleHookRegistry(object):
 
         # No module found, don't call anything
         if not module:
+            log.warning('Tried to call hooks for unloaded module %r', name)
             return
 
         # Call all hooks for this module
@@ -84,11 +84,11 @@ class ModuleHookRegistry(object):
             try:
                 hook(module)
             except Exception:
-                log.debug('Failed to call hook %r for module %r', hook, name, exec_info=True)
+                log.warning('Failed to call hook %r for module %r', hook, name, exc_info=True)
 
     def reset(self):
         """Reset/remove all registered hooks"""
-        self.hooks = defaultdict(set)
+        self.hooks = dict()
 
 
 # Default/global module hook registry

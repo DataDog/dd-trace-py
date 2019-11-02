@@ -19,7 +19,7 @@ def module_hook():
 def test_global_hooks():
     """
     When importing the global default hook registry
-        It is an instance of ModuleHookdRegistry
+        It is an instance of ModuleHookRegistry
         Is has no hooks registered
     """
     # Is an instance of expected class
@@ -235,13 +235,14 @@ def test_registry_call_with_no_module(hooks):
     # Call hooks for the module
     hooks.call(module_name)
 
-    # Assert all hooks were called
+    # Assert no hooks were called
     hook_one.assert_not_called()
     hook_two.assert_not_called()
     hook_three.assert_not_called()
 
 
-def test_registry_call_with_hook_exception(hooks):
+@mock.patch('ddtrace.internal.import_hooks.registry.log')
+def test_registry_call_with_hook_exception(registry_log, hooks):
     """
     When calling module hooks
         When the a hook raises an exception
@@ -268,6 +269,14 @@ def test_registry_call_with_hook_exception(hooks):
     hook_one.assert_called_once_with(module)
     hook_two.assert_called_once_with(module)
     hook_three.assert_called_once_with(module)
+
+    # Assert we logged a warning about the hook failing
+    registry_log.warning.assert_called_once_with(
+        'Failed to call hook %r for module %r',
+        hook_two,
+        module_name,
+        exc_info=True,
+    )
 
 
 def test_registry_call_no_name(hooks):

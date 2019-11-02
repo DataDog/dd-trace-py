@@ -1,9 +1,9 @@
 """
 Module for patching Python's internal import system for import hooks.
 
-There are a few ways to monitor Python imports, but we have found the follow method
+There are a few ways to monitor Python imports, but we have found the following method
 of patching internal Python functions and builtin functions the most reliable and
-least invassive process.
+least invasive process.
 
 Given the challenges faced by implementing PEP 302, and our experience with monkey patching
 and wrapping internal Python functions was an easier and more reliable way
@@ -41,7 +41,7 @@ or another file format.
 3) The code is a little complex. In order to write a no-op finder we need to ensure
 other finders are called by us, and then at the end we look if they found a module and return it.
 
-This is the approach `wrapt` went for and requires locking and keep state of the current module
+This is the approach `wrapt` went for and requires locking and keeping the state of the current module
 being loaded and re-calling `__import__` for the module to trigger the other finders.
 
 4) Reloading a module is a weird case that doesn't always trigger a module finder.
@@ -71,9 +71,10 @@ def exec_and_call_hooks(module_name, wrapped, args, kwargs):
     finally:
         # Never let this function fail to execute
         try:
+            # DEV: `hooks.call()` will only call hooks if the module was successfully loaded
             hooks.call(module_name)
         except Exception:
-            log.debug('Failed to call hooks for module %r', module_name, exec_info=True)
+            log.debug('Failed to call hooks for module %r', module_name, exc_info=True)
 
 
 def wrapped_reload(wrapped, instance, args, kwargs):
@@ -91,7 +92,7 @@ def wrapped_reload(wrapped, instance, args, kwargs):
         else:
             module_name = args[0].__name__
     except Exception:
-        log.debug('Failed to determine module name when calling `reload`: %r', args, exec_info=True)
+        log.debug('Failed to determine module name when calling `reload`: %r', args, exc_info=True)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
@@ -107,7 +108,7 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
     try:
         module_name = args[0]
     except Exception:
-        log.debug('Failed to determine module name when importing module: %r', args, exec_info=True)
+        log.debug('Failed to determine module name when importing module: %r', args, exc_info=True)
         return wrapped(*args, **kwargs)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
@@ -121,7 +122,7 @@ def wrapped_import(wrapped, instance, args, kwargs):
     try:
         module_name = args[0]
     except Exception:
-        log.debug('Failed to determine module name when importing module: %r', args, exec_info=True)
+        log.debug('Failed to determine module name when importing module: %r', args, exc_info=True)
         return wrapped(*args, **kwargs)
 
     # Do not call the hooks every time `import <module>` is called,
@@ -181,7 +182,7 @@ def patch():
     try:
         _patch()
     except Exception:
-        log.debug('Failed to patch module importing, import hooks will not work', exec_info=True)
+        log.debug('Failed to patch module importing, import hooks will not work', exc_info=True)
 
 
 def _unpatch():
@@ -222,4 +223,4 @@ def unpatch():
     try:
         _unpatch()
     except Exception:
-        log.debug('Failed to unpatch module importing', exec_info=True)
+        log.debug('Failed to unpatch module importing', exc_info=True)
