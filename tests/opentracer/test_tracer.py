@@ -127,8 +127,8 @@ class TestTracer(object):
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
         t = 100
-        with mock.patch('time.time') as time:
-            time.return_value = 102
+        with mock.patch('ddtrace.span.time_ns') as time:
+            time.return_value = 102 * 1e9
             with ot_tracer.start_span('myop', start_time=t) as span:
                 pass
 
