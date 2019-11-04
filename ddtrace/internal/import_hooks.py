@@ -357,7 +357,3 @@ def register_module_hook(module_name, func=None, registry=hooks):
     # Register this function as an import hook
     registry.register(module_name, func)
     return func
-
-
-# Make sure we always patch
-patch()
