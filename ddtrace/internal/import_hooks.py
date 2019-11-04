@@ -51,9 +51,8 @@ For these reasons we have decided to patch Python's internal module loading func
 """
 import sys
 
-import wrapt
-
 from ..compat import PY3
+from ..vendor import wrapt
 from .logger import get_logger
 
 __all__ = ['hooks', 'register_module_hook', 'patch', 'unpatch']
