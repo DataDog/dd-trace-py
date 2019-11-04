@@ -240,8 +240,11 @@ def _patch():
         # 3.6: https://github.com/python/cpython/blob/3.6/Lib/importlib/_bootstrap.py#L936-L960
         # 3.7: https://github.com/python/cpython/blob/3.7/Lib/importlib/_bootstrap.py#L948-L972
         # 3.8: https://github.com/python/cpython/blob/3.8/Lib/importlib/_bootstrap.py#L956-L980
-        # DEV: If we ever experience issues here we can always look at the code that executes/builds
-        #      an imported module instead since that should always get called when it is loaded
+        # DEV: Python 3 has multiple entrypoints for importing a module, but `_find_and_load_unlocked`
+        #   is a common base/required function needed by anyone to import a module.
+        #   e.g. `__import__` which calls `importlib._bootstrap._find_and_load()`
+        #        `importlib.__import__/importlib._bootstrap.__import__` which calls `importlib._bootstrap._gcd_import()`
+        #        `importlib.import_module` which calls `importliob._bootstrap._gcd_import()`
         wrapt.wrap_function_wrapper('importlib._bootstrap', '_find_and_load_unlocked', wrapped_find_and_load_unlocked)
 
         # 3.4: https://github.com/python/cpython/blob/3.4/Lib/importlib/__init__.py#L115-L156
