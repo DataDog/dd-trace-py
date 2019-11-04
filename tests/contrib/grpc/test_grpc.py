@@ -5,6 +5,7 @@ from grpc.framework.foundation import logging_pool
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.grpc import patch, unpatch
 from ddtrace.contrib.grpc import constants
+from ddtrace.contrib.grpc.patch import _unpatch_server
 from ddtrace.ext import errors
 from ddtrace import Pin
 
@@ -301,6 +302,7 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'aborted'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.ABORTED'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.ABORTED'
@@ -322,6 +324,7 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'custom'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'tests.contrib.grpc.test_grpc._CustomException'
         assert client_span.get_tag(errors.ERROR_STACK) is not None
@@ -329,9 +332,40 @@ class GrpcTestCase(BaseTracerTestCase):
 
         # no exception on server end
         assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.error == 0
         assert server_span.get_tag(errors.ERROR_MSG) is None
         assert server_span.get_tag(errors.ERROR_TYPE) is None
         assert server_span.get_tag(errors.ERROR_STACK) is None
+
+    def test_client_cancellation(self):
+        # unpatch and restart server since we are only testing here caller cancellation
+        self._stop_server()
+        _unpatch_server()
+        self._start_server()
+
+        # have servicer sleep whenever request is handled to ensure we can cancel before server responds
+        # to requests
+        requests_iterator = iter(
+            HelloRequest(name=name) for name in
+            ['sleep']
+        )
+
+        with grpc.insecure_channel('localhost:%d' % (_GRPC_PORT)) as channel:
+            with self.assertRaises(grpc.RpcError):
+                stub = HelloStub(channel)
+                responses = stub.SayHelloRepeatedly(requests_iterator)
+                responses.cancel()
+                next(responses)
+
+        spans = self.get_spans_with_sync_and_assert(size=1)
+        client_span = spans[0]
+
+        assert client_span.resource == '/helloworld.Hello/SayHelloRepeatedly'
+        assert client_span.error == 1
+        assert client_span.get_tag(errors.ERROR_MSG) == 'Locally cancelled by application!'
+        assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.CANCELLED'
+        assert client_span.get_tag(errors.ERROR_STACK) is None
+        assert client_span.get_tag('grpc.status.code') == 'StatusCode.CANCELLED'
 
     def test_unary_exception(self):
         with grpc.secure_channel('localhost:%d' % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -343,11 +377,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHello'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHello'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
@@ -368,11 +404,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.INVALID_ARGUMENT'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloLast'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.INVALID_ARGUMENT'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
@@ -388,11 +426,13 @@ class GrpcTestCase(BaseTracerTestCase):
         server_span, client_span = spans
 
         assert client_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert client_span.error == 1
         assert client_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert client_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert client_span.get_tag('grpc.status.code') == 'StatusCode.RESOURCE_EXHAUSTED'
 
         assert server_span.resource == '/helloworld.Hello/SayHelloTwice'
+        assert server_span.error == 1
         assert server_span.get_tag(errors.ERROR_MSG) == 'exception'
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)

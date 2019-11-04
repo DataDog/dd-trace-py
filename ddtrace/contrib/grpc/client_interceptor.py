@@ -70,19 +70,29 @@ def _handle_response(span, response):
 
 
 def _handle_error(span, response_error, status_code):
-    # response_error should be a grpc.Future and so we expect to have
-    # exception() and traceback() methods if a computation has resulted in
-    # an exception being raised
+    # response_error should be a grpc.Future and so we expect to have cancelled(),
+    # exception() and traceback() methods if a computation has resulted in an
+    # exception being raised
     if (
+        not callable(getattr(response_error, 'cancelled', None)) and
         not callable(getattr(response_error, 'exception', None)) and
         not callable(getattr(response_error, 'traceback', None))
     ):
+        return
+
+    if response_error.cancelled():
+        # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
+        span.error = 1
+        exc_val = to_unicode(response_error.details())
+        span.set_tag(errors.ERROR_MSG, exc_val)
+        span.set_tag(errors.ERROR_TYPE, status_code)
         return
 
     exception = response_error.exception()
     traceback = response_error.traceback()
 
     if exception is not None and traceback is not None:
+        span.error = 1
         if isinstance(exception, grpc.RpcError):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
@@ -158,7 +168,10 @@ class _ClientInterceptor(
         span.set_tag(constants.GRPC_HOST_KEY, self._host)
         span.set_tag(constants.GRPC_PORT_KEY, self._port)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc.get_analytics_sample_rate())
+
+        sample_rate = config.grpc.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # inject tags from pin
         if self._pin.tags:
