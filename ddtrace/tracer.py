@@ -2,6 +2,7 @@ import functools
 import logging
 from os import environ, getpid
 
+from .vendor import attr
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
@@ -43,82 +44,112 @@ def _parse_dogstatsd_url(url):
         raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
 
 
+_DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
+
+
+def _tracer_url(hostname=None, port=None):
+    if hostname is None:
+        hostname = _DEFAULT_HOSTNAME
+
+    if port is None:
+        port = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
+
+    return 'http://{}:{}'.format(hostname, port)
+
+
+def _dogstatsd_url(hostname=None, port=None):
+    if hostname is None:
+        hostname = _DEFAULT_HOSTNAME
+
+    if port is None:
+        port = int(get_env('dogstatsd', 'port', 8125))
+
+    return get_env('dogstatsd', 'url', 'udp://{}:{}'.format(hostname, port))
+
+
+@attr.s
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
     execution time of sections of code.
 
-    If you're running an application that will serve a single trace per thread,
-    you can use the global tracer instance::
-
-        from ddtrace import tracer
-        trace = tracer.trace('app.request', 'web-server').finish()
+    :param enabled: If True, finished traces will be submitted to the API.
+                    Otherwise they'll be dropped.
+    :type enabled: bool
+    :param url: URL of the Trace Agent
+    :type url: str
+    :param dogstatsd_url: URL of dogstatsd
+    :type dogstatsd_url: str
+    :param sampler: A custom Sampler instance, locally deciding to totally drop the trace or not.
+    :type sampler: object
+    :param context_provider: The ``ContextProvider`` that will be used to retrieve
+        automatically the current call context. This is an advanced option that usually
+        doesn't need to be changed from the default value.
+    :type context_provider: object
+    :param wrap_executor: callable that is used when a function is decorated with
+        ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
+        from the default value
+    :type wrap_executor: object
+    :param priority_sampler: The sampler to use (:class:`RateByServiceSampler` by default).
+    :type priority_sampler: object
+    :param collect_metrics: Whether to enable runtime metrics collection.
+    :type collect_metrics: bool
+    :param filters: Filters instances to use before sending traces.
+    :type filters: iterable
     """
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
-    DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
-    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url', 'udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
-    DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
+    enabled = attr.ib(default=True)
+    url = attr.ib(factory=_tracer_url)
+    dogstatsd_url = attr.ib(factory=_dogstatsd_url)
+    log = attr.ib(init=False, default=log, repr=False)
+    sampler = attr.ib(factory=AllSampler)
+    tags = attr.ib(factory=dict)
+    priority_sampler = attr.ib(factory=RateByServiceSampler)
+    collect_metrics = attr.ib(default=False)
+    filters = attr.ib(default=None)
+    # a buffer for service info so we don't perpetually send the same things
+    _context_provider = attr.ib(factory=DefaultContextProvider)
+    _wrap_executor = attr.ib(default=None)
 
-    def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
-        """
-        Create a new ``Tracer`` instance. A global tracer is already initialized
-        for common usage, so there is no need to initialize your own ``Tracer``.
+    # Internal
+    _pid = attr.ib(factory=getpid, init=False)
+    _services = attr.ib(init=False, factory=set, repr=False)
+    _runtime_worker = attr.ib(default=None, init=False, repr=False)
 
-        :param url: The Datadog agent URL.
-        :param url: The DogStatsD URL.
-        """
-        self.log = log
-        self.sampler = None
-        self.priority_sampler = None
-        self._runtime_worker = None
-
-        uds_path = None
-        https = None
-        hostname = self.DEFAULT_HOSTNAME
-        port = self.DEFAULT_PORT
-        if url is not None:
-            url_parsed = compat.parse.urlparse(url)
-            if url_parsed.scheme in ('http', 'https'):
-                hostname = url_parsed.hostname
-                port = url_parsed.port
-                https = url_parsed.scheme == 'https'
-                # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
-                # to be "no port set so let's use the default".
-                # It should go away when we remove configure()
-                if port is None:
-                    if https:
-                        port = 443
-                    else:
-                        port = 80
-            elif url_parsed.scheme == 'unix':
-                uds_path = url_parsed.path
-            else:
-                raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
+    def __attrs_post_init__(self):
+        url_parsed = compat.parse.urlparse(self.url)
+        if url_parsed.scheme in ('http', 'https'):
+            hostname = url_parsed.hostname
+            port = url_parsed.port
+            https = url_parsed.scheme == 'https'
+            uds_path = None
+            # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
+            # to be "no port set so let's use the default".
+            # It should go away when we remove configure()
+            if port is None:
+                if https:
+                    port = 443
+                else:
+                    port = 80
+        elif url_parsed.scheme == 'unix':
+            hostname = 'localhost'
+            port = 8126
+            https = False
+            uds_path = url_parsed.path
+        else:
+            raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
 
         # Apply the default configuration
         self.configure(
-            enabled=True,
             hostname=hostname,
             port=port,
             https=https,
             uds_path=uds_path,
-            sampler=AllSampler(),
-            context_provider=DefaultContextProvider(),
-            dogstatsd_url=dogstatsd_url,
+            dogstatsd_url=self.dogstatsd_url,
+            collect_metrics=self.collect_metrics,
+            settings={FILTERS_KEY: self.filters}
         )
-
-        # globally set tags
-        self.tags = {}
-
-        # a buffer for service info so we don't perpetually send the same things
-        self._services = set()
-
-        # Runtime id used for associating data collected during runtime to
-        # traces
-        self._pid = getpid()
 
     @property
     def debug_logging(self):
@@ -197,8 +228,8 @@ class Tracer(object):
         if settings is not None:
             filters = settings.get(FILTERS_KEY)
 
-        # If priority sampling is not set or is True and no priority sampler is set yet
-        if priority_sampling in (None, True) and not self.priority_sampler:
+        # If priority sampling is True and no priority sampler is set yet
+        if priority_sampling is True and not self.priority_sampler:
             self.priority_sampler = RateByServiceSampler()
         # Explicitly disable priority sampling
         elif priority_sampling is False:
@@ -212,7 +243,7 @@ class Tracer(object):
             self.sampler._priority_sampler = self.priority_sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = _dogstatsd_url(dogstatsd_host, dogstatsd_port)
             warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
                   'Use dogstatsd_url={!r}').format(dogstatsd_url))
 
@@ -221,31 +252,32 @@ class Tracer(object):
             self.log.debug('Connecting to DogStatsd({})'.format(dogstatsd_url))
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
-        if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None:
-            # Preserve hostname and port when overriding filters or priority sampling
-            # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
-                default_hostname = self.writer.api.hostname
-                default_port = self.writer.api.port
-                if https is None:
-                    https = self.writer.api.https
-            else:
-                default_hostname = self.DEFAULT_HOSTNAME
-                default_port = self.DEFAULT_PORT
+        # Copy existing value if needed
+        if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
+            if hostname is None:
+                hostname = self.writer.api.hostname
 
-            self.writer = AgentWriter(
-                hostname or default_hostname,
-                port or default_port,
-                uds_path=uds_path,
-                https=https,
-                filters=filters,
-                priority_sampler=self.priority_sampler,
-                dogstatsd=self._dogstatsd_client,
-            )
+            if port is None:
+                port = self.writer.api.port
 
-        # HACK: since we recreated our dogstatsd agent, replace the old write one
-        self.writer.dogstatsd = self._dogstatsd_client
+            if https is None:
+                https = self.writer.api.https
+
+            if uds_path is None:
+                uds_path = self.writer.api.uds_path
+
+            if filters is None:
+                filters = self.filters
+
+        self.writer = AgentWriter(
+            hostname,
+            port,
+            uds_path=uds_path,
+            https=https,
+            filters=filters,
+            priority_sampler=self.priority_sampler,
+            dogstatsd=self._dogstatsd_client,
+        )
 
         if context_provider is not None:
             self._context_provider = context_provider

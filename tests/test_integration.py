@@ -77,14 +77,15 @@ class TestWorkers(TestCase):
         """
         Stop running worker
         """
-        self._wait_thread_flush()
+        self._wait_thread_flush(self.tracer)
 
-    def _wait_thread_flush(self):
+    @staticmethod
+    def _wait_thread_flush(tracer):
         """
         Helper that waits for the thread flush
         """
-        self.tracer.writer.stop()
-        self.tracer.writer.join(None)
+        tracer.writer.stop()
+        tracer.writer.join(None)
 
     def _get_endpoint_payload(self, calls, endpoint):
         """
@@ -97,37 +98,55 @@ class TestWorkers(TestCase):
 
         return None, None
 
+    def _test_worker_single_trace_uds(self, tracer):
+        # Write a first trace so we get a _worker
+        tracer.trace('client.testing').finish()
+        worker = tracer.writer
+        worker._log_error_status = mock.Mock(
+            worker._log_error_status, wraps=worker._log_error_status,
+        )
+        tracer.trace('client.testing').finish()
+
+        # one send is expected
+        self._wait_thread_flush(tracer)
+        # Check that no error was logged
+        assert worker._log_error_status.call_count == 0
+
     @skipUnless(
         os.environ.get('TEST_DATADOG_INTEGRATION_UDS', False),
         'You should have a running trace agent on a socket and set TEST_DATADOG_INTEGRATION_UDS=1 env variable'
     )
     def test_worker_single_trace_uds(self):
-        self.tracer.configure(uds_path='/tmp/ddagent/trace.sock')
-        # Write a first trace so we get a _worker
-        self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer
-        worker._log_error_status = mock.Mock(
-            worker._log_error_status, wraps=worker._log_error_status,
-        )
-        self.tracer.trace('client.testing').finish()
+        tracer = Tracer(url='unix:///tmp/ddagent/trace.sock')
+        return self._test_worker_single_trace_uds(tracer)
 
-        # one send is expected
-        self._wait_thread_flush()
-        # Check that no error was logged
-        assert worker._log_error_status.call_count == 0
+    @skipUnless(
+        os.environ.get('TEST_DATADOG_INTEGRATION_UDS', False),
+        'You should have a running trace agent on a socket and set TEST_DATADOG_INTEGRATION_UDS=1 env variable'
+    )
+    def test_worker_single_trace_uds_configure(self):
+        self.tracer.configure(uds_path='/tmp/ddagent/trace.sock')
+        return self._test_worker_single_trace_uds(self.tracer)
 
     def test_worker_single_trace_uds_wrong_socket_path(self):
+        tracer = Tracer(url='unix:///tmp/ddagent/nosockethere')
+        return self._test_worker_single_trace_uds_wrong_socket_path(tracer)
+
+    def test_worker_single_trace_uds_wrong_socket_path_configure(self):
         self.tracer.configure(uds_path='/tmp/ddagent/nosockethere')
+        return self._test_worker_single_trace_uds_wrong_socket_path(self.tracer)
+
+    def _test_worker_single_trace_uds_wrong_socket_path(self, tracer):
         # Write a first trace so we get a _worker
-        self.tracer.trace('client.testing').finish()
-        worker = self.tracer.writer
+        tracer.trace('client.testing').finish()
+        worker = tracer.writer
         worker._log_error_status = mock.Mock(
             worker._log_error_status, wraps=worker._log_error_status,
         )
-        self.tracer.trace('client.testing').finish()
+        tracer.trace('client.testing').finish()
 
         # one send is expected
-        self._wait_thread_flush()
+        self._wait_thread_flush(tracer)
         # Check that no error was logged
         assert worker._log_error_status.call_count == 1
 
@@ -137,7 +156,7 @@ class TestWorkers(TestCase):
         tracer.trace('client.testing').finish()
 
         # one send is expected
-        self._wait_thread_flush()
+        self._wait_thread_flush(self.tracer)
         assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
@@ -155,7 +174,7 @@ class TestWorkers(TestCase):
         tracer.trace('client.testing').finish()
 
         # one send is expected
-        self._wait_thread_flush()
+        self._wait_thread_flush(self.tracer)
         assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
@@ -174,7 +193,7 @@ class TestWorkers(TestCase):
         parent.finish()
 
         # one send is expected
-        self._wait_thread_flush()
+        self._wait_thread_flush(self.tracer)
         assert self.api._put.call_count == 1
         # check and retrieve the right call
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
@@ -187,14 +206,14 @@ class TestWorkers(TestCase):
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
         tracer = self.tracer
-        self.tracer.writer.api = FlawedAPI(Tracer.DEFAULT_HOSTNAME, Tracer.DEFAULT_PORT)
+        self.tracer.writer.api = FlawedAPI('localhost', 8126)
         tracer.trace('client.testing').finish()
 
         log = logging.getLogger('ddtrace.internal.writer')
         log_handler = MockedLogHandler(level='DEBUG')
         log.addHandler(log_handler)
 
-        self._wait_thread_flush()
+        self._wait_thread_flush(self.tracer)
         assert tracer.writer._last_error_ts < monotonic.monotonic()
 
         logged_errors = log_handler.messages['error']
@@ -204,23 +223,30 @@ class TestWorkers(TestCase):
             in logged_errors[0]
 
     def test_worker_filter_request(self):
-        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
-        # spy the send() method
-        self.api = self.tracer.writer.api
-        self.api._put = mock.Mock(self.api._put, wraps=self.api._put)
+        tracer = Tracer(filters=[FilterRequestsOnUrl(r'http://example\.com/health')])
+        return self._test_worker_filter_request(tracer)
 
-        span = self.tracer.trace('testing.filteredurl')
+    def test_worker_filter_request_configure(self):
+        self.tracer.configure(settings={FILTERS_KEY: [FilterRequestsOnUrl(r'http://example\.com/health')]})
+        return self._test_worker_filter_request(self.tracer)
+
+    def _test_worker_filter_request(self, tracer):
+        # spy the send() method
+        api = tracer.writer.api
+        api._put = mock.Mock(api._put, wraps=api._put)
+
+        span = tracer.trace('testing.filteredurl')
         span.set_tag(http.URL, 'http://example.com/health')
         span.finish()
-        span = self.tracer.trace('testing.nonfilteredurl')
+        span = tracer.trace('testing.nonfilteredurl')
         span.set_tag(http.URL, 'http://example.com/api/resource')
         span.finish()
-        self._wait_thread_flush()
+        self._wait_thread_flush(tracer)
 
         # Only the second trace should have been sent
-        assert self.api._put.call_count == 1
+        assert api._put.call_count == 1
         # check and retrieve the right call
-        endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
+        endpoint, payload = self._get_endpoint_payload(api._put.call_args_list, '/v0.4/traces')
         assert endpoint == '/v0.4/traces'
         assert len(payload) == 1
         assert payload[0][0]['name'] == 'testing.nonfilteredurl'

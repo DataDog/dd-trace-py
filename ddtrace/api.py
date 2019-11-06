@@ -137,7 +137,7 @@ class API(object):
         :param priority_sampling: Whether to use priority sampling.
         """
         self.hostname = hostname
-        self.port = int(port)
+        self.port = port
         self.uds_path = uds_path
         self.https = https
 
