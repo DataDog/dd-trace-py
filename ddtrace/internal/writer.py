@@ -5,7 +5,6 @@ import time
 
 from .. import api
 from .. import _worker
-from ..utils import sizeof
 from ..internal.logger import get_logger
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
@@ -93,7 +92,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
         if send_stats:
             traces_queue_length = len(traces)
-            traces_queue_size = sum(map(sizeof.sizeof, traces))
             traces_queue_spans = sum(map(len, traces))
 
         # Before sending the traces, make them go through the
@@ -124,15 +122,13 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             # Statistics about the queue length, size and number of spans
             self.dogstatsd.gauge('datadog.tracer.queue.max_length', self._trace_queue.maxsize)
             self.dogstatsd.gauge('datadog.tracer.queue.length', traces_queue_length)
-            self.dogstatsd.gauge('datadog.tracer.queue.size', traces_queue_size)
             self.dogstatsd.gauge('datadog.tracer.queue.spans', traces_queue_spans)
 
             # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths, enqueued_size = self._trace_queue.reset_stats()
+            dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
             self.dogstatsd.increment('datadog.tracer.queue.dropped', dropped)
             self.dogstatsd.increment('datadog.tracer.queue.accepted', enqueued)
             self.dogstatsd.increment('datadog.tracer.queue.accepted_lengths', enqueued_lengths)
-            self.dogstatsd.increment('datadog.tracer.queue.accepted_size', enqueued_size)
 
             # Statistics about the filtering
             self.dogstatsd.increment('datadog.tracer.traces.filtered', traces_filtered)
@@ -215,8 +211,6 @@ class Q(Queue):
         self.accepted = 0
         # Cumulative length of accepted items
         self.accepted_lengths = 0
-        # Cumulative size of accepted items
-        self.accepted_size = 0
 
     def put(self, item):
         try:
@@ -249,7 +243,6 @@ class Q(Queue):
         else:
             item_length = 1
         self.accepted_lengths += item_length
-        self.accepted_size += sizeof.sizeof(item)
 
     def reset_stats(self):
         """Reset the stats to 0.
@@ -257,11 +250,11 @@ class Q(Queue):
         :return: The current value of dropped, accepted and accepted_lengths.
         """
         with self.mutex:
-            dropped, accepted, accepted_lengths, accepted_size = (
-                self.dropped, self.accepted, self.accepted_lengths, self.accepted_size
+            dropped, accepted, accepted_lengths = (
+                self.dropped, self.accepted, self.accepted_lengths
             )
-            self.dropped, self.accepted, self.accepted_lengths, self.accepted_size = 0, 0, 0, 0
-        return dropped, accepted, accepted_lengths, accepted_size
+            self.dropped, self.accepted, self.accepted_lengths = 0, 0, 0
+        return dropped, accepted, accepted_lengths
 
     def _get(self):
         things = self.queue
