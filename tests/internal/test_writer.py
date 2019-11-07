@@ -79,6 +79,16 @@ class AgentWriterTests(TestCase):
         worker.join()
         return worker
 
+    def test_recreae_stats(self):
+        worker = self.create_worker()
+        assert worker._ENABLE_STATS is False
+        new_worker = worker.recreate()
+        assert new_worker._ENABLE_STATS is False
+
+        worker._ENABLE_STATS = True
+        new_worker = worker.recreate()
+        assert new_worker._ENABLE_STATS is True
+
     def test_filters_keep_all(self):
         filtr = KeepAllFilter()
         self.create_worker([filtr])
