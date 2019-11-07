@@ -48,7 +48,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         :rtype: :class:`AgentWriter`
         :returns: A new :class:`AgentWriter` instance
         """
-        return self.__class__(
+        writer = self.__class__(
             hostname=self.api.hostname,
             port=self.api.port,
             uds_path=self.api.uds_path,
@@ -58,6 +58,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             priority_sampler=self._priority_sampler,
             dogstatsd=self.dogstatsd,
         )
+        writer._ENABLE_STATS = self._ENABLE_STATS
+        return writer
 
     def _send_stats(self):
         """Determine if we're sending stats or not.
