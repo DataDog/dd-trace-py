@@ -6,6 +6,7 @@ import pytest
 import mock
 
 from ddtrace.span import Span
+from ddtrace.api import API
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 
 
@@ -39,8 +40,11 @@ class AddTagFilter():
         return trace
 
 
-class DummyAPI(object):
+class DummyAPI(API):
     def __init__(self):
+        # Call API.__init__ to setup required properties
+        super(DummyAPI, self).__init__(hostname='localhost', port=8126)
+
         self.traces = []
 
     def send_traces(self, traces):
