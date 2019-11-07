@@ -83,7 +83,7 @@ class AgentWriterTests(TestCase):
         worker.join()
         return worker
 
-    def test_recreae_stats(self):
+    def test_recreate_stats(self):
         worker = self.create_worker()
         assert worker._ENABLE_STATS is False
         new_worker = worker.recreate()
