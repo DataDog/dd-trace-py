@@ -103,11 +103,14 @@ class ModuleHookRegistry(object):
         """
         # If no hooks exist for this module, return
         if name not in self.hooks:
+            log.debug('No hooks registered for module %r', name)
             return
 
         # Remove this function from the hooks if exists
         if func in self.hooks[name]:
             self.hooks[name].remove(func)
+        else:
+            log.debug('No hook %r registered for module %r', func, name)
 
     def call(self, name, module=None):
         """

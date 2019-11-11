@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.internal import import_hooks
 
+from tests.subprocesstest import run_in_subprocess, SubprocessTestCase
+
 
 @pytest.fixture
 def hooks():
@@ -48,3 +50,67 @@ def test_import_hooks(hooks):
         # DEV: Slightly redundant to check twice, but good to be sure
         module_hook.assert_called_once_with(urllib)
         module_hook.assert_called_once_with(sys.modules[mod_name])
+
+
+@run_in_subprocess
+class ImportHookTestCase(SubprocessTestCase):
+    def setUp(self):
+        # Reset the hooks before each test case
+        import_hooks.hooks.reset()
+
+    def test_register_then_import(self):
+        """
+        When an import hook is registered before importing a module
+            The import hook should run when the module is imported
+        """
+        module_hook = mock.Mock()
+        import_hooks.register_module_hook('tests.test_module', module_hook)
+
+        # Hook should not be called after register
+        module_hook.assert_not_called()
+
+        import tests.test_module
+
+        # Module imported so the hook should be called
+        module_hook.assert_called_once_with(tests.test_module)
+
+    def test_import_then_register(self):
+        """
+        When a module is imported before the import hook is registered
+            The import hook should run immediately when registered
+        """
+        module_hook = mock.Mock()
+        import tests.test_module
+        module_hook.assert_not_called()
+        import_hooks.register_module_hook('tests.test_module', module_hook)
+
+        # Hook should be called on register
+        module_hook.assert_called_once_with(tests.test_module)
+
+    def test_no_double_call(self):
+        """
+        When a module is imported multiple times
+            The import hook should only be run once
+        """
+        module_hook = mock.Mock()
+        import_hooks.register_module_hook('tests.test_module', module_hook)
+        import tests.test_module
+        import tests.test_module  # noqa
+        import tests.test_module  # noqa
+        import tests.test_module  # noqa
+
+        # Hook should be called only once
+        module_hook.assert_called_once_with(tests.test_module)
+
+    def test_register_deregister(self):
+        """
+        When an import hook is registered and subsequently deregistered
+            The import hook should not be called
+        """
+        module_hook = mock.Mock()
+        import_hooks.register_module_hook('tests.test_module', module_hook)
+        import_hooks.hooks.deregister('tests.test_module', module_hook)
+        import tests.test_module  # noqa
+
+        # Hook should not be called
+        module_hook.assert_not_called()
