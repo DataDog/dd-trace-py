@@ -6,6 +6,7 @@ import pytest
 import mock
 
 from ddtrace.span import Span
+from ddtrace.api import API
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 
 
@@ -39,8 +40,11 @@ class AddTagFilter():
         return trace
 
 
-class DummyAPI(object):
+class DummyAPI(API):
     def __init__(self):
+        # Call API.__init__ to setup required properties
+        super(DummyAPI, self).__init__(hostname='localhost', port=8126)
+
         self.traces = []
 
     def send_traces(self, traces):
@@ -78,6 +82,16 @@ class AgentWriterTests(TestCase):
         worker.stop()
         worker.join()
         return worker
+
+    def test_recreate_stats(self):
+        worker = self.create_worker()
+        assert worker._ENABLE_STATS is False
+        new_worker = worker.recreate()
+        assert new_worker._ENABLE_STATS is False
+
+        worker._ENABLE_STATS = True
+        new_worker = worker.recreate()
+        assert new_worker._ENABLE_STATS is True
 
     def test_filters_keep_all(self):
         filtr = KeepAllFilter()
@@ -119,14 +133,12 @@ class AgentWriterTests(TestCase):
         assert [
             mock.call('datadog.tracer.queue.max_length', 1000),
             mock.call('datadog.tracer.queue.length', 11),
-            mock.call('datadog.tracer.queue.size', mock.ANY),
             mock.call('datadog.tracer.queue.spans', 77),
         ] == self.dogstatsd.gauge.mock_calls
         increment_calls = [
             mock.call('datadog.tracer.queue.dropped', 0),
             mock.call('datadog.tracer.queue.accepted', 11),
             mock.call('datadog.tracer.queue.accepted_lengths', 77),
-            mock.call('datadog.tracer.queue.accepted_size', mock.ANY),
             mock.call('datadog.tracer.traces.filtered', 0),
             mock.call('datadog.tracer.api.requests', 11),
             mock.call('datadog.tracer.api.errors', 0),
@@ -141,14 +153,12 @@ class AgentWriterTests(TestCase):
         assert [
             mock.call('datadog.tracer.queue.max_length', 1000),
             mock.call('datadog.tracer.queue.length', 11),
-            mock.call('datadog.tracer.queue.size', mock.ANY),
             mock.call('datadog.tracer.queue.spans', 77),
         ] == self.dogstatsd.gauge.mock_calls
         increment_calls = [
             mock.call('datadog.tracer.queue.dropped', 0),
             mock.call('datadog.tracer.queue.accepted', 11),
             mock.call('datadog.tracer.queue.accepted_lengths', 77),
-            mock.call('datadog.tracer.queue.accepted_size', mock.ANY),
             mock.call('datadog.tracer.traces.filtered', 0),
             mock.call('datadog.tracer.api.requests', 1),
             mock.call('datadog.tracer.api.errors', 1),
@@ -170,12 +180,10 @@ def test_queue_full():
     assert q.dropped == 1
     assert q.accepted == 4
     assert q.accepted_lengths == 5
-    assert q.accepted_size >= 100
-    dropped, accepted, accepted_lengths, accepted_size = q.reset_stats()
+    dropped, accepted, accepted_lengths = q.reset_stats()
     assert dropped == 1
     assert accepted == 4
     assert accepted_lengths == 5
-    assert accepted_size >= 100
 
 
 def test_queue_get():
