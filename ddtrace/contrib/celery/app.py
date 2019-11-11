@@ -32,12 +32,13 @@ def patch_app(app, pin=None):
     )
     pin.onto(app)
     # connect to the Signal framework
-    signals.task_prerun.connect(trace_prerun)
-    signals.task_postrun.connect(trace_postrun)
-    signals.before_task_publish.connect(trace_before_publish)
-    signals.after_task_publish.connect(trace_after_publish)
-    signals.task_failure.connect(trace_failure)
-    signals.task_retry.connect(trace_retry)
+
+    signals.task_prerun.connect(trace_prerun, weak=False)
+    signals.task_postrun.connect(trace_postrun, weak=False)
+    signals.before_task_publish.connect(trace_before_publish, weak=False)
+    signals.after_task_publish.connect(trace_after_publish, weak=False)
+    signals.task_failure.connect(trace_failure, weak=False)
+    signals.task_retry.connect(trace_retry, weak=False)
     return app
 
 
