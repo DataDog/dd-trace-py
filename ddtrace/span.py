@@ -38,12 +38,6 @@ class Span(object):
         '__weakref__',
     ]
 
-    __sizeof_ignore_attributes__ = (
-        '_context',
-        '__weakref__',
-        'tracer',
-    )
-
     def __init__(
         self,
         tracer,
