@@ -54,10 +54,6 @@ def test_import_hooks(hooks):
 
 @run_in_subprocess
 class ImportHookTestCase(SubprocessTestCase):
-    def setUp(self):
-        # Reset the hooks before each test case
-        import_hooks.hooks.reset()
-
     def test_register_then_import(self):
         """
         When an import hook is registered before importing a module
@@ -114,3 +110,30 @@ class ImportHookTestCase(SubprocessTestCase):
 
         # Hook should not be called
         module_hook.assert_not_called()
+
+    def test_register_multiple_modules(self):
+        """
+        When registering module hooks on multiple modules
+            Each hook is called when their respective module is loaded
+        """
+        test_module_hook = mock.Mock()
+        test_module_hook2 = mock.Mock()
+        test_module2_hook = mock.Mock()
+
+        import_hooks.register_module_hook('tests.test_module', test_module_hook)
+        import_hooks.register_module_hook('tests.test_module', test_module_hook2)
+        import_hooks.register_module_hook('tests.test_module2', test_module2_hook)
+
+        test_module_hook.assert_not_called()
+        test_module_hook2.assert_not_called()
+        test_module2_hook.assert_not_called()
+
+        import tests.test_module2
+        test_module_hook.assert_not_called()
+        test_module_hook2.assert_not_called()
+        test_module2_hook.assert_called_once_with(tests.test_module2)
+
+        import tests.test_module
+        test_module_hook.assert_called_once_with(tests.test_module)
+        test_module_hook2.assert_called_once_with(tests.test_module)
+        test_module2_hook.assert_called_once_with(tests.test_module2)
