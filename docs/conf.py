@@ -59,7 +59,7 @@ master_doc = 'index'
 # General information about the project.
 year = datetime.now().year
 project = u'ddtrace'
-copyright = u'2016-{}, Datadog, Inc.'.format(year)
+copyright = u'2016-{}, Datadog, Inc.'.format(year)  # noqa: A001
 author = u'Datadog, Inc.'
 
 # document in order of source

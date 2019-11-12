@@ -270,7 +270,7 @@ class Tracer(opentracing.Tracer):
 
         return otspan
 
-    def inject(self, span_context, format, carrier):
+    def inject(self, span_context, format, carrier):  # noqa: A002
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
@@ -284,7 +284,7 @@ class Tracer(opentracing.Tracer):
 
         propagator.inject(span_context, carrier)
 
-    def extract(self, format, carrier):
+    def extract(self, format, carrier):  # noqa: A002
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.

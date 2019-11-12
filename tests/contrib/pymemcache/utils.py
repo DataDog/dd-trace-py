@@ -41,7 +41,7 @@ class MockSocketModule(object):
         self.connect_failure = connect_failure
         self.sockets = []
 
-    def socket(self, family, type):
+    def socket(self, family, type):  # noqa: A002
         socket = MockSocket([], connect_failure=self.connect_failure)
         self.sockets.append(socket)
         return socket

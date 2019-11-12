@@ -314,7 +314,7 @@ class TestTracer(object):
         event = threading.Event()
 
         def trace_one():
-            id = 11
+            id = 11             # noqa: A001
             with ot_tracer.start_active_span(str(id)):
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
@@ -323,7 +323,7 @@ class TestTracer(object):
                         event.set()
 
         def trace_two():
-            id = 21
+            id = 21             # noqa: A001
             event.wait()
             with ot_tracer.start_active_span(str(id)):
                 id += 1
