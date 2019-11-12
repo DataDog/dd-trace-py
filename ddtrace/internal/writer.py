@@ -158,30 +158,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             if not self._send_stats:
                 return
 
-    def run_periodic(self):
-        if self._send_stats:
-            self.dogstatsd.gauge('datadog.tracer.heartbeat', 1)
-
-        try:
-            self.flush_queue()
-        finally:
-            if not self._send_stats:
-                return
-
-            # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
-            self.dogstatsd.gauge('datadog.tracer.queue.max_length', self._trace_queue.maxsize)
-            self.dogstatsd.histogram('datadog.tracer.queue.dropped.traces', dropped)
-            self.dogstatsd.histogram('datadog.tracer.queue.enqueued.traces', enqueued)
-            self.dogstatsd.histogram('datadog.tracer.queue.enqueued.spans', enqueued_lengths)
-
-    def on_shutdown(self):
-        try:
-            self.run_periodic()
-        finally:
-            if not self._send_stats:
-                return
-
             self.dogstatsd.increment('datadog.tracer.shutdown')
 
     def _log_error_status(self, response):
