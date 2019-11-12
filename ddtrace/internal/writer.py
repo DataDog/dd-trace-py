@@ -38,7 +38,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self.dogstatsd = dogstatsd
         self.api = api.API(hostname, port, uds_path=uds_path, https=https,
                            priority_sampling=priority_sampler is not None)
-        self._last_thread_time = 0
         if hasattr(time, 'thread_time'):
             self._last_thread_time = time.thread_time()
         self.start()
