@@ -38,6 +38,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         self.dogstatsd = dogstatsd
         self.api = api.API(hostname, port, uds_path=uds_path, https=https,
                            priority_sampling=priority_sampler is not None)
+        self._last_thread_time = 0
+        if hasattr(time, 'thread_time'):
+            self._last_thread_time = time.thread_time()
         self.start()
 
     def recreate(self):
@@ -125,8 +128,11 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                          tags=['status:%d' % status])
 
             # Statistics about the writer thread
-            if hasattr(time, 'thread_time_ns'):
-                self.dogstatsd.increment('datadog.tracer.writer.cpu_time', time.thread_time_ns())
+            if hasattr(time, 'thread_time'):
+                new_thread_time = time.thread_time()
+                diff = new_thread_time - self._last_thread_time
+                self._last_thread_time = new_thread_time
+                self.dogstatsd.histogram('datadog.tracer.writer.cpu_time', diff)
 
     def run_periodic(self):
         if self._send_stats:
