@@ -753,6 +753,18 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  rq:
+    docker:
+      - *test_runner
+      - image: redis:4.0-alpine
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^rq_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   build_docs:
     # deploy official documentation
     docker:
@@ -953,6 +965,9 @@ workflows:
       - requestsgevent:
           requires:
             - flake8
+      - rq:
+          requires:
+            - flake8
       - sqlalchemy:
           requires:
             - flake8
@@ -1028,6 +1043,7 @@ workflows:
             - rediscluster
             - requests
             - requestsgevent
+            - rq
             - sqlalchemy
             - sqlite3
             - test_utils
