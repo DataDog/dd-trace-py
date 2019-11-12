@@ -1,11 +1,44 @@
 """
-TODO
+The RQ integration will trace your jobs.
+
+Worker Usage
+~~~~~~~~~~~~
+
+``ddtrace-run`` can be used to easily trace your workers::
+
+    DD_WORKER_SERVICE_NAME=myworker ddtrace-run rq worker
+
+
+See https://github.com/DataDog/trace-examples/tree/kyle-verhoog/rq/python/rq for a working example.
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.rq['distributed_tracing_enabled']
+
+   If ``True`` the integration will connect the traces sent between the queuer and the RQ worker.
+
+   Default: ``False``
+
+.. py:data:: ddtrace.config.rq['service_name'] # Or via DD_RQ_SERVICE_NAME environment variable
+
+   The service name to be used for your RQ app.
+
+   Default: ``rq``
+
+.. py:data:: ddtrace.config.rq['worker_service_name'] # Or via DD_RQ_WORKER_SERVICE_NAME environment variable
+
+   The service name to be used for your RQ worker.
+
+   Default: ``rq-worker``
 """
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.utils.wrappers import unwrap as _uw
 from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
+from ...utils.formats import get_env
 
 
 __all__ = [
@@ -15,11 +48,11 @@ __all__ = [
 
 
 config._add('rq', dict(
-    service_name='rq',
-    worker_service_name='rq-worker',
+    service_name=get_env('rq', 'service_name', default='rq'),
+    worker_service_name=get_env('rq', 'worker_service_name', default='rq-worker'),
     app='rq',
     app_type=AppTypes.worker,
-    distributed_tracing_enabled=True,
+    distributed_tracing_enabled=False,
 ))
 
 
