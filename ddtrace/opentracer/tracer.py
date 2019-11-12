@@ -176,13 +176,11 @@ class Tracer(opentracing.Tracer):
                 '...',
                 references=[opentracing.child_of(parent_span)])
 
-        Note: the precedence when defining a relationship is the following:
-        (highest)
-            1. *child_of*
-            2. *references*
-            3. `scope_manager.active` (unless *ignore_active_span* is True)
-            4. None
-        (lowest)
+        Note: the precedence when defining a relationship is the following, from highest to lowest:
+        1. *child_of*
+        2. *references*
+        3. `scope_manager.active` (unless *ignore_active_span* is True)
+        4. None
 
         Currently Datadog only supports `child_of` references.
 

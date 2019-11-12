@@ -48,7 +48,7 @@ def run_in_executor(loop, executor, func, *args, tracer=None):
     coroutine is executed, we may have two different scenarios:
     * the Context is copied in the new Thread and the trace is sent twice
     * the coroutine flushes the Context and when the Thread copies the
-      Context it is already empty (so it will be a root Span)
+    Context it is already empty (so it will be a root Span)
 
     To support both situations, we create a new Context that knows only what was
     the latest active Span when the new thread was created. In this new thread,

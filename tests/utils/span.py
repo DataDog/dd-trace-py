@@ -61,15 +61,15 @@ class TestSpan(Span):
 
     def matches(self, **kwargs):
         """
-        Helper function to check if this span's properties matches the expected
+        Helper function to check if this span's properties matches the expected.
 
         Example::
 
             span = TestSpan(span)
             span.matches(name='my.span', resource='GET /')
 
-        :param **kwargs: Property/Value pairs to evaluate on this span
-        :type **kwargs: dict
+        :param kwargs: Property/Value pairs to evaluate on this span
+        :type kwargs: dict
         :returns: True if the arguments passed match, False otherwise
         :rtype: bool
         """
@@ -123,8 +123,8 @@ class TestSpan(Span):
             span = TestSpan(span)
             span.assert_matches(name='my.span')
 
-        :param **kwargs: Property/Value pairs to evaluate on this span
-        :type **kwargs: dict
+        :param kwargs: Property/Value pairs to evaluate on this span
+        :type kwargs: dict
         :raises: AssertionError
         """
         for name, value in kwargs.items():
@@ -297,12 +297,12 @@ class TestSpanContainer(object):
         """
         Helper to filter current spans by provided parameters.
 
-        This function will yield all spans whose `TestSpan.matches` function return `True`
+        This function will yield all spans whose `TestSpan.matches` function return `True`.
 
-        :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
-        :type *args: list
-        :param *kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
-        :type **kwargs: dict
+        :param args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type args: list
+        :param kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type kwargs: dict
         :returns: generator for the matched :class:`tests.utils.span.TestSpan`
         :rtype: generator
         """
@@ -318,12 +318,12 @@ class TestSpanContainer(object):
         """
         Find a single span matches the provided filter parameters.
 
-        This function will find the first span whose `TestSpan.matches` function return `True`
+        This function will find the first span whose `TestSpan.matches` function return `True`.
 
-        :param *args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
-        :type *args: list
-        :param *kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
-        :type **kwargs: dict
+        :param args: Positional arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type args: list
+        :param kwargs: Keyword arguments to pass to :meth:`tests.utils.span.TestSpan.matches`
+        :type kwargs: dict
         :returns: The first matching span
         :rtype: :class:`tests.utils.span.TestSpan`
         """

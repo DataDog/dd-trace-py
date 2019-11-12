@@ -80,7 +80,7 @@ class CassandraBase(object):
         """
         Temporarily override an integration configuration value
         >>> with self.override_config('flask', dict(service_name='test-service')):
-            # Your test
+        ... # Your test
         """
         options = getattr(config, integration)
 

@@ -94,9 +94,9 @@ class Hooks(object):
         :type hook: str
         :param span: The span to call the hook with
         :type span: :class:`ddtrace.span.Span`
-        :param *args: Positional arguments to pass to the hook functions
+        :param args: Positional arguments to pass to the hook functions
         :type args: list
-        :param **kwargs: Keyword arguments to pass to the hook functions
+        :param kwargs: Keyword arguments to pass to the hook functions
         :type kwargs: dict
         """
         # Return early if no hooks are registered
