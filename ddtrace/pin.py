@@ -147,8 +147,8 @@ class Pin(object):
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 
-    @classmethod
-    def remove_from(cls, obj):
+    @staticmethod
+    def remove_from(obj):
         # Remove pin from the object.
         try:
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
