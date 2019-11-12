@@ -169,6 +169,11 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         root_span = self.get_root_span()
         root_span.assert_structure(root, children)
 
+    def trace_to_json(self):
+        """Returns the trace encoded in JSON."""
+        from ddtrace.encoding import JSONEncoder
+        return JSONEncoder().encode_trace(self.tracer.writer.spans)
+
     @contextlib.contextmanager
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer

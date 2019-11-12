@@ -2,7 +2,7 @@ import redis
 import rq
 
 from ddtrace import Pin
-from ddtrace.contrib.rq import patch
+from ddtrace.contrib.rq import patch, unpatch
 from tests.base import BaseTracerTestCase
 
 
@@ -14,13 +14,13 @@ def job2():
     raise Exception('error')
 
 
-class TestRqTracingNotAsync(BaseTracerTestCase):
+class TestRqTracingSync(BaseTracerTestCase):
     """
     Test the rq integration with a non-async queue. This will execute jobs without
     a worker.
     """
     def setUp(self):
-        super(TestRqTracingNotAsync, self).setUp()
+        super(TestRqTracingSync, self).setUp()
         patch()
         self.r = redis.Redis()
         self.q = rq.Queue('queue-name', is_async=False, connection=self.r)
@@ -28,6 +28,9 @@ class TestRqTracingNotAsync(BaseTracerTestCase):
         Pin.override(rq.job.Job, tracer=self.tracer)
         Pin.override(rq.Queue, tracer=self.tracer)
         Pin.override(rq.Worker, tracer=self.tracer)
+
+    def tearDown(self):
+        unpatch()
 
     def test_enqueue(self):
         self.q.enqueue(job1, 1)

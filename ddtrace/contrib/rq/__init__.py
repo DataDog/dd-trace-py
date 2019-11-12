@@ -2,14 +2,15 @@
 TODO
 """
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+from ddtrace.utils.wrappers import unwrap as _uw
 from ddtrace import config, Pin
 from ...ext import AppTypes
 from ...propagation.http import HTTPPropagator
-from ...utils.import_hook import install_module_import_hook
 
 
 __all__ = [
     'patch',
+    'unpatch',
 ]
 
 
@@ -26,8 +27,11 @@ def with_instance_pin(func):
     """Helper to wrap a function wrapper and ensure an enabled pin is available for the `instance`"""
     def with_cls(cls):
         def wrapper(wrapped, instance, args, kwargs):
+            # DEV: this will be replaced with the module given when patching on import
             import rq
-            pin = Pin._find(wrapped, instance, cls, rq)
+
+            # DEV: precedence when finding Pin is instance, class, rq module in that order
+            pin = Pin._find(instance, cls, rq)
             if not pin or not pin.enabled():
                 return wrapped(*args, **kwargs)
             return func(rq, pin, wrapped, instance, args, kwargs)
@@ -132,47 +136,68 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-def trace_init(rq):
-    """Installs a pin on the rq module to fallback on if no pins are found.
-    """
+def patch():
+    # Avoid importing rq at the module level, eventually will be an import hook
+    import rq
+
+    if getattr(rq, '_datadog_patch', False):
+        return
+
     Pin(
         service=config.rq['service_name'],
         app=config.rq['app'],
         app_type=config.rq['app_type'],
     ).onto(rq)
 
-
-def patch_job(rq_job):
+    # Patch rq.job.Job
     Pin(
         service=config.rq['worker_service_name'],
         app=config.rq['app'],
         app_type=config.rq['app_type'],
-    ).onto(rq_job.Job)
-    _w(rq_job, 'Job.perform', traced_job_perform(rq_job.Job))
-    _w(rq_job, 'Job.fetch', traced_job_fetch(rq_job.Job))
+    ).onto(rq.job.Job)
+    _w(rq.job, 'Job.perform', traced_job_perform(rq.job.Job))
+    _w(rq.job, 'Job.fetch', traced_job_fetch(rq.job.Job))
 
-
-def patch_queue(rq_queue):
+    # Patch rq.queue.Queue
     Pin(
         service=config.rq['service_name'],
         app=config.rq['app'],
         app_type=config.rq['app_type'],
-    ).onto(rq_queue.Queue)
-    _w('rq.queue', 'Queue.enqueue_job', traced_queue_enqueue_job(rq_queue.Queue))
-    _w('rq.queue', 'Queue.fetch_job', traced_queue_fetch_job(rq_queue.Queue))
+    ).onto(rq.queue.Queue)
+    _w('rq.queue', 'Queue.enqueue_job', traced_queue_enqueue_job(rq.queue.Queue))
+    _w('rq.queue', 'Queue.fetch_job', traced_queue_fetch_job(rq.queue.Queue))
 
-
-def patch_worker(rq_worker):
+    # Patch rq.worker.Worker
     Pin(
         service=config.rq['worker_service_name'],
         app=config.rq['app'],
         app_type=config.rq['app_type'],
-    ).onto(rq_worker.Worker)
-    _w(rq_worker, 'Worker.perform_job', traced_perform_job(rq_worker.Worker))
+    ).onto(rq.worker.Worker)
+    _w(rq.worker, 'Worker.perform_job', traced_perform_job(rq.worker.Worker))
+
+    setattr(rq, '_datadog_patch', True)
 
 
-def patch():
-    install_module_import_hook('rq', trace_init)
-    install_module_import_hook('rq.job', patch_job)
-    install_module_import_hook('rq.queue', patch_queue)
-    install_module_import_hook('rq.worker', patch_worker)
+def unpatch():
+    import rq
+
+    if not getattr(rq, '_datadog_patch', False):
+        return
+
+    Pin.remove_from(rq)
+
+    # Unpatch rq.job.Job
+    Pin.remove_from(rq.job.Job)
+    _uw(rq.job.Job, 'perform')
+    _uw(rq.job.Job, 'fetch')
+
+    # Unpatch rq.queue.Queue
+    Pin.remove_from(rq.queue.Queue)
+    _uw(rq.queue.Queue, 'enqueue_job')
+    _uw(rq.queue.Queue, 'fetch_job')
+
+    # Unpatch rq.worker.Worker
+    Pin.remove_from(rq.worker.Worker)
+    _uw(rq.worker.Worker, 'perform_job')
+
+    setattr(rq, '_datadog_patch', False)
