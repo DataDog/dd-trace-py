@@ -262,8 +262,8 @@ class TestTracer(object):
         assert spans[2].parent_id is root._dd_span.span_id
         assert spans[3].parent_id is root._dd_span.span_id
         assert (
-            spans[0].trace_id == spans[1].trace_id
-            and spans[1].trace_id == spans[2].trace_id
+            spans[0].trace_id == spans[1].trace_id and
+            spans[1].trace_id == spans[2].trace_id
         )
 
     def test_start_span_no_active_span(self, ot_tracer, writer):
@@ -285,9 +285,9 @@ class TestTracer(object):
         assert spans[2].parent_id is None
         # and that each span is a new trace
         assert (
-            spans[0].trace_id != spans[1].trace_id
-            and spans[1].trace_id != spans[2].trace_id
-            and spans[0].trace_id != spans[2].trace_id
+            spans[0].trace_id != spans[1].trace_id and
+            spans[1].trace_id != spans[2].trace_id and
+            spans[0].trace_id != spans[2].trace_id
         )
 
     def test_start_active_span_child_finish_after_parent(self, ot_tracer, writer):
@@ -367,15 +367,15 @@ class TestTracer(object):
         # finally we should ensure that the trace_ids are reasonable
         # trace_one
         assert (
-            spans[0].trace_id == spans[1].trace_id
-            and spans[1].trace_id == spans[2].trace_id
+            spans[0].trace_id == spans[1].trace_id and
+            spans[1].trace_id == spans[2].trace_id
         )
         # traces should be independent
         assert spans[2].trace_id != spans[3].trace_id
         # trace_two
         assert (
-            spans[3].trace_id == spans[4].trace_id
-            and spans[4].trace_id == spans[5].trace_id
+            spans[3].trace_id == spans[4].trace_id and
+            spans[4].trace_id == spans[5].trace_id
         )
 
     def test_start_active_span(self, ot_tracer, writer):

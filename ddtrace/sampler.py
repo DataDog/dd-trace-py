@@ -304,8 +304,8 @@ class SamplingRule(object):
         return all(
             self._pattern_matches(prop, pattern)
             for prop, pattern in [
-                    (span.service, self.service),
-                    (span.name, self.name),
+                (span.service, self.service),
+                (span.name, self.name),
             ]
         )
 

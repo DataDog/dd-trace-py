@@ -269,7 +269,7 @@ class CassandraBase(object):
                 assert query.get_tag(cassx.ROW_COUNT) == '1'
             assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
             assert query.get_tag(cassx.PAGINATED) == 'True'
-            assert query.get_tag(cassx.PAGE_NUMBER) == str(i+1)
+            assert query.get_tag(cassx.PAGE_NUMBER) == str(i + 1)
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()

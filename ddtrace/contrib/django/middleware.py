@@ -42,8 +42,8 @@ _django_default_views = {
 
 def _analytics_enabled():
     return (
-        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False)
-        or settings.ANALYTICS_ENABLED is True
+        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False) or
+        settings.ANALYTICS_ENABLED is True
     ) and settings.ANALYTICS_SAMPLE_RATE is not None
 
 
