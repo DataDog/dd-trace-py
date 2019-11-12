@@ -44,8 +44,8 @@ def get_request_uri(request):
     host = None
     try:
         host = request.get_host()  # this will include host:port
-    except Exception as e:
-        log.debug('Failed to get Django request host: %s', e)
+    except Exception:
+        log.debug('Failed to get Django request host', exc_info=True)
 
     if not host:
         try:
@@ -58,9 +58,9 @@ def get_request_uri(request):
                 port = str(request.META['SERVER_PORT'])
                 if port != ('443' if request.is_secure() else '80'):
                     host = '{0}:{1}'.format(host, port)
-        except Exception as e:
+        except Exception:
             # This really shouldn't ever happen, but lets guard here just in case
-            log.debug('Failed to build Django request host: %s', e)
+            log.debug('Failed to build Django request host', exc_info=True)
             host = 'unknown'
 
     # Build request url from the information available

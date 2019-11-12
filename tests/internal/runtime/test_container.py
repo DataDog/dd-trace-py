@@ -299,4 +299,4 @@ def test_get_container_info_exception(mock_log, mock_from_line):
         mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
 
         # Ensure we logged the exception
-        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r: %s', 'self', exception)
+        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self', exc_info=True)

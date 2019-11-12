@@ -84,8 +84,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # filters
         try:
             traces = self._apply_filters(traces)
-        except Exception as err:
-            log.error('error while filtering traces: {0}'.format(err))
+        except Exception:
+            log.error('error while filtering traces', exc_info=True)
             return
 
         if self._send_stats:

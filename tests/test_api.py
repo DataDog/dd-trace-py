@@ -144,11 +144,11 @@ class APITests(TestCase):
             ),
             'error:unsupported-endpoint': dict(
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: .*? \'error:unsupported-endpoint\'',
+                log='Unable to parse Datadog Agent JSON response: \'error:unsupported-endpoint\'',
             ),
             42: dict(  # int as key to trigger TypeError
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: .*? 42',
+                log='Unable to parse Datadog Agent JSON response: 42',
             ),
             '{}': dict(js={}),
             '[]': dict(js=[]),

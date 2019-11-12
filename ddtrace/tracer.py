@@ -218,7 +218,7 @@ class Tracer(object):
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug('Connecting to DogStatsd({})'.format(dogstatsd_url))
+            self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
@@ -398,7 +398,7 @@ class Tracer(object):
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
-        self.log.debug('Updating constant tags {}'.format(tags))
+        self.log.debug('Updating constant tags %s', tags)
         self._dogstatsd_client.constant_tags = tags
 
     def _start_runtime_worker(self):

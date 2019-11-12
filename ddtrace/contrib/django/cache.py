@@ -78,7 +78,7 @@ def patch_cache(tracer):
 
         # prevent patching each backend's method more than once
         if hasattr(cls, DATADOG_NAMESPACE.format(method=method_name)):
-            log.debug('{} already traced'.format(method_name))
+            log.debug('%s already traced', method_name)
         else:
             method = getattr(cls, method_name)
             setattr(cls, DATADOG_NAMESPACE.format(method=method_name), method)

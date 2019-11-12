@@ -144,8 +144,8 @@ class TraceMiddleware(InstrumentationMixin):
             if trace_query_string:
                 span.set_tag(http.QUERY_STRING, request.META['QUERY_STRING'])
             _set_req_span(request, span)
-        except Exception as e:
-            log.debug('error tracing request: %s', e)
+        except Exception:
+            log.debug('error tracing request', exc_info=True)
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
@@ -190,8 +190,8 @@ class TraceMiddleware(InstrumentationMixin):
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
-        except Exception as e:
-            log.debug('error tracing request: %s', e)
+        except Exception:
+            log.debug('error tracing request', exc_info=True)
         finally:
             return response
 

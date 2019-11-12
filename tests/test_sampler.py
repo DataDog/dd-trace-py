@@ -384,11 +384,11 @@ def test_sampling_rule_matches_exception():
     with mock.patch('ddtrace.sampler.log') as mock_log:
         assert rule.matches(span) is False
         mock_log.warning.assert_called_once_with(
-            '%r pattern %r failed with %r: %s',
+            '%r pattern %r failed with %r',
             rule,
             pattern,
             'test.span',
-            e,
+            exc_info=True,
         )
 
 
