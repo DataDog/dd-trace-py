@@ -104,29 +104,23 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         # https://github.com/DataDog/datadogpy/issues/439
         if self._send_stats:
             # Statistics about the queue length, size and number of spans
-            self.dogstatsd.gauge('datadog.tracer.queue.max_length', self._trace_queue.maxsize)
-            self.dogstatsd.gauge('datadog.tracer.queue.length', traces_queue_length)
-            self.dogstatsd.gauge('datadog.tracer.queue.spans', traces_queue_spans)
-
-            # Statistics about the rate at which spans are inserted in the queue
-            dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
-            self.dogstatsd.increment('datadog.tracer.queue.dropped', dropped)
-            self.dogstatsd.increment('datadog.tracer.queue.accepted', enqueued)
-            self.dogstatsd.increment('datadog.tracer.queue.accepted_lengths', enqueued_lengths)
+            self.dogstatsd.increment('datadog.tracer.flushes')
+            self.dogstatsd.histogram('datadog.tracer.flush.traces', traces_queue_length)
+            self.dogstatsd.histogram('datadog.tracer.flush.spans', traces_queue_spans)
 
             # Statistics about the filtering
-            self.dogstatsd.increment('datadog.tracer.traces.filtered', traces_filtered)
+            self.dogstatsd.histogram('datadog.tracer.flush.traces_filtered', traces_filtered)
 
             # Statistics about API
-            self.dogstatsd.increment('datadog.tracer.api.requests', len(traces_responses))
-            self.dogstatsd.increment('datadog.tracer.api.errors',
+            self.dogstatsd.histogram('datadog.tracer.api.requests', len(traces_responses))
+            self.dogstatsd.histogram('datadog.tracer.api.errors',
                                      len(list(t for t in traces_responses
                                               if isinstance(t, Exception))))
             for status, grouped_responses in itertools.groupby(
                     sorted((t for t in traces_responses if not isinstance(t, Exception)),
                            key=lambda r: r.status),
                     key=lambda r: r.status):
-                self.dogstatsd.increment('datadog.tracer.api.responses',
+                self.dogstatsd.histogram('datadog.tracer.api.responses',
                                          len(list(grouped_responses)),
                                          tags=['status:%d' % status])
 
@@ -134,8 +128,31 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             if hasattr(time, 'thread_time_ns'):
                 self.dogstatsd.increment('datadog.tracer.writer.cpu_time', time.thread_time_ns())
 
-    run_periodic = flush_queue
-    on_shutdown = flush_queue
+    def run_periodic(self):
+        if self._send_stats:
+            self.dogstatsd.gauge('datadog.tracer.heartbeat', 1)
+
+        try:
+            self.flush_queue()
+        finally:
+            if not self._send_stats:
+                return
+
+            # Statistics about the rate at which spans are inserted in the queue
+            dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
+            self.dogstatsd.gauge('datadog.tracer.queue.max_length', self._trace_queue.maxsize)
+            self.dogstatsd.histogram('datadog.tracer.queue.dropped.traces', dropped)
+            self.dogstatsd.histogram('datadog.tracer.queue.enqueued.traces', enqueued)
+            self.dogstatsd.histogram('datadog.tracer.queue.enqueued.spans', enqueued_lengths)
+
+    def on_shutdown(self):
+        try:
+            self.run_periodic()
+        finally:
+            if not self._send_stats:
+                return
+
+            self.dogstatsd.increment('datadog.tracer.shutdown')
 
     def _log_error_status(self, response):
         log_level = log.debug
