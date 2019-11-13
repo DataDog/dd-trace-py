@@ -49,7 +49,9 @@ def _analytics_enabled():
 
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
-    If middleware cannot be found, returns None for the middleware collection."""
+
+    If middleware cannot be found, returns None for the middleware collection.
+    """
     middleware = getattr(django_settings, MIDDLEWARE, None)
     # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
     if middleware is not None and django.VERSION >= (1, 10):

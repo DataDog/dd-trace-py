@@ -85,9 +85,7 @@ class PatchTestCase(object):
     """
     @run_in_subprocess
     class Base(SubprocessTestCase, PatchMixin):
-        """PatchTestCase provides default test methods to be used for testing
-        common integration patching logic.
-
+        """Provides default test methods to be used for testing common integration patching logic.
         Each test method provides a default implementation which will use the
         provided attributes (described below). If the attributes are not
         provided a NotImplementedError will be raised for each method that is
@@ -99,7 +97,6 @@ class PatchTestCase(object):
             __unpatch_func__ unpatch function from the integration.
 
         Example:
-
         A simple implementation inheriting this TestCase looks like::
 
             from ddtrace.contrib.redis import unpatch

@@ -28,15 +28,13 @@ AWS_AUTH_TRACED_ARGS = ['path', 'data', 'host']
 
 
 def patch():
-
-    """ AWSQueryConnection and AWSAuthConnection are two different classes called by
-    different services for connection. For exemple EC2 uses AWSQueryConnection and
-    S3 uses AWSAuthConnection
-    """
     if getattr(boto.connection, '_datadog_patch', False):
         return
     setattr(boto.connection, '_datadog_patch', True)
 
+    # AWSQueryConnection and AWSAuthConnection are two different classes called by
+    # different services for connection.
+    # For exemple EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
     wrapt.wrap_function_wrapper(
         'boto.connection', 'AWSQueryConnection.make_request', patched_query_request
     )

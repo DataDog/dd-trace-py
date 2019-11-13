@@ -58,8 +58,10 @@ def deep_getattr(obj, attr_string, default=None):
 
 
 def asbool(value):
-    """Convert the given String to a boolean object. Accepted
-    values are `True` and `1`."""
+    """Convert the given String to a boolean object.
+
+    Accepted values are `True` and `1`.
+    """
     if value is None:
         return False
 
