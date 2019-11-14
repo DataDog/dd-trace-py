@@ -6,6 +6,7 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns
 from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
 from .ext import errors, priority
+from .internal import stats
 from .internal.logger import get_logger
 
 
@@ -100,6 +101,9 @@ class Span(object):
         # state
         self.finished = False
 
+        # increment started stat
+        stats.spans_started.next()
+
     @property
     def start(self):
         """The start timestamp in Unix epoch seconds."""
@@ -129,6 +133,7 @@ class Span(object):
         if self.finished:
             return
         self.finished = True
+        stats.spans_finished.next()
 
         if self.duration_ns is None:
             ft = time_ns() if finish_time is None else int(finish_time * 1e9)

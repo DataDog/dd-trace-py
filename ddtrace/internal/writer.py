@@ -5,6 +5,7 @@ import time
 
 from .. import api
 from .. import _worker
+from ..internal import stats
 from ..internal.logger import get_logger
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
@@ -41,6 +42,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         if hasattr(time, 'thread_time'):
             self._last_thread_time = time.thread_time()
         self.start()
+
+        self.last_spans_started = 0
+        self.last_spans_finished =  0
 
     def recreate(self):
         """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
@@ -142,6 +146,20 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         finally:
             if not self._send_stats:
                 return
+
+            # Span start/finish stats
+            total_spans_started = stats.spans_started.next()
+            total_spans_finished = stats.spans_finished.next()
+            spans_started = self.last_spans_started - total_spans_started
+            spans_finished = self.last_spans_finished - total_spans_finished
+
+            # We add 1 because we call `.next()` to get the current value
+            self.last_spans_started = total_spans_started + 1
+            self.last_spans_finished = total_spans_finished + 1
+
+            # Report the total number of unfinished spans
+            spans_open = spans_started - spans_finished
+            self.dogstatsd.._histogram_with_total('datadog.tracer.spans.opened', spans_open)
 
             # Statistics about the rate at which spans are inserted in the queue
             dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()
