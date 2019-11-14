@@ -1,5 +1,4 @@
 import time
-from unittest import TestCase
 
 import pytest
 
