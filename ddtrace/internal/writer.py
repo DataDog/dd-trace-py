@@ -6,6 +6,7 @@ import time
 from .. import api
 from .. import _worker
 from ..internal.logger import get_logger
+from ..settings import config
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
@@ -21,8 +22,6 @@ LOG_ERR_INTERVAL = 60
 class AgentWriter(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
-
-    _ENABLE_STATS = False
 
     def __init__(self, hostname='localhost', port=8126, uds_path=None, https=False,
                  shutdown_timeout=DEFAULT_TIMEOUT,
@@ -58,13 +57,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             priority_sampler=self._priority_sampler,
             dogstatsd=self.dogstatsd,
         )
-        writer._ENABLE_STATS = self._ENABLE_STATS
         return writer
 
     @property
     def _send_stats(self):
         """Determine if we're sending stats or not."""
-        return self._ENABLE_STATS and self.dogstatsd
+        return bool(config.health_metrics_enabled and self.dogstatsd)
 
     def write(self, spans=None, services=None):
         if spans:
