@@ -137,25 +137,29 @@ class AgentWriterTests(TestCase):
 
         assert [
             mock.call('datadog.tracer.flushes'),
+            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
+            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
+            mock.call('datadog.tracer.api.requests.total', 11, tags=None),
+            mock.call('datadog.tracer.api.errors.total', 0, tags=None),
+            mock.call('datadog.tracer.api.responses.total', 11, tags=['status:200']),
+            mock.call('datadog.tracer.queue.dropped.traces', 0),
+            mock.call('datadog.tracer.queue.enqueued.traces', 11),
+            mock.call('datadog.tracer.queue.enqueued.spans', 77),
             mock.call('datadog.tracer.shutdown'),
         ] == self.dogstatsd.increment.mock_calls
 
         histogram_calls = [
-            mock.call('datadog.tracer.flush.traces', 11),
-            mock.call('datadog.tracer.flush.spans', 77),
-            mock.call('datadog.tracer.flush.traces_filtered', 0),
-            mock.call('datadog.tracer.api.requests', 11),
-            mock.call('datadog.tracer.api.errors', 0),
+            mock.call('datadog.tracer.flush.traces', 11, tags=None),
+            mock.call('datadog.tracer.flush.spans', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
+            mock.call('datadog.tracer.api.requests', 11, tags=None),
+            mock.call('datadog.tracer.api.errors', 0, tags=None),
             mock.call('datadog.tracer.api.responses', 11, tags=['status:200']),
         ]
         if hasattr(time, 'thread_time'):
             histogram_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
 
-        histogram_calls += [
-            mock.call('datadog.tracer.queue.dropped.traces', 0),
-            mock.call('datadog.tracer.queue.enqueued.traces', 11),
-            mock.call('datadog.tracer.queue.enqueued.spans', 77),
-        ]
         assert histogram_calls == self.dogstatsd.histogram.mock_calls
 
     def test_dogstatsd_failing_api(self):
@@ -167,24 +171,27 @@ class AgentWriterTests(TestCase):
 
         assert [
             mock.call('datadog.tracer.flushes'),
+            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
+            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
+            mock.call('datadog.tracer.api.requests.total', 1, tags=None),
+            mock.call('datadog.tracer.api.errors.total', 1, tags=None),
+            mock.call('datadog.tracer.queue.dropped.traces', 0),
+            mock.call('datadog.tracer.queue.enqueued.traces', 11),
+            mock.call('datadog.tracer.queue.enqueued.spans', 77),
             mock.call('datadog.tracer.shutdown'),
         ] == self.dogstatsd.increment.mock_calls
 
         histogram_calls = [
-            mock.call('datadog.tracer.flush.traces', 11),
-            mock.call('datadog.tracer.flush.spans', 77),
-            mock.call('datadog.tracer.flush.traces_filtered', 0),
-            mock.call('datadog.tracer.api.requests', 1),
-            mock.call('datadog.tracer.api.errors', 1),
+            mock.call('datadog.tracer.flush.traces', 11, tags=None),
+            mock.call('datadog.tracer.flush.spans', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
+            mock.call('datadog.tracer.api.requests', 1, tags=None),
+            mock.call('datadog.tracer.api.errors', 1, tags=None),
         ]
         if hasattr(time, 'thread_time'):
             histogram_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
 
-        histogram_calls += [
-            mock.call('datadog.tracer.queue.dropped.traces', 0),
-            mock.call('datadog.tracer.queue.enqueued.traces', 11),
-            mock.call('datadog.tracer.queue.enqueued.spans', 77),
-        ]
         assert histogram_calls == self.dogstatsd.histogram.mock_calls
 
 
