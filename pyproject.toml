@@ -28,6 +28,7 @@ exclude = '''
     | utils/
     | vendor/
   )
+  | docs/
   | conftest.py
   | setup.py
   | tests/
