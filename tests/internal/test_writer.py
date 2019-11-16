@@ -1,5 +1,4 @@
 import time
-from unittest import TestCase
 
 import pytest
 
@@ -8,6 +7,7 @@ import mock
 from ddtrace.span import Span
 from ddtrace.api import API
 from ddtrace.internal.writer import AgentWriter, Q, Empty
+from ..base import BaseTestCase
 
 
 class RemoveAllFilter():
@@ -64,34 +64,36 @@ class FailingAPI(object):
         return [Exception('oops')]
 
 
-class AgentWriterTests(TestCase):
+class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
     def create_worker(self, filters=None, api_class=DummyAPI, enable_stats=False):
-        self.dogstatsd = mock.Mock()
-        worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
-        worker._ENABLE_STATS = enable_stats
-        worker._STATS_EVERY_INTERVAL = 1
-        self.api = api_class()
-        worker.api = self.api
-        for i in range(self.N_TRACES):
-            worker.write([
-                Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
-                for j in range(7)
-            ])
-        worker.stop()
-        worker.join()
-        return worker
+        with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
+            self.dogstatsd = mock.Mock()
+            worker = AgentWriter(dogstatsd=self.dogstatsd, filters=filters)
+            worker._STATS_EVERY_INTERVAL = 1
+            self.api = api_class()
+            worker.api = self.api
+            for i in range(self.N_TRACES):
+                worker.write([
+                    Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
+                    for j in range(7)
+                ])
+            worker.stop()
+            worker.join()
+            return worker
 
-    def test_recreate_stats(self):
-        worker = self.create_worker()
-        assert worker._ENABLE_STATS is False
-        new_worker = worker.recreate()
-        assert new_worker._ENABLE_STATS is False
+    def test_send_stats(self):
+        dogstatsd = mock.Mock()
+        worker = AgentWriter(dogstatsd=dogstatsd)
+        assert worker._send_stats is False
+        with self.override_global_config(dict(health_metrics_enabled=True)):
+            assert worker._send_stats is True
 
-        worker._ENABLE_STATS = True
-        new_worker = worker.recreate()
-        assert new_worker._ENABLE_STATS is True
+        worker = AgentWriter(dogstatsd=None)
+        assert worker._send_stats is False
+        with self.override_global_config(dict(health_metrics_enabled=True)):
+            assert worker._send_stats is False
 
     def test_filters_keep_all(self):
         filtr = KeepAllFilter()
@@ -124,7 +126,7 @@ class AgentWriterTests(TestCase):
 
     def test_no_dogstats(self):
         worker = self.create_worker()
-        assert worker._ENABLE_STATS is False
+        assert worker._send_stats is False
         assert [
         ] == self.dogstatsd.gauge.mock_calls
 
