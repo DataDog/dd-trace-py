@@ -58,14 +58,17 @@ class BaseTestCase(unittest.TestCase):
         # DEV: Uses dict as interface but internally handled as attributes on Config instance
         analytics_enabled_original = ddtrace.config.analytics_enabled
         report_hostname_original = ddtrace.config.report_hostname
+        health_metrics_enabled_original = ddtrace.config.health_metrics_enabled
 
         ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
         ddtrace.config.report_hostname = values.get('report_hostname', report_hostname_original)
+        ddtrace.config.health_metrics_enabled = values.get('health_metrics_enabled', health_metrics_enabled_original)
         try:
             yield
         finally:
             ddtrace.config.analytics_enabled = analytics_enabled_original
             ddtrace.config.report_hostname = report_hostname_original
+            ddtrace.config.health_metrics_enabled = health_metrics_enabled_original
 
     @staticmethod
     @contextlib.contextmanager
