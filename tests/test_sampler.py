@@ -268,7 +268,7 @@ def test_sampling_rule_init():
             ('another.span', re.compile(r'test\.span|another\.span'), True),
             ('test.span', lambda name: 'span' in name, True),
             ('test.span', lambda name: 'span' not in name, False),
-            ('test.span', lambda name: 1/0, False),
+            ('test.span', lambda name: 1 / 0, False),
         ]
     ]
 )
@@ -282,24 +282,24 @@ def test_sampling_rule_matches_name(span, rule, expected):
         # DEV: Use sample_rate=1 to ensure SamplingRule._sample always returns True
         (create_span(service=service), SamplingRule(sample_rate=1, service=pattern), expected)
         for service, pattern, expected in [
-                ('my-service', SamplingRule.NO_RULE, True),
-                ('my-service', None, False),
-                (None, None, True),
-                (None, 'my-service', False),
-                (None, re.compile(r'my-service'), False),
-                (None, lambda service: 'service' in service, False),
-                ('my-service', 'my-service', True),
-                ('my-service', 'my_service', False),
-                ('my-service', re.compile(r'^my-'), True),
-                ('my_service', re.compile(r'^my[_-]'), True),
-                ('my-service', re.compile(r'^my_'), False),
-                ('my-service', re.compile(r'my-service'), True),
-                ('my-service', re.compile(r'my'), True),
-                ('my-service', re.compile(r'my-service|another-service'), True),
-                ('another-service', re.compile(r'my-service|another-service'), True),
-                ('my-service', lambda service: 'service' in service, True),
-                ('my-service', lambda service: 'service' not in service, False),
-                ('my-service', lambda service: 1/0, False),
+            ('my-service', SamplingRule.NO_RULE, True),
+            ('my-service', None, False),
+            (None, None, True),
+            (None, 'my-service', False),
+            (None, re.compile(r'my-service'), False),
+            (None, lambda service: 'service' in service, False),
+            ('my-service', 'my-service', True),
+            ('my-service', 'my_service', False),
+            ('my-service', re.compile(r'^my-'), True),
+            ('my_service', re.compile(r'^my[_-]'), True),
+            ('my-service', re.compile(r'^my_'), False),
+            ('my-service', re.compile(r'my-service'), True),
+            ('my-service', re.compile(r'my'), True),
+            ('my-service', re.compile(r'my-service|another-service'), True),
+            ('another-service', re.compile(r'my-service|another-service'), True),
+            ('my-service', lambda service: 'service' in service, True),
+            ('my-service', lambda service: 'service' not in service, False),
+            ('my-service', lambda service: 1 / 0, False),
         ]
     ]
 )
@@ -384,11 +384,11 @@ def test_sampling_rule_matches_exception():
     with mock.patch('ddtrace.sampler.log') as mock_log:
         assert rule.matches(span) is False
         mock_log.warning.assert_called_once_with(
-            '%r pattern %r failed with %r: %s',
+            '%r pattern %r failed with %r',
             rule,
             pattern,
             'test.span',
-            e,
+            exc_info=True,
         )
 
 

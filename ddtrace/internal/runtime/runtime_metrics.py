@@ -71,7 +71,7 @@ class RuntimeWorker(_worker.PeriodicWorkerThread):
     def flush(self):
         with self._statsd_client:
             for key, value in self._runtime_metrics:
-                log.debug('Writing metric {}:{}'.format(key, value))
+                log.debug('Writing metric %s:%s', key, value)
                 self._statsd_client.gauge(key, value)
 
     run_periodic = flush

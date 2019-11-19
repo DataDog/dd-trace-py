@@ -84,8 +84,8 @@ class Response(object):
                 return
 
             return loads(body)
-        except (ValueError, TypeError) as err:
-            log.debug('Unable to parse Datadog Agent JSON response: %s %r', err, body)
+        except (ValueError, TypeError):
+            log.debug('Unable to parse Datadog Agent JSON response: %r', body, exc_info=True)
 
     def __repr__(self):
         return '{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})'.format(

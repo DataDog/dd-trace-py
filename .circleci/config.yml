@@ -35,6 +35,17 @@ persist_to_workspace_step: &persist_to_workspace_step
 
 
 jobs:
+  black:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: tox -e 'black' --result-json /tmp/black.results
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   flake8:
     docker:
       - *test_runner
@@ -822,165 +833,218 @@ workflows:
   test:
     jobs:
       - build_docs
+      - black
       - flake8
       - test_build
       - aiobotocore:
           requires:
             - flake8
+            - black
       - aiohttp:
           requires:
             - flake8
+            - black
       - aiopg:
           requires:
             - flake8
+            - black
       - asyncio:
           requires:
             - flake8
+            - black
       - algoliasearch:
           requires:
             - flake8
+            - black
       - benchmarks:
           requires:
             - flake8
+            - black
       - boto:
           requires:
             - flake8
+            - black
       - bottle:
           requires:
             - flake8
+            - black
       - cassandra:
           requires:
             - flake8
+            - black
       - celery:
           requires:
             - flake8
+            - black
       - consul:
           requires:
             - flake8
+            - black
       - dbapi:
           requires:
             - flake8
+            - black
       - ddtracerun:
           requires:
             - flake8
+            - black
       - django:
           requires:
             - flake8
+            - black
       - elasticsearch:
           requires:
             - flake8
+            - black
       - falcon:
           requires:
             - flake8
+            - black
       - flask:
           requires:
             - flake8
+            - black
       - futures:
           requires:
             - flake8
+            - black
       - gevent:
           requires:
             - flake8
+            - black
       - grpc:
           requires:
             - flake8
+            - black
       - httplib:
           requires:
             - flake8
+            - black
       - integration:
           requires:
             - flake8
+            - black
       - internal:
           requires:
             - flake8
+            - black
       - jinja2:
           requires:
             - flake8
+            - black
       - kombu:
           requires:
             - flake8
+            - black
       - mako:
           requires:
             - flake8
+            - black
       - molten:
           requires:
             - flake8
+            - black
       - mongoengine:
           requires:
             - flake8
+            - black
       - mysqlconnector:
           requires:
             - flake8
+            - black
       - mysqldb:
           requires:
             - flake8
+            - black
       - mysqlpython:
           requires:
             - flake8
+            - black
       - opentracer:
           requires:
             - flake8
+            - black
       - psycopg:
           requires:
             - flake8
+            - black
       - pylibmc:
           requires:
             - flake8
+            - black
       - pylons:
           requires:
             - flake8
+            - black
       - pymemcache:
           requires:
             - flake8
+            - black
       - pymongo:
           requires:
             - flake8
+            - black
       - pymysql:
           requires:
             - flake8
+            - black
       - pyramid:
           requires:
             - flake8
+            - black
       - redis:
           requires:
             - flake8
+            - black
       - rediscluster:
           requires:
             - flake8
+            - black
       - requests:
           requires:
             - flake8
+            - black
       - requestsgevent:
           requires:
             - flake8
+            - black
       - sqlalchemy:
           requires:
             - flake8
+            - black
       - sqlite3:
           requires:
             - flake8
+            - black
       - test_utils:
           requires:
             - flake8
+            - black
       - test_logging:
           requires:
             - flake8
+            - black
       - tornado:
           requires:
             - flake8
+            - black
       - tracer:
           requires:
             - flake8
+            - black
       - unit_tests:
           requires:
             - flake8
+            - black
       - vertica:
           requires:
             - flake8
+            - black
       - wait_all_tests:
           requires:
             # Initial jobs
             - build_docs
+            - black
             - flake8
             - test_build
 
