@@ -9,7 +9,7 @@ from .utils import cgroup_line_valid_test_cases
 
 # Map expected Py2 exception to Py3 name
 if PY2:
-    FileNotFoundError = IOError
+    FileNotFoundError = IOError  # noqa: A001
 
 
 def get_mock_open(read_data=None):
@@ -299,4 +299,4 @@ def test_get_container_info_exception(mock_log, mock_from_line):
         mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
 
         # Ensure we logged the exception
-        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r: %s', 'self', exception)
+        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self', exc_info=True)

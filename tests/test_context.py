@@ -216,9 +216,9 @@ class TestTracingContext(BaseTestCase):
     def test_partial_flush(self):
         """
         When calling `Context.get`
-            When partial flushing is enabled
-            When we have just enough finished spans to flush
-                We return the finished spans
+        When partial flushing is enabled
+        When we have just enough finished spans to flush
+        We return the finished spans
         """
         tracer = get_dummy_tracer()
         ctx = Context()
@@ -255,9 +255,9 @@ class TestTracingContext(BaseTestCase):
     def test_partial_flush_too_many(self):
         """
         When calling `Context.get`
-            When partial flushing is enabled
-            When we have more than the minimum number of spans needed to flush
-                We return the finished spans
+        When partial flushing is enabled
+        When we have more than the minimum number of spans needed to flush
+        We return the finished spans
         """
         tracer = get_dummy_tracer()
         ctx = Context()
@@ -294,9 +294,9 @@ class TestTracingContext(BaseTestCase):
     def test_partial_flush_too_few(self):
         """
         When calling `Context.get`
-            When partial flushing is enabled
-            When we do not have enough finished spans to flush
-                We return no spans
+        When partial flushing is enabled
+        When we do not have enough finished spans to flush
+        We return no spans
         """
         tracer = get_dummy_tracer()
         ctx = Context()
@@ -327,9 +327,9 @@ class TestTracingContext(BaseTestCase):
     def test_partial_flush_remaining(self):
         """
         When calling `Context.get`
-            When partial flushing is enabled
-            When we have some unfinished spans
-                We keep the unfinished spans around
+        When partial flushing is enabled
+        When we have some unfinished spans
+        We keep the unfinished spans around
         """
         tracer = get_dummy_tracer()
         ctx = Context()

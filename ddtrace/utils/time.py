@@ -45,7 +45,7 @@ class StopWatch(object):
         self.start()
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, tp, value, traceback):
         """Stops the watch."""
         self.stop()
 

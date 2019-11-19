@@ -470,8 +470,8 @@ def request_tracer(name):
             if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get('collect_view_args'):
                 for k, v in request.view_args.items():
                     span.set_tag(u'{}.{}'.format(FLASK_VIEW_ARGS, k), v)
-        except Exception as e:
-            log.debug('failed to set tags for "flask.request" span: {}'.format(e))
+        except Exception:
+            log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
         with pin.tracer.trace('flask.{}'.format(name), service=pin.service):
             return wrapped(*args, **kwargs)

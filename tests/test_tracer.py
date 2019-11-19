@@ -521,7 +521,7 @@ def test_excepthook():
 
     called = {}
 
-    def original(type, value, traceback):
+    def original(tp, value, traceback):
         called['yes'] = True
 
     sys.excepthook = original

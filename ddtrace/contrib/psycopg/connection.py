@@ -39,7 +39,7 @@ class TracedCursor(cursor):
         self._datadog_tags = kwargs.pop('datadog_tags', None)
         super(TracedCursor, self).__init__(*args, **kwargs)
 
-    def execute(self, query, vars=None):
+    def execute(self, query, vars=None):  # noqa: A002
         """ just wrap the cursor execution in a span """
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
@@ -56,7 +56,7 @@ class TracedCursor(cursor):
             finally:
                 s.set_metric('db.rowcount', self.rowcount)
 
-    def callproc(self, procname, vars=None):
+    def callproc(self, procname, vars=None):  # noqa: A002
         """ just wrap the execution in a span """
         return cursor.callproc(self, procname, vars)
 
