@@ -17,8 +17,9 @@ class TestConsulPatch(BaseTracerTestCase):
         super(TestConsulPatch, self).setUp()
         patch()
         c = consul.Consul(
-                host=CONSUL_CONFIG['host'],
-                port=CONSUL_CONFIG['port'])
+            host=CONSUL_CONFIG['host'],
+            port=CONSUL_CONFIG['port'],
+        )
         Pin.override(consul.Consul, service=self.TEST_SERVICE, tracer=self.tracer)
         Pin.override(consul.Consul.KV, service=self.TEST_SERVICE, tracer=self.tracer)
         self.c = c

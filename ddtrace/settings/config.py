@@ -34,6 +34,10 @@ class Config(object):
             get_env('trace', 'report_hostname', default=False)
         )
 
+        self.health_metrics_enabled = asbool(
+            get_env('trace', 'health_metrics_enabled', default=False)
+        )
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)

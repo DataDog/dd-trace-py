@@ -70,9 +70,9 @@ def _normalize_tag_name(request_or_response, header_name):
     """
     Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
     'http.request.headers.content_type'. Rules applied actual header name are:
-       - any letter is converted to lowercase
-       - any digit is left unchanged
-       - any block of any length of different ASCII chars is converted to a single underscore '_'
+    - any letter is converted to lowercase
+    - any digit is left unchanged
+    - any block of any length of different ASCII chars is converted to a single underscore '_'
     :param request_or_response: The context of the headers: request|response
     :param header_name: The header's name
     :type header_name: str

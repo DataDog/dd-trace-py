@@ -164,10 +164,10 @@ class Tracer(object):
     def __call__(self):
         return self
 
-    def global_excepthook(self, type, value, traceback):
+    def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
         self._dogstatsd_client.increment('datadog.tracer.uncaught_exceptions', 1,
-                                         tags=['class:%s' % type.__name__])
+                                         tags=['class:%s' % tp.__name__])
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -249,7 +249,7 @@ class Tracer(object):
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug('Connecting to DogStatsd({})'.format(dogstatsd_url))
+            self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         # Copy existing value if needed
@@ -430,7 +430,7 @@ class Tracer(object):
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
-        self.log.debug('Updating constant tags {}'.format(tags))
+        self.log.debug('Updating constant tags %s', tags)
         self._dogstatsd_client.constant_tags = tags
 
     def _start_runtime_worker(self):

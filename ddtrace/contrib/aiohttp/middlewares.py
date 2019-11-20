@@ -20,8 +20,9 @@ def trace_middleware(app, handler):
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
     instance both to the Task and to the Request objects. In this way:
-        * the Task is used by the internal automatic instrumentation
-        * the ``Context`` attached to the request can be freely used in the application code
+
+    * the Task is used by the internal automatic instrumentation
+    * the ``Context`` attached to the request can be freely used in the application code
     """
     @asyncio.coroutine
     def attach_context(request):

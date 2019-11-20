@@ -45,7 +45,7 @@ class ValueCollector(object):
         except ImportError:
             # DEV: disable collector if we cannot load any of the required modules
             self.enabled = False
-            log.warning('Could not import module "{}" for {}. Disabling collector.'.format(module, self))
+            log.warning('Could not import module "%s" for %s. Disabling collector.', module, self)
             return None
         return modules
 
