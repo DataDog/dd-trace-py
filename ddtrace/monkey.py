@@ -13,6 +13,7 @@ import threading
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .internal.stats import stats
 
 
 log = get_logger(__name__)
@@ -178,6 +179,7 @@ def _patch_module(module):
         try:
             imported_module = importlib.import_module(path)
             imported_module.patch()
+            stats.patch_success(module)
         except ImportError:
             # if the import fails, the integration is not available
             raise PatchException('integration not available')
@@ -185,6 +187,9 @@ def _patch_module(module):
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
             raise PatchException('module not installed')
+        except Exception:
+            stats.patch_error(module)
+            raise
 
         _PATCHED_MODULES.add(module)
         return True

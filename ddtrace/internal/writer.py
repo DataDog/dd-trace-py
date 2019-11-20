@@ -6,6 +6,7 @@ import time
 from .. import api
 from .. import _worker
 from ..internal.logger import get_logger
+from ..internal.stats import stats
 from ..settings import config
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
@@ -123,6 +124,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self._histogram_with_total('datadog.tracer.api.responses',
                                            len(list(grouped_responses)),
                                            tags=['status:%d' % status])
+
+            # Send global stats
+            for stat, val, tags in stats.reset_values():
+                self.dogstatsd.gauge(stat, val, tags=tags)
 
             # Statistics about the writer thread
             if hasattr(time, 'thread_time'):

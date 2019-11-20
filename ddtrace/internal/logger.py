@@ -1,6 +1,7 @@
 import collections
 import logging
 
+from .stats import stats
 from ..utils.formats import get_env
 
 
@@ -87,6 +88,10 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
+        # Record a stat for all error (or worse) logs
+        if record.levelno >= logging.ERROR:
+            stats.error_log(record.name)
+        
         # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
         if not self.rate_limit:
             super(DDLogger, self).handle(record)
