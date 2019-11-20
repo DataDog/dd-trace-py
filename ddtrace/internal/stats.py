@@ -13,7 +13,7 @@ class Stats(object):
     def __init__(self):
         self._read_lock = threading.Lock()
 
-        self._number_of_reads = collections.defaultdict(int)
+        self._last_values = collections.defaultdict(int)
         self._values = collections.defaultdict(itertools.count)
         self._one_time_stats = set()
 
@@ -51,8 +51,12 @@ class Stats(object):
 
     def _get_value(self, name, tags=None):
         key = (name, tags)
-        val = next(self._values[key]) - self._number_of_reads[key]
-        self._number_of_reads[key] += 1
+
+        current_value = next(self._values[key])
+        last_value = self._last_values[key]
+
+        val = current_value - last_value
+        self._last_values[key] = current_value + 1
         return val
 
     def reset_values(self):
@@ -65,7 +69,7 @@ class Stats(object):
             # Remove any one time keys
             for key in self._one_time_stats:
                 del self._values[key]
-                del self._number_of_reads[key]
+                del self._last_values[key]
             self._one_time_stats = set()
 
             return values

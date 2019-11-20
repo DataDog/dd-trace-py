@@ -6,6 +6,7 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
+from ddtrace.internal.stats import stats
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 from ..base import BaseTestCase
 
@@ -75,10 +76,17 @@ class AgentWriterTests(BaseTestCase):
             self.api = api_class()
             worker.api = self.api
             for i in range(self.N_TRACES):
-                worker.write([
+                # Start all spans
+                trace = [
                     Span(tracer=None, name='name', trace_id=i, span_id=j, parent_id=j - 1 or None)
                     for j in range(7)
-                ])
+                ]
+                # Finish all spans in reverse order
+                for span in reversed(trace):
+                    span.finish()
+
+                # Write spans to writer
+                worker.write(trace)
             worker.stop()
             worker.join()
             return worker
@@ -134,6 +142,8 @@ class AgentWriterTests(BaseTestCase):
         self.create_worker(enable_stats=True)
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
             mock.call('datadog.tracer.queue.max_length', 1000),
         ] == self.dogstatsd.gauge.mock_calls
 
@@ -168,6 +178,9 @@ class AgentWriterTests(BaseTestCase):
         self.create_worker(api_class=FailingAPI, enable_stats=True)
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.log.errors', 1, tags=('logger:ddtrace.internal.writer', )),
             mock.call('datadog.tracer.queue.max_length', 1000),
         ] == self.dogstatsd.gauge.mock_calls
 
