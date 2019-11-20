@@ -6,7 +6,6 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
-from ddtrace.internal.stats import stats
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 from ..base import BaseTestCase
 
