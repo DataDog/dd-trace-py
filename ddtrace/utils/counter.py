@@ -5,7 +5,8 @@ import threading
 class Counter(object):
     """Thread safe counter class, keeps count of things
 
-    ..code-block:: python
+    ::
+
         from ddtrace.utils.counter import Counter
 
         counter = Counter()

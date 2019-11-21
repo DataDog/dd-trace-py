@@ -92,7 +92,7 @@ class Stats(object):
         """
         Return and reset the current value of all counters
 
-        ..code-block:: python
+        ::
 
             from ddtrace.internal.stats import stats
 
@@ -100,7 +100,7 @@ class Stats(object):
             stats.span_started()
             stats.span_finished()
 
-            # Fetch all current metrics, resettting their internal values back to 0
+            # Fetch all current metrics, resetting their internal values back to 0
             for metric_name, metric_type, value, tags in stats.reset_values():
                 pass
 
