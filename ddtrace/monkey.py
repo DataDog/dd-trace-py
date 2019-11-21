@@ -47,6 +47,7 @@ PATCH_MODULES = {
     'aiopg': True,
     'aiobotocore': False,
     'httplib': False,
+    'urllib3': False,
     'vertica': True,
     'molten': True,
     'jinja2': True,
