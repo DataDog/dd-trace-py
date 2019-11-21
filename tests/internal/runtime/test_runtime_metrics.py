@@ -76,7 +76,7 @@ class TestRuntimeWorker(BaseTracerTestCase):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch('socket.socket'):
             # configure tracer for runtime metrics
-            self.tracer._RUNTIME_METRICS_INTERVAL = 1./4
+            self.tracer._RUNTIME_METRICS_INTERVAL = 1. / 4
             self.tracer.configure(collect_metrics=True)
             self.tracer.set_tags({'env': 'tests.dog'})
 

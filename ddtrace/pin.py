@@ -64,7 +64,7 @@ class Pin(object):
 
             >>> pin = Pin._find(wrapper, instance, conn, app)
 
-        :param *objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
         :rtype: :class:`ddtrace.pin.Pin`, None
         :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found

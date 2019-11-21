@@ -111,6 +111,7 @@ services:
             - ./setup.py:/src/setup.py:ro
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
+            - ./pyproject.toml:/src/pyproject.toml:ro
             - ./.ddtox:/src/.tox
             - ./scripts:/src/scripts
             # setuptools_scm needs `.git` to figure out what version we are on

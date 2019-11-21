@@ -10,8 +10,8 @@ class BaseContextProvider(six.with_metaclass(abc.ABCMeta)):
     for a callable class, capable to retrieve the current active
     ``Context`` instance. Context providers must inherit this class
     and implement:
-        * the ``active`` method, that returns the current active ``Context``
-        * the ``activate`` method, that sets the current active ``Context``
+    * the ``active`` method, that returns the current active ``Context``
+    * the ``activate`` method, that sets the current active ``Context``
     """
     @abc.abstractmethod
     def _has_active_context(self):

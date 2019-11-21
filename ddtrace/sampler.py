@@ -275,8 +275,8 @@ class SamplingRule(object):
         if callable(pattern):
             try:
                 return bool(pattern(prop))
-            except Exception as e:
-                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
+            except Exception:
+                log.warning('%r pattern %r failed with %r', self, pattern, prop, exc_info=True)
                 # Their function failed to validate, assume it is a False
                 return False
 
@@ -284,9 +284,9 @@ class SamplingRule(object):
         if isinstance(pattern, pattern_type):
             try:
                 return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
+                log.warning('%r pattern %r failed with %r', self, pattern, prop, exc_info=True)
                 return False
 
         # Exact match on the values
@@ -304,8 +304,8 @@ class SamplingRule(object):
         return all(
             self._pattern_matches(prop, pattern)
             for prop, pattern in [
-                    (span.service, self.service),
-                    (span.name, self.name),
+                (span.service, self.service),
+                (span.name, self.name),
             ]
         )
 
