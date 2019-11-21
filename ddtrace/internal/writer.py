@@ -125,16 +125,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                            len(list(grouped_responses)),
                                            tags=['status:%d' % status])
 
-            # Report global stats
-            stats.report(self.dogstatsd)
-
-            # Statistics about the writer thread
-            if hasattr(time, 'thread_time'):
-                new_thread_time = time.thread_time()
-                diff = new_thread_time - self._last_thread_time
-                self._last_thread_time = new_thread_time
-                self.dogstatsd.histogram('datadog.tracer.writer.cpu_time', diff)
-
     def _histogram_with_total(self, name, value, tags=None):
         """Helper to add metric as a histogram and with a `.total` counter"""
         self.dogstatsd.histogram(name, value, tags=tags)
@@ -149,6 +139,16 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         finally:
             if not self._send_stats:
                 return
+
+            # Statistics about the writer thread
+            if hasattr(time, 'thread_time'):
+                new_thread_time = time.thread_time()
+                diff = new_thread_time - self._last_thread_time
+                self._last_thread_time = new_thread_time
+                self.dogstatsd.histogram('datadog.tracer.writer.cpu_time', diff)
+
+            # Report global stats
+            stats.report(self.dogstatsd)
 
             # Statistics about the rate at which spans are inserted in the queue
             dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()

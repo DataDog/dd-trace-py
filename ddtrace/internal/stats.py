@@ -109,10 +109,13 @@ class Stats(object):
         """
         with self._read_lock:
             # Collect and reset all current counters
-            values = [
-                (name, metric_type, self._get_value(name, metric_type, tags), tags)
-                for (name, metric_type, tags) in self._counters.keys()
-            ]
+            values = []
+            for name, metric_type, tags in self._counters.keys():
+                val = self._get_value(name, metric_type, tags)
+                if tags is not None:
+                    tags = list(tags)
+
+                values.append((name, metric_type, val, tags))
 
             # Remove any one time keys
             for key in self._one_time_stats:
