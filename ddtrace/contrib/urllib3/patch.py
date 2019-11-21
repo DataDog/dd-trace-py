@@ -137,19 +137,18 @@ def _wrap_urlopen(func, obj, args, kwargs):
             propagator.inject(span.context, request_headers)
 
         store_request_headers(request_headers, span, config.urllib3)
+        span.set_tag(http.METHOD, request_method)
+        span.set_tag(http.URL, sanitized_url)
+        if config.urllib3["trace_query_string"]:
+            span.set_tag(http.QUERY_STRING, parsed_uri.query)
+        if config.urllib3["analytics_enabled"]:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3["analytics_sample_rate"])
 
         # Call the target function
         resp = func(*args, **kwargs)
 
         store_response_headers(dict(resp.headers), span, config.urllib3)
-
-        span.set_tag(http.METHOD, request_method)
-        span.set_tag(http.URL, sanitized_url)
         span.set_tag(http.STATUS_CODE, resp.status)
         span.error = int(resp.status >= 500)
-        if config.urllib3["trace_query_string"]:
-            span.set_tag(http.QUERY_STRING, parsed_uri.query)
-        if config.urllib3["analytics_enabled"]:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3["analytics_sample_rate"])
 
         return resp
