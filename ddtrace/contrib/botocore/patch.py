@@ -28,7 +28,7 @@ def patch():
     setattr(botocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(botocore.client.BaseClient)
+    Pin(service='aws', app='aws').onto(botocore.client.BaseClient)
 
 
 def unpatch():

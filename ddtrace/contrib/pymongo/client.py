@@ -10,7 +10,6 @@ from ddtrace.vendor.wrapt import ObjectProxy
 import ddtrace
 from ...compat import iteritems
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.logger import get_logger
@@ -62,7 +61,7 @@ class TracedMongoClient(ObjectProxy):
         client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
+        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)

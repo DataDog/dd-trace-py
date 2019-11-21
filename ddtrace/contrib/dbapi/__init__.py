@@ -3,7 +3,7 @@ Generic dbapi tracing code.
 """
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes, sql
+from ...ext import sql
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
@@ -155,7 +155,7 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = '{}.connection'.format(name)
-        db_pin = pin or Pin(service=name, app=name, app_type=AppTypes.db)
+        db_pin = pin or Pin(service=name, app=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)

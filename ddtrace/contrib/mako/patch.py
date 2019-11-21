@@ -15,7 +15,7 @@ def patch():
         return
     setattr(mako, '__datadog_patch', True)
 
-    Pin(service='mako', app='mako', app_type=http.TEMPLATE).onto(Template)
+    Pin(service='mako', app='mako').onto(Template)
 
     _w(mako, 'template.Template.render', _wrap_render)
     _w(mako, 'template.Template.render_unicode', _wrap_render)
