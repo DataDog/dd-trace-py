@@ -125,9 +125,8 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                                            len(list(grouped_responses)),
                                            tags=['status:%d' % status])
 
-            # Send global stats
-            for stat, val, tags in stats.reset_values():
-                self.dogstatsd.gauge(stat, val, tags=tags)
+            # Report global stats
+            stats.report(self.dogstatsd)
 
             # Statistics about the writer thread
             if hasattr(time, 'thread_time'):

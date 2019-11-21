@@ -141,8 +141,6 @@ class AgentWriterTests(BaseTestCase):
         self.create_worker(enable_stats=True)
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
             mock.call('datadog.tracer.queue.max_length', 1000),
         ] == self.dogstatsd.gauge.mock_calls
 
@@ -154,6 +152,8 @@ class AgentWriterTests(BaseTestCase):
             mock.call('datadog.tracer.api.requests.total', 11, tags=None),
             mock.call('datadog.tracer.api.errors.total', 0, tags=None),
             mock.call('datadog.tracer.api.responses.total', 11, tags=['status:200']),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
             mock.call('datadog.tracer.queue.dropped.traces', 0),
             mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
@@ -177,9 +177,6 @@ class AgentWriterTests(BaseTestCase):
         self.create_worker(api_class=FailingAPI, enable_stats=True)
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
-            mock.call('datadog.tracer.log.errors', 1, tags=('logger:ddtrace.internal.writer', )),
             mock.call('datadog.tracer.queue.max_length', 1000),
         ] == self.dogstatsd.gauge.mock_calls
 
@@ -190,6 +187,9 @@ class AgentWriterTests(BaseTestCase):
             mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
             mock.call('datadog.tracer.api.requests.total', 1, tags=None),
             mock.call('datadog.tracer.api.errors.total', 1, tags=None),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.log.errors', 1, tags=('logger:ddtrace.internal.writer', )),
             mock.call('datadog.tracer.queue.dropped.traces', 0),
             mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
