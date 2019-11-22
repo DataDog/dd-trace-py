@@ -6,8 +6,8 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns
 from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
 from .ext import errors, priority
+from .internal import stats
 from .internal.logger import get_logger
-from .internal.stats import stats
 
 
 log = get_logger(__name__)
@@ -102,7 +102,7 @@ class Span(object):
         self.finished = False
 
         # stats
-        stats.span_started()
+        stats.get_stats().span_started()
 
     @property
     def start(self):
@@ -133,7 +133,7 @@ class Span(object):
         if self.finished:
             return
         self.finished = True
-        stats.span_finished()
+        stats.get_stats().span_finished()
 
         if self.duration_ns is None:
             ft = time_ns() if finish_time is None else int(finish_time * 1e9)

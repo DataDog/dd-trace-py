@@ -6,7 +6,7 @@ import time
 from .. import api
 from .. import _worker
 from ..internal.logger import get_logger
-from ..internal.stats import stats
+from ..internal import stats
 from ..settings import config
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
@@ -148,7 +148,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self.dogstatsd.histogram('datadog.tracer.writer.cpu_time', diff)
 
             # Report global stats
-            stats.report(self.dogstatsd)
+            stats.get_stats().report(self.dogstatsd)
 
             # Statistics about the rate at which spans are inserted in the queue
             dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()

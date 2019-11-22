@@ -23,14 +23,14 @@ class Counter(object):
         self._counter = itertools.count()
         self._read_lock = threading.Lock()
 
-    def increment(self, times=1):
+    def increment(self, step=1):
         """
         Increment the counter
 
-        :param times: The number of times to increment the counter (default: ``1``)
-        :type times: int
+        :param step: The number of times to increment the counter (default: ``1``)
+        :type step: int
         """
-        for _ in range(times):
+        for _ in range(step):
             next(self._counter)
 
     def _value(self):

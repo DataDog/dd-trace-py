@@ -6,7 +6,7 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
-from ddtrace.internal.stats import stats
+from ddtrace.internal.stats import Stats
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 from ..base import BaseTestCase
 
@@ -69,8 +69,20 @@ class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
     def setUp(self):
-        stats.reset_values()
+        # Mock over global stats object to isolate stats for tests
+        self.stats = Stats()
+        self.mocked_get_stats = mock.patch('ddtrace.internal.stats.get_stats', return_value=self.stats)
+        self.mocked_get_stats.start()
+
         super(AgentWriterTests, self).setUp()
+
+    def tearDown(self):
+        # Reset global stats object
+        self.mocked_get_stats.stop()
+        del self.mocked_get_stats
+        del self.stats
+
+        super(AgentWriterTests, self).tearDown()
 
     def create_worker(self, filters=None, api_class=DummyAPI, enable_stats=False):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
