@@ -94,6 +94,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
     request_method = _infer_argument_value(args, kwargs, 0, "method")
     request_url = _infer_argument_value(args, kwargs, 1, "url")
     request_headers = _infer_argument_value(args, kwargs, 3, "headers") or {}
+    request_retries = _infer_argument_value(args, kwargs, 4, "retries")
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
@@ -127,7 +128,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
     if not tracer.enabled:
         return func(*args, **kwargs)
 
-    with tracer.trace("urllib3.urlopen", span_type=http.TYPE) as span:
+    with tracer.trace("urllib3.request", span_type=http.TYPE) as span:
 
         span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
 
@@ -143,6 +144,8 @@ def _wrap_urlopen(func, obj, args, kwargs):
             span.set_tag(http.QUERY_STRING, parsed_uri.query)
         if config.urllib3["analytics_enabled"]:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.urllib3["analytics_sample_rate"])
+        if isinstance(request_retries, urllib3.util.retry.Retry):
+            span.set_tag(http.RETRIES_REMAIN, request_retries.total)
 
         # Call the target function
         resp = func(*args, **kwargs)
