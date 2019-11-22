@@ -6,6 +6,7 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
+from ddtrace.internal.stats import stats
 from ddtrace.internal.writer import AgentWriter, Q, Empty
 from ..base import BaseTestCase
 
@@ -66,6 +67,10 @@ class FailingAPI(object):
 
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
+
+    def setUp(self):
+        stats.reset_values()
+        super(AgentWriterTests, self).setUp()
 
     def create_worker(self, filters=None, api_class=DummyAPI, enable_stats=False):
         with self.override_global_config(dict(health_metrics_enabled=enable_stats)):
@@ -189,7 +194,7 @@ class AgentWriterTests(BaseTestCase):
             mock.call('datadog.tracer.api.errors.total', 1, tags=None),
             mock.call('datadog.tracer.spans.started', 77, tags=None),
             mock.call('datadog.tracer.spans.finished', 77, tags=None),
-            mock.call('datadog.tracer.log.errors', 1, tags=('logger:ddtrace.internal.writer', )),
+            mock.call('datadog.tracer.log.errors', 1, tags=['logger:ddtrace.internal.writer', ]),
             mock.call('datadog.tracer.queue.dropped.traces', 0),
             mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.queue.enqueued.spans', 77),

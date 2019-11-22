@@ -93,6 +93,7 @@ def _on_import_factory(module, raise_errors=True):
         path = 'ddtrace.contrib.%s' % module
         imported_module = importlib.import_module(path)
         imported_module.patch()
+        stats.patch_success(module)
 
     return on_import
 
