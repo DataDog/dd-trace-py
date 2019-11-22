@@ -13,16 +13,16 @@ def normalize_header_name(header_name):
 
 
 def sanitize_url_for_tag(url):
-	"""
-	Strips the qs from a URL for use as tag in spans.
+    """
+    Strips the qs from a URL for use as tag in spans.
 
-	:param url: The url to be stripped
-	:type url: str
-	:return: The sanitized URL
-	:rtype: str
-	"""
-	parsed = urlparse(url)
-	return urlunparse(
+    :param url: The url to be stripped
+    :type url: str
+    :return: The sanitized URL
+    :rtype: str
+    """
+    parsed = urlparse(url)
+    return urlunparse(
         (
             parsed.scheme,
             parsed.netloc,

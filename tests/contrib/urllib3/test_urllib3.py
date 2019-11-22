@@ -10,7 +10,6 @@ from ddtrace.ext import errors, http
 from tests.opentracer.utils import init_tracer
 
 from ...base import BaseTracerTestCase
-from ...util import override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "httpbin.org"
@@ -75,7 +74,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
     def test_args_kwargs(self):
         """
         Test that args are kwargs are correctly inferred from the target function's
-        signature. 
+        signature.
 
         The args/kwargs used in the integration are:
             - method (idx 0)
@@ -231,7 +230,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
 
     def test_parent_service_name_precedence(self):
         """
-        Tests the request span inherits the service name from the parent 
+        Tests the request span inherits the service name from the parent
         when split_by_domain is False
         """
         with self.override_config("urllib3", dict(split_by_domain=False)):
@@ -388,8 +387,6 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
             with pytest.raises(ValueError):
                 self.http.request("GET", URL_200)
 
-            spans = self.tracer.writer.pop()
-            s = spans[0]
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers={}, timeout=mock.ANY
             )
