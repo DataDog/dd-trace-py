@@ -2,6 +2,7 @@ import functools
 import logging
 from os import environ, getpid
 
+from ddtrace.vendor import debtcollector
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
@@ -14,7 +15,7 @@ from .context import Context
 from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
-from .utils.deprecation import deprecated, warn
+from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
 
@@ -162,6 +163,10 @@ class Tracer(object):
         return self._context_provider
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
+    @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
+                                          category=RemovedInDDTrace10Warning)
+    @debtcollector.removals.removed_kwarg("dogstatsd_port", "Use `dogstatsd_url` instead",
+                                          category=RemovedInDDTrace10Warning)
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
                   sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
                   settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
@@ -213,8 +218,6 @@ class Tracer(object):
 
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
-            warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
-                  'Use dogstatsd_url={!r}').format(dogstatsd_url))
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
