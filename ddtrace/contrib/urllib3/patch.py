@@ -1,17 +1,21 @@
-from urllib import parse
-
 import urllib3
+from six.moves.urllib.parse import urlparse, urlunparse
+
 import ddtrace
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...ext import http
+from ...utils.http import sanitize_url_for_tag
 from ...utils.wrappers import unwrap as _u
 from ...utils.formats import asbool, get_env
 from ...propagation.http import HTTPPropagator
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 
+
+# Ports which, if set, will not be used in hostnames/service names
+DROP_PORTS = (80, 443)
 
 # Initialize the default config vars
 config._add(
@@ -44,8 +48,20 @@ def unpatch():
         _u(urllib3.connectionpool.HTTPConnectionPool, "urlopen")
 
 
-# TODO before merge: opportunity to consolidate this fn with "requests" integration
 def _extract_service_name(span, hostname, split_by_domain):
+    """
+    Determines the service_name to use based on the span and whether split_by_domain
+    is set.
+
+    - if `split_by_domain` is true, use the hostname
+    - if the span has a parent service, use that service name
+    - otherwise use the default service name for this config
+
+    :param span: The span whose service name is to be determined
+    :param hostname: The hostname of the requested service
+    :split_by_domain: Boolean indicating whether split_by_domain flag is set
+    :return: The service name to use
+    """
     if split_by_domain:
         return hostname
 
@@ -93,15 +109,15 @@ def _wrap_urlopen(func, obj, args, kwargs):
     """
     request_method = _infer_argument_value(args, kwargs, 0, "method")
     request_url = _infer_argument_value(args, kwargs, 1, "url")
-    request_headers = _infer_argument_value(args, kwargs, 3, "headers") or {}
+    request_headers = _infer_argument_value(args, kwargs, 3, "headers")
     request_retries = _infer_argument_value(args, kwargs, 4, "retries")
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
-        request_url = parse.urlunparse(
+        request_url = urlunparse(
             (
                 obj.scheme,
-                "{}:{}".format(obj.host, obj.port) if obj.port else str(obj.host),
+                "{}:{}".format(obj.host, obj.port) if obj.port and obj.port not in DROP_PORTS else str(obj.host),
                 request_url,
                 None,
                 None,
@@ -109,19 +125,9 @@ def _wrap_urlopen(func, obj, args, kwargs):
             )
         )
 
-    # TODO before merge: abstract into utils/http.py to share with requests/aiohttp
-    parsed_uri = parse.urlparse(request_url)
+    parsed_uri = urlparse(request_url)
     hostname = parsed_uri.netloc
-    sanitized_url = parse.urlunparse(
-        (
-            parsed_uri.scheme,
-            parsed_uri.netloc,
-            parsed_uri.path,
-            parsed_uri.params,
-            None,  # drop parsed_uri.query
-            parsed_uri.fragment,
-        )
-    )
+    sanitized_url = sanitize_url_for_tag(request_url)
 
     tracer = getattr(obj, "datadog_tracer", ddtrace.tracer)
 
@@ -134,6 +140,9 @@ def _wrap_urlopen(func, obj, args, kwargs):
 
         # If distributed tracing is enabled, propagate the tracing headers to downstream services
         if config.urllib3["distributed_tracing"]:
+            if request_headers is None:
+                request_headers = {}
+                kwargs["headers"] = request_headers
             propagator = HTTPPropagator()
             propagator.inject(span.context, request_headers)
 

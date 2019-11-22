@@ -6,6 +6,7 @@ from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
+from ...utils.http import sanitize_url_for_tag
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
 
@@ -58,14 +59,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname = parsed_uri.hostname
     if parsed_uri.port:
         hostname = '{}:{}'.format(hostname, parsed_uri.port)
-    sanitized_url = parse.urlunparse((
-        parsed_uri.scheme,
-        parsed_uri.netloc,
-        parsed_uri.path,
-        parsed_uri.params,
-        None,  # drop parsed_uri.query
-        parsed_uri.fragment
-    ))
+    sanitized_url = sanitize_url_for_tag(request.url)
 
     with tracer.trace('requests.request', span_type=SpanTypes.HTTP) as span:
         # update the span service name before doing any action
