@@ -68,6 +68,10 @@ class FailingAPI(object):
 class AgentWriterTests(BaseTestCase):
     N_TRACES = 11
 
+    def _sort_statsd_calls(self, calls):
+        """Helper to sort self.dogstatsd mock calls by metric name ascending"""
+        return sorted(calls, key=lambda c: c[1][0])
+
     def setUp(self):
         # Mock over global stats object to isolate stats for tests
         self.stats = Stats()
@@ -159,71 +163,71 @@ class AgentWriterTests(BaseTestCase):
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
             mock.call('datadog.tracer.queue.max_length', 1000),
-        ] == self.dogstatsd.gauge.mock_calls
+        ] == self._sort_statsd_calls(self.dogstatsd.gauge.mock_calls)
 
         assert [
-            mock.call('datadog.tracer.flushes'),
-            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
-            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
-            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
-            mock.call('datadog.tracer.api.requests.total', 11, tags=None),
             mock.call('datadog.tracer.api.errors.total', 0, tags=None),
+            mock.call('datadog.tracer.api.requests.total', 11, tags=None),
             mock.call('datadog.tracer.api.responses.total', 11, tags=['status:200']),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
+            mock.call('datadog.tracer.flushes'),
             mock.call('datadog.tracer.queue.dropped.traces', 0),
-            mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
+            mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.shutdown'),
-        ] == self.dogstatsd.increment.mock_calls
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+        ] == self._sort_statsd_calls(self.dogstatsd.increment.mock_calls)
 
         histogram_calls = [
-            mock.call('datadog.tracer.flush.traces', 11, tags=None),
-            mock.call('datadog.tracer.flush.spans', 77, tags=None),
-            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
-            mock.call('datadog.tracer.api.requests', 11, tags=None),
             mock.call('datadog.tracer.api.errors', 0, tags=None),
+            mock.call('datadog.tracer.api.requests', 11, tags=None),
             mock.call('datadog.tracer.api.responses', 11, tags=['status:200']),
+            mock.call('datadog.tracer.flush.spans', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces', 11, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
         ]
         if hasattr(time, 'thread_time'):
             histogram_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
 
-        assert histogram_calls == self.dogstatsd.histogram.mock_calls
+        assert histogram_calls == self._sort_statsd_calls(self.dogstatsd.histogram.mock_calls)
 
     def test_dogstatsd_failing_api(self):
         self.create_worker(api_class=FailingAPI, enable_stats=True)
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
             mock.call('datadog.tracer.queue.max_length', 1000),
-        ] == self.dogstatsd.gauge.mock_calls
+        ] == self._sort_statsd_calls(self.dogstatsd.gauge.mock_calls)
 
         assert [
-            mock.call('datadog.tracer.flushes'),
-            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
-            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
-            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
-            mock.call('datadog.tracer.api.requests.total', 1, tags=None),
             mock.call('datadog.tracer.api.errors.total', 1, tags=None),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.api.requests.total', 1, tags=None),
+            mock.call('datadog.tracer.flush.spans.total', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces.total', 11, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered.total', 0, tags=None),
+            mock.call('datadog.tracer.flushes'),
             mock.call('datadog.tracer.log.errors', 1, tags=['logger:ddtrace.internal.writer', ]),
             mock.call('datadog.tracer.queue.dropped.traces', 0),
-            mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
+            mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.shutdown'),
-        ] == self.dogstatsd.increment.mock_calls
+            mock.call('datadog.tracer.spans.finished', 77, tags=None),
+            mock.call('datadog.tracer.spans.started', 77, tags=None),
+        ] == self._sort_statsd_calls(self.dogstatsd.increment.mock_calls)
 
         histogram_calls = [
-            mock.call('datadog.tracer.flush.traces', 11, tags=None),
-            mock.call('datadog.tracer.flush.spans', 77, tags=None),
-            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
-            mock.call('datadog.tracer.api.requests', 1, tags=None),
             mock.call('datadog.tracer.api.errors', 1, tags=None),
+            mock.call('datadog.tracer.api.requests', 1, tags=None),
+            mock.call('datadog.tracer.flush.spans', 77, tags=None),
+            mock.call('datadog.tracer.flush.traces', 11, tags=None),
+            mock.call('datadog.tracer.flush.traces_filtered', 0, tags=None),
         ]
         if hasattr(time, 'thread_time'):
             histogram_calls.append(mock.call('datadog.tracer.writer.cpu_time', mock.ANY))
 
-        assert histogram_calls == self.dogstatsd.histogram.mock_calls
+        assert histogram_calls == self._sort_statsd_calls(self.dogstatsd.histogram.mock_calls)
 
 
 def test_queue_full():
