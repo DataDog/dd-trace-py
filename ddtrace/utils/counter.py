@@ -21,6 +21,7 @@ class Counter(object):
         counter.decrement()
         counter.value()  # 10
     """
+
     def __init__(self):
         self._read_count = 0
         self._increment = itertools.count()
