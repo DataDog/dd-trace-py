@@ -163,6 +163,7 @@ class AgentWriterTests(BaseTestCase):
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
             mock.call('datadog.tracer.queue.max_length', 1000),
+            mock.call('datadog.tracer.spans.open', 0, tags=None),
         ] == self._sort_statsd_calls(self.dogstatsd.gauge.mock_calls)
 
         assert [
@@ -177,8 +178,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
             mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.shutdown'),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
         ] == self._sort_statsd_calls(self.dogstatsd.increment.mock_calls)
 
         histogram_calls = [
@@ -199,6 +198,7 @@ class AgentWriterTests(BaseTestCase):
         assert [
             mock.call('datadog.tracer.heartbeat', 1),
             mock.call('datadog.tracer.queue.max_length', 1000),
+            mock.call('datadog.tracer.spans.open', 0, tags=None),
         ] == self._sort_statsd_calls(self.dogstatsd.gauge.mock_calls)
 
         assert [
@@ -213,8 +213,6 @@ class AgentWriterTests(BaseTestCase):
             mock.call('datadog.tracer.queue.enqueued.spans', 77),
             mock.call('datadog.tracer.queue.enqueued.traces', 11),
             mock.call('datadog.tracer.shutdown'),
-            mock.call('datadog.tracer.spans.finished', 77, tags=None),
-            mock.call('datadog.tracer.spans.started', 77, tags=None),
         ] == self._sort_statsd_calls(self.dogstatsd.increment.mock_calls)
 
         histogram_calls = [
