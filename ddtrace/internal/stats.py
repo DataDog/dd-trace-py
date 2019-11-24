@@ -8,10 +8,10 @@ class Stats(object):
     # Metric types
     METRIC_TYPE_INCREMENT = 'increment'
     METRIC_TYPE_GAUGE = 'gauge'
+    METRIC_TYPE_HISTOGRAM = 'histogram'
 
     # Metric names
-    SPANS_STARTED = 'datadog.tracer.spans.started'
-    SPANS_FINISHED = 'datadog.tracer.spans.finished'
+    SPANS_OPEN = 'datadog.tracer.spans.open'
     ERROR_LOGS = 'datadog.tracer.log.errors'
     PATCH_ERROR = 'datadog.tracer.patch.error'
     PATCH_SUCCESS = 'datadog.tracer.patch.success'
@@ -23,12 +23,12 @@ class Stats(object):
         self._counters = collections.defaultdict(Counter)
 
     def span_started(self):
-        """Increment the number of spans started"""
-        self._increment(self.SPANS_STARTED, self.METRIC_TYPE_INCREMENT)
+        """Increment the number of spans open"""
+        self._increment(self.SPANS_OPEN, self.METRIC_TYPE_GAUGE)
 
     def span_finished(self):
-        """Increment the number of spans finished"""
-        self._increment(self.SPANS_FINISHED, self.METRIC_TYPE_INCREMENT)
+        """Decrement the number of spans open"""
+        self._decrement(self.SPANS_OPEN, self.METRIC_TYPE_GAUGE)
 
     def error_log(self, logger_name):
         """Increment the number of error logs emitted"""
@@ -64,6 +64,11 @@ class Stats(object):
         """Internal helper to increment a stats counter"""
         key = self._key(name, metric_type, tags)
         self._counters[key].increment()
+
+    def _decrement(self, name, metric_type, tags=None):
+        """Internal helper to decrement a stats counter"""
+        key = self._key(name, metric_type, tags)
+        self._counters[key].decrement()
 
     def _get_value(self, name, metric_type, tags=None):
         """Internal helper to get the current value of a counter since last check"""
@@ -128,6 +133,11 @@ class Stats(object):
         """
         for metric, metric_type, value, tags in self.reset_values():
             getattr(dogstatsd_client, metric_type)(metric, value, tags=tags)
+
+            # Manually increment a "sum" counter for histograms
+            # DEV: `<metric>.sum` histogram metric is disabled by default in the agent
+            if metric_type is self.METRIC_TYPE_HISTOGRAM:
+                dogstatsd_client.increment('{}.total'.format(metric), value, tags=tags)
 
 
 # Default global `Stats` instance
