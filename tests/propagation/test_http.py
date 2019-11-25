@@ -1,8 +1,8 @@
 from unittest import TestCase
 from tests.test_tracer import get_dummy_tracer
 
-from ddtrace.propagation.http import (
-    HTTPPropagator,
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.datadog import (
     HTTP_HEADER_TRACE_ID,
     HTTP_HEADER_PARENT_ID,
     HTTP_HEADER_SAMPLING_PRIORITY,

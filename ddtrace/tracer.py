@@ -10,6 +10,7 @@ from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
 from .internal.writer import AgentWriter
+from .propagation.http import set_http_propagator_factory
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
@@ -170,7 +171,7 @@ class Tracer(object):
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
                   sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
                   settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
-                  dogstatsd_url=None):
+                  dogstatsd_url=None, http_propagator=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -194,6 +195,7 @@ class Tracer(object):
         :param str dogstatsd_host: Host for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
         :param int dogstatsd_port: Port for UDP connection to DogStatsD (deprecated: use dogstatsd_url)
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
+        :param class http_propagator: type of propagator to be used to distribute the tracing context.
         """
         if enabled is not None:
             self.enabled = enabled
@@ -267,6 +269,9 @@ class Tracer(object):
 
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
+
+        if http_propagator is not None:
+            set_http_propagator_factory(http_propagator)
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
