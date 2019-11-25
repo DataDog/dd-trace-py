@@ -277,21 +277,6 @@ class TestAPITransport(TestCase):
         for k, v in expected_headers.items():
             assert v == headers[k]
 
-    @mock.patch('ddtrace.api.httplib.HTTPConnection')
-    def test_send_presampler_headers_not_in_services(self, mocked_http):
-        # register some services and send them to the trace agent
-        services = [{
-            'client.service': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-        }]
-
-        # make a call and retrieve the `conn` Mock object
-        self.api_msgpack.send_services(services)
-        request_call = mocked_http.return_value.request
-        assert request_call.call_count == 0
-
     def _send_traces_and_check(self, traces, nresponses=1):
         # test JSON encoder
         responses = self.api_json.send_traces(traces)
@@ -366,44 +351,6 @@ class TestAPITransport(TestCase):
         traces = [trace_1, trace_2]
 
         self._send_traces_and_check(traces)
-
-    def test_send_single_service(self):
-        # register some services and send them to the trace agent
-        services = [{
-            'client.service': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-        }]
-
-        # test JSON encoder
-        response = self.api_json.send_services(services)
-        assert response is None
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_services(services)
-        assert response is None
-
-    def test_send_service_called_multiple_times(self):
-        # register some services and send them to the trace agent
-        services = [{
-            'backend': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-            'database': {
-                'app': 'postgres',
-                'app_type': 'db',
-            },
-        }]
-
-        # test JSON encoder
-        response = self.api_json.send_services(services)
-        assert response is None
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_services(services)
-        assert response is None
 
 
 @skipUnless(

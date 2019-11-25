@@ -1,4 +1,3 @@
-from ddtrace.ext import AppTypes
 from ddtrace.pin import Pin
 from ddtrace.settings import config
 from ddtrace.utils.wrappers import unwrap as _u
@@ -34,8 +33,7 @@ def patch():
     setattr(algoliasearch, '_datadog_patch', True)
 
     pin = Pin(
-        service=config.algoliasearch.service_name, app=APP_NAME,
-        app_type=AppTypes.db
+        service=config.algoliasearch.service_name, app=APP_NAME
     )
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
