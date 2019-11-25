@@ -40,7 +40,11 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         # Test a relative URL
         r = pool.request("GET", "/status/200")
         assert r.status == 200
-        assert len(self.tracer.writer.pop()) == 1
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.get_tag(http.URL) == URL_200
+
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -52,7 +56,10 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         conn = urllib3.connectionpool.connection_from_url(URL_200)
         resp = conn.request("GET", "/")
         assert resp.status == 200
-        assert len(self.tracer.writer.pop()) == 1
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.get_tag(http.URL) == "http://"+SOCKET+"/"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""

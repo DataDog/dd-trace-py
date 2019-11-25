@@ -660,6 +660,18 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  urllib3:
+    docker:
+      - *test_runner
+      - *httpbin_local
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^urllib3_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   vertica:
     docker:
       - *test_runner
@@ -1051,6 +1063,10 @@ workflows:
           requires:
             - flake8
             - black
+      - urllib3:
+          requires:
+            - flake8
+            - black
       - vertica:
           requires:
             - flake8
@@ -1115,6 +1131,7 @@ workflows:
             - tornado
             - tracer
             - unit_tests
+            - urllib3
             - vertica
       - deploy_dev:
           requires:
