@@ -536,10 +536,6 @@ class Tracer(object):
     @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
-
-        :param str service: the internal name of the service (e.g. acme_search, datadog_web)
-        :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
-        :param str app_type: the type of the application (e.g. db, web)
         """
         return
 

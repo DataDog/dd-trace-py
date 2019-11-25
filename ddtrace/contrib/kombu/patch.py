@@ -5,7 +5,6 @@ from ddtrace.vendor import wrapt
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import kombu as kombux
-from ...ext import AppTypes
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -48,14 +47,12 @@ def patch():
     _w(kombux.TYPE, 'Consumer.receive', traced_receive)
     Pin(
         service=config.kombu['service_name'],
-        app='kombu',
-        app_type=AppTypes.worker,
+        app='kombu'
     ).onto(kombu.messaging.Producer)
 
     Pin(
         service=config.kombu['service_name'],
-        app='kombu',
-        app_type=AppTypes.worker,
+        app='kombu'
     ).onto(kombu.messaging.Consumer)
 
 

@@ -5,7 +5,7 @@ from ddtrace.vendor import wrapt
 import ddtrace
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import db as dbx, sql
-from ...ext import net, AppTypes
+from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
@@ -46,7 +46,6 @@ def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
     pin = Pin(
         service=config.vertica['service_name'],
         app=APP,
-        app_type=AppTypes.db,
         tags=tags,
         _config=config.vertica['patch']['vertica_python.vertica.cursor.Cursor'],
     )
@@ -59,7 +58,6 @@ config._add(
     {
         'service_name': 'vertica',
         'app': 'vertica',
-        'app_type': 'db',
         'patch': {
             'vertica_python.vertica.connection.Connection': {
                 'routines': {
@@ -168,7 +166,6 @@ def _install_init(patch_item, patch_class, patch_mod, config):
         Pin(
             service=config['service_name'],
             app=config['app'],
-            app_type=config['app_type'],
             tags=config.get('tags', {}),
             tracer=config.get('tracer', ddtrace.tracer),
             _config=config['patch'][patch_item],
