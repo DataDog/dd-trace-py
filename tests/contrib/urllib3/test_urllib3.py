@@ -45,7 +45,6 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         s = spans[0]
         assert s.get_tag(http.URL) == URL_200
 
-
         # Test an absolute URL
         r = pool.request("GET", URL_200)
         assert r.status == 200
@@ -59,7 +58,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.URL) == "http://"+SOCKET+"/"
+        assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
