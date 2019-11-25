@@ -1,7 +1,3 @@
-
-# the type of the spans
-TYPE = 'cassandra'
-
 # tags
 CLUSTER = 'cassandra.cluster'
 KEYSPACE = 'cassandra.keyspace'

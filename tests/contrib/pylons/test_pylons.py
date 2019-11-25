@@ -56,7 +56,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert span.get_tag(errors.ERROR_MSG) is None
         assert span.get_tag(errors.ERROR_TYPE) is None
         assert span.get_tag(errors.ERROR_STACK) is None
-        assert span.span_type == 'http'
+        assert span.span_type == 'web'
 
     def test_mw_exc_success(self):
         """Ensure exceptions can be properly handled by other middleware.

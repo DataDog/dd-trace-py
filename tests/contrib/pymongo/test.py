@@ -353,7 +353,7 @@ class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
 class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()

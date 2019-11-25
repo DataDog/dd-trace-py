@@ -2,6 +2,7 @@ from functools import wraps
 
 from django.conf import settings as django_settings
 
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from .conf import settings, import_from_string
 from .utils import quantize_key_values, _resource_from_cache_prefix
@@ -24,7 +25,6 @@ TRACED_METHODS = [
 ]
 
 # standard tags
-TYPE = 'cache'
 CACHE_BACKEND = 'django.cache.backend'
 CACHE_COMMAND_KEY = 'django.cache.key'
 
@@ -54,7 +54,7 @@ def patch_cache(tracer):
         def wrapped(self, *args, **kwargs):
             # get the original function method
             method = getattr(self, DATADOG_NAMESPACE.format(method=method_name))
-            with tracer.trace('django.cache', span_type=TYPE, service=cache_service_name) as span:
+            with tracer.trace('django.cache', span_type=SpanTypes.CACHE, service=cache_service_name) as span:
                 # update the resource name and tag the cache backend
                 span.resource = _resource_from_cache_prefix(method_name, self)
                 cache_backend = '{}.{}'.format(self.__module__, self.__class__.__name__)

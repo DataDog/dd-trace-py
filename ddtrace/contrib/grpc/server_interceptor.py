@@ -6,6 +6,7 @@ from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from . import constants
 from .utils import parse_method_path
@@ -64,7 +65,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         span = tracer.trace(
             'grpc',
-            span_type='grpc',
+            span_type=SpanTypes.GRPC,
             service=self._pin.service,
             resource=self._handler_call_details.method,
         )

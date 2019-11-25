@@ -6,7 +6,7 @@ from unittest.case import SkipTest
 from ddtrace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.span import Span
-from ddtrace.ext import errors, priority
+from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
 
 
@@ -167,6 +167,22 @@ class SpanTestCase(BaseTracerTestCase):
 
         else:
             assert 0, 'should have failed'
+
+    def test_span_type(self):
+        s = Span(tracer=None, name='test.span', service='s', resource='r', span_type=SpanTypes.WEB)
+        s.set_tag('a', '1')
+        s.set_meta('b', '2')
+        s.finish()
+
+        d = s.to_dict()
+        assert d
+        assert d['span_id'] == s.span_id
+        assert d['trace_id'] == s.trace_id
+        assert d['parent_id'] == s.parent_id
+        assert d['meta'] == {'a': '1', 'b': '2'}
+        assert d['type'] == 'web'
+        assert d['error'] == 0
+        assert type(d['error']) == int
 
     def test_span_to_dict(self):
         s = Span(tracer=None, name='test.span', service='s', resource='r')
