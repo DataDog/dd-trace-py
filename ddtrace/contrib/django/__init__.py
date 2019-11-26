@@ -1,6 +1,6 @@
 """
-The Django integration will trace users requests, template renderers, database and cache
-calls.
+This integration will trace users requests, template renderers, database and cache
+calls in a Django application.
 
 **Note:** by default the tracer is **disabled** (will not send spans) when
 the Django setting ``DEBUG`` is ``True``. This can be overridden by explicitly enabling

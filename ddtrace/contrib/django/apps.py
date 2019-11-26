@@ -8,6 +8,7 @@ from .templates import patch_template
 from .middleware import insert_exception_middleware, insert_trace_middleware
 
 from ...internal.logger import get_logger
+from ...utils.deprecation import deprecated
 
 log = get_logger(__name__)
 
@@ -16,14 +17,20 @@ class TracerConfig(AppConfig):
     name = 'ddtrace.contrib.django'
     label = 'datadog_django'
 
+    @deprecated((
+        'The ddtrace.contrib.django app has been deprecated in favour of more precise instrumentation.'
+        'Remove ddtrace.contrib.django from INSTALLED_APPS to remove this warning'
+    ))
     def ready(self):
         """
-        Ready is called as soon as the registry is fully populated.
-        Tracing capabilities must be enabled in this function so that
-        all Django internals are properly configured.
+        Ready formerly was used to initiate patching of Django and DRF.
+
+        To maintain backwards compatibility it now serves to pull any Django
+        configuration from settings.py
         """
-        rest_framework_is_installed = apps.is_installed('rest_framework')
-        apply_django_patches(patch_rest_framework=rest_framework_is_installed)
+        pass
+        # rest_framework_is_installed = apps.is_installed('rest_framework')
+        # apply_django_patches(patch_rest_framework=rest_framework_is_installed)
 
 
 def apply_django_patches(patch_rest_framework):
@@ -37,10 +44,6 @@ def apply_django_patches(patch_rest_framework):
     if settings.TAGS:
         tracer.set_tags(settings.TAGS)
 
-    # configure the tracer instance
-    # TODO[manu]: we may use configure() but because it creates a new
-    # AgentWriter, it breaks all tests. The configure() behavior must
-    # be changed to use it in this integration
     tracer.enabled = settings.ENABLED
     tracer.writer.api.hostname = settings.AGENT_HOSTNAME
     tracer.writer.api.port = settings.AGENT_PORT
