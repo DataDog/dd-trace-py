@@ -55,6 +55,17 @@ documentation][visualization docs].
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
+# psutil used to generate runtime metrics for tracer
+install_requires = [
+    'psutil>=5.0.0'
+]
+
+# include enum backport
+if sys.version_info[:2] < (3, 4):
+    install_requires.extend([
+        'enum34'
+    ])
+
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
     name='ddtrace',
@@ -66,9 +77,7 @@ setup_kwargs = dict(
     long_description_content_type='text/markdown',
     license='BSD',
     packages=find_packages(exclude=['tests*']),
-    install_requires=[
-        'psutil>=5.0.0',
-    ],
+    install_requires=install_requires,
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
