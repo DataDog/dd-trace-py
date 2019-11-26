@@ -41,10 +41,10 @@ def patch():
     wrapt.wrap_function_wrapper(
         'boto.connection', 'AWSAuthConnection.make_request', patched_auth_request
     )
-    Pin(service='aws', app='aws', app_type='web').onto(
+    Pin(service='aws', app='aws').onto(
         boto.connection.AWSQueryConnection
     )
-    Pin(service='aws', app='aws', app_type='web').onto(
+    Pin(service='aws', app='aws').onto(
         boto.connection.AWSAuthConnection
     )
 

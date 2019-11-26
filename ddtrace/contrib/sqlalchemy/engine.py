@@ -63,8 +63,7 @@ class EngineTracer(object):
         Pin(
             app=self.vendor,
             tracer=tracer,
-            service=self.service,
-            app_type=sqlx.APP_TYPE,
+            service=self.service
         ).onto(engine)
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)

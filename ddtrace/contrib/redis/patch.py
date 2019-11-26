@@ -6,7 +6,7 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
-from ...ext import AppTypes, redis as redisx
+from ...ext import redis as redisx
 from ...utils.wrappers import unwrap
 from .util import format_command_args, _extract_conn_tags
 
@@ -34,7 +34,7 @@ def patch():
         _w('redis', 'Redis.pipeline', traced_pipeline)
         _w('redis.client', 'Pipeline.execute', traced_execute_pipeline)
         _w('redis.client', 'Pipeline.immediate_execute_command', traced_execute_command)
-    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP, app_type=AppTypes.db).onto(redis.StrictRedis)
+    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(redis.StrictRedis)
 
 
 def unpatch():
