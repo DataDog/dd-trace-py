@@ -1,4 +1,4 @@
-"""
+r"""
 The Tornado integration traces all ``RequestHandler`` defined in a Tornado web application.
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library.

@@ -38,12 +38,6 @@ class Span(object):
         '__weakref__',
     ]
 
-    __sizeof_ignore_attributes__ = (
-        '_context',
-        '__weakref__',
-        'tracer',
-    )
-
     def __init__(
         self,
         tracer,
@@ -165,7 +159,7 @@ class Span(object):
                 # DEV: `set_metric` will try to cast to `float()` for us
                 self.set_metric(key, value)
             except (TypeError, ValueError):
-                log.debug('error setting numeric metric {}:{}'.format(key, value))
+                log.debug('error setting numeric metric %s:%s', key, value)
 
             return
         elif key == MANUAL_KEEP_KEY:

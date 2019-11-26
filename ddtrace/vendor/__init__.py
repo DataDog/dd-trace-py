@@ -72,6 +72,18 @@ Notes:
   The source `monotonic.py` was added as `monotonic/__init__.py`
 
   No other changes were made
+
+debtcollector
+-------------
+
+Website: https://docs.openstack.org/debtcollector/latest/index.html
+Source: https://github.com/openstack/debtcollector
+Version: 1.22.0
+License: Apache License 2.0
+
+Notes:
+   Removed dependency on `pbr` and manually set `__version__`
+
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

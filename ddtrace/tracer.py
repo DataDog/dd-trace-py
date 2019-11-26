@@ -2,6 +2,7 @@ import functools
 import logging
 from os import environ, getpid
 
+from ddtrace.vendor import debtcollector
 
 from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
 from .ext import system
@@ -14,7 +15,7 @@ from .context import Context
 from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
-from .utils.deprecation import deprecated, warn
+from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
 from .vendor.dogstatsd import DogStatsd
 from . import compat
 
@@ -133,10 +134,10 @@ class Tracer(object):
     def __call__(self):
         return self
 
-    def global_excepthook(self, type, value, traceback):
+    def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
         self._dogstatsd_client.increment('datadog.tracer.uncaught_exceptions', 1,
-                                         tags=['class:%s' % type.__name__])
+                                         tags=['class:%s' % tp.__name__])
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -162,6 +163,10 @@ class Tracer(object):
         return self._context_provider
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
+    @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
+                                          category=RemovedInDDTrace10Warning)
+    @debtcollector.removals.removed_kwarg("dogstatsd_port", "Use `dogstatsd_url` instead",
+                                          category=RemovedInDDTrace10Warning)
     def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
                   sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
                   settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
@@ -213,12 +218,10 @@ class Tracer(object):
 
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
-            warn(('tracer.configure(): dogstatsd_host and dogstatsd_port are deprecated. '
-                  'Use dogstatsd_url={!r}').format(dogstatsd_url))
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug('Connecting to DogStatsd({})'.format(dogstatsd_url))
+            self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
@@ -398,7 +401,7 @@ class Tracer(object):
             '{}:{}'.format(k, v)
             for k, v in RuntimeTags()
         ]
-        self.log.debug('Updating constant tags {}'.format(tags))
+        self.log.debug('Updating constant tags %s', tags)
         self._dogstatsd_client.constant_tags = tags
 
     def _start_runtime_worker(self):
@@ -533,10 +536,6 @@ class Tracer(object):
     @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
-
-        :param str service: the internal name of the service (e.g. acme_search, datadog_web)
-        :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
-        :param str app_type: the type of the application (e.g. db, web)
         """
         return
 

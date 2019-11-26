@@ -32,7 +32,7 @@ def patch():
     """ patch will add tracing to the cassandra library. """
     setattr(cassandra.cluster.Cluster, 'connect',
             wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE, app=SERVICE, app_type='db').onto(cassandra.cluster.Cluster)
+    Pin(service=SERVICE, app=SERVICE).onto(cassandra.cluster.Cluster)
 
 
 def unpatch():
@@ -54,8 +54,8 @@ def _close_span_on_success(result, future):
         return
     try:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
-    except Exception as e:
-        log.debug('an exception occured while setting tags: %s', e)
+    except Exception:
+        log.debug('an exception occured while setting tags', exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)
@@ -78,8 +78,8 @@ def _close_span_on_error(exc, future):
         span.error = 1
         span.set_tag(errors.ERROR_MSG, exc.args[0])
         span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
-    except Exception as e:
-        log.debug('traced_set_final_exception was not able to set the error, failed with error: %s', e)
+    except Exception:
+        log.debug('traced_set_final_exception was not able to set the error, failed with error', exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)

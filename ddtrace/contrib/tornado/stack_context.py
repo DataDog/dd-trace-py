@@ -42,7 +42,7 @@ if _USE_STACK_CONTEXT:
             """
             pass
 
-        def exit(self, type, value, traceback):
+        def exit(self, type, value, traceback):  # noqa: A002
             """
             Required to preserve the ``StackContext`` protocol.
             """
@@ -54,7 +54,7 @@ if _USE_STACK_CONTEXT:
             _state.contexts = self.new_contexts
             return self
 
-        def __exit__(self, type, value, traceback):
+        def __exit__(self, type, value, traceback):  # noqa: A002
             final_contexts = _state.contexts
             _state.contexts = self.old_contexts
 

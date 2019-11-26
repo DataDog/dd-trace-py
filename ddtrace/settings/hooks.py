@@ -94,9 +94,9 @@ class Hooks(object):
         :type hook: str
         :param span: The span to call the hook with
         :type span: :class:`ddtrace.span.Span`
-        :param *args: Positional arguments to pass to the hook functions
+        :param args: Positional arguments to pass to the hook functions
         :type args: list
-        :param **kwargs: Keyword arguments to pass to the hook functions
+        :param kwargs: Keyword arguments to pass to the hook functions
         :type kwargs: dict
         """
         # Return early if no hooks are registered
@@ -111,9 +111,9 @@ class Hooks(object):
         for func in self._hooks[hook]:
             try:
                 func(span, *args, **kwargs)
-            except Exception as e:
+            except Exception:
                 # DEV: Use log.debug instead of log.error until we have a throttled logger
-                log.debug('Failed to run hook {} function {}: {}'.format(hook, func, e))
+                log.debug('Failed to run hook %s function %s', hook, func, exc_info=True)
 
     def __repr__(self):
         """Return string representation of this class instance"""

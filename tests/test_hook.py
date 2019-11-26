@@ -31,7 +31,7 @@ class TestHook(SubprocessTestCase):
             register_post_import_hook('tests.utils.test_module', test_hook)
             test_hook.assert_called_once()
             calls = [
-                mock.call('module "tests.utils.test_module" already imported, firing hook')
+                mock.call('module "%s" already imported, firing hook', "tests.utils.test_module")
             ]
             log_mock.debug.assert_has_calls(calls)
 
@@ -80,18 +80,9 @@ class TestHook(SubprocessTestCase):
             register_post_import_hook('tests.utils.test_module', test_hook)
             import tests.utils.test_module  # noqa
 
-            # Since the log message will contain the id (non-deterministic) of the hook
-            # we just check to see if the important parts of the log message are included
-            # in the message. Those being the name and the module to be hooked.
-            class Matcher(object):
-                def __eq__(self, other):
-                    return 'MagicMock' in other and 'already exists on module "tests.utils.test_module"' in other
-
-            calls = [
-                mock.call(Matcher())
-            ]
-            self.assertEqual(test_hook.call_count, 1)
-            log_mock.debug.assert_has_calls(calls)
+            self.assertEqual(log_mock.debug.mock_calls, [
+                mock.call('hook "%s" already exists on module "%s"', test_hook, 'tests.utils.test_module'),
+            ])
 
     def test_deregister_post_import_hook_no_register(self):
         """
@@ -174,7 +165,8 @@ class TestHook(SubprocessTestCase):
         with mock.patch('ddtrace.utils.hook.log') as log_mock:
             import tests.utils.test_module  # noqa
             calls = [
-                mock.call('hook "{}" for module "tests.utils.test_module" failed: test_hook_failed'.format(test_hook))
+                mock.call('hook "%s" for module "%s" failed',
+                          test_hook, 'tests.utils.test_module', exc_info=True)
             ]
             log_mock.warning.assert_has_calls(calls)
 

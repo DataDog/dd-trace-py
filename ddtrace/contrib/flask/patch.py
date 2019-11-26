@@ -8,7 +8,6 @@ from ddtrace import compat
 from ddtrace import config, Pin
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
 from ...ext import http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -29,7 +28,6 @@ config._add('flask', dict(
     # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
     service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
     app='flask',
-    app_type=AppTypes.web,
 
     collect_view_args=True,
     distributed_tracing_enabled=True,
@@ -70,8 +68,7 @@ def patch():
     # Attach service pin to `flask.app.Flask`
     Pin(
         service=config.flask['service_name'],
-        app=config.flask['app'],
-        app_type=config.flask['app_type'],
+        app=config.flask['app']
     ).onto(flask.Flask)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
@@ -470,8 +467,8 @@ def request_tracer(name):
             if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get('collect_view_args'):
                 for k, v in request.view_args.items():
                     span.set_tag(u'{}.{}'.format(FLASK_VIEW_ARGS, k), v)
-        except Exception as e:
-            log.debug('failed to set tags for "flask.request" span: {}'.format(e))
+        except Exception:
+            log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
         with pin.tracer.trace('flask.{}'.format(name), service=pin.service):
             return wrapped(*args, **kwargs)

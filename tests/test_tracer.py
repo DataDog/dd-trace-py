@@ -457,7 +457,7 @@ class TracerTestCase(BaseTracerTestCase):
             # verify warnings triggered
             assert len(w) == 1
             assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use dogstatsd_url' in str(w[-1].message)
+            assert 'Use `dogstatsd_url`' in str(w[-1].message)
 
     def test_configure_dogstatsd_host_port(self):
         with warnings.catch_warnings(record=True) as w:
@@ -466,9 +466,11 @@ class TracerTestCase(BaseTracerTestCase):
             assert self.tracer._dogstatsd_client.host == 'foo'
             assert self.tracer._dogstatsd_client.port == 1234
             # verify warnings triggered
-            assert len(w) == 1
-            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
-            assert 'Use dogstatsd_url' in str(w[-1].message)
+            assert len(w) == 2
+            assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use `dogstatsd_url`' in str(w[0].message)
+            assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use `dogstatsd_url`' in str(w[1].message)
 
     def test_configure_dogstatsd_url_host_port(self):
         self.tracer.configure(dogstatsd_url='foo:1234')
@@ -521,7 +523,7 @@ def test_excepthook():
 
     called = {}
 
-    def original(type, value, traceback):
+    def original(tp, value, traceback):
         called['yes'] = True
 
     sys.excepthook = original

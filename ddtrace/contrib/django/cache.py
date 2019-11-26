@@ -35,9 +35,10 @@ def patch_cache(tracer):
     can have different implementations and connectors, this function must
     handle all possible interactions with the Django cache. What follows
     is currently traced:
-        * in-memory cache
-        * the cache client wrapper that could use any of the common
-          Django supported cache servers (Redis, Memcached, Database, Custom)
+
+    * in-memory cache
+    * the cache client wrapper that could use any of the common
+      Django supported cache servers (Redis, Memcached, Database, Custom)
     """
     # discover used cache backends
     cache_backends = set([cache['BACKEND'] for cache in django_settings.CACHES.values()])
@@ -78,7 +79,7 @@ def patch_cache(tracer):
 
         # prevent patching each backend's method more than once
         if hasattr(cls, DATADOG_NAMESPACE.format(method=method_name)):
-            log.debug('{} already traced'.format(method_name))
+            log.debug('%s already traced', method_name)
         else:
             method = getattr(cls, method_name)
             setattr(cls, DATADOG_NAMESPACE.format(method=method_name), method)

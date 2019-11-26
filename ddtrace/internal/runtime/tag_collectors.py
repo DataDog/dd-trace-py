@@ -31,16 +31,16 @@ class PlatformTagCollector(RuntimeTagCollector):
     """ Tag collector for the Python interpreter implementation.
 
     Tags collected:
-    - lang_interpreter:
-      - For CPython this is 'CPython'.
-      - For Pypy this is 'PyPy'.
-      - For Jython this is 'Jython'.
-    - lang_version:
-      - eg. '2.7.10'
-    - lang:
-      - e.g. 'Python'
-    - tracer_version:
-      - e.g. '0.29.0'
+    - ``lang_interpreter``:
+
+      * For CPython this is 'CPython'.
+      * For Pypy this is ``PyPy``
+      * For Jython this is ``Jython``
+
+    - `lang_version``,  eg ``2.7.10``
+    - ``lang`` e.g. ``Python``
+    - ``tracer_version`` e.g. ``0.29.0``
+
     """
     required_modules = ('platform', 'ddtrace')
 

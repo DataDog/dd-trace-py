@@ -16,12 +16,11 @@ def _extract_service_name(session, span, hostname=None):
     """Extracts the right service name based on the following logic:
     - `requests` is the default service name
     - users can change it via `session.service_name = 'clients'`
-    - if the Span doesn't have a parent, use the set service name
-      or fallback to the default
+    - if the Span doesn't have a parent, use the set service name or fallback to the default
     - if the Span has a parent, use the set service name or the
-      parent service value if the set service name is the default
+    parent service value if the set service name is the default
     - if `split_by_domain` is used, always override users settings
-      and use the network location as a service name
+    and use the network location as a service name
 
     The priority can be represented as:
     Updated service name > parent service name > default to `requests`.
