@@ -212,10 +212,6 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        # TODO: Remove when we remove the fallback to priority sampling
-        if isinstance(self.sampler, DatadogSampler):
-            self.sampler._priority_sampler = self.priority_sampler
-
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
 
