@@ -14,8 +14,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ddtrace.vendor import six
-from ddtrace.vendor import wrapt
+from .. import six
+from .. import wrapt
 if six.PY3:
     import inspect
     Parameter = inspect.Parameter
