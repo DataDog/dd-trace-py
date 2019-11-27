@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from ddtrace.vendor import wrapt
+from .. import wrapt
 
 from . import _utils
 

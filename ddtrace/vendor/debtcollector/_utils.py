@@ -19,7 +19,7 @@ import inspect
 import types
 import warnings
 
-from ddtrace.vendor import six
+from .. import six
 
 try:
     _TYPE_TYPE = types.TypeType
