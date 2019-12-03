@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-PY_DIR_PATTERN = re.compile(r'^py[23][0-9]$')
+PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 
 
 # Determine if the folder should be ignored
@@ -48,7 +48,7 @@ def pytest_ignore_collect(path, config):
         # Directory name match `py[23][0-9]`
         if PY_DIR_PATTERN.match(dirname):
             # Split out version numbers into a tuple: `py35` -> `(3, 5)`
-            min_required = tuple((int(v) for v in dirname.strip('py')))
+            min_required = tuple((int(v) for v in dirname.strip("py")))
 
             # If the current Python version does not meet the minimum required, skip this directory
             if sys.version_info[0:2] < min_required:
