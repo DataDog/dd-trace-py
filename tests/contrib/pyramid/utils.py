@@ -63,7 +63,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET index'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/'
@@ -152,7 +152,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == '404'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '404'
         assert s.meta.get(http.URL) == 'http://localhost/404'
@@ -167,7 +167,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET raise_redirect'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '302'
         assert s.meta.get(http.URL) == 'http://localhost/redirect'
@@ -182,7 +182,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET raise_no_content'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '204'
         assert s.meta.get(http.URL) == 'http://localhost/nocontent'
@@ -200,7 +200,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET exception'
         assert s.error == 1
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '500'
         assert s.meta.get(http.URL) == 'http://localhost/exception'
@@ -216,7 +216,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET error'
         assert s.error == 1
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '500'
         assert s.meta.get(http.URL) == 'http://localhost/error'
@@ -236,7 +236,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET json'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/json'
@@ -260,7 +260,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == 'GET renderer'
         assert s.error == 0
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/renderer'
@@ -282,7 +282,7 @@ class PyramidTestCase(PyramidBase):
         assert s.service == 'foobar'
         assert s.resource == '404'
         assert s.error == 1
-        assert s.span_type == 'http'
+        assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
         assert s.meta.get('http.status_code') == '404'
         assert s.meta.get(http.URL) == 'http://localhost/404/raise_exception'
@@ -354,7 +354,7 @@ class PyramidTestCase(PyramidBase):
         assert dd_span.service == 'foobar'
         assert dd_span.resource == 'GET index'
         assert dd_span.error == 0
-        assert dd_span.span_type == 'http'
+        assert dd_span.span_type == 'web'
         assert dd_span.meta.get('http.method') == 'GET'
         assert dd_span.meta.get('http.status_code') == '200'
         assert dd_span.meta.get(http.URL) == 'http://localhost/'

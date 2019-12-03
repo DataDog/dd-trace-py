@@ -6,11 +6,10 @@ from .quantize import quantize
 
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
-from ...ext import http, elasticsearch as metadata
+from ...ext import SpanTypes, http, elasticsearch as metadata
 from ...settings import config
 
 DEFAULT_SERVICE = 'elasticsearch'
-SPAN_TYPE = 'elasticsearch'
 
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
@@ -25,14 +24,13 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-            with self._datadog_tracer.trace('elasticsearch.query') as s:
+            with self._datadog_tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH) as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:
                     return super(TracedTransport, self).perform_request(
                         method, url, params=params, body=body)
 
                 s.service = self._datadog_service
-                s.span_type = SPAN_TYPE
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)
                 s.set_tag(metadata.PARAMS, urlencode(params))

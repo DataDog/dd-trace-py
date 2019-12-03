@@ -65,7 +65,7 @@ class FalconTestCase(object):
         else:
             assert httpx.QUERY_STRING not in span.meta
         assert span.parent_id is None
-        assert span.span_type == 'http'
+        assert span.span_type == 'web'
 
     def test_200_qs(self):
         return self.test_200('foo=bar')

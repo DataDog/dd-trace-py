@@ -18,7 +18,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.NestedWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -44,7 +44,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.NestedExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
@@ -74,7 +74,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.SyncNestedWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -100,7 +100,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.SyncNestedExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
@@ -130,7 +130,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -157,7 +157,7 @@ class TestTornadoWebWrapper(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorExceptionWrapHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')

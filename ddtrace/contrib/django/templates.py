@@ -2,7 +2,7 @@
 code to measure django template rendering.
 """
 # project
-from ...ext import http
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 
 # 3p
@@ -28,7 +28,7 @@ def patch_template(tracer):
     setattr(Template, RENDER_ATTR, Template.render)
 
     def traced_render(self, context):
-        with tracer.trace('django.template', span_type=http.TEMPLATE) as span:
+        with tracer.trace('django.template', span_type=SpanTypes.TEMPLATE) as span:
             try:
                 return Template._datadog_original_render(self, context)
             finally:

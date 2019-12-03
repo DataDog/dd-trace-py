@@ -8,6 +8,7 @@ import logging
 # project
 from .utils import _extract_conn_tags, _resource_from_cache_prefix
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import SpanTypes
 from ...settings import config
 
 # 3rd party
@@ -16,7 +17,6 @@ from flask.ext.cache import Cache
 
 log = logging.Logger(__name__)
 
-TYPE = 'cache'
 DEFAULT_SERVICE = 'flask-cache'
 
 # standard tags
@@ -47,7 +47,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             # create a new span
             s = self._datadog_tracer.trace(
                 cmd,
-                span_type=TYPE,
+                span_type=SpanTypes.CACHE,
                 service=self._datadog_service
             )
             # set span tags

@@ -5,7 +5,7 @@ from .utils import get_request_uri
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -126,7 +126,7 @@ class TraceMiddleware(InstrumentationMixin):
                 'django.request',
                 service=settings.DEFAULT_SERVICE,
                 resource='unknown',  # will be filled by process view
-                span_type=http.TYPE,
+                span_type=SpanTypes.WEB,
             )
 
             # set analytics sample rate
