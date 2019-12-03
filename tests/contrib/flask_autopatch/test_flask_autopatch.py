@@ -76,7 +76,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertEqual(req_span.service, 'test-flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 

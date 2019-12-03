@@ -3,7 +3,7 @@ import asyncio
 from ..asyncio import context_provider
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -43,7 +43,7 @@ def trace_middleware(app, handler):
         request_span = tracer.trace(
             'aiohttp.request',
             service=service,
-            span_type=http.TYPE,
+            span_type=SpanTypes.WEB,
         )
 
         # Configure trace search sample rate

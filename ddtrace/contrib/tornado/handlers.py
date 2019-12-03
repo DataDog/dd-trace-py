@@ -3,7 +3,7 @@ from tornado.web import HTTPError
 from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -35,7 +35,7 @@ def execute(func, handler, args, kwargs):
         request_span = tracer.trace(
             'tornado.request',
             service=service,
-            span_type=http.TYPE
+            span_type=SpanTypes.WEB
         )
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
