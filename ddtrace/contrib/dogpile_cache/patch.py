@@ -20,7 +20,7 @@ def patch():
     _w('dogpile.cache.region', 'CacheRegion.get_or_create_multi', _wrap_get_create_multi)
     _w('dogpile.lock', 'Lock.__init__', _wrap_lock_ctor)
 
-    Pin(app='dogpile.cache', service='dogpile.cache', app_type='CACHE').onto(dogpile.cache)
+    Pin(app='dogpile.cache', service='dogpile.cache').onto(dogpile.cache)
 
 
 def unpatch():
