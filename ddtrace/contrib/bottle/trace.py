@@ -6,11 +6,9 @@ import ddtrace
 
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
-
-SPAN_TYPE = 'web'
 
 
 class TracePlugin(object):
@@ -37,7 +35,9 @@ class TracePlugin(object):
                 if context.trace_id:
                     self.tracer.context_provider.activate(context)
 
-            with self.tracer.trace('bottle.request', service=self.service, resource=resource, span_type=SPAN_TYPE) as s:
+            with self.tracer.trace(
+                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB
+            ) as s:
                 # set analytics sample rate with global config enabled
                 s.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,
@@ -58,7 +58,11 @@ class TracePlugin(object):
                     code = 500
                     raise
                 finally:
-                    s.set_tag(http.STATUS_CODE, code or response.status_code)
+                    response_code = code or response.status_code
+                    if 500 <= response_code < 600:
+                        s.error = 1
+
+                    s.set_tag(http.STATUS_CODE, response_code)
                     s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
                     s.set_tag(http.METHOD, request.method)
                     if config.bottle.trace_query_string:

@@ -40,7 +40,7 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag(http.URL) == 'http://testserver/users/'
         assert sp_request.get_tag('django.user.is_authenticated') == 'False'
         assert sp_request.get_tag('http.method') == 'GET'
-        assert sp_request.span_type == 'http'
+        assert sp_request.span_type == 'web'
         assert sp_request.resource == 'tests.contrib.django.app.views.UserList'
         if config.django.trace_query_string:
             assert sp_request.get_tag(http.QUERY_STRING) == query_string
@@ -155,10 +155,10 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
     def test_analytics_global_off_integration_on_and_none(self):
         """
         When making a request
-            When an integration trace search is enabled
-            Sample rate is set to None
-            Globally trace search is disabled
-                We expect the root span to have the appropriate tag
+        When an integration trace search is enabled
+        Sample rate is set to None
+        Globally trace search is disabled
+        We expect the root span to have the appropriate tag
         """
         with self.override_global_config(dict(analytics_enabled=False)):
             url = reverse('users-list')
@@ -455,5 +455,5 @@ class DjangoMiddlewareTest(DjangoTraceTestCase):
         assert sp_request.get_tag(http.URL) == 'http://testserver/unknown-url'
         assert sp_request.get_tag('django.user.is_authenticated') == 'False'
         assert sp_request.get_tag('http.method') == 'GET'
-        assert sp_request.span_type == 'http'
+        assert sp_request.span_type == 'web'
         assert sp_request.resource == 'django.views.defaults.page_not_found'

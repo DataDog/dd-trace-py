@@ -1,15 +1,23 @@
 """
 tests for Tracer and utilities.
 """
-
+import contextlib
+import multiprocessing
 from os import getpid
+import sys
+import warnings
 
 from unittest.case import SkipTest
 
+import mock
+import pytest
+
+import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
 
 from .base import BaseTracerTestCase
+from .util import override_global_tracer
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
 
@@ -440,6 +448,41 @@ class TracerTestCase(BaseTracerTestCase):
         self.tracer.configure(collect_metrics=True)
         self.assertIsNotNone(self.tracer._runtime_worker)
 
+    def test_configure_dogstatsd_host(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 8125
+            # verify warnings triggered
+            assert len(w) == 1
+            assert issubclass(w[-1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use `dogstatsd_url`' in str(w[-1].message)
+
+    def test_configure_dogstatsd_host_port(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            self.tracer.configure(dogstatsd_host='foo', dogstatsd_port='1234')
+            assert self.tracer._dogstatsd_client.host == 'foo'
+            assert self.tracer._dogstatsd_client.port == 1234
+            # verify warnings triggered
+            assert len(w) == 2
+            assert issubclass(w[0].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use `dogstatsd_url`' in str(w[0].message)
+            assert issubclass(w[1].category, ddtrace.utils.deprecation.RemovedInDDTrace10Warning)
+            assert 'Use `dogstatsd_url`' in str(w[1].message)
+
+    def test_configure_dogstatsd_url_host_port(self):
+        self.tracer.configure(dogstatsd_url='foo:1234')
+        assert self.tracer._dogstatsd_client.host == 'foo'
+        assert self.tracer._dogstatsd_client.port == 1234
+
+    def test_configure_dogstatsd_url_socket(self):
+        self.tracer.configure(dogstatsd_url='unix:///foo.sock')
+        assert self.tracer._dogstatsd_client.host is None
+        assert self.tracer._dogstatsd_client.port is None
+        assert self.tracer._dogstatsd_client.socket_path == '/foo.sock'
+
     def test_span_no_runtime_tags(self):
         self.tracer.configure(collect_metrics=False)
 
@@ -451,13 +494,174 @@ class TracerTestCase(BaseTracerTestCase):
 
         self.assertIsNone(child.get_tag('language'))
 
-    def test_only_root_span_runtime(self):
+    def test_only_root_span_runtime_internal_span_types(self):
         self.tracer.configure(collect_metrics=True)
 
-        root = self.start_span('root')
-        context = root.context
-        child = self.start_span('child', child_of=context)
+        for span_type in ("custom", "template", "web", "worker"):
+            root = self.start_span('root', span_type=span_type)
+            context = root.context
+            child = self.start_span('child', child_of=context)
 
-        self.assertEqual(root.get_tag('language'), 'python')
+            self.assertEqual(root.get_tag('language'), 'python')
 
-        self.assertIsNone(child.get_tag('language'))
+            self.assertIsNone(child.get_tag('language'))
+
+    def test_only_root_span_runtime_external_span_types(self):
+        self.tracer.configure(collect_metrics=True)
+
+        for span_type in ("algoliasearch.search", "boto", "cache", "cassandra", "elasticsearch",
+                          "grpc", "kombu", "http", "memcached", "redis", "sql", "vertica"):
+            root = self.start_span('root', span_type=span_type)
+            context = root.context
+            child = self.start_span('child', child_of=context)
+
+            self.assertIsNone(root.get_tag('language'))
+
+            self.assertIsNone(child.get_tag('language'))
+
+
+def test_installed_excepthook():
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook
+    ddtrace.uninstall_excepthook()
+    assert sys.excepthook is not ddtrace._excepthook
+    ddtrace.install_excepthook()
+    assert sys.excepthook is ddtrace._excepthook
+
+
+def test_excepthook():
+    ddtrace.install_excepthook()
+
+    class Foobar(Exception):
+        pass
+
+    called = {}
+
+    def original(tp, value, traceback):
+        called['yes'] = True
+
+    sys.excepthook = original
+    ddtrace.install_excepthook()
+
+    e = Foobar()
+
+    tracer = ddtrace.Tracer()
+    tracer._dogstatsd_client = mock.Mock()
+    with override_global_tracer(tracer):
+        sys.excepthook(e.__class__, e, None)
+
+    tracer._dogstatsd_client.increment.assert_has_calls((
+        mock.call('datadog.tracer.uncaught_exceptions', 1, tags=['class:Foobar']),
+    ))
+    assert called
+
+
+def test_tracer_url():
+    t = ddtrace.Tracer()
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 8126
+
+    t = ddtrace.Tracer(url='http://foobar:12')
+    assert t.writer.api.hostname == 'foobar'
+    assert t.writer.api.port == 12
+
+    t = ddtrace.Tracer(url='unix:///foobar')
+    assert t.writer.api.uds_path == '/foobar'
+
+    t = ddtrace.Tracer(url='http://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 80
+    assert not t.writer.api.https
+
+    t = ddtrace.Tracer(url='https://localhost')
+    assert t.writer.api.hostname == 'localhost'
+    assert t.writer.api.port == 443
+    assert t.writer.api.https
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(url='foo://foobar:12')
+        assert str(e) == 'Unknown scheme `https` for agent URL'
+
+
+def test_tracer_dogstatsd_url():
+    t = ddtrace.Tracer()
+    assert t._dogstatsd_client.host == 'localhost'
+    assert t._dogstatsd_client.port == 8125
+
+    t = ddtrace.Tracer(dogstatsd_url='foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='udp://foobar:12')
+    assert t._dogstatsd_client.host == 'foobar'
+    assert t._dogstatsd_client.port == 12
+
+    t = ddtrace.Tracer(dogstatsd_url='/var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
+    t = ddtrace.Tracer(dogstatsd_url='unix:///var/run/statsd.sock')
+    assert t._dogstatsd_client.socket_path == '/var/run/statsd.sock'
+
+    with pytest.raises(ValueError) as e:
+        t = ddtrace.Tracer(dogstatsd_url='foo://foobar:12')
+        assert str(e) == 'Unknown url format for `foo://foobar:12`'
+
+
+def test_tracer_fork():
+    t = ddtrace.Tracer()
+    original_pid = t._pid
+    original_writer = t.writer
+
+    @contextlib.contextmanager
+    def capture_failures(errors):
+        try:
+            yield
+        except AssertionError as e:
+            errors.put(e)
+
+    def task(t, errors):
+        # Start a new span to trigger process checking
+        with t.trace('test', service='test') as span:
+
+            # Assert we recreated the writer and have a new queue
+            with capture_failures(errors):
+                assert t._pid != original_pid
+                assert t.writer != original_writer
+                assert t.writer._trace_queue != original_writer._trace_queue
+
+            # Stop the background worker so we don't accidetnally flush the
+            # queue before we can assert on it
+            t.writer.stop()
+            t.writer.join()
+
+        # Assert the trace got written into the correct queue
+        assert original_writer._trace_queue.qsize() == 0
+        assert t.writer._trace_queue.qsize() == 1
+        assert [[span]] == list(t.writer._trace_queue.get())
+
+    # Assert tracer in a new process correctly recreates the writer
+    errors = multiprocessing.Queue()
+    p = multiprocessing.Process(target=task, args=(t, errors))
+    try:
+        p.start()
+    finally:
+        p.join(timeout=2)
+
+    while errors.qsize() > 0:
+        raise errors.get()
+
+    # Ensure writing into the tracer in this process still works as expected
+    with t.trace('test', service='test') as span:
+        assert t._pid == original_pid
+        assert t.writer == original_writer
+        assert t.writer._trace_queue == original_writer._trace_queue
+
+        # Stop the background worker so we don't accidentally flush the
+        # queue before we can assert on it
+        t.writer.stop()
+        t.writer.join()
+
+    # Assert the trace got written into the correct queue
+    assert original_writer._trace_queue.qsize() == 1
+    assert t.writer._trace_queue.qsize() == 1
+    assert [[span]] == list(t.writer._trace_queue.get())

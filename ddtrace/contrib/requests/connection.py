@@ -4,7 +4,7 @@ from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
@@ -16,12 +16,11 @@ def _extract_service_name(session, span, hostname=None):
     """Extracts the right service name based on the following logic:
     - `requests` is the default service name
     - users can change it via `session.service_name = 'clients'`
-    - if the Span doesn't have a parent, use the set service name
-      or fallback to the default
+    - if the Span doesn't have a parent, use the set service name or fallback to the default
     - if the Span has a parent, use the set service name or the
-      parent service value if the set service name is the default
+    parent service value if the set service name is the default
     - if `split_by_domain` is used, always override users settings
-      and use the network location as a service name
+    and use the network location as a service name
 
     The priority can be represented as:
     Updated service name > parent service name > default to `requests`.
@@ -68,7 +67,7 @@ def _wrap_send(func, instance, args, kwargs):
         parsed_uri.fragment
     ))
 
-    with tracer.trace('requests.request', span_type=http.TYPE) as span:
+    with tracer.trace('requests.request', span_type=SpanTypes.HTTP) as span:
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
 

@@ -1,10 +1,10 @@
 """
 Settings for Datadog tracer are all namespaced in the DATADOG_TRACE setting.
-For example your project's `settings.py` file might look like this:
+For example your project's `settings.py` file might look like this::
 
-DATADOG_TRACE = {
-    'TRACER': 'myapp.tracer',
-}
+    DATADOG_TRACE = {
+        'TRACER': 'myapp.tracer',
+    }
 
 This module provides the `setting` object, that is used to access
 Datadog settings, checking for user settings first, then falling

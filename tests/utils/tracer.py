@@ -65,10 +65,10 @@ class DummyTracer(Tracer):
 
     def _update_writer(self):
         self.writer = DummyWriter(
-                hostname=self.writer.api.hostname,
-                port=self.writer.api.port,
-                filters=self.writer._filters,
-                priority_sampler=self.writer._priority_sampler,
+            hostname=self.writer.api.hostname,
+            port=self.writer.api.port,
+            filters=self.writer._filters,
+            priority_sampler=self.writer._priority_sampler,
         )
 
     def configure(self, *args, **kwargs):

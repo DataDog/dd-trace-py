@@ -1,5 +1,4 @@
 # stdlib
-import time
 import ddtrace
 from json import loads
 import socket
@@ -11,6 +10,7 @@ from .internal.logger import get_logger
 from .internal.runtime import container
 from .payload import Payload, PayloadFull
 from .utils.deprecation import deprecated
+from .utils import time
 
 
 log = get_logger(__name__)
@@ -84,8 +84,8 @@ class Response(object):
                 return
 
             return loads(body)
-        except (ValueError, TypeError) as err:
-            log.debug('Unable to parse Datadog Agent JSON response: %s %r', err, body)
+        except (ValueError, TypeError):
+            log.debug('Unable to parse Datadog Agent JSON response: %r', body, exc_info=True)
 
     def __repr__(self):
         return '{0}(status={1!r}, body={2!r}, reason={3!r}, msg={4!r})'.format(
@@ -102,8 +102,11 @@ class UDSHTTPConnection(httplib.HTTPConnection):
 
     # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
     # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(self, path, *args, **kwargs):
-        httplib.HTTPConnection.__init__(self, *args, **kwargs)
+    def __init__(self, path, https, *args, **kwargs):
+        if https:
+            httplib.HTTPSConnection.__init__(self, *args, **kwargs)
+        else:
+            httplib.HTTPConnection.__init__(self, *args, **kwargs)
         self.path = path
 
     def connect(self):
@@ -123,7 +126,7 @@ class API(object):
     # This ought to be enough as the agent is local
     TIMEOUT = 2
 
-    def __init__(self, hostname, port, uds_path=None, headers=None, encoder=None, priority_sampling=False):
+    def __init__(self, hostname, port, uds_path=None, https=False, headers=None, encoder=None, priority_sampling=False):
         """Create a new connection to the Tracer API.
 
         :param hostname: The hostname.
@@ -136,6 +139,7 @@ class API(object):
         self.hostname = hostname
         self.port = int(port)
         self.uds_path = uds_path
+        self.https = https
 
         self._headers = headers or {}
         self._version = None
@@ -161,8 +165,12 @@ class API(object):
 
     def __str__(self):
         if self.uds_path:
-            return self.uds_path
-        return '%s:%s' % (self.hostname, self.port)
+            return 'unix://' + self.uds_path
+        if self.https:
+            scheme = 'https://'
+        else:
+            scheme = 'http://'
+        return '%s%s:%s' % (scheme, self.hostname, self.port)
 
     def _set_version(self, version, encoder=None):
         if version not in _VERSIONS:
@@ -196,33 +204,36 @@ class API(object):
         :param traces: A list of traces.
         :return: The list of API HTTP responses.
         """
-        start = time.time()
-        responses = []
-        payload = Payload(encoder=self._encoder)
-        for trace in traces:
-            try:
-                payload.add_trace(trace)
-            except PayloadFull:
-                # Is payload full or is the trace too big?
-                # If payload is not empty, then using a new Payload might allow us to fit the trace.
-                # Let's flush the Payload and try to put the trace in a new empty Payload.
-                if not payload.empty:
-                    responses.append(self._flush(payload))
-                    # Create a new payload
-                    payload = Payload(encoder=self._encoder)
-                    try:
-                        # Add the trace that we were unable to add in that iteration
-                        payload.add_trace(trace)
-                    except PayloadFull:
-                        # If the trace does not fit in a payload on its own, that's bad. Drop it.
-                        log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
+        if not traces:
+            return []
 
-        # Check that the Payload is not empty:
-        # it could be empty if the last trace was too big to fit.
-        if not payload.empty:
-            responses.append(self._flush(payload))
+        with time.StopWatch() as sw:
+            responses = []
+            payload = Payload(encoder=self._encoder)
+            for trace in traces:
+                try:
+                    payload.add_trace(trace)
+                except PayloadFull:
+                    # Is payload full or is the trace too big?
+                    # If payload is not empty, then using a new Payload might allow us to fit the trace.
+                    # Let's flush the Payload and try to put the trace in a new empty Payload.
+                    if not payload.empty:
+                        responses.append(self._flush(payload))
+                        # Create a new payload
+                        payload = Payload(encoder=self._encoder)
+                        try:
+                            # Add the trace that we were unable to add in that iteration
+                            payload.add_trace(trace)
+                        except PayloadFull:
+                            # If the trace does not fit in a payload on its own, that's bad. Drop it.
+                            log.warning('Trace %r is too big to fit in a payload, dropping it', trace)
 
-        log.debug('reported %d traces in %.5fs', len(traces), time.time() - start)
+            # Check that the Payload is not empty:
+            # it could be empty if the last trace was too big to fit.
+            if not payload.empty:
+                responses.append(self._flush(payload))
+
+        log.debug('reported %d traces in %.5fs', len(traces), sw.elapsed())
 
         return responses
 
@@ -249,9 +260,12 @@ class API(object):
         headers[self.TRACE_COUNT_HEADER] = str(count)
 
         if self.uds_path is None:
-            conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            if self.https:
+                conn = httplib.HTTPSConnection(self.hostname, self.port, timeout=self.TIMEOUT)
+            else:
+                conn = httplib.HTTPConnection(self.hostname, self.port, timeout=self.TIMEOUT)
         else:
-            conn = UDSHTTPConnection(self.uds_path, self.hostname, self.port, timeout=self.TIMEOUT)
+            conn = UDSHTTPConnection(self.uds_path, self.https, self.hostname, self.port, timeout=self.TIMEOUT)
 
         try:
             conn.request('PUT', endpoint, data, headers)

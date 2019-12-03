@@ -18,7 +18,7 @@ class TestTornadoSettings(TornadoTestCase):
                 'agent_hostname': 'dd-agent.service.consul',
                 'agent_port': 8126,
                 'settings': {
-                    'FILTERS':  [
+                    'FILTERS': [
                         FilterRequestsOnUrl(r'http://test\.example\.com'),
                     ],
                 },

@@ -5,7 +5,7 @@ from .utils import get_request_uri
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -42,14 +42,16 @@ _django_default_views = {
 
 def _analytics_enabled():
     return (
-        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False)
-        or settings.ANALYTICS_ENABLED is True
+        (config.analytics_enabled and settings.ANALYTICS_ENABLED is not False) or
+        settings.ANALYTICS_ENABLED is True
     ) and settings.ANALYTICS_SAMPLE_RATE is not None
 
 
 def get_middleware_insertion_point():
     """Returns the attribute name and collection object for the Django middleware.
-    If middleware cannot be found, returns None for the middleware collection."""
+
+    If middleware cannot be found, returns None for the middleware collection.
+    """
     middleware = getattr(django_settings, MIDDLEWARE, None)
     # Prioritise MIDDLEWARE over ..._CLASSES, but only in 1.10 and later.
     if middleware is not None and django.VERSION >= (1, 10):
@@ -124,7 +126,7 @@ class TraceMiddleware(InstrumentationMixin):
                 'django.request',
                 service=settings.DEFAULT_SERVICE,
                 resource='unknown',  # will be filled by process view
-                span_type=http.TYPE,
+                span_type=SpanTypes.WEB,
             )
 
             # set analytics sample rate
@@ -144,8 +146,8 @@ class TraceMiddleware(InstrumentationMixin):
             if trace_query_string:
                 span.set_tag(http.QUERY_STRING, request.META['QUERY_STRING'])
             _set_req_span(request, span)
-        except Exception as e:
-            log.debug('error tracing request: %s', e)
+        except Exception:
+            log.debug('error tracing request', exc_info=True)
 
     def process_view(self, request, view_func, *args, **kwargs):
         span = _get_req_span(request)
@@ -190,8 +192,8 @@ class TraceMiddleware(InstrumentationMixin):
                 span.set_tag(http.STATUS_CODE, response.status_code)
                 span = _set_auth_tags(span, request)
                 span.finish()
-        except Exception as e:
-            log.debug('error tracing request: %s', e)
+        except Exception:
+            log.debug('error tracing request', exc_info=True)
         finally:
             return response
 

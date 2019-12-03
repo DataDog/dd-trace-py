@@ -23,11 +23,9 @@ def set_call_context(task, ctx):
 
 
 def ensure_future(coro_or_future, *, loop=None, tracer=None):
-    """
-    Wrapper for the asyncio.ensure_future() function that
-    sets a context to the newly created Task. If the current
-    task already has a Context, it will be attached to the
-    new Task so the Trace list will be preserved.
+    """Wrapper that sets a context to the newly created Task.
+
+    If the current task already has a Context, it will be attached to the new Task so the Trace list will be preserved.
     """
     tracer = tracer or ddtrace.tracer
     current_ctx = tracer.get_call_context()
@@ -37,22 +35,21 @@ def ensure_future(coro_or_future, *, loop=None, tracer=None):
 
 
 def run_in_executor(loop, executor, func, *args, tracer=None):
-    """
-    Wrapper for the loop.run_in_executor() function that
-    sets a context to the newly created Thread. If the current
-    task has a Context, it will be attached as an empty Context
-    with the current_span activated to inherit the ``trace_id``
-    and the ``parent_id``.
+    """Wrapper function that sets a context to the newly created Thread.
+
+    If the current task has a Context, it will be attached as an empty Context with the current_span activated to
+    inherit the ``trace_id`` and the ``parent_id``.
 
     Because the Executor can run the Thread immediately or after the
     coroutine is executed, we may have two different scenarios:
     * the Context is copied in the new Thread and the trace is sent twice
     * the coroutine flushes the Context and when the Thread copies the
-      Context it is already empty (so it will be a root Span)
+    Context it is already empty (so it will be a root Span)
 
     To support both situations, we create a new Context that knows only what was
     the latest active Span when the new thread was created. In this new thread,
     we fallback to the thread-local ``Context`` storage.
+
     """
     tracer = tracer or ddtrace.tracer
     ctx = Context()

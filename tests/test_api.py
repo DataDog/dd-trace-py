@@ -110,10 +110,10 @@ class ResponseMock:
 
 
 def test_api_str():
-    api = API('localhost', 8126)
-    assert str(api) == 'localhost:8126'
+    api = API('localhost', 8126, https=True)
+    assert str(api) == 'https://localhost:8126'
     api = API('localhost', 8126, '/path/to/uds')
-    assert str(api) == '/path/to/uds'
+    assert str(api) == 'unix:///path/to/uds'
 
 
 class APITests(TestCase):
@@ -144,11 +144,11 @@ class APITests(TestCase):
             ),
             'error:unsupported-endpoint': dict(
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: .*? \'error:unsupported-endpoint\'',
+                log='Unable to parse Datadog Agent JSON response: \'error:unsupported-endpoint\'',
             ),
             42: dict(  # int as key to trigger TypeError
                 js=None,
-                log='Unable to parse Datadog Agent JSON response: .*? 42',
+                log='Unable to parse Datadog Agent JSON response: 42',
             ),
             '{}': dict(js={}),
             '[]': dict(js=[]),
@@ -212,6 +212,16 @@ class APITests(TestCase):
 
         self.conn.request.assert_called_once()
         self.conn.close.assert_called_once()
+
+
+def test_https():
+    conn = mock.MagicMock(spec=httplib.HTTPSConnection)
+    api = API('localhost', 8126, https=True)
+    with mock.patch('ddtrace.compat.httplib.HTTPSConnection') as HTTPSConnection:
+        HTTPSConnection.return_value = conn
+        api._put('/test', '<test data>', 1)
+    conn.request.assert_called_once()
+    conn.close.assert_called_once()
 
 
 def test_flush_connection_timeout_connect():

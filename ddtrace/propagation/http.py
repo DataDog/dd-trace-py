@@ -135,17 +135,13 @@ class HTTPPropagator(object):
                 _dd_origin=origin,
             )
         # If headers are invalid and cannot be parsed, return a new context and log the issue.
-        except Exception as error:
-            try:
-                log.debug(
-                    'invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s, error: %s',
-                    headers.get(HTTP_HEADER_TRACE_ID, 0),
-                    headers.get(HTTP_HEADER_PARENT_ID, 0),
-                    headers.get(HTTP_HEADER_SAMPLING_PRIORITY),
-                    headers.get(HTTP_HEADER_ORIGIN, ''),
-                    error,
-                )
-            # We might fail on string formatting errors ; in that case only format the first error
-            except Exception:
-                log.debug(error)
+        except Exception:
+            log.debug(
+                'invalid x-datadog-* headers, trace-id: %s, parent-id: %s, priority: %s, origin: %s',
+                headers.get(HTTP_HEADER_TRACE_ID, 0),
+                headers.get(HTTP_HEADER_PARENT_ID, 0),
+                headers.get(HTTP_HEADER_SAMPLING_PRIORITY),
+                headers.get(HTTP_HEADER_ORIGIN, ''),
+                exc_info=True,
+            )
             return Context()

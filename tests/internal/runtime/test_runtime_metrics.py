@@ -76,8 +76,9 @@ class TestRuntimeWorker(BaseTracerTestCase):
         # Mock socket.socket to hijack the dogstatsd socket
         with mock.patch('socket.socket'):
             # configure tracer for runtime metrics
-            self.tracer._RUNTIME_METRICS_INTERVAL = 1./4
+            self.tracer._RUNTIME_METRICS_INTERVAL = 1. / 4
             self.tracer.configure(collect_metrics=True)
+            self.tracer.set_tags({'env': 'tests.dog'})
 
             with self.override_global_tracer(self.tracer):
                 root = self.start_span('parent', service='parent')
@@ -111,3 +112,8 @@ class TestRuntimeWorker(BaseTracerTestCase):
         for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
             self.assertRegexpMatches(gauge, 'service:parent')
             self.assertRegexpMatches(gauge, 'service:child')
+            self.assertRegexpMatches(gauge, 'env:tests.dog')
+            self.assertRegexpMatches(gauge, 'lang_interpreter:')
+            self.assertRegexpMatches(gauge, 'lang_version:')
+            self.assertRegexpMatches(gauge, 'lang:')
+            self.assertRegexpMatches(gauge, 'tracer_version:')

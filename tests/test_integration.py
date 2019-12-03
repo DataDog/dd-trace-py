@@ -1,6 +1,5 @@
 import os
 import json
-import time
 import logging
 import mock
 import ddtrace
@@ -15,6 +14,7 @@ from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
+from ddtrace.vendor import monotonic
 from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
@@ -195,11 +195,11 @@ class TestWorkers(TestCase):
         log.addHandler(log_handler)
 
         self._wait_thread_flush()
-        assert tracer.writer._last_error_ts < time.time()
+        assert tracer.writer._last_error_ts < monotonic.monotonic()
 
         logged_errors = log_handler.messages['error']
         assert len(logged_errors) == 1
-        assert 'Failed to send traces to Datadog Agent at localhost:8126: ' \
+        assert 'Failed to send traces to Datadog Agent at http://localhost:8126: ' \
             'HTTP error status 400, reason Bad Request, message Content-Type:' \
             in logged_errors[0]
 
@@ -277,21 +277,6 @@ class TestAPITransport(TestCase):
         for k, v in expected_headers.items():
             assert v == headers[k]
 
-    @mock.patch('ddtrace.api.httplib.HTTPConnection')
-    def test_send_presampler_headers_not_in_services(self, mocked_http):
-        # register some services and send them to the trace agent
-        services = [{
-            'client.service': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-        }]
-
-        # make a call and retrieve the `conn` Mock object
-        self.api_msgpack.send_services(services)
-        request_call = mocked_http.return_value.request
-        assert request_call.call_count == 0
-
     def _send_traces_and_check(self, traces, nresponses=1):
         # test JSON encoder
         responses = self.api_json.send_traces(traces)
@@ -366,44 +351,6 @@ class TestAPITransport(TestCase):
         traces = [trace_1, trace_2]
 
         self._send_traces_and_check(traces)
-
-    def test_send_single_service(self):
-        # register some services and send them to the trace agent
-        services = [{
-            'client.service': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-        }]
-
-        # test JSON encoder
-        response = self.api_json.send_services(services)
-        assert response is None
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_services(services)
-        assert response is None
-
-    def test_send_service_called_multiple_times(self):
-        # register some services and send them to the trace agent
-        services = [{
-            'backend': {
-                'app': 'django',
-                'app_type': 'web',
-            },
-            'database': {
-                'app': 'postgres',
-                'app_type': 'db',
-            },
-        }]
-
-        # test JSON encoder
-        response = self.api_json.send_services(services)
-        assert response is None
-
-        # test Msgpack encoder
-        response = self.api_msgpack.send_services(services)
-        assert response is None
 
 
 @skipUnless(

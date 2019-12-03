@@ -39,6 +39,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
+    'rediscluster': True,
     'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
@@ -149,10 +150,10 @@ def patch_module(module, raise_errors=True):
     """
     try:
         return _patch_module(module)
-    except Exception as exc:
+    except Exception:
         if raise_errors:
             raise
-        log.debug('failed to patch %s: %s', module, exc)
+        log.debug('failed to patch %s', module, exc_info=True)
         return False
 
 

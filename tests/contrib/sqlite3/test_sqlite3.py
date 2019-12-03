@@ -53,7 +53,6 @@ class TestSQLite(BaseTracerTestCase):
             db = sqlite3.connect(':memory:')
             pin = Pin.get_from(db)
             assert pin
-            self.assertEqual('db', pin.app_type)
             pin.clone(
                 service=service,
                 tracer=self.tracer).onto(db)
@@ -194,7 +193,6 @@ class TestSQLite(BaseTracerTestCase):
             db = sqlite3.connect(':memory:')
             pin = Pin.get_from(db)
             assert pin
-            self.assertEqual('db', pin.app_type)
             pin.clone(tracer=self.tracer).onto(db)
             cursor = db.execute(q)
             rows = cursor.fetchall()
@@ -213,7 +211,6 @@ class TestSQLite(BaseTracerTestCase):
                 db = sqlite3.connect(':memory:')
                 pin = Pin.get_from(db)
                 assert pin
-                self.assertEqual('db', pin.app_type)
                 pin.clone(tracer=self.tracer).onto(db)
                 cursor = db.execute(q)
                 rows = cursor.fetchall()
