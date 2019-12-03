@@ -168,7 +168,7 @@ class TestInnerFunctionCalls(object):
         # It's now cached - shouldn't need to call the inner function.
         spy_single_cache.reset_mock()
         assert 2 == single_cache(1)
-        spy_single_cache.assert_not_called()
+        assert spy_single_cache.call_count == 0
 
         assert [6, 8] == multi_cache(3, 4)
         spy_multi_cache.assert_called_once_with(3, 4)
@@ -181,4 +181,4 @@ class TestInnerFunctionCalls(object):
         # Full hit. No call to inner function.
         spy_multi_cache.reset_mock()
         assert [6, 10] == multi_cache(3, 5)
-        spy_multi_cache.assert_not_called()
+        assert spy_single_cache.call_count == 0

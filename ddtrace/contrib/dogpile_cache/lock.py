@@ -1,6 +1,7 @@
 import dogpile
 
 from ...pin import Pin
+from ...utils.formats import asbool
 
 
 def _wrap_lock_ctor(func, instance, args, kwargs):
@@ -27,6 +28,10 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
             expired = instance._is_expired(createdtime) or False
             return value, createdtime
         finally:
-            pin.tracer.current_span().set_tag('hit', hit)
-            pin.tracer.current_span().set_tag('expired', expired)
+            # Keys are checked in random order so the 'final' answer for partial hits
+            # should really be false (ie. if any are 'negative', then the tag value
+            # should be). This means ANDing all hit values and ORing all expired values.
+            span = pin.tracer.current_span()
+            span.set_tag('hit', asbool(span.get_tag('hit') or 'True') and hit)
+            span.set_tag('expired', asbool(span.get_tag('expired') or 'False') or expired)
     instance.value_and_created_fn = wrapped_backend_fetcher
