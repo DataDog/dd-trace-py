@@ -45,6 +45,14 @@ def _parse_dogstatsd_url(url):
         raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
 
 
+_INTERNAL_APPLICATION_SPAN_TYPES = [
+    "custom",
+    "template",
+    "web",
+    "worker"
+]
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -373,7 +381,8 @@ class Tracer(object):
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
 
             # add tags to root span to correlate trace with runtime metrics
-            if self._runtime_worker:
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
         # add common tags

@@ -55,7 +55,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
@@ -293,7 +293,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.name, 'flask.request')
         # Note: contains no query string
         self.assertEqual(req_span.resource, 'GET /')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
@@ -360,7 +360,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, u'GET /üŋïĉóđē')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
@@ -420,7 +420,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET 404')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
@@ -485,7 +485,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /not-found')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 0)
         self.assertIsNone(req_span.parent_id)
 
@@ -562,7 +562,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /500')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 1)
         self.assertIsNone(req_span.parent_id)
 
@@ -650,7 +650,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /501')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 1)
         self.assertIsNone(req_span.parent_id)
 
@@ -762,7 +762,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /500')
-        self.assertEqual(req_span.span_type, 'http')
+        self.assertEqual(req_span.span_type, 'web')
         self.assertEqual(req_span.error, 1)
         self.assertIsNone(req_span.parent_id)
 

@@ -2,12 +2,12 @@ from ddtrace import Pin, config
 
 from celery import registry
 
+from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from . import constants as c
 from .utils import tags_from_context, retrieve_task_id, attach_span, detach_span, retrieve_span
 
 log = get_logger(__name__)
-SPAN_TYPE = 'worker'
 
 
 def trace_prerun(*args, **kwargs):
@@ -28,7 +28,7 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SPAN_TYPE)
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
     attach_span(task, task_id, span)
 
 

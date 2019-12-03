@@ -59,7 +59,7 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(span.service, 'test-boto-tracing.ec2')
         self.assertEqual(span.resource, 'ec2.runinstances')
         self.assertEqual(span.name, 'ec2.command')
-        self.assertEqual(span.span_type, 'boto')
+        self.assertEqual(span.span_type, 'http')
 
     @mock_ec2
     def test_analytics_enabled_with_rate(self):

@@ -48,6 +48,7 @@ class TestMolten(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.span_type, 'web')
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')

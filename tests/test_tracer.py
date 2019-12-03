@@ -494,16 +494,30 @@ class TracerTestCase(BaseTracerTestCase):
 
         self.assertIsNone(child.get_tag('language'))
 
-    def test_only_root_span_runtime(self):
+    def test_only_root_span_runtime_internal_span_types(self):
         self.tracer.configure(collect_metrics=True)
 
-        root = self.start_span('root')
-        context = root.context
-        child = self.start_span('child', child_of=context)
+        for span_type in ("custom", "template", "web", "worker"):
+            root = self.start_span('root', span_type=span_type)
+            context = root.context
+            child = self.start_span('child', child_of=context)
 
-        self.assertEqual(root.get_tag('language'), 'python')
+            self.assertEqual(root.get_tag('language'), 'python')
 
-        self.assertIsNone(child.get_tag('language'))
+            self.assertIsNone(child.get_tag('language'))
+
+    def test_only_root_span_runtime_external_span_types(self):
+        self.tracer.configure(collect_metrics=True)
+
+        for span_type in ("algoliasearch.search", "boto", "cache", "cassandra", "elasticsearch",
+                          "grpc", "kombu", "http", "memcached", "redis", "sql", "vertica"):
+            root = self.start_span('root', span_type=span_type)
+            context = root.context
+            child = self.start_span('child', child_of=context)
+
+            self.assertIsNone(root.get_tag('language'))
+
+            self.assertIsNone(child.get_tag('language'))
 
 
 def test_installed_excepthook():

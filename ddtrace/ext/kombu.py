@@ -1,5 +1,4 @@
-# type of the spans
-TYPE = 'kombu'
+SERVICE = 'kombu'
 
 # net extension
 VHOST = 'out.vhost'

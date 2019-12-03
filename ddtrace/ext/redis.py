@@ -2,9 +2,6 @@
 APP = 'redis'
 DEFAULT_SERVICE = 'redis'
 
-# type of the spans
-TYPE = 'redis'
-
 # net extension
 DB = 'out.redis_db'
 

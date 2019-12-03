@@ -5,7 +5,7 @@ from aiopg.utils import _ContextManager
 
 from .. import dbapi
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import sql
+from ...ext import SpanTypes, sql
 from ...pin import Pin
 from ...settings import config
 
@@ -28,8 +28,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service,
-                              resource=resource) as s:
-            s.span_type = sql.TYPE
+                              resource=resource, span_type=SpanTypes.SQL) as s:
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
