@@ -17,7 +17,7 @@ def patch():
         return
     setattr(consul, '__datadog_patch', True)
 
-    pin = Pin(service=consulx.SERVICE, app=consulx.APP, app_type=consulx.APP_TYPE)
+    pin = Pin(service=consulx.SERVICE, app=consulx.APP)
     pin.onto(consul.Consul.KV)
 
     for f_name in _KV_FUNCS:

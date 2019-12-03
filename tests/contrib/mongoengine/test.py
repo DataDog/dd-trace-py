@@ -192,7 +192,7 @@ class MongoEngineCore(object):
 class TestMongoEnginePatchConnectDefault(unittest.TestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()
@@ -227,7 +227,7 @@ class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
 class TestMongoEnginePatchClientDefault(unittest.TestCase, MongoEngineCore):
     """Test suite with a Pin local to a specific client with default configuration"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()

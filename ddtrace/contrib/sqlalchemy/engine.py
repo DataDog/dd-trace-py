@@ -18,8 +18,7 @@ from sqlalchemy.event import listen
 import ddtrace
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import sql as sqlx
-from ...ext import net as netx
+from ...ext import SpanTypes, sql as sqlx, net as netx
 from ...pin import Pin
 from ...settings import config
 
@@ -63,8 +62,7 @@ class EngineTracer(object):
         Pin(
             app=self.vendor,
             tracer=tracer,
-            service=self.service,
-            app_type=sqlx.APP_TYPE,
+            service=self.service
         ).onto(engine)
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
@@ -80,7 +78,7 @@ class EngineTracer(object):
         span = pin.tracer.trace(
             self.name,
             service=pin.service,
-            span_type=sqlx.TYPE,
+            span_type=SpanTypes.SQL,
             resource=statement,
         )
 

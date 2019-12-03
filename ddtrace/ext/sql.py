@@ -1,10 +1,3 @@
-from ddtrace.ext import AppTypes
-
-
-# the type of the spans
-TYPE = 'sql'
-APP_TYPE = AppTypes.db
-
 # tags
 QUERY = 'sql.query'   # the query text
 ROWS = 'sql.rows'     # number of rows returned by a query

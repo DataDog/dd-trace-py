@@ -69,7 +69,7 @@ class TestKombuPatch(BaseTracerTestCase):
         consumer_span = spans[0]
         self.assertEqual(consumer_span.service, self.TEST_SERVICE)
         self.assertEqual(consumer_span.name, kombux.PUBLISH_NAME)
-        self.assertEqual(consumer_span.span_type, 'kombu')
+        self.assertEqual(consumer_span.span_type, 'worker')
         self.assertEqual(consumer_span.error, 0)
         self.assertEqual(consumer_span.get_tag('out.vhost'), '/')
         self.assertEqual(consumer_span.get_tag('out.host'), '127.0.0.1')
@@ -81,7 +81,7 @@ class TestKombuPatch(BaseTracerTestCase):
         producer_span = spans[1]
         self.assertEqual(producer_span.service, self.TEST_SERVICE)
         self.assertEqual(producer_span.name, kombux.RECEIVE_NAME)
-        self.assertEqual(producer_span.span_type, 'kombu')
+        self.assertEqual(producer_span.span_type, 'worker')
         self.assertEqual(producer_span.error, 0)
         self.assertEqual(producer_span.get_tag('kombu.exchange'), u'tasks')
         self.assertEqual(producer_span.get_tag('kombu.routing_key'), u'tasks')

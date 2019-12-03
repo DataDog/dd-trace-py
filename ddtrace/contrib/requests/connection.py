@@ -4,7 +4,7 @@ from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .constants import DEFAULT_SERVICE
@@ -67,7 +67,7 @@ def _wrap_send(func, instance, args, kwargs):
         parsed_uri.fragment
     ))
 
-    with tracer.trace('requests.request', span_type=http.TYPE) as span:
+    with tracer.trace('requests.request', span_type=SpanTypes.HTTP) as span:
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
 
