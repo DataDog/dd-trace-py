@@ -1,7 +1,4 @@
-TYPE = 'elasticsearch'
-SERVICE = 'elasticsearch'
-APP = 'elasticsearch'
-
+SERVICE = "elasticsearch"
 # standard tags
 URL = 'elasticsearch.url'
 METHOD = 'elasticsearch.method'

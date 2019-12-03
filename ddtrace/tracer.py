@@ -44,6 +44,14 @@ def _parse_dogstatsd_url(url):
         raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
 
 
+_INTERNAL_APPLICATION_SPAN_TYPES = [
+    "custom",
+    "template",
+    "web",
+    "worker"
+]
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -368,7 +376,8 @@ class Tracer(object):
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
 
             # add tags to root span to correlate trace with runtime metrics
-            if self._runtime_worker:
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
         # add common tags
@@ -536,10 +545,6 @@ class Tracer(object):
     @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
-
-        :param str service: the internal name of the service (e.g. acme_search, datadog_web)
-        :param str app: the off the shelf name of the application (e.g. rails, postgres, custom-app)
-        :param str app_type: the type of the application (e.g. db, web)
         """
         return
 

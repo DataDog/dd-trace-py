@@ -107,7 +107,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert s.get_tag(http.METHOD) == 'GET'
         assert s.get_tag(http.STATUS_CODE) == '200'
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
         assert http.QUERY_STRING not in s.meta
 
     def test_200_send(self):
@@ -124,7 +124,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert s.get_tag(http.METHOD) == 'GET'
         assert s.get_tag(http.STATUS_CODE) == '200'
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
 
     def test_200_query_string(self):
         # ensure query string is removed before adding url to metadata
@@ -140,7 +140,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert s.get_tag(http.STATUS_CODE) == '200'
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
         assert s.get_tag(http.QUERY_STRING) == query_string
 
     def test_requests_module_200(self):
@@ -156,7 +156,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             assert s.get_tag(http.METHOD) == 'GET'
             assert s.get_tag(http.STATUS_CODE) == '200'
             assert s.error == 0
-            assert s.span_type == http.TYPE
+            assert s.span_type == 'http'
 
     def test_post_500(self):
         out = self.session.post(URL_500)
@@ -370,7 +370,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert dd_span.get_tag(http.METHOD) == 'GET'
         assert dd_span.get_tag(http.STATUS_CODE) == '200'
         assert dd_span.error == 0
-        assert dd_span.span_type == http.TYPE
+        assert dd_span.span_type == 'http'
 
     def test_request_and_response_headers(self):
         # Disabled when not configured

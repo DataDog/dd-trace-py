@@ -37,7 +37,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert sp.name == 'django.request'
         assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
         assert sp.error == 0
-        assert sp.span_type == 'http'
+        assert sp.span_type == 'web'
         assert sp.get_tag('http.status_code') == '500'
         assert sp.get_tag('error.msg') is None
 
@@ -54,7 +54,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert sp.name == 'django.request'
         assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
         assert sp.error == 1
-        assert sp.span_type == 'http'
+        assert sp.span_type == 'web'
         assert sp.get_tag('http.method') == 'GET'
         assert sp.get_tag('http.status_code') == '500'
         assert sp.get_tag('error.msg') == 'Authentication credentials were not provided.'

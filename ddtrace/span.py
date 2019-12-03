@@ -75,7 +75,7 @@ class Span(object):
         self.name = name
         self.service = service
         self.resource = resource or name
-        self.span_type = span_type
+        self.span_type = span_type.value if isinstance(span_type, SpanTypes) else span_type
 
         # tags / metatdata
         self.meta = {}

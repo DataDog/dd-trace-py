@@ -2,7 +2,7 @@ import aiohttp_jinja2
 
 from ddtrace import Pin
 
-from ...ext import http
+from ...ext import SpanTypes
 
 
 def _trace_render_template(func, module, args, kwargs):
@@ -24,7 +24,6 @@ def _trace_render_template(func, module, args, kwargs):
     template_prefix = getattr(env.loader, 'package_path', '')
     template_meta = '{}/{}'.format(template_prefix, template_name)
 
-    with pin.tracer.trace('aiohttp.template') as span:
-        span.span_type = http.TEMPLATE
+    with pin.tracer.trace('aiohttp.template', span_type=SpanTypes.TEMPLATE) as span:
         span.set_meta('aiohttp.template', template_meta)
         return func(*args, **kwargs)

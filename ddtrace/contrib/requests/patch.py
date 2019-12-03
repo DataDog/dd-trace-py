@@ -10,7 +10,6 @@ from ...utils.wrappers import unwrap as _u
 from .legacy import _distributed_tracing, _distributed_tracing_setter
 from .constants import DEFAULT_SERVICE
 from .connection import _wrap_send
-from ...ext import AppTypes
 
 # requests default settings
 config._add('requests', {
@@ -30,7 +29,6 @@ def patch():
     Pin(
         service=config.requests['service_name'],
         app='requests',
-        app_type=AppTypes.web,
         _config=config.requests,
     ).onto(requests.Session)
 

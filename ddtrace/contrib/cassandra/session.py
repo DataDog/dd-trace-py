@@ -9,7 +9,7 @@ import cassandra.cluster
 # project
 from ...compat import stringify
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import net, cassandra as cassx, errors
+from ...ext import SpanTypes, net, cassandra as cassx, errors
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
@@ -32,7 +32,7 @@ def patch():
     """ patch will add tracing to the cassandra library. """
     setattr(cassandra.cluster.Cluster, 'connect',
             wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE, app=SERVICE, app_type='db').onto(cassandra.cluster.Cluster)
+    Pin(service=SERVICE, app=SERVICE).onto(cassandra.cluster.Cluster)
 
 
 def unpatch():
@@ -181,7 +181,7 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace('cassandra.query', service=service, span_type=cassx.TYPE)
+    span = tracer.trace('cassandra.query', service=service, span_type=SpanTypes.CASSANDRA)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))

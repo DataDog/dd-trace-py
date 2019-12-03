@@ -8,8 +8,7 @@ from ddtrace import compat
 from ddtrace import config, Pin
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
-from ...ext import http
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u
@@ -29,7 +28,6 @@ config._add('flask', dict(
     # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
     service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
     app='flask',
-    app_type=AppTypes.web,
 
     collect_view_args=True,
     distributed_tracing_enabled=True,
@@ -70,8 +68,7 @@ def patch():
     # Attach service pin to `flask.app.Flask`
     Pin(
         service=config.flask['service_name'],
-        app=config.flask['app'],
-        app_type=config.flask['app_type'],
+        app=config.flask['app']
     ).onto(flask.Flask)
 
     # flask.app.Flask methods that have custom tracing (add metadata, wrap functions, etc)
@@ -285,7 +282,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
-    with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=http.TYPE) as s:
+    with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as s:
         # set analytics sample rate with global config enabled
         sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
@@ -399,7 +396,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace('flask.render_template', span_type=http.TEMPLATE):
+    with pin.tracer.trace('flask.render_template', span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
@@ -409,7 +406,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace('flask.render_template_string', span_type=http.TEMPLATE):
+    with pin.tracer.trace('flask.render_template_string', span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
