@@ -190,7 +190,7 @@ html_theme_options = {
 
 # Custom sidebar templates, maps document names to template names.
 #
-html_sidebars = {"**": ["about.html", "nav.html", "relations.html", "searchbox.html",]}
+html_sidebars = {"**": ["about.html", "nav.html", "relations.html", "searchbox.html", ]}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
