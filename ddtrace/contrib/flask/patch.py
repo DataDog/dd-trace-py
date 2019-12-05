@@ -8,7 +8,7 @@ from ddtrace import compat
 from ddtrace import config, Pin
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes, http
+from ...ext import SpanTypes, 
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...utils.wrappers import unwrap as _u

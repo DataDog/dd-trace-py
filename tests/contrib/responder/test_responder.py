@@ -1,13 +1,22 @@
 
 import responder
 
-from ddtrace.contrib.responder import TraceMiddleware
+from ddtrace.contrib.responder.patch import patch, unpatch
+from ddtrace.pin import Pin
+
 from ...utils.tracer import DummyTracer
 
 
 class TestResponder(object):
 
+    def setup_method(self):
+        patch()
+
+    def teardown_method(self):
+        unpatch()
+
     def test_200(self):
+        patch()
         tracer, api = _make_test_api()
         resp = api.session().get("/login")
 
@@ -62,7 +71,8 @@ class TestResponder(object):
 def _make_test_api():
     tracer = DummyTracer()
     api = responder.API()
-    api.add_middleware(TraceMiddleware, tracer=tracer)
+
+    Pin.override(api, tracer=tracer)
 
     @api.route("/login")
     def login(req, resp):
