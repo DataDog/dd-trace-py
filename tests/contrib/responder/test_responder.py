@@ -29,7 +29,6 @@ class TestResponder(object):
         assert s.get_tag('http.status_code') == '404'
         assert s.get_tag('http.method') == 'GET'
 
-
     def test_200(self):
         tracer, api = _make_test_api()
         resp = api.session().get("/login")
@@ -60,7 +59,6 @@ class TestResponder(object):
         assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
 
-
     def test_exception(self):
         tracer, api = _make_test_api()
 
@@ -79,12 +77,11 @@ class TestResponder(object):
         assert s.get_tag('http.status_code') == '500'
         assert s.get_tag('http.method') == 'GET'
 
-
     def test_tracing_http_headers(self):
         tracer, api = _make_test_api()
         resp = api.session().get("/login", headers={
-            "x-datadog-trace-id":"123",
-            "x-datadog-parent-id":"456",
+            "x-datadog-trace-id": "123",
+            "x-datadog-parent-id": "456",
         })
 
         assert resp.ok
@@ -116,8 +113,7 @@ class TestResponder(object):
         s2 = spans[0]
         assert s2.name == 'responder.render_template'
 
-
-    def test_render_template(self):
+    def test_custom_child(self):
         tracer, api = _make_test_api()
         resp = api.session().get("/child")
 
@@ -147,7 +143,7 @@ def _make_test_api():
         resp.text = "asdf"
 
     @api.route("/template")
-    def login(req, resp):
+    def template(req, resp):
         resp.text = api.template_string("render {{ this}}", this="that")
 
     @api.route("/home/{user}")
@@ -156,7 +152,7 @@ def _make_test_api():
 
     @api.route("/child")
     def child(req, resp):
-        with tracer.trace("custom") as span:
+        with tracer.trace("custom"):
             resp.text = "child"
 
     @api.route("/exception")
@@ -165,4 +161,6 @@ def _make_test_api():
 
     return tracer, api
 
-class FakeError(Exception): pass
+
+class FakeError(Exception):
+    pass

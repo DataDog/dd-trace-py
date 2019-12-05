@@ -10,7 +10,7 @@ from ddtrace.propagation.http import extract_context_from_http_headers
 
 # 3p
 import responder
-patches = [] # will be overriden when patched funcs are defined.
+patches = []  # will be overriden when patched funcs are defined.
 
 
 def patch():
@@ -20,6 +20,7 @@ def patch():
 
     for obj, mname, fname, func in patches:
         _w(mname, fname, func)
+
 
 def unpatch():
     if not _is_patched(responder):
@@ -37,10 +38,10 @@ async def _api_call(wrapped, instance, args, kwargs):
     tracer = _get_tracer(instance)
     assert tracer
 
-    scope, receive, send = args # FIXME: what if this is partially using kwargs?
+    scope, receive, send = args  # FIXME: what if this is partially using kwargs?
 
     # check for propagated traced ids in the http heaers.
-    headers = {k.decode():v for k,v in scope.get('headers', ())}
+    headers = {k.decode(): v for k, v in scope.get('headers', ())}
     ctx = extract_context_from_http_headers(headers)
     if ctx.trace_id:
         tracer.context_provider.activate(ctx)
@@ -53,22 +54,24 @@ async def _api_call(wrapped, instance, args, kwargs):
 
         span.resource = scope.get('__dd_route', '404')
 
+
 def _api_template(wrapped, instance, args, kwargs):
-    #FIXME: needs tests
+    # FIXME: needs tests
     tracer = _get_tracer(instance)
     with tracer.trace("responder.render_template") as span:
-        span.set_tag("template", args[0]) # FIXME args or kwargs?
+        span.set_tag("template", args[0])  # FIXME args or kwargs?
         return wrapped(*args, **kwargs)
+
 
 def _api_template_string(wrapped, instance, args, kwargs):
     tracer = _get_tracer(instance)
-    with tracer.trace("responder.render_template") as span:
+    with tracer.trace("responder.render_template"):
         return wrapped(*args, **kwargs)
 
 
 async def _route_call(wrapped, instance, args, kwargs):
     # patch the route on the scope to collect later.
-    scope = args[0] # FIXME maybe kwarg?
+    scope = args[0]  # FIXME maybe kwarg?
     scope['__dd_route'] = getattr(instance, 'route')
 
     await wrapped(*args, **kwargs)
@@ -97,35 +100,10 @@ def _get_tracer(instance):
         return pin.tracer
     return ddtrace.tracer
 
-# misc
 
 def _set_patched(obj, state):
     setattr(obj, 'datadog_patch', state)
 
+
 def _is_patched(obj):
     return getattr(obj, 'datadog_patch', False)
-
-
-
-if __name__ == '__main__':
-    patch()
-
-    api = responder.API()
-
-    @api.route("/login")
-    def login(req, resp):
-        resp.text = "asdf"
-
-    @api.route("/exception")
-    def exception(req, resp):
-        raise FakeError("ohno")
-
-    print(api.session().get("/login"))
-
-    unpatch()
-
-
-    print(api.session().get("/login"))
-
-
-
