@@ -48,10 +48,25 @@ async def _api_call(wrapped, instance, args, kwargs):
     with tracer.trace("responder.request", service="responder") as span:
         traced_send = _trace_asgi_send_func(send, span)
         span.set_tag(http.METHOD, scope.get('method'))
+
         await wrapped(scope, receive, traced_send)
 
+        route = scope.get('__dd_route')
+        if route:
+            span.resource = route
+
+
+async def _route_call(wrapped, instance, args, kwargs):
+    # patch the route on the scope to collect later.
+    scope = args[0] # FIXME maybe kwarg?
+    scope['__dd_route'] = getattr(instance, 'route')
+
+
+    await wrapped(*args, **kwargs)
+
 patches = [
-    (responder.api, 'responder.api', 'API.__call__', _api_call)
+    (responder.api, 'responder.api', 'API.__call__', _api_call),
+    (responder.routes, 'responder.routes', 'Route.__call__', _route_call)
 ]
 
 
@@ -62,6 +77,7 @@ def _trace_asgi_send_func(send, span):
             span.set_tag(http.STATUS_CODE, event.get("status"))
         await send(event)
     return _traced_send
+
 
 def _get_tracer(instance):
     pin = ddtrace.Pin.get_from(instance)
