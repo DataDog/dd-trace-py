@@ -553,6 +553,18 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  responder:
+    docker:
+      - *test_runner
+      - *httpbin_local
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^responder_contrib'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   sqlalchemy:
     docker:
       - *test_runner
@@ -1015,6 +1027,10 @@ workflows:
           requires:
             - flake8
             - black
+      - responder:
+          requires:
+            - flake8
+            - black
       - requests:
           requires:
             - flake8
@@ -1108,6 +1124,7 @@ workflows:
             - rediscluster
             - requests
             - requestsgevent
+            - responder
             - sqlalchemy
             - sqlite3
             - test_utils
