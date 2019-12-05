@@ -21,8 +21,6 @@ def patch():
     for obj, mname, fname, func in patches:
         _w(mname, fname, func)
 
-    print('patched')
-
 def unpatch():
     if not _is_patched(responder):
         return
@@ -33,11 +31,6 @@ def unpatch():
             attr, _, prop = prop.partition('.')
             obj = getattr(obj, attr, object())
         _u(obj, prop)
-
-    print('unpatched')
-
-
-
 
 
 async def _api_call(wrapped, instance, args, kwargs):
