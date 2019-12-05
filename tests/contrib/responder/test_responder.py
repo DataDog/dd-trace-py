@@ -15,8 +15,22 @@ class TestResponder(object):
     def teardown_method(self):
         unpatch()
 
+    def test_404(self):
+        tracer, api = _make_test_api()
+        resp = api.session().get("/no-way-jose-1234")
+
+        assert resp.status_code == 404
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == 'responder.request'
+        assert s.resource == '404'
+        assert s.get_tag('http.status_code') == '404'
+        assert s.get_tag('http.method') == 'GET'
+
+
     def test_200(self):
-        patch()
         tracer, api = _make_test_api()
         resp = api.session().get("/login")
 
@@ -31,7 +45,6 @@ class TestResponder(object):
         assert s.get_tag('http.method') == 'GET'
 
     def test_routing(self):
-        patch()
         tracer, api = _make_test_api()
         resp = api.session().get("/home/wayne")
 
@@ -85,6 +98,43 @@ class TestResponder(object):
         assert s.trace_id == 123
         assert s.parent_id == 456
 
+    def test_render_template(self):
+        tracer, api = _make_test_api()
+        resp = api.session().get("/template")
+
+        assert resp.ok
+        assert resp.status_code == 200
+        assert resp.text == "render that"
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 2
+        spans.sort(key=lambda s: s.name)
+        s1 = spans[1]
+        assert s1.name == 'responder.request'
+        assert s1.resource == '/template'
+
+        s2 = spans[0]
+        assert s2.name == 'responder.render_template'
+
+
+    def test_render_template(self):
+        tracer, api = _make_test_api()
+        resp = api.session().get("/child")
+
+        assert resp.ok
+        assert resp.status_code == 200
+        assert resp.text == "child"
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 2
+        spans.sort(key=lambda s: s.name)
+        s1 = spans[0]
+        s2 = spans[1]
+        assert s1.name == 'custom'
+        assert s2.name == 'responder.request'
+        assert s1.trace_id == s2.trace_id
+        assert s1.parent_id == s2.span_id
+
 
 def _make_test_api():
     tracer = DummyTracer()
@@ -96,10 +146,18 @@ def _make_test_api():
     def login(req, resp):
         resp.text = "asdf"
 
+    @api.route("/template")
+    def login(req, resp):
+        resp.text = api.template_string("render {{ this}}", this="that")
+
     @api.route("/home/{user}")
     def home(req, resp, *, user):
         resp.text = f"hello {user}"
 
+    @api.route("/child")
+    def child(req, resp):
+        with tracer.trace("custom") as span:
+            resp.text = "child"
 
     @api.route("/exception")
     def exception(req, resp):

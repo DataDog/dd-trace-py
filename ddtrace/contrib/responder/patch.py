@@ -51,9 +51,19 @@ async def _api_call(wrapped, instance, args, kwargs):
 
         await wrapped(scope, receive, traced_send)
 
-        route = scope.get('__dd_route')
-        if route:
-            span.resource = route
+        span.resource = scope.get('__dd_route', '404')
+
+def _api_template(wrapped, instance, args, kwargs):
+    #FIXME: needs tests
+    tracer = _get_tracer(instance)
+    with tracer.trace("responder.render_template") as span:
+        span.set_tag("template", args[0]) # FIXME args or kwargs?
+        return wrapped(*args, **kwargs)
+
+def _api_template_string(wrapped, instance, args, kwargs):
+    tracer = _get_tracer(instance)
+    with tracer.trace("responder.render_template") as span:
+        return wrapped(*args, **kwargs)
 
 
 async def _route_call(wrapped, instance, args, kwargs):
@@ -61,11 +71,13 @@ async def _route_call(wrapped, instance, args, kwargs):
     scope = args[0] # FIXME maybe kwarg?
     scope['__dd_route'] = getattr(instance, 'route')
 
-
     await wrapped(*args, **kwargs)
+
 
 patches = [
     (responder.api, 'responder.api', 'API.__call__', _api_call),
+    (responder.api, 'responder.api', 'API.template', _api_template),
+    (responder.api, 'responder.api', 'API.template_string', _api_template),
     (responder.routes, 'responder.routes', 'Route.__call__', _route_call)
 ]
 
