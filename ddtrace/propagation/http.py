@@ -148,5 +148,5 @@ class HTTPPropagator(object):
 
 
 def extract_context_from_http_headers(headers):
-    propagator = HTTPPropagator() # does this need to be declared every time?
+    propagator = HTTPPropagator()  # does this need to be declared every time?
     return propagator.extract(headers)
