@@ -76,6 +76,10 @@ class TestResponder(object):
         assert s.name == 'responder.request'
         assert s.get_tag('http.status_code') == '500'
         assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag('error.type').endswith('FakeError')
+        assert s.get_tag('error.msg').endswith('ohno')
+        assert 'FakeError' in s.get_tag('error.stack')
+
 
     def test_tracing_http_headers(self):
         tracer, api = _make_test_api()
