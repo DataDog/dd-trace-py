@@ -4,6 +4,7 @@
 # project
 import ddtrace
 from ddtrace.ext import http
+from ddtrace.ext import SpanTypes
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import extract_context_from_http_headers
@@ -46,11 +47,13 @@ async def _api_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(ctx)
 
     with tracer.trace("responder.request", service="responder") as span:
-        traced_send = _trace_asgi_send_func(send, span)
+        span.span_type = SpanTypes.WEB.value
         span.set_tag(http.METHOD, scope.get('method'))
 
+        traced_send = _trace_asgi_send_func(send, span)
         await wrapped(scope, receive, traced_send)
 
+        # the router patching will mark the matched route on the request scope.
         span.resource = scope.get('__dd_route', '404')
 
 
