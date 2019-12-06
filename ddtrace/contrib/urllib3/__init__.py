@@ -4,7 +4,7 @@ support for distributed tracing across services the client communicates with.
 
 The ``patch`` function must be called before importing and using the library.
 Note that instrumentation is turned off by default when using the ``patch_all``
-command and you must specifically patch urllib3 to enable ttracing.
+command and you must specifically patch urllib3 to enable tracing.
 For example:
 
     from ddtrace import patch
