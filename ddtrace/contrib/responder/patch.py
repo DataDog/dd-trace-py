@@ -64,9 +64,10 @@ def _api_template(wrapped, instance, args, kwargs):
 
 
 async def _route_call(wrapped, instance, args, kwargs):
-    # patch the route on the scope to collect later.
-    scope = args[0]  # FIXME maybe kwarg?
-    scope['__dd_route'] = getattr(instance, 'route')
+    # patch the route on the scope for use in top-level patching
+    if args:
+        scope = args[0]
+        scope['__dd_route'] = getattr(instance, 'route')
 
     await wrapped(*args, **kwargs)
 
