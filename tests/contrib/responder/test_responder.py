@@ -80,7 +80,6 @@ class TestResponder(object):
         assert s.get_tag('error.msg').endswith('ohno')
         assert 'FakeError' in s.get_tag('error.stack')
 
-
     def test_tracing_http_headers(self):
         tracer, api = _make_test_api()
         resp = api.session().get("/login", headers={
