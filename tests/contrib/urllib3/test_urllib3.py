@@ -5,7 +5,7 @@ import urllib3
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.urllib3 import patch, unpatch
-from ddtrace.ext import errors, http, SpanTypes
+from ddtrace.ext import errors, http
 
 from tests.opentracer.utils import init_tracer
 
@@ -142,7 +142,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert s.get_tag(http.URL) == URL_200
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.error == 0
-        assert s.span_type == SpanTypes.HTTP
+        assert s.span_type == 'http'
         assert http.QUERY_STRING not in s.meta
 
     def test_200_query_string(self):
@@ -159,7 +159,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
-        assert s.span_type == SpanTypes.HTTP
+        assert s.span_type == 'http'
         assert s.get_tag(http.QUERY_STRING) == query_string
 
     def test_post_500(self):
@@ -312,7 +312,7 @@ class TestUrllib3(BaseUrllib3TestCase, BaseTracerTestCase):
         assert dd_span.get_tag(http.METHOD) == "GET"
         assert dd_span.get_tag(http.STATUS_CODE) == "200"
         assert dd_span.error == 0
-        assert dd_span.span_type == SpanTypes.HTTP
+        assert dd_span.span_type == 'http'
 
     def test_request_and_response_headers(self):
         """Tests the headers are added as tag when the headers are whitelisted"""
