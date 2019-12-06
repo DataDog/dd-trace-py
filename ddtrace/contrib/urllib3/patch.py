@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.http import store_request_headers, store_response_headers
 
-from ...ext import http
+from ...ext import http, SpanTypes
 from ...compat import parse
 from ...utils.http import sanitize_url_for_tag
 from ...utils.wrappers import unwrap as _u
@@ -134,7 +134,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
     if not tracer.enabled:
         return func(*args, **kwargs)
 
-    with tracer.trace("urllib3.request", span_type=http.TYPE) as span:
+    with tracer.trace("urllib3.request", span_type=SpanTypes.HTTP) as span:
 
         span.service = _extract_service_name(span, hostname, config.urllib3["split_by_domain"])
 
