@@ -93,8 +93,8 @@ def _get_tracer(instance):
 
 
 def _set_patched(obj, state):
-    setattr(obj, 'datadog_patch', state)
+    setattr(obj, '__datadog_patch', state)
 
 
 def _is_patched(obj):
-    return getattr(obj, 'datadog_patch', False)
+    return getattr(obj, '__datadog_patch', False)
