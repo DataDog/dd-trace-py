@@ -1,4 +1,4 @@
-from six.moves.urllib.parse import urlparse, urlunparse
+from ..compat import parse
 
 
 def normalize_header_name(header_name):
@@ -21,8 +21,8 @@ def sanitize_url_for_tag(url):
     :return: The sanitized URL
     :rtype: str
     """
-    parsed = urlparse(url)
-    return urlunparse(
+    parsed = parse.urlparse(url)
+    return parse.urlunparse(
         (
             parsed.scheme,
             parsed.netloc,

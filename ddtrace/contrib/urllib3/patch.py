@@ -1,5 +1,4 @@
 import urllib3
-from six.moves.urllib.parse import urlparse, urlunparse
 
 import ddtrace
 from ddtrace import config
@@ -7,6 +6,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...ext import http
+from ...compat import parse
 from ...utils.http import sanitize_url_for_tag
 from ...utils.wrappers import unwrap as _u
 from ...utils.formats import asbool, get_env
@@ -114,7 +114,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
 
     # HTTPConnectionPool allows relative path requests; convert the request_url to an absolute url
     if request_url.startswith("/"):
-        request_url = urlunparse(
+        request_url = parse.urlunparse(
             (
                 obj.scheme,
                 "{}:{}".format(obj.host, obj.port) if obj.port and obj.port not in DROP_PORTS else str(obj.host),
@@ -125,7 +125,7 @@ def _wrap_urlopen(func, obj, args, kwargs):
             )
         )
 
-    parsed_uri = urlparse(request_url)
+    parsed_uri = parse.urlparse(request_url)
     hostname = parsed_uri.netloc
     sanitized_url = sanitize_url_for_tag(request_url)
 
