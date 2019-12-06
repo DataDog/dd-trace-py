@@ -36,7 +36,6 @@ def unpatch():
 
 async def _api_call(wrapped, instance, args, kwargs):
     tracer = _get_tracer(instance)
-    assert tracer
 
     scope, receive, send = args  # FIXME: what if this is partially using kwargs?
 
