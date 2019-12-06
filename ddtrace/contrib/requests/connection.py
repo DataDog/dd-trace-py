@@ -59,6 +59,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname = parsed_uri.hostname
     if parsed_uri.port:
         hostname = '{}:{}'.format(hostname, parsed_uri.port)
+
     sanitized_url = sanitize_url_for_tag(request.url)
 
     with tracer.trace('requests.request', span_type=SpanTypes.HTTP) as span:
