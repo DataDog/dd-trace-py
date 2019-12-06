@@ -55,14 +55,6 @@ async def _api_call(wrapped, instance, args, kwargs):
 
 
 def _api_template(wrapped, instance, args, kwargs):
-    # FIXME: needs tests
-    tracer = _get_tracer(instance)
-    with tracer.trace("responder.render_template") as span:
-        span.set_tag("template", args[0])  # FIXME args or kwargs?
-        return wrapped(*args, **kwargs)
-
-
-def _api_template_string(wrapped, instance, args, kwargs):
     tracer = _get_tracer(instance)
     with tracer.trace("responder.render_template"):
         return wrapped(*args, **kwargs)
