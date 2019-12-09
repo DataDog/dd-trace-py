@@ -7,7 +7,7 @@ from aiobotocore.endpoint import ClientResponseContentProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...compat import PYTHON_VERSION_INFO
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
@@ -79,7 +79,7 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service='{}.{}'.format(pin.service, endpoint_name),
-                          span_type=http.TYPE) as span:
+                          span_type=SpanTypes.HTTP) as span:
 
         if len(args) > 0:
             operation = args[0]

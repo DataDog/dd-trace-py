@@ -1,6 +1,5 @@
 from ddtrace import config, patch_all
-from ddtrace.contrib.algoliasearch.patch import (SEARCH_SPAN_TYPE, patch,
-                                                 unpatch, algoliasearch_version)
+from ddtrace.contrib.algoliasearch.patch import (patch, unpatch, algoliasearch_version)
 from ddtrace.pin import Pin
 from tests.base import BaseTracerTestCase
 
@@ -74,7 +73,7 @@ class AlgoliasearchTest(BaseTracerTestCase):
         span = spans[0]
         assert span.service == 'algoliasearch'
         assert span.name == 'algoliasearch.search'
-        assert span.span_type == SEARCH_SPAN_TYPE
+        assert span.span_type is None
         assert span.error == 0
         assert span.get_tag('query.args.attributes_to_retrieve') == 'firstname,lastname'
         # Verify that adding new arguments to the search API will simply be ignored and not cause

@@ -38,7 +38,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right fields
         assert 'aiohttp.request' == span.name
         assert 'aiohttp-web' == span.service
-        assert 'http' == span.span_type
+        assert 'web' == span.span_type
         assert 'GET /' == span.resource
         assert str(self.client.make_url('/')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
@@ -417,7 +417,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right fields
         assert 'aiohttp.request' == inner_span.name
         assert 'aiohttp-web' == inner_span.service
-        assert 'http' == inner_span.span_type
+        assert 'web' == inner_span.span_type
         assert 'GET /' == inner_span.resource
         assert str(self.client.make_url('/')) == inner_span.get_tag(http.URL)
         assert 'GET' == inner_span.get_tag('http.method')

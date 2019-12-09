@@ -15,8 +15,8 @@
 import functools
 import inspect
 
-from ddtrace.vendor import six
-from ddtrace.vendor import wrapt
+from .. import six
+from .. import wrapt
 
 from . import _utils
 

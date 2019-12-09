@@ -1,7 +1,7 @@
 import mako
 from mako.template import Template
 
-from ...ext import http
+from ...ext import SpanTypes
 from ...pin import Pin
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
@@ -38,7 +38,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.filename or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=http.TEMPLATE) as span:
+    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
         try:
             template = wrapped(*args, **kwargs)
             return template

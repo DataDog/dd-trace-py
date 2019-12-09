@@ -5,14 +5,13 @@ import inspect
 from ddtrace import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...utils.wrappers import unwrap
 
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
 
-SPAN_TYPE = 'boto'
 AWS_QUERY_ARGS_NAME = ('operation_name', 'params', 'path', 'verb')
 AWS_AUTH_ARGS_NAME = (
     'method',
@@ -68,7 +67,7 @@ def patched_query_request(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
-        span_type=SPAN_TYPE,
+        span_type=SpanTypes.HTTP,
     ) as span:
 
         operation_name = None
@@ -136,7 +135,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
-        span_type=SPAN_TYPE,
+        span_type=SpanTypes.HTTP,
     ) as span:
 
         if args:

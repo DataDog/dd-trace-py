@@ -6,7 +6,7 @@ from .quantize import quantize
 
 from ...compat import urlencode
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import elasticsearch as metadata, http
+from ...ext import SpanTypes, elasticsearch as metadata, http
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 from ...settings import config
@@ -32,7 +32,7 @@ def _patch(elasticsearch):
         return
     setattr(elasticsearch, '_datadog_patch', True)
     _w(elasticsearch.transport, 'Transport.perform_request', _get_perform_request(elasticsearch))
-    Pin(service=metadata.SERVICE, app=metadata.APP).onto(elasticsearch.transport.Transport)
+    Pin(service=metadata.SERVICE).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
@@ -52,7 +52,7 @@ def _get_perform_request(elasticsearch):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with pin.tracer.trace('elasticsearch.query') as span:
+        with pin.tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH) as span:
             # Don't instrument if the trace is not sampled
             if not span.sampled:
                 return func(*args, **kwargs)
@@ -62,7 +62,6 @@ def _get_perform_request(elasticsearch):
             body = kwargs.get('body')
 
             span.service = pin.service
-            span.span_type = metadata.TYPE
             span.set_tag(metadata.METHOD, method)
             span.set_tag(metadata.URL, url)
             span.set_tag(metadata.PARAMS, urlencode(params))
