@@ -16,61 +16,75 @@ class Stats(object):
     PATCH_ERROR = "datadog.tracer.patch.error"
     PATCH_SUCCESS = "datadog.tracer.patch.success"
 
+    METRIC_TYPES = {
+        SPANS_OPEN: METRIC_TYPE_GAUGE,
+        ERROR_LOGS: METRIC_TYPE_INCREMENT,
+        PATCH_ERROR: METRIC_TYPE_GAUGE,
+        PATCH_SUCCESS: METRIC_TYPE_GAUGE,
+    }
+
     def __init__(self):
         self._read_lock = threading.Lock()
 
         self._last_values = collections.defaultdict(int)
         self._counters = collections.defaultdict(Counter)
+        self._report_once = set()
 
     def span_started(self):
         """Increment the number of spans open"""
-        self._increment(self.SPANS_OPEN, self.METRIC_TYPE_GAUGE)
+        self._increment(self.SPANS_OPEN)
 
     def span_finished(self):
         """Decrement the number of spans open"""
-        self._decrement(self.SPANS_OPEN, self.METRIC_TYPE_GAUGE)
+        self._decrement(self.SPANS_OPEN)
 
     def error_log(self, logger_name):
         """Increment the number of error logs emitted"""
         self._increment(
-            self.ERROR_LOGS, self.METRIC_TYPE_INCREMENT, ("logger:{}".format(logger_name),),
+            self.ERROR_LOGS, ("logger:{}".format(logger_name),),
         )
 
     def patch_error(self, module_name):
         """Increment the number of patching errors"""
         self._increment(
-            self.PATCH_ERROR, self.METRIC_TYPE_GAUGE, ("module:{}".format(module_name),),
+            self.PATCH_ERROR, ("module:{}".format(module_name),), report_once=True,
         )
 
     def patch_success(self, module_name):
         """Increment the number of patching successes"""
         self._increment(
-            self.PATCH_SUCCESS, self.METRIC_TYPE_GAUGE, ("module:{}".format(module_name),),
+            self.PATCH_SUCCESS, ("module:{}".format(module_name),), report_once=True,
         )
 
-    def _key(self, name, metric_type, tags=None):
+    def _key(self, name, tags=None):
         # Tags must be `None` or a `tuple` (`list` is not hashable)
         if tags is not None:
             tags = tuple(tags)
-        return (name, metric_type, tags)
+        return (name, tags)
 
-    def _increment(self, name, metric_type, tags=None):
+    def _increment(self, name, tags=None, report_once=False):
         """Internal helper to increment a stats counter"""
-        key = self._key(name, metric_type, tags)
+        key = self._key(name, tags)
         self._counters[key].increment()
+        if report_once:
+            self._report_once.add(key)
 
-    def _decrement(self, name, metric_type, tags=None):
+    def _decrement(self, name, tags=None, report_once=False):
         """Internal helper to decrement a stats counter"""
-        key = self._key(name, metric_type, tags)
+        key = self._key(name, tags)
         self._counters[key].decrement()
+        if report_once:
+            self._report_once.add(key)
 
     def _get_value(self, name, metric_type, tags=None):
         """Internal helper to get the current value of a counter since last check"""
-        key = self._key(name, metric_type, tags)
+        key = self._key(name, tags)
 
         # Get the current value and last value we saw
         val = self._counters[key].value(no_lock=True)
         last_value = self._last_values[key]
+        # Store the current value for next time we fetch
+        self._last_values[key] = val
 
         # For increments, only grab the difference between
         #   last time we fetched and now
@@ -78,9 +92,6 @@ class Stats(object):
         if metric_type is self.METRIC_TYPE_INCREMENT:
             # Compute the change in value since last check
             val = val - last_value
-
-        # Store the current value for next time we fetch
-        self._last_values[key] = val
         return val
 
     def reset_values(self):
@@ -108,13 +119,21 @@ class Stats(object):
         with self._read_lock:
             # Collect and reset all current counters
             values = []
-            for name, metric_type, tags in self._counters.keys():
+            for name, tags in self._counters.keys():
+                metric_type = self.METRIC_TYPES[name]
                 val = self._get_value(name, metric_type, tags)
                 # Convert tags to a list so we can add to default tags set on the dogstatsd client
                 if tags is not None:
                     tags = list(tags)
 
                 values.append((name, metric_type, val, tags))
+
+            for key in self._report_once:
+                if key in self._counters:
+                    del self._counters[key]
+                if key in self._last_values:
+                    del self._last_values[key]
+            self._report_once = set()
 
             return values
 
