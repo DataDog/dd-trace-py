@@ -129,10 +129,7 @@ setup_kwargs = dict(
 #   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
 #   https://github.com/msgpack/msgpack-python/blob/381c2eff5f8ee0b8669fd6daf1fd1ecaffe7c931/setup.py
 # These helpers are useful for attempting build a C-extension and then retrying without it if it fails
-
-libraries = []
 if sys.platform == "win32":
-    libraries.append("ws2_32")
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
 else:
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError)
@@ -157,15 +154,33 @@ class optional_build_ext(build_ext):
             raise BuildExtFailed()
 
 
-macros = []
-if sys.byteorder == "big":
-    macros = [("__BIG_ENDIAN__", "1")]
-else:
-    macros = [("__LITTLE_ENDIAN__", "1")]
+def get_msgpack_extensions():
+    libraries = []
+    if sys.platform == "win32":
+        libraries.append("ws2_32")
+
+    macros = []
+    if sys.byteorder == "big":
+        macros = [("__BIG_ENDIAN__", "1")]
+    else:
+        macros = [("__LITTLE_ENDIAN__", "1")]
+    ext = Extension(
+        "ddtrace.vendor.msgpack._cmsgpack",
+        sources=["ddtrace/vendor/msgpack/_cmsgpack.cpp"],
+        libraries=libraries,
+        include_dirs=["ddtrace/vendor/"],
+        define_macros=macros,
+    )
+    return [ext]
+
+
+def get_wrapt_extensions():
+    ext = Extension("ddtrace.vendor.wrapt._wrappers", sources=["ddtrace/vendor/wrapt/_wrappers.c"],)
+    return [ext]
 
 
 def get_psutil_extensions():
-    macros = [('PSUTIL_VERSION', 567)]
+    macros = [("PSUTIL_VERSION", 567)]
     if POSIX:
         macros.append(("PSUTIL_POSIX", 1))
     if BSD:
@@ -178,8 +193,8 @@ def get_psutil_extensions():
     if WINDOWS:
 
         def get_winver():
-            maj, min = sys.getwindowsversion()[0:2]
-            return "0x0%s" % ((maj * 100) + min)
+            win_maj, win_min = sys.getwindowsversion()[0:2]
+            return "0x0%s" % ((win_maj * 100) + win_min)
 
         if sys.getwindowsversion()[0] < 6:
             msg = "this Windows version is too old (< Windows Vista); "
@@ -200,19 +215,19 @@ def get_psutil_extensions():
             ]
         )
 
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_windows.c",
+            "ddtrace/vendor/psutil/arch/windows/process_info.c",
+            "ddtrace/vendor/psutil/arch/windows/process_handles.c",
+            "ddtrace/vendor/psutil/arch/windows/security.c",
+            "ddtrace/vendor/psutil/arch/windows/inet_ntop.c",
+            "ddtrace/vendor/psutil/arch/windows/services.c",
+            "ddtrace/vendor/psutil/arch/windows/global.c",
+            "ddtrace/vendor/psutil/arch/windows/wmi.c",
+        ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_windows",
-            sources=sources
-            + [
-                "ddtrace/vendor/psutil/_psutil_windows.c",
-                "ddtrace/vendor/psutil/arch/windows/process_info.c",
-                "ddtrace/vendor/psutil/arch/windows/process_handles.c",
-                "ddtrace/vendor/psutil/arch/windows/security.c",
-                "ddtrace/vendor/psutil/arch/windows/inet_ntop.c",
-                "ddtrace/vendor/psutil/arch/windows/services.c",
-                "ddtrace/vendor/psutil/arch/windows/global.c",
-                "ddtrace/vendor/psutil/arch/windows/wmi.c",
-            ],
+            sources=sources,
             define_macros=macros,
             libraries=[
                 "psapi",
@@ -231,50 +246,46 @@ def get_psutil_extensions():
 
     elif MACOS:
         macros.append(("PSUTIL_OSX", 1))
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_osx.c",
+            "ddtrace/vendor/psutil/arch/osx/process_info.c",
+        ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_osx",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_osx.c", "ddtrace/vendor/psutil/arch/osx/process_info.c",],
+            sources=sources,
             define_macros=macros,
             extra_link_args=["-framework", "CoreFoundation", "-framework", "IOKit"],
         )
 
     elif FREEBSD:
         macros.append(("PSUTIL_FREEBSD", 1))
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_bsd.c",
+            "ddtrace/vendor/psutil/arch/freebsd/specific.c",
+            "ddtrace/vendor/psutil/arch/freebsd/sys_socks.c",
+            "ddtrace/vendor/psutil/arch/freebsd/proc_socks.c",
+        ]
         ext = Extension(
-            "ddtrace.vendor.psutil._psutil_bsd",
-            sources=sources
-            + [
-                "ddtrace/vendor/psutil/_psutil_bsd.c",
-                "ddtrace/vendor/psutil/arch/freebsd/specific.c",
-                "ddtrace/vendor/psutil/arch/freebsd/sys_socks.c",
-                "ddtrace/vendor/psutil/arch/freebsd/proc_socks.c",
-            ],
-            define_macros=macros,
-            libraries=["devstat"],
+            "ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["devstat"],
         )
 
     elif OPENBSD:
         macros.append(("PSUTIL_OPENBSD", 1))
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_bsd",
-            sources=sources + ["ddtrace/vendor/psutil/_psutil_bsd.c", "ddtrace/vendor/psutil/arch/openbsd/specific.c",],
+            sources=sources + ["ddtrace/vendor/psutil/_psutil_bsd.c", "ddtrace/vendor/psutil/arch/openbsd/specific.c"],
             define_macros=macros,
             libraries=["kvm"],
         )
 
     elif NETBSD:
         macros.append(("PSUTIL_NETBSD", 1))
-        ext = Extension(
-            "ddtrace.vendor.psutil._psutil_bsd",
-            sources=sources
-            + [
-                "ddtrace/vendor/psutil/_psutil_bsd.c",
-                "ddtrace/vendor/psutil/arch/netbsd/specific.c",
-                "ddtrace/vendor/psutil/arch/netbsd/socks.c",
-            ],
-            define_macros=macros,
-            libraries=["kvm"],
-        )
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_bsd.c",
+            "ddtrace/vendor/psutil/arch/netbsd/specific.c",
+            "ddtrace/vendor/psutil/arch/netbsd/socks.c",
+        ]
+        ext = Extension("ddtrace.vendor.psutil._psutil_bsd", sources=sources, define_macros=macros, libraries=["kvm"],)
 
     elif LINUX:
 
@@ -308,36 +319,35 @@ def get_psutil_extensions():
         if ETHTOOL_MACRO is not None:
             macros.append(ETHTOOL_MACRO)
         ext = Extension(
-            "ddtrace.vendor.psutil._psutil_linux", sources=sources + ["ddtrace/vendor/psutil/_psutil_linux.c"], define_macros=macros
+            "ddtrace.vendor.psutil._psutil_linux",
+            sources=sources + ["ddtrace/vendor/psutil/_psutil_linux.c"],
+            define_macros=macros,
         )
 
     elif SUNOS:
         macros.append(("PSUTIL_SUNOS", 1))
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_sunos.c",
+            "ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c",
+            "ddtrace/vendor/psutil/arch/solaris/environ.c",
+        ]
         ext = Extension(
             "ddtrace.vendor.psutil._psutil_sunos",
-            sources=sources
-            + [
-                "ddtrace/vendor/psutil/_psutil_sunos.c",
-                "ddtrace/vendor/psutil/arch/solaris/v10/ifaddrs.c",
-                "ddtrace/vendor/psutil/arch/solaris/environ.c",
-            ],
+            sources=sources,
             define_macros=macros,
             libraries=["kstat", "nsl", "socket"],
         )
 
     elif AIX:
         macros.append(("PSUTIL_AIX", 1))
+        sources += [
+            "ddtrace/vendor/psutil/_psutil_aix.c",
+            "ddtrace/vendor/psutil/arch/aix/net_connections.c",
+            "ddtrace/vendor/psutil/arch/aix/common.c",
+            "ddtrace/vendor/psutil/arch/aix/ifaddrs.c",
+        ]
         ext = Extension(
-            "ddtrace.vendor.psutil._psutil_aix",
-            sources=sources
-            + [
-                "ddtrace/vendor/psutil/_psutil_aix.c",
-                "ddtrace/vendor/psutil/arch/aix/net_connections.c",
-                "ddtrace/vendor/psutil/arch/aix/common.c",
-                "ddtrace/vendor/psutil/arch/aix/ifaddrs.c",
-            ],
-            libraries=["perfstat"],
-            define_macros=macros,
+            "ddtrace.vendor.psutil._psutil_aix", sources=sources, libraries=["perfstat"], define_macros=macros,
         )
     else:
         raise RuntimeError("platform %s is not supported" % sys.platform)
@@ -359,23 +369,24 @@ def get_psutil_extensions():
 
 # Try to build with C extensions first, fallback to only pure-Python if building fails
 try:
-    kwargs = copy.deepcopy(setup_kwargs)
-    kwargs["ext_modules"] = [
-        Extension("ddtrace.vendor.wrapt._wrappers", sources=["ddtrace/vendor/wrapt/_wrappers.c"],),
-        Extension(
-            "ddtrace.vendor.msgpack._cmsgpack",
-            sources=["ddtrace/vendor/msgpack/_cmsgpack.cpp"],
-            libraries=libraries,
-            include_dirs=["ddtrace/vendor/"],
-            define_macros=macros,
-        ),
-    ]
+    exts = []
+    msgpack_extensions = get_msgpack_extensions()
+    if msgpack_extensions:
+        exts.extend(msgpack_extensions)
+
+    wrapt_extensions = get_wrapt_extensions()
+    if wrapt_extensions:
+        exts.extend(wrapt_extensions)
+
     try:
         psutil_extensions = get_psutil_extensions()
         if psutil_extensions:
-            kwargs["ext_modules"] += psutil_extensions
+            exts.extend(psutil_extensions)
     except Exception as e:
         print("WARNING: failed to generate psutil extensions, skipping: %s" % e)
+
+    kwargs = copy.deepcopy(setup_kwargs)
+    kwargs["ext_modules"] = exts
     # DEV: Make sure `cmdclass` exists
     kwargs.setdefault("cmdclass", dict())
     kwargs["cmdclass"]["build_ext"] = optional_build_ext
