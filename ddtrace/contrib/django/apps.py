@@ -1,11 +1,11 @@
-from django.apps import AppConfig, apps
+from django.apps import AppConfig
 from django.db import connections
 
 from .db import patch_db
 from .conf import settings
 from .cache import patch_cache
 from .templates import patch_template
-from .middleware import insert_exception_middleware, insert_trace_middleware
+from .patch import patch
 
 from ...internal.logger import get_logger
 from ...utils.deprecation import deprecated
@@ -28,7 +28,7 @@ class TracerConfig(AppConfig):
         To maintain backwards compatibility it now serves to pull any Django
         configuration from settings.py
         """
-        pass
+        patch()
         # rest_framework_is_installed = apps.is_installed('rest_framework')
         # apply_django_patches(patch_rest_framework=rest_framework_is_installed)
 
@@ -50,8 +50,6 @@ def apply_django_patches(patch_rest_framework):
 
     if settings.AUTO_INSTRUMENT:
         # trace Django internals
-        insert_trace_middleware()
-        insert_exception_middleware()
 
         if settings.INSTRUMENT_TEMPLATE:
             try:
