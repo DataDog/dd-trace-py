@@ -437,13 +437,13 @@ def test_datadog_sampler_init():
     sampler = DatadogSampler()
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
-    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    assert sampler.limiter.rate_limit == DatadogSampler.NO_RATE_LIMIT
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
-    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    assert sampler.limiter.rate_limit == DatadogSampler.NO_RATE_LIMIT
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
@@ -624,76 +624,6 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         rules[2].matches.assert_not_called()
         rules[2].sample.assert_not_called()
 
-    # No rules match and priority sampler is defined
-    #   All rules SamplingRule.matches are called
-    #   Priority sampler's `sample` method is called
-    #   Result of priority sampler is returned
-    #   Rate limiter is not called
-    # TODO: Remove this case when we remove fallback to priority sampling
-    with reset_mocks():
-        span = create_span(tracer=dummy_tracer)
-
-        # Configure mock priority sampler
-        priority_sampler = RateByServiceSampler()
-        for rate_sampler in priority_sampler._by_service_samplers.values():
-            rate_sampler.set_sample_rate(1)
-
-        spy_sampler = mock.Mock(spec=RateByServiceSampler, wraps=priority_sampler)
-        sampler._priority_sampler = spy_sampler
-
-        for rule in rules:
-            rule.matches.return_value = False
-            rule.sample.return_value = False
-
-        assert sampler.sample(span) is True
-        assert span._context.sampling_priority is AUTO_KEEP
-        assert span.sampled is True
-        mock_is_allowed.assert_not_called()
-        sampler.default_sampler.sample.assert_not_called()
-        spy_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, agent=1)
-
-        [r.matches.assert_called_once_with(span) for r in rules]
-        [r.sample.assert_not_called() for r in rules]
-
-        # Reset priority sampler property
-        sampler._priority_sampler = None
-
-    # No rules match and priority sampler is defined
-    #   All rules SamplingRule.matches are called
-    #   Priority sampler's `sample` method is called
-    #   Result of priority sampler is returned
-    #   Rate limiter is not called
-    # TODO: Remove this case when we remove fallback to priority sampling
-    with reset_mocks():
-        span = create_span(tracer=dummy_tracer)
-
-        # Configure mock priority sampler
-        priority_sampler = RateByServiceSampler()
-        for rate_sampler in priority_sampler._by_service_samplers.values():
-            rate_sampler.set_sample_rate(0)
-
-        spy_sampler = mock.Mock(spec=RateByServiceSampler, wraps=priority_sampler)
-        sampler._priority_sampler = spy_sampler
-
-        for rule in rules:
-            rule.matches.return_value = False
-            rule.sample.return_value = False
-
-        assert sampler.sample(span) is False
-        assert span._context.sampling_priority is AUTO_REJECT
-        assert span.sampled is False
-        mock_is_allowed.assert_not_called()
-        sampler.default_sampler.sample.assert_not_called()
-        spy_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, agent=0)
-
-        [r.matches.assert_called_once_with(span) for r in rules]
-        [r.sample.assert_not_called() for r in rules]
-
-        # Reset priority sampler property
-        sampler._priority_sampler = None
-
 
 def test_datadog_sampler_tracer(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name='test.span')
@@ -705,8 +635,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -734,8 +663,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -762,8 +690,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -790,8 +717,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -824,8 +750,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
