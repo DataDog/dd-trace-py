@@ -83,6 +83,71 @@ class TraceBottleTest(BaseTracerTestCase):
         with self.override_http_config('bottle', dict(trace_query_string=True)):
             return self.test_200('foo=bar&foo=baz&x=y')
 
+    def test_2xx(self):
+        @self.app.route('/2xx')
+        def handled():
+            return bottle.HTTPResponse("", status=202)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/2xx')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.resource == 'GET /2xx'
+        assert s.get_tag('http.status_code') == '202'
+        assert s.error == 0
+
+    def test_400_return(self):
+        @self.app.route('/400_return')
+        def handled400():
+            return bottle.HTTPResponse(status=400)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/400_return')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /400_return'
+        assert s.get_tag('http.status_code') == '400'
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/400_return'
+        assert s.error == 0
+
+    def test_400_raise(self):
+        @self.app.route('/400_raise')
+        def handled400():
+            raise bottle.HTTPResponse(status=400)
+        self._trace_app(self.tracer)
+
+        # make a request
+        try:
+            self.app.get('/400_raise')
+        except webtest.AppError:
+            pass
+
+        spans = self.tracer.writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /400_raise'
+        assert s.get_tag('http.status_code') == '400'
+        assert s.get_tag('http.method') == 'GET'
+        assert s.get_tag(http.URL) == 'http://localhost:80/400_raise'
+        assert s.error == 1
+
     def test_500(self):
         @self.app.route('/hi')
         def hi():
