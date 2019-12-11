@@ -62,11 +62,13 @@ class TracePlugin(object):
                     code = 500
                     raise
                 finally:
-                    if code or isinstance(result, HTTPResponse):
-                        response_code = code or result.status_code
+                    if isinstance(result, HTTPResponse):
+                        response_code = result.status_code
+                    elif code:
+                        response_code = code
                     else:
-                        # FIXME: thread-local bottle response has not yet been
-                        # updated so this will be default or last values
+                        # bottle local response has not yet been updated so this
+                        # will be default
                         response_code = response.status_code
 
                     if 500 <= response_code < 600:
