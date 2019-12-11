@@ -125,9 +125,10 @@ setup_kwargs = dict(
 )
 
 
-# The following from here to the end of the file is borrowed from wrapt's and msgpack's `setup.py`:
+# The following from here to the end of the file is borrowed from wrapt's, msgpack's, and psutil's `setup.py`:
 #   https://github.com/GrahamDumpleton/wrapt/blob/4ee35415a4b0d570ee6a9b3a14a6931441aeab4b/setup.py
 #   https://github.com/msgpack/msgpack-python/blob/381c2eff5f8ee0b8669fd6daf1fd1ecaffe7c931/setup.py
+#   https://github.com/giampaolo/psutil/blob/78c8669f9c11fc4d4105925e2fb5e13963abd4a5/setup.py
 # These helpers are useful for attempting build a C-extension and then retrying without it if it fails
 if sys.platform == "win32":
     build_ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, OSError)
