@@ -1,5 +1,5 @@
 # 3p
-from bottle import response, request, HTTPError
+from bottle import response, request, HTTPError, HTTPResponse
 
 # stdlib
 import ddtrace
@@ -44,12 +44,16 @@ class TracePlugin(object):
                     config.bottle.get_analytics_sample_rate(use_global_config=True)
                 )
 
-                code = 0
+                code = None
+                result = None
                 try:
-                    return callback(*args, **kwargs)
-                except HTTPError as e:
+                    result = callback(*args, **kwargs)
+                    return result
+                except (HTTPError, HTTPResponse) as e:
                     # you can interrupt flows using abort(status_code, 'message')...
                     # we need to respect the defined status_code.
+                    # we also need to handle when response is raised as is the
+                    # case with a 4xx status
                     code = e.status_code
                     raise
                 except Exception:
@@ -58,7 +62,15 @@ class TracePlugin(object):
                     code = 500
                     raise
                 finally:
-                    response_code = code or response.status_code
+                    if isinstance(result, HTTPResponse):
+                        response_code = result.status_code
+                    elif code:
+                        response_code = code
+                    else:
+                        # bottle local response has not yet been updated so this
+                        # will be default
+                        response_code = response.status_code
+
                     if 500 <= response_code < 600:
                         s.error = 1
 
