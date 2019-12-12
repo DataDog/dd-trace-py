@@ -1,9 +1,12 @@
+from ddtrace import Pin
+from ddtrace.contrib.django import patch, unpatch
 import django
 from django.conf import settings
 from django.test import Client
 
 from tests.base import BaseTracerTestCase
 from tests.subprocesstest import SubprocessTestCase
+from ...utils.span import TracerSpanContainer
 
 
 class DjangoTestCase(BaseTracerTestCase, SubprocessTestCase):
@@ -49,3 +52,11 @@ class DjangoTestCase(BaseTracerTestCase, SubprocessTestCase):
                 django.setup()
 
             self.client = Client()
+
+        patch()
+        Pin.override(django, tracer=self.tracer)
+        self.test_spans = TracerSpanContainer(self.tracer)
+
+    def tearDown(self):
+        super(DjangoTestCase, self).tearDown()
+        self.test_spans.reset()

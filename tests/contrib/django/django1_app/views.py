@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from django.conf.urls import url
 
 from django.views.generic import ListView, TemplateView
+from django.views.decorators.cache import cache_page
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
@@ -66,6 +67,7 @@ urlpatterns = [
     url(r'^$', views.index),
     url(r'^users/$', UserList.as_view(), name='users-list'),
     url(r'^cached-template/$', TemplateCachedUserList.as_view(), name='cached-template-list'),
+    url(r'^cached-users/$', cache_page(60)(UserList.as_view()), name='cached-users-list'),
     url(r'^fail-view/$', ForbiddenView.as_view(), name='forbidden-view'),
     url(r'^fn-view/$', function_view, name='fn-view'),
     url(r'^feed-view/$', FeedView(), name='feed-view'),

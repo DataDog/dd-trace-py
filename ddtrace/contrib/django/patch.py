@@ -234,21 +234,19 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             mod = '.'.join(split[:-1])
             attr = split[-1]
             mw = django.utils.module_loading.import_string(mw_path)
-            if isfunction(mw):
+            if isfunction(mw) and not isinstance(mw, wrapt.ObjectProxy):
                 # Function-based middleware is a factory which returns the function used to handle the requests.
                 # So instead of wrapping the factory, we want to wrap its returned value.
                 def traced_factory(func, instance, args, kwargs):
                     # r is the middleware handler function returned from the factory
                     r = func(*args, **kwargs)
-                    return FunctionWrapper(r, traced_func(django, mw_path))
+                    return FunctionWrapper(r, traced_func(django, 'django.middleware', resource=mw_path))
                 wrap(mod, attr, traced_factory)
             elif isclass(mw):
                 for hook in ['process_request', 'process_response', 'process_view',
-                             'process_exception', 'process_template_response']:
-                    if hasattr(mw, hook):
-                        wrap(mod, '{0}.{1}'.format(attr, hook), traced_func(django, mw_path + '.{0}'.format(hook)))
-                if hasattr(mw, '__call__'):
-                    wrap(mod, '{0}.__call__'.format(attr), traced_func(django, mw_path))
+                             'process_exception', 'process_template_response', '__call__']:
+                    if hasattr(mw, hook) and not isinstance(getattr(mw, hook), wrapt.ObjectProxy):
+                        wrap(mod, '{0}.{1}'.format(attr, hook), traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
     return func(*args, **kwargs)
 
 
@@ -476,6 +474,7 @@ def _patch(django):
 
 
 def patch():
+    # DEV: this will eventually be replaced with the module given from an import hook
     import django
     if getattr(django, '_datadog_patch', False):
         return
