@@ -18,8 +18,8 @@ class TracerConfig(AppConfig):
     label = 'datadog_django'
 
     @deprecated((
-        'The ddtrace.contrib.django app has been deprecated in favour of more precise instrumentation.'
-        'Remove ddtrace.contrib.django from INSTALLED_APPS to remove this warning'
+        'The ddtrace.contrib.django app has been deprecated in favour of more precise instrumentation. '
+        'Remove ddtrace.contrib.django from INSTALLED_APPS to remove this warning.'
     ))
     def ready(self):
         """
@@ -28,9 +28,7 @@ class TracerConfig(AppConfig):
         To maintain backwards compatibility it now serves to pull any Django
         configuration from settings.py
         """
-        patch()
-        # rest_framework_is_installed = apps.is_installed('rest_framework')
-        # apply_django_patches(patch_rest_framework=rest_framework_is_installed)
+        pass
 
 
 def apply_django_patches(patch_rest_framework):

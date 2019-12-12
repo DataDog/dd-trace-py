@@ -11,6 +11,7 @@ import os
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
+from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap, FunctionWrapper
 from ddtrace.utils.wrappers import unwrap
 
@@ -109,39 +110,44 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # populate() can be called multiple times, we don't want to instrument more than once
     already_ready = instance.ready
 
-    try:
+    if not already_ready:
+        log.info('Django instrumentation already installed, skipping.')
         return func(*args, **kwargs)
-    finally:
-        if not already_ready:
-            log.info('Django instrumentation already installed, skipping.')
-        elif not instance.ready:
-            log.warning('populate() failed skipping instrumentation.')
-        # Apps have all been populated. This gives us a chance to analyze any
-        # installed apps (like django rest framework) to trace.
-        else:
-            # Instrument DRF
-            try:
-                from .restframework import patch_restframework
-                patch_restframework(pin.tracer)
-            except Exception:
-                log.exception('Error patching rest_framework')
+
+    ret = func(*args, **kwargs)
+
+    if not instance.ready:
+        log.warning('populate() failed skipping instrumentation.')
+        return ret
+
+    # Instrument Django Rest Framework
+    try:
+        from .restframework import patch_restframework
+        patch_restframework(pin.tracer)
+    except Exception:
+        log.exception('Error patching rest_framework')
+
+    return ret
 
 
-def traced_middleware(django, attr):
-    """
-    Returns a function to trace class or function based Django middleware.
-    """
-    def _traced_mw(django, pin, func, instance, args, kwargs):
-        with pin.tracer.trace(attr):
+def traced_func(django, name, resource=None):
+    """Returns a function to trace Django functions."""
+    def wrapped(django, pin, func, instance, args, kwargs):
+        with pin.tracer.trace(name, resource=resource):
             return func(*args, **kwargs)
-    return with_traced_module(_traced_mw)(django)
+    return with_traced_module(wrapped)(django)
 
 
 @with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
-    """
-    """
-    for mw_path in django.conf.settings.MIDDLEWARE:
+    """Patches django.core.handlers.base.BaseHandler.load_middleware to patch all middlewares."""
+    settings_middleware = []
+    if hasattr(django.conf.settings, 'MIDDLEWARE') and django.conf.settings.MIDDLEWARE:
+        settings_middleware += django.conf.settings.MIDDLEWARE
+    if hasattr(django.conf.settings, 'MIDDLEWARE_CLASSES') and django.conf.settings.MIDDLEWARE_CLASSES:
+        settings_middleware += django.conf.settings.MIDDLEWARE_CLASSES
+
+    for mw_path in settings_middleware:
         split = mw_path.split('.')
         if len(split) > 1:
             mod = '.'.join(split[:-1])
@@ -153,15 +159,15 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                 def traced_factory(func, instance, args, kwargs):
                     # r is the middleware handler function returned from the factory
                     r = func(*args, **kwargs)
-                    return FunctionWrapper(r, traced_middleware(django, mw_path))
+                    return FunctionWrapper(r, traced_func(django, mw_path))
                 wrap(mod, attr, traced_factory)
             elif isclass(mw):
                 for hook in ['process_request', 'process_response', 'process_view',
                              'process_exception', 'process_template_response']:
                     if hasattr(mw, hook):
-                        wrap(mod, '{}.{}'.format(attr, hook), traced_middleware(django, mw_path + '.{}'.format(hook)))
+                        wrap(mod, '{0}.{1}'.format(attr, hook), traced_func(django, mw_path + '.{0}'.format(hook)))
                 if hasattr(mw, '__call__'):
-                    wrap(mod, attr + '.__call__', traced_middleware(django, mw_path))
+                    wrap(mod, '{0}.__call__'.format(attr), traced_func(django, mw_path))
     return func(*args, **kwargs)
 
 
@@ -289,11 +295,112 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
+@with_traced_module
+def traced_template_render(django, pin, wrapped, instance, args, kwargs):
+    """Instrument django.template.base.Template.render for tracing template rendering."""
+    template_name = getattr(instance, 'name', None)
+    if template_name:
+        resource = template_name
+    else:
+        resource = '{0}.{1}'.format(func_name(instance), wrapped.__name__)
+
+    with pin.tracer.trace('django.template.render', resource=resource) as span:
+        if template_name:
+            span.set_tag('django.template.name', template_name)
+        engine = getattr(instance, 'engine', None)
+        if engine:
+            span.set_tag('django.template.engine.class', func_name(engine))
+
+        return wrapped(*args, **kwargs)
+
+
+def traced_view(django, view):
+    """Helper to wrap Django views."""
+
+    # All views should be callable, double check before doing anything
+    if not callable(view):
+        return view
+
+    # Ensure the view is not already wrapped
+    if isinstance(view, wrapt.ObjectProxy):
+        return view
+
+    # Patch View HTTP methods and lifecycle methods
+    http_method_names = getattr(view, 'http_method_names', ('get', 'delete', 'post', 'options', 'head'))
+    lifecycle_methods = ('setup', 'dispatch', 'http_method_not_allowed')
+    for name in list(http_method_names) + list(lifecycle_methods):
+        try:
+            func = getattr(view, name, None)
+            # Do not wrap if the method does not exist or is already wrapped
+            if not func or isinstance(func, wrapt.ObjectProxy):
+                continue
+
+            resource = '{0}.{1}'.format(func_name(view), name)
+            op_name = 'django.view.{0}'.format(name)
+            setattr(view, name, traced_func(django, name=op_name, resource=resource)(func))
+        except Exception:
+            log.debug('Failed to patch django view %r function %s', view, name, exc_info=True)
+
+    # Patch Response methods
+    response_cls = getattr(view, 'response_class', None)
+    if response_cls:
+        methods = ('render', )
+        for name in methods:
+            try:
+                func = getattr(response_cls, name, None)
+                # Do not wrap if the method does not exist or is already wrapped
+                if not func or isinstance(func, wrapt.ObjectProxy):
+                    continue
+
+                resource = '{0}.{1}'.format(func_name(response_cls), name)
+                op_name = 'django.response.{0}'.format(name)
+                setattr(response_cls, name, traced_func(django, name=op_name, resource=resource)(func))
+            except Exception:
+                log.debug('Failed to patch django response %r function %s', response_cls, name, exc_info=True)
+
+    # Return a wrapped version of this view
+    return traced_func(django, 'django.view')(view)
+
+
+@with_traced_module
+def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
+    """Wrapper for url path helpers to ensure all views registered as urls are traced."""
+    try:
+        if 'view' in kwargs:
+            kwargs['view'] = traced_view(django, kwargs['view'])
+        elif len(args) >= 2:
+            args = list(args)
+            args[1] = traced_view(django, args[1])
+            args = tuple(args)
+    except Exception:
+        log.debug('Failed to wrap django url path %r %r', args, kwargs, exc_info=True)
+    return wrapped(*args, **kwargs)
+
+
+@with_traced_module
+def traced_as_view(django, pin, wrapped, instance, args, kwargs):
+    """Wrapper for django's View.as_view class method."""
+    traced_view(django, instance)
+    return wrapped(*args, **kwargs)
+
+
 def _patch(django):
     Pin(service=config.django['service_name']).onto(django)
     wrap(django, 'apps.registry.Apps.populate', traced_populate(django))
     wrap(django, 'core.handlers.base.BaseHandler.load_middleware', traced_load_middleware(django))
     wrap(django, 'core.handlers.base.BaseHandler.get_response', traced_get_response(django))
+
+    wrap(django, 'template.base.Template.render', traced_template_render(django))
+
+    import django.conf.urls.static
+
+    wrap(django, 'conf.urls.static.static', traced_urls_path(django))
+    wrap(django, 'conf.urls.url', traced_urls_path(django))
+    if django.VERSION >= (2, 0, 0):
+        wrap(django, 'urls.path', traced_urls_path(django))
+        wrap(django, 'urls.re_path', traced_urls_path(django))
+
+    # wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
 
 
 def patch():
