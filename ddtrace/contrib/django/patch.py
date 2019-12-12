@@ -15,12 +15,14 @@ from ddtrace.vendor import wrapt
 from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap, FunctionWrapper
 from ddtrace.utils.wrappers import unwrap
 
+from ..dbapi import TracedCursor as DbApiTracedCursor
 from ...compat import parse
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...contrib import func_name
-from ...ext import http
+from ...ext import http, sql as sqlx
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+
 
 from .compat import get_resolver
 
@@ -82,7 +84,7 @@ def get_django_2_route(resolver, resolver_match):
     # Otherwise, look for `resolver.pattern.regex.pattern`
     route = resolver_match.route
     if not route:
-        # DEV: USe all these `getattr`s to protect against changes between versions
+        # DEV: Use all these `getattr`s to protect against changes between versions
         pattern = getattr(resolver, 'pattern', None)
         if pattern:
             regex = getattr(pattern, 'regex', None)
@@ -90,6 +92,68 @@ def get_django_2_route(resolver, resolver_match):
                 route = getattr(regex, 'pattern', '')
 
     return route
+
+
+def patch_conn(tracer, conn):
+    def cursor():
+        database_prefix = ''
+        alias = getattr(conn, 'alias', 'default')
+        service = '{}{}{}'.format(database_prefix, alias, 'db')
+        vendor = getattr(conn, 'vendor', 'db')
+        prefix = sqlx.normalize_vendor(vendor)
+        tags = {
+            'django.db.vendor': vendor,
+            'django.db.alias': alias,
+        }
+        pin = Pin(service, tags=tags, tracer=tracer, app=prefix)
+        return DbApiTracedCursor(conn.cursor, pin)
+    conn.cursor = cursor
+
+
+def _resource_from_cache_prefix(resource, cache):
+    """
+    Combine the resource name with the cache prefix (if any)
+    """
+    if getattr(cache, 'key_prefix', None):
+        name = '{} {}'.format(resource, cache.key_prefix)
+    else:
+        name = resource
+
+    # enforce lowercase to make the output nicer to read
+    return name.lower()
+
+
+def quantize_key_values(key):
+    """
+    Used in the Django trace operation method, it ensures that if a dict
+    with values is used, we removes the values from the span meta
+    attributes. For example::
+
+        >>> quantize_key_values({'key': 'value'})
+        # returns ['key']
+    """
+    if isinstance(key, dict):
+        return key.keys()
+
+    return key
+
+
+@with_traced_module
+def traced_cache(django, pin, func, instance, args, kwargs):
+    cache_service_name = 'django-cache'  # TODO
+
+    # get the original function method
+    with pin.tracer.trace('django.cache', span_type='cache', service=cache_service_name) as span:
+        # update the resource name and tag the cache backend
+        span.resource = _resource_from_cache_prefix(func_name(func), instance)
+        cache_backend = '{}.{}'.format(instance.__module__, instance.__class__.__name__)
+        span.set_tag('django.cache.backend', cache_backend)
+
+        if args:
+            keys = quantize_key_values(args[0])
+            span.set_tag('django.cache.key', keys)
+
+        return func(*args, **kwargs)
 
 
 @with_traced_module
@@ -126,6 +190,23 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         patch_restframework(pin.tracer)
     except Exception:
         log.exception('Error patching rest_framework')
+
+    # Instrument Databases
+    try:
+        for conn in django.db.connections.all:
+            patch_conn(pin.tracer, conn)
+    except Exception:
+        log.exception('error instrumenting Django database connections')
+
+    # Instrument Caches
+    try:
+        cache_backends = set([cache['BACKEND'] for cache in django.conf.settings.CACHES.values()])
+        for cache_module in cache_backends:
+            for method in ['get', 'set', 'add', 'delete', 'incr', 'decr',
+                           'get_many', 'set_many', 'delete_many', ]:
+                wrap(cache_module, method, traced_cache(django))
+    except Exception:
+        log.exception('error instrumenting Django caches')
 
     return ret
 
@@ -377,13 +458,6 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
-def traced_as_view(django, pin, wrapped, instance, args, kwargs):
-    """Wrapper for django's View.as_view class method."""
-    traced_view(django, instance)
-    return wrapped(*args, **kwargs)
-
-
 def _patch(django):
     Pin(service=config.django['service_name']).onto(django)
     wrap(django, 'apps.registry.Apps.populate', traced_populate(django))
@@ -399,8 +473,6 @@ def _patch(django):
     if django.VERSION >= (2, 0, 0):
         wrap(django, 'urls.path', traced_urls_path(django))
         wrap(django, 'urls.re_path', traced_urls_path(django))
-
-    # wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
 
 
 def patch():

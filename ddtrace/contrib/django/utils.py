@@ -23,7 +23,7 @@ def quantize_key_values(key):
     with values is used, we removes the values from the span meta
     attributes. For example::
 
-        >>> quantize_key_values({'key', 'value'})
+        >>> quantize_key_values({'key': 'value'})
         # returns ['key']
     """
     if isinstance(key, dict):

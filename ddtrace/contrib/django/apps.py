@@ -31,7 +31,7 @@ class TracerConfig(AppConfig):
         pass
 
 
-def apply_django_patches(patch_rest_framework):
+def apply_django_patches():
     """
     Ready is called as soon as the registry is fully populated.
     In order for all Django internals are properly configured, this
@@ -70,11 +70,3 @@ def apply_django_patches(patch_rest_framework):
                 patch_cache(tracer)
             except Exception:
                 log.exception('error patching Django cache')
-
-        # Instrument rest_framework app to trace custom exception handling.
-        if patch_rest_framework:
-            try:
-                from .restframework import patch_restframework
-                patch_restframework(tracer)
-            except Exception:
-                log.exception('error patching rest_framework app')
