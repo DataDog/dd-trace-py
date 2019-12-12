@@ -223,19 +223,19 @@ class TestDjango1App(DjangoTestCase, PatchMixin, DjangoMixin):
         # DEV: Order matters here, we want all `process_request` before `process_view`, before `process_response`
         expected_resources = [
             'django.contrib.sessions.middleware.SessionMiddleware.process_request',
-             'django.middleware.common.CommonMiddleware.process_request',
-             'django.middleware.csrf.CsrfViewMiddleware.process_request',  # Not in < 1.11.0
-             'django.contrib.auth.middleware.AuthenticationMiddleware.process_request',
-             'django.contrib.auth.middleware.SessionAuthenticationMiddleware.process_request',
-             'django.contrib.messages.middleware.MessageMiddleware.process_request',
-             'django.middleware.security.SecurityMiddleware.process_request',
-             'django.middleware.csrf.CsrfViewMiddleware.process_view',
-             'django.middleware.security.SecurityMiddleware.process_response',
-             'django.middleware.clickjacking.XFrameOptionsMiddleware.process_response',
-             'django.contrib.messages.middleware.MessageMiddleware.process_response',
-             'django.middleware.csrf.CsrfViewMiddleware.process_response',
-             'django.middleware.common.CommonMiddleware.process_response',
-             'django.contrib.sessions.middleware.SessionMiddleware.process_response',
+            'django.middleware.common.CommonMiddleware.process_request',
+            'django.middleware.csrf.CsrfViewMiddleware.process_request',  # Not in < 1.11.0
+            'django.contrib.auth.middleware.AuthenticationMiddleware.process_request',
+            'django.contrib.auth.middleware.SessionAuthenticationMiddleware.process_request',
+            'django.contrib.messages.middleware.MessageMiddleware.process_request',
+            'django.middleware.security.SecurityMiddleware.process_request',
+            'django.middleware.csrf.CsrfViewMiddleware.process_view',
+            'django.middleware.security.SecurityMiddleware.process_response',
+            'django.middleware.clickjacking.XFrameOptionsMiddleware.process_response',
+            'django.contrib.messages.middleware.MessageMiddleware.process_response',
+            'django.middleware.csrf.CsrfViewMiddleware.process_response',
+            'django.middleware.common.CommonMiddleware.process_response',
+            'django.contrib.sessions.middleware.SessionMiddleware.process_response',
         ]
         if django.VERSION < (1, 11, 0):
             expected_resources.remove('django.middleware.csrf.CsrfViewMiddleware.process_request')

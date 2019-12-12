@@ -1,5 +1,5 @@
 from ddtrace import Pin
-from ddtrace.contrib.django import patch, unpatch
+from ddtrace.contrib.django import patch
 import django
 from django.conf import settings
 from django.test import Client
