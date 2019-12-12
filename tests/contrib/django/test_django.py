@@ -1,8 +1,6 @@
 import pytest
 
-from ddtrace import Pin
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.django import patch, unpatch
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -12,7 +10,6 @@ import tests
 from tests.contrib.patch import PatchMixin
 from .compat import reverse
 from .utils import DjangoTestCase
-from ...utils.span import TracerSpanContainer
 
 import django
 
@@ -178,3 +175,70 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
         assert root_span.name == 'django.request'
         first_middleware = middleware_spans[-1]
         assert first_middleware.parent_id == root_span.span_id
+
+
+@pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='')
+class TestDjango1App(DjangoTestCase, PatchMixin, DjangoMixin):
+    APP_NAME = 'django1_app'
+
+    def test_middleware_patching(self):
+        # Test that various middlewares that are included are patched
+        self.assert_wrapped(django.middleware.common.CommonMiddleware.process_request)
+        self.assert_wrapped(django.middleware.security.SecurityMiddleware.process_request)
+
+        # Test that each middleware hook is patched
+        self.assert_wrapped(tests.contrib.django.django1_app.middleware.CatchExceptionMiddleware.process_exception)
+
+    def test_middleware(self):
+        resp = self.client.get('/')
+        assert resp.status_code == 200
+        assert resp.content == b'Hello, test app.'
+
+        # Assert the correct number of traces and spans
+        if django.VERSION < (1, 11, 0):
+            self.test_spans.assert_span_count(14)
+        else:
+            self.test_spans.assert_span_count(15)
+
+        # Get all the `django.middleware` spans in this trace
+        middleware_spans = list(self.test_spans.filter_spans(name='django.middleware'))
+        if django.VERSION < (1, 11, 0):
+            assert len(middleware_spans) == 13
+        else:
+            assert len(middleware_spans) == 14
+
+        root = self.test_spans.get_root_span()
+        root.assert_matches(name='django.request')
+
+        # Assert common span structure
+        for span in middleware_spans:
+            span.assert_matches(
+                name='django.middleware',
+                service='django',
+                error=0,
+                span_type=None,
+                parent_id=root.span_id,  # They are all children of the root django.request
+            )
+
+        # DEV: Order matters here, we want all `process_request` before `process_view`, before `process_response`
+        expected_resources = [
+            'django.contrib.sessions.middleware.SessionMiddleware.process_request',
+             'django.middleware.common.CommonMiddleware.process_request',
+             'django.middleware.csrf.CsrfViewMiddleware.process_request',  # Not in < 1.11.0
+             'django.contrib.auth.middleware.AuthenticationMiddleware.process_request',
+             'django.contrib.auth.middleware.SessionAuthenticationMiddleware.process_request',
+             'django.contrib.messages.middleware.MessageMiddleware.process_request',
+             'django.middleware.security.SecurityMiddleware.process_request',
+             'django.middleware.csrf.CsrfViewMiddleware.process_view',
+             'django.middleware.security.SecurityMiddleware.process_response',
+             'django.middleware.clickjacking.XFrameOptionsMiddleware.process_response',
+             'django.contrib.messages.middleware.MessageMiddleware.process_response',
+             'django.middleware.csrf.CsrfViewMiddleware.process_response',
+             'django.middleware.common.CommonMiddleware.process_response',
+             'django.contrib.sessions.middleware.SessionMiddleware.process_response',
+        ]
+        if django.VERSION < (1, 11, 0):
+            expected_resources.remove('django.middleware.csrf.CsrfViewMiddleware.process_request')
+        middleware_spans = sorted(middleware_spans, key=lambda s: s.start)
+        span_resources = [s.resource for s in middleware_spans]
+        assert span_resources == expected_resources

@@ -5,7 +5,6 @@ from .db import patch_db
 from .conf import settings
 from .cache import patch_cache
 from .templates import patch_template
-from .patch import patch
 
 from ...internal.logger import get_logger
 from ...utils.deprecation import deprecated

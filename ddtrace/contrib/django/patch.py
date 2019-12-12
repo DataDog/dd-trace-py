@@ -246,7 +246,8 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                 for hook in ['process_request', 'process_response', 'process_view',
                              'process_exception', 'process_template_response', '__call__']:
                     if hasattr(mw, hook) and not isinstance(getattr(mw, hook), wrapt.ObjectProxy):
-                        wrap(mod, '{0}.{1}'.format(attr, hook), traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
+                        wrap(mod, '{0}.{1}'.format(attr, hook),
+                             traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
     return func(*args, **kwargs)
 
 
