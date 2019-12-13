@@ -8,7 +8,6 @@ from ddtrace.propagation.utils import get_wsgi_header
 
 import tests
 from tests.contrib.patch import PatchMixin
-from .compat import reverse
 from .utils import DjangoTestCase
 
 import django
@@ -65,13 +64,6 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
         self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_exception)
         self.assert_wrapped(tests.contrib.django.django_app.middleware.fn_middleware(None))
 
-    def test_middleware(self):
-        url = reverse('fn-view')
-        response = self.client.get(url)
-        spans = self.get_spans()
-        assert response.status_code == 200
-        assert len(spans) > 0
-
     def test_django_200_request_root_span(self):
         """
         When making a request to a Django app
@@ -83,7 +75,7 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
 
         spans = self.get_spans()
         # Assert the correct number of traces and spans
-        assert len(spans) == 25
+        assert len(spans) == 26
 
         # Assert the structure of the root `django.request` span
         root = self.get_root_span()
@@ -124,7 +116,7 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
         assert resp.content == b'Hello, test app.'
 
         # Assert the correct number of traces and spans
-        self.test_spans.assert_span_count(25)
+        self.test_spans.assert_span_count(26)
 
         # Get all the `django.middleware` spans in this trace
         middleware_spans = list(self.test_spans.filter_spans(name='django.middleware'))
@@ -176,6 +168,30 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
         first_middleware = middleware_spans[-1]
         assert first_middleware.parent_id == root_span.span_id
 
+    def test_request_view(self):
+        """
+        When making a request to a Django app
+            We properly create the `django.view` span
+        """
+        resp = self.client.get('/')
+        assert resp.status_code == 200
+        assert resp.content == b'Hello, test app.'
+
+        # Assert the correct number of traces and spans
+        self.assert_span_count(26)
+
+        view_spans = list(self.test_spans.filter_spans(name='django.view'))
+        assert len(view_spans) == 1
+
+        # Assert span properties
+        view_span = view_spans[0]
+        view_span.assert_matches(
+            name='django.view',
+            service='django',
+            resource='tests.contrib.django.views.index',
+            error=0,
+        )
+
 
 @pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='')
 class TestDjango1App(DjangoTestCase, PatchMixin, DjangoMixin):
@@ -196,9 +212,9 @@ class TestDjango1App(DjangoTestCase, PatchMixin, DjangoMixin):
 
         # Assert the correct number of traces and spans
         if django.VERSION < (1, 11, 0):
-            self.test_spans.assert_span_count(14)
-        else:
             self.test_spans.assert_span_count(15)
+        else:
+            self.test_spans.assert_span_count(16)
 
         # Get all the `django.middleware` spans in this trace
         middleware_spans = list(self.test_spans.filter_spans(name='django.middleware'))

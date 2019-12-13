@@ -7,6 +7,7 @@ django.apps.registry.Apps.populate is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
 import os
+import sys
 
 from inspect import isclass, isfunction
 
@@ -394,18 +395,14 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-def traced_view(django, view):
+def instrument_view(django, view):
     """Helper to wrap Django views."""
 
     # All views should be callable, double check before doing anything
-    if not callable(view):
+    if not callable(view) or isinstance(view, wrapt.ObjectProxy):
         return view
 
-    # Ensure the view is not already wrapped
-    if isinstance(view, wrapt.ObjectProxy):
-        return view
-
-    # Patch View HTTP methods and lifecycle methods
+    # Patch view HTTP methods and lifecycle methods
     http_method_names = getattr(view, 'http_method_names', ('get', 'delete', 'post', 'options', 'head'))
     lifecycle_methods = ('setup', 'dispatch', 'http_method_not_allowed')
     for name in list(http_method_names) + list(lifecycle_methods):
@@ -417,11 +414,11 @@ def traced_view(django, view):
 
             resource = '{0}.{1}'.format(func_name(view), name)
             op_name = 'django.view.{0}'.format(name)
-            setattr(view, name, traced_func(django, name=op_name, resource=resource)(func))
+            wrap(view, name, traced_func(django, name=op_name, resource=resource)(func))
         except Exception:
             log.debug('Failed to patch django view %r function %s', view, name, exc_info=True)
 
-    # Patch Response methods
+    # Patch response methods
     response_cls = getattr(view, 'response_class', None)
     if response_cls:
         methods = ('render', )
@@ -434,12 +431,12 @@ def traced_view(django, view):
 
                 resource = '{0}.{1}'.format(func_name(response_cls), name)
                 op_name = 'django.response.{0}'.format(name)
-                setattr(response_cls, name, traced_func(django, name=op_name, resource=resource)(func))
+                wrap(response_cls, name, traced_func(django, name=op_name, resource=resource)(func))
             except Exception:
                 log.debug('Failed to patch django response %r function %s', response_cls, name, exc_info=True)
 
     # Return a wrapped version of this view
-    return traced_func(django, 'django.view')(view)
+    return FunctionWrapper(view, traced_func(django, 'django.view', resource=func_name(view)))
 
 
 @with_traced_module
@@ -447,14 +444,25 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
         if 'view' in kwargs:
-            kwargs['view'] = traced_view(django, kwargs['view'])
+            kwargs['view'] = instrument_view(django, kwargs['view'])
         elif len(args) >= 2:
             args = list(args)
-            args[1] = traced_view(django, args[1])
+            args[1] = instrument_view(django, args[1])
             args = tuple(args)
     except Exception:
         log.debug('Failed to wrap django url path %r %r', args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)
+
+
+@with_traced_module
+def traced_as_view(django, pin, func, instance, args, kwargs):
+    """
+    Wrapper for django's View.as_view class method
+    """
+    if len(args) > 1:
+        view = args[1]
+        instrument_view(django, view)
+    return func(*args, **kwargs)
 
 
 def _patch(django):
@@ -462,16 +470,20 @@ def _patch(django):
     wrap(django, 'apps.registry.Apps.populate', traced_populate(django))
     wrap(django, 'core.handlers.base.BaseHandler.load_middleware', traced_load_middleware(django))
     wrap(django, 'core.handlers.base.BaseHandler.get_response', traced_get_response(django))
-
     wrap(django, 'template.base.Template.render', traced_template_render(django))
 
-    import django.conf.urls.static
+    if 'django.conf.urls.static' not in sys.modules:
+        import django.conf.urls.static
 
     wrap(django, 'conf.urls.static.static', traced_urls_path(django))
     wrap(django, 'conf.urls.url', traced_urls_path(django))
     if django.VERSION >= (2, 0, 0):
         wrap(django, 'urls.path', traced_urls_path(django))
         wrap(django, 'urls.re_path', traced_urls_path(django))
+
+    if 'django.views.generic.base' not in sys.modules:
+        import django.views.generic.base
+    wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
 
 
 def patch():
