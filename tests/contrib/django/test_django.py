@@ -57,12 +57,12 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
         self.assert_wrapped(django.middleware.security.SecurityMiddleware.process_request)
 
         # Test that each middleware hook is patched
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_response)
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_request)
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_view)
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_template_response)
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.EverythingMiddleware.process_exception)
-        self.assert_wrapped(tests.contrib.django.django_app.middleware.fn_middleware(None))
+        self.assert_wrapped(tests.contrib.django.middleware.EverythingMiddleware.process_response)
+        self.assert_wrapped(tests.contrib.django.middleware.EverythingMiddleware.process_request)
+        self.assert_wrapped(tests.contrib.django.middleware.EverythingMiddleware.process_view)
+        self.assert_wrapped(tests.contrib.django.middleware.EverythingMiddleware.process_template_response)
+        self.assert_wrapped(tests.contrib.django.middleware.EverythingMiddleware.process_exception)
+        self.assert_wrapped(tests.contrib.django.middleware.fn_middleware(None))
 
     def test_django_200_request_root_span(self):
         """
@@ -152,10 +152,10 @@ class TestDjango2App(DjangoTestCase, PatchMixin, DjangoMixin):
             'django.middleware.security.SecurityMiddleware.__call__',
             'django.middleware.security.SecurityMiddleware.process_request',
             'django.middleware.security.SecurityMiddleware.process_response',
-            'tests.contrib.django.django_app.middleware.ClsMiddleware.__call__',
-            'tests.contrib.django.django_app.middleware.EverythingMiddleware',
-            'tests.contrib.django.django_app.middleware.EverythingMiddleware.__call__',
-            'tests.contrib.django.django_app.middleware.EverythingMiddleware.process_view'
+            'tests.contrib.django.middleware.ClsMiddleware.__call__',
+            'tests.contrib.django.middleware.EverythingMiddleware',
+            'tests.contrib.django.middleware.EverythingMiddleware.__call__',
+            'tests.contrib.django.middleware.EverythingMiddleware.process_view'
         }
         assert set([s.resource for s in middleware_spans]) == span_resources
 
@@ -203,7 +203,7 @@ class TestDjango1App(DjangoTestCase, PatchMixin, DjangoMixin):
         self.assert_wrapped(django.middleware.security.SecurityMiddleware.process_request)
 
         # Test that each middleware hook is patched
-        self.assert_wrapped(tests.contrib.django.django1_app.middleware.CatchExceptionMiddleware.process_exception)
+        self.assert_wrapped(tests.contrib.django.middleware.CatchExceptionMiddleware.process_exception)
 
     def test_middleware(self):
         resp = self.client.get('/')

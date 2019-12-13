@@ -80,7 +80,7 @@ if (1, 10) <= django.VERSION < (2, 0):
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django.middleware.CatchExceptionMiddleware',
     ]
 
 # Django 2.0 has different defaults

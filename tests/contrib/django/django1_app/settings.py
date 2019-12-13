@@ -51,7 +51,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'tests.contrib.django.django1_app.views'
+ROOT_URLCONF = 'tests.contrib.django.django1_app.urls'
 
 TEMPLATES = [
     {
@@ -81,7 +81,7 @@ MIDDLEWARE_CLASSES = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
 
-    'tests.contrib.django.django1_app.middleware.CatchExceptionMiddleware',
+    'tests.contrib.django.middleware.CatchExceptionMiddleware',
 ]
 
 INSTALLED_APPS = [
