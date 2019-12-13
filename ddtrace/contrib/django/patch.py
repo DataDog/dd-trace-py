@@ -157,6 +157,14 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
+def instrument_caches(django):
+    cache_backends = set([cache['BACKEND'] for cache in django.conf.settings.CACHES.values()])
+    for cache_module in cache_backends:
+        for method in ['get', 'set', 'add', 'delete', 'incr', 'decr',
+                       'get_many', 'set_many', 'delete_many', ]:
+            wrap(cache_module, method, traced_cache(django))
+
+
 @with_traced_module
 def traced_populate(django, pin, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
@@ -201,11 +209,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
     # Instrument Caches
     try:
-        cache_backends = set([cache['BACKEND'] for cache in django.conf.settings.CACHES.values()])
-        for cache_module in cache_backends:
-            for method in ['get', 'set', 'add', 'delete', 'incr', 'decr',
-                           'get_many', 'set_many', 'delete_many', ]:
-                wrap(cache_module, method, traced_cache(django))
+        instrument_caches(django)
     except Exception:
         log.exception('error instrumenting Django caches')
 
@@ -222,33 +226,42 @@ def traced_func(django, name, resource=None):
 
 @with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
-    """Patches django.core.handlers.base.BaseHandler.load_middleware to patch all middlewares."""
+    """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all middlewares."""
     settings_middleware = []
-    if hasattr(django.conf.settings, 'MIDDLEWARE') and django.conf.settings.MIDDLEWARE:
+    # Gather all the middleware
+    if getattr(django.conf.settings, 'MIDDLEWARE', None):
         settings_middleware += django.conf.settings.MIDDLEWARE
-    if hasattr(django.conf.settings, 'MIDDLEWARE_CLASSES') and django.conf.settings.MIDDLEWARE_CLASSES:
+    if getattr(django.conf.settings, 'MIDDLEWARE_CLASSES', None):
         settings_middleware += django.conf.settings.MIDDLEWARE_CLASSES
 
+    # Iterate over each middleware provided in settings.py
+    # Each middleware can either be a function or a class
     for mw_path in settings_middleware:
-        split = mw_path.split('.')
-        if len(split) > 1:
-            mod = '.'.join(split[:-1])
+        mw = django.utils.module_loading.import_string(mw_path)
+
+        # Instrument function-based middleware
+        if isfunction(mw) and not isinstance(mw, wrapt.ObjectProxy):
+            split = mw_path.split('.')
+            if len(split) < 2:
+                continue
+            base = '.'.join(split[:-1])
             attr = split[-1]
-            mw = django.utils.module_loading.import_string(mw_path)
-            if isfunction(mw) and not isinstance(mw, wrapt.ObjectProxy):
-                # Function-based middleware is a factory which returns the function used to handle the requests.
-                # So instead of wrapping the factory, we want to wrap its returned value.
-                def traced_factory(func, instance, args, kwargs):
-                    # r is the middleware handler function returned from the factory
-                    r = func(*args, **kwargs)
-                    return FunctionWrapper(r, traced_func(django, 'django.middleware', resource=mw_path))
-                wrap(mod, attr, traced_factory)
-            elif isclass(mw):
-                for hook in ['process_request', 'process_response', 'process_view',
-                             'process_exception', 'process_template_response', '__call__']:
-                    if hasattr(mw, hook) and not isinstance(getattr(mw, hook), wrapt.ObjectProxy):
-                        wrap(mod, '{0}.{1}'.format(attr, hook),
-                             traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
+
+            # Function-based middleware is a factory which returns a handler function for requests.
+            # So instead of tracing the factory, we want to trace its returned value.
+            # We wrap the factory to return a traced version of the handler function.
+            def wrapped_factory(func, instance, args, kwargs):
+                # r is the middleware handler function returned from the factory
+                r = func(*args, **kwargs)
+                return FunctionWrapper(r, traced_func(django, 'django.middleware', resource=mw_path))
+            wrap(base, attr, wrapped_factory)
+
+        # Instrument class-based middleware
+        elif isclass(mw):
+            for hook in ['process_request', 'process_response', 'process_view',
+                         'process_exception', 'process_template_response', '__call__']:
+                if hasattr(mw, hook) and not isinstance(getattr(mw, hook), wrapt.ObjectProxy):
+                    wrap(mw, hook, traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
     return func(*args, **kwargs)
 
 
