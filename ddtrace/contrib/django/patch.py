@@ -13,8 +13,8 @@ from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap, FunctionWrapper
-from ddtrace.utils.wrappers import unwrap
+from wrapt import wrap_function_wrapper as wrap
+from ddtrace.utils.wrappers import unwrap, iswrapped
 
 from ..dbapi import TracedCursor as DbApiTracedCursor
 from ...compat import parse
@@ -95,8 +95,8 @@ def get_django_2_route(resolver, resolver_match):
     return route
 
 
-def patch_conn(tracer, conn):
-    def cursor():
+def patch_conn(django, conn):
+    def cursor(django, pin, func, instance, args, kwargs):
         database_prefix = ''
         alias = getattr(conn, 'alias', 'default')
         service = '{}{}{}'.format(database_prefix, alias, 'db')
@@ -106,9 +106,16 @@ def patch_conn(tracer, conn):
             'django.db.vendor': vendor,
             'django.db.alias': alias,
         }
-        pin = Pin(service, tags=tags, tracer=tracer, app=prefix)
-        return DbApiTracedCursor(conn.cursor, pin)
-    conn.cursor = cursor
+        pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
+        return DbApiTracedCursor(func(*args, **kwargs), pin)
+
+    if not isinstance(conn.cursor, wrapt.ObjectProxy):
+        conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))
+
+
+def instrument_dbs(django):
+    for conn in django.db.connections.all():
+        patch_conn(django, conn)
 
 
 def _resource_from_cache_prefix(resource, cache):
@@ -193,25 +200,24 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         log.warning('populate() failed skipping instrumentation.')
         return ret
 
+    # Instrument Databases
+    try:
+        instrument_dbs(django)
+    except Exception:
+        log.exception('Error instrumenting Django database connections')
+
+    # Instrument Caches
+    try:
+        instrument_caches(django)
+    except Exception:
+        log.exception('Error instrumenting Django caches')
+
     # Instrument Django Rest Framework
     try:
         from .restframework import patch_restframework
         patch_restframework(pin.tracer)
     except Exception:
         log.exception('Error patching rest_framework')
-
-    # Instrument Databases
-    try:
-        for conn in django.db.connections.all:
-            patch_conn(pin.tracer, conn)
-    except Exception:
-        log.exception('error instrumenting Django database connections')
-
-    # Instrument Caches
-    try:
-        instrument_caches(django)
-    except Exception:
-        log.exception('error instrumenting Django caches')
 
     return ret
 
@@ -253,14 +259,14 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             def wrapped_factory(func, instance, args, kwargs):
                 # r is the middleware handler function returned from the factory
                 r = func(*args, **kwargs)
-                return FunctionWrapper(r, traced_func(django, 'django.middleware', resource=mw_path))
+                return wrapt.FunctionWrapper(r, traced_func(django, 'django.middleware', resource=mw_path))
             wrap(base, attr, wrapped_factory)
 
         # Instrument class-based middleware
         elif isclass(mw):
             for hook in ['process_request', 'process_response', 'process_view',
                          'process_exception', 'process_template_response', '__call__']:
-                if hasattr(mw, hook) and not isinstance(getattr(mw, hook), wrapt.ObjectProxy):
+                if hasattr(mw, hook) and not iswrapped(mw, hook):
                     wrap(mw, hook, traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
     return func(*args, **kwargs)
 
@@ -449,7 +455,7 @@ def instrument_view(django, view):
                 log.debug('Failed to patch django response %r function %s', response_cls, name, exc_info=True)
 
     # Return a wrapped version of this view
-    return FunctionWrapper(view, traced_func(django, 'django.view', resource=func_name(view)))
+    return wrapt.FunctionWrapper(view, traced_func(django, 'django.view', resource=func_name(view)))
 
 
 @with_traced_module
@@ -500,20 +506,26 @@ def _patch(django):
 
 
 def patch():
-    # DEV: this will eventually be replaced with the module given from an import hook
+    # DEV: this import will eventually be replaced with the module given from an import hook
     import django
     if getattr(django, '_datadog_patch', False):
         return
-
     _patch(django)
 
     setattr(django, '_datadog_patch', True)
 
 
 def _unpatch(django):
-    unwrap(django, 'apps.config.Apps.populate')
-    unwrap(django, 'core.handlers.base.BaseHandler.load_middleware')
-    unwrap(django, 'core.handlers.base.BaseHandler.get_response')
+    unwrap(django.apps.registry.Apps, 'populate')
+    unwrap(django.core.handlers.base.BaseHandler, 'load_middleware')
+    unwrap(django.core.handlers.base.BaseHandler, 'get_response')
+    unwrap(django.template.base.Template, 'render')
+    unwrap(django.conf.urls.static, 'static')
+    unwrap(django.conf.urls, 'url')
+    if django.VERSION >= (2, 0, 0):
+        unwrap(django.urls, 'path')
+        unwrap(django.urls, 're_path')
+    unwrap(django.views.generic.base.View, 'as_view')
 
 
 def unpatch():
