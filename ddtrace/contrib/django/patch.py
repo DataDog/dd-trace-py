@@ -188,9 +188,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     """
 
     # populate() can be called multiple times, we don't want to instrument more than once
-    already_ready = instance.ready
-
-    if not already_ready:
+    if instance.ready:
         log.info('Django instrumentation already installed, skipping.')
         return func(*args, **kwargs)
 
@@ -246,7 +244,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
         mw = django.utils.module_loading.import_string(mw_path)
 
         # Instrument function-based middleware
-        if isfunction(mw) and not isinstance(mw, wrapt.ObjectProxy):
+        if isfunction(mw) and not iswrapped(mw):
             split = mw_path.split('.')
             if len(split) < 2:
                 continue
@@ -487,19 +485,28 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
 def _patch(django):
     Pin(service=config.django['service_name']).onto(django)
     wrap(django, 'apps.registry.Apps.populate', traced_populate(django))
+
+    # DEV: this check will be replaced with import hooks in the future
+    if 'django.core.handlers.base' not in sys.modules:
+        import django.core.handlers.base
     wrap(django, 'core.handlers.base.BaseHandler.load_middleware', traced_load_middleware(django))
     wrap(django, 'core.handlers.base.BaseHandler.get_response', traced_get_response(django))
+
+    # DEV: this check will be replaced with import hooks in the future
+    if 'django.template.base' not in sys.modules:
+        import django.template.base
     wrap(django, 'template.base.Template.render', traced_template_render(django))
 
+    # DEV: this check will be replaced with import hooks in the future
     if 'django.conf.urls.static' not in sys.modules:
         import django.conf.urls.static
-
     wrap(django, 'conf.urls.static.static', traced_urls_path(django))
     wrap(django, 'conf.urls.url', traced_urls_path(django))
     if django.VERSION >= (2, 0, 0):
         wrap(django, 'urls.path', traced_urls_path(django))
         wrap(django, 'urls.re_path', traced_urls_path(django))
 
+    # DEV: this check will be replaced with import hooks in the future
     if 'django.views.generic.base' not in sys.modules:
         import django.views.generic.base
     wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
