@@ -148,7 +148,7 @@ def quantize_key_values(key):
 
 @with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
-    cache_service_name = 'django-cache'  # TODO
+    cache_service_name = 'django'  # TODO configuration
 
     # get the original function method
     with pin.tracer.trace('django.cache', span_type='cache', service=cache_service_name) as span:

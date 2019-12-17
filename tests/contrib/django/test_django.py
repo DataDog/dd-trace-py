@@ -8,6 +8,8 @@ from ddtrace.propagation.utils import get_wsgi_header
 
 import django
 
+from ...util import assert_dict_issuperset
+
 
 def test_django_request_distributed(client, test_spans):
     """
@@ -246,6 +248,336 @@ def test_request_view(client, test_spans):
     )
 
 
+"""
+Caching tests
+"""
+
+
+def test_cache_get(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    cache.get('missing_key')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == 'django'
+    assert span.resource == 'django.core.cache.backends.locmem.get'
+    assert span.name == 'django.cache'
+    assert span.span_type == 'cache'
+    assert span.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'missing_key',
+    }
+
+    assert_dict_issuperset(span.meta, expected_meta)
+
+
+def test_cache_set(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    # (trace) the cache miss
+    cache.set('a_new_key', 50)
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == 'django'
+    assert span.resource == 'django.core.cache.backends.locmem.set'
+    assert span.name == 'django.cache'
+    assert span.span_type == 'cache'
+    assert span.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'a_new_key',
+    }
+
+    assert_dict_issuperset(span.meta, expected_meta)
+
+
+def test_cache_delete(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    cache.delete('an_existing_key')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == 'django'
+    assert span.resource == 'django.core.cache.backends.locmem.delete'
+    assert span.name == 'django.cache'
+    assert span.span_type == 'cache'
+    assert span.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'an_existing_key',
+    }
+
+    assert_dict_issuperset(span.meta, expected_meta)
+
+
+@pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason='')
+def test_cache_incr_1XX(test_spans):
+    # get the default cache, set the value and reset the spans
+    cache = django.core.cache.caches['default']
+    cache.set('value', 0)
+    test_spans.tracer.writer.spans = []
+
+    cache.incr('value')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+
+    span_incr = spans[0]
+    span_get = spans[1]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_get.service == 'django'
+    assert span_get.resource == 'django.core.cache.backends.locmem.get'
+    assert span_get.name == 'django.cache'
+    assert span_get.span_type == 'cache'
+    assert span_get.error == 0
+    assert span_incr.service == 'django'
+    assert span_incr.resource == 'django.core.cache.backends.locmem.incr'
+    assert span_incr.name == 'django.cache'
+    assert span_incr.span_type == 'cache'
+    assert span_incr.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'value',
+    }
+
+    assert_dict_issuperset(span_get.meta, expected_meta)
+    assert_dict_issuperset(span_incr.meta, expected_meta)
+
+
+@pytest.mark.skipif(django.VERSION < (2, 1, 0), reason='')
+def test_cache_incr_2XX(test_spans):
+    # get the default cache, set the value and reset the spans
+    cache = django.core.cache.caches['default']
+    cache.set('value', 0)
+    test_spans.tracer.writer.spans = []
+
+    cache.incr('value')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span_incr = spans[0]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_incr.service == 'django'
+    assert span_incr.resource == 'django.core.cache.backends.locmem.incr'
+    assert span_incr.name == 'django.cache'
+    assert span_incr.span_type == 'cache'
+    assert span_incr.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'value',
+    }
+
+    assert_dict_issuperset(span_incr.meta, expected_meta)
+
+
+@pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason='')
+def test_cache_decr_1XX(test_spans):
+    # get the default cache, set the value and reset the spans
+    cache = django.core.cache.caches['default']
+    cache.set('value', 0)
+    test_spans.tracer.writer.spans = []
+
+    cache.decr('value')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 3
+
+    span_decr = spans[0]
+    span_incr = spans[1]
+    span_get = spans[2]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_get.service == 'django'
+    assert span_get.resource == 'django.core.cache.backends.locmem.get'
+    assert span_get.name == 'django.cache'
+    assert span_get.span_type == 'cache'
+    assert span_get.error == 0
+    assert span_incr.service == 'django'
+    assert span_incr.resource == 'django.core.cache.backends.locmem.incr'
+    assert span_incr.name == 'django.cache'
+    assert span_incr.span_type == 'cache'
+    assert span_incr.error == 0
+    assert span_decr.service == 'django'
+    assert span_decr.resource == 'django.core.cache.backends.base.decr'
+    assert span_decr.name == 'django.cache'
+    assert span_decr.span_type == 'cache'
+    assert span_decr.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'value',
+    }
+
+    assert_dict_issuperset(span_get.meta, expected_meta)
+    assert_dict_issuperset(span_incr.meta, expected_meta)
+    assert_dict_issuperset(span_decr.meta, expected_meta)
+
+
+@pytest.mark.skipif(django.VERSION < (2, 1, 0), reason='')
+def test_cache_decr_2XX(test_spans):
+    # get the default cache, set the value and reset the spans
+    cache = django.core.cache.caches['default']
+    cache.set('value', 0)
+    test_spans.tracer.writer.spans = []
+
+    cache.decr('value')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+
+    span_decr = spans[0]
+    span_incr = spans[1]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_incr.service == 'django'
+    assert span_incr.resource == 'django.core.cache.backends.locmem.incr'
+    assert span_incr.name == 'django.cache'
+    assert span_incr.span_type == 'cache'
+    assert span_incr.error == 0
+    assert span_decr.service == 'django'
+    assert span_decr.resource == 'django.core.cache.backends.base.decr'
+    assert span_decr.name == 'django.cache'
+    assert span_decr.span_type == 'cache'
+    assert span_decr.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': 'value',
+    }
+
+    assert_dict_issuperset(span_incr.meta, expected_meta)
+    assert_dict_issuperset(span_decr.meta, expected_meta)
+
+
+def test_cache_get_many(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    cache.get_many(['missing_key', 'another_key'])
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 3
+
+    span_get_many = spans[0]
+    span_get_first = spans[1]
+    span_get_second = spans[2]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_get_first.service == 'django'
+    assert span_get_first.resource == 'django.core.cache.backends.locmem.get'
+    assert span_get_first.name == 'django.cache'
+    assert span_get_first.span_type == 'cache'
+    assert span_get_first.error == 0
+    assert span_get_second.service == 'django'
+    assert span_get_second.resource == 'django.core.cache.backends.locmem.get'
+    assert span_get_second.name == 'django.cache'
+    assert span_get_second.span_type == 'cache'
+    assert span_get_second.error == 0
+    assert span_get_many.service == 'django'
+    assert span_get_many.resource == 'django.core.cache.backends.base.get_many'
+    assert span_get_many.name == 'django.cache'
+    assert span_get_many.span_type == 'cache'
+    assert span_get_many.error == 0
+
+    expected_meta = {
+        'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
+        'django.cache.key': str(['missing_key', 'another_key']),
+    }
+
+    assert_dict_issuperset(span_get_many.meta, expected_meta)
+
+
+def test_cache_set_many(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    cache.set_many({'first_key': 1, 'second_key': 2})
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 3
+
+    span_set_many = spans[0]
+    span_set_first = spans[1]
+    span_set_second = spans[2]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_set_first.service == 'django'
+    assert span_set_first.resource == 'django.core.cache.backends.locmem.set'
+    assert span_set_first.name == 'django.cache'
+    assert span_set_first.span_type == 'cache'
+    assert span_set_first.error == 0
+    assert span_set_second.service == 'django'
+    assert span_set_second.resource == 'django.core.cache.backends.locmem.set'
+    assert span_set_second.name == 'django.cache'
+    assert span_set_second.span_type == 'cache'
+    assert span_set_second.error == 0
+    assert span_set_many.service == 'django'
+    assert span_set_many.resource == 'django.core.cache.backends.base.set_many'
+    assert span_set_many.name == 'django.cache'
+    assert span_set_many.span_type == 'cache'
+    assert span_set_many.error == 0
+
+    assert span_set_many.meta['django.cache.backend'] == 'django.core.cache.backends.locmem.LocMemCache'
+    assert 'first_key' in span_set_many.meta['django.cache.key']
+    assert 'second_key' in span_set_many.meta['django.cache.key']
+
+
+def test_cache_delete_many(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches['default']
+
+    cache.delete_many(['missing_key', 'another_key'])
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 3
+
+    span_delete_many = spans[0]
+    span_delete_first = spans[1]
+    span_delete_second = spans[2]
+
+    # LocMemCache doesn't provide an atomic operation
+    assert span_delete_first.service == 'django'
+    assert span_delete_first.resource == 'django.core.cache.backends.locmem.delete'
+    assert span_delete_first.name == 'django.cache'
+    assert span_delete_first.span_type == 'cache'
+    assert span_delete_first.error == 0
+    assert span_delete_second.service == 'django'
+    assert span_delete_second.resource == 'django.core.cache.backends.locmem.delete'
+    assert span_delete_second.name == 'django.cache'
+    assert span_delete_second.span_type == 'cache'
+    assert span_delete_second.error == 0
+    assert span_delete_many.service == 'django'
+    assert span_delete_many.resource == 'django.core.cache.backends.base.delete_many'
+    assert span_delete_many.name == 'django.cache'
+    assert span_delete_many.span_type == 'cache'
+    assert span_delete_many.error == 0
+
+    assert span_delete_many.meta['django.cache.backend'] == 'django.core.cache.backends.locmem.LocMemCache'
+    assert 'missing_key' in span_delete_many.meta['django.cache.key']
+    assert 'another_key' in span_delete_many.meta['django.cache.key']
+
+
 @pytest.mark.django_db
 def test_cached_view(client, test_spans):
     # make the first request so that the view is cached
@@ -270,12 +602,12 @@ def test_cached_view(client, test_spans):
 
     span_header = spans[3]
     span_view = spans[4]
-    assert span_view.service == 'django-cache'
+    assert span_view.service == 'django'
     assert span_view.resource == 'django.core.cache.backends.locmem.get'
     assert span_view.name == 'django.cache'
     assert span_view.span_type == 'cache'
     assert span_view.error == 0
-    assert span_header.service == 'django-cache'
+    assert span_header.service == 'django'
     assert span_header.resource == 'django.core.cache.backends.locmem.get'
     assert span_header.name == 'django.cache'
     assert span_header.span_type == 'cache'
@@ -298,29 +630,30 @@ def test_cached_view(client, test_spans):
     assert span_header.meta == expected_meta_header
 
 
-'''
-def test_cached_template(self):
+@pytest.mark.django_db
+def test_cached_template(client, test_spans):
     # make the first request so that the view is cached
-    url = reverse('cached-template-list')
-    response = self.client.get(url)
+    response = client.get('/cached-template/')
     assert response.status_code == 200
 
     # check the first call for a non-cached view
-    spans = self.tracer.writer.pop()
-    assert len(spans) == 5
+    spans = list(test_spans.filter_spans(name='django.cache'))
+    assert len(spans) == 2
     # the cache miss
-    assert spans[2].resource == 'get'
+    assert spans[0].resource == 'django.core.cache.backends.locmem.get'
     # store the result in the cache
-    assert spans[4].resource == 'set'
+    assert spans[1].resource == 'django.core.cache.backends.locmem.set'
 
     # check if the cache hit is traced
-    response = self.client.get(url)
-    spans = self.tracer.writer.pop()
+    response = client.get('/cached-template/')
+    assert response.status_code == 200
+    spans = list(test_spans.filter_spans(name='django.cache'))
+    # Should have 1 more span
     assert len(spans) == 3
 
     span_template_cache = spans[2]
     assert span_template_cache.service == 'django'
-    assert span_template_cache.resource == 'get'
+    assert span_template_cache.resource == 'django.core.cache.backends.locmem.get'
     assert span_template_cache.name == 'django.cache'
     assert span_template_cache.span_type == 'cache'
     assert span_template_cache.error == 0
@@ -328,9 +661,6 @@ def test_cached_template(self):
     expected_meta = {
         'django.cache.backend': 'django.core.cache.backends.locmem.LocMemCache',
         'django.cache.key': 'template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e',
-        'env': 'test',
     }
 
     assert span_template_cache.meta == expected_meta
-    assert 0
-'''
