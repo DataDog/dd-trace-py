@@ -166,10 +166,19 @@ def traced_cache(django, pin, func, instance, args, kwargs):
 
 def instrument_caches(django):
     cache_backends = set([cache['BACKEND'] for cache in django.conf.settings.CACHES.values()])
-    for cache_module in cache_backends:
+    for cache_path in cache_backends:
+        split = cache_path.split('.')
+        cache_module = '.'.join(split[:-1])
+        cache_cls = split[-1]
         for method in ['get', 'set', 'add', 'delete', 'incr', 'decr',
                        'get_many', 'set_many', 'delete_many', ]:
-            wrap(cache_module, method, traced_cache(django))
+            # DEV: this can be removed when we add an idempotent `wrap`
+            try:
+                cls = django.utils.module_loading.import_string(cache_path)
+                if not iswrapped(cls, method):
+                    wrap(cache_module, '{0}.{1}'.format(cache_cls, method), traced_cache(django))
+            except Exception:
+                pass
 
 
 @with_traced_module

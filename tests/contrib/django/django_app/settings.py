@@ -30,15 +30,6 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
         'LOCATION': '127.0.0.1:11211',
     },
-    'django_pylibmc': {
-        'BACKEND': 'django_pylibmc.memcached.PyLibMCCache',
-        'LOCATION': '127.0.0.1:11211',
-        'BINARY': True,
-        'OPTIONS': {
-            'tcp_nodelay': True,
-            'ketama': True
-        }
-    },
 }
 
 SITE_ID = 1

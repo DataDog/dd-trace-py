@@ -18,7 +18,6 @@ class TestDjangoPatch(PatchTestCase.Base):
             self.assert_wrapped(django.urls.re_path)
         self.assert_wrapped(django.views.generic.base.View.as_view)
 
-
     def assert_not_module_patched(self, django):
         self.assert_not_wrapped(django.apps.registry.Apps.populate)
         self.assert_not_wrapped(django.core.handlers.base.BaseHandler.load_middleware)

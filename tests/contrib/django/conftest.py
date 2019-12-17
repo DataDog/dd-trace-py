@@ -26,6 +26,7 @@ def pytest_configure():
     # If we were testing < 1.7.0 we would need to call `settings.configure()` instead of `django.setup()`
     django.setup()
 
+
 @pytest.fixture(autouse=True)
 def patch_django(tracer):
     # Patch Django and override tracer to be our test tracer
