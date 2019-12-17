@@ -1,5 +1,4 @@
 import mock
-import time
 
 # 3rd party
 from django.contrib.auth.models import User
@@ -15,26 +14,6 @@ class DjangoConnectionTest(DjangoTraceTestCase):
     """
     Ensures that database connections are properly traced
     """
-    def test_connection(self):
-        # trace a simple query
-        start = time.time()
-        users = User.objects.count()
-        assert users == 0
-        end = time.time()
-
-        # tests
-        spans = self.tracer.writer.pop()
-        assert spans, spans
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.name == 'sqlite.query'
-        assert span.service == 'defaultdb'
-        assert span.span_type == 'sql'
-        assert span.get_tag('django.db.vendor') == 'sqlite'
-        assert span.get_tag('django.db.alias') == 'default'
-        assert start < span.start < span.start + span.duration < end
-
     def test_django_db_query_in_resource_not_in_tags(self):
         User.objects.count()
         spans = self.tracer.writer.pop()
