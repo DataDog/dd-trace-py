@@ -24,8 +24,6 @@ from ...ext import http, sql as sqlx
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 
-
-from .conf import import_from_string
 from .compat import get_resolver
 
 
@@ -38,7 +36,6 @@ config._add('django', dict(
     analytics_sample_rate=None,
     trace_query_string=None,
 ))
-
 
 propagator = HTTPPropagator()
 
@@ -186,9 +183,9 @@ def instrument_caches(django):
         cache_cls = split[-1]
         for method in ['get', 'set', 'add', 'delete', 'incr', 'decr',
                        'get_many', 'set_many', 'delete_many']:
-            # DEV: this can be removed when we add an idempotent `wrap`
             try:
                 cls = django.utils.module_loading.import_string(cache_path)
+                # DEV: this can be removed when we add an idempotent `wrap`
                 if not iswrapped(cls, method):
                     wrap(cache_module, '{0}.{1}'.format(cache_cls, method), traced_cache(django))
             except Exception:
@@ -236,12 +233,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     except Exception:
         log.exception('Error instrumenting Django caches')
 
-    # Instrument Django Rest Framework
-    try:
-        from .restframework import patch_restframework
-        patch_restframework(pin.tracer)
-    except Exception:
-        log.exception('Error patching rest_framework')
+    # Instrument Django Rest Framework if it's installed
+    if hasattr(django.conf.settings, 'INSTALLED_APPS'):
+        INSTALLED_APPS = django.conf.settings.INSTALLED_APPS
+    else:
+        INSTALLED_APPS = []
+
+    if 'rest_framework' in INSTALLED_APPS:
+        try:
+            from .restframework import patch_restframework
+            patch_restframework(pin.tracer)
+        except Exception:
+            log.exception('Error patching rest_framework')
 
     return ret
 
