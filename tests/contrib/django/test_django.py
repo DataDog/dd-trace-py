@@ -1,3 +1,4 @@
+import django
 import pytest
 
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -6,8 +7,7 @@ from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
 
-import django
-
+from tests.base import BaseTestCase
 from ...util import assert_dict_issuperset
 
 
@@ -664,3 +664,33 @@ def test_cached_template(client, test_spans):
     }
 
     assert span_template_cache.meta == expected_meta
+
+
+"""
+Configuration tests
+"""
+
+
+def test_service_can_be_overridden(client, test_spans):
+    with BaseTestCase.override_config('django', dict(service_name='test-service')):
+        response = client.get('/')
+        assert response.status_code == 200
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == 'test-service'
+
+
+def test_cache_service_can_be_overridden(test_spans):
+    cache = django.core.cache.caches['default']
+
+    with BaseTestCase.override_config('django', dict(cache_service_name='test-cache-service')):
+        cache.get('missing_key')
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == 'test-cache-service'

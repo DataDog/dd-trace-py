@@ -31,6 +31,7 @@ log = get_logger(__name__)
 
 config._add('django', dict(
     service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'django',
+    cache_service_name='django',
     distributed_tracing_enabled=True,
     analytics_enabled=None,  # None allows the value to be overridden by the global config
     analytics_sample_rate=None,
@@ -159,10 +160,8 @@ def quantize_key_values(key):
 
 @with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
-    cache_service_name = 'django'  # TODO configuration
-
     # get the original function method
-    with pin.tracer.trace('django.cache', span_type='cache', service=cache_service_name) as span:
+    with pin.tracer.trace('django.cache', span_type='cache', service=config.django.cache_service_name) as span:
         # update the resource name and tag the cache backend
         span.resource = _resource_from_cache_prefix(func_name(func), instance)
         cache_backend = '{}.{}'.format(instance.__module__, instance.__class__.__name__)
