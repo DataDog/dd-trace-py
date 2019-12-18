@@ -1,3 +1,8 @@
+from . import SpanTypes
+
+# [TODO] Deprecated, remove when we remove AppTypes
+APP_TYPE = SpanTypes.SQL
+
 # tags
 QUERY = 'sql.query'   # the query text
 ROWS = 'sql.rows'     # number of rows returned by a query
