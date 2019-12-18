@@ -97,11 +97,8 @@ a new integration for ``memcached`` we might refer to the existing ``redis``
 integration as a starting point.
 
 The key focus of an integration is to provide concise, insightful information
-about the library or framework that'll be useful for developers to monitor their application as a
-whole. The goal isn't to monitor the library itself per se, but to monitor how
-the application is using and interacting with the library. So we care less about
-the nitty-gritty underlying implementation details of the library and more so
-about the public API in which developers interact with and know about.
+about the library or framework that'll be useful for developers to monitor their
+application.
 
 There are a number of things to keep in mind while writing an integration:
 
@@ -110,14 +107,15 @@ Preserving Behaviour
 ++++++++++++++++++++
 
 Arguably the most important aspect of the integration should be that it interferes
-in no way (or as little as possible) with the library or application. Attention
+in no way with the expected behaviour of library or application. Attention
 should be paid to CPU and memory usage of the integration. It is also unacceptable
-for the integration to raise uncaught exceptions.
+for the integration to raise unhandled exceptions.
 
 
 Configuration
 +++++++++++++
 TODO?
+
 
 Library Support
 +++++++++++++++
@@ -167,9 +165,18 @@ dealing with exceptions in ``ddtrace``:
       instrumentation for an example.
 
 
+Logging
++++++++
+TODO
+- warnings
+- errors
+- info
+
+
 Enable/Disable Logic
 ++++++++++++++++++++
 TODO?
+
 
 Distributed Tracing
 +++++++++++++++++++
