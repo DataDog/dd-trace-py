@@ -69,73 +69,14 @@ def with_traced_module(func):
     return with_mod
 
 
-def load_config(django, pin):
-    """Loads the configuration for the Django integration.
-
-    NOTE: legacy configuration via django.conf.settings is supported.
-    """
+def load_config(django):
+    """Loads the configuration for the Django integration."""
     django_settings = django.conf.settings
 
-    # Load legacy settings
-    legacy_defaults = {
-        'AGENT_HOSTNAME': 'localhost',
-        'AGENT_PORT': 8126,
-        'AUTO_INSTRUMENT': True,
-        'INSTRUMENT_CACHE': True,
-        'INSTRUMENT_DATABASE': True,
-        'INSTRUMENT_TEMPLATE': True,
-        'DEFAULT_DATABASE_PREFIX': '',
-        'DEFAULT_SERVICE': 'django',
-        'DEFAULT_CACHE_SERVICE': '',
-        'ENABLED': True,
-        'DISTRIBUTED_TRACING': True,
-        'ANALYTICS_ENABLED': None,
-        'ANALYTICS_SAMPLE_RATE': True,
-        'TRACE_QUERY_STRING': None,
-        'TAGS': {},
-        'TRACER': 'ddtrace.tracer',
-    }
-
-    if os.environ.get('DATADOG_ENV'):
-        legacy_defaults['TAGS'].update({'env': os.environ.get('DATADOG_ENV')})
-    if os.environ.get('DATADOG_SERVICE_NAME'):
-        legacy_defaults['DEFAULT_SERVICE'] = os.environ.get('DATADOG_SERVICE_NAME')
-    host = os.environ.get('DD_AGENT_HOST', os.environ.get('DATADOG_TRACE_AGENT_HOSTNAME'))
-    if host:
-        legacy_defaults['AGENT_HOSTNAME'] = host
-    port = os.environ.get('DD_TRACE_AGENT_PORT', os.environ.get('DATADOG_TRACE_AGENT_PORT'))
-    if port:
-        # if the agent port is a string, the underlying library that creates
-        # the socket stops working
-        try:
-            port = int(port)
-        except ValueError:
-            log.warning('DD_TRACE_AGENT_PORT is not an integer value; defaulting to 8126')
-        else:
-            legacy_defaults['AGENT_PORT'] = port
-
-    # If the user has a legacy configuration in their Django settings then
-    # merge it with the default legacy settings.
     if hasattr(django_settings, 'DATADOG_TRACE'):
-        for attr in django_settings.DATADOG_TRACE:
-            if attr in legacy_defaults:
-                # Overwrite the default with the user-defined value
-                legacy_defaults[attr] = django_settings.DATADOG_TRACE[attr]
-
-    # TODO?: the settings.DEBUG == not tracer.enabled logic
-    # TODO: precedence
-    # TODO: deprecation warnings for legacy config values:
-    #  ? agent hostname + port
-    #  ? tracer
-
-    # Now deal with merging the legacy configuration with the current method
-    tracer = import_from_string(legacy_defaults['TRACER'], legacy_defaults['TRACER'])
-    Pin.override(pin, tracer=tracer)
-
-    if legacy_defaults['TAGS']:
-        tracer.set_tags(legacy_defaults['TAGS'])
-
-    tracer.enabled = legacy_defaults['ENABLED']
+        from ddtrace.vendor import debtcollector
+        debtcollector.deprecate(('Using DATADOG_TRACE Django settings are no longer supported. '
+                                 'Please refer to our migration guide here: <link to doc here>'))
 
 
 def _set_tag_array(span, prefix, value):
@@ -281,7 +222,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         return ret
 
     # Load legacy configuration
-    load_config(django, pin)
+    load_config(django)
 
     # Instrument Databases
     try:
