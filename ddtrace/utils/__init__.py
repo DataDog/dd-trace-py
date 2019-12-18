@@ -18,12 +18,7 @@ def get_module_name(module):
     return getattr(module, "__name__", None)
 
 
-# https://stackoverflow.com/a/7864317
-class classproperty(property):
-    def __get__(self, cls, owner):
-        return classmethod(self.fget).__get__(None, owner)()
-
-
+# Based on: https://stackoverflow.com/a/7864317
 class removed_classproperty(property):
     def __get__(self, cls, owner):
         debtcollector.deprecate(
