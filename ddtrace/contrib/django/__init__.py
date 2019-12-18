@@ -41,6 +41,24 @@ Configuration
 
    Default: ``'django'``
 
+.. py:data:: ddtrace.config.django['cache_service_name']
+
+   The service name reported for your Django app cache layer.
+
+   Can also be configured via the ``DD_DJANGO_CACHE_SERVICE_NAME`` environment variable.
+
+   Default: ``'django'``
+
+.. py:data:: ddtrace.config.django['database_service_name_prefix']
+
+   A string to be prepended to the service name reported for your Django app database layer.
+
+   Can also be configured via the ``DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX`` environment variable.
+
+   The database service name is the name of the database appended with 'db'.
+
+   Default: ``''``
+
 
 Example::
 

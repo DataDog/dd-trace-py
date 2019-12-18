@@ -14,15 +14,15 @@ from inspect import isclass, isfunction
 from ddtrace import config, Pin
 from ddtrace.vendor import wrapt
 from wrapt import wrap_function_wrapper as wrap
+from ddtrace.compat import parse
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib import func_name, dbapi
+from ddtrace.ext import http, sql as sqlx
+from ddtrace.internal.logger import get_logger
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
-from ..dbapi import TracedCursor as DbApiTracedCursor
-from ...compat import parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...contrib import func_name
-from ...ext import http, sql as sqlx
-from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
 
 from .compat import get_resolver
 
@@ -30,8 +30,9 @@ from .compat import get_resolver
 log = get_logger(__name__)
 
 config._add('django', dict(
-    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'django',
-    cache_service_name='django',
+    service_name=os.environ.get('DATADOG_SERVICE_NAME', default='django'),
+    cache_service_name=get_env('django', 'cache_service_name', default='django'),
+    database_service_name_prefix=get_env('django', 'database_service_name_prefix', default=''),
     distributed_tracing_enabled=True,
     analytics_enabled=None,  # None allows the value to be overridden by the global config
     analytics_sample_rate=None,
@@ -106,7 +107,7 @@ def get_django_2_route(resolver, resolver_match):
 
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
-        database_prefix = ''
+        database_prefix = config.django.database_service_name_prefix
         alias = getattr(conn, 'alias', 'default')
         service = '{}{}{}'.format(database_prefix, alias, 'db')
         vendor = getattr(conn, 'vendor', 'db')
@@ -116,7 +117,7 @@ def patch_conn(django, conn):
             'django.db.alias': alias,
         }
         pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
-        return DbApiTracedCursor(func(*args, **kwargs), pin)
+        return dbapi.TracedCursor(func(*args, **kwargs), pin)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, with_traced_module(cursor)(django))

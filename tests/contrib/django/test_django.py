@@ -11,55 +11,6 @@ from tests.base import BaseTestCase
 from ...util import assert_dict_issuperset
 
 
-def test_django_request_distributed(client, test_spans):
-    """
-    When making a request to a Django app
-        With distributed tracing headers
-            The django.request span properly inherits from the distributed trace
-    """
-    headers = {
-        get_wsgi_header(HTTP_HEADER_TRACE_ID): '12345',
-        get_wsgi_header(HTTP_HEADER_PARENT_ID): '78910',
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
-    }
-    resp = client.get('/', **headers)
-    assert resp.status_code == 200
-    assert resp.content == b'Hello, test app.'
-
-    # Assert we properly inherit
-    # DEV: Do not use `test_spans.get_root_span()` since that expects `parent_id is None`
-    root = test_spans.find_span(name='django.request')
-    root.assert_matches(
-        name='django.request',
-        trace_id=12345,
-        parent_id=78910,
-        metrics={
-            SAMPLING_PRIORITY_KEY: USER_KEEP,
-        },
-    )
-
-
-@pytest.mark.django_db
-def test_connection(client, test_spans):
-    """
-    When database queries are made from Django
-        The queries are traced
-    """
-    from django.contrib.auth.models import User
-    users = User.objects.count()
-    assert users == 0
-
-    test_spans.assert_span_count(1)
-    spans = test_spans.get_spans()
-
-    span = spans[0]
-    assert span.name == 'sqlite.query'
-    assert span.service == 'defaultdb'
-    assert span.span_type == 'sql'
-    assert span.get_tag('django.db.vendor') == 'sqlite'
-    assert span.get_tag('django.db.alias') == 'default'
-
-
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason='')
 def test_django_2XX_request_root_span(client, test_spans):
     """
@@ -246,6 +197,32 @@ def test_request_view(client, test_spans):
         resource='tests.contrib.django.views.index',
         error=0,
     )
+
+
+"""
+Database tests
+"""
+
+
+@pytest.mark.django_db
+def test_connection(client, test_spans):
+    """
+    When database queries are made from Django
+        The queries are traced
+    """
+    from django.contrib.auth.models import User
+    users = User.objects.count()
+    assert users == 0
+
+    test_spans.assert_span_count(1)
+    spans = test_spans.get_spans()
+
+    span = spans[0]
+    assert span.name == 'sqlite.query'
+    assert span.service == 'defaultdb'
+    assert span.span_type == 'sql'
+    assert span.get_tag('django.db.vendor') == 'sqlite'
+    assert span.get_tag('django.db.alias') == 'default'
 
 
 """
@@ -683,6 +660,19 @@ def test_service_can_be_overridden(client, test_spans):
     assert span.service == 'test-service'
 
 
+@pytest.mark.django_db
+def test_database_service_prefix_can_be_overridden(test_spans):
+    with BaseTestCase.override_config('django', dict(database_service_name_prefix='my-')):
+        from django.contrib.auth.models import User
+        User.objects.count()
+
+    spans = test_spans.get_spans()
+    assert len(spans) > 0
+
+    span = spans[0]
+    assert span.service == 'my-defaultdb'
+
+
 def test_cache_service_can_be_overridden(test_spans):
     cache = django.core.cache.caches['default']
 
@@ -694,3 +684,54 @@ def test_cache_service_can_be_overridden(test_spans):
 
     span = spans[0]
     assert span.service == 'test-cache-service'
+
+
+def test_django_request_distributed(client, test_spans):
+    """
+    When making a request to a Django app
+        With distributed tracing headers
+            The django.request span properly inherits from the distributed trace
+    """
+    headers = {
+        get_wsgi_header(HTTP_HEADER_TRACE_ID): '12345',
+        get_wsgi_header(HTTP_HEADER_PARENT_ID): '78910',
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+    }
+    resp = client.get('/', **headers)
+    assert resp.status_code == 200
+    assert resp.content == b'Hello, test app.'
+
+    # Assert that the trace properly inherits from the distributed headers
+    # DEV: Do not use `test_spans.get_root_span()` since that expects `parent_id is None`
+    root = test_spans.find_span(name='django.request')
+    root.assert_matches(
+        name='django.request',
+        trace_id=12345,
+        parent_id=78910,
+        metrics={
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
+    )
+
+
+def test_django_request_distributed_disabled(client, test_spans):
+    """
+    When making a request to a Django app
+        With distributed tracing headers
+            When distributed tracing is disabled
+                The django.request span doesn't inherit from the distributed trace
+    """
+    headers = {
+        get_wsgi_header(HTTP_HEADER_TRACE_ID): '12345',
+        get_wsgi_header(HTTP_HEADER_PARENT_ID): '78910',
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+    }
+    with BaseTestCase.override_config('django', dict(distributed_tracing_enabled=False)):
+        resp = client.get('/', **headers)
+    assert resp.status_code == 200
+    assert resp.content == b'Hello, test app.'
+
+    # Assert the trace doesn't inherit from the distributed trace
+    root = test_spans.find_span(name='django.request')
+    assert root.trace_id != 12345
+    assert root.parent_id is None
