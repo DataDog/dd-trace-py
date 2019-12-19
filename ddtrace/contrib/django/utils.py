@@ -1,4 +1,3 @@
-from ...compat import parse
 from ...internal.logger import get_logger
 
 log = get_logger(__name__)
@@ -57,5 +56,3 @@ def set_tag_array(span, prefix, value):
     else:
         for i, v in enumerate(value, start=0):
             span.set_tag('{0}.{1}'.format(prefix, i), v)
-
-
