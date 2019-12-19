@@ -154,7 +154,18 @@ class Span(object):
             be ignored.
         """
 
-        if key in NUMERIC_TAGS:
+        # Set intergers that are less than equal to 2^53 as metrics
+        if isinstance(value, int) and abs(value) <= 2 ** 53:
+            self.set_metric(key, value)
+            return
+
+        # All floats should be set as a metric
+        elif isinstance(value, float):
+            self.set_metric(key, value)
+            return
+
+        # Key should explicitly be converted to a float if needed
+        elif key in NUMERIC_TAGS:
             try:
                 # DEV: `set_metric` will try to cast to `float()` for us
                 self.set_metric(key, value)
@@ -170,6 +181,8 @@ class Span(object):
             return
 
         try:
+            if key in self.metrics:
+                del self.metrics[key]
             self.meta[key] = stringify(value)
         except Exception:
             log.debug('error setting tag %s, ignoring it', key, exc_info=True)
@@ -217,6 +230,8 @@ class Span(object):
             log.debug('ignoring not real metric %s:%s', key, value)
             return
 
+        if key in self.meta:
+            del self.meta[key]
         self.metrics[key] = value
 
     def set_metrics(self, metrics):
