@@ -52,11 +52,15 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.error == 0
         meta = {
             'out.host': u'localhost',
-            'out.port': str(self.TEST_PORT),
-            'out.redis_db': u'0',
+            }
+        metrics = {
+            'out.port': self.TEST_PORT,
+            'out.redis_db': 0,
         }
         for k, v in meta.items():
             assert span.get_tag(k) == v
+        for k, v in metrics.items():
+            assert span.get_metric(k) == v
 
         assert span.get_tag('redis.raw_command').startswith(u'MGET 0 1 2 3')
         assert span.get_tag('redis.raw_command').endswith(u'...')
@@ -71,7 +75,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
         assert span.get_tag('redis.raw_command') == u'GET cheese'
         assert span.get_metric('redis.args_length') == 2
@@ -117,7 +121,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
         assert span.get_tag('redis.raw_command') == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
         assert span.get_metric('redis.pipeline_length') == 3
@@ -138,7 +142,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.resource == u'SET a 1'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
 
     def test_meta_override(self):
@@ -213,7 +217,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert dd_span.name == 'redis.command'
         assert dd_span.span_type == 'redis'
         assert dd_span.error == 0
-        assert dd_span.get_tag('out.redis_db') == '0'
+        assert dd_span.get_metric('out.redis_db') == 0
         assert dd_span.get_tag('out.host') == 'localhost'
         assert dd_span.get_tag('redis.raw_command') == u'GET cheese'
         assert dd_span.get_metric('redis.args_length') == 2

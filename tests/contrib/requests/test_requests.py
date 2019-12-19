@@ -73,7 +73,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == 'GET'
-            assert s.get_tag(http.STATUS_CODE) == '200'
+            assert s.get_metric(http.STATUS_CODE) == 200
 
     def test_untraced_request(self):
         # ensure the unpatch removes tracing
@@ -105,7 +105,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert s.get_metric(http.STATUS_CODE) == 200
         assert s.error == 0
         assert s.span_type == 'http'
         assert http.QUERY_STRING not in s.meta
@@ -122,7 +122,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert s.get_metric(http.STATUS_CODE) == 200
         assert s.error == 0
         assert s.span_type == 'http'
 
@@ -137,7 +137,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert s.get_metric(http.STATUS_CODE) == 200
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
         assert s.span_type == 'http'
@@ -154,7 +154,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == 'GET'
-            assert s.get_tag(http.STATUS_CODE) == '200'
+            assert s.get_metric(http.STATUS_CODE) == 200
             assert s.error == 0
             assert s.span_type == 'http'
 

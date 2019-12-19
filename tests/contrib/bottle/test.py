@@ -58,7 +58,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.service == 'bottle-app'
         assert s.span_type == 'web'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_tag('http.status_code') == '200'
+        assert s.get_metric('http.status_code') == 200
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
         if ddtrace.config.bottle.trace_query_string:
@@ -99,7 +99,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == 'GET /2xx'
-        assert s.get_tag('http.status_code') == '202'
+        assert s.get_metric('http.status_code') == 202
         assert s.error == 0
 
     def test_400_return(self):
@@ -120,7 +120,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /400_return'
-        assert s.get_tag('http.status_code') == '400'
+        assert s.get_metric('http.status_code') == 400
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/400_return'
         assert s.error == 0
@@ -143,7 +143,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /400_raise'
-        assert s.get_tag('http.status_code') == '400'
+        assert s.get_metric('http.status_code') == 400
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/400_raise'
         assert s.error == 1
@@ -166,7 +166,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
-        assert s.get_tag('http.status_code') == '500'
+        assert s.get_metric('http.status_code') == 500
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
         assert s.error == 1
@@ -233,7 +233,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
-        assert s.get_tag('http.status_code') == '420'
+        assert s.get_metric('http.status_code') == 420
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/hi'
 
@@ -254,7 +254,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /home/'
-        assert s.get_tag('http.status_code') == '200'
+        assert s.get_metric('http.status_code') == 200
         assert s.get_tag('http.method') == 'GET'
         assert s.get_tag(http.URL) == 'http://localhost:80/home/'
 
@@ -404,7 +404,7 @@ class TraceBottleTest(BaseTracerTestCase):
         assert dd_span.name == 'bottle.request'
         assert dd_span.service == 'bottle-app'
         assert dd_span.resource == 'GET /hi/<name>'
-        assert dd_span.get_tag('http.status_code') == '200'
+        assert dd_span.get_metric('http.status_code') == 200
         assert dd_span.get_tag('http.method') == 'GET'
         assert dd_span.get_tag(http.URL) == 'http://localhost:80/hi/dougie'
 

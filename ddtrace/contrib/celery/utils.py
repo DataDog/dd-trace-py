@@ -3,7 +3,7 @@ from weakref import WeakValueDictionary
 from .constants import CTX_KEY
 
 
-def tags_from_context(context):
+def attach_spantags_from_context(context):
     """Helper to extract meta values from a Celery Context"""
     tag_keys = (
         'compression', 'correlation_id', 'countdown', 'delivery_info', 'eta',

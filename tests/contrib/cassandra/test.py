@@ -125,7 +125,7 @@ class CassandraBase(object):
 
         assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
         assert query.get_tag(net.TARGET_PORT) == self.TEST_PORT
-        assert query.get_tag(cassx.ROW_COUNT) == '1'
+        assert query.get_metrc(cassx.ROW_COUNT) == 1
         assert query.get_tag(cassx.PAGE_NUMBER) is None
         assert query.get_tag(cassx.PAGINATED) == 'False'
         assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
