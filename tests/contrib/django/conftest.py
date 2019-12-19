@@ -23,7 +23,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.contrib.django.{0}.settin
 def pytest_configure():
     settings.DEBUG = False
     patch()
-    # If we were testing < 1.7.0 we would need to call `settings.configure()` instead of `django.setup()`
     django.setup()
 
 

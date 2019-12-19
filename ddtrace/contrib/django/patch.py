@@ -260,7 +260,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     if 'rest_framework' in INSTALLED_APPS:
         try:
             from .restframework import patch_restframework
-            patch_restframework(pin.tracer)
+            patch_restframework(django)
         except Exception:
             log.exception('Error patching rest_framework', exc_info=True)
 

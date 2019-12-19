@@ -21,7 +21,7 @@ SECRET_KEY = 'not_very_secret_in_tests'
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = '/static/'
-ROOT_URLCONF = 'tests.contrib.djangorestframework_old.app.views'
+ROOT_URLCONF = 'tests.contrib.djangorestframework.app.views'
 
 TEMPLATES = [
     {
@@ -52,7 +52,7 @@ if (1, 10) <= django.VERSION < (2, 0):
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django.middleware.CatchExceptionMiddleware',
     ]
 
 # Django 2.0 has different defaults
@@ -66,7 +66,7 @@ elif django.VERSION >= (2, 0):
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django.middleware.CatchExceptionMiddleware',
     ]
 
 # Pre 1.10 style
@@ -81,7 +81,7 @@ else:
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
         'django.middleware.security.SecurityMiddleware',
 
-        'tests.contrib.django_old.app.middlewares.CatchExceptionMiddleware',
+        'tests.contrib.django.middleware.CatchExceptionMiddleware',
     ]
 
 INSTALLED_APPS = [
@@ -90,26 +90,14 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
 
-    # tracer app
-    'ddtrace.contrib.django',
-
     # djangorestframework
     'rest_framework'
 ]
-
-DATADOG_TRACE = {
-    # tracer with a DummyWriter
-    'TRACER': 'tests.contrib.django_old.utils.tracer',
-    'ENABLED': True,
-    'TAGS': {
-        'env': 'test',
-    },
-}
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAdminUser',
     ],
 
-    'EXCEPTION_HANDLER': 'tests.contrib.djangorestframework_old.app.exceptions.custom_exception_handler'
+    'EXCEPTION_HANDLER': 'tests.contrib.djangorestframework.app.exceptions.custom_exception_handler'
 }
