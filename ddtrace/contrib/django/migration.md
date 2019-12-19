@@ -85,3 +85,7 @@ from ddtrace import Pin
 import django
 Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 ```
+
+
+3. Remove `TraceMiddleware` or `TraceExceptionMiddleware` if being used in
+`settings.py` .

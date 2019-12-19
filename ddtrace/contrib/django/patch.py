@@ -225,13 +225,13 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     try:
         instrument_dbs(django)
     except Exception:
-        log.exception('Error instrumenting Django database connections')
+        log.exception('Error instrumenting Django database connections', exc_info=True)
 
     # Instrument caches
     try:
         instrument_caches(django)
     except Exception:
-        log.exception('Error instrumenting Django caches')
+        log.exception('Error instrumenting Django caches', exc_info=True)
 
     # Instrument Django Rest Framework if it's installed
     if hasattr(django.conf.settings, 'INSTALLED_APPS'):
@@ -244,7 +244,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
             from .restframework import patch_restframework
             patch_restframework(pin.tracer)
         except Exception:
-            log.exception('Error patching rest_framework')
+            log.exception('Error patching rest_framework', exc_info=True)
 
     return ret
 

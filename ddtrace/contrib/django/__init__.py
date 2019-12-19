@@ -80,9 +80,8 @@ required_modules = ['django']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .middleware import TraceMiddleware, TraceExceptionMiddleware
         from .patch import patch, unpatch
-        __all__ = ['TraceMiddleware', 'TraceExceptionMiddleware', 'patch', 'unpatch']
+        __all__ = ['patch', 'unpatch']
 
 
 # define the Django app configuration

@@ -260,6 +260,7 @@ def test_django_request_not_found(client, test_spans):
         },
     )
 
+
 """
 Database tests
 """
