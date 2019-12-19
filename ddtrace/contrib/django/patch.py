@@ -3,7 +3,7 @@ The Django patching works as follows:
 
 Django internals are instrumented via normal `patch()`.
 
-django.apps.registry.Apps.populate is patched to add instrumentation for any
+`django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
 import os

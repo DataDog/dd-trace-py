@@ -87,5 +87,5 @@ Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 ```
 
 
-3. Remove `TraceMiddleware` or `TraceExceptionMiddleware` if being used in
-`settings.py` .
+3. Remove `TraceMiddleware` or `TraceExceptionMiddleware` if used in
+`settings.py`.
