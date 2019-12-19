@@ -30,8 +30,8 @@ from .compat import get_resolver, user_is_authenticated
 log = get_logger(__name__)
 
 config._add('django', dict(
-    service_name=os.environ.get('DATADOG_SERVICE_NAME', default='django'),
-    cache_service_name=get_env('django', 'cache_service_name', default='django'),
+    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'django',
+    cache_service_name=get_env('django', 'cache_service_name') or 'django',
     database_service_name_prefix=get_env('django', 'database_service_name_prefix', default=''),
     distributed_tracing_enabled=True,
     analytics_enabled=None,  # None allows the value to be overridden by the global config
