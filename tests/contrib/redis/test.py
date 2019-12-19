@@ -52,7 +52,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert span.error == 0
         meta = {
             'out.host': u'localhost',
-            }
+        }
         metrics = {
             'out.port': self.TEST_PORT,
             'out.redis_db': 0,
