@@ -59,6 +59,12 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django['trace_query_string']
+
+   Whether or not to include the query string as a tag.
+
+   Default: ``False``
+
 
 Example::
 

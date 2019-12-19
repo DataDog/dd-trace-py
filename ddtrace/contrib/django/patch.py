@@ -36,7 +36,7 @@ config._add('django', dict(
     distributed_tracing_enabled=True,
     analytics_enabled=None,  # None allows the value to be overridden by the global config
     analytics_sample_rate=None,
-    trace_query_string=None,
+    trace_query_string=None,  # Default to global config
 ))
 
 propagator = HTTPPropagator()
@@ -328,7 +328,8 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
                     wrap(mw, hook, traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
             # Do a little extra for `process_exception`
             if hasattr(mw, 'process_exception') and not iswrapped(mw, 'process_exception'):
-                wrap(mw, 'process_exception', traced_process_exception(django, 'django.middleware', resource=mw_path + '.{0}'.format('process_exception')))
+                res = mw_path + '.{0}'.format('process_exception')
+                wrap(mw, 'process_exception', traced_process_exception(django, 'django.middleware', resource=res))
 
     return func(*args, **kwargs)
 
@@ -348,12 +349,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     try:
-        # Django 2.2.0 added `request.headers` which is a case sensitive dict of headers
-        # For previous versions use `request.META` a dict with `HTTP_X_UPPER_CASE_HEADER` keys
-        if django.VERSION >= (2, 2, 0):
-            request_headers = request.headers
-        else:
-            request_headers = request.META
+        request_headers = request.META
 
         if config.django['distributed_tracing_enabled']:
             context = propagator.extract(request_headers)
@@ -415,7 +411,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            if config.django.trace_query_string:
+            if config.django.http.trace_query_string:
                 span.set_tag(http.QUERY_STRING, request_headers['QUERY_STRING'])
 
             # Not a 404 request
