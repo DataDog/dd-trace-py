@@ -25,6 +25,7 @@ from ddtrace.utils.wrappers import unwrap, iswrapped
 
 
 from .compat import get_resolver, user_is_authenticated
+from . import utils
 
 
 log = get_logger(__name__)
@@ -68,43 +69,6 @@ def with_traced_module(func):
     return with_mod
 
 
-def load_config(django):
-    """Loads the configuration for the Django integration."""
-    django_settings = django.conf.settings
-
-    if hasattr(django_settings, 'DATADOG_TRACE'):
-        from ddtrace.vendor import debtcollector
-        debtcollector.deprecate(('Using DATADOG_TRACE Django settings are no longer supported. '
-                                 'Please refer to our migration guide here: <link to doc here>'))
-
-
-def _set_tag_array(span, prefix, value):
-    """Helper to set a span tag as a single value or an array"""
-    if not value:
-        return
-
-    if len(value) == 1:
-        span.set_tag(prefix, value[0])
-    else:
-        for i, v in enumerate(value, start=0):
-            span.set_tag('{0}.{1}'.format(prefix, i), v)
-
-
-def get_django_2_route(resolver, resolver_match):
-    # Try to use `resolver_match.route` if available
-    # Otherwise, look for `resolver.pattern.regex.pattern`
-    route = resolver_match.route
-    if not route:
-        # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, 'pattern', None)
-        if pattern:
-            regex = getattr(pattern, 'regex', None)
-            if regex:
-                route = getattr(regex, 'pattern', '')
-
-    return route
-
-
 def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         database_prefix = config.django.database_service_name_prefix
@@ -131,19 +95,6 @@ def instrument_dbs(django):
             log.debug('Error instrumenting database connection %r', conn, exc_info=True)
 
 
-def _resource_from_cache_prefix(resource, cache):
-    """
-    Combine the resource name with the cache prefix (if any)
-    """
-    if getattr(cache, 'key_prefix', None):
-        name = '{} {}'.format(resource, cache.key_prefix)
-    else:
-        name = resource
-
-    # enforce lowercase to make the output nicer to read
-    return name.lower()
-
-
 def _set_request_tags(span, request):
     span.set_tag('django.request.class', func_name(request))
     span.set_tag(http.METHOD, request.method)
@@ -162,32 +113,17 @@ def _set_request_tags(span, request):
             span.set_tag('django.user.name', username)
 
 
-def quantize_key_values(key):
-    """
-    Used in the Django trace operation method, it ensures that if a dict
-    with values is used, we removes the values from the span meta
-    attributes. For example::
-
-        >>> quantize_key_values({'key': 'value'})
-        # returns ['key']
-    """
-    if isinstance(key, dict):
-        return key.keys()
-
-    return key
-
-
 @with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
     # get the original function method
     with pin.tracer.trace('django.cache', span_type='cache', service=config.django.cache_service_name) as span:
         # update the resource name and tag the cache backend
-        span.resource = _resource_from_cache_prefix(func_name(func), instance)
+        span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = '{}.{}'.format(instance.__module__, instance.__class__.__name__)
         span.set_tag('django.cache.backend', cache_backend)
 
         if args:
-            keys = quantize_key_values(args[0])
+            keys = utils.quantize_key_values(args[0])
             span.set_tag('django.cache.key', keys)
 
         return func(*args, **kwargs)
@@ -236,8 +172,12 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         log.warning('populate() failed skipping instrumentation.')
         return ret
 
-    # Load legacy configuration
-    load_config(django)
+    settings = django.conf.settings
+
+    if hasattr(settings, 'DATADOG_TRACE'):
+        from ddtrace.vendor import debtcollector  # TODO: in-lined because debtcollector not vendored yet
+        debtcollector.deprecate(('Using DATADOG_TRACE Django settings are no longer supported. '
+                                 'Please refer to our migration guide here: <link to doc here>'))
 
     # Instrument databases
     try:
@@ -252,10 +192,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         log.exception('Error instrumenting Django caches', exc_info=True)
 
     # Instrument Django Rest Framework if it's installed
-    if hasattr(django.conf.settings, 'INSTALLED_APPS'):
-        INSTALLED_APPS = django.conf.settings.INSTALLED_APPS
-    else:
-        INSTALLED_APPS = []
+    INSTALLED_APPS = getattr(settings, 'INSTALLED_APPS', [])
 
     if 'rest_framework' in INSTALLED_APPS:
         try:
@@ -378,7 +315,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Determine the resource name to use
             # In Django >= 2.2.0 we can access the original route or regex pattern
             if django.VERSION >= (2, 2, 0):
-                route = get_django_2_route(resolver, resolver_match)
+                route = utils.get_django_2_route(resolver, resolver_match)
                 if route:
                     resource = '{0} {1}'.format(request.method, route)
                 else:
@@ -417,11 +354,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Not a 404 request
             if resolver_match:
                 span.set_tag('django.view', resolver_match.view_name)
-                _set_tag_array(span, 'django.namespace', resolver_match.namespaces)
+                utils.set_tag_array(span, 'django.namespace', resolver_match.namespaces)
 
                 # Django >= 2.0.0
                 if hasattr(resolver_match, 'app_names'):
-                    _set_tag_array(span, 'django.app', resolver_match.app_names)
+                    utils.set_tag_array(span, 'django.app', resolver_match.app_names)
 
             if route:
                 span.set_tag('http.route', route)
@@ -454,7 +391,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     span.error = 1
                 span.set_tag('django.response.class', func_name(response))
                 if hasattr(response, 'template_name'):
-                    _set_tag_array(span, 'django.response.template', response.template_name)
+                    utils.set_tag_array(span, 'django.response.template', response.template_name)
             return response
 
 
