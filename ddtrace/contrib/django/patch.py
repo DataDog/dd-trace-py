@@ -257,6 +257,19 @@ def traced_func(django, name, resource=None):
     return with_traced_module(wrapped)(django)
 
 
+def traced_process_exception(django, name, resource=None):
+    def wrapped(django, pin, func, instance, args, kwargs):
+        with pin.tracer.trace(name, resource=resource) as span:
+            resp = func(*args, **kwargs)
+
+            # If the response code is erroneous then grab the traceback
+            # and set an error.
+            if hasattr(resp, 'status_code') and 500 <= resp.status_code < 600:
+                span.set_traceback()
+            return resp
+    return with_traced_module(wrapped)(django)
+
+
 @with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all middlewares."""
@@ -292,9 +305,13 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
         # Instrument class-based middleware
         elif isclass(mw):
             for hook in ['process_request', 'process_response', 'process_view',
-                         'process_exception', 'process_template_response', '__call__']:
+                         'process_template_response', '__call__']:
                 if hasattr(mw, hook) and not iswrapped(mw, hook):
                     wrap(mw, hook, traced_func(django, 'django.middleware', resource=mw_path + '.{0}'.format(hook)))
+            # Do a little extra for `process_exception`
+            if hasattr(mw, 'process_exception') and not iswrapped(mw, 'process_exception'):
+                wrap(mw, 'process_exception', traced_process_exception(django, 'django.middleware', resource=mw_path + '.{0}'.format('process_exception')))
+
     return func(*args, **kwargs)
 
 
@@ -369,7 +386,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 getattr(request, 'path_info', 'not-set'),
                 ex,
             )
-
+    except Exception:
+        log.debug('Failed to trace django request %r', args, exc_info=True)
+        return func(*args, **kwargs)
+    else:
         with pin.tracer.trace(
                 'django.request', resource=resource, service=config.django['service_name'], span_type=http.TYPE
         ) as span:
@@ -413,13 +433,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
             if response:
                 span.set_tag(http.STATUS_CODE, response.status_code)
+                if 500 <= response.status_code < 600:
+                    span.error = 1
                 span.set_tag('django.response.class', func_name(response))
                 if hasattr(response, 'template_name'):
                     _set_tag_array(span, 'django.response.template', response.template_name)
             return response
-    except Exception:
-        log.debug('Failed to trace django request %r', args, exc_info=True)
-        return func(*args, **kwargs)
 
 
 @with_traced_module
