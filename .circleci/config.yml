@@ -399,6 +399,17 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  multiprocessing:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^multiprocessing_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   mysqlconnector:
     docker:
       - *test_runner
@@ -963,6 +974,10 @@ workflows:
           requires:
             - flake8
             - black
+      - multiprocessing:
+          requires:
+            - flake8
+            - black
       - mysqlconnector:
           requires:
             - flake8
@@ -1093,6 +1108,7 @@ workflows:
             - mako
             - molten
             - mongoengine
+            - multiprocessing
             - mysqlconnector
             - mysqldb
             - mysqlpython

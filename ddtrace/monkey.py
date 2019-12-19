@@ -62,6 +62,7 @@ PATCH_MODULES = {
 
     # Standard library modules off by default
     'logging': False,
+    'multiprocessing': False,
 }
 
 _LOCK = threading.Lock()
