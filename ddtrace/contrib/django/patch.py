@@ -221,13 +221,13 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Load legacy configuration
     load_config(django)
 
-    # Instrument Databases
+    # Instrument databases
     try:
         instrument_dbs(django)
     except Exception:
         log.exception('Error instrumenting Django database connections')
 
-    # Instrument Caches
+    # Instrument caches
     try:
         instrument_caches(django)
     except Exception:
@@ -431,7 +431,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     else:
         resource = '{0}.{1}'.format(func_name(instance), wrapped.__name__)
 
-    with pin.tracer.trace('django.template.render', resource=resource) as span:
+    with pin.tracer.trace('django.template.render', resource=resource, span_type=http.TEMPLATE) as span:
         if template_name:
             span.set_tag('django.template.name', template_name)
         engine = getattr(instance, 'engine', None)

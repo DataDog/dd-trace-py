@@ -199,6 +199,67 @@ def test_request_view(client, test_spans):
     )
 
 
+def test_django_request_not_found(client, test_spans):
+    """
+    When making a request to a Django app
+        When the endpoint doesn't exist
+            We create a 404 span
+    """
+    resp = client.get('/unknown/endpoint')
+    assert resp.status_code == 404
+
+    if django.VERSION >= (3, 0, 0):
+        content = (
+            b'\n<!doctype html>\n<html lang="en">\n<head>\n  <title>Not Found</title>\n'
+            b'</head>\n<body>\n  <h1>Not Found</h1><p>The requested resource was not found '
+            b'on this server.</p>\n</body>\n</html>\n'
+        )
+    elif django.VERSION >= (1, 11, 0):
+        content = b'<h1>Not Found</h1><p>The requested resource was not found on this server.</p>'
+    else:
+        content = b'<h1>Not Found</h1><p>The requested URL /unknown/endpoint was not found on this server.</p>'
+    assert resp.content == content
+
+    # Assert the correct number of traces and spans
+    if django.VERSION >= (2, 0, 0):
+        span_count = 27
+    elif django.VERSION >= (1, 11, 0):
+        span_count = 18
+    else:
+        span_count = 16
+    test_spans.assert_span_count(span_count)
+
+    # Assert the structure of the root `django.request` span
+    root = test_spans.get_root_span()
+    root.assert_matches(
+        name='django.request',
+        service='django',
+        resource='GET 404',
+        parent_id=None,
+        span_type=http.TYPE,
+        error=0,
+        meta={
+            'django.request.class': 'django.core.handlers.wsgi.WSGIRequest',
+            'django.response.class': 'django.http.response.HttpResponseNotFound',
+            'http.method': 'GET',
+            'http.status_code': '404',
+            'http.url': 'http://testserver/unknown/endpoint',
+        },
+    )
+
+    # Assert template render
+    render_spans = list(test_spans.filter_spans(name='django.template.render'))
+    assert len(render_spans) == 1
+
+    render_span = render_spans[0]
+    render_span.assert_matches(
+        name='django.template.render',
+        resource='django.template.base.Template.render',
+        meta={
+            'django.template.engine.class': 'django.template.engine.Engine',
+        },
+    )
+
 """
 Database tests
 """
@@ -735,3 +796,31 @@ def test_django_request_distributed_disabled(client, test_spans):
     root = test_spans.find_span(name='django.request')
     assert root.trace_id != 12345
     assert root.parent_id is None
+
+
+"""
+Template tests
+"""
+
+
+def test_template(test_spans):
+    # prepare a base template using the default engine
+    template = django.template.Template('Hello {{name}}!')
+    ctx = django.template.Context({'name': 'Django'})
+
+    assert template.render(ctx) == 'Hello Django!'
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.span_type == 'template'
+    assert span.name == 'django.template.render'
+
+    template.name = 'my-template'
+    assert template.render(ctx) == 'Hello Django!'
+    spans = test_spans.get_spans()
+    assert len(spans) == 2
+
+    span = spans[1]
+    assert span.get_tag('django.template.name') == 'my-template'

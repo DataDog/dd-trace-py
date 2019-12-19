@@ -1,10 +1,4 @@
 from django.apps import AppConfig
-from django.db import connections
-
-from .db import patch_db
-from .conf import settings
-from .cache import patch_cache
-from .templates import patch_template
 
 from ...internal.logger import get_logger
 from ...utils.deprecation import deprecated
@@ -28,44 +22,3 @@ class TracerConfig(AppConfig):
         configuration from settings.py
         """
         pass
-
-
-def apply_django_patches():
-    """
-    Ready is called as soon as the registry is fully populated.
-    In order for all Django internals are properly configured, this
-    must be called after the app is finished starting
-    """
-    tracer = settings.TRACER
-
-    if settings.TAGS:
-        tracer.set_tags(settings.TAGS)
-
-    tracer.enabled = settings.ENABLED
-    tracer.writer.api.hostname = settings.AGENT_HOSTNAME
-    tracer.writer.api.port = settings.AGENT_PORT
-
-    if settings.AUTO_INSTRUMENT:
-        # trace Django internals
-
-        if settings.INSTRUMENT_TEMPLATE:
-            try:
-                patch_template(tracer)
-            except Exception:
-                log.exception('error patching Django template rendering')
-
-        if settings.INSTRUMENT_DATABASE:
-            try:
-                patch_db(tracer)
-                # This is the trigger to patch individual connections.
-                # By patching these here, all processes including
-                # management commands are also traced.
-                connections.all()
-            except Exception:
-                log.exception('error patching Django database connections')
-
-        if settings.INSTRUMENT_CACHE:
-            try:
-                patch_cache(tracer)
-            except Exception:
-                log.exception('error patching Django cache')
