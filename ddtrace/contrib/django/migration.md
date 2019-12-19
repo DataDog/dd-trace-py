@@ -21,7 +21,7 @@ See below for the mapping from old configuration settings to new ones.
 | `INSTRUMENT_TEMPLATE` | N/A Instrumentation is automatic|
 | `DEFAULT_DATABASE_PREFIX` | `config.django['database_service_name_prefix']` |
 | `DEFAULT_SERVICE` | `DD_SERVICE_NAME` environment variable or `config.django['service_name']` |
-| `DEFAULT_CACHE_SERVICE` | `config.django['service_name']` |
+| `DEFAULT_CACHE_SERVICE` | `config.django['cache_service_name']` |
 | `ENABLED` | `tracer.configure(enabled=)` |
 | `DISTRIBUTED_TRACING` | `config.django['distributed_tracing_enabled']` |
 | `ANALYTICS_ENABLED` | `config.django['analytics_enabled']` |

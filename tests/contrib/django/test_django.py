@@ -59,6 +59,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
     )
 
 
+
 @pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='')
 def test_v1XX_middleware(client, test_spans):
     resp = client.get('/')
@@ -118,7 +119,6 @@ def test_v1XX_middleware(client, test_spans):
 """
 Middleware tests
 """
-
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason='')
 def test_v2XX_middleware(client, test_spans):

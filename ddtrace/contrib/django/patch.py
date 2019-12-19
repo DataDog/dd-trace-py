@@ -13,7 +13,7 @@ from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import wrapt
-from wrapt import wrap_function_wrapper as wrap
+wrap = wrapt.wrap_function_wrapper
 from ddtrace.compat import parse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
@@ -288,7 +288,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     try:
         request_headers = request.META
 
-        if config.django['distributed_tracing_enabled']:
+        if config.django.distributed_tracing_enabled:
             context = propagator.extract(request_headers)
             if context.trace_id:
                 pin.tracer.context_provider.activate(context)
@@ -480,7 +480,10 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     """
     if len(args) > 1:
         view = args[1]
-        instrument_view(django, view)
+        try:
+            instrument_view(django, view)
+        except Exception:
+            log.warning('Failed to instrument Django view %r', view, exc_info=True)
     return func(*args, **kwargs)
 
 
@@ -511,7 +514,7 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if 'django.views.generic.base' not in sys.modules:
         import django.views.generic.base
-    wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
+    # wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
 
 
 def patch():

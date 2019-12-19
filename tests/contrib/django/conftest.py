@@ -4,7 +4,7 @@ from django.conf import settings
 import pytest
 
 from ddtrace import Pin
-from ddtrace.contrib.django import patch, unpatch
+from ddtrace.contrib.django import patch
 
 from ...utils.span import TracerSpanContainer
 from ...utils.tracer import DummyTracer
@@ -38,7 +38,6 @@ def patch_django(tracer):
 
     # Reset the tracer pinned to Django and unpatch
     Pin.override(django, tracer=original_tracer)
-    unpatch()
 
 
 @pytest.fixture

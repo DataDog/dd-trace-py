@@ -8,9 +8,7 @@ def iswrapped(obj, attr=None):
     """Returns whether an attribute is wrapped or not."""
     if attr is not None:
         obj = getattr(obj, attr, None)
-    # NOTE: for some reason, sometimes wrapped functions can have isinstance(f, wrapt.ObjectProxy)
-    #       return False.
-    return obj and (hasattr(obj, '__wrapped__') or isinstance(obj, wrapt.ObjectProxy))
+    return hasattr(obj, '__wrapped__') and isinstance(obj, wrapt.ObjectProxy)
 
 
 def unwrap(obj, attr):
