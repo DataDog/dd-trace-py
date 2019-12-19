@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
@@ -797,6 +797,70 @@ def test_django_request_distributed_disabled(client, test_spans):
     root = test_spans.find_span(name='django.request')
     assert root.trace_id != 12345
     assert root.parent_id is None
+
+
+@pytest.mark.django_db
+def test_analytics_global_off_integration_default(client, test_spans):
+    """
+    When making a request
+        When an integration trace search is not set and sample rate is set and globally trace search is disabled
+            We expect the root span to not include tag
+    """
+    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
+         assert client.get('/users/').status_code == 200
+
+    req_span = test_spans.get_root_span()
+    assert req_span.name == 'django.request'
+    assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+
+
+@pytest.mark.django_db
+def test_analytics_global_on_integration_default(client, test_spans):
+    """
+    When making a request
+        When an integration trace search is not event sample rate is not set and globally trace search is enabled
+            We expect the root span to have the appropriate tag
+    """
+    with BaseTestCase.override_global_config(dict(analytics_enabled=True)):
+        assert client.get('/users/').status_code == 200
+
+    req_span = test_spans.get_root_span()
+    assert req_span.name == 'django.request'
+    assert req_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
+
+
+@pytest.mark.django_db
+def test_analytics_global_off_integration_on(client, test_spans):
+    """
+    When making a request
+        When an integration trace search is enabled and sample rate is set and globally trace search is disabled
+            We expect the root span to have the appropriate tag
+    """
+    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
+        with BaseTestCase.override_config('django', dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+            assert client.get('/users/').status_code == 200
+
+    sp_request = test_spans.get_root_span()
+    assert sp_request.name == 'django.request'
+    assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
+
+
+@pytest.mark.django_db
+def test_analytics_global_off_integration_on_and_none(client, test_spans):
+    """
+    When making a request
+        When an integration trace search is enabled
+        Sample rate is set to None
+        Globally trace search is disabled
+            We expect the root span to have the appropriate tag
+    """
+    with BaseTestCase.override_global_config(dict(analytics_enabled=False)):
+        with BaseTestCase.override_config('django', dict(analytics_enabled=False, analytics_sample_rate=1.0)):
+            assert client.get('/users/').status_code == 200
+
+    sp_request = test_spans.get_root_span()
+    assert sp_request.name == 'django.request'
+    assert sp_request.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
 """
