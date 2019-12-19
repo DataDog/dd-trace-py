@@ -26,6 +26,7 @@ PATCH_MODULES = {
     'cassandra': True,
     'celery': True,
     'consul': True,
+    'django': True,
     'elasticsearch': True,
     'algoliasearch': True,
     'futures': False,  # experimental propagation
@@ -55,7 +56,6 @@ PATCH_MODULES = {
     'kombu': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
-    'django': False,
     'falcon': False,
     'pylons': False,
     'pyramid': False,
