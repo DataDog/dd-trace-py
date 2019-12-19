@@ -9,6 +9,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.utils import get_wsgi_header
 
 from tests.base import BaseTestCase
+from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
 
 
@@ -37,6 +38,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
     meta = {
         'django.request.class': 'django.core.handlers.wsgi.WSGIRequest',
         'django.response.class': 'django.http.response.HttpResponse',
+        'django.user.is_authenticated': 'False',
         'django.view': 'tests.contrib.django.views.index',
         'http.method': 'GET',
         'http.status_code': '200',
@@ -179,28 +181,6 @@ def test_v2XX_middleware(client, test_spans):
     assert root_span.name == 'django.request'
     first_middleware = middleware_spans[-1]
     assert first_middleware.parent_id == root_span.span_id
-
-
-def test_request_view(client, test_spans):
-    """
-    When making a request to a Django app
-        A `django.view` span is produced
-    """
-    resp = client.get('/')
-    assert resp.status_code == 200
-    assert resp.content == b'Hello, test app.'
-
-    view_spans = list(test_spans.filter_spans(name='django.view'))
-    assert len(view_spans) == 1
-
-    # Assert span properties
-    view_span = view_spans[0]
-    view_span.assert_matches(
-        name='django.view',
-        service='django',
-        resource='tests.contrib.django.views.index',
-        error=0,
-    )
 
 
 def test_django_request_not_found(client, test_spans):
@@ -360,6 +340,98 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     assert view_span.error == 1
     # Make sure the message is somewhere in the stack trace
     assert 'Error 500' in view_span.get_tag('error.stack')
+
+
+"""
+View tests
+"""
+
+
+def test_request_view(client, test_spans):
+    """
+    When making a request to a Django app
+        A `django.view` span is produced
+    """
+    resp = client.get('/')
+    assert resp.status_code == 200
+    assert resp.content == b'Hello, test app.'
+
+    view_spans = list(test_spans.filter_spans(name='django.view'))
+    assert len(view_spans) == 1
+
+    # Assert span properties
+    view_span = view_spans[0]
+    view_span.assert_matches(
+        name='django.view',
+        service='django',
+        resource='tests.contrib.django.views.index',
+        error=0,
+    )
+
+
+def test_lambda_based_view(client, test_spans):
+    # ensures that the internals are properly traced when using a function view
+    assert client.get('/lambda-view/').status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag('http.status_code') == '200'
+    assert span.get_tag(http.URL) == 'http://testserver/lambda-view/'
+    if django.VERSION >= (2, 0, 0):
+        assert span.resource == 'GET ^lambda-view/$'
+    else:
+        assert span.resource == 'GET tests.contrib.django.views.<lambda>'
+
+
+def test_middleware_trace_function_based_view(client, test_spans):
+    # ensures that the internals are properly traced when using a function views
+    assert client.get('/fn-view/').status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag('http.status_code') == '200'
+    assert span.get_tag(http.URL) == 'http://testserver/fn-view/'
+    if django.VERSION >= (2, 0, 0):
+        assert span.resource == 'GET ^fn-view/$'
+    else:
+        assert span.resource == 'GET tests.contrib.django.views.function_view'
+
+
+def test_middleware_trace_callable_view(client, test_spans):
+    # ensures that the internals are properly traced when using callable views
+    assert client.get('/feed-view/').status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag('http.status_code') == '200'
+    assert span.get_tag(http.URL) == 'http://testserver/feed-view/'
+    if django.VERSION >= (2, 0, 0):
+        assert span.resource == 'GET ^feed-view/$'
+    else:
+        assert span.resource == 'GET tests.contrib.django.views.FeedView'
+
+
+def test_middleware_trace_errors(client, test_spans):
+    # ensures that the internals are properly traced
+    assert client.get('/fail-view/').status_code == 403
+
+    span = test_spans.get_root_span()
+    assert span.get_tag('http.status_code') == '403'
+    assert span.get_tag(http.URL) == 'http://testserver/fail-view/'
+    if django.VERSION >= (2, 0, 0):
+        assert span.resource == 'GET ^fail-view/$'
+    else:
+        assert span.resource == 'GET tests.contrib.django.views.ForbiddenView'
+
+
+def test_middleware_trace_partial_based_view(client, test_spans):
+    # ensures that the internals are properly traced when using a function views
+    assert client.get('/partial-view/').status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag('http.status_code') == '200'
+    assert span.get_tag(http.URL) == 'http://testserver/partial-view/'
+    if django.VERSION >= (2, 0, 0):
+        assert span.resource == 'GET ^partial-view/$'
+    else:
+        assert span.resource == 'GET partial'
 
 
 """
@@ -990,3 +1062,36 @@ def test_template(test_spans):
 
     span = spans[1]
     assert span.get_tag('django.template.name') == 'my-template'
+
+
+"""
+OpenTracing tests
+"""
+
+
+@pytest.mark.django_db
+def test_middleware_trace_request_ot(client, test_spans, tracer):
+    """OpenTracing version of test_middleware_trace_request."""
+    ot_tracer = init_tracer('my_svc', tracer)
+
+    # ensures that the internals are properly traced
+    with ot_tracer.start_active_span('ot_span'):
+         assert client.get('/users/').status_code == 200
+
+    # check for spans
+    spans = test_spans.get_spans()
+    ot_span = spans[0]
+    sp_request = spans[1]
+
+    # confirm parenting
+    assert ot_span.parent_id is None
+    assert sp_request.parent_id == ot_span.span_id
+
+    assert ot_span.resource == 'ot_span'
+    assert ot_span.service == 'my_svc'
+
+    assert sp_request.get_tag('http.status_code') == '200'
+    assert sp_request.get_tag(http.URL) == 'http://testserver/users/'
+    assert sp_request.get_tag('django.user.is_authenticated') == 'False'
+    assert sp_request.get_tag('http.method') == 'GET'
+

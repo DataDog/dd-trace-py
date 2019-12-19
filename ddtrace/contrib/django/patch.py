@@ -24,7 +24,7 @@ from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
 
-from .compat import get_resolver
+from .compat import get_resolver, user_is_authenticated
 
 
 log = get_logger(__name__)
@@ -142,6 +142,24 @@ def _resource_from_cache_prefix(resource, cache):
 
     # enforce lowercase to make the output nicer to read
     return name.lower()
+
+
+def _set_request_tags(span, request):
+    span.set_tag('django.request.class', func_name(request))
+    span.set_tag(http.METHOD, request.method)
+
+    user = getattr(request, 'user', None)
+    if user is not None:
+        if hasattr(user, 'is_authenticated'):
+            span.set_tag('django.user.is_authenticated', user_is_authenticated(user))
+
+        uid = getattr(user, 'pk', None)
+        if uid:
+            span.set_tag('django.user.id', uid)
+
+        username = getattr(user, 'username', None)
+        if username:
+            span.set_tag('django.user.name', username)
 
 
 def quantize_key_values(key):
@@ -397,9 +415,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             if analytics_sr is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
-            span.set_tag('django.request.class', func_name(request))
-            span.set_tag(http.METHOD, request.method)
-            if config.django['trace_query_string']:
+            if config.django.trace_query_string:
                 span.set_tag(http.QUERY_STRING, request_headers['QUERY_STRING'])
 
             # Not a 404 request
@@ -430,6 +446,11 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             )
 
             response = func(*args, **kwargs)
+
+            # Note: this call must be done after the function call because
+            # some attributes (like `user`) are added to the request through
+            # the middleware chain
+            _set_request_tags(span, request)
 
             if response:
                 span.set_tag(http.STATUS_CODE, response.status_code)
