@@ -287,7 +287,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 1)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '500')
+        self.assertEqual(span.get_metric('http.status_code'), 500)
         self.assertEqual(span.get_tag('http.url'), URL_500)
 
     def test_httplib_request_non_200_request(self):
@@ -316,7 +316,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '404')
+        self.assertEqual(span.get_metric('http.status_code'), 404)
         self.assertEqual(span.get_tag('http.url'), URL_404)
 
     def test_httplib_request_get_request_disabled(self):
@@ -400,7 +400,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.get_tag('http.url'), URL_200)
 
     def test_urllib_request_https(self):
@@ -424,7 +424,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')
 
     def test_urllib_request_object(self):
@@ -449,7 +449,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.get_tag('http.url'), URL_200)
 
     def test_urllib_request_opener(self):
@@ -473,7 +473,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.get_tag('http.url'), URL_200)
 
     def test_httplib_request_get_request_ot(self):
@@ -581,7 +581,7 @@ if PY2:
             self.assertEqual(span.name, 'httplib.request')
             self.assertEqual(span.error, 0)
             self.assertEqual(span.get_tag('http.method'), 'GET')
-            self.assertEqual(span.get_tag('http.status_code'), '200')
+            self.assertEqual(span.get_metric('http.status_code'), 200)
             self.assertEqual(span.get_tag('http.url'), URL_200)
 
         def test_urllib_request_https(self):
@@ -605,5 +605,5 @@ if PY2:
             self.assertEqual(span.name, 'httplib.request')
             self.assertEqual(span.error, 0)
             self.assertEqual(span.get_tag('http.method'), 'GET')
-            self.assertEqual(span.get_tag('http.status_code'), '200')
+            self.assertEqual(span.get_metric('http.status_code'), 200)
             self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')

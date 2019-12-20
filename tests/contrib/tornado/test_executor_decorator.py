@@ -30,7 +30,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert 200 == request_span.get_metric('http.status_code')
         assert self.get_url('/executor_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -61,7 +61,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorSubmitHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert 200 == request_span.get_metric('http.status_code')
         assert self.get_url('/executor_submit_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -91,7 +91,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '500' == request_span.get_tag('http.status_code')
+        assert 500 == request_span.get_metric('http.status_code')
         assert self.get_url('/executor_exception/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'Ouch!' == request_span.get_tag('error.msg')
@@ -128,7 +128,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorCustomHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
+        assert 200 == request_span.get_metric('http.status_code')
         assert self.get_url('/executor_custom_handler/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
@@ -161,7 +161,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExecutorCustomArgsHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '500' == request_span.get_tag('http.status_code')
+        assert 500 == request_span.get_metric('http.status_code')
         assert self.get_url('/executor_custom_args_handler/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'cannot combine positional and keyword args' == request_span.get_tag('error.msg')
