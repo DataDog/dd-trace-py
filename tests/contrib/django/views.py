@@ -6,7 +6,7 @@ from functools import partial
 
 from django.http import HttpResponse
 
-from django.views.generic import ListView, TemplateView
+from django.views.generic import ListView, TemplateView, View
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
@@ -20,6 +20,20 @@ class UserList(ListView):
 class TemplateCachedUserList(ListView):
     model = User
     template_name = 'cached_list.html'
+
+
+class BasicView(View):
+    def get(self, request):
+        return HttpResponse('')
+
+    def post(self, request):
+        return HttpResponse('')
+
+    def delete(self, request):
+        return HttpResponse('')
+
+    def head(self, request):
+        return HttpResponse('')
 
 
 class ForbiddenView(TemplateView):

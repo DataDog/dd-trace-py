@@ -62,7 +62,7 @@ def with_traced_module(func):
             if pin and not pin.enabled():
                 return wrapped(*args, **kwargs)
             elif not pin:
-                log.warning('Pin not found for traced method %r', wrapped)
+                log.debug('Pin not found for traced method %r', wrapped)
                 return wrapped(*args, **kwargs)
             return func(mod, pin, wrapped, instance, args, kwargs)
         return wrapper
@@ -143,7 +143,7 @@ def instrument_caches(django):
                 if not iswrapped(cls, method):
                     wrap(cache_module, '{0}.{1}'.format(cache_cls, method), traced_cache(django))
             except Exception:
-                log.warning('Error instrumenting cache %r', cache_path, exc_info=True)
+                log.debug('Error instrumenting cache %r', cache_path, exc_info=True)
 
 
 @with_traced_module
@@ -169,7 +169,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     if not instance.ready:
-        log.warning('populate() failed skipping instrumentation.')
+        log.info('populate() failed skipping instrumentation.')
         return ret
 
     settings = django.conf.settings
@@ -183,13 +183,13 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     try:
         instrument_dbs(django)
     except Exception:
-        log.exception('Error instrumenting Django database connections', exc_info=True)
+        log.debug('Error instrumenting Django database connections', exc_info=True)
 
     # Instrument caches
     try:
         instrument_caches(django)
     except Exception:
-        log.exception('Error instrumenting Django caches', exc_info=True)
+        log.debug('Error instrumenting Django caches', exc_info=True)
 
     # Instrument Django Rest Framework if it's installed
     INSTALLED_APPS = getattr(settings, 'INSTALLED_APPS', [])
@@ -199,7 +199,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
             from .restframework import patch_restframework
             patch_restframework(django)
         except Exception:
-            log.exception('Error patching rest_framework', exc_info=True)
+            log.debug('Error patching rest_framework', exc_info=True)
 
     return ret
 
@@ -330,12 +330,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             # Normalize all 404 requests into a single resource name
             # DEV: This is for potential cardinality issues
             resource = '{0} 404'.format(request.method)
-        except Exception as ex:
-            log.warning(
-                'Failed to resolve request path %r with path info %r, %r',
+        except Exception:
+            log.debug(
+                'Failed to resolve request path %r with path info %r',
                 request,
                 getattr(request, 'path_info', 'not-set'),
-                ex,
+                exc_info=True,
             )
     except Exception:
         log.debug('Failed to trace django request %r', args, exc_info=True)
@@ -427,15 +427,14 @@ def instrument_view(django, view):
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
-            # Do not wrap if the method does not exist or is already wrapped
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
             resource = '{0}.{1}'.format(func_name(view), name)
             op_name = 'django.view.{0}'.format(name)
-            wrap(view, name, traced_func(django, name=op_name, resource=resource)(func))
+            wrap(view, name, traced_func(django, name=op_name, resource=resource))
         except Exception:
-            log.debug('Failed to patch django view %r function %s', view, name, exc_info=True)
+            log.debug('Failed to instrument Django view %r function %s', view, name, exc_info=True)
 
     # Patch response methods
     response_cls = getattr(view, 'response_class', None)
@@ -450,9 +449,9 @@ def instrument_view(django, view):
 
                 resource = '{0}.{1}'.format(func_name(response_cls), name)
                 op_name = 'django.response.{0}'.format(name)
-                wrap(response_cls, name, traced_func(django, name=op_name, resource=resource)(func))
+                wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
             except Exception:
-                log.debug('Failed to patch django response %r function %s', response_cls, name, exc_info=True)
+                log.debug('Failed to instrument Django response %r function %s', response_cls, name, exc_info=True)
 
     # Return a wrapped version of this view
     return wrapt.FunctionWrapper(view, traced_func(django, 'django.view', resource=func_name(view)))
@@ -469,7 +468,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
             args[1] = instrument_view(django, args[1])
             args = tuple(args)
     except Exception:
-        log.debug('Failed to wrap django url path %r %r', args, kwargs, exc_info=True)
+        log.debug('Failed to instrument Django url path %r %r', args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)
 
 
@@ -478,13 +477,12 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     """
     Wrapper for django's View.as_view class method
     """
-    if len(args) > 1:
-        view = args[1]
-        try:
-            instrument_view(django, view)
-        except Exception:
-            log.warning('Failed to instrument Django view %r', view, exc_info=True)
-    return func(*args, **kwargs)
+    try:
+        instrument_view(django, instance)
+    except Exception:
+        log.debug('Failed to instrument Django view %r', instance, exc_info=True)
+    view = func(*args, **kwargs)
+    return wrapt.FunctionWrapper(view, traced_func(django, 'django.view', resource=func_name(view)))
 
 
 def _patch(django):
@@ -514,7 +512,7 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if 'django.views.generic.base' not in sys.modules:
         import django.views.generic.base
-    # wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
+    wrap(django, 'views.generic.base.View.as_view', traced_as_view(django))
 
 
 def patch():

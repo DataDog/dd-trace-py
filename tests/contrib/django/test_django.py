@@ -7,6 +7,7 @@ from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
+from ddtrace.vendor import wrapt
 
 from tests.base import BaseTestCase
 from tests.opentracer.utils import init_tracer
@@ -417,6 +418,78 @@ def test_middleware_trace_partial_based_view(client, test_spans):
         assert span.resource == 'GET ^partial-view/$'
     else:
         assert span.resource == 'GET partial'
+
+
+def test_simple_view_get(client, test_spans):
+    # The `get` method of a view should be traced
+    assert client.get('/simple/').status_code == 200
+    assert len(list(test_spans.filter_spans(name='django.view'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.dispatch'))) == 1
+    spans = list(test_spans.filter_spans(name='django.view.get'))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource='tests.contrib.django.views.BasicView.get',
+        error=0,
+    )
+
+
+def test_simple_view_post(client, test_spans):
+    # The `post` method of a view should be traced
+    assert client.post('/simple/').status_code == 200
+    assert len(list(test_spans.filter_spans(name='django.view'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.dispatch'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.post'))) == 1
+    spans = list(test_spans.filter_spans(name='django.view.post'))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource='tests.contrib.django.views.BasicView.post',
+        error=0,
+    )
+
+
+def test_simple_view_delete(client, test_spans):
+    # The `delete` method of a view should be traced
+    assert client.delete('/simple/').status_code == 200
+    assert len(list(test_spans.filter_spans(name='django.view'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.dispatch'))) == 1
+    spans = list(test_spans.filter_spans(name='django.view.delete'))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource='tests.contrib.django.views.BasicView.delete',
+        error=0,
+    )
+
+
+def test_simple_view_options(client, test_spans):
+    # The `options` method of a view should be traced
+    assert client.options('/simple/').status_code == 200
+    assert len(list(test_spans.filter_spans(name='django.view'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.dispatch'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.options'))) == 1
+    spans = list(test_spans.filter_spans(name='django.view.options'))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource='tests.contrib.django.views.BasicView.options',
+        error=0,
+    )
+
+
+def test_simple_view_head(client, test_spans):
+    # The `head` method of a view should be traced
+    assert client.head('/simple/').status_code == 200
+    assert len(list(test_spans.filter_spans(name='django.view'))) == 1
+    assert len(list(test_spans.filter_spans(name='django.view.dispatch'))) == 1
+    spans = list(test_spans.filter_spans(name='django.view.head'))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource='tests.contrib.django.views.BasicView.head',
+        error=0,
+    )
 
 
 """

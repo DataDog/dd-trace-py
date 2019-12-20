@@ -10,6 +10,7 @@ from .. import views
 # - others?
 urlpatterns = [
     url(r'^$', views.index),
+    url(r'^simple/$', views.BasicView.as_view()),
     url(r'^users/$', views.UserList.as_view(), name='users-list'),
     url(r'^cached-template/$', views.TemplateCachedUserList.as_view(), name='cached-template-list'),
     url(r'^cached-users/$', cache_page(60)(views.UserList.as_view()), name='cached-users-list'),
