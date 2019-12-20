@@ -309,11 +309,21 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     try:
         request_headers = request.META
+        request_start_header = request_headers.get("HTTP_X_REQUEST_START") or ""
+        if request_start_header.startswith("t="):
+            try:
+                response_start = time.time()
+                request_start = float(request_start_header.split("=")[1])
+                span = tracer.trace('http_server.queue', service='http_server.queue', span_type='proxy')
+                span.start = request_start
+                span.finish(finish_time=response_start)
+            except Exception:
+                pass
 
         if config.django.distributed_tracing_enabled:
             context = propagator.extract(request_headers)
             if context.trace_id:
-                pin.tracer.context_provider.activate(context)
+                pin.tracer.context_provider.activate(context)                
 
         # Determine the resolver and resource name for this request
         resolver = get_resolver(getattr(request, "urlconf", None))
