@@ -49,6 +49,7 @@ def with_traced_module(func):
     """Helper for providing tracing essentials (module and pin) for tracing wrappers.
 
     Usage::
+
         @with_traced_module
         def my_traced_wrapper(mod, pin, func, instance, args, kwargs):
             # Do tracing stuff
