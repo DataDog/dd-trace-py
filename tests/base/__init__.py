@@ -1,10 +1,10 @@
 import contextlib
-import os
 import sys
 import unittest
 
 import ddtrace
 
+from ..utils import override_env
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
@@ -25,26 +25,8 @@ class BaseTestCase(unittest.TestCase):
                     pass
     """
 
-    @staticmethod
-    @contextlib.contextmanager
-    def override_env(env):
-        """
-        Temporarily override ``os.environ`` with provided values::
-
-            >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
-                # Your test
-        """
-        # Copy the full original environment
-        original = dict(os.environ)
-
-        # Update based on the passed in arguments
-        os.environ.update(env)
-        try:
-            yield
-        finally:
-            # Full clear the environment out and reset back to the original
-            os.environ.clear()
-            os.environ.update(original)
+    # Expose `override_env` as `self.override_env`
+    override_env = staticmethod(override_env)
 
     @staticmethod
     @contextlib.contextmanager
