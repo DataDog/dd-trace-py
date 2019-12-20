@@ -5,7 +5,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns
 from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
-from .ext import SpanTypes, errors, priority
+from .ext import SpanTypes, errors, priority, net
 from .internal.logger import get_logger
 
 
@@ -161,6 +161,13 @@ class Span(object):
         # True
         is_an_int = (isinstance(value, int) and not isinstance(value, bool))
 
+        # Explicitly try to convert `out.port` to an integer
+        if key == net.TARGET_PORT and not is_an_int:
+            try:
+                value = int(value)
+            except (ValueError, TypeError):
+                pass
+
         # Set intergers that are less than equal to 2^53 as metrics
         if is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
@@ -180,6 +187,7 @@ class Span(object):
                 log.debug('error setting numeric metric %s:%s', key, value)
 
             return
+
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = priority.USER_KEEP
             return
@@ -188,9 +196,9 @@ class Span(object):
             return
 
         try:
+            self.meta[key] = stringify(value)
             if key in self.metrics:
                 del self.metrics[key]
-            self.meta[key] = stringify(value)
         except Exception:
             log.debug('error setting tag %s, ignoring it', key, exc_info=True)
 
