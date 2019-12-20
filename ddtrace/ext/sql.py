@@ -30,4 +30,10 @@ def parse_pg_dsn(dsn):
     """
     # FIXME: replace by psycopg2.extensions.parse_dsn when available
     # https://github.com/psycopg/psycopg2/pull/321
-    return {c.split('=')[0]: c.split('=')[1] for c in dsn.split() if '=' in c}
+    dsn = {c.split('=')[0]: c.split('=')[1] for c in dsn.split() if '=' in c}
+    if 'port' in dsn:
+        try:
+            dsn['port'] = int(dsn['port'])
+        except (ValueError, TypeError):
+            pass
+    return dsn
