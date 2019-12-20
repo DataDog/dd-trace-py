@@ -508,6 +508,7 @@ def test_connection(client, test_spans):
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
 
+
 """
 Caching tests
 """
@@ -1156,3 +1157,45 @@ def test_middleware_trace_request_ot(client, test_spans, tracer):
     assert sp_request.get_tag(http.URL) == "http://testserver/users/"
     assert sp_request.get_tag("django.user.is_authenticated") == "False"
     assert sp_request.get_tag("http.method") == "GET"
+
+
+"""
+urlpatterns tests
+There are a variety of ways a user can point to their views.
+"""
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="path only exists in >=2.0.0")
+def test_urlpatterns_path(client, test_spans):
+    """
+    When a view is specified using `django.urls.path`
+        The view is traced
+    """
+    assert client.get("/path/").status_code == 200
+
+    # Ensure the view was traced
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="include only exists in >=2.0.0")
+def test_urlpatterns_include(client, test_spans):
+    """
+    When a view is specified using `django.urls.include`
+        The view is traced
+    """
+    assert client.get("/include/test/").status_code == 200
+
+    # Ensure the view was traced
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="repath only exists in >=2.0.0")
+def test_urlpatterns_repath(client, test_spans):
+    """
+    When a view is specified using `django.urls.repath`
+        The view is traced
+    """
+    assert client.get("/re-path123/").status_code == 200
+
+    # Ensure the view was traced
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1

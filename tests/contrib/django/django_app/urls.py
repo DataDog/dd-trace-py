@@ -1,12 +1,20 @@
 from django.conf.urls import url
+from django.http import HttpResponse
 from django.views.decorators.cache import cache_page
+from django.urls import include, path, re_path
 
 from .. import views
 
 
-# TODO
+def repath_view(request):
+    return HttpResponse(status=200)
+
+
+def path_view(request):
+    return HttpResponse(status=200)
+
+
 # - include
-# - path
 # - others?
 urlpatterns = [
     url(r"^$", views.index),
@@ -20,4 +28,7 @@ urlpatterns = [
     url(r"^partial-view/$", views.partial_view, name="partial-view"),
     url(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
     url(r"^error-500/$", views.error_500, name="error-500"),
+    re_path(r"re-path.*/", repath_view),
+    path("path/", path_view),
+    path("include/", include("tests.contrib.django.django_app.extra_urls")),
 ]

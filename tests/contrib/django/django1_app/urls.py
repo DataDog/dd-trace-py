@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.conf.urls import url, static
 from django.views.decorators.cache import cache_page
 
 from .. import views
