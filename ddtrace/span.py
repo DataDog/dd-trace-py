@@ -167,6 +167,7 @@ class Span(object):
         if key in INT_TYPES and not is_an_int:
             try:
                 value = int(value)
+                is_an_int = True
             except (ValueError, TypeError):
                 pass
 
