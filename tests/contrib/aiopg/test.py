@@ -18,7 +18,7 @@ from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
