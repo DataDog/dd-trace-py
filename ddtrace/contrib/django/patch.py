@@ -530,7 +530,6 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
         import django.conf.urls.static
-    wrap(django, "conf.urls.static.static", traced_urls_path(django))
     wrap(django, "conf.urls.url", traced_urls_path(django))
     if django.VERSION >= (2, 0, 0):
         wrap(django, "urls.path", traced_urls_path(django))

@@ -14,8 +14,6 @@ def path_view(request):
     return HttpResponse(status=200)
 
 
-# - include
-# - others?
 urlpatterns = [
     url(r"^$", views.index),
     url(r"^simple/$", views.BasicView.as_view()),
