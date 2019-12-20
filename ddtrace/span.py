@@ -161,7 +161,8 @@ class Span(object):
         # True
         is_an_int = (isinstance(value, int) and not isinstance(value, bool))
 
-        # Explicitly try to convert `out.port` to an integer
+        # Explicitly try to convert expected integers to `int`
+        # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         INT_TYPES = (net.TARGET_PORT, http.STATUS_CODE)
         if key in INT_TYPES and not is_an_int:
             try:

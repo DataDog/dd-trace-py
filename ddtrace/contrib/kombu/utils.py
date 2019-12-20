@@ -14,12 +14,6 @@ def extract_conn_tags(connection):
     """ Transform kombu conn info into dogtrace metas """
     try:
         host, port = connection.host.split(':')
-        # Try to convert the port to an integer
-        try:
-            port = int(port)
-        except ValueError:
-            pass
-
         return {
             net.TARGET_HOST: host,
             net.TARGET_PORT: port,
