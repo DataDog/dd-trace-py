@@ -13,7 +13,6 @@ from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import wrapt
-wrap = wrapt.wrap_function_wrapper
 from ddtrace.compat import parse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
@@ -23,11 +22,11 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
-
 from .compat import get_resolver, user_is_authenticated
 from . import utils
 
 
+wrap = wrapt.wrap_function_wrapper
 log = get_logger(__name__)
 
 config._add('django', dict(

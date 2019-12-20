@@ -7,7 +7,6 @@ from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
-from ddtrace.vendor import wrapt
 
 from tests.base import BaseTestCase
 from tests.opentracer.utils import init_tracer
@@ -58,7 +57,6 @@ def test_django_v2XX_request_root_span(client, test_spans):
         error=0,
         meta=meta,
     )
-
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 0, 0), reason='')
@@ -120,6 +118,7 @@ def test_v1XX_middleware(client, test_spans):
 """
 Middleware tests
 """
+
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason='')
 def test_v2XX_middleware(client, test_spans):
