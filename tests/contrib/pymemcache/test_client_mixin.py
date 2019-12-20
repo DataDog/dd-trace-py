@@ -35,7 +35,7 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
 
         for span, resource, query in zip(spans, resources_expected, queries_expected):
             self.assertEqual(span.get_tag(net.TARGET_HOST), TEST_HOST)
-            self.assertEqual(span.get_tag(net.TARGET_PORT), str(TEST_PORT))
+            self.assertEqual(span.get_tag(net.TARGET_PORT), TEST_PORT)
             self.assertEqual(span.name, memcachedx.CMD)
             self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.service, memcachedx.SERVICE)

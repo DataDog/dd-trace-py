@@ -166,7 +166,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'POST'
-        assert s.get_tag(http.STATUS_CODE) == '500'
+        assert s.get_tag(http.STATUS_CODE) == 500
         assert s.error == 1
 
     def test_non_existant_url(self):
@@ -195,7 +195,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '500'
+        assert s.get_tag(http.STATUS_CODE) == 500
         assert s.error == 1
 
     def test_default_service_name(self):
@@ -368,7 +368,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert ot_span.service == 'requests_svc'
 
         assert dd_span.get_tag(http.METHOD) == 'GET'
-        assert dd_span.get_tag(http.STATUS_CODE) == '200'
+        assert dd_span.get_tag(http.STATUS_CODE) == 200
         assert dd_span.error == 0
         assert dd_span.span_type == 'http'
 

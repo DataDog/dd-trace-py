@@ -68,7 +68,7 @@ class CassandraBase(object):
     TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
     TEST_QUERY_PAGINATED = 'SELECT * from test.person'
     TEST_KEYSPACE = 'test'
-    TEST_PORT = str(CASSANDRA_CONFIG['port'])
+    TEST_PORT = CASSANDRA_CONFIG['port']
     TEST_SERVICE = 'test-cassandra'
 
     def _traced_session(self):
@@ -204,7 +204,7 @@ class CassandraBase(object):
         assert dd_span.span_type == 'cassandra'
 
         assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert dd_span.get_tag(net.TARGET_PORT) == self.TEST_PORT
+        assert dd_span.get_metric(net.TARGET_PORT) == self.TEST_PORT
         assert dd_span.get_tag(cassx.ROW_COUNT) == '1'
         assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
         assert dd_span.get_tag(cassx.PAGINATED) == 'False'

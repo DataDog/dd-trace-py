@@ -18,8 +18,8 @@ from ...util import assert_dict_issuperset
 
 class FlaskCacheTest(BaseTracerTestCase):
     SERVICE = 'test-flask-cache'
-    TEST_REDIS_PORT = str(REDIS_CONFIG['port'])
-    TEST_MEMCACHED_PORT = str(MEMCACHED_CONFIG['port'])
+    TEST_REDIS_PORT = REDIS_CONFIG['port']
+    TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
 
     def setUp(self):
         super(FlaskCacheTest, self).setUp()
