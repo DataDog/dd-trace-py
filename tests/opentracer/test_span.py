@@ -145,8 +145,8 @@ class TestSpanCompatibility(object):
         assert nop_span._dd_span.get_tag('out.host') == 'peername'
 
     def test_tag_peer_port(self, nop_span):
-        nop_span.set_tag('peer.port', '55555')
-        assert nop_span._dd_span.get_tag('out.port') == '55555'
+        nop_span.set_tag('peer.port', 55555)
+        assert nop_span._dd_span.get_metric('out.port') == 55555
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag('sampling.priority', '2')
