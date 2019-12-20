@@ -439,30 +439,30 @@ def test_datadog_sampler_init():
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert sampler.limiter.default_sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
+    assert sampler.default_sampler.sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert sampler.limiter.default_sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
+    assert sampler.default_sampler.sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
-    assert sampler.limiter.default_sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
+    assert sampler.default_sampler.sample_rate == DatadogSampler.DEFAULT_SAMPLE_RATE
 
     # With default_sample_rate
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert sampler.limiter.default_sample_rate == 0.5
+    assert sampler.default_sampler.sample_rate == 0.5
 
     # From env variables
-    with override_env(dict(DD_TRACE_SAAMPLE_RATE=0.5, DD_TRACE_RATE_LIMIT=10)):
+    with override_env(dict(DD_TRACE_SAMPLE_RATE='0.5', DD_TRACE_RATE_LIMIT='10')):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
-        assert sampler.limiter.default_sample_rate == 0.5
+        assert sampler.default_sampler.sample_rate == 0.5
 
     # Invalid rules
     for val in (None, True, False, object(), 1, Exception()):

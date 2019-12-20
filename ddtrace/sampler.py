@@ -132,9 +132,9 @@ class DatadogSampler(BaseSampler):
         :type rate_limit: :obj:`int`
         """
         if default_sample_rate is None:
-            default_sample_rate = get_env('trace', 'sample_rate', default=self.DEFAULT_SAMPLE_RATE)
+            default_sample_rate = float(get_env('trace', 'sample_rate', default=self.DEFAULT_SAMPLE_RATE))
         if rate_limit is None:
-            rate_limit = get_env('trace', 'rate_limit', default=self.DEFAULT_RATE_LIMIT)
+            rate_limit = int(get_env('trace', 'rate_limit', default=self.DEFAULT_RATE_LIMIT))
 
         # Ensure rules is a list
         if not rules:
