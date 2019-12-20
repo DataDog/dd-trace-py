@@ -53,7 +53,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         service='django',
         resource=resource,
         parent_id=None,
-        span_type=http.TYPE,
+        span_type='http',
         error=0,
         meta=meta,
     )
@@ -221,7 +221,7 @@ def test_django_request_not_found(client, test_spans):
         service='django',
         resource='GET 404',
         parent_id=None,
-        span_type=http.TYPE,
+        span_type='http',
         error=0,
         meta={
             'django.request.class': 'django.core.handlers.wsgi.WSGIRequest',

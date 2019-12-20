@@ -12,11 +12,11 @@ import sys
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
-from ddtrace.vendor import wrapt
+from ddtrace.vendor import debtcollector, wrapt
 from ddtrace.compat import parse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
-from ddtrace.ext import http, sql as sqlx
+from ddtrace.ext import http, sql as sqlx, SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.formats import get_env
@@ -115,7 +115,7 @@ def _set_request_tags(span, request):
 @with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
     # get the original function method
-    with pin.tracer.trace('django.cache', span_type='cache', service=config.django.cache_service_name) as span:
+    with pin.tracer.trace('django.cache', span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = '{}.{}'.format(instance.__module__, instance.__class__.__name__)
@@ -174,7 +174,6 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     settings = django.conf.settings
 
     if hasattr(settings, 'DATADOG_TRACE'):
-        from ddtrace.vendor import debtcollector  # TODO: in-lined because debtcollector not vendored yet
         debtcollector.deprecate(('Using DATADOG_TRACE Django settings are no longer supported. '
                                  'Please refer to our migration guide here: <link to doc here>'))
 
@@ -341,7 +340,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
     else:
         with pin.tracer.trace(
-                'django.request', resource=resource, service=config.django['service_name'], span_type=http.TYPE
+                'django.request', resource=resource, service=config.django['service_name'], span_type=SpanTypes.HTTP
         ) as span:
             analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
             if analytics_sr is not None:
