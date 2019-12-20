@@ -14,26 +14,26 @@ from django.contrib.syndication.views import Feed
 
 class UserList(ListView):
     model = User
-    template_name = 'users_list.html'
+    template_name = "users_list.html"
 
 
 class TemplateCachedUserList(ListView):
     model = User
-    template_name = 'cached_list.html'
+    template_name = "cached_list.html"
 
 
 class BasicView(View):
     def get(self, request):
-        return HttpResponse('')
+        return HttpResponse("")
 
     def post(self, request):
-        return HttpResponse('')
+        return HttpResponse("")
 
     def delete(self, request):
-        return HttpResponse('')
+        return HttpResponse("")
 
     def head(self, request):
-        return HttpResponse('')
+        return HttpResponse("")
 
 
 class ForbiddenView(TemplateView):
@@ -46,25 +46,26 @@ def function_view(request):
 
 
 def error_500(request):
-    raise Exception('Error 500')
+    raise Exception("Error 500")
 
 
 class FeedView(Feed):
     """
     A callable view that is part of the Django framework
     """
-    title = 'Police beat site news'
-    link = '/sitenews/'
-    description = 'Updates on changes and additions to police beat central.'
+
+    title = "Police beat site news"
+    link = "/sitenews/"
+    description = "Updates on changes and additions to police beat central."
 
     def items(self):
         return []
 
     def item_title(self, item):
-        return 'empty'
+        return "empty"
 
     def item_description(self, item):
-        return 'empty'
+        return "empty"
 
 
 partial_view = partial(function_view)
@@ -74,4 +75,4 @@ lambda_view = lambda request: function_view(request)  # NOQA
 
 
 def index(request):
-    return HttpResponse('Hello, test app.')
+    return HttpResponse("Hello, test app.")

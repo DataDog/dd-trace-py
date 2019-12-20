@@ -82,13 +82,14 @@ Example::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['django']
+required_modules = ["django"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch, unpatch
-        __all__ = ['patch', 'unpatch']
+
+        __all__ = ["patch", "unpatch"]
 
 
 # define the Django app configuration
-default_app_config = 'ddtrace.contrib.django.apps.TracerConfig'
+default_app_config = "ddtrace.contrib.django.apps.TracerConfig"

@@ -29,5 +29,5 @@ def patch_restframework(django):
     """
 
     # trace the handle_exception method
-    if not iswrapped(rest_framework.views.APIView, 'handle_exception'):
-        wrap('rest_framework.views', 'APIView.handle_exception', _traced_handle_exception(django))
+    if not iswrapped(rest_framework.views.APIView, "handle_exception"):
+        wrap("rest_framework.views", "APIView.handle_exception", _traced_handle_exception(django))

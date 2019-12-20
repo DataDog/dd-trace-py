@@ -7,8 +7,8 @@ def resource_from_cache_prefix(resource, cache):
     """
     Combine the resource name with the cache prefix (if any)
     """
-    if getattr(cache, 'key_prefix', None):
-        name = '{} {}'.format(resource, cache.key_prefix)
+    if getattr(cache, "key_prefix", None):
+        name = "{} {}".format(resource, cache.key_prefix)
     else:
         name = resource
 
@@ -37,11 +37,11 @@ def get_django_2_route(resolver, resolver_match):
     route = resolver_match.route
     if not route:
         # DEV: Use all these `getattr`s to protect against changes between versions
-        pattern = getattr(resolver, 'pattern', None)
+        pattern = getattr(resolver, "pattern", None)
         if pattern:
-            regex = getattr(pattern, 'regex', None)
+            regex = getattr(pattern, "regex", None)
             if regex:
-                route = getattr(regex, 'pattern', '')
+                route = getattr(regex, "pattern", "")
 
     return route
 
@@ -55,4 +55,4 @@ def set_tag_array(span, prefix, value):
         span.set_tag(prefix, value[0])
     else:
         for i, v in enumerate(value, start=0):
-            span.set_tag('{0}.{1}'.format(prefix, i), v)
+            span.set_tag("{0}.{1}".format(prefix, i), v)

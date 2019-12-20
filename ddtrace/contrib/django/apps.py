@@ -6,10 +6,10 @@ from ...internal.logger import get_logger
 log = get_logger(__name__)
 
 
-@removals.removed_class('TracerConfig')
+@removals.removed_class("TracerConfig")
 class TracerConfig(AppConfig):
-    name = 'ddtrace.contrib.django'
-    label = 'datadog_django'
+    name = "ddtrace.contrib.django"
+    label = "datadog_django"
 
     def ready(self):
         """

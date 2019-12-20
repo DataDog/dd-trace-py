@@ -3,8 +3,8 @@ from tests.contrib.patch import PatchTestCase
 
 
 class TestDjangoPatch(PatchTestCase.Base):
-    __integration_name__ = 'django'
-    __module_name__ = 'django'
+    __integration_name__ = "django"
+    __module_name__ = "django"
     __patch_func__ = patch
     __unpatch_func__ = None
 

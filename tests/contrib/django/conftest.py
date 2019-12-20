@@ -13,10 +13,10 @@ from ...utils.tracer import DummyTracer
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`
 if django.VERSION >= (2, 0, 0):
-    app_name = 'django_app'
+    app_name = "django_app"
 else:
-    app_name = 'django1_app'
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.contrib.django.{0}.settings'.format(app_name))
+    app_name = "django1_app"
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.contrib.django.{0}.settings".format(app_name))
 
 
 # `pytest` automatically calls this function once when tests are run.
