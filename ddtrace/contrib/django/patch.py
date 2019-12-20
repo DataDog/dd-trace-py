@@ -54,7 +54,6 @@ def with_traced_module(func):
 
     Usage::
 
-    .. code-block:: python
         @with_traced_module
         def my_traced_wrapper(django, pin, func, instance, args, kwargs):
             # Do tracing stuff
