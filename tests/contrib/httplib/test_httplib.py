@@ -213,9 +213,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
-        assert span.get_tag('http.method' == 'POST')
-        assert span.get_metric('http.status_code' == 200)
-        assert span.get_tag('http.url' == URL_200)
+        assert span.get_tag('http.method') == 'POST'
+        assert span.get_metric('http.status_code') == 200
+        assert span.get_tag('http.url') == URL_200
 
     def test_httplib_request_get_request_query_string(self):
         """

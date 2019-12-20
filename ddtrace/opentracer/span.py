@@ -137,6 +137,13 @@ class Span(OpenTracingSpan):
         """
         return self._dd_span.get_tag(key)
 
+    def _get_metric(self, key):
+        """Gets a metric from the span.
+
+        This method retrieves the metric from the underlying datadog span.
+        """
+        return self._dd_span.get_metric(key)
+
     def __enter__(self):
         return self
 
