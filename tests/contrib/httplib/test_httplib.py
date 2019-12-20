@@ -481,9 +481,9 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(dd_span.span_type, 'http')
         self.assertEqual(dd_span.name, self.SPAN_NAME)
         self.assertEqual(dd_span.error, 0)
-        assert span.get_tag('http.method') == 'GET'
-        assert span.get_metric('http.status_code') == 200
-        assert span.get_tag('http.url') == URL_200
+        assert dd_span.get_tag('http.method') == 'GET'
+        assert dd_span.get_metric('http.status_code') == 200
+        assert dd_span.get_tag('http.url') == URL_200
 
     def test_analytics_default(self):
         conn = self.get_http_connection(SOCKET)
