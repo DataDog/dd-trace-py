@@ -30,7 +30,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.SuccessHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -60,7 +60,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.NestedHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -87,7 +87,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.ExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
@@ -108,7 +108,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.HTTPExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '501' == request_span.get_tag('http.status_code')
@@ -129,7 +129,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.HTTPException500Handler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
@@ -150,7 +150,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.SyncSuccessHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -169,7 +169,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.SyncExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '500' == request_span.get_tag('http.status_code')
@@ -190,7 +190,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tornado.web.ErrorHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '404' == request_span.get_tag('http.status_code')
@@ -211,7 +211,7 @@ class TestTornadoWeb(TornadoTestCase):
         redirect_span = traces[0][0]
         assert 'tornado-web' == redirect_span.service
         assert 'tornado.request' == redirect_span.name
-        assert 'http' == redirect_span.span_type
+        assert 'web' == redirect_span.span_type
         assert 'tornado.web.RedirectHandler' == redirect_span.resource
         assert 'GET' == redirect_span.get_tag('http.method')
         assert '301' == redirect_span.get_tag('http.status_code')
@@ -221,7 +221,7 @@ class TestTornadoWeb(TornadoTestCase):
         success_span = traces[1][0]
         assert 'tornado-web' == success_span.service
         assert 'tornado.request' == success_span.name
-        assert 'http' == success_span.span_type
+        assert 'web' == success_span.span_type
         assert 'tests.contrib.tornado.web.app.SuccessHandler' == success_span.resource
         assert 'GET' == success_span.get_tag('http.method')
         assert '200' == success_span.get_tag('http.status_code')
@@ -241,7 +241,7 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tornado.web.StaticFileHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '200' == request_span.get_tag('http.status_code')
@@ -303,7 +303,7 @@ class TestTornadoWeb(TornadoTestCase):
 
         assert 'tornado-web' == dd_span.service
         assert 'tornado.request' == dd_span.name
-        assert 'http' == dd_span.span_type
+        assert 'web' == dd_span.span_type
         assert 'tests.contrib.tornado.web.app.SuccessHandler' == dd_span.resource
         assert 'GET' == dd_span.get_tag('http.method')
         assert '200' == dd_span.get_tag('http.status_code')
@@ -482,7 +482,7 @@ class TestCustomTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.CustomDefaultHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
         assert '400' == request_span.get_tag('http.status_code')

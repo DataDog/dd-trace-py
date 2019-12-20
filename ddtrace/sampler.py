@@ -112,14 +112,11 @@ class DatadogSampler(BaseSampler):
     """
     This sampler is currently in ALPHA and it's API may change at any time, use at your own risk.
     """
-    # TODO: Remove '_priority_sampler' when we no longer use the fallback
-    __slots__ = ('default_sampler', 'rules', '_priority_sampler')
+    __slots__ = ('default_sampler', 'limiter', 'rules')
 
-    DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1
 
-    # TODO: Remove _priority_sampler=None when we no longer use the fallback
-    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=DEFAULT_RATE_LIMIT, _priority_sampler=None):
+    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=NO_RATE_LIMIT):
         """
         Constructor for DatadogSampler sampler
 
@@ -128,7 +125,7 @@ class DatadogSampler(BaseSampler):
         :param default_sample_rate: The default sample rate to apply if no rules matched (default: 1.0)
         :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
-            applied to them, default 100 traces per second
+            applied to them, default is no rate limit
         :type rate_limit: :obj:`int`
         """
         # Ensure rules is a list
@@ -144,9 +141,6 @@ class DatadogSampler(BaseSampler):
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
         self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
-
-        # TODO: Remove when we no longer use the fallback
-        self._priority_sampler = _priority_sampler
 
     def _set_priority(self, span, priority):
         if span._context:
@@ -173,16 +167,7 @@ class DatadogSampler(BaseSampler):
                 matching_rule = rule
                 break
         else:
-            # No rule matches, fallback to priority sampling if set
-            if self._priority_sampler:
-                if self._priority_sampler.sample(span):
-                    self._set_priority(span, AUTO_KEEP)
-                    return True
-                else:
-                    self._set_priority(span, AUTO_REJECT)
-                    return False
-
-            # No rule matches, no priority sampler, use the default sampler
+            # No rule matches, use the default sampler
             matching_rule = self.default_sampler
 
         # Sample with the matching sampling rule
@@ -195,10 +180,14 @@ class DatadogSampler(BaseSampler):
             self._set_priority(span, AUTO_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
-        if not self.limiter.is_allowed():
+        allowed = self.limiter.is_allowed()
+        # Always set the sample rate metric whether it was allowed or not
+        # DEV: Setting this allows us to properly compute metrics and debug the
+        #      various sample rates that are getting applied to this span
+        span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        if not allowed:
             self._set_priority(span, AUTO_REJECT)
             return False
-        span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         # We made it by all of checks, sample this trace
         self._set_priority(span, AUTO_KEEP)
@@ -271,8 +260,8 @@ class SamplingRule(object):
         if callable(pattern):
             try:
                 return bool(pattern(prop))
-            except Exception as e:
-                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
+            except Exception:
+                log.warning('%r pattern %r failed with %r', self, pattern, prop, exc_info=True)
                 # Their function failed to validate, assume it is a False
                 return False
 
@@ -280,9 +269,9 @@ class SamplingRule(object):
         if isinstance(pattern, pattern_type):
             try:
                 return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning('%r pattern %r failed with %r: %s', self, pattern, prop, e)
+                log.warning('%r pattern %r failed with %r', self, pattern, prop, exc_info=True)
                 return False
 
         # Exact match on the values
@@ -300,8 +289,8 @@ class SamplingRule(object):
         return all(
             self._pattern_matches(prop, pattern)
             for prop, pattern in [
-                    (span.service, self.service),
-                    (span.name, self.name),
+                (span.service, self.service),
+                (span.name, self.name),
             ]
         )
 

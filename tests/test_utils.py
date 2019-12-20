@@ -4,7 +4,6 @@ import warnings
 
 from ddtrace.utils.deprecation import deprecation, deprecated, format_message
 from ddtrace.utils.formats import asbool, get_env, flatten_dict
-from ddtrace.utils import sizeof
 
 
 class TestUtils(unittest.TestCase):
@@ -97,34 +96,3 @@ class TestUtils(unittest.TestCase):
         d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
         e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
         self.assertEquals(flatten_dict(d, sep='_'), e)
-
-
-def test_sizeof():
-    sizeof_list = sizeof.sizeof([])
-    assert sizeof_list > 0
-    one_three = sizeof.sizeof([3])
-    assert one_three > sizeof_list
-    x = {'a': 1}
-    assert sizeof.sizeof([x, x]) < sizeof.sizeof([{'a': 1}, {'a': 1}])
-
-
-class Slots(object):
-
-    __slots__ = ('foobar',)
-
-    def __init__(self):
-        self.foobar = 123
-
-
-def test_sizeof_slots():
-    assert sizeof.sizeof(Slots()) >= 1
-
-
-class BrokenSlots(object):
-
-    __slots__ = ('foobar',)
-
-
-def test_sizeof_broken_slots():
-    """https://github.com/DataDog/dd-trace-py/issues/1079"""
-    assert sizeof.sizeof(BrokenSlots()) >= 1

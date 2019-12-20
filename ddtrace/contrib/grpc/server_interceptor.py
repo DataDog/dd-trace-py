@@ -6,6 +6,7 @@ from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from . import constants
 from .utils import parse_method_path
@@ -64,7 +65,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         span = tracer.trace(
             'grpc',
-            span_type='grpc',
+            span_type=SpanTypes.GRPC,
             service=self._pin.service,
             resource=self._handler_call_details.method,
         )
@@ -77,7 +78,10 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
         span.set_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
         span.set_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
-        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.grpc_server.get_analytics_sample_rate())
+
+        sample_rate = config.grpc_server.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

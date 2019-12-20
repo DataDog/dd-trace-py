@@ -3,7 +3,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 
-from ...ext import http
+from ...ext import SpanTypes
 from ...utils.formats import get_env
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
@@ -49,7 +49,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.name or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace('jinja2.render', pin.service, span_type=http.TEMPLATE) as span:
+    with pin.tracer.trace('jinja2.render', pin.service, span_type=SpanTypes.TEMPLATE) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:
@@ -67,7 +67,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
     else:
         template_name = kwargs.get('name', DEFAULT_TEMPLATE_NAME)
 
-    with pin.tracer.trace('jinja2.compile', pin.service, span_type=http.TEMPLATE) as span:
+    with pin.tracer.trace('jinja2.compile', pin.service, span_type=SpanTypes.TEMPLATE) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:
@@ -81,7 +81,7 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = kwargs.get('name', args[0])
-    with pin.tracer.trace('jinja2.load', pin.service, span_type=http.TEMPLATE) as span:
+    with pin.tracer.trace('jinja2.load', pin.service, span_type=SpanTypes.TEMPLATE) as span:
         template = None
         try:
             template = wrapped(*args, **kwargs)

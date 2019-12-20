@@ -1,7 +1,8 @@
-from . import AppTypes
+from . import SpanTypes
 
 APP = 'consul'
-APP_TYPE = AppTypes.cache
+# [TODO] Deprecated, remove when we remove AppTypes
+APP_TYPE = SpanTypes.CACHE
 SERVICE = 'consul'
 
 CMD = 'consul.command'

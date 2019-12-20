@@ -41,7 +41,7 @@ class Payload(object):
         Encode and append a trace to this payload
 
         :param trace: A trace to append
-        :type trace: A list of ``ddtrace.span.Span``s
+        :type trace: A list of :class:`ddtrace.span.Span`
         """
         # No trace or empty trace was given, ignore
         if not trace:

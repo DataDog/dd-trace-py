@@ -1,3 +1,4 @@
+import mock
 import time
 
 from unittest.case import SkipTest
@@ -5,7 +6,7 @@ from unittest.case import SkipTest
 from ddtrace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.span import Span
-from ddtrace.ext import errors, priority
+from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
 
 
@@ -167,6 +168,22 @@ class SpanTestCase(BaseTracerTestCase):
         else:
             assert 0, 'should have failed'
 
+    def test_span_type(self):
+        s = Span(tracer=None, name='test.span', service='s', resource='r', span_type=SpanTypes.WEB)
+        s.set_tag('a', '1')
+        s.set_meta('b', '2')
+        s.finish()
+
+        d = s.to_dict()
+        assert d
+        assert d['span_id'] == s.span_id
+        assert d['trace_id'] == s.trace_id
+        assert d['parent_id'] == s.parent_id
+        assert d['meta'] == {'a': '1', 'b': '2'}
+        assert d['type'] == 'web'
+        assert d['error'] == 0
+        assert type(d['error']) == int
+
     def test_span_to_dict(self):
         s = Span(tracer=None, name='test.span', service='s', resource='r')
         s.span_type = 'foo'
@@ -213,12 +230,20 @@ class SpanTestCase(BaseTracerTestCase):
         assert d['error'] == 1
         assert type(d['error']) == int
 
-    def test_numeric_tags_none(self):
+    @mock.patch('ddtrace.span.log')
+    def test_numeric_tags_none(self, span_log):
         s = Span(tracer=None, name='test.span')
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
         d = s.to_dict()
         assert d
         assert 'metrics' not in d
+
+        # Ensure we log a debug message
+        span_log.debug.assert_called_once_with(
+            'ignoring not number metric %s:%s',
+            ANALYTICS_SAMPLE_RATE_KEY,
+            None,
+        )
 
     def test_numeric_tags_true(self):
         s = Span(tracer=None, name='test.span')
@@ -306,3 +331,44 @@ class SpanTestCase(BaseTracerTestCase):
         s.set_tag('custom.key', None)
 
         assert s.meta == {'custom.key': 'None'}
+
+    def test_duration_zero(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        s.finish(finish_time=123)
+        assert s.duration_ns == 0
+        assert s.duration == 0
+
+    def test_start_int(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        assert s.start == 123
+        assert s.start_ns == 123000000000
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.123)
+        assert s.start == 123.123
+        assert s.start_ns == 123123000000
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.123)
+        s.start = 234567890.0
+        assert s.start == 234567890
+        assert s.start_ns == 234567890000000000
+
+    def test_duration_int(self):
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r')
+        s.finish()
+        assert isinstance(s.duration_ns, int)
+        assert isinstance(s.duration, float)
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123)
+        s.finish(finish_time=123.2)
+        assert s.duration_ns == 200000000
+        assert s.duration == 0.2
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=123.1)
+        s.finish(finish_time=123.2)
+        assert s.duration_ns == 100000000
+        assert s.duration == 0.1
+
+        s = Span(tracer=None, name='foo.bar', service='s', resource='r', start=122)
+        s.finish(finish_time=123)
+        assert s.duration_ns == 1000000000
+        assert s.duration == 1

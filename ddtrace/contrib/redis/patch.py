@@ -6,7 +6,7 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
-from ...ext import AppTypes, redis as redisx
+from ...ext import SpanTypes, redis as redisx
 from ...utils.wrappers import unwrap
 from .util import format_command_args, _extract_conn_tags
 
@@ -34,7 +34,7 @@ def patch():
         _w('redis', 'Redis.pipeline', traced_pipeline)
         _w('redis.client', 'Pipeline.execute', traced_execute_pipeline)
         _w('redis.client', 'Pipeline.immediate_execute_command', traced_execute_command)
-    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP, app_type=AppTypes.db).onto(redis.StrictRedis)
+    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(redis.StrictRedis)
 
 
 def unpatch():
@@ -62,7 +62,7 @@ def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(redisx.CMD, service=pin.service, span_type=redisx.TYPE) as s:
+    with pin.tracer.trace(redisx.CMD, service=pin.service, span_type=SpanTypes.REDIS) as s:
         query = format_command_args(args)
         s.resource = query
         s.set_tag(redisx.RAWCMD, query)
@@ -96,8 +96,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = '\n'.join(cmds)
     tracer = pin.tracer
-    with tracer.trace(redisx.CMD, resource=resource, service=pin.service) as s:
-        s.span_type = redisx.TYPE
+    with tracer.trace(redisx.CMD, resource=resource, service=pin.service, span_type=SpanTypes.REDIS) as s:
         s.set_tag(redisx.RAWCMD, resource)
         s.set_tags(_get_tags(instance))
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))

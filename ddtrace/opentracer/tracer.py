@@ -176,13 +176,11 @@ class Tracer(opentracing.Tracer):
                 '...',
                 references=[opentracing.child_of(parent_span)])
 
-        Note: the precedence when defining a relationship is the following:
-        (highest)
-            1. *child_of*
-            2. *references*
-            3. `scope_manager.active` (unless *ignore_active_span* is True)
-            4. None
-        (lowest)
+        Note: the precedence when defining a relationship is the following, from highest to lowest:
+        1. *child_of*
+        2. *references*
+        3. `scope_manager.active` (unless *ignore_active_span* is True)
+        4. None
 
         Currently Datadog only supports `child_of` references.
 
@@ -257,16 +255,20 @@ class Tracer(opentracing.Tracer):
 
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
-        if tags is not None:
-            ddspan.set_tags(tags)
 
         otspan = Span(self, ot_parent_context, operation_name)
         # sync up the OT span with the DD span
         otspan._associate_dd_span(ddspan)
 
+        if tags is not None:
+            for k in tags:
+                # Make sure we set the tags on the otspan to ensure that the special compatibility tags
+                # are handled correctly (resource name, span type, sampling priority, etc).
+                otspan.set_tag(k, tags[k])
+
         return otspan
 
-    def inject(self, span_context, format, carrier):
+    def inject(self, span_context, format, carrier):  # noqa: A002
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
@@ -280,7 +282,7 @@ class Tracer(opentracing.Tracer):
 
         propagator.inject(span_context, carrier)
 
-    def extract(self, format, carrier):
+    def extract(self, format, carrier):  # noqa: A002
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.

@@ -23,20 +23,17 @@ def safe_patch(patchable, key, patch_func, service, meta, tracer):
     wrapped in the monkey patch == UNBOUND + service and meta) and
     attach the patched result to patchable at patchable.key
 
-
-      - if this is the module/class we can rely on methods being unbound, and just have to
+    - If this is the module/class we can rely on methods being unbound, and just have to
       update the __dict__
-
-      - if this is an instance, we have to unbind the current and rebind our
+    - If this is an instance, we have to unbind the current and rebind our
       patched method
-
-      - If patchable is an instance and if we've already patched at the module/class level
+    - If patchable is an instance and if we've already patched at the module/class level
       then patchable[key] contains an already patched command!
-      To workaround this, check if patchable or patchable.__class__ are _dogtraced
-      If is isn't, nothing to worry about, patch the key as usual
-      But if it is, search for a '__dd_orig_{key}' method on the class, which is
-      the original unpatched method we wish to trace.
 
+    To workaround this, check if patchable or patchable.__class__ are ``_dogtraced``
+    If is isn't, nothing to worry about, patch the key as usual
+    But if it is, search for a '__dd_orig_{key}' method on the class, which is
+    the original unpatched method we wish to trace.
     """
     def _get_original_method(thing, key):
         orig = None

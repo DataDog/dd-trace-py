@@ -101,9 +101,7 @@ class PatchTestCase(object):
     """
     @run_in_subprocess
     class Base(SubprocessTestCase, PatchMixin):
-        """PatchTestCase provides default test methods to be used for testing
-        common integration patching logic.
-
+        """Provides default test methods to be used for testing common integration patching logic.
         Each test method provides a default implementation which will use the
         provided attributes (described below). If the attributes are not
         provided a NotImplementedError will be raised for each method that is
@@ -116,7 +114,6 @@ class PatchTestCase(object):
             __unpatch_func__ unpatch function from the integration.
 
         Example:
-
         A simple implementation inheriting this TestCase looks like::
 
             from ddtrace.contrib.redis import patch, unpatch
@@ -227,12 +224,12 @@ class PatchTestCase(object):
 
             So an appropriate assert_module_patched would look like::
 
-            def assert_module_patched(self, redis):
-                self.assert_wrapped(redis.StrictRedis.execute_command)
-                self.assert_wrapped(redis.StrictRedis.pipeline)
-                self.assert_wrapped(redis.Redis.pipeline)
-                self.assert_wrapped(redis.client.BasePipeline.execute)
-                self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                def assert_module_patched(self, redis):
+                    self.assert_wrapped(redis.StrictRedis.execute_command)
+                    self.assert_wrapped(redis.StrictRedis.pipeline)
+                    self.assert_wrapped(redis.Redis.pipeline)
+                    self.assert_wrapped(redis.client.BasePipeline.execute)
+                    self.assert_wrapped(redis.client.BasePipeline.immediate_execute_command)
 
             :param module: module to check
             :return: None
@@ -252,12 +249,12 @@ class PatchTestCase(object):
 
             So an appropriate assert_not_module_patched would look like::
 
-            def assert_not_module_patched(self, redis):
-                self.assert_not_wrapped(redis.StrictRedis.execute_command)
-                self.assert_not_wrapped(redis.StrictRedis.pipeline)
-                self.assert_not_wrapped(redis.Redis.pipeline)
-                self.assert_not_wrapped(redis.client.BasePipeline.execute)
-                self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                def assert_not_module_patched(self, redis):
+                    self.assert_not_wrapped(redis.StrictRedis.execute_command)
+                    self.assert_not_wrapped(redis.StrictRedis.pipeline)
+                    self.assert_not_wrapped(redis.Redis.pipeline)
+                    self.assert_not_wrapped(redis.client.BasePipeline.execute)
+                    self.assert_not_wrapped(redis.client.BasePipeline.immediate_execute_command)
 
             :param module:
             :return: None
@@ -277,12 +274,12 @@ class PatchTestCase(object):
 
             So an appropriate assert_not_module_double_patched would look like::
 
-            def assert_not_module_double_patched(self, redis):
-                self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
-                self.assert_not_double_wrapped(redis.StrictRedis.pipeline)
-                self.assert_not_double_wrapped(redis.Redis.pipeline)
-                self.assert_not_double_wrapped(redis.client.BasePipeline.execute)
-                self.assert_not_double_wrapped(redis.client.BasePipeline.immediate_execute_command)
+                def assert_not_module_double_patched(self, redis):
+                    self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
+                    self.assert_not_double_wrapped(redis.StrictRedis.pipeline)
+                    self.assert_not_double_wrapped(redis.Redis.pipeline)
+                    self.assert_not_double_wrapped(redis.client.BasePipeline.execute)
+                    self.assert_not_double_wrapped(redis.client.BasePipeline.immediate_execute_command)
 
             :param module: module to check
             :return: None

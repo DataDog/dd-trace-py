@@ -1,9 +1,7 @@
-from ddtrace.ext import AppTypes
+from . import SpanTypes
 
-
-# the type of the spans
-TYPE = 'sql'
-APP_TYPE = AppTypes.db
+# [TODO] Deprecated, remove when we remove AppTypes
+APP_TYPE = SpanTypes.SQL
 
 # tags
 QUERY = 'sql.query'   # the query text

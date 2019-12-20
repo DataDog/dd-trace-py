@@ -89,7 +89,6 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     Pin(
         service='postgres',
         app='postgres',
-        app_type='db',
         tags=tags).onto(c)
 
     return c
