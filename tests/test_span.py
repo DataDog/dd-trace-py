@@ -62,6 +62,15 @@ class SpanTestCase(BaseTracerTestCase):
             'really_large_float': (2.0**53) + 1,
         }
 
+    def test_set_tag_bool(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag('true', True)
+        s.set_tag('false', False)
+
+        d = s.to_dict()
+        assert d['meta'] == dict(true='True', false='False')
+        assert 'metrics' not in d
+
     def test_set_tag_metric(self):
         s = Span(tracer=None, name='test.span')
 

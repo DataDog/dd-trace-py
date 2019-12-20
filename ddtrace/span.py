@@ -154,8 +154,15 @@ class Span(object):
             be ignored.
         """
 
+        # DEV: We have to make sure it is an integer and not a boolean
+        # >>> type(True)
+        # <class 'bool'>
+        # >>> isinstance(True, int)
+        # True
+        is_an_int = (isinstance(value, int) and not isinstance(value, bool))
+
         # Set intergers that are less than equal to 2^53 as metrics
-        if isinstance(value, int) and abs(value) <= 2 ** 53:
+        if is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
