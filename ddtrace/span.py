@@ -5,7 +5,7 @@ import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns
 from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
-from .ext import SpanTypes, errors, priority, net
+from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
 
 
@@ -162,7 +162,8 @@ class Span(object):
         is_an_int = (isinstance(value, int) and not isinstance(value, bool))
 
         # Explicitly try to convert `out.port` to an integer
-        if key == net.TARGET_PORT and not is_an_int:
+        INT_TYPES = (net.TARGET_PORT, http.STATUS_CODE)
+        if key in INT_TYPES and not is_an_int:
             try:
                 value = int(value)
             except (ValueError, TypeError):
