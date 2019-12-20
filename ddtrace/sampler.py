@@ -10,6 +10,7 @@ from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .utils.formats import get_env
 from .vendor import six
 
 log = get_logger(__name__)
@@ -115,8 +116,10 @@ class DatadogSampler(BaseSampler):
     __slots__ = ('default_sampler', 'limiter', 'rules')
 
     NO_RATE_LIMIT = -1
+    DEFAULT_RATE_LIMIT = 100
+    DEFAULT_SAMPLE_RATE = 1.0
 
-    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=NO_RATE_LIMIT):
+    def __init__(self, rules=None, default_sample_rate=None, rate_limit=None):
         """
         Constructor for DatadogSampler sampler
 
@@ -125,9 +128,14 @@ class DatadogSampler(BaseSampler):
         :param default_sample_rate: The default sample rate to apply if no rules matched (default: 1.0)
         :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
-            applied to them, default is no rate limit
+            applied to them, (default: ``100``)
         :type rate_limit: :obj:`int`
         """
+        if default_sample_rate is None:
+            default_sample_rate = float(get_env('trace', 'sample_rate', default=self.DEFAULT_SAMPLE_RATE))
+        if rate_limit is None:
+            rate_limit = int(get_env('trace', 'rate_limit', default=self.DEFAULT_RATE_LIMIT))
+
         # Ensure rules is a list
         if not rules:
             rules = []
