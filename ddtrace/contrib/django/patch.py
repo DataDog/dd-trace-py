@@ -36,6 +36,8 @@ config._add(
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
+        instrument_databases=True,
+        instrument_caches=True,
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
@@ -125,6 +127,9 @@ def _set_request_tags(span, request):
 
 @with_traced_module
 def traced_cache(django, pin, func, instance, args, kwargs):
+    if not config.django.instrument_caches:
+        return func(*args, **kwargs)
+
     # get the original function method
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
         # update the resource name and tag the cache backend
@@ -192,16 +197,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         )
 
     # Instrument databases
-    try:
-        instrument_dbs(django)
-    except Exception:
-        log.debug("Error instrumenting Django database connections", exc_info=True)
+    if config.django.instrument_databases:
+        try:
+            instrument_dbs(django)
+        except Exception:
+            log.debug("Error instrumenting Django database connections", exc_info=True)
 
     # Instrument caches
-    try:
-        instrument_caches(django)
-    except Exception:
-        log.debug("Error instrumenting Django caches", exc_info=True)
+    if config.django.instrument_caches:
+        try:
+            instrument_caches(django)
+        except Exception:
+            log.debug("Error instrumenting Django caches", exc_info=True)
 
     # Instrument Django Rest Framework if it's installed
     INSTALLED_APPS = getattr(settings, "INSTALLED_APPS", [])

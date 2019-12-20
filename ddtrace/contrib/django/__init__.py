@@ -59,6 +59,18 @@ Configuration
 
    Default: ``''``
 
+.. py:data:: ddtrace.config.django['instrument_databases']
+
+   Whether or not to instrument databases.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['instrument_caches']
+
+   Whether or not to instrument caches.
+
+   Default: ``True``
+
 .. py:data:: ddtrace.config.django['trace_query_string']
 
    Whether or not to include the query string as a tag.

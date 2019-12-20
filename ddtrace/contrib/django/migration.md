@@ -17,8 +17,8 @@ See below for the mapping from old configuration settings to new ones.
 | `AGENT_PORT`     | `DD_TRACE_AGENT_PORT` environment variable or `tracer.configure(port=)` |
 | `AUTO_INSTRUMENT`| N/A Instrumentation is automatic |
 | `INSTRUMENT_CACHE` | N/A Instrumentation is automatic |
-| `INSTRUMENT_DATABASE` | N/A Instrumentation is automatic |
-| `INSTRUMENT_TEMPLATE` | N/A Instrumentation is automatic|
+| `INSTRUMENT_DATABASE` | `config.django['instrument_databases']` |
+| `INSTRUMENT_TEMPLATE` | `config.django['instrument_caches']` |
 | `DEFAULT_DATABASE_PREFIX` | `config.django['database_service_name_prefix']` |
 | `DEFAULT_SERVICE` | `DD_SERVICE_NAME` environment variable or `config.django['service_name']` |
 | `DEFAULT_CACHE_SERVICE` | `config.django['cache_service_name']` |
@@ -75,6 +75,8 @@ tracer.configure(hostname='localhost', port=8126, enabled=True)
 config.django['service_name'] = 'my-django-app'
 config.django['cache_service_name'] = 'my-cache'
 config.django['django_service_name_prefix'] = 'my-'
+config.django['instrument_databases'] = True
+config.django['instrument_caches'] = True
 config.django['trace_query_string'] = True
 config.django['analytics_enabled'] = True
 config.django['analytics_sample_rate'] = 0.5

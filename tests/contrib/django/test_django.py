@@ -508,7 +508,6 @@ def test_connection(client, test_spans):
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
 
-
 """
 Caching tests
 """
@@ -1088,6 +1087,15 @@ def test_trace_query_string_integration_enabled(client, test_spans):
     sp_request = test_spans.get_root_span()
     assert sp_request.name == "django.request"
     assert sp_request.get_tag(http.QUERY_STRING) == "key1=value1&key2=value2"
+
+
+def test_disabled_caches(client, test_spans):
+    with BaseTestCase.override_config("django", dict(instrument_caches=False)):
+        cache = django.core.cache.caches["default"]
+        cache.get("missing_key")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 0
 
 
 """
