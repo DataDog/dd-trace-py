@@ -32,7 +32,7 @@ def _patch(elasticsearch):
         return
     setattr(elasticsearch, '_datadog_patch', True)
     _w(elasticsearch.transport, 'Transport.perform_request', _get_perform_request(elasticsearch))
-    Pin(service=metadata.SERVICE).onto(elasticsearch.transport.Transport)
+    Pin(service=metadata.SERVICE, app=metadata.APP).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():

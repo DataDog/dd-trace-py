@@ -1,6 +1,7 @@
 from . import SpanTypes
 
 # [TODO] Deprecated, remove when we remove AppTypes
+TYPE = SpanTypes.SQL
 APP_TYPE = SpanTypes.SQL
 
 # tags
