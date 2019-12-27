@@ -65,7 +65,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 200
+        assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/'
         if config.pyramid.trace_query_string:
             assert s.meta.get(http.QUERY_STRING) == query_string
@@ -154,7 +154,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 404
+        assert s.meta.get('http.status_code') == '404'
         assert s.meta.get(http.URL) == 'http://localhost/404'
 
     def test_302(self):
@@ -169,7 +169,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 302
+        assert s.meta.get('http.status_code') == '302'
         assert s.meta.get(http.URL) == 'http://localhost/redirect'
 
     def test_204(self):
@@ -184,7 +184,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 204
+        assert s.meta.get('http.status_code') == '204'
         assert s.meta.get(http.URL) == 'http://localhost/nocontent'
 
     def test_exception(self):
@@ -202,7 +202,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 1
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 500
+        assert s.meta.get('http.status_code') == '500'
         assert s.meta.get(http.URL) == 'http://localhost/exception'
         assert s.meta.get('pyramid.route.name') == 'exception'
 
@@ -218,7 +218,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 1
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 500
+        assert s.meta.get('http.status_code') == '500'
         assert s.meta.get(http.URL) == 'http://localhost/error'
         assert s.meta.get('pyramid.route.name') == 'error'
         assert type(s.error) == int
@@ -238,7 +238,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 200
+        assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/json'
         assert s.meta.get('pyramid.route.name') == 'json'
 
@@ -262,7 +262,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 200
+        assert s.meta.get('http.status_code') == '200'
         assert s.meta.get(http.URL) == 'http://localhost/renderer'
         assert s.meta.get('pyramid.route.name') == 'renderer'
 
@@ -284,7 +284,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 1
         assert s.span_type == 'web'
         assert s.meta.get('http.method') == 'GET'
-        assert s.metrics.get('http.status_code') == 404
+        assert s.meta.get('http.status_code') == '404'
         assert s.meta.get(http.URL) == 'http://localhost/404/raise_exception'
 
     def test_insert_tween_if_needed_already_set(self):
@@ -356,6 +356,6 @@ class PyramidTestCase(PyramidBase):
         assert dd_span.error == 0
         assert dd_span.span_type == 'web'
         assert dd_span.meta.get('http.method') == 'GET'
-        assert dd_span.metrics.get('http.status_code') == 200
+        assert dd_span.meta.get('http.status_code') == '200'
         assert dd_span.meta.get(http.URL) == 'http://localhost/'
         assert dd_span.meta.get('pyramid.route.name') == 'index'

@@ -81,7 +81,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(root.get_tag('flask.endpoint'), 'index')
         self.assertEqual(root.get_tag('flask.url_rule'), '/')
         self.assertEqual(root.get_tag('http.method'), 'GET')
-        self.assertEqual(root.get_metric('http.status_code'), 401)
+        self.assertEqual(root.get_tag('http.status_code'), '401')
         self.assertEqual(root.get_tag(http.URL), 'http://localhost/')
 
         # Assert hook span
@@ -182,7 +182,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         parent = self.find_span_parent(spans, span)
 
         # Assert root span
-        self.assertEqual(root.get_metric('http.status_code'), 401)
+        self.assertEqual(root.get_tag('http.status_code'), '401')
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')

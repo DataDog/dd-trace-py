@@ -42,7 +42,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /' == span.resource
         assert str(self.client.make_url('/')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
-        assert 200 == span.get_metric('http.status_code')
+        assert '200' == span.get_tag('http.status_code')
         assert 0 == span.error
 
     @asyncio.coroutine
@@ -64,7 +64,7 @@ class TestTraceMiddleware(TraceTestCase):
         # with the right fields
         assert 'GET /echo/{name}' == span.resource
         assert str(self.client.make_url('/echo/team')) == span.get_tag(http.URL)
-        assert 200 == span.get_metric('http.status_code')
+        assert '200' == span.get_tag('http.status_code')
         if self.app[CONFIG_KEY].get('trace_query_string'):
             assert query_string == span.get_tag(http.QUERY_STRING)
         else:
@@ -112,7 +112,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert '404' == span.resource
         assert str(self.client.make_url('/404/not_found')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
-        assert 404 == span.get_metric('http.status_code')
+        assert '404' == span.get_tag('http.status_code')
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -128,7 +128,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         assert span.get_tag('http.method') == 'GET'
-        assert span.get_metric('http.status_code') == 500
+        assert span.get_tag('http.status_code') == '500'
         assert span.error == 1
 
     @unittest_run_loop
@@ -145,7 +145,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
         assert span.get_tag('http.method') == 'GET'
-        assert span.get_metric('http.status_code') == 503
+        assert span.get_tag('http.status_code') == '503'
         assert span.error == 1
 
     @unittest_run_loop
@@ -168,7 +168,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /chaining/' == root.resource
         assert str(self.client.make_url('/chaining/')) == root.get_tag(http.URL)
         assert 'GET' == root.get_tag('http.method')
-        assert 200 == root.get_metric('http.status_code')
+        assert '200' == root.get_tag('http.status_code')
         # span created in the coroutine_chaining handler
         assert 'aiohttp.coro_1' == handler.name
         assert root.span_id == handler.parent_id
@@ -196,7 +196,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /statics' == span.resource
         assert str(self.client.make_url('/statics/empty.txt')) == span.get_tag(http.URL)
         assert 'GET' == span.get_tag('http.method')
-        assert 200 == span.get_metric('http.status_code')
+        assert '200' == span.get_tag('http.status_code')
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -421,7 +421,7 @@ class TestTraceMiddleware(TraceTestCase):
         assert 'GET /' == inner_span.resource
         assert str(self.client.make_url('/')) == inner_span.get_tag(http.URL)
         assert 'GET' == inner_span.get_tag('http.method')
-        assert 200 == inner_span.get_metric('http.status_code')
+        assert '200' == inner_span.get_tag('http.status_code')
         assert 0 == inner_span.error
 
     @unittest_run_loop

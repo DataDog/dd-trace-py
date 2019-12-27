@@ -56,7 +56,7 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_metric('http.status_code') == 200
+        assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
         # check distributed headers
         assert 123 == s.trace_id
@@ -83,7 +83,7 @@ class TraceBottleDistributedTest(BaseTracerTestCase):
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi/<name>'
-        assert s.get_metric('http.status_code') == 200
+        assert s.get_tag('http.status_code') == '200'
         assert s.get_tag('http.method') == 'GET'
         # check distributed headers
         assert 123 != s.trace_id

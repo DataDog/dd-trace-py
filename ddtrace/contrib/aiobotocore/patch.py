@@ -48,7 +48,6 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
             span.meta = dict(self._self_parent_span.meta)
-            span.metrics = dict(self._self_parent_span.metrics)
 
             result = yield from self.__wrapped__.read(*args, **kwargs)
             span.set_tag('Length', len(result))

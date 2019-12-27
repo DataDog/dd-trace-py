@@ -171,7 +171,7 @@ class TestTracedCursor(BaseTracerTestCase):
         assert span.span_type == 'sql', 'Span has the correct span type'
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
@@ -190,7 +190,7 @@ class TestTracedCursor(BaseTracerTestCase):
         span = tracer.writer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_cursor_analytics_default(self):
         cursor = self.cursor
@@ -408,7 +408,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         assert span.span_type == 'sql', 'Span has the correct span type'
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
@@ -427,7 +427,7 @@ class TestFetchTracedCursor(BaseTracerTestCase):
         span = tracer.writer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric('db.rowcount') == 123, 'Row count is set as a metric'
-        assert span.get_metric('sql.rows') == 123, 'Row count is set as a tag (for legacy django cursor replacement)'
+        assert span.get_tag('sql.rows') == '123', 'Row count is set as a tag (for legacy django cursor replacement)'
 
     def test_fetch_no_analytics(self):
         """ Confirm fetch* methods do not have analytics sample rate metric """

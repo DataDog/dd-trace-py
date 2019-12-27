@@ -24,7 +24,7 @@ from ...utils.tracer import DummyTracer
 if PSYCOPG2_VERSION >= (2, 7):
     from psycopg2.sql import SQL
 
-TEST_PORT = POSTGRES_CONFIG['port']
+TEST_PORT = str(POSTGRES_CONFIG['port'])
 
 
 class PsycopgCore(BaseTracerTestCase):
@@ -126,8 +126,6 @@ class PsycopgCore(BaseTracerTestCase):
                 span_type='sql',
                 meta={
                     'out.host': '127.0.0.1',
-                },
-                metrics={
                     'out.port': TEST_PORT,
                 },
             ),

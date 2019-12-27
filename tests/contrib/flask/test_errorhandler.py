@@ -23,7 +23,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.request span
         self.assertEqual(req_span.error, 0)
-        self.assertEqual(req_span.get_metric('http.status_code'), 404)
+        self.assertEqual(req_span.get_tag('http.status_code'), '404')
         self.assertIsNone(req_span.get_tag('flask.endpoint'))
         self.assertIsNone(req_span.get_tag('flask.url_rule'))
 
@@ -68,7 +68,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.request span
         self.assertEqual(req_span.error, 1)
-        self.assertEqual(req_span.get_metric('http.status_code'), 500)
+        self.assertEqual(req_span.get_tag('http.status_code'), '500')
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'endpoint_500')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/500')
 
@@ -128,7 +128,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.request span
         self.assertEqual(req_span.error, 0)
-        self.assertEqual(req_span.get_metric('http.status_code'), 200)
+        self.assertEqual(req_span.get_tag('http.status_code'), '200')
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'endpoint_500')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/500')
 
@@ -191,7 +191,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.request span
         self.assertEqual(req_span.error, 1)
-        self.assertEqual(req_span.get_metric('http.status_code'), 500)
+        self.assertEqual(req_span.get_tag('http.status_code'), '500')
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'endpoint_error')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/error')
 
@@ -258,7 +258,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.request span
         self.assertEqual(req_span.error, 0)
-        self.assertEqual(req_span.get_metric('http.status_code'), 200)
+        self.assertEqual(req_span.get_tag('http.status_code'), '200')
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'endpoint_error')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/error')
 

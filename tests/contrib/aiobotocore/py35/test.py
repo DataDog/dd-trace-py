@@ -45,13 +45,13 @@ class AIOBotocoreTest(AsyncioTestCase):
 
             span = traces[0][0]
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_metric('http.status_code') == 200
+            assert span.get_tag('http.status_code') == '200'
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
 
             read_span = traces[1][0]
             assert read_span.get_tag('aws.operation') == 'GetObject'
-            assert read_span.get_metric('http.status_code') == 200
+            assert read_span.get_tag('http.status_code') == '200'
             assert read_span.service == 'aws.s3'
             assert read_span.resource == 's3.getobject'
             assert read_span.name == 's3.command.read'
@@ -64,7 +64,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
             span = traces[0][0]
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_metric('http.status_code') == 200
+            assert span.get_tag('http.status_code') == '200'
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
             assert span.name == 's3.command'
