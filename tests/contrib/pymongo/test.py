@@ -109,7 +109,7 @@ class PymongoCore(object):
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',
@@ -158,7 +158,7 @@ class PymongoCore(object):
             assert span.meta.get('mongodb.collection') == collection_name
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = [
             'drop here.are.songs',
@@ -223,7 +223,7 @@ class PymongoCore(object):
             assert span.meta.get('mongodb.collection') == 'teams'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host'), span.pprint()
-            assert span.meta.get('out.port'), span.pprint()
+            assert span.metrics.get('out.port'), span.pprint()
             assert span.start > start
             assert span.duration < end - start
 
@@ -292,7 +292,7 @@ class PymongoCore(object):
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',

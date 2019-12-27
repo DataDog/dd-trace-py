@@ -45,7 +45,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        self.assertEqual(req_span.get_metric('http.status_code'), 200)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/hello/flask')
 
         # tests.contrib.flask.test_views.hello
@@ -87,7 +87,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.status_code'), '500')
+        self.assertEqual(req_span.get_metric('http.status_code'), 500)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/hello/flask')
 
         # flask.dispatch_request
@@ -134,7 +134,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        self.assertEqual(req_span.get_metric('http.status_code'), 200)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/hello/flask')
 
         # tests.contrib.flask.test_views.hello
@@ -174,7 +174,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/hello/<name>')
         self.assertEqual(req_span.get_tag('flask.view_args.name'), 'flask')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
-        self.assertEqual(req_span.get_tag('http.status_code'), '500')
+        self.assertEqual(req_span.get_metric('http.status_code'), 500)
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/hello/flask')
 
         # flask.dispatch_request
