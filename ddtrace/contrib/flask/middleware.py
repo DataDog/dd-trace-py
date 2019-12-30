@@ -135,7 +135,7 @@ class TraceMiddleware(object):
         if not span or not span.sampled:
             return
 
-        code = span.get_tag(http.STATUS_CODE) or 0
+        code = span.get_metric(http.STATUS_CODE) or 0
         try:
             code = int(code)
         except Exception:

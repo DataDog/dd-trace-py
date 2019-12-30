@@ -131,7 +131,7 @@ class ElasticsearchTest(unittest.TestCase):
             spans = writer.pop()
             assert spans
             span = spans[0]
-            assert span.get_tag(http.STATUS_CODE) == u'404'
+            assert span.get_metric(http.STATUS_CODE) == 404
 
         # Raise error 400, the index 10 is created twice
         try:
@@ -142,7 +142,7 @@ class ElasticsearchTest(unittest.TestCase):
             spans = writer.pop()
             assert spans
             span = spans[-1]
-            assert span.get_tag(http.STATUS_CODE) == u'400'
+            assert span.get_metric(http.STATUS_CODE) == 400
 
         # Drop the index, checking it won't raise exception on success or failure
         es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
