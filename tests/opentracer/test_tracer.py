@@ -86,11 +86,11 @@ class TestTracerConfig(object):
         with tracer.start_span('myop') as span:
             # global tags should be attached to generated all datadog spans
             assert span._dd_span.get_tag('tag1') == 'value1'
-            assert span._dd_span.get_tag('tag2') == '2'
+            assert span._dd_span.get_metric('tag2') == 2
 
             with tracer.start_span('myop2') as span2:
                 assert span2._dd_span.get_tag('tag1') == 'value1'
-                assert span2._dd_span.get_tag('tag2') == '2'
+                assert span2._dd_span.get_metric('tag2') == 2
 
 
 class TestTracer(object):

@@ -18,7 +18,7 @@ from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -118,7 +118,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
-        assert span.meta['out.port'] == TEST_PORT
+        assert span.metrics['out.port'] == TEST_PORT
         assert span.span_type == 'sql'
 
     @mark_asyncio

@@ -10,6 +10,7 @@ from .constants import SAMPLING_AGENT_DECISION, SAMPLING_RULE_DECISION, SAMPLING
 from .ext.priority import AUTO_KEEP, AUTO_REJECT
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .utils.formats import get_env
 from .vendor import six
 
 log = get_logger(__name__)
@@ -112,14 +113,13 @@ class DatadogSampler(BaseSampler):
     """
     This sampler is currently in ALPHA and it's API may change at any time, use at your own risk.
     """
-    # TODO: Remove '_priority_sampler' when we no longer use the fallback
-    __slots__ = ('default_sampler', 'rules', '_priority_sampler')
+    __slots__ = ('default_sampler', 'limiter', 'rules')
 
-    DEFAULT_RATE_LIMIT = 100
     NO_RATE_LIMIT = -1
+    DEFAULT_RATE_LIMIT = 100
+    DEFAULT_SAMPLE_RATE = 1.0
 
-    # TODO: Remove _priority_sampler=None when we no longer use the fallback
-    def __init__(self, rules=None, default_sample_rate=1.0, rate_limit=DEFAULT_RATE_LIMIT, _priority_sampler=None):
+    def __init__(self, rules=None, default_sample_rate=None, rate_limit=None):
         """
         Constructor for DatadogSampler sampler
 
@@ -128,9 +128,14 @@ class DatadogSampler(BaseSampler):
         :param default_sample_rate: The default sample rate to apply if no rules matched (default: 1.0)
         :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
-            applied to them, default 100 traces per second
+            applied to them, (default: ``100``)
         :type rate_limit: :obj:`int`
         """
+        if default_sample_rate is None:
+            default_sample_rate = float(get_env('trace', 'sample_rate', default=self.DEFAULT_SAMPLE_RATE))
+        if rate_limit is None:
+            rate_limit = int(get_env('trace', 'rate_limit', default=self.DEFAULT_RATE_LIMIT))
+
         # Ensure rules is a list
         if not rules:
             rules = []
@@ -144,9 +149,6 @@ class DatadogSampler(BaseSampler):
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
         self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
-
-        # TODO: Remove when we no longer use the fallback
-        self._priority_sampler = _priority_sampler
 
     def _set_priority(self, span, priority):
         if span._context:
@@ -173,16 +175,7 @@ class DatadogSampler(BaseSampler):
                 matching_rule = rule
                 break
         else:
-            # No rule matches, fallback to priority sampling if set
-            if self._priority_sampler:
-                if self._priority_sampler.sample(span):
-                    self._set_priority(span, AUTO_KEEP)
-                    return True
-                else:
-                    self._set_priority(span, AUTO_REJECT)
-                    return False
-
-            # No rule matches, no priority sampler, use the default sampler
+            # No rule matches, use the default sampler
             matching_rule = self.default_sampler
 
         # Sample with the matching sampling rule

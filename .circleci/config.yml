@@ -290,6 +290,17 @@ jobs:
       - *persist_to_workspace_step
       - *save_cache_step
 
+  dogpile_cache:
+    docker:
+      - *test_runner
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^dogpile_contrib-'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
   elasticsearch:
     docker:
       - *test_runner
@@ -892,6 +903,10 @@ workflows:
           requires:
             - flake8
             - black
+      - dogpile_cache:
+          requires:
+            - flake8
+            - black
       - elasticsearch:
           requires:
             - flake8
@@ -1062,6 +1077,7 @@ workflows:
             - consul
             - dbapi
             - ddtracerun
+            - dogpile_cache
             - django
             - elasticsearch
             - falcon
