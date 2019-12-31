@@ -84,11 +84,13 @@ def test_stats_reset_values(stats):
     stats.error_log("ddtrace.tracer")
 
     # Validate stats
-    values = stats.reset_values()
-    assert values == [
-        ("datadog.tracer.spans.open", "gauge", 0, None),
-        ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.tracer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.spans.open", "gauge", 0, None),
+            ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.tracer"]),
+        ],
+    )
 
     # Collect more stats
     stats.span_started()
@@ -96,20 +98,24 @@ def test_stats_reset_values(stats):
     stats.error_log("ddtrace.tracer")
 
     # Validate stats
-    values = stats.reset_values()
-    assert values == [
-        ("datadog.tracer.spans.open", "gauge", 1, None),
-        ("datadog.tracer.log.errors", "increment", 2, ["logger:ddtrace.tracer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.spans.open", "gauge", 1, None),
+            ("datadog.tracer.log.errors", "increment", 2, ["logger:ddtrace.tracer"]),
+        ],
+    )
 
     # Add no new stats
 
     # Validate stats
-    values = stats.reset_values()
-    assert values == [
-        ("datadog.tracer.spans.open", "gauge", 1, None),
-        ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.spans.open", "gauge", 1, None),
+            ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
+        ],
+    )
 
 
 def test_stats_span_started_finished(stats):
@@ -152,23 +158,32 @@ def test_stats_error_log(stats):
     for _ in range(2):
         stats.error_log("ddtrace.internal.writer")
 
-    assert stats.reset_values() == [
-        ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.tracer"]),
-        ("datadog.tracer.log.errors", "increment", 2, ["logger:ddtrace.internal.writer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.tracer"]),
+            ("datadog.tracer.log.errors", "increment", 2, ["logger:ddtrace.internal.writer"]),
+        ],
+    )
 
     # Assert when no new error logs occur
-    assert stats.reset_values() == [
-        ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
-        ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.internal.writer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
+            ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.internal.writer"]),
+        ],
+    )
 
     # Add more writer error logs
     stats.error_log("ddtrace.internal.writer")
-    assert stats.reset_values() == [
-        ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
-        ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.internal.writer"]),
-    ]
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.log.errors", "increment", 0, ["logger:ddtrace.tracer"]),
+            ("datadog.tracer.log.errors", "increment", 1, ["logger:ddtrace.internal.writer"]),
+        ],
+    )
 
 
 def test_stats_patching(stats):
