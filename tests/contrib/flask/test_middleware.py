@@ -110,7 +110,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert s.metrics.get(http.STATUS_CODE) == 200
         assert s.meta.get(http.METHOD) == 'GET'
 
         services = self.tracer.writer.pop_services()
@@ -137,7 +137,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert s.metrics.get(http.STATUS_CODE) == 200
         assert s.meta.get(http.METHOD) == 'GET'
 
         t = by_name['flask.template']
@@ -165,7 +165,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '202'
+        assert s.metrics.get(http.STATUS_CODE) == 202
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_template_err(self):
@@ -189,7 +189,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert s.get_metric(http.STATUS_CODE) == 500
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_template_render_err(self):
@@ -213,7 +213,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 1
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert s.get_metric(http.STATUS_CODE) == 500
         assert s.meta.get(http.METHOD) == 'GET'
         t = by_name['flask.template']
         assert t.get_tag('flask.template') == 'render_err.html'
@@ -239,7 +239,7 @@ class TestFlask(TestCase):
         assert s.resource == 'error'
         assert s.start >= start
         assert s.duration <= end - start
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert s.get_metric(http.STATUS_CODE) == 500
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_fatal(self):
@@ -264,7 +264,7 @@ class TestFlask(TestCase):
         assert s.resource == 'fatal'
         assert s.start >= start
         assert s.duration <= end - start
-        assert s.meta.get(http.STATUS_CODE) == '500'
+        assert s.get_metric(http.STATUS_CODE) == 500
         assert s.meta.get(http.METHOD) == 'GET'
         assert 'ZeroDivisionError' in s.meta.get(errors.ERROR_TYPE), s.meta
         assert 'by zero' in s.meta.get(errors.ERROR_MSG)
@@ -289,7 +289,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert s.get_metric(http.STATUS_CODE) == 200
         assert s.meta.get(http.METHOD) == 'GET'
         assert s.meta.get(http.URL) == u'http://localhost/üŋïĉóđē'
 
@@ -311,7 +311,7 @@ class TestFlask(TestCase):
         assert s.start >= start
         assert s.duration <= end - start
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '404'
+        assert s.get_metric(http.STATUS_CODE) == 404
         assert s.meta.get(http.METHOD) == 'GET'
         assert s.meta.get(http.URL) == u'http://localhost/404/üŋïĉóđē'
 
@@ -348,7 +348,7 @@ class TestFlask(TestCase):
         assert s.service == 'test.flask.service'
         assert s.resource == 'overridden'
         assert s.error == 0
-        assert s.meta.get(http.STATUS_CODE) == '200'
+        assert s.get_metric(http.STATUS_CODE) == 200
         assert s.meta.get(http.METHOD) == 'GET'
 
     def test_success_200_ot(self):
@@ -382,5 +382,5 @@ class TestFlask(TestCase):
         assert dd_span.start >= start
         assert dd_span.duration <= end - start
         assert dd_span.error == 0
-        assert dd_span.meta.get(http.STATUS_CODE) == '200'
+        assert dd_span.get_metric(http.STATUS_CODE) == 200
         assert dd_span.meta.get(http.METHOD) == 'GET'

@@ -178,7 +178,7 @@ class TestSQLite(BaseTracerTestCase):
                     resource=q,
                     span_type='sql',
                     error=0,
-                    meta={'db.fetch.size': '123'},
+                    metrics={'db.fetch.size': 123},
                 ),
             )
             self.assertIsNone(fetchmany_span.get_tag('sql.query'))

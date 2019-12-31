@@ -185,7 +185,7 @@ class GlobalConfigTestCase(TestCase):
         # Create our span
         span = self.tracer.start_span('web.request')
         assert 'web.request' not in span.meta
-        assert 'web.status' not in span.meta
+        assert 'web.status' not in span.metrics
         assert 'web.method' not in span.meta
 
         # Emit the span
@@ -193,7 +193,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
-        assert span.get_tag('web.status') == '200'
+        assert span.get_metric('web.status') == 200
         assert span.get_tag('web.method') == 'GET'
 
     def test_settings_hook_failure(self):
