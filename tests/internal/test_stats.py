@@ -18,8 +18,8 @@ def dogstatsd():
 
 def assert_values(stats_values, expected):
     assert len(stats_values) == len(expected)
-    actual = set(v[0:3] + (tuple(v[3]), ) for v in stats_values)
-    expected = set(v[0:3] + (tuple(v[3]), ) for v in expected)
+    actual = set(v[0:3] + (tuple(v[3]),) for v in stats_values)
+    expected = set(v[0:3] + (tuple(v[3]),) for v in expected)
     assert actual == expected
 
 
@@ -42,14 +42,14 @@ def test_stats_report_stats(stats, dogstatsd):
 
     assert dogstatsd.gauge.mock_calls == [mock.call("datadog.tracer.spans.open", 0, tags=None)]
     assert dogstatsd.increment.mock_calls == [
-        mock.call("datadog.tracer.log.errors", 1, tags=[("logger:ddtrace.tracer"),])
+        mock.call("datadog.tracer.log.errors", 1, tags=[("logger:ddtrace.tracer")])
     ]
 
     # Collect more stats
     stats.span_started()
-    stats.error_log('ddtrace.tracer')
-    stats.error_log('ddtrace.tracer')
-    stats.error_log('ddtrace.tracer')
+    stats.error_log("ddtrace.tracer")
+    stats.error_log("ddtrace.tracer")
+    stats.error_log("ddtrace.tracer")
 
     # Report stats
     dogstatsd.reset_mock()
@@ -58,7 +58,7 @@ def test_stats_report_stats(stats, dogstatsd):
     assert dogstatsd.gauge.mock_calls == [mock.call("datadog.tracer.spans.open", 1, tags=None)]
     # Diff between last report and this report
     assert dogstatsd.increment.mock_calls == [
-        mock.call("datadog.tracer.log.errors", 3, tags=[("logger:ddtrace.tracer"),])
+        mock.call("datadog.tracer.log.errors", 3, tags=[("logger:ddtrace.tracer")])
     ]
 
     # Add no more stats
@@ -70,7 +70,7 @@ def test_stats_report_stats(stats, dogstatsd):
     assert dogstatsd.gauge.mock_calls == [mock.call("datadog.tracer.spans.open", 1, tags=None)]
     # Diff between last report and this report
     assert dogstatsd.increment.mock_calls == [
-        mock.call("datadog.tracer.log.errors", 0, tags=[("logger:ddtrace.tracer"),])
+        mock.call("datadog.tracer.log.errors", 0, tags=[("logger:ddtrace.tracer")])
     ]
 
 
@@ -178,13 +178,16 @@ def test_stats_patching(stats):
     for module in ("flask", "urllib3"):
         stats.patch_error(module)
 
-    assert_values(stats.reset_values(), [
-        ("datadog.tracer.patch.success", "gauge", 1, ["module:django", ]),
-        ("datadog.tracer.patch.success", "gauge", 1, ["module:redis", ]),
-        ("datadog.tracer.patch.success", "gauge", 1, ["module:requests", ]),
-        ("datadog.tracer.patch.error", "gauge", 1, ["module:flask", ]),
-        ("datadog.tracer.patch.error", "gauge", 1, ["module:urllib3", ]),
-    ])
+    assert_values(
+        stats.reset_values(),
+        [
+            ("datadog.tracer.patch.success", "gauge", 1, ["module:django"]),
+            ("datadog.tracer.patch.success", "gauge", 1, ["module:redis"]),
+            ("datadog.tracer.patch.success", "gauge", 1, ["module:requests"]),
+            ("datadog.tracer.patch.error", "gauge", 1, ["module:flask"]),
+            ("datadog.tracer.patch.error", "gauge", 1, ["module:urllib3"]),
+        ],
+    )
 
     # Report again and they are gone
     assert stats.reset_values() == []
