@@ -36,8 +36,8 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(span.get_tag('aws.agent'), 'aiobotocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
-        self.assertEqual(span.get_tag('retry_attempts'), '0')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
+        self.assertEqual(span.get_metric('retry_attempts'), 0)
         self.assertEqual(span.service, 'aws.ec2')
         self.assertEqual(span.resource, 'ec2.describeinstances')
         self.assertEqual(span.name, 'ec2.command')
@@ -70,7 +70,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         span = traces[0][0]
 
         self.assertEqual(span.get_tag('aws.operation'), 'ListBuckets')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.s3')
         self.assertEqual(span.resource, 's3.listbuckets')
         self.assertEqual(span.name, 's3.command')
@@ -87,7 +87,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         assert spans
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_tag('aws.operation'), 'CreateBucket')
-        self.assertEqual(spans[0].get_tag(http.STATUS_CODE), '200')
+        self.assertEqual(spans[0].get_metric(http.STATUS_CODE), 200)
         self.assertEqual(spans[0].service, 'aws.s3')
         self.assertEqual(spans[0].resource, 's3.createbucket')
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
@@ -136,14 +136,14 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.operation'), 'GetObject')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.s3')
         self.assertEqual(span.resource, 's3.getobject')
 
         if pre_08:
             read_span = traces[1][0]
             self.assertEqual(read_span.get_tag('aws.operation'), 'GetObject')
-            self.assertEqual(read_span.get_tag('http.status_code'), '200')
+            self.assertEqual(read_span.get_metric('http.status_code'), 200)
             self.assertEqual(read_span.service, 'aws.s3')
             self.assertEqual(read_span.resource, 's3.getobject')
             self.assertEqual(read_span.name, 's3.command.read')
@@ -163,7 +163,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListQueues')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.sqs')
         self.assertEqual(span.resource, 'sqs.listqueues')
 
@@ -179,7 +179,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListStreams')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.kinesis')
         self.assertEqual(span.resource, 'kinesis.liststreams')
 
@@ -196,7 +196,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
 
@@ -212,7 +212,7 @@ class AIOBotocoreTest(AsyncioTestCase):
         span = traces[0][0]
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListKeys')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_metric('http.status_code'), 200)
         self.assertEqual(span.service, 'aws.kms')
         self.assertEqual(span.resource, 'kms.listkeys')
         # checking for protection on STS against security leak
@@ -264,8 +264,8 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(dd_span.get_tag('aws.agent'), 'aiobotocore')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(dd_span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(dd_span.get_tag('http.status_code'), '200')
-        self.assertEqual(dd_span.get_tag('retry_attempts'), '0')
+        self.assertEqual(dd_span.get_metric('http.status_code'), 200)
+        self.assertEqual(dd_span.get_metric('retry_attempts'), 0)
         self.assertEqual(dd_span.service, 'aws.ec2')
         self.assertEqual(dd_span.resource, 'ec2.describeinstances')
         self.assertEqual(dd_span.name, 'ec2.command')
@@ -305,13 +305,13 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(ot_inner_span2.parent_id, ot_outer_span.span_id)
 
         self.assertEqual(dd_span.get_tag('aws.operation'), 'ListBuckets')
-        self.assertEqual(dd_span.get_tag('http.status_code'), '200')
+        self.assertEqual(dd_span.get_metric('http.status_code'), 200)
         self.assertEqual(dd_span.service, 'aws.s3')
         self.assertEqual(dd_span.resource, 's3.listbuckets')
         self.assertEqual(dd_span.name, 's3.command')
 
         self.assertEqual(dd_span2.get_tag('aws.operation'), 'ListBuckets')
-        self.assertEqual(dd_span2.get_tag('http.status_code'), '200')
+        self.assertEqual(dd_span2.get_metric('http.status_code'), 200)
         self.assertEqual(dd_span2.service, 'aws.s3')
         self.assertEqual(dd_span2.resource, 's3.listbuckets')
         self.assertEqual(dd_span2.name, 's3.command')

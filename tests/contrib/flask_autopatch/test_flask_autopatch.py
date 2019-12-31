@@ -82,15 +82,14 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Request tags
         self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
+            set(['flask.version', 'http.url', 'http.method', 'flask.endpoint', 'flask.url_rule']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        self.assertEqual(req_span.get_metric('http.status_code'), 200)
 
         # Handler span
         handler_span = spans[4]

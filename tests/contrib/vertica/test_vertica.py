@@ -211,7 +211,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
         assert spans[0].get_tag('db.name') == 'docker'
         assert spans[0].get_tag('db.user') == 'dbadmin'
 
@@ -238,7 +238,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
 
         assert spans[1].resource == 'SELECT * FROM test_table;'
 
@@ -309,7 +309,7 @@ class TestVertica(BaseTracerTestCase):
         assert spans[1].get_metric('db.rowcount') == -1
         assert spans[2].name == 'vertica.fetchone'
         assert spans[2].get_tag('out.host') == '127.0.0.1'
-        assert spans[2].get_tag('out.port') == '5433'
+        assert spans[2].get_metric('out.port') == 5433
         assert spans[2].get_metric('db.rowcount') == 1
         assert spans[3].name == 'vertica.fetchone'
         assert spans[3].get_metric('db.rowcount') == 2
@@ -380,7 +380,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
         assert dd_span.get_tag('out.host') == '127.0.0.1'
-        assert dd_span.get_tag('out.port') == '5433'
+        assert dd_span.get_metric('out.port') == 5433
 
     def test_analytics_default(self):
         conn, cur = self.test_conn

@@ -99,10 +99,10 @@ class TracerTestCase(BaseTracerTestCase):
                 pass
 
         # Root span should contain the pid of the current process
-        root_span.assert_meta({system.PID: str(getpid())}, exact=False)
+        root_span.assert_metrics({system.PID: getpid()}, exact=False)
 
         # Child span should not contain a pid tag
-        child_span.assert_meta(dict(), exact=True)
+        child_span.assert_metrics(dict(), exact=True)
 
     def test_tracer_wrap_default_name(self):
         @self.tracer.wrap()
