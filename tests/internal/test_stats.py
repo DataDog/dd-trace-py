@@ -16,10 +16,17 @@ def dogstatsd():
     return mock.Mock(spec=DogStatsd)
 
 
+def _convert_tags(val):
+    if val is None:
+        return None
+
+    return tuple(val)
+
+
 def assert_values(stats_values, expected):
     assert len(stats_values) == len(expected)
-    actual = set(v[0:3] + (tuple(v[3]),) for v in stats_values)
-    expected = set(v[0:3] + (tuple(v[3]),) for v in expected)
+    actual = set(v[0:3] + (_convert_tags(v[3]),) for v in stats_values)
+    expected = set(v[0:3] + (_convert_tags(v[3]),) for v in expected)
     assert actual == expected
 
 
