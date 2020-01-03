@@ -86,6 +86,10 @@ documentation][visualization docs].
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
+install_requires = []
+if sys.version_info < (3, 4):
+    install_requires.append("enum34")
+
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
     name="ddtrace",
@@ -97,7 +101,7 @@ setup_kwargs = dict(
     long_description_content_type="text/markdown",
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
-    install_requires=[],
+    install_requires=install_requires,
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
