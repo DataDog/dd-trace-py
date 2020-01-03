@@ -148,18 +148,30 @@ class optional_build_ext(build_ext):
 
 
 def get_msgpack_extensions():
-    msgpack_setup = load_module_from_project_file("ddtrace.vendor.msgpack.setup", "ddtrace/vendor/msgpack/setup.py")
-    return msgpack_setup.get_extensions()
+    try:
+        msgpack_setup = load_module_from_project_file("ddtrace.vendor.msgpack.setup", "ddtrace/vendor/msgpack/setup.py")
+        return msgpack_setup.get_extensions()
+    except Exception as e:
+        print("WARNING: Failed to load msgpack extensions, skipping: %s" % e)
+        return []
 
 
 def get_wrapt_extensions():
-    wrapt_setup = load_module_from_project_file("ddtrace.vendor.wrapt.setup", "ddtrace/vendor/wrapt/setup.py")
-    return wrapt_setup.get_extensions()
+    try:
+        wrapt_setup = load_module_from_project_file("ddtrace.vendor.wrapt.setup", "ddtrace/vendor/wrapt/setup.py")
+        return wrapt_setup.get_extensions()
+    except Exception as e:
+        print("WARNING: Failed to load wrapt extensions, skipping: %s" % e)
+        return []
 
 
 def get_psutil_extensions():
-    psutil_setup = load_module_from_project_file("ddtrace.vendor.psutil.setup", "ddtrace/vendor/psutil/setup.py")
-    return psutil_setup.get_extensions()
+    try:
+        psutil_setup = load_module_from_project_file("ddtrace.vendor.psutil.setup", "ddtrace/vendor/psutil/setup.py")
+        return psutil_setup.get_extensions()
+    except Exception as e:
+        print("WARNING: Failed to load psutil extensions, skipping: %s" % e)
+        return []
 
 
 # Try to build with C extensions first, fallback to only pure-Python if building fails
@@ -173,12 +185,9 @@ try:
     if wrapt_extensions:
         exts.extend(wrapt_extensions)
 
-    try:
-        psutil_extensions = get_psutil_extensions()
-        if psutil_extensions:
-            exts.extend(psutil_extensions)
-    except Exception as e:
-        print("WARNING: failed to generate psutil extensions, skipping: %s" % e)
+    psutil_extensions = get_psutil_extensions()
+    if psutil_extensions:
+        exts.extend(psutil_extensions)
 
     kwargs = copy.deepcopy(setup_kwargs)
     kwargs["ext_modules"] = exts
