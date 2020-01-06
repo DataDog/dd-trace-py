@@ -88,7 +88,7 @@ def test_single_process_with_context(tracer):
     assert spans[0]["service"] == "multiprocessing"
     assert spans[0]["type"] == "worker"
     assert spans[0]["error"] == 0
-    assert spans[0]["metrics"]["system.pid"] != os.getpid()
+    assert "system.pid" not in spans[0]["metrics"]
 
 
 def test_pool_map(tracer):

@@ -5,7 +5,6 @@ from multiprocessing.process import BaseProcess
 from multiprocessing.pool import Pool
 
 from ... import Pin, config
-from ...context import Context
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
 from ...utils.formats import asbool, get_env
@@ -39,7 +38,6 @@ def patch():
 
     _w(BaseProcess, "__init__", _patch_process_init)
     _w(BaseProcess, "run", _patch_process_run)
-    _w(Pool, "__init__", _patch_pool_init)
 
 
 def unpatch():
@@ -57,19 +55,10 @@ def _patch_process_init(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    ctx = pin.tracer.get_call_context()
-    # save dict of context values rather than Context object to avoid pickling
-    # error for Context._lock
-    ctx_propagated = dict(
-        trace_id=ctx.trace_id,
-        span_id=ctx.span_id,
-        sampling_priority=ctx.sampling_priority,
-        _dd_origin=ctx._dd_origin,
-    )
-    setattr(instance, DATADOG_CONTEXT, ctx_propagated)
+    ctx = pin.tracer.get_call_context().clone()
 
     init_kwargs = kwargs.get('kwargs', {})
-    init_kwargs.update({DATADOG_PIN: pin})
+    init_kwargs.update({DATADOG_PIN: pin, DATADOG_CONTEXT: ctx})
     kwargs['kwargs'] = init_kwargs
     wrapped(*args, **kwargs)
 
@@ -80,16 +69,22 @@ def _patch_process_run(wrapped, instance, args, kwargs):
     if pin is None:
         return wrapped(*args, **kwargs)
 
-    # retrieve context information at time of initialization
-    ctx_prop = getattr(instance, DATADOG_CONTEXT, None)
-    if ctx_prop is not None:
-        ctx = Context(**ctx_prop)
+    # retrieve context at time of initialization and activate in tracer
+    ctx = instance._kwargs.get(DATADOG_CONTEXT)
+    if ctx is not None:
         pin.tracer.context_provider.activate(ctx)
 
-    # remove pin from kwargs before calling target function
-    del instance._kwargs[DATADOG_PIN]
+    # stash patched set of kwargs before calling target function
+    stashed_kwargs = instance._kwargs
 
     try:
+        # replace instance kwargs within a try:finally to ensure stashed kwargs
+        # are re-attached to instance
+        instance._kwargs = {
+            k: v
+            for (k, v) in stashed_kwargs.items()
+            if k not in (DATADOG_PIN, DATADOG_CONTEXT)
+        }
         with pin.tracer.trace(
                 "multiprocessing.run",
                 service=pin.service,
@@ -98,26 +93,4 @@ def _patch_process_run(wrapped, instance, args, kwargs):
         ):
             return wrapped(*args, **kwargs)
     finally:
-        instance._kwargs[DATADOG_PIN] = pin
-
-
-def _patch_pool_init(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(multiprocessing)
-
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    ctx = pin.tracer.get_call_context()
-    # save dict of context values rather than Context object to avoid pickling
-    # error for Context._lock
-    ctx_propagated = dict(
-        trace_id=ctx.trace_id,
-        span_id=ctx.span_id,
-        sampling_priority=ctx.sampling_priority,
-        _dd_origin=ctx._dd_origin,
-    )
-    setattr(instance, DATADOG_CONTEXT, ctx_propagated)
-
-    setattr(instance, DATADOG_PIN, pin)
-
-    wrapped(*args, **kwargs)
+        instance._kwargs = stashed_kwargs
