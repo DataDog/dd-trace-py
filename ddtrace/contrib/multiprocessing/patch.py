@@ -1,7 +1,12 @@
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 import multiprocessing
-from multiprocessing.process import BaseProcess
+
+try:
+    # py3
+    from multiprocessing.process import BaseProcess as Process
+except ImportError:
+    from multiprocessing.process import Process
 from multiprocessing.pool import Pool
 
 from ... import Pin, config
@@ -18,11 +23,14 @@ DATADOG_PIN = "__dd_pin"
 DATADOG_CONTEXT = "__datadog_context"
 
 # Configure default configuration
-config._add("multiprocessing", dict(
-    service_name=get_env("multiprocessing", "service_name", "multiprocessing"),
-    app="multiprocessing",
-    distributed_tracing=asbool(get_env("multiprocessing", "distributed_tracing", True)),
-))
+config._add(
+    "multiprocessing",
+    dict(
+        service_name=get_env("multiprocessing", "service_name", "multiprocessing"),
+        app="multiprocessing",
+        distributed_tracing=asbool(get_env("multiprocessing", "distributed_tracing", True)),
+    ),
+)
 
 
 def patch():
@@ -30,22 +38,19 @@ def patch():
         return
     setattr(multiprocessing, DATADOG_PATCHED, True)
 
-    pin = Pin(
-        service=config.multiprocessing.service_name,
-        app=config.multiprocessing.app
-    )
+    pin = Pin(service=config.multiprocessing.service_name, app=config.multiprocessing.app)
     pin.onto(multiprocessing)
 
-    _w(BaseProcess, "__init__", _patch_process_init)
-    _w(BaseProcess, "run", _patch_process_run)
+    _w(Process, "__init__", _patch_process_init)
+    _w(Process, "run", _patch_process_run)
 
 
 def unpatch():
     if getattr(multiprocessing, DATADOG_PATCHED, False):
         return
 
-    _u(BaseProcess, "__init__")
-    _u(BaseProcess, "run")
+    _u(Process, "__init__")
+    _u(Process, "run")
     _u(Pool, "__init__")
 
 
@@ -57,40 +62,43 @@ def _patch_process_init(wrapped, instance, args, kwargs):
 
     ctx = pin.tracer.get_call_context().clone()
 
-    init_kwargs = kwargs.get('kwargs', {})
-    init_kwargs.update({DATADOG_PIN: pin, DATADOG_CONTEXT: ctx})
-    kwargs['kwargs'] = init_kwargs
+    datadog_kwargs = {DATADOG_PIN: pin, DATADOG_CONTEXT: ctx}
+
+    if len(args) > 0:
+        # use positional arguments
+        init_kwargs = args[-1]
+        init_kwargs.update(datadog_kwargs)
+        args = tuple(list(args[:-1]) + [init_kwargs])
+    else:
+        # use named arguments
+        init_kwargs = kwargs.get("kwargs", {})
+        init_kwargs.update(datadog_kwargs)
+        kwargs["kwargs"] = init_kwargs
+
     wrapped(*args, **kwargs)
 
 
 def _patch_process_run(wrapped, instance, args, kwargs):
-    # retrieve pin from keyword arguments passed to target function
-    pin = instance._kwargs.get(DATADOG_PIN)
-    if pin is None:
+    # access private property of Process instance where keyword arguments are
+    # stored
+    instance_kwargs = getattr(instance, "_kwargs", {})
+
+    # retrieve pin and context attached to process
+    pin = instance_kwargs.get(DATADOG_PIN)
+    ctx = instance_kwargs.get(DATADOG_CONTEXT)
+    if pin is None or ctx is None:
         return wrapped(*args, **kwargs)
 
-    # retrieve context at time of initialization and activate in tracer
-    ctx = instance._kwargs.get(DATADOG_CONTEXT)
-    if ctx is not None:
-        pin.tracer.context_provider.activate(ctx)
-
-    # stash patched set of kwargs before calling target function
-    stashed_kwargs = instance._kwargs
+    pin.tracer.context_provider.activate(ctx)
 
     try:
-        # replace instance kwargs within a try:finally to ensure stashed kwargs
+        # replace instance kwargs within a try:finally to ensure original kwargs
         # are re-attached to instance
-        instance._kwargs = {
-            k: v
-            for (k, v) in stashed_kwargs.items()
-            if k not in (DATADOG_PIN, DATADOG_CONTEXT)
-        }
+        new_kwargs = {k: v for (k, v) in instance_kwargs.items() if k not in (DATADOG_PIN, DATADOG_CONTEXT)}
+        setattr(instance, "_kwargs", new_kwargs)
         with pin.tracer.trace(
-                "multiprocessing.run",
-                service=pin.service,
-                resource=func_name(wrapped),
-                span_type=SpanTypes.WORKER
+            "multiprocessing.run", service=pin.service, resource=func_name(wrapped), span_type=SpanTypes.WORKER
         ):
             return wrapped(*args, **kwargs)
     finally:
-        instance._kwargs = stashed_kwargs
+        setattr(instance, "_kwargs", instance_kwargs)

@@ -1,7 +1,14 @@
 import multiprocessing
-from multiprocessing import Process, SimpleQueue, Pool
+from multiprocessing import Process, Pool
+
+try:
+    # for PY3 use the SimpleQueue provided by the default context
+    from multiprocessing import SimpleQueue
+except ImportError:
+    from multiprocessing.queues import SimpleQueue
 import pytest
 import os
+from ddtrace.compat import PY2
 
 
 @pytest.fixture
@@ -35,22 +42,24 @@ def tracer(monkeypatch):
             return traces
 
     from ddtrace.contrib.multiprocessing import patch, unpatch
+
     patch()
 
     from ddtrace import Pin, Tracer
+
     tracer = Tracer()
-    monkeypatch.setattr(tracer, 'writer', MockWriter())
+    monkeypatch.setattr(tracer, "writer", MockWriter())
     Pin.override(multiprocessing, tracer=tracer)
 
     yield tracer
     unpatch()
 
 
-def test_single_process_no_context(tracer):
+def test_process(tracer):
     def f(name):
-        print('hello', name)
+        print("hello", name)
 
-    p = Process(target=f, args=('bob',))
+    p = Process(target=f, args=("bob",))
     p.start()
     p.join()
 
@@ -65,12 +74,61 @@ def test_single_process_no_context(tracer):
     assert spans[0]["metrics"]["system.pid"] != os.getpid()
 
 
-def test_single_process_with_context(tracer):
+def test_process_pos_args(tracer):
+    def f(name, suffix=None):
+        name = "{} {}".format(name, suffix) if suffix else name
+        print("hello {}".format(name))
+
+    p = Process(None, f, "my-process", ("bob",), dict(suffix="sr."))
+    p.start()
+    p.join()
+
+    spans = tracer.writer.pop()
+    assert len(spans) == 1
+    assert spans[0]["name"] == "multiprocessing.run"
+    assert spans[0]["parent_id"] is None
+    assert spans[0]["span_id"] is not None
+    assert spans[0]["service"] == "multiprocessing"
+    assert spans[0]["type"] == "worker"
+    assert spans[0]["error"] == 0
+    assert spans[0]["metrics"]["system.pid"] != os.getpid()
+
+
+def test_process_with_parent(tracer):
     def f(name):
-        print('hello', name)
+        print("hello", name)
 
     with tracer.trace("parent"):
-        p = Process(target=f, args=('bob',))
+        p = Process(target=f, args=("bob",))
+        p.start()
+        p.join()
+
+    spans = tracer.writer.pop()
+    assert len(spans) == 2
+
+    assert spans[1]["name"] == "parent"
+    assert spans[1]["parent_id"] is None
+    assert spans[1]["span_id"] is not None
+    assert spans[1]["metrics"]["system.pid"] == os.getpid()
+
+    assert spans[0]["name"] == "multiprocessing.run"
+    assert spans[0]["parent_id"] == spans[1]["span_id"]
+    assert spans[0]["span_id"] is not None
+    assert spans[0]["service"] == "multiprocessing"
+    assert spans[0]["type"] == "worker"
+    assert spans[0]["error"] == 0
+    assert "system.pid" not in spans[0]["metrics"]
+
+
+@pytest.mark.skipif(PY2, reason="start methods added in Python 3.4")
+def test_process_forked(tracer):
+    def f(name):
+        print("hello", name)
+
+    mp_ctx = multiprocessing.get_context("fork")
+
+    with tracer.trace("parent"):
+        p = mp_ctx.Process(target=f, args=("bob",))
         p.start()
         p.join()
 

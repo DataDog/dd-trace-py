@@ -4,7 +4,7 @@
 from ...utils.importlib import require_modules
 
 
-required_modules = ['multiprocessing']
+required_modules = ["multiprocessing"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -13,4 +13,4 @@ with require_modules(required_modules) as missing_modules:
         patch = _patch.patch
         unpatch = _patch.unpatch
 
-        __all__ = ['patch', 'unpatch']
+        __all__ = ["patch", "unpatch"]

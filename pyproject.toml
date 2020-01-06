@@ -18,7 +18,54 @@ exclude = '''
     [^/]+\.py
     | bootstrap/
     | commands/
-    | contrib/
+    | contrib/(
+      [^/]+\.py
+      | aiobotocore/
+      | aiohttp/
+      | aiopg/
+      | algoliasearch/
+      | asyncio/
+      | boto/
+      | botocore/
+      | bottle/
+      | cassandra/
+      | celery/
+      | consul/
+      | dbapi/
+      | django/
+      | dogpile_cache/
+      | elasticsearch/
+      | falcon/
+      | flask/
+      | flask_cache/
+      | futures/
+      | gevent/
+      | grpc/
+      | httplib/
+      | jinja2/
+      | kombu/
+      | logging/
+      | mako/
+      | molten/
+      | mongoengine/
+      | mysql/
+      | mysqldb/
+      | psycopg/
+      | pylibmc/
+      | pylons/
+      | pymemcache/
+      | pymongo/
+      | pymysql/
+      | pyramid/
+      | redis/
+      | rediscluster/
+      | requests/
+      | sqlalchemy/
+      | sqlite3/
+      | tornado/
+      | urllib3/
+      | vertica/
+    )
     | ext/
     | http/
     | internal/
@@ -28,6 +75,66 @@ exclude = '''
     | utils/
     | vendor/
   )
-  | tests/
+  | tests/(
+    [^/]+\.py
+    | base
+    | commands
+    | contrib/(
+      [^/]+\.py
+      | aiobotocore/
+      | aiohttp/
+      | aiopg/
+      | algoliasearch/
+      | asyncio/
+      | boto/
+      | botocore/
+      | bottle/
+      | cassandra/
+      | celery/
+      | consul/
+      | dbapi/
+      | django/
+      | djangorestframework/
+      | dogpile_cache/
+      | elasticsearch/
+      | falcon/
+      | flask/
+      | flask_autopatch/
+      | flask_cache/
+      | futures/
+      | gevent/
+      | grpc/
+      | httplib/
+      | jinja2/
+      | kombu/
+      | logging/
+      | mako/
+      | molten/
+      | mongoengine/
+      | mysql/
+      | mysqldb/
+      | psycopg/
+      | pylibmc/
+      | pylons/
+      | pymemcache/
+      | pymongo/
+      | pymysql/
+      | pyramid/
+      | redis/
+      | rediscluster/
+      | requests/
+      | requests_gevent/
+      | sqlalchemy/
+      | sqlite3/
+      | tornado/
+      | vertica/
+    )
+  | internal
+  | opentracer
+  | propagation
+  | unit
+  | utils
+  | vendor
+  )
 )
 '''
