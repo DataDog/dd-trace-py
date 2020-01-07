@@ -11,7 +11,7 @@ except ImportError:
 from ... import Pin, config
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
-from ...utils.formats import asbool, get_env
+from ...utils.formats import get_env
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
 
@@ -24,10 +24,7 @@ DATADOG_CONTEXT = "__datadog_context"
 # Configure default configuration
 config._add(
     "multiprocessing",
-    dict(
-        service_name=get_env("multiprocessing", "service_name", "multiprocessing"),
-        app="multiprocessing",
-    ),
+    dict(service_name=get_env("multiprocessing", "service_name", "multiprocessing"), app="multiprocessing",),
 )
 
 

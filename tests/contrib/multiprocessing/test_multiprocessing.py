@@ -11,6 +11,15 @@ import os
 from ddtrace.compat import PY2
 
 
+def hello(q, name=None):
+    msg = "hello {}".format(name) if name else "hello"
+    q.put(msg)
+
+
+def square(x):
+    return x * x
+
+
 @pytest.fixture
 def tracer(monkeypatch):
     from ddtrace.internal import writer
@@ -56,12 +65,12 @@ def tracer(monkeypatch):
 
 
 def test_process(tracer):
-    def f(name):
-        print("hello", name)
-
-    p = Process(target=f, args=("bob",))
+    q = SimpleQueue()
+    p = Process(target=hello, args=(q,))
     p.start()
     p.join()
+
+    assert q.get() == "hello"
 
     spans = tracer.writer.pop()
     assert len(spans) == 1
@@ -86,31 +95,30 @@ def test_process_pos_args(tracer):
         assert spans[0]["error"] == 0
         assert spans[0]["metrics"]["system.pid"] != os.getpid()
 
-    def f(name, suffix=None):
-        name = "{} {}".format(name, suffix) if suffix else name
-        print("hello {}".format(name))
-
     # use all positional arguments
-    p = Process(None, f, "my-process", ("bob",), dict(suffix="sr."))
+    q = SimpleQueue()
+    p = Process(None, hello, "my-process", (q,), dict(name="xyz"))
     p.start()
     p.join()
+    assert q.get() == "hello xyz"
     check()
 
     # use some positional arguments
-    p = Process(None, f, "my-process", args=("bob",), kwargs=dict(suffix="sr."))
+    q = SimpleQueue()
+    p = Process(None, hello, "my-process", args=(q,), kwargs=dict(name="xyz"))
     p.start()
     p.join()
+    assert q.get() == "hello xyz"
     check()
 
 
 def test_process_with_parent(tracer):
-    def f(name):
-        print("hello", name)
-
     with tracer.trace("parent"):
-        p = Process(target=f, args=("bob",))
+        q = SimpleQueue()
+        p = Process(target=hello, args=(q,))
         p.start()
         p.join()
+        assert q.get() == "hello"
 
     spans = tracer.writer.pop()
     assert len(spans) == 2
@@ -131,15 +139,14 @@ def test_process_with_parent(tracer):
 
 @pytest.mark.skipif(PY2, reason="start methods added in Python 3.4")
 def test_process_forked(tracer):
-    def f(name):
-        print("hello", name)
-
     mp_ctx = multiprocessing.get_context("fork")
 
     with tracer.trace("parent"):
-        p = mp_ctx.Process(target=f, args=("bob",))
+        q = mp_ctx.SimpleQueue()
+        p = mp_ctx.Process(target=hello, args=(q,))
         p.start()
         p.join()
+        assert q.get() == "hello"
 
     spans = tracer.writer.pop()
     assert len(spans) == 2
@@ -159,10 +166,11 @@ def test_process_forked(tracer):
 
 
 def test_pool_map(tracer):
-    def f(x):
-        return x * x
-
     p = Pool(processes=4)
-    result = p.map(f, [1, 2, 3])
+    result = p.map(square, [1, 2, 3])
 
     assert result == [1, 4, 9]
+
+    spans = tracer.writer.pop()
+    # TODO: Add support for pool maps
+    assert len(spans) == 0
