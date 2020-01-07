@@ -39,7 +39,7 @@ def tracer(monkeypatch):
             traces = []
             while not self._trace_queue.empty():
                 traces.extend(self._trace_queue.get())
-            return traces
+            return list(reversed(traces))
 
     from ddtrace.contrib.multiprocessing import patch, unpatch
 
@@ -115,18 +115,18 @@ def test_process_with_parent(tracer):
     spans = tracer.writer.pop()
     assert len(spans) == 2
 
-    assert spans[1]["name"] == "parent"
-    assert spans[1]["parent_id"] is None
-    assert spans[1]["span_id"] is not None
-    assert spans[1]["metrics"]["system.pid"] == os.getpid()
-
-    assert spans[0]["name"] == "multiprocessing.run"
-    assert spans[0]["parent_id"] == spans[1]["span_id"]
+    assert spans[0]["name"] == "parent"
+    assert spans[0]["parent_id"] is None
     assert spans[0]["span_id"] is not None
-    assert spans[0]["service"] == "multiprocessing"
-    assert spans[0]["type"] == "worker"
-    assert spans[0]["error"] == 0
-    assert "system.pid" not in spans[0]["metrics"]
+    assert spans[0]["metrics"]["system.pid"] == os.getpid()
+
+    assert spans[1]["name"] == "multiprocessing.run"
+    assert spans[1]["parent_id"] == spans[0]["span_id"]
+    assert spans[1]["span_id"] is not None
+    assert spans[1]["service"] == "multiprocessing"
+    assert spans[1]["type"] == "worker"
+    assert spans[1]["error"] == 0
+    assert "system.pid" not in spans[1]["metrics"]
 
 
 @pytest.mark.skipif(PY2, reason="start methods added in Python 3.4")
@@ -144,18 +144,18 @@ def test_process_forked(tracer):
     spans = tracer.writer.pop()
     assert len(spans) == 2
 
-    assert spans[1]["name"] == "parent"
-    assert spans[1]["parent_id"] is None
-    assert spans[1]["span_id"] is not None
-    assert spans[1]["metrics"]["system.pid"] == os.getpid()
-
-    assert spans[0]["name"] == "multiprocessing.run"
-    assert spans[0]["parent_id"] == spans[1]["span_id"]
+    assert spans[0]["name"] == "parent"
+    assert spans[0]["parent_id"] is None
     assert spans[0]["span_id"] is not None
-    assert spans[0]["service"] == "multiprocessing"
-    assert spans[0]["type"] == "worker"
-    assert spans[0]["error"] == 0
-    assert "system.pid" not in spans[0]["metrics"]
+    assert spans[0]["metrics"]["system.pid"] == os.getpid()
+
+    assert spans[1]["name"] == "multiprocessing.run"
+    assert spans[1]["parent_id"] == spans[0]["span_id"]
+    assert spans[1]["span_id"] is not None
+    assert spans[1]["service"] == "multiprocessing"
+    assert spans[1]["type"] == "worker"
+    assert spans[1]["error"] == 0
+    assert "system.pid" not in spans[1]["metrics"]
 
 
 def test_pool_map(tracer):
