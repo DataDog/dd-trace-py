@@ -75,23 +75,32 @@ def test_process(tracer):
 
 
 def test_process_pos_args(tracer):
+    def check():
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0]["name"] == "multiprocessing.run"
+        assert spans[0]["parent_id"] is None
+        assert spans[0]["span_id"] is not None
+        assert spans[0]["service"] == "multiprocessing"
+        assert spans[0]["type"] == "worker"
+        assert spans[0]["error"] == 0
+        assert spans[0]["metrics"]["system.pid"] != os.getpid()
+
     def f(name, suffix=None):
         name = "{} {}".format(name, suffix) if suffix else name
         print("hello {}".format(name))
 
+    # use all positional arguments
     p = Process(None, f, "my-process", ("bob",), dict(suffix="sr."))
     p.start()
     p.join()
+    check()
 
-    spans = tracer.writer.pop()
-    assert len(spans) == 1
-    assert spans[0]["name"] == "multiprocessing.run"
-    assert spans[0]["parent_id"] is None
-    assert spans[0]["span_id"] is not None
-    assert spans[0]["service"] == "multiprocessing"
-    assert spans[0]["type"] == "worker"
-    assert spans[0]["error"] == 0
-    assert spans[0]["metrics"]["system.pid"] != os.getpid()
+    # use some positional arguments
+    p = Process(None, f, "my-process", args=("bob",), kwargs=dict(suffix="sr."))
+    p.start()
+    p.join()
+    check()
 
 
 def test_process_with_parent(tracer):

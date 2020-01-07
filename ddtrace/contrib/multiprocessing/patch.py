@@ -7,7 +7,6 @@ try:
     from multiprocessing.process import BaseProcess as Process
 except ImportError:
     from multiprocessing.process import Process
-from multiprocessing.pool import Pool
 
 from ... import Pin, config
 from ...ext import SpanTypes
@@ -28,7 +27,6 @@ config._add(
     dict(
         service_name=get_env("multiprocessing", "service_name", "multiprocessing"),
         app="multiprocessing",
-        distributed_tracing=asbool(get_env("multiprocessing", "distributed_tracing", True)),
     ),
 )
 
@@ -51,7 +49,6 @@ def unpatch():
 
     _u(Process, "__init__")
     _u(Process, "run")
-    _u(Pool, "__init__")
 
 
 def _patch_process_init(wrapped, instance, args, kwargs):
@@ -61,18 +58,22 @@ def _patch_process_init(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     ctx = pin.tracer.get_call_context().clone()
-
     datadog_kwargs = {DATADOG_PIN: pin, DATADOG_CONTEXT: ctx}
 
-    if len(args) > 0:
-        # use positional arguments
+    # ``kwargs`` argument to Process can either be the 5th and final positional
+    # argument or a named arguments
+    kwargs_in_args = len(args) == 5
+
+    if kwargs_in_args:
         init_kwargs = args[-1]
-        init_kwargs.update(datadog_kwargs)
+    else:
+        init_kwargs = kwargs.get("kwargs", {})
+
+    init_kwargs.update(datadog_kwargs)
+
+    if kwargs_in_args:
         args = tuple(list(args[:-1]) + [init_kwargs])
     else:
-        # use named arguments
-        init_kwargs = kwargs.get("kwargs", {})
-        init_kwargs.update(datadog_kwargs)
         kwargs["kwargs"] = init_kwargs
 
     wrapped(*args, **kwargs)
