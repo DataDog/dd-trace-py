@@ -12,7 +12,7 @@ from .internal.runtime import RuntimeTags, RuntimeWorker
 from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
+from .sampler import BaseSampler, DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
@@ -114,7 +114,7 @@ class Tracer(object):
             port=port,
             https=https,
             uds_path=uds_path,
-            sampler=AllSampler(),
+            sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=dogstatsd_url,
         )
@@ -229,7 +229,7 @@ class Tracer(object):
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None:
+                filters is not None or priority_sampling is not None or sampler is not None:
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
@@ -247,6 +247,7 @@ class Tracer(object):
                 uds_path=uds_path,
                 https=https,
                 filters=filters,
+                sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
             )
