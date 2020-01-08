@@ -69,7 +69,7 @@ def _patch_process_init(wrapped, instance, args, kwargs):
     init_kwargs.update(datadog_kwargs)
 
     if kwargs_in_args:
-        args = tuple(list(args[:-1]) + [init_kwargs])
+        args = tuple(args[:-1]) + (init_kwargs,)
     else:
         kwargs["kwargs"] = init_kwargs
 
