@@ -12,7 +12,7 @@ from .internal.runtime import RuntimeTags, RuntimeWorker
 from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import BaseSampler, DatadogSampler, RateSampler, RateByServiceSampler
+from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
