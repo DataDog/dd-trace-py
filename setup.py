@@ -59,7 +59,7 @@ documentation][visualization docs].
 # psutil used to generate runtime metrics for tracer
 # enum34 is an enum backport for earlier versions of python
 # funcsigs backport required for vendored debtcollector
-install_requires = ["psutil>=5.0.0", "enum34; python_version<'3.4'", "funcsigs; python_version<'3.3'"]
+install_requires = ["psutil>=5.0.0", "enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'"]
 
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
