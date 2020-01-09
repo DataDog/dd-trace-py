@@ -58,7 +58,7 @@ documentation][visualization docs].
 
 # psutil used to generate runtime metrics for tracer
 # enum34 is an enum backport for earlier versions of python
-install_requires = ["psutil>=5.0.0", "enum34; python_version<='3.4'"]
+install_requires = ["psutil>=5.0.0", "enum34; python_version<'3.4'"]
 
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
