@@ -32,6 +32,32 @@ By default, reported service names are:
     * ``celery-producer`` when tasks are enqueued for processing
     * ``celery-worker`` when tasks are processed by a Celery process
 
+
+Distributed Tracing across celery tasks
+
+By default, ddtrace does not propagate trace_id when calling tasks, when you
+call ``apply_async()`` from your main application or from another celery task,
+the child task will be assigned a new trace.
+
+If you want to follow a trace across when you call a celery tasks, you will
+need to pass trace_id along to the child task. ddtrace currently don't have
+trace propagator for celery tasks, but you can use Celery-OpenTracing and
+ddtrace's opentracing support. To do this:
+
+1. Install ddtrace with opentracing support and Celery-OpenTracing:
+
+    pip install ddtrace[opentracing] Celery-OpenTracing
+
+2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+
+    from celery_opentracing import CeleryTracing
+    from ddtrace.opentracer import set_global_tracer, Tracer
+
+    ddtracer = Tracer()
+    set_global_tracer(ddtracer)
+
+    app = CeleryTracing(app, tracer=ddtracer)
+
 """
 from ...utils.importlib import require_modules
 
