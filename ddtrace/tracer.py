@@ -371,6 +371,8 @@ class Tracer(object):
                         context.sampling_priority = AUTO_REJECT
             else:
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                # We must always mark the span as sampled so it is forwarded to the agent
+                span.sampled = True
 
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications

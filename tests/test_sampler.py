@@ -658,9 +658,9 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         assert sampler.sample(span) is True
         assert span._context.sampling_priority is AUTO_KEEP
         assert span.sampled is True
-        mock_is_allowed.assert_called_once()
+        mock_is_allowed.assert_not_called()
         sampler.default_sampler.sample.assert_called_once_with(span)
-        assert_sampling_decision_tags(span, agent=1, limit=1)
+        assert_sampling_decision_tags(span, agent=1)
 
         [r.matches.assert_called_once_with(span) for r in rules]
         [r.sample.assert_not_called() for r in rules]
@@ -705,8 +705,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -717,8 +716,9 @@ def test_datadog_sampler_tracer(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-        # We know it was sampled because we have a sample rate of 1.0
+        # It must always mark it as sampled
         assert span.sampled is True
+        # We know it was sampled because we have a sample rate of 1.0
         assert span._context.sampling_priority is AUTO_KEEP
         assert_sampling_decision_tags(span, rule=1.0)
 
@@ -734,8 +734,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -746,8 +745,8 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-        # We know it was not sampled because of our limiter
-        assert span.sampled is False
+        # We must always mark the span as sampled
+        assert span.sampled is True
         assert span._context.sampling_priority is AUTO_REJECT
         assert_sampling_decision_tags(span, rule=1.0, limit=None)
 
@@ -762,8 +761,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -774,8 +772,9 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_not_called()
 
+        # It must always mark it as sampled
+        assert span.sampled is True
         # We know it was not sampled because we have a sample rate of 0.0
-        assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
         assert_sampling_decision_tags(span, rule=0)
 
@@ -790,8 +789,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -824,8 +822,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     sampler.limiter = limiter_spy
     sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
 
-    # TODO: Remove `priority_sampling=False` when we remove fallback
-    dummy_tracer.configure(sampler=sampler_spy, priority_sampling=False)
+    dummy_tracer.configure(sampler=sampler_spy)
 
     assert dummy_tracer.sampler is sampler_spy
 
@@ -837,8 +834,9 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule_spy.sample.assert_called_once_with(span)
     limiter_spy.is_allowed.assert_called_once_with()
 
-    # We know it was sampled because we have a sample rate of 1.0
+    # It must always mark it as sampled
     assert span.sampled is True
+    # We know it was sampled because we have a sample rate of 1.0
     assert span._context.sampling_priority is AUTO_KEEP
     assert_sampling_decision_tags(span, rule=1.0)
 

@@ -122,7 +122,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
     __slots__ = ('default_sampler', 'limiter', 'rules')
 
     NO_RATE_LIMIT = -1
-    DEFAULT_RATE_LIMIT = NO_RATE_LIMIT
+    DEFAULT_RATE_LIMIT = 100
     DEFAULT_SAMPLE_RATE = None
 
     def __init__(self, rules=None, default_sample_rate=None, rate_limit=None):
@@ -131,10 +131,10 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
         :type rules: :obj:`list` of :class:`SamplingRule`
-        :param default_sample_rate: The default sample rate to apply if no rules matched (default: 1.0)
+        :param default_sample_rate: The default sample rate to apply if no rules matched (default: ``1.0``)
         :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
-            applied to them, (default: no rate limit)
+            applied to them, (default: ``100``)
         :type rate_limit: :obj:`int`
         """
         if default_sample_rate is None:
@@ -200,15 +200,20 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
                 matching_rule = rule
                 break
         else:
+            # If this is the old sampler, sample and return
+            if isinstance(self.default_sampler, RateByServiceSampler):
+                if self.default_sampler.sample(span):
+                    self._set_priority(span, AUTO_KEEP)
+                    return True
+                else:
+                    self._set_priority(span, AUTO_REJECT)
+                    return False
+
             # If no rules match, use our defualt sampler
-            # This may be a RateByServiceSampler
             matching_rule = self.default_sampler
 
         # Sample with the matching sampling rule
-        # Only set if it isn't the default RateByServiceSampler
-        #   since that gets it's own metric
-        if isinstance(matching_rule, SamplingRule):
-            span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
+        span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
         if not matching_rule.sample(span):
             self._set_priority(span, AUTO_REJECT)
             return False
