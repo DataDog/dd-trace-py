@@ -131,7 +131,7 @@ class DatadogSampler(BaseSampler, BasePrioritySampler):
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
         :type rules: :obj:`list` of :class:`SamplingRule`
-        :param default_sample_rate: The default sample rate to apply if no rules matched (default: ``1.0``)
+        :param default_sample_rate: The default sample rate to apply if no rules matched (default: ``None``/Use :class:`RateByServiceSampler` only)
         :type default_sample_rate: float 0 <= X <= 1.0
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
