@@ -64,7 +64,7 @@ def tracer(monkeypatch):
     unpatch()
 
 
-def test_process(tracer):
+def test_process_no_context(tracer):
     q = SimpleQueue()
     p = Process(target=hello, args=(q,))
     p.start()
@@ -73,43 +73,7 @@ def test_process(tracer):
     assert q.get() == "hello"
 
     spans = tracer.writer.pop()
-    assert len(spans) == 1
-    assert spans[0]["name"] == "multiprocessing.run"
-    assert spans[0]["parent_id"] is None
-    assert spans[0]["span_id"] is not None
-    assert spans[0]["service"] == "multiprocessing"
-    assert spans[0]["type"] == "worker"
-    assert spans[0]["error"] == 0
-    assert spans[0]["metrics"]["system.pid"] != os.getpid()
-
-
-def test_process_pos_args(tracer):
-    def check():
-        spans = tracer.writer.pop()
-        assert len(spans) == 1
-        assert spans[0]["name"] == "multiprocessing.run"
-        assert spans[0]["parent_id"] is None
-        assert spans[0]["span_id"] is not None
-        assert spans[0]["service"] == "multiprocessing"
-        assert spans[0]["type"] == "worker"
-        assert spans[0]["error"] == 0
-        assert spans[0]["metrics"]["system.pid"] != os.getpid()
-
-    # use all positional arguments
-    q = SimpleQueue()
-    p = Process(None, hello, "my-process", (q,), dict(name="xyz"))
-    p.start()
-    p.join()
-    assert q.get() == "hello xyz"
-    check()
-
-    # use some positional arguments
-    q = SimpleQueue()
-    p = Process(None, hello, "my-process", args=(q,), kwargs=dict(name="xyz"))
-    p.start()
-    p.join()
-    assert q.get() == "hello xyz"
-    check()
+    assert len(spans) == 0
 
 
 def test_process_with_parent(tracer):
@@ -134,7 +98,44 @@ def test_process_with_parent(tracer):
     assert spans[1]["service"] == "multiprocessing"
     assert spans[1]["type"] == "worker"
     assert spans[1]["error"] == 0
-    assert "system.pid" not in spans[1]["metrics"]
+    assert spans[1]["metrics"]["system.pid"] != os.getpid()
+
+
+def test_process_pos_args(tracer):
+    def check():
+        spans = tracer.writer.pop()
+        assert len(spans) == 2
+        assert spans[0]["name"] == "parent"
+        assert spans[0]["parent_id"] is None
+        assert spans[0]["span_id"] is not None
+        assert spans[0]["metrics"]["system.pid"] == os.getpid()
+        assert spans[1]["name"] == "multiprocessing.run"
+        assert spans[1]["parent_id"] == spans[0]["span_id"]
+        assert spans[1]["span_id"] is not None
+        assert spans[1]["service"] == "multiprocessing"
+        assert spans[1]["type"] == "worker"
+        assert spans[1]["error"] == 0
+        assert spans[1]["metrics"]["system.pid"] != os.getpid()
+
+    with tracer.trace("parent"):
+        # use all positional arguments
+        q = SimpleQueue()
+        p = Process(None, hello, "my-process", (q,), dict(name="xyz"))
+        p.start()
+        p.join()
+        assert q.get() == "hello xyz"
+
+    check()
+
+    with tracer.trace("parent"):
+        # use some positional arguments
+        q = SimpleQueue()
+        p = Process(None, hello, "my-process", args=(q,), kwargs=dict(name="xyz"))
+        p.start()
+        p.join()
+        assert q.get() == "hello xyz"
+
+    check()
 
 
 @pytest.mark.skipif(PY2, reason="start methods added in Python 3.4")
@@ -162,15 +163,41 @@ def test_process_forked(tracer):
     assert spans[1]["service"] == "multiprocessing"
     assert spans[1]["type"] == "worker"
     assert spans[1]["error"] == 0
-    assert "system.pid" not in spans[1]["metrics"]
+    assert spans[1]["metrics"]["system.pid"] != os.getpid()
 
 
-def test_pool_map(tracer):
-    p = Pool(processes=4)
+def test_pool_map_no_context(tracer):
+    p = Pool(processes=1)
     result = p.map(square, [1, 2, 3])
 
     assert result == [1, 4, 9]
 
     spans = tracer.writer.pop()
-    # TODO: Add support for pool maps
     assert len(spans) == 0
+
+
+def test_pool_map_with_parent(tracer):
+    with tracer.trace("parent"):
+        p = Pool(processes=1)
+        result = p.map(square, [1, 2, 3])
+
+        assert result == [1, 4, 9]
+
+    spans = tracer.writer.pop()
+
+    assert len(spans) == 4
+
+    assert spans[0]["name"] == "parent"
+    assert spans[0]["parent_id"] is None
+    assert spans[0]["span_id"] is not None
+    assert spans[0]["metrics"]["system.pid"] == os.getpid()
+
+    for span in spans[1:]:
+        assert span["name"] == "multiprocessing"
+        assert span["parent_id"] == spans[0]["span_id"]
+        assert span["span_id"] is not None
+        assert span["service"] == "multiprocessing"
+        assert span["type"] == "worker"
+        assert span["error"] == 0
+        assert span["resource"] == "tests.contrib.multiprocessing.test_multiprocessing.square"
+        assert span["metrics"]["system.pid"] != os.getpid()
