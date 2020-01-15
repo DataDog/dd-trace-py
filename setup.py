@@ -86,9 +86,9 @@ documentation][visualization docs].
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
-install_requires = []
-if sys.version_info < (3, 4):
-    install_requires.append("enum34")
+# enum34 is an enum backport for earlier versions of python
+# funcsigs backport required for vendored debtcollector
+install_requires = ["enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'"]
 
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
