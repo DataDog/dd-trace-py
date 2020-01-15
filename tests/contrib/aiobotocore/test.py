@@ -3,7 +3,6 @@ from botocore.errorfactory import ClientError
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import http
 from ddtrace.compat import stringify
 
 from .utils import aiobotocore_client

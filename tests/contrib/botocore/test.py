@@ -6,7 +6,6 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_km
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch, unpatch
-from ddtrace.ext import http
 from ddtrace.compat import stringify
 
 # testing
