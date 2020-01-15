@@ -153,13 +153,18 @@ class Span(object):
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+        # Special case, force `http.status_code` as a string
+        # DEV: `http.status_code` *has* to be in `meta` for metrics
+        #   calculated in the trace agent
+        if key == http.STATUS_CODE:
+            value = str(value)
 
         # Determine once up front
         is_an_int = is_integer(value)
 
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        INT_TYPES = (net.TARGET_PORT, http.STATUS_CODE)
+        INT_TYPES = (net.TARGET_PORT, )
         if key in INT_TYPES and not is_an_int:
             try:
                 value = int(value)
