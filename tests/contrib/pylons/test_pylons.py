@@ -174,7 +174,7 @@ class PylonsTestCase(BaseTracerTestCase):
 
         assert span.service == 'web'
         assert span.resource == 'root.index'
-        assert span.metrics.get(http.STATUS_CODE) == 200
+        assert_span_http_status_code(span, 200)
         if config.pylons.trace_query_string:
             assert span.meta.get(http.QUERY_STRING) == query_string
         else:
@@ -264,7 +264,7 @@ class PylonsTestCase(BaseTracerTestCase):
 
         assert request.service == 'web'
         assert request.resource == 'root.render'
-        assert request.metrics.get(http.STATUS_CODE) == 200
+        assert_span_http_status_code(request, 200)
         assert request.error == 0
 
         assert template.service == 'web'
@@ -284,7 +284,7 @@ class PylonsTestCase(BaseTracerTestCase):
 
         assert request.service == 'web'
         assert request.resource == 'root.render_exception'
-        assert request.metrics.get(http.STATUS_CODE) == 500
+        assert_span_http_status_code(request, 500)
         assert request.error == 1
 
         assert template.service == 'web'
@@ -424,6 +424,6 @@ class PylonsTestCase(BaseTracerTestCase):
 
         assert dd_span.service == 'web'
         assert dd_span.resource == 'root.index'
-        assert dd_span.metrics.get(http.STATUS_CODE) == 200
+        assert_span_http_status_code(dd_span, 200)
         assert dd_span.meta.get(http.URL) == 'http://localhost:80/'
         assert dd_span.error == 0
