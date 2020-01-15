@@ -83,7 +83,8 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Request tags
         self.assertEqual(
-            set(['flask.version', 'http.url', 'http.method', 'flask.endpoint', 'flask.url_rule']),
+            set(['flask.version', 'http.url', 'http.method', 'http.status_code',
+                 'flask.endpoint', 'flask.url_rule']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
