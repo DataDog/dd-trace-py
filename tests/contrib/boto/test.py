@@ -18,6 +18,7 @@ from ddtrace.ext import http
 from unittest import skipUnless
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_span_http_status_code
 
 
 class BotoTest(BaseTracerTestCase):
@@ -41,7 +42,7 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'POST')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -53,7 +54,7 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertEqual(span.get_tag('aws.operation'), 'RunInstances')
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'POST')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.service, 'test-boto-tracing.ec2')
@@ -107,7 +108,7 @@ class BotoTest(BaseTracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'GET')
         self.assertEqual(span.get_tag('aws.operation'), 'get_all_buckets')
 
@@ -117,7 +118,7 @@ class BotoTest(BaseTracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'PUT')
         self.assertEqual(span.get_tag('path'), '/')
         self.assertEqual(span.get_tag('aws.operation'), 'create_bucket')
@@ -128,7 +129,7 @@ class BotoTest(BaseTracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'HEAD')
         self.assertEqual(span.get_tag('aws.operation'), 'head_bucket')
         self.assertEqual(span.service, 'test-boto-tracing.s3')
@@ -161,7 +162,7 @@ class BotoTest(BaseTracerTestCase):
         # create bucket
         self.assertEqual(len(spans), 3)
         self.assertEqual(spans[0].get_tag('aws.operation'), 'create_bucket')
-        self.assertEqual(spans[0].get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(spans[0], 200)
         self.assertEqual(spans[0].service, 'test-boto-tracing.s3')
         self.assertEqual(spans[0].resource, 's3.put')
         # get bucket
@@ -215,7 +216,7 @@ class BotoTest(BaseTracerTestCase):
         assert spans
         self.assertEqual(len(spans), 2)
         span = spans[0]
-        self.assertEqual(span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), 'GET')
         self.assertEqual(span.get_tag('aws.region'), 'us-east-2')
         self.assertEqual(span.get_tag('aws.operation'), 'list_functions')
@@ -285,7 +286,7 @@ class BotoTest(BaseTracerTestCase):
 
         self.assertEqual(ot_span.resource, 'ot_span')
         self.assertEqual(dd_span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(dd_span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), 'POST')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
 
@@ -301,7 +302,7 @@ class BotoTest(BaseTracerTestCase):
         self.assertEqual(dd_span.parent_id, ot_span.span_id)
 
         self.assertEqual(dd_span.get_tag('aws.operation'), 'RunInstances')
-        self.assertEqual(dd_span.get_metric(http.STATUS_CODE), 200)
+        assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.get_tag(http.METHOD), 'POST')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(dd_span.service, 'test-boto-tracing.ec2')

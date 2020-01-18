@@ -3,6 +3,7 @@ from django.apps import apps
 from unittest import skipIf
 
 from tests.contrib.django.utils import DjangoTraceTestCase
+from ...utils import assert_span_http_status_code
 
 
 @skipIf(django.VERSION < (1, 10), 'requires django version >= 1.10')
@@ -38,7 +39,7 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert sp.resource == 'tests.contrib.djangorestframework.app.views.UserViewSet'
         assert sp.error == 0
         assert sp.span_type == 'web'
-        assert sp.get_metric('http.status_code') == 500
+        assert_span_http_status_code(sp, 500)
         assert sp.get_tag('error.msg') is None
 
     def test_trace_exceptions(self):
@@ -56,6 +57,6 @@ class RestFrameworkTest(DjangoTraceTestCase):
         assert sp.error == 1
         assert sp.span_type == 'web'
         assert sp.get_tag('http.method') == 'GET'
-        assert sp.get_metric('http.status_code') == 500
+        assert_span_http_status_code(sp, 500)
         assert sp.get_tag('error.msg') == 'Authentication credentials were not provided.'
         assert 'NotAuthenticated' in sp.get_tag('error.stack')

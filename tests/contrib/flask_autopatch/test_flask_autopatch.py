@@ -8,6 +8,7 @@ from ddtrace.ext import http
 from ddtrace import Pin
 
 from ...test_tracer import get_dummy_tracer
+from ...utils import assert_span_http_status_code
 
 
 class FlaskAutopatchTestCase(unittest.TestCase):
@@ -82,14 +83,15 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Request tags
         self.assertEqual(
-            set(['flask.version', 'http.url', 'http.method', 'flask.endpoint', 'flask.url_rule']),
+            set(['flask.version', 'http.url', 'http.method', 'http.status_code',
+                 'flask.endpoint', 'flask.url_rule']),
             set(req_span.meta.keys()),
         )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
-        self.assertEqual(req_span.get_metric('http.status_code'), 200)
+        assert_span_http_status_code(req_span, 200)
 
         # Handler span
         handler_span = spans[4]
