@@ -49,12 +49,12 @@ def patch():
 
     _w(Process, "__init__", _patch_process_init)
     _w(Process, "run", _patch_process_run)
+    _w(Pool, "_setup_queues", _patch_pool_setup_queues)
 
     if PY3 and (ForkProcess is not None and SpawnProcess is not None and ForkServerProcess is not None):
         _w(ForkProcess, "__init__", _patch_process_init)
         _w(SpawnProcess, "__init__", _patch_process_init)
         _w(ForkServerProcess, "__init__", _patch_process_init)
-        _w(Pool, "_setup_queues", _patch_pool_setup_queues)
 
 
 def unpatch():
