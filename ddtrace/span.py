@@ -12,6 +12,12 @@ from .internal.logger import get_logger
 log = get_logger(__name__)
 
 
+if sys.version_info.major < 3:
+    _getrandbits = random.SystemRandom().getrandbits
+else:
+    _getrandbits = random.getrandbits
+
+
 class Span(object):
 
     __slots__ = [
@@ -383,9 +389,6 @@ class Span(object):
         )
 
 
-_SystemRandom = random.SystemRandom()
-
-
 def _new_id():
     """Generate a random trace_id or span_id"""
-    return _SystemRandom.getrandbits(64)
+    return _getrandbits(64)
