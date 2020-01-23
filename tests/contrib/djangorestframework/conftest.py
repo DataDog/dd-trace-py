@@ -1,8 +1,11 @@
+__all__ = ["pytest_configure", "test_spans"]
+
 import os
 import django
 from django.conf import settings
 
 from ddtrace.contrib.django import patch
+from ..django.conftest import test_spans
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`

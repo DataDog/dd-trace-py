@@ -1,8 +1,7 @@
 import django
 import pytest
 
-# import fixtures from the django tests
-from tests.contrib.django.conftest import patch_django, tracer, test_spans  # noqa
+from ...utils import assert_span_http_status_code
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
@@ -21,8 +20,8 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
         assert sp.resource == "GET tests.contrib.djangorestframework.app.views.UserViewSet"
     assert sp.error == 1
     assert sp.span_type == "http"
+    assert_span_http_status_code(sp, 500)
     assert sp.get_tag("http.method") == "GET"
-    assert sp.get_tag("http.status_code") == "500"
 
     # the DRF integration should set the traceback on the django.view span
     # (as it's the current span when the exception info is set)
