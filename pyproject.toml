@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools >= 40.6.0", "setuptools-scm", "cython"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py34', 'py35', 'py36', 'py37', 'py38']
@@ -81,6 +85,7 @@ exclude = '''
     | ext/
     | http/
     | opentracer/
+    | profile/exporter/pprof_pb2.py$
     | propagation/
     | settings/
     | vendor/
@@ -167,6 +172,7 @@ exclude = '''
       | test_tracer_tornado.py
       | test_utils.py
     )
+    | profile/_ast_test_file.py
     | propagation/test_utils.py
     | subprocesstest.py
     | test_api.py
