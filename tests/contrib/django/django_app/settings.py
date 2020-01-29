@@ -60,3 +60,25 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
 ]
+
+# Allows for testing django instrumentation before migration to tracer config api
+if os.environ.get("TEST_DATADOG_DJANGO_MIGRATION"):
+    INSTALLED_APPS.append("ddtrace.contrib.django")
+    DATADOG_TRACE = {
+        "AGENT_HOSTNAME": "host-test",
+        "AGENT_PORT": 1234,
+        "AUTO_INSTRUMENT": True,
+        "INSTRUMENT_CACHE": True,
+        "INSTRUMENT_DATABASE": True,
+        "INSTRUMENT_TEMPLATE": True,
+        "DEFAULT_DATABASE_PREFIX": "db-test-",
+        "DEFAULT_SERVICE": "django-test",
+        "DEFAULT_CACHE_SERVICE": "cache-test",
+        "ENABLED": True,
+        "DISTRIBUTED_TRACING": True,
+        "ANALYTICS_ENABLED": True,
+        "ANALYTICS_SAMPLE_RATE": True,
+        "TRACE_QUERY_STRING": True,
+        "TAGS": {"env": "env-test"},
+        "TRACER": "ddtrace.tracer"
+    }

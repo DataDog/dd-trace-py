@@ -23,7 +23,7 @@ from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap, iswrapped
 
 from .compat import get_resolver, user_is_authenticated
-from . import utils
+from . import utils, conf
 
 
 wrap = wrapt.wrap_function_wrapper
@@ -192,9 +192,9 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         debtcollector.deprecate(
             (
                 "Using DATADOG_TRACE Django settings are no longer supported. "
-                "Please refer to our migration guide here: <link to doc here>"
             )
         )
+        conf.configure_from_settings(pin, config.django, settings.DATADOG_TRACE)
 
     # Instrument databases
     if config.django.instrument_databases:
