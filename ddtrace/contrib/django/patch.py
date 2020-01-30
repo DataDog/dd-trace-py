@@ -100,11 +100,17 @@ def patch_conn(django, conn):
 
 
 def instrument_dbs(django):
-    for conn in django.db.connections.all():
-        try:
-            patch_conn(django, conn)
-        except Exception:
-            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+    def all_connections(wrapped, instance, args, kwargs):
+        conns = wrapped(*args, **kwargs)
+        for conn in conns:
+            try:
+                patch_conn(django, conn)
+            except Exception:
+                log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+        return conns
+
+    if not isinstance(django.db.connections.all, wrapt.ObjectProxy):
+        django.db.connections.all = wrapt.FunctionWrapper(django.db.connections.all, all_connections)
 
 
 def _set_request_tags(span, request):
