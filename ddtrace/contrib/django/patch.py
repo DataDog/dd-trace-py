@@ -569,6 +569,9 @@ def _unpatch(django):
         unwrap(django.urls, "path")
         unwrap(django.urls, "re_path")
     unwrap(django.views.generic.base.View, "as_view")
+    for conn in django.db.connections.all():
+        unwrap(conn, "cursor")
+    unwrap(django.db.connections, "all")
 
 
 def unpatch():

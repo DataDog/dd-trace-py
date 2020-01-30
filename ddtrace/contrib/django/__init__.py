@@ -18,7 +18,6 @@ To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
 
 Configuration
 ~~~~~~~~~~~~~
-
 .. py:data:: ddtrace.config.django['distributed_tracing_enabled']
 
    Whether or not to parse distributed tracing headers from requests received by your Django app.
@@ -91,7 +90,6 @@ Example::
 
 Migration
 ~~~~~~~~~
-
 The Django integration provides automatic migration from enabling tracing using
 a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
@@ -146,7 +144,6 @@ The mapping from old configuration settings to new ones.
 
 Examples
 --------
-
 Before::
 
    # settings.py
@@ -199,7 +196,7 @@ After::
    Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 
 .. __: https://www.djangoproject.com/
-"""
+"""  # noqa: E501
 from ...utils.importlib import require_modules
 
 
