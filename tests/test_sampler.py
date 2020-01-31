@@ -15,6 +15,7 @@ from ddtrace.sampler import DatadogSampler, SamplingRule
 from ddtrace.sampler import RateSampler, AllSampler, RateByServiceSampler
 from ddtrace.span import Span
 
+from .utils import override_env
 from .test_tracer import get_dummy_tracer
 
 
@@ -150,7 +151,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
             deviation = abs(samples_with_high_priority - (iterations * sample_rate)) / (iterations * sample_rate)
             assert deviation < 0.05, 'Deviation too high %f with sample_rate %f' % (deviation, sample_rate)
 
-    def test_set_sample_rate_by_service(self):
+    def test_update_rate_by_service_sample_rates(self):
         cases = [
             {
                 'service:,env:': 1,
@@ -172,7 +173,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         tracer.configure(sampler=AllSampler())
         priority_sampler = tracer.priority_sampler
         for case in cases:
-            priority_sampler.set_sample_rate_by_service(case)
+            priority_sampler.update_rate_by_service_sample_rates(case)
             rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
@@ -181,7 +182,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
         # works as well as key insertion (and doing this both ways ensures we trigger both cases)
         cases.reverse()
         for case in cases:
-            priority_sampler.set_sample_rate_by_service(case)
+            priority_sampler.update_rate_by_service_sample_rates(case)
             rates = {}
             for k, v in iteritems(priority_sampler._by_service_samplers):
                 rates[k] = v.sample_rate
@@ -437,17 +438,33 @@ def test_datadog_sampler_init():
     sampler = DatadogSampler()
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
-    assert sampler.limiter.rate_limit == DatadogSampler.NO_RATE_LIMIT
+    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    assert isinstance(sampler.default_sampler, RateByServiceSampler)
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
-    assert sampler.limiter.rate_limit == DatadogSampler.NO_RATE_LIMIT
+    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    assert isinstance(sampler.default_sampler, RateByServiceSampler)
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
+    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+
+    # With default_sample_rate
+    sampler = DatadogSampler(default_sample_rate=0.5)
+    assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
+    assert isinstance(sampler.default_sampler, SamplingRule)
+    assert sampler.default_sampler.sample_rate == 0.5
+
+    # From env variables
+    with override_env(dict(DD_TRACE_SAMPLE_RATE='0.5', DD_TRACE_RATE_LIMIT='10')):
+        sampler = DatadogSampler()
+        assert sampler.limiter.rate_limit == 10
+        assert isinstance(sampler.default_sampler, SamplingRule)
+        assert sampler.default_sampler.sample_rate == 0.5
 
     # Invalid rules
     for val in (None, True, False, object(), 1, Exception()):
@@ -462,35 +479,32 @@ def test_datadog_sampler_init():
     assert sampler.rules == [rule_1, rule_2, rule_3]
 
 
-@mock.patch('ddtrace.internal.rate_limiter.RateLimiter.is_allowed')
-def test_datadog_sampler_sample_no_rules(mock_is_allowed, dummy_tracer):
+@mock.patch('ddtrace.sampler.RateByServiceSampler.sample')
+def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
     span = create_span(tracer=dummy_tracer)
 
-    # Default SamplingRule(sample_rate=1.0) is applied
-    #   No priority sampler configured
+    # Default RateByServiceSampler() is applied
     #   No rules configured
-    # RateLimiter is allowed, it is sampled
-    mock_is_allowed.return_value = True
+    #   No global rate limit
+    #   No rate limit configured
+    # RateByServiceSampler.sample(span) returns True
+    mock_sample.return_value = True
     assert sampler.sample(span) is True
     assert span._context.sampling_priority is AUTO_KEEP
     assert span.sampled is True
-    assert_sampling_decision_tags(span, rule=1.0, limit=1.0)
-    mock_is_allowed.assert_called_once_with()
-    mock_is_allowed.reset_mock()
 
     span = create_span(tracer=dummy_tracer)
 
-    # Default SamplingRule(sample_rate=1.0) is applied
-    #   No priority sampler configured
+    # Default RateByServiceSampler() is applied
     #   No rules configured
-    # RateLimit not allowed, it is not sampled
-    mock_is_allowed.return_value = False
+    #   No global rate limit
+    #   No rate limit configured
+    # RateByServiceSampler.sample(span) returns False
+    mock_sample.return_value = False
     assert sampler.sample(span) is False
     assert span._context.sampling_priority is AUTO_REJECT
     assert span.sampled is False
-    assert_sampling_decision_tags(span, rule=1.0, limit=1.0)
-    mock_is_allowed.assert_called_once_with()
 
 
 @mock.patch('ddtrace.internal.rate_limiter.RateLimiter.is_allowed')
@@ -504,8 +518,6 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         mock.Mock(spec=SamplingRule),
     ]
     sampler = DatadogSampler(rules=rules)
-    sampler.default_sampler = mock.Mock(spec=SamplingRule)
-    sampler.default_sampler.return_value = True
 
     # Reset all of our mocks
     @contextlib.contextmanager
@@ -515,8 +527,11 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
             for rule in rules:
                 rule.reset_mock()
                 rule.sample_rate = 0.5
-            sampler.default_sampler.reset_mock()
-            sampler.default_sampler.sample_rate = 1.0
+
+            default_rule = SamplingRule(sample_rate=1.0)
+            sampler.default_sampler = mock.Mock(spec=SamplingRule, wraps=default_rule)
+            # Mock has lots of problems with mocking/wrapping over class properties
+            sampler.default_sampler.sample_rate = default_rule.sample_rate
 
         reset()  # Reset before, just in case
         try:
@@ -624,6 +639,61 @@ def test_datadog_sampler_sample_rules(mock_is_allowed, dummy_tracer):
         rules[2].matches.assert_not_called()
         rules[2].sample.assert_not_called()
 
+    # No rules match and RateByServiceSampler is used
+    #   All rules SamplingRule.matches are called
+    #   Priority sampler's `sample` method is called
+    #   Result of priority sampler is returned
+    #   Rate limiter is not called
+    with reset_mocks():
+        span = create_span(tracer=dummy_tracer)
+
+        # Configure mock priority sampler
+        priority_sampler = RateByServiceSampler()
+        sampler.default_sampler = mock.Mock(spec=RateByServiceSampler, wraps=priority_sampler)
+
+        for rule in rules:
+            rule.matches.return_value = False
+            rule.sample.return_value = False
+
+        assert sampler.sample(span) is True
+        assert span._context.sampling_priority is AUTO_KEEP
+        assert span.sampled is True
+        mock_is_allowed.assert_not_called()
+        sampler.default_sampler.sample.assert_called_once_with(span)
+        assert_sampling_decision_tags(span, agent=1)
+
+        [r.matches.assert_called_once_with(span) for r in rules]
+        [r.sample.assert_not_called() for r in rules]
+
+    # No rules match and priority sampler is defined
+    #   All rules SamplingRule.matches are called
+    #   Priority sampler's `sample` method is called
+    #   Result of priority sampler is returned
+    #   Rate limiter is not called
+    with reset_mocks():
+        span = create_span(tracer=dummy_tracer)
+
+        # Configure mock priority sampler
+        priority_sampler = RateByServiceSampler()
+        for rate_sampler in priority_sampler._by_service_samplers.values():
+            rate_sampler.set_sample_rate(0)
+
+        sampler.default_sampler = mock.Mock(spec=RateByServiceSampler, wraps=priority_sampler)
+
+        for rule in rules:
+            rule.matches.return_value = False
+            rule.sample.return_value = False
+
+        assert sampler.sample(span) is False
+        assert span._context.sampling_priority is AUTO_REJECT
+        assert span.sampled is False
+        mock_is_allowed.assert_not_called()
+        sampler.default_sampler.sample.assert_called_once_with(span)
+        assert_sampling_decision_tags(span, agent=0)
+
+        [r.matches.assert_called_once_with(span) for r in rules]
+        [r.sample.assert_not_called() for r in rules]
+
 
 def test_datadog_sampler_tracer(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name='test.span')
@@ -646,8 +716,9 @@ def test_datadog_sampler_tracer(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-        # We know it was sampled because we have a sample rate of 1.0
+        # It must always mark it as sampled
         assert span.sampled is True
+        # We know it was sampled because we have a sample rate of 1.0
         assert span._context.sampling_priority is AUTO_KEEP
         assert_sampling_decision_tags(span, rule=1.0)
 
@@ -674,8 +745,8 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
-        # We know it was not sampled because of our limiter
-        assert span.sampled is False
+        # We must always mark the span as sampled
+        assert span.sampled is True
         assert span._context.sampling_priority is AUTO_REJECT
         assert_sampling_decision_tags(span, rule=1.0, limit=None)
 
@@ -701,8 +772,9 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_not_called()
 
+        # It must always mark it as sampled
+        assert span.sampled is True
         # We know it was not sampled because we have a sample rate of 0.0
-        assert span.sampled is False
         assert span._context.sampling_priority is AUTO_REJECT
         assert_sampling_decision_tags(span, rule=0)
 
@@ -762,7 +834,46 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule_spy.sample.assert_called_once_with(span)
     limiter_spy.is_allowed.assert_called_once_with()
 
-    # We know it was sampled because we have a sample rate of 1.0
+    # It must always mark it as sampled
     assert span.sampled is True
+    # We know it was sampled because we have a sample rate of 1.0
     assert span._context.sampling_priority is AUTO_KEEP
     assert_sampling_decision_tags(span, rule=1.0)
+
+
+def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
+    cases = [
+        {
+            'service:,env:': 1,
+        },
+        {
+            'service:,env:': 1,
+            'service:mcnulty,env:dev': 0.33,
+            'service:postgres,env:dev': 0.7,
+        },
+        {
+            'service:,env:': 1,
+            'service:mcnulty,env:dev': 0.25,
+            'service:postgres,env:dev': 0.5,
+            'service:redis,env:prod': 0.75,
+        },
+    ]
+
+    # By default sampler sets it's default sampler to RateByServiceSampler
+    sampler = DatadogSampler()
+    for case in cases:
+        sampler.update_rate_by_service_sample_rates(case)
+        rates = {}
+        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+            rates[k] = v.sample_rate
+        assert case == rates, '%s != %s' % (case, rates)
+
+    # It's important to also test in reverse mode for we want to make sure key deletion
+    # works as well as key insertion (and doing this both ways ensures we trigger both cases)
+    cases.reverse()
+    for case in cases:
+        sampler.update_rate_by_service_sample_rates(case)
+        rates = {}
+        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+            rates[k] = v.sample_rate
+        assert case == rates, '%s != %s' % (case, rates)
