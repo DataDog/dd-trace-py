@@ -1,6 +1,15 @@
 import contextlib
 import os
 
+from ddtrace.ext import http
+
+
+def assert_span_http_status_code(span, code):
+    """Assert on the span's 'http.status_code' tag"""
+    tag = span.get_tag(http.STATUS_CODE)
+    code = str(code)
+    assert tag == code, "%r != %r" % (tag, code)
+
 
 @contextlib.contextmanager
 def override_env(env):

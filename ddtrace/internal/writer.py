@@ -7,6 +7,7 @@ from .. import api
 from .. import _worker
 from ..internal.logger import get_logger
 from ..internal import stats
+from ..sampler import BasePrioritySampler
 from ..settings import config
 from ..vendor import monotonic
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
@@ -26,13 +27,14 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
     def __init__(self, hostname='localhost', port=8126, uds_path=None, https=False,
                  shutdown_timeout=DEFAULT_TIMEOUT,
-                 filters=None, priority_sampler=None,
+                 filters=None, sampler=None, priority_sampler=None,
                  dogstatsd=None):
         super(AgentWriter, self).__init__(interval=self.QUEUE_PROCESSING_INTERVAL,
                                           exit_timeout=shutdown_timeout,
                                           name=self.__class__.__name__)
         self._trace_queue = Q(maxsize=MAX_TRACES)
         self._filters = filters
+        self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._last_error_ts = 0
         self.dogstatsd = dogstatsd
@@ -95,10 +97,17 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         for response in traces_responses:
             if isinstance(response, Exception) or response.status >= 400:
                 self._log_error_status(response)
-            elif self._priority_sampler:
+            elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
                 result_traces_json = response.get_json()
                 if result_traces_json and 'rate_by_service' in result_traces_json:
-                    self._priority_sampler.set_sample_rate_by_service(result_traces_json['rate_by_service'])
+                    if self._priority_sampler:
+                        self._priority_sampler.update_rate_by_service_sample_rates(
+                            result_traces_json['rate_by_service'],
+                        )
+                    if isinstance(self._sampler, BasePrioritySampler):
+                        self._sampler.update_rate_by_service_sample_rates(
+                            result_traces_json['rate_by_service'],
+                        )
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
