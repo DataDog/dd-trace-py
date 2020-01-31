@@ -49,13 +49,14 @@ being loaded and re-calling `__import__` for the module to trigger the other fin
 
 For these reasons we have decided to patch Python's internal module loading functions instead.
 """
+import threading
 import sys
 
 from ..compat import PY3
 from ..vendor import wrapt
 from .logger import get_logger
 
-__all__ = ['hooks', 'register_module_hook', 'patch', 'unpatch']
+__all__ = ["hooks", "register_module_hook", "patch", "unpatch"]
 
 log = get_logger(__name__)
 
@@ -64,12 +65,14 @@ class ModuleHookRegistry(object):
     """
     Registry to keep track of all module import hooks defined
     """
-    __slots__ = ('hooks', )
+
+    __slots__ = ("hooks", "lock")
 
     def __init__(self):
         """
         Initialize a new registry
         """
+        self.lock = threading.Lock()
         self.reset()
 
     def register(self, name, func):
@@ -83,14 +86,15 @@ class ModuleHookRegistry(object):
         :param func: The function to register as a hook
         :type func: function(module)
         """
-        if name not in self.hooks:
-            self.hooks[name] = set([func])
-        else:
-            self.hooks[name].add(func)
+        with self.lock:
+            if name not in self.hooks:
+                self.hooks[name] = set([func])
+            else:
+                self.hooks[name].add(func)
 
-        # Module is already loaded, call hook right away
-        if name in sys.modules:
-            func(sys.modules[name])
+            # Module is already loaded, call hook right away
+            if name in sys.modules:
+                func(sys.modules[name])
 
     def deregister(self, name, func):
         """
@@ -101,16 +105,17 @@ class ModuleHookRegistry(object):
         :param func: The function that was registered previously
         :type func: function(module)
         """
-        # If no hooks exist for this module, return
-        if name not in self.hooks:
-            log.debug('No hooks registered for module %r', name)
-            return
+        with self.lock:
+            # If no hooks exist for this module, return
+            if name not in self.hooks:
+                log.debug("No hooks registered for module %r", name)
+                return
 
-        # Remove this function from the hooks if exists
-        if func in self.hooks[name]:
-            self.hooks[name].remove(func)
-        else:
-            log.debug('No hook %r registered for module %r', func, name)
+            # Remove this function from the hooks if exists
+            if func in self.hooks[name]:
+                self.hooks[name].remove(func)
+            else:
+                log.debug("No hook %r registered for module %r", func, name)
 
     def call(self, name, module=None):
         """
@@ -123,30 +128,32 @@ class ModuleHookRegistry(object):
         :param module: Optional, the module object to pass to hook functions
         :type module: Module|None
         """
-        # Make sure we have hooks for this module
-        if not self.hooks.get(name):
-            log.debug('No hooks registered for module %r', name)
-            return
+        with self.lock:
+            # Make sure we have hooks for this module
+            if not self.hooks.get(name):
+                log.debug("No hooks registered for module %r", name)
+                return
 
-        # Try to fetch from `sys.modules` if one wasn't given directly
-        if module is None:
-            module = sys.modules.get(name)
+            # Try to fetch from `sys.modules` if one wasn't given directly
+            if module is None:
+                module = sys.modules.get(name)
 
-        # No module found, don't call anything
-        if not module:
-            log.warning('Tried to call hooks for unloaded module %r', name)
-            return
+            # No module found, don't call anything
+            if not module:
+                log.warning("Tried to call hooks for unloaded module %r", name)
+                return
 
-        # Call all hooks for this module
-        for hook in self.hooks[name]:
-            try:
-                hook(module)
-            except Exception:
-                log.warning('Failed to call hook %r for module %r', hook, name, exc_info=True)
+            # Call all hooks for this module
+            for hook in self.hooks[name]:
+                try:
+                    hook(module)
+                except Exception:
+                    log.warning("Failed to call hook %r for module %r", hook, name, exc_info=True)
 
     def reset(self):
         """Reset/remove all registered hooks"""
-        self.hooks = dict()
+        with self.lock:
+            self.hooks = dict()
 
 
 # Default/global module hook registry
@@ -166,7 +173,7 @@ def exec_and_call_hooks(module_name, wrapped, args, kwargs):
             # DEV: `hooks.call()` will only call hooks if the module was successfully loaded
             hooks.call(module_name)
         except Exception:
-            log.debug('Failed to call hooks for module %r', module_name, exc_info=True)
+            log.debug("Failed to call hooks for module %r", module_name, exc_info=True)
 
 
 def wrapped_reload(wrapped, instance, args, kwargs):
@@ -184,7 +191,7 @@ def wrapped_reload(wrapped, instance, args, kwargs):
         else:
             module_name = args[0].__name__
     except Exception:
-        log.debug('Failed to determine module name when calling `reload`: %r', args, exc_info=True)
+        log.debug("Failed to determine module name when calling `reload`: %r", args, exc_info=True)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
@@ -200,7 +207,7 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
     try:
         module_name = args[0]
     except Exception:
-        log.debug('Failed to determine module name when importing module: %r', args, exc_info=True)
+        log.debug("Failed to determine module name when importing module: %r", args, exc_info=True)
         return wrapped(*args, **kwargs)
 
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
@@ -214,7 +221,7 @@ def wrapped_import(wrapped, instance, args, kwargs):
     try:
         module_name = args[0]
     except Exception:
-        log.debug('Failed to determine module name when importing module: %r', args, exc_info=True)
+        log.debug("Failed to determine module name when importing module: %r", args, exc_info=True)
         return wrapped(*args, **kwargs)
 
     # Do not call the hooks every time `import <module>` is called,
@@ -247,23 +254,23 @@ def _patch():
         #   e.g. `__import__` which calls `importlib._bootstrap._find_and_load()`
         #        `importlib.__import__/importlib._bootstrap.__import__` which calls `importlib._bootstrap._gcd_import()`
         #        `importlib.import_module` which calls `importliob._bootstrap._gcd_import()`
-        wrapt.wrap_function_wrapper('importlib._bootstrap', '_find_and_load_unlocked', wrapped_find_and_load_unlocked)
+        wrapt.wrap_function_wrapper("importlib._bootstrap", "_find_and_load_unlocked", wrapped_find_and_load_unlocked)
 
         # 3.4: https://github.com/python/cpython/blob/3.4/Lib/importlib/__init__.py#L115-L156
         # 3.5: https://github.com/python/cpython/blob/3.5/Lib/importlib/__init__.py#L132-L173
         # 3.6: https://github.com/python/cpython/blob/3.6/Lib/importlib/__init__.py#L132-L173
         # 3.7: https://github.com/python/cpython/blob/3.7/Lib/importlib/__init__.py#L133-L176
         # 3.8: https://github.com/python/cpython/blob/3.8/Lib/importlib/__init__.py#L133-L176
-        wrapt.wrap_function_wrapper('importlib', 'reload', wrapped_reload)
+        wrapt.wrap_function_wrapper("importlib", "reload", wrapped_reload)
 
     # 2.7
     # DEV: Slightly more direct approach of patching `__import__` and `reload` functions
     elif sys.version_info >= (2, 7):
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L35-L68
-        __builtins__['__import__'] = wrapt.FunctionWrapper(__builtins__['__import__'], wrapped_import)
+        __builtins__["__import__"] = wrapt.FunctionWrapper(__builtins__["__import__"], wrapped_import)
 
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L2147-L2160
-        __builtins__['reload'] = wrapt.FunctionWrapper(__builtins__['reload'], wrapped_reload)
+        __builtins__["reload"] = wrapt.FunctionWrapper(__builtins__["reload"], wrapped_reload)
 
     # Update after we have successfully patched
     _patched = True
@@ -278,10 +285,13 @@ def patch():
     try:
         _patch()
     except Exception:
-        log.debug('Failed to patch module importing, import hooks will not work', exc_info=True)
+        log.warning("Failed to patch module importing, import hooks will not work", exc_info=True)
 
 
-def _unpatch():
+def unpatch():
+    """
+    Unpatch Python import system, disabling import hooks
+    """
     # Only patch once
     global _patched
     if not _patched:
@@ -296,30 +306,20 @@ def _unpatch():
 
         if isinstance(importlib._bootstrap._find_and_load_unlocked, wrapt.FunctionWrapper):
             setattr(
-                importlib._bootstrap, '_find_and_load_unlocked',
+                importlib._bootstrap,
+                "_find_and_load_unlocked",
                 importlib._bootstrap._find_and_load_unlocked.__wrapped__,
             )
         if isinstance(importlib.reload, wrapt.FunctionWrapper):
-            setattr(importlib, 'reload', importlib.reload.__wrapped__)
+            setattr(importlib, "reload", importlib.reload.__wrapped__)
 
     # 2.7
     # DEV: Slightly more direct approach
     elif sys.version_info >= (2, 7):
-        if isinstance(__builtins__['__import__'], wrapt.FunctionWrapper):
-            __builtins__['__import__'] = __builtins__['__import__'].__wrapped__
-        if isinstance(__builtins__['reload'], wrapt.FunctionWrapper):
-            __builtins__['reload'] = __builtins__['reload'].__wrapped__
-
-
-def unpatch():
-    """
-    Unpatch Python import system, disabling import hooks
-    """
-    # This should never cause their application to not load
-    try:
-        _unpatch()
-    except Exception:
-        log.debug('Failed to unpatch module importing', exc_info=True)
+        if isinstance(__builtins__["__import__"], wrapt.FunctionWrapper):
+            __builtins__["__import__"] = __builtins__["__import__"].__wrapped__
+        if isinstance(__builtins__["reload"], wrapt.FunctionWrapper):
+            __builtins__["reload"] = __builtins__["reload"].__wrapped__
 
 
 def register_module_hook(module_name, func=None, registry=hooks):
@@ -352,8 +352,10 @@ def register_module_hook(module_name, func=None, registry=hooks):
     """
     # If they did not give us a function, then return a decorator function
     if not func:
+
         def wrapper(func):
             return register_module_hook(module_name, func, registry=registry)
+
         return wrapper
 
     # Register this function as an import hook
