@@ -68,7 +68,7 @@ class CassandraBase(object):
     TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
     TEST_QUERY_PAGINATED = 'SELECT * from test.person'
     TEST_KEYSPACE = 'test'
-    TEST_PORT = str(CASSANDRA_CONFIG['port'])
+    TEST_PORT = CASSANDRA_CONFIG['port']
     TEST_SERVICE = 'test-cassandra'
 
     def _traced_session(self):
@@ -121,11 +121,11 @@ class CassandraBase(object):
         query = spans[0]
         assert query.service == self.TEST_SERVICE
         assert query.resource == self.TEST_QUERY
-        assert query.span_type == cassx.TYPE
+        assert query.span_type == 'cassandra'
 
         assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert query.get_tag(net.TARGET_PORT) == self.TEST_PORT
-        assert query.get_tag(cassx.ROW_COUNT) == '1'
+        assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
+        assert query.get_metric(cassx.ROW_COUNT) == 1
         assert query.get_tag(cassx.PAGE_NUMBER) is None
         assert query.get_tag(cassx.PAGINATED) == 'False'
         assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
@@ -201,11 +201,11 @@ class CassandraBase(object):
 
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.resource == self.TEST_QUERY
-        assert dd_span.span_type == cassx.TYPE
+        assert dd_span.span_type == 'cassandra'
 
         assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-        assert dd_span.get_tag(net.TARGET_PORT) == self.TEST_PORT
-        assert dd_span.get_tag(cassx.ROW_COUNT) == '1'
+        assert dd_span.get_metric(net.TARGET_PORT) == self.TEST_PORT
+        assert dd_span.get_metric(cassx.ROW_COUNT) == 1
         assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
         assert dd_span.get_tag(cassx.PAGINATED) == 'False'
         assert dd_span.get_tag(net.TARGET_HOST) == '127.0.0.1'
@@ -259,17 +259,17 @@ class CassandraBase(object):
             query = spans[i]
             assert query.service == self.TEST_SERVICE
             assert query.resource == self.TEST_QUERY_PAGINATED
-            assert query.span_type == cassx.TYPE
+            assert query.span_type == 'cassandra'
 
             assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
-            assert query.get_tag(net.TARGET_PORT) == self.TEST_PORT
+            assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
             if i == 3:
-                assert query.get_tag(cassx.ROW_COUNT) == '0'
+                assert query.get_metric(cassx.ROW_COUNT) == 0
             else:
-                assert query.get_tag(cassx.ROW_COUNT) == '1'
+                assert query.get_metric(cassx.ROW_COUNT) == 1
             assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
             assert query.get_tag(cassx.PAGINATED) == 'True'
-            assert query.get_tag(cassx.PAGE_NUMBER) == str(i + 1)
+            assert query.get_metric(cassx.PAGE_NUMBER) == i + 1
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()

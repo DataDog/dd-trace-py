@@ -15,7 +15,7 @@ from pymemcache.exceptions import (
 # project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...compat import reraise
-from ...ext import net, memcached as memcachedx
+from ...ext import SpanTypes, net, memcached as memcachedx
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
@@ -141,7 +141,7 @@ class WrappedClient(wrapt.ObjectProxy):
             memcachedx.CMD,
             service=p.service,
             resource=method_name,
-            span_type=memcachedx.TYPE,
+            span_type=SpanTypes.CACHE,
         ) as span:
             # set analytics sample rate
             span.set_tag(

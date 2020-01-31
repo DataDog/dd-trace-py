@@ -4,7 +4,7 @@
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import net
 from ddtrace.contrib.flask_cache import get_traced_cache
-from ddtrace.contrib.flask_cache.tracers import TYPE, CACHE_BACKEND
+from ddtrace.contrib.flask_cache.tracers import CACHE_BACKEND
 
 # 3rd party
 from flask import Flask
@@ -18,8 +18,8 @@ from ...util import assert_dict_issuperset
 
 class FlaskCacheTest(BaseTracerTestCase):
     SERVICE = 'test-flask-cache'
-    TEST_REDIS_PORT = str(REDIS_CONFIG['port'])
-    TEST_MEMCACHED_PORT = str(MEMCACHED_CONFIG['port'])
+    TEST_REDIS_PORT = REDIS_CONFIG['port']
+    TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
 
     def setUp(self):
         super(FlaskCacheTest, self).setUp()
@@ -176,7 +176,7 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with self.cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'simple')
             self.assertTrue(net.TARGET_HOST not in span.meta)
             self.assertTrue(net.TARGET_PORT not in span.meta)
@@ -193,10 +193,10 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'redis')
             self.assertEqual(span.meta[net.TARGET_HOST], 'localhost')
-            self.assertEqual(span.meta[net.TARGET_PORT], self.TEST_REDIS_PORT)
+            self.assertEqual(span.metrics[net.TARGET_PORT], self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
@@ -210,10 +210,10 @@ class FlaskCacheTest(BaseTracerTestCase):
         # test tags and attributes
         with cache._TracedCache__trace('flask_cache.cmd') as span:
             self.assertEqual(span.service, self.SERVICE)
-            self.assertEqual(span.span_type, TYPE)
+            self.assertEqual(span.span_type, 'cache')
             self.assertEqual(span.meta[CACHE_BACKEND], 'memcached')
             self.assertEqual(span.meta[net.TARGET_HOST], '127.0.0.1')
-            self.assertEqual(span.meta[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)
+            self.assertEqual(span.metrics[net.TARGET_PORT], self.TEST_MEMCACHED_PORT)
 
     def test_simple_cache_get_ot(self):
         """OpenTracing version of test_simple_cache_get."""

@@ -6,12 +6,12 @@ from moto import mock_s3, mock_ec2, mock_lambda, mock_sqs, mock_kinesis, mock_km
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch, unpatch
-from ddtrace.ext import http
 from ddtrace.compat import stringify
 
 # testing
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_span_http_status_code
 
 
 class BotocoreTest(BaseTracerTestCase):
@@ -46,8 +46,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
-        self.assertEqual(span.get_tag('retry_attempts'), '0')
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.get_metric('retry_attempts'), 0)
         self.assertEqual(span.service, 'test-botocore-tracing.ec2')
         self.assertEqual(span.resource, 'ec2.describeinstances')
         self.assertEqual(span.name, 'ec2.command')
@@ -82,7 +82,7 @@ class BotocoreTest(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'ListBuckets')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
         self.assertEqual(span.resource, 's3.listbuckets')
 
@@ -110,7 +110,7 @@ class BotocoreTest(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'CreateBucket')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
         self.assertEqual(span.resource, 's3.createbucket')
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
@@ -133,7 +133,7 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListQueues')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
         self.assertEqual(span.resource, 'sqs.listqueues')
 
@@ -150,7 +150,7 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListStreams')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kinesis')
         self.assertEqual(span.resource, 'kinesis.liststreams')
 
@@ -192,7 +192,7 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
 
@@ -209,7 +209,7 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListKeys')
-        self.assertEqual(span.get_tag(http.STATUS_CODE), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kms')
         self.assertEqual(span.resource, 'kms.listkeys')
 
@@ -242,8 +242,8 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(dd_span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(dd_span.get_tag('aws.operation'), 'DescribeInstances')
-        self.assertEqual(dd_span.get_tag(http.STATUS_CODE), '200')
-        self.assertEqual(dd_span.get_tag('retry_attempts'), '0')
+        assert_span_http_status_code(dd_span, 200)
+        self.assertEqual(dd_span.get_metric('retry_attempts'), 0)
         self.assertEqual(dd_span.service, 'test-botocore-tracing.ec2')
         self.assertEqual(dd_span.resource, 'ec2.describeinstances')
         self.assertEqual(dd_span.name, 'ec2.command')

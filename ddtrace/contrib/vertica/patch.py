@@ -4,7 +4,7 @@ from ddtrace.vendor import wrapt
 
 import ddtrace
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import db as dbx, sql
+from ...ext import SpanTypes, db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
@@ -71,28 +71,28 @@ config._add(
                 'routines': {
                     'execute': {
                         'operation_name': 'vertica.query',
-                        'span_type': sql.TYPE,
+                        'span_type': SpanTypes.SQL,
                         'span_start': execute_span_start,
                         'span_end': execute_span_end,
                     },
                     'copy': {
                         'operation_name': 'vertica.copy',
-                        'span_type': sql.TYPE,
+                        'span_type': SpanTypes.SQL,
                         'span_start': copy_span_start,
                     },
                     'fetchone': {
                         'operation_name': 'vertica.fetchone',
-                        'span_type': 'vertica',
+                        'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
                     },
                     'fetchall': {
                         'operation_name': 'vertica.fetchall',
-                        'span_type': 'vertica',
+                        'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
                     },
                     'nextset': {
                         'operation_name': 'vertica.nextset',
-                        'span_type': 'vertica',
+                        'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
                     },
                 },
@@ -198,10 +198,8 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
             operation_name = conf['operation_name']
             tracer = pin.tracer
-            with tracer.trace(operation_name, service=pin.service) as span:
+            with tracer.trace(operation_name, service=pin.service, span_type=conf.get('span_type')) as span:
                 span.set_tags(pin.tags)
-                if 'span_type' in conf:
-                    span.span_type = conf['span_type']
 
                 if 'span_start' in conf:
                     conf['span_start'](instance, span, conf, *args, **kwargs)

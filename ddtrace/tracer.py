@@ -12,7 +12,7 @@ from .internal.runtime import RuntimeTags, RuntimeWorker
 from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
+from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
@@ -42,6 +42,14 @@ def _parse_dogstatsd_url(url):
         return dict(host=parsed.hostname, port=parsed.port)
     else:
         raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
+
+
+_INTERNAL_APPLICATION_SPAN_TYPES = [
+    "custom",
+    "template",
+    "web",
+    "worker"
+]
 
 
 class Tracer(object):
@@ -106,7 +114,7 @@ class Tracer(object):
             port=port,
             https=https,
             uds_path=uds_path,
-            sampler=AllSampler(),
+            sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=dogstatsd_url,
         )
@@ -212,10 +220,6 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        # TODO: Remove when we remove the fallback to priority sampling
-        if isinstance(self.sampler, DatadogSampler):
-            self.sampler._priority_sampler = self.priority_sampler
-
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
 
@@ -225,7 +229,7 @@ class Tracer(object):
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
         if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None:
+                filters is not None or priority_sampling is not None or sampler is not None:
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
@@ -243,6 +247,7 @@ class Tracer(object):
                 uds_path=uds_path,
                 https=https,
                 filters=filters,
+                sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
             )
@@ -366,9 +371,12 @@ class Tracer(object):
                         context.sampling_priority = AUTO_REJECT
             else:
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                # We must always mark the span as sampled so it is forwarded to the agent
+                span.sampled = True
 
             # add tags to root span to correlate trace with runtime metrics
-            if self._runtime_worker:
+            # only applied to spans with types that are internal to applications
+            if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
         # add common tags

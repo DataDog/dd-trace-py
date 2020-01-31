@@ -6,9 +6,11 @@ For example:
 span.set_tag(URL, '/user/home')
 span.set_tag(STATUS_CODE, 404)
 """
+from . import SpanTypes
 
+# [TODO] Deprecated, remove when we remove AppTypes
 # type of the spans
-TYPE = 'http'
+TYPE = SpanTypes.HTTP
 
 # tags
 URL = 'http.url'

@@ -6,7 +6,7 @@ from unittest.case import SkipTest
 from ddtrace.context import Context
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.span import Span
-from ddtrace.ext import errors, priority
+from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
 
 
@@ -28,12 +28,59 @@ class SpanTestCase(BaseTracerTestCase):
         s.set_tag('b', 1)
         s.set_tag('c', '1')
         d = s.to_dict()
-        expected = {
-            'a': 'a',
-            'b': '1',
-            'c': '1',
+        assert d['meta'] == dict(a='a', c='1')
+        assert d['metrics'] == dict(b=1)
+
+    def test_numeric_tags(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag('negative', -1)
+        s.set_tag('zero', 0)
+        s.set_tag('positive', 1)
+        s.set_tag('large_int', 2**53)
+        s.set_tag('really_large_int', (2**53) + 1)
+        s.set_tag('large_negative_int', -(2**53))
+        s.set_tag('really_large_negative_int', -((2**53) + 1))
+        s.set_tag('float', 12.3456789)
+        s.set_tag('negative_float', -12.3456789)
+        s.set_tag('large_float', 2.0**53)
+        s.set_tag('really_large_float', (2.0**53) + 1)
+
+        d = s.to_dict()
+        assert d['meta'] == dict(
+            really_large_int=str(((2**53) + 1)),
+            really_large_negative_int=str(-((2**53) + 1)),
+        )
+        assert d['metrics'] == {
+            'negative': -1,
+            'zero': 0,
+            'positive': 1,
+            'large_int': 2**53,
+            'large_negative_int': -(2**53),
+            'float': 12.3456789,
+            'negative_float': -12.3456789,
+            'large_float': 2.0**53,
+            'really_large_float': (2.0**53) + 1,
         }
-        assert d['meta'] == expected
+
+    def test_set_tag_bool(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag('true', True)
+        s.set_tag('false', False)
+
+        d = s.to_dict()
+        assert d['meta'] == dict(true='True', false='False')
+        assert 'metrics' not in d
+
+    def test_set_tag_metric(self):
+        s = Span(tracer=None, name='test.span')
+
+        s.set_tag('test', 'value')
+        assert s.meta == dict(test='value')
+        assert s.metrics == dict()
+
+        s.set_tag('test', 1)
+        assert s.meta == dict()
+        assert s.metrics == dict(test=1)
 
     def test_set_valid_metrics(self):
         s = Span(tracer=None, name='test.span')
@@ -167,6 +214,22 @@ class SpanTestCase(BaseTracerTestCase):
 
         else:
             assert 0, 'should have failed'
+
+    def test_span_type(self):
+        s = Span(tracer=None, name='test.span', service='s', resource='r', span_type=SpanTypes.WEB)
+        s.set_tag('a', '1')
+        s.set_meta('b', '2')
+        s.finish()
+
+        d = s.to_dict()
+        assert d
+        assert d['span_id'] == s.span_id
+        assert d['trace_id'] == s.trace_id
+        assert d['parent_id'] == s.parent_id
+        assert d['meta'] == {'a': '1', 'b': '2'}
+        assert d['type'] == 'web'
+        assert d['error'] == 0
+        assert type(d['error']) == int
 
     def test_span_to_dict(self):
         s = Span(tracer=None, name='test.span', service='s', resource='r')
@@ -308,7 +371,7 @@ class SpanTestCase(BaseTracerTestCase):
         s = Span(tracer=None, name='root.span', service='s', resource='r')
         assert s.meta == dict()
 
-        s.set_tag('custom.key', 100)
+        s.set_tag('custom.key', '100')
 
         assert s.meta == {'custom.key': '100'}
 

@@ -9,6 +9,7 @@ from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...base import BaseTracerTestCase
+from ...utils import assert_span_http_status_code
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -48,10 +49,11 @@ class TestMolten(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.span_type, 'web')
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(span, 200)
         assert http.QUERY_STRING not in span.meta
 
         # See test_resources below for specifics of this difference
@@ -80,7 +82,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.QUERY_STRING), 'foo=bar')
 
     def test_analytics_global_on_integration_default(self):
@@ -167,7 +169,7 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.resource, 'GET 404')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/goodbye')
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '404')
+        assert_span_http_status_code(span, 404)
 
     def test_route_exception(self):
         def route_error() -> str:

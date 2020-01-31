@@ -22,7 +22,6 @@ class PyMySQLCore(object):
 
     DB_INFO = {
         'out.host': MYSQL_CONFIG.get('host'),
-        'out.port': str(MYSQL_CONFIG.get('port')),
     }
     if PY2:
         DB_INFO.update({
@@ -68,6 +67,7 @@ class PyMySQLCore(object):
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
@@ -88,6 +88,7 @@ class PyMySQLCore(object):
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.meta, meta)
@@ -230,6 +231,7 @@ class PyMySQLCore(object):
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
@@ -260,6 +262,7 @@ class PyMySQLCore(object):
         assert dd_span.name == 'pymysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
+        assert dd_span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(dd_span.meta, meta)
@@ -291,6 +294,7 @@ class PyMySQLCore(object):
             assert dd_span.name == 'pymysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
+            assert dd_span.get_metric('out.port') == MYSQL_CONFIG.get('port')
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(dd_span.meta, meta)
@@ -408,6 +412,7 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
 
             meta = {}
             meta.update(self.DB_INFO)

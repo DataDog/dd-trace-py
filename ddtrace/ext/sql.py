@@ -1,5 +1,8 @@
-# the type of the spans
-TYPE = 'sql'
+from . import SpanTypes
+
+# [TODO] Deprecated, remove when we remove AppTypes
+TYPE = SpanTypes.SQL
+APP_TYPE = SpanTypes.SQL
 
 # tags
 QUERY = 'sql.query'   # the query text

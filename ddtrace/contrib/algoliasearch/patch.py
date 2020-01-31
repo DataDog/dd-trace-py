@@ -7,7 +7,6 @@ DD_PATCH_ATTR = '_datadog_patch'
 
 SERVICE_NAME = 'algoliasearch'
 APP_NAME = 'algoliasearch'
-SEARCH_SPAN_TYPE = 'algoliasearch.search'
 
 try:
     import algoliasearch
@@ -101,7 +100,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     if not pin or not pin.enabled():
         return func(*wrapt_args, **wrapt_kwargs)
 
-    with pin.tracer.trace('algoliasearch.search', service=pin.service, span_type=SEARCH_SPAN_TYPE) as span:
+    with pin.tracer.trace('algoliasearch.search', service=pin.service) as span:
         if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)
 

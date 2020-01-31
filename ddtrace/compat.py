@@ -51,6 +51,16 @@ else:
     pattern_type = re._pattern_type
 
 
+def is_integer(obj):
+    """Helper to determine if the provided ``obj`` is an integer type or not"""
+    # DEV: We have to make sure it is an integer and not a boolean
+    # >>> type(True)
+    # <class 'bool'>
+    # >>> isinstance(True, int)
+    # True
+    return isinstance(obj, six.integer_types) and not isinstance(obj, bool)
+
+
 try:
     from time import time_ns
 except ImportError:

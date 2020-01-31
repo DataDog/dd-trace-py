@@ -6,7 +6,7 @@ import sys
 import pytest
 
 # Project
-from ddtrace.compat import to_unicode, PY3, reraise, get_connection_response
+from ddtrace.compat import to_unicode, PY3, reraise, get_connection_response, is_integer
 
 
 if PY3:
@@ -97,3 +97,20 @@ class TestPy2Py3Compat(object):
                 # this call must be Python 2 and 3 compatible
                 raise reraise(typ, val, tb)
         assert ex.value.args[0] == 'Ouch!'
+
+
+@pytest.mark.parametrize('obj,expected', [
+    (1, True),
+    (-1, True),
+    (0, True),
+    (1.0, False),
+    (-1.0, False),
+    (True, False),
+    (False, False),
+    (dict(), False),
+    ([], False),
+    (tuple(), False),
+    (object(), False),
+])
+def test_is_integer(obj, expected):
+    assert is_integer(obj) is expected
