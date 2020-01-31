@@ -93,7 +93,7 @@ def _on_import_factory(module, raise_errors=True):
         path = 'ddtrace.contrib.%s' % module
         imported_module = importlib.import_module(path)
         imported_module.patch()
-        stats.get_stats().patch_success(module)
+        stats.patch_success(module)
 
     return on_import
 
@@ -180,7 +180,7 @@ def _patch_module(module):
         try:
             imported_module = importlib.import_module(path)
             imported_module.patch()
-            stats.get_stats().patch_success(module)
+            stats.patch_success(module)
         except ImportError:
             # if the import fails, the integration is not available
             raise PatchException('integration not available')
@@ -189,7 +189,7 @@ def _patch_module(module):
             # that the library is not installed in the environment
             raise PatchException('module not installed')
         except Exception:
-            stats.get_stats().patch_error(module)
+            stats.patch_error(module)
             raise
 
         _PATCHED_MODULES.add(module)

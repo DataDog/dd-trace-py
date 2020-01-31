@@ -157,7 +157,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 self.dogstatsd.histogram('datadog.tracer.writer.cpu_time', diff)
 
             # Report global stats
-            stats.get_stats().report(self.dogstatsd)
+            stats.report(self.dogstatsd)
 
             # Statistics about the rate at which spans are inserted in the queue
             dropped, enqueued, enqueued_lengths = self._trace_queue.reset_stats()

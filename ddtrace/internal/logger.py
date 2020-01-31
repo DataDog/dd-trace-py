@@ -90,7 +90,7 @@ class DDLogger(logging.Logger):
         """
         # Record a stat for all error (or worse) logs
         if record.levelno >= logging.ERROR:
-            stats.get_stats().error_log(record.name)
+            stats.error_log(record.name)
 
         # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
         if not self.rate_limit:

@@ -167,3 +167,38 @@ def get_stats():
     """
     global _stats
     return _stats
+
+
+def span_started():
+    """Increment the number of spans open"""
+    return get_stats().span_started()
+
+
+def span_finished():
+    """Decrement the number of spans open"""
+    return get_stats().span_finished()
+
+
+def error_log(logger_name):
+    """Increment the number of error logs emitted"""
+    return get_stats().error_log(logger_name)
+
+
+def patch_error(module_name):
+    """Increment the number of patching errors"""
+    return get_stats().patch_error(module_name)
+
+
+def patch_success(module_name):
+    """Increment the number of patching successes"""
+    return get_stats().patch_success(module_name)
+
+
+def report(dogstatsd_client):
+    """
+    Report all existing metrics to the provided dogstatsd client
+
+    :param dogstatsd_client: A DogStatsd client to send metrics to
+    :type dogstatsd_client: :class:`ddtrace.vendor.dogstatsd.DogStatsd`
+    """
+    return get_stats().report(dogstatsd_client)

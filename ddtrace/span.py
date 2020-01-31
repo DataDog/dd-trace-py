@@ -108,7 +108,7 @@ class Span(object):
         self.finished = False
 
         # stats
-        stats.get_stats().span_started()
+        stats.span_started()
 
     @property
     def start(self):
@@ -139,7 +139,7 @@ class Span(object):
         if self.finished:
             return
         self.finished = True
-        stats.get_stats().span_finished()
+        stats.span_finished()
 
         if self.duration_ns is None:
             ft = time_ns() if finish_time is None else int(finish_time * 1e9)
