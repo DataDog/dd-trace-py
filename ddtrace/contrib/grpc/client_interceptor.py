@@ -28,9 +28,9 @@ def create_client_interceptor(pin, host, port):
 def intercept_channel(wrapped, instance, args, kwargs):
     channel = args[0]
     interceptors = args[1:]
-    if isinstance(getattr(channel, '_interceptor', None), _ClientInterceptor):
+    if isinstance(getattr(channel, "_interceptor", None), _ClientInterceptor):
         dd_interceptor = channel._interceptor
-        base_channel = getattr(channel, '_channel', None)
+        base_channel = getattr(channel, "_channel", None)
         if base_channel:
             new_channel = wrapped(channel._channel, *interceptors)
             return grpc.intercept_channel(new_channel, dd_interceptor)
@@ -39,10 +39,9 @@ def intercept_channel(wrapped, instance, args, kwargs):
 
 
 class _ClientCallDetails(
-        collections.namedtuple(
-            '_ClientCallDetails',
-            ('method', 'timeout', 'metadata', 'credentials')),
-        grpc.ClientCallDetails):
+    collections.namedtuple("_ClientCallDetails", ("method", "timeout", "metadata", "credentials")),
+    grpc.ClientCallDetails,
+):
     pass
 
 
@@ -74,9 +73,9 @@ def _handle_error(span, response_error, status_code):
     # exception() and traceback() methods if a computation has resulted in an
     # exception being raised
     if (
-        not callable(getattr(response_error, 'cancelled', None)) and
-        not callable(getattr(response_error, 'exception', None)) and
-        not callable(getattr(response_error, 'traceback', None))
+        not callable(getattr(response_error, "cancelled", None))
+        and not callable(getattr(response_error, "exception", None))
+        and not callable(getattr(response_error, "traceback", None))
     ):
         return
 
@@ -129,7 +128,7 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             raise
         except Exception:
             # DEV: added for safety though should not be reached since wrapped response
-            log.debug('unexpected non-grpc exception raised, closing open span', exc_info=True)
+            log.debug("unexpected non-grpc exception raised, closing open span", exc_info=True)
             self._span.set_traceback()
             self._span.finish()
             raise
@@ -139,9 +138,11 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
 
 
 class _ClientInterceptor(
-        grpc.UnaryUnaryClientInterceptor, grpc.UnaryStreamClientInterceptor,
-        grpc.StreamUnaryClientInterceptor, grpc.StreamStreamClientInterceptor):
-
+    grpc.UnaryUnaryClientInterceptor,
+    grpc.UnaryStreamClientInterceptor,
+    grpc.StreamUnaryClientInterceptor,
+    grpc.StreamStreamClientInterceptor,
+):
     def __init__(self, pin, host, port):
         self._pin = pin
         self._host = host
@@ -151,10 +152,7 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            'grpc',
-            span_type=SpanTypes.GRPC,
-            service=self._pin.service,
-            resource=client_call_details.method,
+            "grpc", span_type=SpanTypes.GRPC, service=self._pin.service, resource=client_call_details.method,
         )
 
         # tags for method details
@@ -189,19 +187,13 @@ class _ClientInterceptor(
         metadata.extend(headers.items())
 
         client_call_details = _ClientCallDetails(
-            client_call_details.method,
-            client_call_details.timeout,
-            metadata,
-            client_call_details.credentials,
+            client_call_details.method, client_call_details.timeout, metadata, client_call_details.credentials,
         )
 
         return span, client_call_details
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
-        span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_UNARY,
-            client_call_details,
-        )
+        span, client_call_details = self._intercept_client_call(constants.GRPC_METHOD_KIND_UNARY, client_call_details,)
         try:
             response = continuation(client_call_details, request)
             _handle_response(span, response)
@@ -216,8 +208,7 @@ class _ClientInterceptor(
 
     def intercept_unary_stream(self, continuation, client_call_details, request):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_SERVER_STREAMING,
-            client_call_details,
+            constants.GRPC_METHOD_KIND_SERVER_STREAMING, client_call_details,
         )
         response_iterator = continuation(client_call_details, request)
         response_iterator = _WrappedResponseCallFuture(response_iterator, span)
@@ -225,8 +216,7 @@ class _ClientInterceptor(
 
     def intercept_stream_unary(self, continuation, client_call_details, request_iterator):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
-            client_call_details,
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING, client_call_details,
         )
         try:
             response = continuation(client_call_details, request_iterator)
@@ -242,8 +232,7 @@ class _ClientInterceptor(
 
     def intercept_stream_stream(self, continuation, client_call_details, request_iterator):
         span, client_call_details = self._intercept_client_call(
-            constants.GRPC_METHOD_KIND_BIDI_STREAMING,
-            client_call_details,
+            constants.GRPC_METHOD_KIND_BIDI_STREAMING, client_call_details,
         )
         response_iterator = continuation(client_call_details, request_iterator)
         response_iterator = _WrappedResponseCallFuture(response_iterator, span)
