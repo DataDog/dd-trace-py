@@ -8,16 +8,17 @@ class RateLimiter(object):
     """
     A token bucket rate limiter implementation
     """
+
     __slots__ = (
-        '_lock',
-        'current_window',
-        'last_update',
-        'max_tokens',
-        'prev_window_rate',
-        'rate_limit',
-        'tokens',
-        'tokens_allowed',
-        'tokens_total',
+        "_lock",
+        "current_window",
+        "last_update",
+        "max_tokens",
+        "prev_window_rate",
+        "rate_limit",
+        "tokens",
+        "tokens_allowed",
+        "tokens_total",
     )
 
     def __init__(self, rate_limit):
@@ -108,10 +109,7 @@ class RateLimiter(object):
         self.last_update = now
 
         # Update the number of available tokens, but ensure we do not exceed the max
-        self.tokens = min(
-            self.max_tokens,
-            self.tokens + (elapsed * self.rate_limit),
-        )
+        self.tokens = min(self.max_tokens, self.tokens + (elapsed * self.rate_limit),)
 
     def _current_window_rate(self):
         # No tokens have been seen, effectively 100% sample rate
@@ -137,12 +135,8 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return '{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})'.format(
-            self.__class__.__name__,
-            self.rate_limit,
-            self.tokens,
-            self.last_update,
-            self.effective_rate,
+        return "{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})".format(
+            self.__class__.__name__, self.rate_limit, self.tokens, self.last_update, self.effective_rate,
         )
 
     __str__ = __repr__

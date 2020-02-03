@@ -20,7 +20,6 @@ exclude = '''
     | contrib/
     | ext/
     | http/
-    | internal/
     | opentracer/
     | propagation/
     | settings/
