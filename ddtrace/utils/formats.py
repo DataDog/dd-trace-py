@@ -15,18 +15,16 @@ def get_env(integration, variable, default=None):
     * return `default` otherwise
 
     """
-    key = '{}_{}'.format(integration, variable).upper()
-    legacy_env = 'DATADOG_{}'.format(key)
-    env = 'DD_{}'.format(key)
+    key = "{}_{}".format(integration, variable).upper()
+    legacy_env = "DATADOG_{}".format(key)
+    env = "DD_{}".format(key)
 
     value = os.getenv(env)
     legacy = os.getenv(legacy_env)
     if legacy:
         # Deprecation: `DATADOG_` variables are deprecated
         deprecation(
-            name='DATADOG_',
-            message='Use `DD_` prefix instead',
-            version='1.0.0',
+            name="DATADOG_", message="Use `DD_` prefix instead", version="1.0.0",
         )
 
     value = value or legacy
@@ -47,7 +45,7 @@ def deep_getattr(obj, attr_string, default=None):
     >>> deep_getattr(cass, 'i.dont.exist', default='default')
     'default'
     """
-    attrs = attr_string.split('.')
+    attrs = attr_string.split(".")
     for attr in attrs:
         try:
             obj = getattr(obj, attr)
@@ -68,17 +66,17 @@ def asbool(value):
     if isinstance(value, bool):
         return value
 
-    return value.lower() in ('true', '1')
+    return value.lower() in ("true", "1")
 
 
-def flatten_dict(d, sep='.', prefix=''):
+def flatten_dict(d, sep=".", prefix=""):
     """
     Returns a normalized dict of depth 1 with keys in order of embedding
 
     """
     # adapted from https://stackoverflow.com/a/19647596
-    return {
-        prefix + sep + k if prefix else k: v
-        for kk, vv in d.items()
-        for k, v in flatten_dict(vv, sep, kk).items()
-    } if isinstance(d, dict) else {prefix: d}
+    return (
+        {prefix + sep + k if prefix else k: v for kk, vv in d.items() for k, v in flatten_dict(vv, sep, kk).items()}
+        if isinstance(d, dict)
+        else {prefix: d}
+    )
