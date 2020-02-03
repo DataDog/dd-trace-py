@@ -195,11 +195,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     settings = django.conf.settings
 
     if hasattr(settings, "DATADOG_TRACE"):
-        debtcollector.deprecate(
-            (
-                "Using DATADOG_TRACE Django settings are no longer supported. "
-            )
-        )
+        debtcollector.deprecate(("Using DATADOG_TRACE Django settings are no longer supported. "))
         conf.configure_from_settings(pin, config.django, settings.DATADOG_TRACE)
 
     # Instrument databases
