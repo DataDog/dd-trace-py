@@ -9,8 +9,7 @@ except ImportError:
 
 
 @debtcollector.removals.removed_class(
-    "TraceMiddlware",
-    message="Usage of TraceMiddleware is not longer needed, please remove from your settings.py"
+    "TraceMiddlware", message="Usage of TraceMiddleware is not longer needed, please remove from your settings.py"
 )
 class TraceMiddleware(MiddlewareClass):
     pass
