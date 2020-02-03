@@ -48,6 +48,7 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
     See https://psutil.readthedocs.io/en/latest/#psutil.Process.oneshot
     for more information.
     """
+
     required_modules = ["ddtrace.vendor.psutil"]
     stored_value = dict(
         CPU_TIME_SYS_TOTAL=0, CPU_TIME_USER_TOTAL=0, CTX_SWITCH_VOLUNTARY_TOTAL=0, CTX_SWITCH_INVOLUNTARY_TOTAL=0,
