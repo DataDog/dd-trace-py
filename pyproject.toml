@@ -24,7 +24,6 @@ exclude = '''
     | opentracer/
     | propagation/
     | settings/
-    | utils/
     | vendor/
   )
   | tests/
