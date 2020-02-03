@@ -16,16 +16,13 @@ exclude = '''
   | dist/
   | ddtrace/(
     [^/]+\.py
-    | bootstrap/
     | commands/
     | contrib/
     | ext/
     | http/
-    | internal/
     | opentracer/
     | propagation/
     | settings/
-    | utils/
     | vendor/
   )
   | tests/
