@@ -88,7 +88,7 @@ documentation][visualization docs].
 
 # enum34 is an enum backport for earlier versions of python
 # funcsigs backport required for vendored debtcollector
-install_requires = ["enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'"]
+install_requires = ["psutil>=5.0.0", "enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'"]
 
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
@@ -165,7 +165,7 @@ def get_exts_for(name):
 # Try to build with C extensions first, fallback to only pure-Python if building fails
 try:
     all_exts = []
-    for extname in ("msgpack", "wrapt", "psutil"):
+    for extname in ("msgpack", "wrapt"):
         exts = get_exts_for(extname)
         if exts:
             all_exts.extend(exts)
