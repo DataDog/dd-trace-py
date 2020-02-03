@@ -56,7 +56,6 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
 
     def _on_modules_load(self):
         self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
-        self.proc = self.modules["psutil"].Process(os.getpid())
 
     def collect_fn(self, keys):
         with self.proc.oneshot():
