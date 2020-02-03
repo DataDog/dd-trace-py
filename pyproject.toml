@@ -16,7 +16,6 @@ exclude = '''
   | dist/
   | ddtrace/(
     [^/]+\.py
-    | bootstrap/
     | commands/
     | contrib/
     | ext/
