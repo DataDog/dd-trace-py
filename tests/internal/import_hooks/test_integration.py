@@ -37,7 +37,7 @@ def test_import_hooks(hooks):
         Gets called after the module was imported
     """
     # Ensure our module is not yet loaded
-    mod_name = 'urllib'
+    mod_name = "urllib"
     with remove_module(mod_name):
         # Register our hook (when the module is not loaded)
         module_hook = mock.Mock()
@@ -60,7 +60,7 @@ class ImportHookTestCase(SubprocessTestCase):
             The import hook should run when the module is imported
         """
         module_hook = mock.Mock()
-        import_hooks.register_module_hook('tests.test_module', module_hook)
+        import_hooks.register_module_hook("tests.test_module", module_hook)
 
         # Hook should not be called after register
         module_hook.assert_not_called()
@@ -77,8 +77,9 @@ class ImportHookTestCase(SubprocessTestCase):
         """
         module_hook = mock.Mock()
         import tests.test_module
+
         module_hook.assert_not_called()
-        import_hooks.register_module_hook('tests.test_module', module_hook)
+        import_hooks.register_module_hook("tests.test_module", module_hook)
 
         # Hook should be called on register
         module_hook.assert_called_once_with(tests.test_module)
@@ -89,7 +90,7 @@ class ImportHookTestCase(SubprocessTestCase):
             The import hook should only be run once
         """
         module_hook = mock.Mock()
-        import_hooks.register_module_hook('tests.test_module', module_hook)
+        import_hooks.register_module_hook("tests.test_module", module_hook)
         import tests.test_module
         import tests.test_module  # noqa
         import tests.test_module  # noqa
@@ -104,8 +105,8 @@ class ImportHookTestCase(SubprocessTestCase):
             The import hook should not be called
         """
         module_hook = mock.Mock()
-        import_hooks.register_module_hook('tests.test_module', module_hook)
-        import_hooks.hooks.deregister('tests.test_module', module_hook)
+        import_hooks.register_module_hook("tests.test_module", module_hook)
+        import_hooks.hooks.deregister("tests.test_module", module_hook)
         import tests.test_module  # noqa
 
         # Hook should not be called
@@ -120,20 +121,22 @@ class ImportHookTestCase(SubprocessTestCase):
         test_module_hook2 = mock.Mock()
         test_module2_hook = mock.Mock()
 
-        import_hooks.register_module_hook('tests.test_module', test_module_hook)
-        import_hooks.register_module_hook('tests.test_module', test_module_hook2)
-        import_hooks.register_module_hook('tests.test_module2', test_module2_hook)
+        import_hooks.register_module_hook("tests.test_module", test_module_hook)
+        import_hooks.register_module_hook("tests.test_module", test_module_hook2)
+        import_hooks.register_module_hook("tests.test_module2", test_module2_hook)
 
         test_module_hook.assert_not_called()
         test_module_hook2.assert_not_called()
         test_module2_hook.assert_not_called()
 
         import tests.test_module2
+
         test_module_hook.assert_not_called()
         test_module_hook2.assert_not_called()
         test_module2_hook.assert_called_once_with(tests.test_module2)
 
         import tests.test_module
+
         test_module_hook.assert_called_once_with(tests.test_module)
         test_module_hook2.assert_called_once_with(tests.test_module)
         test_module2_hook.assert_called_once_with(tests.test_module2)

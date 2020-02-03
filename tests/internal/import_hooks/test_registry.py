@@ -45,9 +45,9 @@ def test_registry_reset(hooks, module_hook):
         All hooks are removed
     """
     # Register some hooks
-    hooks.register('test.module.name', module_hook)
-    hooks.register('pytest', module_hook)
-    hooks.register('ddtrace', module_hook)
+    hooks.register("test.module.name", module_hook)
+    hooks.register("pytest", module_hook)
+    hooks.register("ddtrace", module_hook)
     assert len(hooks.hooks) == 3
 
     # Reset the registry
@@ -64,7 +64,7 @@ def test_registry_call_with_module(hooks):
             All module_hooks registered for the module are called
     """
     # Register 3 hooks for a module
-    module_name = 'test.module.name'
+    module_name = "test.module.name"
     hook_one = mock.Mock()
     hook_two = mock.Mock()
     hook_three = mock.Mock()
@@ -91,7 +91,7 @@ def test_registry_call_with_no_module(hooks):
             We do not call any of the hooks
     """
     # Register 3 hooks for a module
-    module_name = 'test.module.name'
+    module_name = "test.module.name"
     hook_one = mock.Mock()
     hook_two = mock.Mock()
     hook_three = mock.Mock()
@@ -109,7 +109,7 @@ def test_registry_call_with_no_module(hooks):
     hook_three.assert_not_called()
 
 
-@mock.patch('ddtrace.internal.import_hooks.log')
+@mock.patch("ddtrace.internal.import_hooks.log")
 def test_registry_call_with_hook_exception(hooks_log, hooks):
     """
     When calling module hooks
@@ -118,7 +118,7 @@ def test_registry_call_with_hook_exception(hooks_log, hooks):
             We continue to call other hooks
     """
     # Register 3 hooks for a module
-    module_name = 'test.module.name'
+    module_name = "test.module.name"
     hook_one = mock.Mock()
     hook_two = mock.Mock()
     hook_two.side_effect = Exception
@@ -140,10 +140,7 @@ def test_registry_call_with_hook_exception(hooks_log, hooks):
 
     # Assert we logged a warning about the hook failing
     hooks_log.warning.assert_called_once_with(
-        'Failed to call hook %r for module %r',
-        hook_two,
-        module_name,
-        exc_info=True,
+        "Failed to call hook %r for module %r", hook_two, module_name, exc_info=True,
     )
 
 
@@ -156,7 +153,7 @@ def test_registry_call_no_name(hooks):
     # Call hooks for the module
     # DEV: Pass fake module to ensure we don't grab from `sys.modules`
     module = object()
-    module_name = 'test.module.name'
+    module_name = "test.module.name"
 
     # Ensure the module isn't registered
     assert module_name not in hooks.hooks
@@ -177,7 +174,7 @@ class RegistryTestCase(SubprocessTestCase):
         hooks = ModuleHookRegistry()
         module_hook = mock.Mock()
 
-        module_name = 'test.module.name'
+        module_name = "test.module.name"
         hooks.register(module_name, module_hook)
 
         # The hook was registered
@@ -197,8 +194,9 @@ class RegistryTestCase(SubprocessTestCase):
                 We immediately call the hook function
         """
         hooks = ModuleHookRegistry()
-        module_name = 'tests.test_module'
+        module_name = "tests.test_module"
         import tests.test_module
+
         module_hook = mock.Mock()
 
         hooks.register(module_name, module_hook)
@@ -221,7 +219,7 @@ class RegistryTestCase(SubprocessTestCase):
         module_hook = mock.Mock()
 
         # Register the hook
-        module_name = 'tests.test_module'
+        module_name = "tests.test_module"
         hooks.register(module_name, module_hook)
         assert hooks.hooks[module_name] == set([module_hook])
 
@@ -232,6 +230,7 @@ class RegistryTestCase(SubprocessTestCase):
         assert hooks.hooks[module_name] == set()
 
         import tests.test_module
+
         hooks.call(module_name, module=tests.test_module)
 
         # Ensure it was not called
@@ -248,10 +247,10 @@ class RegistryTestCase(SubprocessTestCase):
         module_hook = mock.Mock()
 
         # Ensure we do not have the module registered
-        module_name = 'test.module.name'
+        module_name = "test.module.name"
         assert module_name not in hooks.hooks
 
-        with mock.patch('ddtrace.internal.import_hooks.log') as log_mock:
+        with mock.patch("ddtrace.internal.import_hooks.log") as log_mock:
             # Deregistering the hook has no side effects
             hooks.deregister(module_name, module_hook)
 
@@ -259,9 +258,9 @@ class RegistryTestCase(SubprocessTestCase):
         assert module_name not in hooks.hooks
 
         # Ensure a log message is generated
-        log_mock.debug.assert_has_calls([
-            mock.call('No hooks registered for module %r', 'test.module.name'),
-        ])
+        log_mock.debug.assert_has_calls(
+            [mock.call("No hooks registered for module %r", "test.module.name")]
+        )
 
     def test_deregister_unknown_hook(self):
         """
@@ -274,7 +273,7 @@ class RegistryTestCase(SubprocessTestCase):
         module_hook = mock.Mock()
 
         # Ensure we do not have the module registered
-        module_name = 'test.module.name'
+        module_name = "test.module.name"
         hooks.register(module_name, module_hook)
 
         # Ensure our hook was registered
@@ -283,16 +282,16 @@ class RegistryTestCase(SubprocessTestCase):
         # Deregistering a different hook
         unknown_hook = mock.Mock()
 
-        with mock.patch('ddtrace.internal.import_hooks.log') as log_mock:
+        with mock.patch("ddtrace.internal.import_hooks.log") as log_mock:
             hooks.deregister(module_name, unknown_hook)
 
         # Ensure we didn't remove the other hook of ours
         assert hooks.hooks[module_name] == set([module_hook])
 
         # Ensure a log message is generated
-        log_mock.debug.assert_has_calls([
-            mock.call('No hook %r registered for module %r', mock.ANY, 'test.module.name'),
-        ])
+        log_mock.debug.assert_has_calls(
+            [mock.call("No hook %r registered for module %r", mock.ANY, "test.module.name")]
+        )
 
     def test_call_after_import(self):
         """
@@ -300,7 +299,7 @@ class RegistryTestCase(SubprocessTestCase):
             All hooks registered for the module are called
         """
         hooks = ModuleHookRegistry()
-        module_name = 'tests.test_module'
+        module_name = "tests.test_module"
 
         hook_one = mock.Mock()
         hook_two = mock.Mock()
@@ -311,6 +310,7 @@ class RegistryTestCase(SubprocessTestCase):
         hooks.register(module_name, hook_three)
 
         import tests.test_module
+
         hooks.call(module_name)
 
         # Assert all hooks were called with the module
