@@ -258,9 +258,7 @@ class RegistryTestCase(SubprocessTestCase):
         assert module_name not in hooks.hooks
 
         # Ensure a log message is generated
-        log_mock.debug.assert_has_calls(
-            [mock.call("No hooks registered for module %r", "test.module.name")]
-        )
+        log_mock.debug.assert_has_calls([mock.call("No hooks registered for module %r", "test.module.name")])
 
     def test_deregister_unknown_hook(self):
         """
