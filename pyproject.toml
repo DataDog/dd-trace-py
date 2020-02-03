@@ -16,7 +16,6 @@ exclude = '''
   | dist/
   | ddtrace/(
     [^/]+\.py
-    | bootstrap/
     | commands/
     | contrib/
     (
@@ -94,11 +93,9 @@ exclude = '''
     )
     | ext/
     | http/
-    | internal/
     | opentracer/
     | propagation/
     | settings/
-    | utils/
     | vendor/
   )
   | tests/
