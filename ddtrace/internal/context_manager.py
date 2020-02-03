@@ -9,7 +9,8 @@ log = get_logger(__name__)
 
 try:
     from contextvars import ContextVar
-    _DD_CONTEXTVAR = ContextVar('datadog_contextvar', default=None)
+
+    _DD_CONTEXTVAR = ContextVar("datadog_contextvar", default=None)
     CONTEXTVARS_IS_AVAILABLE = True
 except ImportError:
     CONTEXTVARS_IS_AVAILABLE = False
@@ -43,6 +44,7 @@ class ThreadLocalContext(BaseContextManager):
     is required to prevent multiple threads sharing the same ``Context``
     in different executions.
     """
+
     def __init__(self, reset=True):
         # always initialize a new thread-local context holder
         super(ThreadLocalContext, self).__init__(reset=True)
@@ -54,14 +56,14 @@ class ThreadLocalContext(BaseContextManager):
         :returns: Whether an active context exists
         :rtype: bool
         """
-        ctx = getattr(self._locals, 'context', None)
+        ctx = getattr(self._locals, "context", None)
         return ctx is not None
 
     def set(self, ctx):
-        setattr(self._locals, 'context', ctx)
+        setattr(self._locals, "context", ctx)
 
     def get(self):
-        ctx = getattr(self._locals, 'context', None)
+        ctx = getattr(self._locals, "context", None)
         if not ctx:
             # create a new Context if it's not available
             ctx = Context()
@@ -79,6 +81,7 @@ class ContextVarContextManager(BaseContextManager):
     3.7 and above to manage different ``Context`` objects for each thread and
     async task.
     """
+
     def _has_active_context(self):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None

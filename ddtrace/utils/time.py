@@ -15,6 +15,7 @@ class StopWatch(object):
 
     .. _monotonic: https://pypi.python.org/pypi/monotonic/
     """
+
     def __init__(self):
         self._started_at = None
         self._stopped_at = None
@@ -32,8 +33,7 @@ class StopWatch(object):
         """
         # NOTE: datetime.timedelta does not support nanoseconds, so keep a float here
         if self._started_at is None:
-            raise RuntimeError('Can not get the elapsed time of a stopwatch'
-                               ' if it has not been started/stopped')
+            raise RuntimeError("Can not get the elapsed time of a stopwatch" " if it has not been started/stopped")
         if self._stopped_at is None:
             now = monotonic.monotonic()
         else:
@@ -52,7 +52,6 @@ class StopWatch(object):
     def stop(self):
         """Stops the watch."""
         if self._started_at is None:
-            raise RuntimeError('Can not stop a stopwatch that has not been'
-                               ' started')
+            raise RuntimeError("Can not stop a stopwatch that has not been" " started")
         self._stopped_at = monotonic.monotonic()
         return self
