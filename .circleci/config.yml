@@ -64,7 +64,6 @@ jobs:
     resource_class: *resource_class
     steps:
       - checkout
-      - *restore_cache_step
       # Create and activate a Python3.7 virtualenv
       - run: virtualenv --python python3.7 .venv/build
 
@@ -86,7 +85,6 @@ jobs:
       # Ensure package long description is valid and will render
       # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
       - run: .venv/build/bin/twine check dist/*
-      - *save_cache_step
 
   tracer:
     docker:
