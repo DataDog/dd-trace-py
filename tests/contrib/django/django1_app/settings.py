@@ -84,5 +84,5 @@ if os.environ.get("TEST_DATADOG_DJANGO_MIGRATION"):
         "ANALYTICS_SAMPLE_RATE": True,
         "TRACE_QUERY_STRING": True,
         "TAGS": {"env": "env-test"},
-        "TRACER": "ddtrace.tracer"
+        "TRACER": "ddtrace.tracer",
     }

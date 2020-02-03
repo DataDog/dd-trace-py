@@ -1216,8 +1216,8 @@ def test_configure_from_settings(tracer):
     pin = Pin.get_from(django)
 
     with BaseTestCase.override_config("django", dict()):
-        assert 'ddtrace.contrib.django' in django.conf.settings.INSTALLED_APPS
-        assert hasattr(django.conf.settings, 'DATADOG_TRACE')
+        assert "ddtrace.contrib.django" in django.conf.settings.INSTALLED_APPS
+        assert hasattr(django.conf.settings, "DATADOG_TRACE")
 
         configure_from_settings(pin, config.django, django.conf.settings.DATADOG_TRACE)
 
