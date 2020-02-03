@@ -151,50 +151,27 @@ class optional_build_ext(build_ext):
             print("WARNING: Failed to build extension %s, skipping: %s" % (ext.name, e))
 
 
-def get_msgpack_extensions():
+def get_exts_for(name):
     try:
-        msgpack_setup = load_module_from_project_file("ddtrace.vendor.msgpack.setup", "ddtrace/vendor/msgpack/setup.py")
-        return msgpack_setup.get_extensions()
+        mod = load_module_from_project_file(
+            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
+        )
+        return mod.get_extensions()
     except Exception as e:
-        print("WARNING: Failed to load msgpack extensions, skipping: %s" % e)
-        return []
-
-
-def get_wrapt_extensions():
-    try:
-        wrapt_setup = load_module_from_project_file("ddtrace.vendor.wrapt.setup", "ddtrace/vendor/wrapt/setup.py")
-        return wrapt_setup.get_extensions()
-    except Exception as e:
-        print("WARNING: Failed to load wrapt extensions, skipping: %s" % e)
-        return []
-
-
-def get_psutil_extensions():
-    try:
-        psutil_setup = load_module_from_project_file("ddtrace.vendor.psutil.setup", "ddtrace/vendor/psutil/setup.py")
-        return psutil_setup.get_extensions()
-    except Exception as e:
-        print("WARNING: Failed to load psutil extensions, skipping: %s" % e)
+        print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
         return []
 
 
 # Try to build with C extensions first, fallback to only pure-Python if building fails
 try:
-    exts = []
-    msgpack_extensions = get_msgpack_extensions()
-    if msgpack_extensions:
-        exts.extend(msgpack_extensions)
-
-    wrapt_extensions = get_wrapt_extensions()
-    if wrapt_extensions:
-        exts.extend(wrapt_extensions)
-
-    psutil_extensions = get_psutil_extensions()
-    if psutil_extensions:
-        exts.extend(psutil_extensions)
+    all_exts = []
+    for extname in ("msgpack", "wrapt", "psutil"):
+        exts = get_exts_for(extname)
+        if exts:
+            all_exts.extend(exts)
 
     kwargs = copy.deepcopy(setup_kwargs)
-    kwargs["ext_modules"] = exts
+    kwargs["ext_modules"] = all_exts
     # DEV: Make sure `cmdclass` exists
     kwargs.setdefault("cmdclass", dict())
     kwargs["cmdclass"]["build_ext"] = optional_build_ext
