@@ -88,8 +88,8 @@ Example::
     config.django['service_name'] = 'custom-service-name'
 
 
-Migration
-~~~~~~~~~
+Migration from ddtrace<=0.33.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The Django integration provides automatic migration from enabling tracing using
 a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
