@@ -19,6 +19,11 @@ will produce tracing data. To trace your Celery application, call the patch meth
         def run(self):
             pass
 
+Distributed tracing is disabled by default. To enable it:
+
+    from ddtrace import config
+
+    config.celery['distributed_tracing'] = True
 
 To change Celery service name, you can use the ``Config`` API as follows::
 
