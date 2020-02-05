@@ -37,7 +37,8 @@ def patch_django(tracer):
     yield
 
     # Reset the tracer pinned to Django and unpatch
-    unpatch()
+    # DEV: unable to properly unpatch and reload django app with each test
+    # unpatch()
     Pin.override(django, tracer=original_tracer)
 
 
