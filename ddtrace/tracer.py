@@ -4,7 +4,7 @@ from os import environ, getpid
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, SPAN_MEASURED_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
@@ -273,7 +273,7 @@ class Tracer(object):
         if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
             self._start_runtime_worker()
 
-    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
+    def start_span(self, name, child_of=None, service=None, resource=None, span_type=None, _measured=False):
         """
         Return a span that will trace an operation called `name`. This method allows
         parenting using the ``child_of`` kwarg. If it's missing, the newly created span is a
@@ -399,6 +399,9 @@ class Tracer(object):
             # service(s) that may have been added.
             self._update_dogstatsd_constant_tags()
 
+        if _measured:
+            span.set_tag(SPAN_MEASURED_KEY)
+
         return span
 
     def _update_dogstatsd_constant_tags(self):
@@ -440,7 +443,7 @@ class Tracer(object):
         # Re-create the background writer thread
         self.writer = self.writer.recreate()
 
-    def trace(self, name, service=None, resource=None, span_type=None):
+    def trace(self, name, service=None, resource=None, span_type=None, _measured=False):
         """
         Return a span that will trace an operation called `name`. The context that created
         the span as well as the span parenting, are automatically handled by the tracing
@@ -484,6 +487,7 @@ class Tracer(object):
             service=service,
             resource=resource,
             span_type=span_type,
+            _measured=_measured,
         )
 
     def current_root_span(self):
