@@ -100,7 +100,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     if not pin or not pin.enabled():
         return func(*wrapt_args, **wrapt_kwargs)
 
-    with pin.tracer.trace('algoliasearch.search', service=pin.service) as span:
+    with pin.tracer.trace('algoliasearch.search', service=pin.service, _measured=True) as span:
         if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)
 

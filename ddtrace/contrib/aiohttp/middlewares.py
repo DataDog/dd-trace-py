@@ -44,6 +44,7 @@ def trace_middleware(app, handler):
             'aiohttp.request',
             service=service,
             span_type=SpanTypes.WEB,
+            _measured=True,
         )
 
         # Configure trace search sample rate

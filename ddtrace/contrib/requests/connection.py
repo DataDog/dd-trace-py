@@ -67,7 +67,7 @@ def _wrap_send(func, instance, args, kwargs):
         )
     )
 
-    with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
+    with tracer.trace("requests.request", span_type=SpanTypes.HTTP, _measured=True) as span:
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
 

@@ -28,7 +28,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         with pin.tracer.trace(self._datadog_name, service=service,
-                              resource=resource, span_type=SpanTypes.SQL) as s:
+                              resource=resource, span_type=SpanTypes.SQL,
+                              _measured=True) as s:
             s.set_tag(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

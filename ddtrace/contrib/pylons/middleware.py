@@ -41,7 +41,7 @@ class PylonsTraceMiddleware(object):
             if context.trace_id:
                 self._tracer.context_provider.activate(context)
 
-        with self._tracer.trace('pylons.request', service=self._service, span_type=SpanTypes.WEB) as span:
+        with self._tracer.trace('pylons.request', service=self._service, span_type=SpanTypes.WEB, _measured=True) as span:
             # Set the service in tracer.trace() as priority sampling requires it to be
             # set as early as possible when different services share one single agent.
 

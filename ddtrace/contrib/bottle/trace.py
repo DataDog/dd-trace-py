@@ -36,7 +36,8 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace(
-                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB
+                'bottle.request', service=self.service, resource=resource,
+                span_type=SpanTypes.WEB, _measured=True,
             ) as s:
                 # set analytics sample rate with global config enabled
                 s.set_tag(

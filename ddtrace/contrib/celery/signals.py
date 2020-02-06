@@ -28,7 +28,7 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER, _measured=True)
     attach_span(task, task_id, span)
 
 
@@ -78,7 +78,7 @@ def trace_before_publish(*args, **kwargs):
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
     service = config.celery['producer_service_name']
-    span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name, _measured=True)
     span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag('celery.id', task_id)
     span.set_tags(tags_from_context(kwargs))

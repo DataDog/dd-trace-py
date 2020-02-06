@@ -46,7 +46,7 @@ def wrap_function(name):
         path = kwargs.get('key') or args[0]
         resource = name.upper()
 
-        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource) as span:
+        with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, _measured=True) as span:
             rate = config.consul.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)

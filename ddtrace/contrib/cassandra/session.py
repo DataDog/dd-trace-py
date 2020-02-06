@@ -181,7 +181,7 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace('cassandra.query', service=service, span_type=SpanTypes.CASSANDRA)
+    span = tracer.trace('cassandra.query', service=service, span_type=SpanTypes.CASSANDRA, _measured=True)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))

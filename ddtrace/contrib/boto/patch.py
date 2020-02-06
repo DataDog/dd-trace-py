@@ -68,6 +68,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
+        _measured=True,
     ) as span:
 
         operation_name = None
@@ -136,6 +137,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         '{}.command'.format(endpoint_name),
         service='{}.{}'.format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
+        _measured=True,
     ) as span:
 
         if args:

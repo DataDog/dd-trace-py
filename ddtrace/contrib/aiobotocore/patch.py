@@ -80,7 +80,7 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service='{}.{}'.format(pin.service, endpoint_name),
-                          span_type=SpanTypes.HTTP) as span:
+                          span_type=SpanTypes.HTTP, _measured=True) as span:
 
         if len(args) > 0:
             operation = args[0]

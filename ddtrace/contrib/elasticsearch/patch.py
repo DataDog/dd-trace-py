@@ -52,7 +52,7 @@ def _get_perform_request(elasticsearch):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with pin.tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH) as span:
+        with pin.tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH, _measured=True) as span:
             # Don't instrument if the trace is not sampled
             if not span.sampled:
                 return func(*args, **kwargs)
