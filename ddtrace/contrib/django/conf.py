@@ -86,8 +86,7 @@ class DatadogSettings(object):
         if os.environ.get("DATADOG_ENV"):
             self.defaults["TAGS"].update({"env": os.environ.get("DATADOG_ENV")})
 
-        # TODO: We need to clean this up when we unify around a single env name
-        for env_name in ("DATADOG_SERVICE_NAME", "DD_SERVICE_NAME", "DATADOG_SERVICE", "DD_SERVICE"):
+        for env_name in ("DATADOG_SERVICE_NAME", "DD_SERVICE_NAME"):
             if os.environ.get(env_name):
                 self.defaults["DEFAULT_SERVICE"] = os.environ[env_name]
 
