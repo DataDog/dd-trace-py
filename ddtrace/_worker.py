@@ -48,8 +48,11 @@ class PeriodicWorkerThread(object):
 
     def start(self):
         """Start the periodic worker."""
-        _LOG.debug('Starting %s thread', self._thread.name)
-        self._thread.start()
+        if not self.is_alive():
+            _LOG.debug('Starting %s thread', self._thread.name)
+            self._thread.start()
+        else:
+            _LOG.debug('Thread %s already started', self._thread.name)
 
     def stop(self):
         """Stop the worker."""
@@ -60,7 +63,8 @@ class PeriodicWorkerThread(object):
         return self._thread.is_alive()
 
     def join(self, timeout=None):
-        return self._thread.join(timeout)
+        if self.is_alive():
+            return self._thread.join(timeout)
 
     def _target(self):
         while not self._stop.wait(self.interval):

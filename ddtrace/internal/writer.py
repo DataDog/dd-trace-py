@@ -50,7 +50,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         )
         if hasattr(time, "thread_time"):
             self._last_thread_time = time.thread_time()
-        self.start()
 
     def recreate(self):
         """ Create a new instance of :class:`AgentWriter` using the same settings from this instance
@@ -76,6 +75,12 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         return bool(config.health_metrics_enabled and self.dogstatsd)
 
     def write(self, spans=None, services=None):
+        # Start the AgentWriter on first write.
+        # Starting it earlier might be an issue with gevent, see:
+        # https://github.com/DataDog/dd-trace-py/issues/1192
+        if not self.is_alive():
+            self.start()
+
         if spans:
             self._trace_queue.put(spans)
 
