@@ -1,7 +1,21 @@
 import contextlib
 import os
 
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
+
+
+def assert_is_measured(span):
+    """Assert that the span has the proper _dd.measured tag set"""
+    assert SPAN_MEASURED_KEY not in span.metrics
+    assert SPAN_MEASURED_KEY in span.meta
+    assert span.get_tag(SPAN_MEASURED_KEY) == "1"
+
+
+def assert_is_not_measured(span):
+    """Assert that the span does not set _dd.measured"""
+    assert SPAN_MEASURED_KEY not in span.meta
+    assert SPAN_MEASURED_KEY not in span.metrics
 
 
 def assert_span_http_status_code(span, code):
