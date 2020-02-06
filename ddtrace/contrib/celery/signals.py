@@ -28,7 +28,8 @@ def trace_prerun(*args, **kwargs):
 
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER, _measured=True)
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name,
+                            span_type=SpanTypes.WORKER, _measured=True)
     attach_span(task, task_id, span)
 
 
