@@ -3,19 +3,17 @@ from django.test import modify_settings
 import os
 import pytest
 
-from ddtrace import config, Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http, errors
 from ddtrace.ext.priority import USER_KEEP
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID, HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.utils import get_wsgi_header
-from ddtrace.contrib.django.conf import configure_from_settings
-from ddtrace.contrib.django import unpatch
-from ddtrace.utils.wrappers import iswrapped
 
 from tests.base import BaseTestCase
 from tests.opentracer.utils import init_tracer
 from ...util import assert_dict_issuperset
+
+pytestmark = pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" in os.environ, reason="test only without migration")
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -1204,58 +1202,3 @@ def test_urlpatterns_repath(client, test_spans):
 
     # Ensure the view was traced
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
-
-
-"""
-migration tests
-"""
-
-
-@pytest.mark.skipif("TEST_DATADOG_DJANGO_MIGRATION" not in os.environ, reason="test only relevant for migration")
-def test_configure_from_settings(tracer):
-    pin = Pin.get_from(django)
-
-    with BaseTestCase.override_config("django", dict()):
-        assert "ddtrace.contrib.django" in django.conf.settings.INSTALLED_APPS
-        assert hasattr(django.conf.settings, "DATADOG_TRACE")
-
-        configure_from_settings(pin, config.django, django.conf.settings.DATADOG_TRACE)
-
-        assert config.django.service_name == "django-test"
-        assert config.django.cache_service_name == "cache-test"
-        assert config.django.database_service_name_prefix == "db-test-"
-        assert config.django.distributed_tracing_enabled is True
-        assert config.django.instrument_databases is True
-        assert config.django.instrument_caches is True
-        assert config.django.analytics_enabled is True
-        assert config.django.analytics_sample_rate is True
-        # TODO: uncomment when figured out why setting this is not working
-        # assert config.django.trace_query_string is True
-
-        assert pin.tracer.enabled is True
-        assert pin.tracer.tags["env"] == "env-test"
-        assert pin.tracer.writer.api.hostname == "host-test"
-        assert pin.tracer.writer.api.port == 1234
-
-
-"""
-unpatching tests
-"""
-
-
-def test_unpatch(tracer):
-    unpatch()
-    assert not getattr(django, "_datadog_patch", False)
-    assert not iswrapped(django.apps.registry.Apps.populate)
-    assert not iswrapped(django.core.handlers.base.BaseHandler.load_middleware)
-    assert not iswrapped(django.core.handlers.base.BaseHandler.get_response)
-    assert not iswrapped(django.template.base.Template.render)
-    assert not iswrapped(django.conf.urls.static.static)
-    assert not iswrapped(django.conf.urls.url)
-    if django.VERSION >= (2, 0, 0):
-        assert not iswrapped(django.urls.path)
-        assert not iswrapped(django.urls.re_path)
-    assert not iswrapped(django.views.generic.base.View.as_view)
-    for conn in django.db.connections.all():
-        assert not iswrapped(conn.cursor)
-    assert not iswrapped(django.db.connections.all)

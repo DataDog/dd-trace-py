@@ -105,8 +105,6 @@ exclude = '''
       | config.py
       | consul
       | dbapi
-      | django
-      | djangorestframework
       | elasticsearch
       | falcon
       | flask
