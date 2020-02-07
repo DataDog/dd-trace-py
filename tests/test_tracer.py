@@ -629,11 +629,6 @@ def test_tracer_fork():
                 assert t.writer != original_writer
                 assert t.writer._trace_queue != original_writer._trace_queue
 
-            # Stop the background worker so we don't accidetnally flush the
-            # queue before we can assert on it
-            t.writer.stop()
-            t.writer.join()
-
         # Assert the trace got written into the correct queue
         assert original_writer._trace_queue.qsize() == 0
         assert t.writer._trace_queue.qsize() == 1
@@ -655,11 +650,6 @@ def test_tracer_fork():
         assert t._pid == original_pid
         assert t.writer == original_writer
         assert t.writer._trace_queue == original_writer._trace_queue
-
-        # Stop the background worker so we don't accidentally flush the
-        # queue before we can assert on it
-        t.writer.stop()
-        t.writer.join()
 
     # Assert the trace got written into the correct queue
     assert original_writer._trace_queue.qsize() == 1
