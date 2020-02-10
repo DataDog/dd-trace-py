@@ -58,9 +58,9 @@ class Jinja2Test(unittest.TestCase):
             assert span.get_tag('jinja2.template_name') == '<memory>'
 
         assert spans[0].name == 'jinja2.compile'
-        assert_is_not_measured(span[0])
+        assert_is_not_measured(spans[0])
         assert spans[1].name == 'jinja2.render'
-        assert_is_measured(span[1])
+        assert_is_measured(spans[1])
 
     def test_file_template(self):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
