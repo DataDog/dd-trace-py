@@ -84,6 +84,16 @@ License: Apache License 2.0
 Notes:
    Removed dependency on `pbr` and manually set `__version__`
 
+
+psutil
+------
+
+Website: https://github.com/giampaolo/psutil
+Source: https://github.com/giampaolo/psutil
+Version: 5.6.7
+License: BSD 3
+
+Notes:
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
