@@ -135,7 +135,9 @@ class TracedClient(ObjectProxy):
             'memcached.cmd',
             service=pin.service,
             resource=cmd_name,
-            span_type=SpanTypes.CACHE)
+            span_type=SpanTypes.CACHE,
+            _measured=True,
+        )
 
         try:
             self._tag_span(span)

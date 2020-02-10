@@ -42,7 +42,8 @@ class TracedCursor(cursor):
         if not self._datadog_tracer:
             return cursor.execute(self, query, vars)
 
-        with self._datadog_tracer.trace('postgres.query', service=self._datadog_service, span_type=SpanTypes.SQL) as s:
+        with self._datadog_tracer.trace('postgres.query', service=self._datadog_service,
+                                        span_type=SpanTypes.SQL, _measured=True) as s:
             if not s.sampled:
                 return super(TracedCursor, self).execute(query, vars)
 

@@ -82,7 +82,8 @@ def patch_app_call(wrapped, instance, args, kwargs):
         if context.trace_id:
             pin.tracer.context_provider.activate(context)
 
-    with pin.tracer.trace('molten.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as span:
+    with pin.tracer.trace('molten.request', service=pin.service, resource=resource,
+                          span_type=SpanTypes.WEB, _measured=True) as span:
         # set analytics sample rate with global config enabled
         span.set_tag(
             ANALYTICS_SAMPLE_RATE_KEY,

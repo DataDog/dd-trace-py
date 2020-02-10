@@ -74,6 +74,7 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'test-flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')
@@ -82,11 +83,10 @@ class FlaskAutopatchTestCase(unittest.TestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['flask.version', 'http.url', 'http.method', 'http.status_code',
-                 'flask.endpoint', 'flask.url_rule']),
-            set(req_span.meta.keys()),
-        )
+        for tag in ['flask.version', 'http.url', 'http.method', 'http.status_code',
+                    'flask.endpoint', 'flask.url_rule']:
+            assert tag in req_span.meta
+
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
