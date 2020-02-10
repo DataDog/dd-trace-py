@@ -218,7 +218,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[1])
 
         redirect_span = traces[0][0]
-        assert_is_measured(request_span)
+        assert_is_measured(redirect_span)
         assert 'tornado-web' == redirect_span.service
         assert 'tornado.request' == redirect_span.name
         assert 'web' == redirect_span.span_type
