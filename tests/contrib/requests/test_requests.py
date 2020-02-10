@@ -13,7 +13,7 @@ from tests.opentracer.utils import init_tracer
 
 from ...base import BaseTracerTestCase
 from ...util import override_global_tracer
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -105,6 +105,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert_span_http_status_code(s, 200)
         assert s.error == 0
@@ -122,6 +124,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert_span_http_status_code(s, 200)
         assert s.error == 0
@@ -137,6 +141,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.URL) == URL_200
@@ -154,6 +160,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             spans = self.tracer.writer.pop()
             assert len(spans) == 1
             s = spans[0]
+
+            assert_is_measured(s)
             assert s.get_tag(http.METHOD) == 'GET'
             assert_span_http_status_code(s, 200)
             assert s.error == 0
@@ -166,6 +174,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'POST'
         assert_span_http_status_code(s, 500)
         assert s.error == 1
@@ -181,6 +191,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert s.error == 1
         assert 'Failed to establish a new connection' in s.get_tag(errors.MSG)
@@ -195,6 +207,8 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert_span_http_status_code(s, 500)
         assert s.error == 1
@@ -368,6 +382,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert ot_span.name == 'requests_get'
         assert ot_span.service == 'requests_svc'
 
+        assert_is_measured(dd_span)
         assert dd_span.get_tag(http.METHOD) == 'GET'
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.error == 0
