@@ -102,7 +102,8 @@ class TracedServer(ObjectProxy):
         if not cmd or not pin or not pin.enabled():
             return None
 
-        span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB, service=pin.service)
+        span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB,
+                                service=pin.service, _measured=True)
         span.set_tag(mongox.DB, cmd.db)
         span.set_tag(mongox.COLLECTION, cmd.coll)
         span.set_tags(cmd.tags)
@@ -222,7 +223,8 @@ class TracedSocket(ObjectProxy):
         s = pin.tracer.trace(
             'pymongo.cmd',
             span_type=SpanTypes.MONGODB,
-            service=pin.service)
+            service=pin.service,
+            _measured=True)
 
         if cmd.db:
             s.set_tag(mongox.DB, cmd.db)

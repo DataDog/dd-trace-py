@@ -80,6 +80,7 @@ class EngineTracer(object):
             service=pin.service,
             span_type=SpanTypes.SQL,
             resource=statement,
+            _measured=True,
         )
 
         if not _set_tags_from_url(span, conn.engine.url):

@@ -142,6 +142,7 @@ class WrappedClient(wrapt.ObjectProxy):
             service=p.service,
             resource=method_name,
             span_type=SpanTypes.CACHE,
+            _measured=True,
         ) as span:
             # set analytics sample rate
             span.set_tag(

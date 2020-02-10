@@ -35,7 +35,8 @@ def execute(func, handler, args, kwargs):
         request_span = tracer.trace(
             'tornado.request',
             service=service,
-            span_type=SpanTypes.WEB
+            span_type=SpanTypes.WEB,
+            _measured=True,
         )
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api

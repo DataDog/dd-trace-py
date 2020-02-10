@@ -74,26 +74,31 @@ config._add(
                         'span_type': SpanTypes.SQL,
                         'span_start': execute_span_start,
                         'span_end': execute_span_end,
+                        'measured': True,
                     },
                     'copy': {
                         'operation_name': 'vertica.copy',
                         'span_type': SpanTypes.SQL,
                         'span_start': copy_span_start,
+                        'measured': False,
                     },
                     'fetchone': {
                         'operation_name': 'vertica.fetchone',
                         'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
+                        'measured': False,
                     },
                     'fetchall': {
                         'operation_name': 'vertica.fetchall',
                         'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
+                        'measured': False,
                     },
                     'nextset': {
                         'operation_name': 'vertica.nextset',
                         'span_type': SpanTypes.SQL,
                         'span_end': fetch_span_end,
+                        'measured': False,
                     },
                 },
             },
@@ -198,7 +203,9 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
             operation_name = conf['operation_name']
             tracer = pin.tracer
-            with tracer.trace(operation_name, service=pin.service, span_type=conf.get('span_type')) as span:
+            with tracer.trace(operation_name, service=pin.service,
+                              span_type=conf.get('span_type'),
+                              _measured=conf.get('measured', False)) as span:
                 span.set_tags(pin.tags)
 
                 if 'span_start' in conf:

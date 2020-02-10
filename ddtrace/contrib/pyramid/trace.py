@@ -70,7 +70,8 @@ def trace_tween_factory(handler, registry):
                 # only need to active the new context if something was propagated
                 if context.trace_id:
                     tracer.context_provider.activate(context)
-            with tracer.trace('pyramid.request', service=service, resource='404', span_type=SpanTypes.WEB) as span:
+            with tracer.trace('pyramid.request', service=service, resource='404',
+                              span_type=SpanTypes.WEB, _measured=True) as span:
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)
