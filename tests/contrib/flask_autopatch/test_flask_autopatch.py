@@ -8,7 +8,7 @@ from ddtrace.ext import http
 from ddtrace import Pin
 
 from ...test_tracer import get_dummy_tracer
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 class FlaskAutopatchTestCase(unittest.TestCase):
