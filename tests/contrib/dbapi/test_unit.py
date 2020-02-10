@@ -5,7 +5,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor, TracedCursor, TracedConnection
 from ddtrace.span import Span
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
+from ...utils import assert_is_measured, assert_is_not_measured
 
 
 class TestTracedCursor(BaseTracerTestCase):
@@ -170,7 +170,8 @@ class TestTracedCursor(BaseTracerTestCase):
 
         traced_cursor._trace_method(method, 'my_name', 'my_resource', {'extra1': 'value_extra1'})
         span = tracer.writer.pop()[0]  # type: Span
-        assert_is_measured(span)
+        # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
+        assert_is_not_measured(span)
         assert span.meta['pin1'] == 'value_pin1', 'Pin tags are preserved'
         assert span.meta['extra1'] == 'value_extra1', 'Extra tags are merged into pin tags'
         assert span.name == 'my_name', 'Span name is respected'
