@@ -243,7 +243,7 @@ class BotoTest(BaseTracerTestCase):
         spans = writer.pop()
         assert spans
         span = spans[0]
-        assert_is_measured(span[0])
+        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'GetFederationToken')
         self.assertEqual(span.service, 'test-boto-tracing.sts')
