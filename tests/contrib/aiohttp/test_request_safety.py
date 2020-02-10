@@ -11,7 +11,7 @@ from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
-from ...utils import assert_span_is_measured
+from ...utils import assert_is_measured
 
 
 class TestAiohttpSafety(TraceTestCase):
@@ -45,7 +45,7 @@ class TestAiohttpSafety(TraceTestCase):
         request_span = traces[0][0]
         template_span = traces[0][1]
         # request
-        assert_span_is_measured(request_span)
+        assert_is_measured(request_span)
         assert 'aiohttp-web' == request_span.service
         assert 'aiohttp.request' == request_span.name
         assert 'GET /template/' == request_span.resource

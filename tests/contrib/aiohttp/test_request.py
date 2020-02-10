@@ -10,7 +10,7 @@ from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
-from ...utils import assert_span_is_measured
+from ...utils import assert_is_measured
 
 
 class TestRequestTracing(TraceTestCase):
@@ -41,7 +41,7 @@ class TestRequestTracing(TraceTestCase):
         assert 1 == len(traces)
         assert 2 == len(traces[0])
         request_span = traces[0][0]
-        assert_span_is_measured(request_span)
+        assert_is_measured(request_span)
 
         template_span = traces[0][1]
         # request
