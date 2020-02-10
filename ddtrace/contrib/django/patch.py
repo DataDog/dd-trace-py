@@ -112,6 +112,9 @@ def instrument_dbs(django):
     if not isinstance(django.db.connections.all, wrapt.ObjectProxy):
         django.db.connections.all = wrapt.FunctionWrapper(django.db.connections.all, all_connections)
 
+    if hasattr(django.db, "connection") and not isinstance(django.db.connection.cursor, wrapt.ObjectProxy):
+        patch_conn(django, django.db.connection)
+
 
 def _set_request_tags(span, request):
     span.set_tag("django.request.class", func_name(request))
