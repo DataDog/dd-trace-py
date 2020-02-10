@@ -24,7 +24,9 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
         _datadog_service = datadog_service
 
         def perform_request(self, method, url, params=None, body=None):
-            with self._datadog_tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH) as s:
+            with self._datadog_tracer.trace('elasticsearch.query',
+                                            span_type=SpanTypes.ELASTICSEARCH,
+                                            _measured=True) as s:
                 # Don't instrument if the trace is not sampled
                 if not s.sampled:
                     return super(TracedTransport, self).perform_request(
