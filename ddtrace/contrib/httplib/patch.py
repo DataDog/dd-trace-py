@@ -55,7 +55,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP, _measured=True)
         setattr(instance, '_datadog_span', span)
 
         method, path = args[:2]

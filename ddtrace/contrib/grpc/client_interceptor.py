@@ -152,7 +152,8 @@ class _ClientInterceptor(
         tracer = self._pin.tracer
 
         span = tracer.trace(
-            "grpc", span_type=SpanTypes.GRPC, service=self._pin.service, resource=client_call_details.method,
+            "grpc", span_type=SpanTypes.GRPC, service=self._pin.service,
+            resource=client_call_details.method, _measured=True,
         )
 
         # tags for method details

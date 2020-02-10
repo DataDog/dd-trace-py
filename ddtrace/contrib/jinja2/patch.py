@@ -49,7 +49,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.name or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace('jinja2.render', pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with pin.tracer.trace('jinja2.render', pin.service, span_type=SpanTypes.TEMPLATE, _measured=True) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:

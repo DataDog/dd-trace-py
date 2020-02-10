@@ -31,6 +31,7 @@ class TraceMiddleware(object):
             'falcon.request',
             service=self.service,
             span_type=SpanTypes.WEB,
+            _measured=True,
         )
 
         # set analytics sample rate with global config enabled

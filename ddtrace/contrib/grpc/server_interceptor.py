@@ -68,6 +68,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             span_type=SpanTypes.GRPC,
             service=self._pin.service,
             resource=self._handler_call_details.method,
+            _measured=True,
         )
 
         method_path = self._handler_call_details.method

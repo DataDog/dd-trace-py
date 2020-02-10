@@ -38,7 +38,8 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.filename or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with pin.tracer.trace(func_name(wrapped), pin.service,
+                          span_type=SpanTypes.TEMPLATE, _measured=True) as span:
         try:
             template = wrapped(*args, **kwargs)
             return template

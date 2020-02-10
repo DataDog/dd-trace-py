@@ -7,6 +7,7 @@ import jinja2
 from ddtrace import Pin, config
 from ddtrace.contrib.jinja2 import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured, assert_is_not_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')
@@ -39,7 +40,9 @@ class Jinja2Test(unittest.TestCase):
             assert span.get_tag('jinja2.template_name') == '<memory>'
 
         assert spans[0].name == 'jinja2.compile'
+        assert_is_not_measured(span[0])
         assert spans[1].name == 'jinja2.render'
+        assert_is_measured(span[1])
 
     def test_generate_inline_template(self):
         t = jinja2.environment.Template('Hello {{name}}!')
@@ -55,7 +58,9 @@ class Jinja2Test(unittest.TestCase):
             assert span.get_tag('jinja2.template_name') == '<memory>'
 
         assert spans[0].name == 'jinja2.compile'
+        assert_is_not_measured(span[0])
         assert spans[1].name == 'jinja2.render'
+        assert_is_measured(span[1])
 
     def test_file_template(self):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
@@ -76,10 +81,15 @@ class Jinja2Test(unittest.TestCase):
             return s.name, s.get_tag('jinja2.template_name')
 
         assert get_def(spans[0]) == ('jinja2.load', 'template.html')
+        assert_is_not_measured(spans[0])
         assert get_def(spans[1]) == ('jinja2.compile', 'template.html')
+        assert_is_not_measured(spans[1])
         assert get_def(spans[2]) == ('jinja2.render', 'template.html')
+        assert_is_measured(spans[2])
         assert get_def(spans[3]) == ('jinja2.load', 'base.html')
+        assert_is_not_measured(spans[3])
         assert get_def(spans[4]) == ('jinja2.compile', 'base.html')
+        assert_is_not_measured(spans[4])
 
         # additionnal checks for jinja2.load
         assert spans[0].get_tag('jinja2.template_path') == os.path.join(TMPL_DIR, 'template.html')

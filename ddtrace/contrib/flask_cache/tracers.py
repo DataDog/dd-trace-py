@@ -48,7 +48,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None):
             s = self._datadog_tracer.trace(
                 cmd,
                 span_type=SpanTypes.CACHE,
-                service=self._datadog_service
+                service=self._datadog_service,
+                _measured=True,
             )
             # set span tags
             s.set_tag(CACHE_BACKEND, self.config.get('CACHE_TYPE'))

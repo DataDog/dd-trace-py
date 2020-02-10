@@ -78,7 +78,8 @@ def traced_receive(func, instance, args, kwargs):
     # only need to active the new context if something was propagated
     if context.trace_id:
         pin.tracer.context_provider.activate(context)
-    with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+    with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service,
+                          span_type=SpanTypes.WORKER, _measured=True) as s:
         # run the command
         exchange = message.delivery_info['exchange']
         s.resource = exchange
@@ -99,7 +100,8 @@ def traced_publish(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+    with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service,
+                          span_type=SpanTypes.WORKER, _measured=True) as s:
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag(kombux.EXCHANGE, exchange_name)

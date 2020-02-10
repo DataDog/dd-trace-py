@@ -282,7 +282,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
     resource = u'{} {}'.format(request.method, request.path)
-    with pin.tracer.trace('flask.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as s:
+    with pin.tracer.trace('flask.request', service=pin.service, resource=resource,
+                          span_type=SpanTypes.WEB, _measured=True) as s:
         # set analytics sample rate with global config enabled
         sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
         if sample_rate is not None:
