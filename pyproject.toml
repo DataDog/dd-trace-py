@@ -31,19 +31,6 @@ exclude = '''
       | celery
       | consul
       | dbapi
-      | django/
-      (
-         __init__.py
-         | apps.py
-         | cache.py
-         | compat.py
-         | conf.py
-         | db.py
-         | patch.py
-         | restframework.py
-         | templates.py
-         | utils.py
-      )
       | dogpile_cache
       | elasticsearch
       | falcon
@@ -118,8 +105,6 @@ exclude = '''
       | config.py
       | consul
       | dbapi
-      | django
-      | djangorestframework
       | elasticsearch
       | falcon
       | flask
