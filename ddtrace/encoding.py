@@ -4,12 +4,17 @@ import struct
 from .internal.logger import get_logger
 
 
-# Try to import msgpack, fallback to just JSON if something went wrong
+# check msgpack CPP implementation; if the import fails, we're using the
+# pure Python implementation that is really slow, so the ``Encoder`` should use
+# a different encoding format.
 # DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
 try:
-    from ddtrace.vendor import msgpack
-    # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
-    MSGPACK_PARAMS = {'use_bin_type': True}
+    import msgpack
+    from msgpack._packer import Packer  # noqa
+    from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
+    from msgpack._version import version
+    # use_bin_type kwarg only exists since msgpack-python v0.4.0
+    MSGPACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
     MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
