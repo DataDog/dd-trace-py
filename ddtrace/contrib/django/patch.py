@@ -186,13 +186,13 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
     # populate() can be called multiple times, we don't want to instrument more than once
     if instance.ready:
-        log.info("Django instrumentation already installed, skipping.")
+        log.debug("Django instrumentation already installed, skipping.")
         return func(*args, **kwargs)
 
     ret = func(*args, **kwargs)
 
     if not instance.ready:
-        log.info("populate() failed skipping instrumentation.")
+        log.debug("populate() failed skipping instrumentation.")
         return ret
 
     settings = django.conf.settings
