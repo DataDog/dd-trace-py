@@ -1,6 +1,7 @@
 import mako
 from mako.template import Template
 
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
 from ...utils.importlib import func_name
@@ -38,8 +39,8 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.filename or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace(func_name(wrapped), pin.service,
-                          span_type=SpanTypes.TEMPLATE, _measured=True) as span:
+    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         try:
             template = wrapped(*args, **kwargs)
             return template

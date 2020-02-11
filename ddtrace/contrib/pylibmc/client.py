@@ -7,7 +7,7 @@ import pylibmc
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, memcached, net
 from ...internal.logger import get_logger
 from ...settings import config
@@ -136,8 +136,8 @@ class TracedClient(ObjectProxy):
             service=pin.service,
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
-            _measured=True,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         try:
             self._tag_span(span)

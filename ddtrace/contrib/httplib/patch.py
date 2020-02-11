@@ -3,7 +3,7 @@ from ddtrace.vendor import wrapt
 
 # Project
 from ...compat import PY2, httplib, parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http as ext_http
 from ...http import store_request_headers, store_response_headers
 from ...internal.logger import get_logger
@@ -55,7 +55,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP, _measured=True)
+        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+        span.set_tag(SPAN_MEASURED_KEY)
         setattr(instance, '_datadog_span', span)
 
         method, path = args[:2]

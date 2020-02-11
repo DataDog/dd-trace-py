@@ -17,7 +17,7 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, sql as sqlx, net as netx
 from ...pin import Pin
 from ...settings import config
@@ -80,8 +80,8 @@ class EngineTracer(object):
             service=pin.service,
             span_type=SpanTypes.SQL,
             resource=statement,
-            _measured=True,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)

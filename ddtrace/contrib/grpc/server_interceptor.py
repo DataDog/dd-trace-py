@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.ext import errors
 from ddtrace.compat import to_unicode
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...propagation.http import HTTPPropagator
 from . import constants
@@ -68,8 +68,8 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
             span_type=SpanTypes.GRPC,
             service=self._pin.service,
             resource=self._handler_call_details.method,
-            _measured=True,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         method_path = self._handler_call_details.method
         method_package, method_service, method_name = parse_method_path(method_path)
