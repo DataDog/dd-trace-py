@@ -336,7 +336,25 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^django_'
+      - run: scripts/run-tox-scenario '^django_contrib'
+      - *persist_to_workspace_step
+      - *save_cache_step
+
+  djangorestframework:
+    docker:
+      - *test_runner
+      - image: redis:4.0-alpine
+      - image: memcached:1.5-alpine
+      - image: datadog/docker-dd-agent
+        env:
+            - DD_APM_ENABLED=true
+            - DD_BIND_HOST=0.0.0.0
+            - DD_API_KEY=invalid_key_but_this_is_fine
+    resource_class: *resource_class
+    steps:
+      - checkout
+      - *restore_cache_step
+      - run: scripts/run-tox-scenario '^django_drf_contrib'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -901,6 +919,10 @@ workflows:
           requires:
             - flake8
             - black
+      - djangorestframework:
+          requires:
+            - flake8
+            - black
       - dogpile_cache:
           requires:
             - flake8
@@ -1077,6 +1099,7 @@ workflows:
             - ddtracerun
             - dogpile_cache
             - django
+            - djangorestframework
             - elasticsearch
             - falcon
             - flask
