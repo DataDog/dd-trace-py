@@ -49,47 +49,41 @@ class LoggingTestCase(BaseTracerTestCase):
         """
         Check logging patched and formatter including trace info
         """
+
         @self.tracer.wrap()
         def func():
-            logger.info('Hello!')
+            logger.info("Hello!")
             return get_correlation_ids(tracer=self.tracer)
 
-        with self.override_config('logging', dict(tracer=self.tracer)):
+        with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
             output, result = capture_function_log(
-                func,
-                fmt='%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s',
+                func, fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s",
             )
             self.assertEqual(
-                output,
-                'Hello! - dd.trace_id={} dd.span_id={}'.format(*result),
+                output, "Hello! - dd.trace_id={} dd.span_id={}".format(*result),
             )
 
             # without format string
-            output, _ = capture_function_log(
-                func,
-                fmt='%(message)s',
-            )
+            output, _ = capture_function_log(func, fmt="%(message)s",)
             self.assertEqual(
-                output,
-                'Hello!',
+                output, "Hello!",
             )
 
     def test_log_no_trace(self):
         """
         Check traced funclogging patched and formatter not including trace info
         """
+
         def func():
-            logger.info('Hello!')
+            logger.info("Hello!")
             return get_correlation_ids()
 
-        with self.override_config('logging', dict(tracer=self.tracer)):
+        with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
             output, _ = capture_function_log(
-                func,
-                fmt='%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s',
+                func, fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s",
             )
             self.assertEqual(
-                output,
-                'Hello! - dd.trace_id=0 dd.span_id=0',
+                output, "Hello! - dd.trace_id=0 dd.span_id=0",
             )

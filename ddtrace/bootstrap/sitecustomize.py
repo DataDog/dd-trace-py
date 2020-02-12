@@ -10,14 +10,15 @@ import logging
 
 from ddtrace.utils.formats import asbool, get_env
 from ddtrace.internal.logger import get_logger
-from ddtrace import constants
+from ddtrace import config, constants
 
-logs_injection = asbool(get_env("logs", "injection"))
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] " if logs_injection else ""
+    "[dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+    if config.logs_injection
+    else ""
 )
 
-if logs_injection:
+if config.logs_injection:
     # immediately patch logging if trace id injected
     from ddtrace import patch
 
