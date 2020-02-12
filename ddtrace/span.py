@@ -205,9 +205,11 @@ class Span(object):
             self.context.sampling_priority = priority.USER_REJECT
             return
         elif key == SPAN_MEASURED_KEY:
-            # DEV: Force a consistent value of `1`
-            #      This also allows us to do `span.set_tag(SPAN_MEASURED_KEY)`
-            self.metrics[SPAN_MEASURED_KEY] = 1
+            # Set `_dd.measured` tag as a metric
+            # DEV: `set_metric` will ensure it is an integer 0 or 1
+            if value is None:
+                value = 1
+            self.set_metric(key, value)
             return
 
         try:
@@ -246,7 +248,11 @@ class Span(object):
 
         # Enforce a specific connstant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
-            value = 1
+            try:
+                value = int(bool(value))
+            except (ValueError, TypeError):
+                log.warning('failed to convert %r tag to an integer from %r', key, value)
+                return
 
         # FIXME[matt] we could push this check to serialization time as well.
         # only permit types that are commonly serializable (don't use
