@@ -13,8 +13,8 @@ try:
     from msgpack._packer import Packer  # noqa
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
     from msgpack._version import version
-    # use_bin_type kwarg only exists since msgpack-python v0.4.0
-    MSGPACK_PARAMS = {'use_bin_type': True} if version >= (0, 4, 0) else {}
+    # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
+    MSGPACK_PARAMS = {'use_bin_type': True}
     MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
