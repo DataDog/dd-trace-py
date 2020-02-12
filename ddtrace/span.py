@@ -205,9 +205,9 @@ class Span(object):
             self.context.sampling_priority = priority.USER_REJECT
             return
         elif key == SPAN_MEASURED_KEY:
-            # DEV: The value doesn't matter, so force a consistent value
+            # DEV: Force a consistent value of `1`
             #      This also allows us to do `span.set_tag(SPAN_MEASURED_KEY)`
-            self.meta[SPAN_MEASURED_KEY] = "1"
+            self.metrics[SPAN_MEASURED_KEY] = 1
             return
 
         try:
@@ -243,6 +243,10 @@ class Span(object):
     def set_metric(self, key, value):
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
+
+        # Enforce a specific connstant for `_dd.measured`
+        if key == SPAN_MEASURED_KEY:
+            value = 1
 
         # FIXME[matt] we could push this check to serialization time as well.
         # only permit types that are commonly serializable (don't use
