@@ -4,9 +4,6 @@ import struct
 from .internal.logger import get_logger
 
 
-# check msgpack CPP implementation; if the import fails, we're using the
-# pure Python implementation that is really slow, so the ``Encoder`` should use
-# a different encoding format.
 # DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
 try:
     import msgpack
