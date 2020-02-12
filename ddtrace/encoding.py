@@ -4,10 +4,9 @@ import struct
 from .internal.logger import get_logger
 
 
-# Try to import msgpack, fallback to just JSON if something went wrong
 # DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
 try:
-    from ddtrace.vendor import msgpack
+    import msgpack
     # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
     MSGPACK_PARAMS = {'use_bin_type': True}
     MSGPACK_ENCODING = True
