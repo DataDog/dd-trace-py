@@ -12,7 +12,7 @@ try:
     import msgpack
     from msgpack._packer import Packer  # noqa
     from msgpack._unpacker import unpack, unpackb, Unpacker  # noqa
-    from msgpack._version import version
+    from msgpack._version import version # noqa
     # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
     MSGPACK_PARAMS = {'use_bin_type': True}
     MSGPACK_ENCODING = True
