@@ -19,7 +19,7 @@ config._add('dbapi2', dict(
 
 
 class TracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces it's queries. """
+    """ TracedCursor wraps a psql cursor and traces its queries. """
 
     def __init__(self, cursor, pin):
         super(TracedCursor, self).__init__(cursor)
