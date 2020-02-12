@@ -89,7 +89,7 @@ documentation][visualization docs].
 # enum34 is an enum backport for earlier versions of python
 # funcsigs backport required for vendored debtcollector
 # encoding using msgpack
-install_requires = ["enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'", "msgpack>0.5.6"]
+install_requires = ["enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'", "msgpack"]
 
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(

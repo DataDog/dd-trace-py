@@ -93,7 +93,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-tracer$'
+      - run: scripts/run-tox-scenario '^py..-tracer'
       - *persist_to_workspace_step
       - *save_cache_step
 
@@ -133,7 +133,7 @@ jobs:
     steps:
       - checkout
       - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-integration$'
+      - run: scripts/run-tox-scenario '^py..-integration'
       - *persist_to_workspace_step
       - *save_cache_step
 
