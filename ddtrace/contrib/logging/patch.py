@@ -12,7 +12,7 @@ RECORD_ATTR_SPAN_ID = "dd.span_id"
 RECORD_ATTR_VALUE_ZERO = 0
 RECORD_ATTR_VALUE_EMPTY = ""
 
-ddtrace.config._add("logging", dict(tracer=None,))  # by default, override here for custom tracer
+ddtrace.config._add("logging", dict(tracer=None))  # by default, override here for custom tracer
 
 
 def _inject_or_default(record, key, value, default=RECORD_ATTR_VALUE_EMPTY):
@@ -28,7 +28,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     #      have an active span, if someone hard codes their format string to add these
     #      then they must be there
 
-    tracer = ddtrace.config.logginng.tracer or ddtrace.tracer
+    tracer = ddtrace.config.logging.tracer or ddtrace.tracer
     span = tracer.current_span()
 
     # Add the application version to LogRecord
@@ -37,7 +37,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     # TODO: Inject DD_ENV and DD_SERVICE
 
     # add correlation identifiers to LogRecord
-    if span.trace_id and span.span_id:
+    if span and span.trace_id and span.span_id:
         setattr(record, RECORD_ATTR_TRACE_ID, span.trace_id)
         setattr(record, RECORD_ATTR_SPAN_ID, span.span_id)
     else:
