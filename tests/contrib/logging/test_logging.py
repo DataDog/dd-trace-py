@@ -1,6 +1,7 @@
 import logging
 
 from ddtrace.helpers import get_correlation_ids
+from ddtrace.constants import VERSION_KEY, SERVICE_VERSION_KEY
 from ddtrace.compat import StringIO
 from ddtrace.contrib.logging import patch, unpatch
 from ddtrace.vendor import wrapt
@@ -112,3 +113,89 @@ class LoggingTestCase(BaseTracerTestCase):
             self.assertEqual(
                 output, "Hello! - dd.version=",
             )
+
+    def test_log_span_version(self):
+        """
+        Check traced funclogging patched and formatter including span version info
+        """
+
+        def func():
+            with self.tracer.trace("test.span") as span:
+                span.set_tag(VERSION_KEY, "1.2.3")
+                logger.info("Hello!")
+                return get_correlation_ids()
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            # with format string for trace info
+            output, _ = capture_function_log(
+                func,
+                fmt="%(message)s - dd.version=%(dd.version)s",
+            )
+            self.assertEqual(
+                output, "Hello! - dd.version=1.2.3",
+            )
+
+    def test_log_span_service_version(self):
+        """
+        Check traced funclogging patched and formatter including span version info
+        """
+
+        def func():
+            with self.tracer.trace("test.span") as span:
+                span.set_tag(SERVICE_VERSION_KEY, "1.2.3")
+                logger.info("Hello!")
+                return get_correlation_ids()
+
+        with self.override_config("logging", dict(tracer=self.tracer)):
+            # with format string for trace info
+            output, _ = capture_function_log(
+                func,
+                fmt="%(message)s - dd.version=%(dd.version)s",
+            )
+            self.assertEqual(
+                output, "Hello! - dd.version=1.2.3",
+            )
+
+    def test_log_span_global_and_version(self):
+        """
+        Check traced funclogging patched and formatter including span version info
+        """
+
+        def func():
+            with self.tracer.trace("test.span") as span:
+                span.set_tag(VERSION_KEY, "1.2.3")
+                logger.info("Hello!")
+                return get_correlation_ids()
+
+        with self.override_global_config(dict(version="23.45.6")):
+            with self.override_config("logging", dict(tracer=self.tracer)):
+                # with format string for trace info
+                output, _ = capture_function_log(
+                    func,
+                    fmt="%(message)s - dd.version=%(dd.version)s",
+                )
+                self.assertEqual(
+                    output, "Hello! - dd.version=1.2.3",
+                )
+
+    def test_log_span_global_and_service_version(self):
+        """
+        Check traced funclogging patched and formatter including span version info
+        """
+
+        def func():
+            with self.tracer.trace("test.span") as span:
+                span.set_tag(SERVICE_VERSION_KEY, "1.2.3")
+                logger.info("Hello!")
+                return get_correlation_ids()
+
+        with self.override_global_config(dict(version="23.45.6")):
+            with self.override_config("logging", dict(tracer=self.tracer)):
+                # with format string for trace info
+                output, _ = capture_function_log(
+                    func,
+                    fmt="%(message)s - dd.version=%(dd.version)s",
+                )
+                self.assertEqual(
+                    output, "Hello! - dd.version=1.2.3",
+                )

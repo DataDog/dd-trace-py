@@ -4,7 +4,7 @@ import time
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, VERSION_KEY, SERVICE_VERSION_KEY
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
@@ -419,3 +419,13 @@ class SpanTestCase(BaseTracerTestCase):
         s.finish(finish_time=123)
         assert s.duration_ns == 1000000000
         assert s.duration == 1
+
+    def test_set_tag_version(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(VERSION_KEY, '1.2.3')
+        assert s.get_tag(VERSION_KEY) == '1.2.3'
+        assert s.get_tag(SERVICE_VERSION_KEY) is None
+
+        s.set_tag(SERVICE_VERSION_KEY, 'service.version')
+        assert s.get_tag(VERSION_KEY) == 'service.version'
+        assert s.get_tag(SERVICE_VERSION_KEY) == 'service.version'
