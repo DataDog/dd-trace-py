@@ -14,9 +14,9 @@ def get_env(*parts, **kwargs):
       arguments
     * return `default` otherwise
 
-    :param *parts: evironment variable parts that will be joined with ``_`` to generate the name
-    :type *parts: :obj:`str`
-    :param **kwargs: ``default`` is the only supported keyword argument which sets the default value
+    :param parts: evironment variable parts that will be joined with ``_`` to generate the name
+    :type parts: :obj:`str`
+    :param kwargs: ``default`` is the only supported keyword argument which sets the default value
         if no environment variable is found
     :rtype: :obj:`str` | ``kwargs["default"]``
     :returns: The string environment variable value or the value of ``kwargs["default"]`` if not found
