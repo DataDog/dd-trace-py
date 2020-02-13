@@ -32,7 +32,19 @@ def _w_makeRecord(func, instance, args, kwargs):
     span = tracer.current_span()
 
     # Add the application version to LogRecord
-    _inject_or_default(record, RECORD_ATTR_VERSION, ddtrace.config.version)
+    # Order of precedence:
+    #   - `service.version` tag if set directly by the user
+    #   - `version` tag if set on the span (this might be automatic if they used DD_VERSION)
+    #   - `ddtrace.config.version` if defined
+    #     - Even though this gets set to the `version` tag we fallback here in case there
+    #       is no currently active span, we should still be able to log this information
+    version = ddtrace.config.version
+    if span:
+        if 'service.version' in span.meta:
+            version = span.get_tag('service.version')
+        elif 'version' in span.meta:
+            version = span.get_tag('version')
+    _inject_or_default(record, RECORD_ATTR_VERSION, version)
 
     # TODO: Inject DD_ENV and DD_SERVICE
 
