@@ -24,8 +24,8 @@ def inject_sitecustomize(path):
 
     # Add `boostrap` module so that `sitecustomize.py` is at the bottom
     # of the PYTHONPATH
-    python_path = list(sys.path) + [sitecustomize]
-    env['PYTHONPATH'] = ':'.join(python_path)[1:]
+    python_path = [sitecustomize] + list(sys.path)
+    env['PYTHONPATH'] = ':'.join(python_path)
     return env
 
 
