@@ -3,6 +3,7 @@ import json
 import logging
 import mock
 import ddtrace
+import msgpack
 
 from unittest import TestCase, skip, skipUnless
 
@@ -15,7 +16,6 @@ from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor import monotonic
-from ddtrace.vendor import msgpack
 from tests.test_tracer import get_dummy_tracer
 
 
