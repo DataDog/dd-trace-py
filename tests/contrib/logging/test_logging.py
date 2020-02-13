@@ -29,6 +29,8 @@ def capture_function_log(func, fmt):
 
 
 class LoggingTestCase(BaseTracerTestCase):
+    maxDiff = None
+
     def setUp(self):
         patch()
         super(LoggingTestCase, self).setUp()
@@ -55,20 +57,22 @@ class LoggingTestCase(BaseTracerTestCase):
             logger.info("Hello!")
             return get_correlation_ids(tracer=self.tracer)
 
-        with self.override_config("logging", dict(tracer=self.tracer)):
-            # with format string for trace info
-            output, result = capture_function_log(
-                func, fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s",
-            )
-            self.assertEqual(
-                output, "Hello! - dd.trace_id={} dd.span_id={}".format(*result),
-            )
+        with self.override_global_config(dict(version="23.45.6")):
+            with self.override_config("logging", dict(tracer=self.tracer)):
+                # with format string for trace info
+                output, result = capture_function_log(
+                    func,
+                    fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s dd.version=%(dd.version)s",
+                )
+                self.assertEqual(
+                    output, "Hello! - dd.trace_id={} dd.span_id={} dd.version=23.45.6".format(*result),
+                )
 
-            # without format string
-            output, _ = capture_function_log(func, fmt="%(message)s",)
-            self.assertEqual(
-                output, "Hello!",
-            )
+                # without format string
+                output, _ = capture_function_log(func, fmt="%(message)s",)
+                self.assertEqual(
+                    output, "Hello!",
+                )
 
     def test_log_no_trace(self):
         """
@@ -79,11 +83,32 @@ class LoggingTestCase(BaseTracerTestCase):
             logger.info("Hello!")
             return get_correlation_ids()
 
+        with self.override_global_config(dict(version="23.45.6")):
+            with self.override_config("logging", dict(tracer=self.tracer)):
+                # with format string for trace info
+                output, _ = capture_function_log(
+                    func,
+                    fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s dd.version=%(dd.version)s",
+                )
+                self.assertEqual(
+                    output, "Hello! - dd.trace_id=0 dd.span_id=0 dd.version=23.45.6",
+                )
+
+    def test_log_no_version(self):
+        """
+        Check traced funclogging patched and formatter not including version info
+        """
+
+        def func():
+            logger.info("Hello!")
+            return get_correlation_ids()
+
         with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
             output, _ = capture_function_log(
-                func, fmt="%(message)s - dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s",
+                func,
+                fmt="%(message)s - dd.version=%(dd.version)s",
             )
             self.assertEqual(
-                output, "Hello! - dd.trace_id=0 dd.span_id=0",
+                output, "Hello! - dd.version=",
             )

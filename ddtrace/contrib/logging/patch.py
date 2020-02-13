@@ -1,6 +1,6 @@
 import logging
 
-from ddtrace import config
+import ddtrace
 
 from ...helpers import get_correlation_ids
 from ...utils.wrappers import unwrap as _u
@@ -12,23 +12,34 @@ RECORD_ATTR_SPAN_ID = "dd.span_id"
 RECORD_ATTR_VALUE_ZERO = 0
 RECORD_ATTR_VALUE_EMPTY = ""
 
-config._add("logging", dict(tracer=None,))  # by default, override here for custom tracer
+ddtrace.config._add("logging", dict(tracer=None,))  # by default, override here for custom tracer
+
+
+def _inject_or_default(record, key, value, default=RECORD_ATTR_VALUE_EMPTY):
+    if not value:
+        value = default
+    setattr(record, key, value)
 
 
 def _w_makeRecord(func, instance, args, kwargs):
     record = func(*args, **kwargs)
 
-    # Add the application version
-    if config.version:
-        setattr(record, RECORD_ATTR_VERSION, config.version)
-    else:
-        setattr(record, RECORD_ATTR_VERSION, RECORD_ATTR_VALUE_EMPTY)
+    # DEV: We must *always* inject these variables into the record, even if we don't
+    #      have an active span, if someone hard codes their format string to add these
+    #      then they must be there
+
+    tracer = ddtrace.config.logginng.tracer or ddtrace.tracer
+    span = tracer.current_span()
+
+    # Add the application version to LogRecord
+    _inject_or_default(record, RECORD_ATTR_VERSION, ddtrace.config.version)
+
+    # TODO: Inject DD_ENV and DD_SERVICE
 
     # add correlation identifiers to LogRecord
-    trace_id, span_id = get_correlation_ids(tracer=config.logging.tracer)
-    if trace_id and span_id:
-        setattr(record, RECORD_ATTR_TRACE_ID, trace_id)
-        setattr(record, RECORD_ATTR_SPAN_ID, span_id)
+    if span.trace_id and span.span_id:
+        setattr(record, RECORD_ATTR_TRACE_ID, span.trace_id)
+        setattr(record, RECORD_ATTR_SPAN_ID, span.span_id)
     else:
         setattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO)
         setattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO)

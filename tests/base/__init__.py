@@ -37,20 +37,24 @@ class BaseTestCase(unittest.TestCase):
             >>> with self.override_global_config(dict(name=value,...)):
                 # Your test
         """
-        # DEV: Uses dict as interface but internally handled as attributes on Config instance
-        analytics_enabled_original = ddtrace.config.analytics_enabled
-        report_hostname_original = ddtrace.config.report_hostname
-        health_metrics_enabled_original = ddtrace.config.health_metrics_enabled
+        global_config_keys = [
+            "analytics_enabled",
+            "report_hostname",
+            "health_metrics_enabled",
+            "version",
+        ]
+        originals = dict(
+            (key, getattr(ddtrace.config, key)) for key in global_config_keys
+        )
 
-        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
-        ddtrace.config.report_hostname = values.get('report_hostname', report_hostname_original)
-        ddtrace.config.health_metrics_enabled = values.get('health_metrics_enabled', health_metrics_enabled_original)
+        for key, value in values.items():
+            if key in global_config_keys:
+                setattr(ddtrace.config, key, value)
         try:
             yield
         finally:
-            ddtrace.config.analytics_enabled = analytics_enabled_original
-            ddtrace.config.report_hostname = report_hostname_original
-            ddtrace.config.health_metrics_enabled = health_metrics_enabled_original
+            for key, value in originals.items():
+                setattr(ddtrace.config, key, value)
 
     @staticmethod
     @contextlib.contextmanager
