@@ -108,9 +108,6 @@ try:
     if opts:
         tracer.configure(**opts)
 
-    if logs_injection:
-        EXTRA_PATCHED_MODULES.update({"logging": True})
-
     if patch:
         update_patched_modules()
         from ddtrace import patch_all
