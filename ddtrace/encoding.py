@@ -1,6 +1,8 @@
 import json
 import struct
 
+import msgpack
+
 from .internal.logger import get_logger
 
 
@@ -72,39 +74,31 @@ class JSONEncoder(_EncoderBase):
         return '[' + ','.join(objs) + ']'
 
 
-# DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
-try:
-    import msgpack
-except ImportError:
-    log.warning('using JSON encoder; application performance may be degraded; please install msgpack')
-    Encoder = JSONEncoder
-else:
-    log.debug('using MessagePack encoder')
+class MsgpackEncoder(_EncoderBase):
+    content_type = 'application/msgpack'
 
-    class MsgpackEncoder(_EncoderBase):
-        content_type = 'application/msgpack'
+    @staticmethod
+    def encode(obj):
+        return msgpack.packb(obj)
 
-        @staticmethod
-        def encode(obj):
-            return msgpack.packb(obj)
+    @staticmethod
+    def decode(data):
+        return msgpack.unpackb(data)
 
-        @staticmethod
-        def decode(data):
-            return msgpack.unpackb(data)
+    @staticmethod
+    def join_encoded(objs):
+        """Join a list of encoded objects together as a msgpack array"""
+        buf = b''.join(objs)
 
-        @staticmethod
-        def join_encoded(objs):
-            """Join a list of encoded objects together as a msgpack array"""
-            buf = b''.join(objs)
+        # Prepend array header to buffer
+        # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
+        count = len(objs)
+        if count <= 0xf:
+            return struct.pack('B', 0x90 + count) + buf
+        elif count <= 0xffff:
+            return struct.pack('>BH', 0xdc, count) + buf
+        else:
+            return struct.pack('>BI', 0xdd, count) + buf
 
-            # Prepend array header to buffer
-            # https://github.com/msgpack/msgpack-python/blob/f46523b1af7ff2d408da8500ea36a4f9f2abe915/msgpack/fallback.py#L948-L955
-            count = len(objs)
-            if count <= 0xf:
-                return struct.pack('B', 0x90 + count) + buf
-            elif count <= 0xffff:
-                return struct.pack('>BH', 0xdc, count) + buf
-            else:
-                return struct.pack('>BI', 0xdd, count) + buf
 
-    Encoder = MsgpackEncoder
+Encoder = MsgpackEncoder
