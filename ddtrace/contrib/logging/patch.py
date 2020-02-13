@@ -24,9 +24,13 @@ def _inject_or_default(record, key, value, default=RECORD_ATTR_VALUE_EMPTY):
 def _w_makeRecord(func, instance, args, kwargs):
     record = func(*args, **kwargs)
 
-    # DEV: We must *always* inject these variables into the record, even if we don't
-    #      have an active span, if someone hard codes their format string to add these
-    #      then they must be there
+    # We must *always* inject these variables into the record, even if we don't
+    #   have an active span, if someone hard codes their format string to add these
+    #   then they must be there
+    #
+    # - dd.version
+    # - dd.trace_id
+    # - dd.span_id
 
     tracer = ddtrace.config.logging.tracer or ddtrace.tracer
     span = tracer.current_span()
