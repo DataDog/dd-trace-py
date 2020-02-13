@@ -7,12 +7,9 @@ from .internal.logger import get_logger
 # DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
 try:
     import msgpack
-    # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
-    MSGPACK_PARAMS = {'use_bin_type': True}
     MSGPACK_ENCODING = True
 except ImportError:
     # fallback to JSON
-    MSGPACK_PARAMS = {}
     MSGPACK_ENCODING = False
 
 log = get_logger(__name__)
