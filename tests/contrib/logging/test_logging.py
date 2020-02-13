@@ -30,8 +30,6 @@ def capture_function_log(func, fmt):
 
 
 class LoggingTestCase(BaseTracerTestCase):
-    maxDiff = None
-
     def setUp(self):
         patch()
         super(LoggingTestCase, self).setUp()
@@ -106,10 +104,7 @@ class LoggingTestCase(BaseTracerTestCase):
 
         with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
-            output, _ = capture_function_log(
-                func,
-                fmt="%(message)s - dd.version=%(dd.version)s",
-            )
+            output, _ = capture_function_log(func, fmt="%(message)s - dd.version=%(dd.version)s",)
             self.assertEqual(
                 output, "Hello! - dd.version=",
             )
@@ -127,10 +122,7 @@ class LoggingTestCase(BaseTracerTestCase):
 
         with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
-            output, _ = capture_function_log(
-                func,
-                fmt="%(message)s - dd.version=%(dd.version)s",
-            )
+            output, _ = capture_function_log(func, fmt="%(message)s - dd.version=%(dd.version)s",)
             self.assertEqual(
                 output, "Hello! - dd.version=1.2.3",
             )
@@ -148,10 +140,7 @@ class LoggingTestCase(BaseTracerTestCase):
 
         with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
-            output, _ = capture_function_log(
-                func,
-                fmt="%(message)s - dd.version=%(dd.version)s",
-            )
+            output, _ = capture_function_log(func, fmt="%(message)s - dd.version=%(dd.version)s",)
             self.assertEqual(
                 output, "Hello! - dd.version=1.2.3",
             )
@@ -170,10 +159,7 @@ class LoggingTestCase(BaseTracerTestCase):
         with self.override_global_config(dict(version="23.45.6")):
             with self.override_config("logging", dict(tracer=self.tracer)):
                 # with format string for trace info
-                output, _ = capture_function_log(
-                    func,
-                    fmt="%(message)s - dd.version=%(dd.version)s",
-                )
+                output, _ = capture_function_log(func, fmt="%(message)s - dd.version=%(dd.version)s",)
                 self.assertEqual(
                     output, "Hello! - dd.version=1.2.3",
                 )
@@ -192,10 +178,7 @@ class LoggingTestCase(BaseTracerTestCase):
         with self.override_global_config(dict(version="23.45.6")):
             with self.override_config("logging", dict(tracer=self.tracer)):
                 # with format string for trace info
-                output, _ = capture_function_log(
-                    func,
-                    fmt="%(message)s - dd.version=%(dd.version)s",
-                )
+                output, _ = capture_function_log(func, fmt="%(message)s - dd.version=%(dd.version)s",)
                 self.assertEqual(
                     output, "Hello! - dd.version=1.2.3",
                 )
