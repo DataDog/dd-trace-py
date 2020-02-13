@@ -60,7 +60,7 @@ jobs:
   # Test that we can build the package properly and package long description will render
   test_build:
     docker:
-      - *test_runner
+      - image: circleci/python:3.8
     resource_class: *resource_class
     steps:
       - checkout
