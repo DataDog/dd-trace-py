@@ -24,7 +24,7 @@ def inject_sitecustomize(path):
 
     # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
     # if `import sitecustomize` is run that it'll be the one we specify
-    python_path =  [sitecustomize] + list(sys.path)
+    python_path = [sitecustomize] + list(sys.path)
     env['PYTHONPATH'] = ':'.join(python_path)
     return env
 
