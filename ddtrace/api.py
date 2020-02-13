@@ -4,7 +4,7 @@ from json import loads
 import socket
 
 # project
-from .encoding import get_encoder, JSONEncoder
+from .encoding import Encoder, JSONEncoder
 from .compat import httplib, PYTHON_VERSION, PYTHON_INTERPRETER, get_connection_response
 from .internal.logger import get_logger
 from .internal.runtime import container
@@ -185,7 +185,7 @@ class API(object):
         if self._compatibility_mode:
             self._encoder = JSONEncoder()
         else:
-            self._encoder = encoder or get_encoder()
+            self._encoder = encoder or Encoder()
         # overwrite the Content-type with the one chosen in the Encoder
         self._headers.update({'Content-Type': self._encoder.content_type})
 
