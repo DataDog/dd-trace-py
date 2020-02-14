@@ -37,25 +37,23 @@ persist_to_workspace_step: &persist_to_workspace_step
 jobs:
   black:
     docker:
-      - *test_runner
+      - image: circleci/python:3.8
     resource_class: *resource_class
     steps:
       - checkout
-      - *restore_cache_step
+      - run: pip install tox
       - run: tox -e 'black' --result-json /tmp/black.results
       - *persist_to_workspace_step
-      - *save_cache_step
 
   flake8:
     docker:
-      - *test_runner
+      - image: circleci/python:3.8
     resource_class: *resource_class
     steps:
       - checkout
-      - *restore_cache_step
+      - run: pip install tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - *persist_to_workspace_step
-      - *save_cache_step
 
   # Test that we can build the package properly and package long description will render
   test_build:
