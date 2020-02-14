@@ -1,11 +1,3 @@
-desc "build the docs"
-task :docs do
-    sh "pip install sphinx"
-  Dir.chdir 'docs' do
-    sh "make html"
-  end
-end
-
 # Deploy tasks
 S3_DIR = ENV['S3_DIR']
 S3_BUCKET = "pypi.datadoghq.com"
