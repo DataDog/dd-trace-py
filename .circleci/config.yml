@@ -913,7 +913,7 @@ jobs:
       - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
       - run: S3_DIR=trace rake release:docs
 
-  wait_all_tests:
+  verify_all_tests_ran:
     executor: python38
     steps:
       - attach_workspace:
@@ -1115,11 +1115,8 @@ workflows:
       - tracer_py27: *requires_pre_test
       - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
-      - wait_all_tests:
+      - verify_all_tests_ran:
           requires:
-            # Initial jobs
-            - pre_test
-
             # Python specific test suites
             - python38
             - python37
@@ -1177,7 +1174,7 @@ workflows:
             - vertica
       - deploy_dev:
           requires:
-            - wait_all_tests
+            - verify_all_tests_ran
           filters:
             branches:
               only: master
