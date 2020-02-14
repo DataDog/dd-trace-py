@@ -933,7 +933,6 @@ jobs:
 requires_pre_test: &requires_pre_test
   requires:
     - black
-    - build_docs
     - flake8
 
 workflows:
@@ -1113,6 +1112,9 @@ workflows:
       - vertica: *requires_pre_test
       - verify_all_tests_ran:
           requires:
+            # Individual tests do not need this to start running
+            - build_docs
+
             # Python specific test suites
             - python38
             - python37
