@@ -97,7 +97,9 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel
+      # DEV: `--user` is needed for Python3.4 otherwise we get:
+      #        Could not install packages due to an EnvironmentError: [Errno 13] Permission denied:
+      - run: pip install --user twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
