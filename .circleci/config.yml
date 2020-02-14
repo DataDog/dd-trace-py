@@ -393,15 +393,47 @@ jobs:
       - run_tox_scenario:
           pattern: '^django_drf_contrib'
 
-  flask:
-    executor: ddtrace_dev
+  flask: *placeholder_job
+
+  flask_py37:
+    executor: python37
     docker:
-      - image: *ddtrace_dev_image
+      - image: *python37_image
       - image: *redis_image
       - image: *memcached_image
     steps:
       - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py37'
+
+  flask_py36:
+    executor: python36
+    docker:
+      - image: *python36_image
+      - image: *redis_image
+      - image: *memcached_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py36'
+
+  flask_py35:
+    executor: python35
+    docker:
+      - image: *python35_image
+      - image: *redis_image
+      - image: *memcached_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py35'
+
+  flask_py27:
+    executor: python27
+    docker:
+      - image: *python27_image
+      - image: *redis_image
+      - image: *memcached_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py27'
 
   gevent:
     executor: ddtrace_dev
@@ -806,9 +838,24 @@ workflows:
       - falcon:
           requires:
             - pre_test
-      - flask:
+      - flask_py37:
           requires:
             - pre_test
+      - flask_py36:
+          requires:
+            - pre_test
+      - flask_py35:
+          requires:
+            - pre_test
+      - flask_py27:
+          requires:
+            - pre_test
+      - flask:
+          requires:
+            - flask_py37
+            - flask_py36
+            - flask_py35
+            - flask_py27
       - futures:
           requires:
             - pre_test
