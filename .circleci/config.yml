@@ -896,12 +896,6 @@ workflows:
       - build_docs
       - black
       - flake8
-      - test_build_py38
-      - test_build_py37
-      - test_build_py36
-      - test_build_py35
-      - test_build_py34
-      - test_build_py27
 
       # Python specific test suites
       - python38:
@@ -947,6 +941,14 @@ workflows:
             - opentracer_py27
             - test_build_py27
             - tracer_py27
+
+      # Test building the package
+      - test_build_py38: *requires_pre_test
+      - test_build_py37: *requires_pre_test
+      - test_build_py36: *requires_pre_test
+      - test_build_py35: *requires_pre_test
+      - test_build_py34: *requires_pre_test
+      - test_build_py27: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
