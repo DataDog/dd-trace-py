@@ -330,22 +330,88 @@ jobs:
       - run_tox_scenario:
           pattern: '^py27-opentracer'
 
-  integration:
-    executor: ddtrace_dev
+  ##
+  # Integration
+  ##
+  integration_py37:
+    executor: python37
     docker:
-      - image: *ddtrace_dev_image
+      - image: *python37_image
         environment:
           TEST_DATADOG_INTEGRATION: 1
       - *datadog_agent
     steps:
       - run_tox_scenario:
-          pattern: '^py..-integration'
-
-  futures:
-    executor: ddtrace_dev
+          pattern: '^py37-integration'
+  integration_py37:
+    executor: python36
+    docker:
+      - image: *python36_image
+        environment:
+          TEST_DATADOG_INTEGRATION: 1
+      - *datadog_agent
     steps:
       - run_tox_scenario:
-          pattern: '^futures_contrib-'
+          pattern: '^py36-integration'
+  integration_py37:
+    executor: python35
+    docker:
+      - image: *python35_image
+        environment:
+          TEST_DATADOG_INTEGRATION: 1
+      - *datadog_agent
+    steps:
+      - run_tox_scenario:
+          pattern: '^py35-integration'
+  integration_py37:
+    executor: python34
+    docker:
+      - image: *python34_image
+        environment:
+          TEST_DATADOG_INTEGRATION: 1
+      - *datadog_agent
+    steps:
+      - run_tox_scenario:
+          pattern: '^py34-integration'
+  integration_py37:
+    executor: python27
+    docker:
+      - image: *python27_image
+        environment:
+          TEST_DATADOG_INTEGRATION: 1
+      - *datadog_agent
+    steps:
+      - run_tox_scenario:
+          pattern: '^py27-integration'
+
+  ##
+  # Futures
+  ##
+  futures:
+    executor: python37
+    steps:
+      - run_tox_scenario:
+          pattern: '^futures_contrib-py37'
+  futures_py36:
+    executor: python36
+    steps:
+      - run_tox_scenario:
+          pattern: '^futures_contrib-py36'
+  futures_py35:
+    executor: python35
+    steps:
+      - run_tox_scenario:
+          pattern: '^futures_contrib-py35'
+  futures_py34:
+    executor: python34
+    steps:
+      - run_tox_scenario:
+          pattern: '^futures_contrib-py34'
+  futures_py27:
+    executor: python27
+    steps:
+      - run_tox_scenario:
+          pattern: '^futures_contrib-py27'
 
   boto:
     executor: ddtrace_dev
@@ -904,7 +970,9 @@ workflows:
       - python37:
           requires:
             - flask_py37
+            - futures_py37
             - httplib_py37
+            - integration_py37
             - internal_py37
             - opentracer_py37
             - test_build_py37
@@ -912,7 +980,9 @@ workflows:
       - python36:
           requires:
             - flask_py36
+            - futures_py36
             - httplib_py36
+            - integration_py36
             - internal_py36
             - opentracer_py36
             - test_build_py36
@@ -920,7 +990,9 @@ workflows:
       - python35:
           requires:
             - flask_py35
+            - futures_py35
             - httplib_py35
+            - integration_py35
             - internal_py35
             - opentracer_py35
             - test_build_py35
@@ -928,7 +1000,9 @@ workflows:
       - python34:
           requires:
             - flask_py34
+            - futures_py34
             - httplib_py34
+            - integration_py34
             - internal_py34
             - opentracer_py34
             - test_build_py34
@@ -936,7 +1010,9 @@ workflows:
       - python27:
           requires:
             - flask_py27
+            - futures_py27
             - httplib_py27
+            - integration_py27
             - internal_py27
             - opentracer_py27
             - test_build_py27
@@ -975,7 +1051,12 @@ workflows:
       - flask_py35: *requires_pre_test
       - flask_py34: *requires_pre_test
       - flask_py27: *requires_pre_test
-      - futures: *requires_pre_test
+      # futures
+      - futures_py37: *requires_pre_test
+      - futures_py36: *requires_pre_test
+      - futures_py35: *requires_pre_test
+      - futures_py34: *requires_pre_test
+      - futures_py27: *requires_pre_test
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
       - httplib_py37: *requires_pre_test
@@ -984,7 +1065,12 @@ workflows:
       - httplib_py35: *requires_pre_test
       - httplib_py34: *requires_pre_test
       - httplib_py27: *requires_pre_test
-      - integration: *requires_pre_test
+      # integration
+      - integration_py37: *requires_pre_test
+      - integration_py36: *requires_pre_test
+      - integration_py35: *requires_pre_test
+      - integration_py34: *requires_pre_test
+      - integration_py27: *requires_pre_test
       # internal
       - internal_py37: *requires_pre_test
       - internal_py36: *requires_pre_test
@@ -1061,10 +1147,8 @@ workflows:
             - djangorestframework
             - elasticsearch
             - falcon
-            - futures
             - gevent
             - grpc
-            - integration
             - jinja2
             - kombu
             - mako
