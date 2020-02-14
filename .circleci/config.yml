@@ -1,13 +1,13 @@
 version: 2.1
 
 resource_class: &resource_class small
-python38_image: &python38_image circleci/python3.8
-python37_image: &python37_image circleci/python3.7
-python36_image: &python36_image circleci/python3.6
-python35_image: &python35_image circleci/python3.5
-python27_image: &python27_image circleci/python2.7
+python38_image: &python38_image circleci/python:3.8
+python37_image: &python37_image circleci/python:3.7
+python36_image: &python36_image circleci/python:3.6
+python35_image: &python35_image circleci/python:3.5
+python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
-datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent
+datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
 redis_image: &redis_image redis:4.0-alpine
 rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -19,7 +19,7 @@ mysql_image: &mysql_image mysql:5.7
 postgres_image: &postgres_image postgres:10.5-alpine
 mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
-vertica_image: &vertica_image sumitchawla/vertica
+vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 commands:
