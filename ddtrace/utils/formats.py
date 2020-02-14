@@ -3,7 +3,7 @@ import os
 from .deprecation import deprecation
 
 
-def get_env(integration, variable, default=None):
+def get_env(*parts, **kwargs):
     """Retrieves environment variables value for the given integration. It must be used
     for consistency between integrations. The implementation is backward compatible
     with legacy nomenclature:
@@ -14,8 +14,17 @@ def get_env(integration, variable, default=None):
       arguments
     * return `default` otherwise
 
+    :param parts: evironment variable parts that will be joined with ``_`` to generate the name
+    :type parts: :obj:`str`
+    :param kwargs: ``default`` is the only supported keyword argument which sets the default value
+        if no environment variable is found
+    :rtype: :obj:`str` | ``kwargs["default"]``
+    :returns: The string environment variable value or the value of ``kwargs["default"]`` if not found
     """
-    key = "{}_{}".format(integration, variable).upper()
+    default = kwargs.get("default")
+
+    key = "_".join(parts)
+    key = key.upper()
     legacy_env = "DATADOG_{}".format(key)
     env = "DD_{}".format(key)
 

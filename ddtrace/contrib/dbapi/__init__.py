@@ -14,7 +14,7 @@ from ...vendor import wrapt
 log = get_logger(__name__)
 
 config._add('dbapi2', dict(
-    trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', 'false')),
+    trace_fetch_methods=asbool(get_env('dbapi2', 'trace_fetch_methods', default=False)),
 ))
 
 

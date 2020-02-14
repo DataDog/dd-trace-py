@@ -22,7 +22,7 @@ from .utils import (
 
 # kombu default settings
 config._add('kombu', {
-    'service_name': get_env('kombu', 'service_name', DEFAULT_SERVICE)
+    'service_name': get_env('kombu', 'service_name', default=DEFAULT_SERVICE)
 })
 
 propagator = HTTPPropagator()
