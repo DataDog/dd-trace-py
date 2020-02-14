@@ -794,14 +794,12 @@ jobs:
   build_docs:
     # deploy official documentation
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.8
     resource_class: *resource_class
     steps:
       - checkout
-      - run: sudo apt-get -y install rake
-      # Sphinx 1.7.5 is required otherwise docs are not properly built
-      - run: sudo pip install mkwheelhouse sphinx==1.7.5 wrapt
-      - run: rake docs
+      - run: sudo pip install tox
+      - run: tox -e docs
       - run:
           command: |
              mkdir -p /tmp/docs
