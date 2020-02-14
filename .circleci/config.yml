@@ -190,7 +190,6 @@ placeholder_job: &placeholder_job
 jobs:
   # Placeholder jobs
   # DEV: These jobs do nothing, they are used to build fan-in/fan-out workflows
-  pre_test: *placeholder_job
   python38: *placeholder_job
   python37: *placeholder_job
   python36: *placeholder_job
@@ -933,7 +932,9 @@ jobs:
 
 requires_pre_test: &requires_pre_test
   requires:
-    - pre_test
+    - black
+    - build_docs
+    - flake8
 
 workflows:
   version: 2
@@ -954,11 +955,6 @@ workflows:
   test:
     jobs:
       # Jobs that should run before individual integration test suites
-      - pre_test:
-          requires:
-            - build_docs
-            - black
-            - flake8
       - build_docs
       - black
       - flake8
