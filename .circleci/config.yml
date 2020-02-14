@@ -86,6 +86,31 @@ commands:
       - save_results
       - save_tox_cache
 
+  test_build:
+    description: "Build the package extensions and wheel to validate builds work"
+    steps:
+      - checkout
+
+      # Install required dependencies
+      # DEV: `pyopenssl` needed until the following PR is released
+      #      https://github.com/pypa/twine/pull/447
+      # DEV: `wheel` is needed to run `bdist_wheel`
+      - run: pip install twine readme_renderer[md] pyopenssl wheel
+      # Ensure we didn't cache from previous runs
+      - run: rm -rf build/ dist/
+      # Manually build any extensions to ensure they succeed
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
+      # Ensure source package will build
+      - run: python setup.py sdist
+      # Ensure wheel will build
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py bdist_wheel
+      # Ensure package long description is valid and will render
+      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
+      - run: twine check dist/*
+
+
 executors:
   python38:
     docker:
@@ -147,11 +172,14 @@ postgres_server: &postgres_server
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
 
+placeholder_job: &placeholder_job
+  executor: python38
+  steps:
+    - do_nothing
+
 jobs:
-  pre_test:
-    executor: python38
-    steps:
-      - do_nothing
+  pre_test: *placeholder_job
+
   black:
     executor: python38
     steps:
@@ -169,29 +197,32 @@ jobs:
       - save_results
 
   # Test that we can build the package properly and package long description will render
-  test_build:
+  test_build: *placeholder_job
+
+  test_build_py38:
     executor: python38
     steps:
-      - checkout
+      - test_build
 
-      # Install required dependencies
-      # DEV: `pyopenssl` needed until the following PR is released
-      #      https://github.com/pypa/twine/pull/447
-      # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel
-      # Ensure we didn't cache from previous runs
-      - run: rm -rf build/ dist/
-      # Manually build any extensions to ensure they succeed
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
-      # Ensure source package will build
-      - run: python setup.py sdist
-      # Ensure wheel will build
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py bdist_wheel
-      # Ensure package long description is valid and will render
-      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: twine check dist/*
+  test_build_py37:
+    executor: python37
+    steps:
+      - test_build
+
+  test_build_py36:
+    executor: python36
+    steps:
+      - test_build
+
+  test_build_py35:
+    executor: python35
+    steps:
+      - test_build
+
+  test_build_py27:
+    executor: python27
+    steps:
+      - test_build
 
   tracer:
     executor: ddtrace_dev
@@ -705,7 +736,18 @@ workflows:
       - build_docs
       - black
       - flake8
-      - test_build
+      - test_build_py38
+      - test_build_py37
+      - test_build_py36
+      - test_build_py35
+      - test_build_py27
+      - test_build:
+          requires:
+            - test_build_py38
+            - test_build_py37
+            - test_build_py36
+            - test_build_py35
+            - test_build_py27
       - pre_test:
           requires:
             - build_docs
