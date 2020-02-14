@@ -6,7 +6,9 @@ python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
-python34_image: &python34_image circleci/python:3.4
+# The circleci/python:3.4 images are broken, we cannot do `pip install <package>`
+# https://github.com/circleci/circleci-images/issues/466
+python34_image: &python34_image python:3.4
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
@@ -90,10 +92,6 @@ commands:
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
-    parameters:
-      pip_use_sudo:
-        type: boolean
-        default: false
     steps:
       - checkout
 
@@ -101,16 +99,7 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - when:
-          condition: pip_use_sudo
-          # DEV: With `sudo` we would get an error trying to install:
-          #        Could not install packages due to an EnvironmentError: [Errno 13] Permission denied:
-          steps:
-            - run: sudo pip install twine readme_renderer[md] pyopenssl wheel
-      - unless:
-          condition: pip_use_sudo
-          steps:
-            - run: pip install twine readme_renderer[md] pyopenssl wheel          -
+      - run: pip install twine readme_renderer[md] pyopenssl wheel
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
@@ -247,8 +236,7 @@ jobs:
   test_build_py34:
     executor: python34
     steps:
-      - test_build:
-          pip_use_sudo: true
+      - test_build
   test_build_py27:
     executor: python27
     steps:
@@ -905,12 +893,6 @@ workflows:
             - build_docs
             - black
             - flake8
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py34
-            - test_build_py27
       - build_docs
       - black
       - flake8
@@ -922,13 +904,16 @@ workflows:
       - test_build_py27
 
       # Python specific test suites
-      - python38
+      - python38:
+          requires:
+            - test_build_py38
       - python37:
           requires:
             - flask_py37
             - httplib_py37
             - internal_py37
             - opentracer_py37
+            - test_build_py37
             - tracer_py37
       - python36:
           requires:
@@ -936,6 +921,7 @@ workflows:
             - httplib_py36
             - internal_py36
             - opentracer_py36
+            - test_build_py36
             - tracer_py36
       - python35:
           requires:
@@ -943,6 +929,7 @@ workflows:
             - httplib_py35
             - internal_py35
             - opentracer_py35
+            - test_build_py35
             - tracer_py35
       - python34:
           requires:
@@ -950,6 +937,7 @@ workflows:
             - httplib_py34
             - internal_py34
             - opentracer_py34
+            - test_build_py34
             - tracer_py34
       - python27:
           requires:
@@ -957,6 +945,7 @@ workflows:
             - httplib_py27
             - internal_py27
             - opentracer_py27
+            - test_build_py27
             - tracer_py27
 
       # Integration test suites
