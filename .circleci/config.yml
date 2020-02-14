@@ -90,6 +90,10 @@ commands:
 
   test_build:
     description: "Build the package extensions and wheel to validate builds work"
+    parameters:
+      pip_use_sudo:
+        type: boolean
+        default: false
     steps:
       - checkout
 
@@ -97,9 +101,16 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      # DEV: `--user` is needed for Python3.4 otherwise we get:
-      #        Could not install packages due to an EnvironmentError: [Errno 13] Permission denied:
-      - run: pip install --user twine readme_renderer[md] pyopenssl wheel
+      - when:
+          condition: pip_use_sudo
+          # DEV: With `sudo` we would get an error trying to install:
+          #        Could not install packages due to an EnvironmentError: [Errno 13] Permission denied:
+          steps:
+            - run: sudo pip install twine readme_renderer[md] pyopenssl wheel
+      - unless:
+          condition: pip_use_sudo
+          steps:
+            - run: pip install twine readme_renderer[md] pyopenssl wheel          -
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
@@ -236,7 +247,8 @@ jobs:
   test_build_py34:
     executor: python34
     steps:
-      - test_build
+      - test_build:
+          pip_use_sudo: true
   test_build_py27:
     executor: python27
     steps:
