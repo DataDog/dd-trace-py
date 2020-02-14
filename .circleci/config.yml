@@ -155,6 +155,7 @@ jobs:
   black:
     executor: python38
     steps:
+      - checkout
       - setup_tox
       - run: tox -e 'black' --result-json /tmp/black.results
       - save_results
@@ -162,6 +163,7 @@ jobs:
   flake8:
     executor: python38
     steps:
+      - checkout
       - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
@@ -596,6 +598,7 @@ jobs:
   benchmarks:
     executor: ddtrace_dev
     steps:
+      - checkout
       - setup_tox
       - restore_tox_cache
       - run:
@@ -613,6 +616,7 @@ jobs:
     # build the master branch releasing development docs and wheels
     executor: python38
     steps:
+      - checkout
       - setup_tox
       - run: sudo apt-get -y install rake
       - run: pip install tox mkwheelhouse awscli
@@ -642,6 +646,7 @@ jobs:
     # deploy official documentation
     executor: python38
     steps:
+      - checkout
       - setup_tox
       - run: tox -e docs
       - run:
@@ -666,6 +671,7 @@ jobs:
     steps:
       - attach_workspace:
           at: /tmp/workspace
+      - checkout
       - setup_tox
       - run: ls /tmp/workspace/*
         # debug: shows how many time each test was executed
