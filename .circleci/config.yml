@@ -6,6 +6,7 @@ python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
 python35_image: &python35_image circleci/python:3.5
+python34_image: &python34_image circleci/python:3.4
 python27_image: &python27_image circleci/python:2.7
 ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
 datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
@@ -129,6 +130,10 @@ executors:
     docker:
       - image: *python35_image
     resource_class: *resource_class
+  python34:
+    docker:
+      - image: *python34_image
+    resource_class: *resource_class
   python27:
     docker:
       - image: *python27_image
@@ -181,7 +186,15 @@ placeholder_job: &placeholder_job
     - do_nothing
 
 jobs:
+  # Placeholder jobs
+  # DEV: These jobs do nothing, they are used to build fan-in/fan-out workflows
   pre_test: *placeholder_job
+  python38: *placeholder_job
+  python37: *placeholder_job
+  python36: *placeholder_job
+  python35: *placeholder_job
+  python34: *placeholder_job
+  python27: *placeholder_job
 
   black:
     executor: python38
@@ -199,49 +212,121 @@ jobs:
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
 
-  # Test that we can build the package properly and package long description will render
+  ##
+  # Test build
+  ##
   test_build_py38:
     executor: python38
     steps:
       - test_build
-
   test_build_py37:
     executor: python37
     steps:
       - test_build
-
   test_build_py36:
     executor: python36
     steps:
       - test_build
-
   test_build_py35:
     executor: python35
     steps:
       - test_build
-
+  test_build_py34:
+    executor: python34
+    steps:
+      - test_build
   test_build_py27:
     executor: python27
     steps:
       - test_build
 
-  tracer:
-    executor: ddtrace_dev
+  ##
+  # Tracer
+  ##
+  tracer_py37:
+    executor: python37
     steps:
       - run_tox_scenario:
-          pattern: '^py..-tracer'
+          pattern: '^py37-tracer'
+  tracer_py36:
+    executor: python36
+    steps:
+      - run_tox_scenario:
+          pattern: '^py36-tracer'
+  tracer_py35:
+    executor: python35
+    steps:
+      - run_tox_scenario:
+          pattern: '^py35-tracer'
+  tracer_py34:
+    executor: python34
+    steps:
+      - run_tox_scenario:
+          pattern: '^py34-tracer'
+  tracer_py27:
+    executor: python27
+    steps:
+      - run_tox_scenario:
+          pattern: '^py27-tracer'
 
-  internal:
-    executor: ddtrace_dev
+  ##
+  # Internal
+  ##
+  internal_py37:
+    executor: python37
     steps:
       - run_tox_scenario:
-          pattern: '^py..-internal'
+          pattern: '^py37-internal'
+  internal_py36:
+    executor: python36
+    steps:
+      - run_tox_scenario:
+          pattern: '^py36-internal'
+  internal_py35:
+    executor: python35
+    steps:
+      - run_tox_scenario:
+          pattern: '^py35-internal'
+  internal_py34:
+    executor: python34
+    steps:
+      - run_tox_scenario:
+          pattern: '^py34-internal'
+  internal_py27:
+    executor: python27
+    steps:
+      - run_tox_scenario:
+          pattern: '^py27-internal'
 
-  opentracer:
-    executor: ddtrace_dev
+  ##
+  # Opentracer
+  ##
+  opentracer_py37:
+    executor: python37
     steps:
       - run_tox_scenario:
-          pattern: '^py..-opentracer'
+          pattern: '^py37-opentracer'
+  opentracer_py36:
+    executor: python36
+    steps:
+      - run_tox_scenario:
+          pattern: '^py36-opentracer'
+  opentracer_py35:
+    executor: python35
+    steps:
+      - run_tox_scenario:
+          pattern: '^py35-opentracer'
+  opentracer_py34:
+    executor: python34
+    steps:
+      - run_tox_scenario:
+          pattern: '^py34-opentracer'
+
+  opentracer_py27:
+    executor: python27
+    steps:
+      - run_tox_scenario:
+          pattern: '^py27-opentracer'
 
   integration:
     executor: ddtrace_dev
@@ -393,8 +478,9 @@ jobs:
       - run_tox_scenario:
           pattern: '^django_drf_contrib'
 
-  flask: *placeholder_job
-
+  ##
+  # Flask
+  ##
   flask_py37:
     executor: python37
     docker:
@@ -404,7 +490,6 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py37'
-
   flask_py36:
     executor: python36
     docker:
@@ -414,7 +499,6 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py36'
-
   flask_py35:
     executor: python35
     docker:
@@ -424,7 +508,15 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py35'
-
+  flask_py34:
+    executor: python34
+    docker:
+      - image: *python34_image
+      - image: *redis_image
+      - image: *memcached_image
+    steps:
+      - run_tox_scenario:
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py34'
   flask_py27:
     executor: python27
     docker:
@@ -441,11 +533,34 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
-  httplib:
-    executor: ddtrace_dev
+  ##
+  # Httplib
+  ##
+  httplib_py37:
+    executor: python37
     steps:
       - run_tox_scenario:
-          pattern: '^httplib_contrib-'
+          pattern: '^httplib_contrib-py37'
+  httplib_py36:
+    executor: python36
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib-py36'
+  httplib_py35:
+    executor: python35
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib-py35'
+  httplib_py34:
+    executor: python34
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib-py34'
+  httplib_py27:
+    executor: python27
+    steps:
+      - run_tox_scenario:
+          pattern: '^httplib_contrib-py27'
 
   grpc:
     executor: ddtrace_dev
@@ -748,6 +863,10 @@ jobs:
       - run: diff all_tests all_executed_tests
 
 
+requires_pre_test: &requires_pre_test
+  requires:
+    - pre_test
+
 workflows:
   version: 2
 
@@ -766,14 +885,7 @@ workflows:
             - approve_docs_deployment
   test:
     jobs:
-      - build_docs
-      - black
-      - flake8
-      - test_build_py38
-      - test_build_py37
-      - test_build_py36
-      - test_build_py35
-      - test_build_py27
+      # Jobs that should run before individual integration test suites
       - pre_test:
           requires:
             - build_docs
@@ -783,185 +895,147 @@ workflows:
             - test_build_py37
             - test_build_py36
             - test_build_py35
+            - test_build_py34
             - test_build_py27
-      - aiobotocore:
-          requires:
-            - pre_test
-      - aiohttp:
-          requires:
-            - pre_test
-      - aiopg:
-          requires:
-            - pre_test
-      - asyncio:
-          requires:
-            - pre_test
-      - algoliasearch:
-          requires:
-            - pre_test
-      - benchmarks:
-          requires:
-            - pre_test
-      - boto:
-          requires:
-            - pre_test
-      - bottle:
-          requires:
-            - pre_test
-      - cassandra:
-          requires:
-            - pre_test
-      - celery:
-          requires:
-            - pre_test
-      - consul:
-          requires:
-            - pre_test
-      - dbapi:
-          requires:
-            - pre_test
-      - ddtracerun:
-          requires:
-            - pre_test
-      - django:
-          requires:
-            - pre_test
-      - djangorestframework:
-          requires:
-            - pre_test
-      - dogpile_cache:
-          requires:
-            - pre_test
-      - elasticsearch:
-          requires:
-            - pre_test
-      - falcon:
-          requires:
-            - pre_test
-      - flask_py37:
-          requires:
-            - pre_test
-      - flask_py36:
-          requires:
-            - pre_test
-      - flask_py35:
-          requires:
-            - pre_test
-      - flask_py27:
-          requires:
-            - pre_test
-      - flask:
+      - build_docs
+      - black
+      - flake8
+      - test_build_py38
+      - test_build_py37
+      - test_build_py36
+      - test_build_py35
+      - test_build_py34
+      - test_build_py27
+
+      # Python specific test suites
+      - python38
+      - python37:
           requires:
             - flask_py37
+            - httplib_py37
+            - internal_py37
+            - opentracer_py37
+            - tracer_py37
+      - python36:
+          requires:
             - flask_py36
+            - httplib_py36
+            - internal_py36
+            - opentracer_py36
+            - tracer_py36
+      - python35:
+          requires:
             - flask_py35
+            - httplib_py35
+            - internal_py35
+            - opentracer_py35
+            - tracer_py35
+      - python34:
+          requires:
+            - flask_py34
+            - httplib_py34
+            - internal_py34
+            - opentracer_py34
+            - tracer_py34
+      - python27:
+          requires:
             - flask_py27
-      - futures:
-          requires:
-            - pre_test
-      - gevent:
-          requires:
-            - pre_test
-      - grpc:
-          requires:
-            - pre_test
-      - httplib:
-          requires:
-            - pre_test
-      - integration:
-          requires:
-            - pre_test
-      - internal:
-          requires:
-            - pre_test
-      - jinja2:
-          requires:
-            - pre_test
-      - kombu:
-          requires:
-            - pre_test
-      - mako:
-          requires:
-            - pre_test
-      - molten:
-          requires:
-            - pre_test
-      - mongoengine:
-          requires:
-            - pre_test
-      - mysqlconnector:
-          requires:
-            - pre_test
-      - mysqldb:
-          requires:
-            - pre_test
-      - mysqlpython:
-          requires:
-            - pre_test
-      - opentracer:
-          requires:
-            - pre_test
-      - psycopg:
-          requires:
-            - pre_test
-      - pylibmc:
-          requires:
-            - pre_test
-      - pylons:
-          requires:
-            - pre_test
-      - pymemcache:
-          requires:
-            - pre_test
-      - pymongo:
-          requires:
-            - pre_test
-      - pymysql:
-          requires:
-            - pre_test
-      - pyramid:
-          requires:
-            - pre_test
-      - redis:
-          requires:
-            - pre_test
-      - rediscluster:
-          requires:
-            - pre_test
-      - requests:
-          requires:
-            - pre_test
-      - requestsgevent:
-          requires:
-            - pre_test
-      - sqlalchemy:
-          requires:
-            - pre_test
-      - sqlite3:
-          requires:
-            - pre_test
-      - test_utils:
-          requires:
-            - pre_test
-      - test_logging:
-          requires:
-            - pre_test
-      - tornado:
-          requires:
-            - pre_test
-      - tracer:
-          requires:
-            - pre_test
-      - unit_tests:
-          requires:
-            - pre_test
-      - vertica:
-          requires:
-            - pre_test
+            - httplib_py27
+            - internal_py27
+            - opentracer_py27
+            - tracer_py27
+
+      # Integration test suites
+      - aiobotocore: *requires_pre_test
+      - aiohttp: *requires_pre_test
+      - aiopg: *requires_pre_test
+      - asyncio: *requires_pre_test
+      - algoliasearch: *requires_pre_test
+      - benchmarks: *requires_pre_test
+      - boto: *requires_pre_test
+      - bottle: *requires_pre_test
+      - cassandra: *requires_pre_test
+      - celery: *requires_pre_test
+      - consul: *requires_pre_test
+      - dbapi: *requires_pre_test
+      - ddtracerun: *requires_pre_test
+      - django: *requires_pre_test
+      - djangorestframework: *requires_pre_test
+      - dogpile_cache: *requires_pre_test
+      - elasticsearch: *requires_pre_test
+      - falcon: *requires_pre_test
+      # flask
+      - flask_py37: *requires_pre_test
+      - flask_py36: *requires_pre_test
+      - flask_py35: *requires_pre_test
+      - flask_py34: *requires_pre_test
+      - flask_py27: *requires_pre_test
+      - futures: *requires_pre_test
+      - gevent: *requires_pre_test
+      - grpc: *requires_pre_test
+      - httplib_py37: *requires_pre_test
+      # httplib
+      - httplib_py36: *requires_pre_test
+      - httplib_py35: *requires_pre_test
+      - httplib_py34: *requires_pre_test
+      - httplib_py27: *requires_pre_test
+      - integration: *requires_pre_test
+      # internal
+      - internal_py37: *requires_pre_test
+      - internal_py36: *requires_pre_test
+      - internal_py35: *requires_pre_test
+      - internal_py34: *requires_pre_test
+      - internal_py27: *requires_pre_test
+      - jinja2: *requires_pre_test
+      - kombu: *requires_pre_test
+      - mako: *requires_pre_test
+      - molten: *requires_pre_test
+      - mongoengine: *requires_pre_test
+      - mysqlconnector: *requires_pre_test
+      - mysqldb: *requires_pre_test
+      - mysqlpython: *requires_pre_test
+        # opentracer
+      - opentracer_py37: *requires_pre_test
+      - opentracer_py36: *requires_pre_test
+      - opentracer_py35: *requires_pre_test
+      - opentracer_py34: *requires_pre_test
+      - opentracer_py27: *requires_pre_test
+      - psycopg: *requires_pre_test
+      - pylibmc: *requires_pre_test
+      - pylons: *requires_pre_test
+      - pymemcache: *requires_pre_test
+      - pymongo: *requires_pre_test
+      - pymysql: *requires_pre_test
+      - pyramid: *requires_pre_test
+      - redis: *requires_pre_test
+      - rediscluster: *requires_pre_test
+      - requests: *requires_pre_test
+      - requestsgevent: *requires_pre_test
+      - sqlalchemy: *requires_pre_test
+      - sqlite3: *requires_pre_test
+      - test_utils: *requires_pre_test
+      - test_logging: *requires_pre_test
+      - tornado: *requires_pre_test
+      # tracer
+      - tracer_py37: *requires_pre_test
+      - tracer_py36: *requires_pre_test
+      - tracer_py35: *requires_pre_test
+      - tracer_py34: *requires_pre_test
+      - tracer_py27: *requires_pre_test
+      - unit_tests: *requires_pre_test
+      - vertica: *requires_pre_test
       - wait_all_tests:
           requires:
             # Initial jobs
             - pre_test
+
+            # Python specific test suites
+            - python38
+            - python37
+            - python36
+            - python35
+            - python34
+            - python27
 
             # flake8 dependent jobs
             - aiobotocore
@@ -982,13 +1056,10 @@ workflows:
             - djangorestframework
             - elasticsearch
             - falcon
-            - flask
             - futures
             - gevent
             - grpc
-            - httplib
             - integration
-            - internal
             - jinja2
             - kombu
             - mako
@@ -997,7 +1068,6 @@ workflows:
             - mysqlconnector
             - mysqldb
             - mysqlpython
-            - opentracer
             - psycopg
             - pylibmc
             - pylons
@@ -1014,7 +1084,6 @@ workflows:
             - test_utils
             - test_logging
             - tornado
-            - tracer
             - unit_tests
             - vertica
       - deploy_dev:
