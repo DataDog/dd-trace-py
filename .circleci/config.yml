@@ -175,7 +175,7 @@ postgres_server: &postgres_server
 
 placeholder_job: &placeholder_job
   docker:
-    image: *busybox_image
+    - image: *busybox_image
   resource_class: *resource_class
   steps:
     - do_nothing
