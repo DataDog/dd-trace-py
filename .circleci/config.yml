@@ -749,12 +749,13 @@ jobs:
   deploy_dev:
     # build the master branch releasing development docs and wheels
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.8
     resource_class: *resource_class
     steps:
       - checkout
       - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli
+      - run: pip install tox mkwheelhouse awscli
+      - run: tox -e docs
       - run: S3_DIR=trace-dev rake release:docs
       - run: S3_DIR=trace-dev rake release:wheel
 
@@ -798,7 +799,7 @@ jobs:
     resource_class: *resource_class
     steps:
       - checkout
-      - run: sudo pip install tox
+      - run: pip install tox
       - run: tox -e docs
       - run:
           command: |
