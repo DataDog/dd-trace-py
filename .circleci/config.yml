@@ -1,6 +1,7 @@
 version: 2.1
 
 resource_class: &resource_class small
+busybox_image: &busybox_image busybox:latest
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
@@ -173,7 +174,9 @@ postgres_server: &postgres_server
     - POSTGRES_DB=postgres
 
 placeholder_job: &placeholder_job
-  executor: python38
+  docker:
+    image: *busybox_image
+  resource_class: *resource_class
   steps:
     - do_nothing
 
@@ -197,8 +200,6 @@ jobs:
       - save_results
 
   # Test that we can build the package properly and package long description will render
-  test_build: *placeholder_job
-
   test_build_py38:
     executor: python38
     steps:
@@ -741,19 +742,16 @@ workflows:
       - test_build_py36
       - test_build_py35
       - test_build_py27
-      - test_build:
-          requires:
-            - test_build_py38
-            - test_build_py37
-            - test_build_py36
-            - test_build_py35
-            - test_build_py27
       - pre_test:
           requires:
             - build_docs
             - black
             - flake8
-            - test_build
+            - test_build_py38
+            - test_build_py37
+            - test_build_py36
+            - test_build_py35
+            - test_build_py27
       - aiobotocore:
           requires:
             - pre_test
