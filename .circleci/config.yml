@@ -27,11 +27,6 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 commands:
-  do_nothing:
-    description: "Does nothing"
-    steps:
-      - run: echo "Doing nothing"
-
   setup_tox:
     description: "Install tox"
     steps:
@@ -148,7 +143,7 @@ executors:
 # Common configuration blocks as YAML anchors
 # See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 httpbin_local: &httpbin_local
-  image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+  image: *httpbin_image
   name: httpbin.org
 
 deploy_docs_filters: &deploy_docs_filters
@@ -180,23 +175,7 @@ postgres_server: &postgres_server
     - POSTGRES_USER=postgres
     - POSTGRES_DB=postgres
 
-placeholder_job: &placeholder_job
-  docker:
-    - image: *busybox_image
-  resource_class: *resource_class
-  steps:
-    - do_nothing
-
 jobs:
-  # Placeholder jobs
-  # DEV: These jobs do nothing, they are used to build fan-in/fan-out workflows
-  python38: *placeholder_job
-  python37: *placeholder_job
-  python36: *placeholder_job
-  python35: *placeholder_job
-  python34: *placeholder_job
-  python27: *placeholder_job
-
   black:
     executor: python38
     steps:
@@ -213,9 +192,6 @@ jobs:
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
 
-  ##
-  # Test build
-  ##
   test_build_py38:
     executor: python38
     steps:
@@ -241,176 +217,40 @@ jobs:
     steps:
       - test_build
 
-  ##
-  # Tracer
-  ##
-  tracer_py37:
-    executor: python37
+  tracer:
+    executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^py37-tracer'
-  tracer_py36:
-    executor: python36
-    steps:
-      - run_tox_scenario:
-          pattern: '^py36-tracer'
-  tracer_py35:
-    executor: python35
-    steps:
-      - run_tox_scenario:
-          pattern: '^py35-tracer'
-  tracer_py34:
-    executor: python34
-    steps:
-      - run_tox_scenario:
-          pattern: '^py34-tracer'
-  tracer_py27:
-    executor: python27
-    steps:
-      - run_tox_scenario:
-          pattern: '^py27-tracer'
+          pattern: '^py..-tracer'
 
-  ##
-  # Internal
-  ##
-  internal_py37:
-    executor: python37
+  internal:
+    executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^py37-internal'
-  internal_py36:
-    executor: python36
-    steps:
-      - run_tox_scenario:
-          pattern: '^py36-internal'
-  internal_py35:
-    executor: python35
-    steps:
-      - run_tox_scenario:
-          pattern: '^py35-internal'
-  internal_py34:
-    executor: python34
-    steps:
-      - run_tox_scenario:
-          pattern: '^py34-internal'
-  internal_py27:
-    executor: python27
-    steps:
-      - run_tox_scenario:
-          pattern: '^py27-internal'
+          pattern: '^py..-internal'
 
-  ##
-  # Opentracer
-  ##
-  opentracer_py37:
-    executor: python37
+  opentracer:
+    executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^py37-opentracer'
-  opentracer_py36:
-    executor: python36
-    steps:
-      - run_tox_scenario:
-          pattern: '^py36-opentracer'
-  opentracer_py35:
-    executor: python35
-    steps:
-      - run_tox_scenario:
-          pattern: '^py35-opentracer'
-  opentracer_py34:
-    executor: python34
-    steps:
-      - run_tox_scenario:
-          pattern: '^py34-opentracer'
+          pattern: '^py..-opentracer'
 
-  opentracer_py27:
-    executor: python27
-    steps:
-      - run_tox_scenario:
-          pattern: '^py27-opentracer'
-
-  ##
-  # Integration
-  ##
-  integration_py37:
-    executor: python37
+  integration:
+    executor: ddtrace_dev
     docker:
-      - image: *python37_image
+      - image: *ddtrace_dev_image
         environment:
           TEST_DATADOG_INTEGRATION: 1
       - *datadog_agent
     steps:
       - run_tox_scenario:
-          pattern: '^py37-integration'
-  integration_py36:
-    executor: python36
-    docker:
-      - image: *python36_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
-    steps:
-      - run_tox_scenario:
-          pattern: '^py36-integration'
-  integration_py35:
-    executor: python35
-    docker:
-      - image: *python35_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
-    steps:
-      - run_tox_scenario:
-          pattern: '^py35-integration'
-  integration_py34:
-    executor: python34
-    docker:
-      - image: *python34_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
-    steps:
-      - run_tox_scenario:
-          pattern: '^py34-integration'
-  integration_py27:
-    executor: python27
-    docker:
-      - image: *python27_image
-        environment:
-          TEST_DATADOG_INTEGRATION: 1
-      - *datadog_agent
-    steps:
-      - run_tox_scenario:
-          pattern: '^py27-integration'
+          pattern: '^py..-integration'
 
-  ##
-  # Futures
-  ##
-  futures_py37:
-    executor: python37
+  futures:
+    executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^futures_contrib-py37'
-  futures_py36:
-    executor: python36
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-py36'
-  futures_py35:
-    executor: python35
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-py35'
-  futures_py34:
-    executor: python34
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-py34'
-  futures_py27:
-    executor: python27
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-py27'
+          pattern: '^futures_contrib-'
 
   boto:
     executor: ddtrace_dev
@@ -545,54 +385,15 @@ jobs:
       - run_tox_scenario:
           pattern: '^django_drf_contrib'
 
-  ##
-  # Flask
-  ##
-  flask_py37:
-    executor: python37
+  flask:
+    executor: ddtrace_dev
     docker:
-      - image: *python37_image
+      - image: *ddtrace_dev_image
       - image: *redis_image
       - image: *memcached_image
     steps:
       - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py37'
-  flask_py36:
-    executor: python36
-    docker:
-      - image: *python36_image
-      - image: *redis_image
-      - image: *memcached_image
-    steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py36'
-  flask_py35:
-    executor: python35
-    docker:
-      - image: *python35_image
-      - image: *redis_image
-      - image: *memcached_image
-    steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py35'
-  flask_py34:
-    executor: python34
-    docker:
-      - image: *python34_image
-      - image: *redis_image
-      - image: *memcached_image
-    steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py34'
-  flask_py27:
-    executor: python27
-    docker:
-      - image: *python27_image
-      - image: *redis_image
-      - image: *memcached_image
-    steps:
-      - run_tox_scenario:
-          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-py27'
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
 
   gevent:
     executor: ddtrace_dev
@@ -600,34 +401,11 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
-  ##
-  # Httplib
-  ##
-  httplib_py37:
-    executor: python37
+  httplib:
+    executor: ddtrace_dev
     steps:
       - run_tox_scenario:
-          pattern: '^httplib_contrib-py37'
-  httplib_py36:
-    executor: python36
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib-py36'
-  httplib_py35:
-    executor: python35
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib-py35'
-  httplib_py34:
-    executor: python34
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib-py34'
-  httplib_py27:
-    executor: python27
-    steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib-py27'
+          pattern: '^httplib_contrib'
 
   grpc:
     executor: ddtrace_dev
@@ -958,61 +736,6 @@ workflows:
       - black
       - flake8
 
-      # Python specific test suites
-      - python38:
-          requires:
-            - test_build_py38
-      - python37:
-          requires:
-            - flask_py37
-            - futures_py37
-            - httplib_py37
-            - integration_py37
-            - internal_py37
-            - opentracer_py37
-            - test_build_py37
-            - tracer_py37
-      - python36:
-          requires:
-            - flask_py36
-            - futures_py36
-            - httplib_py36
-            - integration_py36
-            - internal_py36
-            - opentracer_py36
-            - test_build_py36
-            - tracer_py36
-      - python35:
-          requires:
-            - flask_py35
-            - futures_py35
-            - httplib_py35
-            - integration_py35
-            - internal_py35
-            - opentracer_py35
-            - test_build_py35
-            - tracer_py35
-      - python34:
-          requires:
-            - flask_py34
-            - futures_py34
-            - httplib_py34
-            - integration_py34
-            - internal_py34
-            - opentracer_py34
-            - test_build_py34
-            - tracer_py34
-      - python27:
-          requires:
-            - flask_py27
-            - futures_py27
-            - httplib_py27
-            - integration_py27
-            - internal_py27
-            - opentracer_py27
-            - test_build_py27
-            - tracer_py27
-
       # Test building the package
       - test_build_py38: *requires_pre_test
       - test_build_py37: *requires_pre_test
@@ -1040,38 +763,13 @@ workflows:
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
       - falcon: *requires_pre_test
-      # flask
-      - flask_py37: *requires_pre_test
-      - flask_py36: *requires_pre_test
-      - flask_py35: *requires_pre_test
-      - flask_py34: *requires_pre_test
-      - flask_py27: *requires_pre_test
-      # futures
-      - futures_py37: *requires_pre_test
-      - futures_py36: *requires_pre_test
-      - futures_py35: *requires_pre_test
-      - futures_py34: *requires_pre_test
-      - futures_py27: *requires_pre_test
+      - flask: *requires_pre_test
+      - futures: *requires_pre_test
       - gevent: *requires_pre_test
       - grpc: *requires_pre_test
-      - httplib_py37: *requires_pre_test
-      # httplib
-      - httplib_py36: *requires_pre_test
-      - httplib_py35: *requires_pre_test
-      - httplib_py34: *requires_pre_test
-      - httplib_py27: *requires_pre_test
-      # integration
-      - integration_py37: *requires_pre_test
-      - integration_py36: *requires_pre_test
-      - integration_py35: *requires_pre_test
-      - integration_py34: *requires_pre_test
-      - integration_py27: *requires_pre_test
-      # internal
-      - internal_py37: *requires_pre_test
-      - internal_py36: *requires_pre_test
-      - internal_py35: *requires_pre_test
-      - internal_py34: *requires_pre_test
-      - internal_py27: *requires_pre_test
+      - httplib: *requires_pre_test
+      - integration: *requires_pre_test
+      - internal: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
       - mako: *requires_pre_test
@@ -1080,12 +778,7 @@ workflows:
       - mysqlconnector: *requires_pre_test
       - mysqldb: *requires_pre_test
       - mysqlpython: *requires_pre_test
-        # opentracer
-      - opentracer_py37: *requires_pre_test
-      - opentracer_py36: *requires_pre_test
-      - opentracer_py35: *requires_pre_test
-      - opentracer_py34: *requires_pre_test
-      - opentracer_py27: *requires_pre_test
+      - opentracer: *requires_pre_test
       - psycopg: *requires_pre_test
       - pylibmc: *requires_pre_test
       - pylons: *requires_pre_test
@@ -1103,25 +796,13 @@ workflows:
       - test_logging: *requires_pre_test
       - tornado: *requires_pre_test
       # tracer
-      - tracer_py37: *requires_pre_test
-      - tracer_py36: *requires_pre_test
-      - tracer_py35: *requires_pre_test
-      - tracer_py34: *requires_pre_test
-      - tracer_py27: *requires_pre_test
+      - tracer: *requires_pre_test
       - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
       - verify_all_tests_ran:
           requires:
             # Individual tests do not need this to start running
             - build_docs
-
-            # Python specific test suites
-            - python38
-            - python37
-            - python36
-            - python35
-            - python34
-            - python27
 
             # flake8 dependent jobs
             - aiobotocore
@@ -1142,8 +823,13 @@ workflows:
             - djangorestframework
             - elasticsearch
             - falcon
+            - flask
+            - futures
             - gevent
             - grpc
+            - httplib
+            - integration
+            - internal
             - jinja2
             - kombu
             - mako
@@ -1152,6 +838,7 @@ workflows:
             - mysqlconnector
             - mysqldb
             - mysqlpython
+            - opentracer
             - psycopg
             - pylibmc
             - pylons
@@ -1165,8 +852,15 @@ workflows:
             - requestsgevent
             - sqlalchemy
             - sqlite3
+            - test_build_py38
+            - test_build_py37
+            - test_build_py36
+            - test_build_py35
+            - test_build_py34
+            - test_build_py27
             - test_utils
             - test_logging
+            - tracer
             - tornado
             - unit_tests
             - vertica
