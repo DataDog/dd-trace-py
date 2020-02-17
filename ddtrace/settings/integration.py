@@ -44,7 +44,7 @@ class IntegrationConfig(AttrDict):
         if analytics_enabled_env is not None:
             analytics_enabled_env = asbool(analytics_enabled_env)
         self.setdefault('analytics_enabled', analytics_enabled_env)
-        self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', 1.0)))
+        self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', default=1.0)))
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
