@@ -708,7 +708,7 @@ jobs:
         # debug: shows how many time each test was executed
       - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
         # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq | tee all_executed_tests
+      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
         # list all tests in tox.ini
       - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
         # checks that all tests were executed
