@@ -1,36 +1,18 @@
 import json
 import struct
 
+import msgpack
+
 from .internal.logger import get_logger
 
-
-# DEV: We are ok with the pure Python fallback for msgpack if the C-extension failed to install
-try:
-    import msgpack
-    # DEV: `use_bin_type` only exists since `0.4.0`, but we vendor a more recent version
-    MSGPACK_PARAMS = {'use_bin_type': True}
-    MSGPACK_ENCODING = True
-except ImportError:
-    # fallback to JSON
-    MSGPACK_PARAMS = {}
-    MSGPACK_ENCODING = False
 
 log = get_logger(__name__)
 
 
-class Encoder(object):
+class _EncoderBase(object):
     """
     Encoder interface that provides the logic to encode traces and service.
     """
-    def __init__(self):
-        """
-        When extending the ``Encoder`` class, ``headers`` must be set because
-        they're returned by the encoding methods, so that the API transport doesn't
-        need to know what is the right header to suggest the decoding format to the
-        agent
-        """
-        self.content_type = ''
-
     def encode_traces(self, traces):
         """
         Encodes a list of traces, expecting a list of items where each items
@@ -53,54 +35,58 @@ class Encoder(object):
         """
         return self.encode([span.to_dict() for span in trace])
 
-    def encode(self, obj):
+    @staticmethod
+    def encode(obj):
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal functions.
         """
         raise NotImplementedError
 
-    def decode(self, data):
+    @staticmethod
+    def decode(data):
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal functions.
         """
         raise NotImplementedError
 
-    def join_encoded(self, objs):
+    @staticmethod
+    def join_encoded(objs):
         """Helper used to join a list of encoded objects into an encoded list of objects"""
         raise NotImplementedError
 
 
-class JSONEncoder(Encoder):
-    def __init__(self):
-        # TODO[manu]: add instructions about how users can switch to Msgpack
-        log.debug('using JSON encoder; application performance may be degraded')
-        self.content_type = 'application/json'
+class JSONEncoder(_EncoderBase):
+    content_type = 'application/json'
 
-    def encode(self, obj):
+    @staticmethod
+    def encode(obj):
         return json.dumps(obj)
 
-    def decode(self, data):
+    @staticmethod
+    def decode(data):
         return json.loads(data)
 
-    def join_encoded(self, objs):
+    @staticmethod
+    def join_encoded(objs):
         """Join a list of encoded objects together as a json array"""
         return '[' + ','.join(objs) + ']'
 
 
-class MsgpackEncoder(Encoder):
-    def __init__(self):
-        log.debug('using Msgpack encoder')
-        self.content_type = 'application/msgpack'
+class MsgpackEncoder(_EncoderBase):
+    content_type = 'application/msgpack'
 
-    def encode(self, obj):
+    @staticmethod
+    def encode(obj):
         return msgpack.packb(obj)
 
-    def decode(self, data):
+    @staticmethod
+    def decode(data):
         return msgpack.unpackb(data)
 
-    def join_encoded(self, objs):
+    @staticmethod
+    def join_encoded(objs):
         """Join a list of encoded objects together as a msgpack array"""
         buf = b''.join(objs)
 
@@ -115,13 +101,4 @@ class MsgpackEncoder(Encoder):
             return struct.pack('>BI', 0xdd, count) + buf
 
 
-def get_encoder():
-    """
-    Switching logic that choose the best encoder for the API transport.
-    The default behavior is to use Msgpack if we have a CPP implementation
-    installed, falling back to the Python built-in JSON encoder.
-    """
-    if MSGPACK_ENCODING:
-        return MsgpackEncoder()
-    else:
-        return JSONEncoder()
+Encoder = MsgpackEncoder

@@ -12,7 +12,7 @@ from ddtrace.ext import http
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.tracer import Tracer
-from ddtrace.encoding import JSONEncoder, MsgpackEncoder, get_encoder
+from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.vendor import monotonic
@@ -273,9 +273,7 @@ class TestAPITransport(TestCase):
         }
         params, _ = request_call.call_args_list[0]
         headers = params[3]
-        assert len(expected_headers) == len(headers)
-        for k, v in expected_headers.items():
-            assert v == headers[k]
+        assert expected_headers == headers
 
     def _send_traces_and_check(self, traces, nresponses=1):
         # test JSON encoder
@@ -362,20 +360,6 @@ class TestAPIDowngrade(TestCase):
     Ensures that if the tracing client found an earlier trace agent,
     it will downgrade the current connection to a stable API version
     """
-    @skip('msgpack package split breaks this test; it works for newer version of msgpack')
-    def test_get_encoder_default(self):
-        # get_encoder should return MsgpackEncoder instance if
-        # msgpack and the CPP implementaiton are available
-        encoder = get_encoder()
-        assert isinstance(encoder, MsgpackEncoder)
-
-    @mock.patch('ddtrace.encoding.MSGPACK_ENCODING', False)
-    def test_get_encoder_fallback(self):
-        # get_encoder should return JSONEncoder instance if
-        # msgpack or the CPP implementaiton, are not available
-        encoder = get_encoder()
-        assert isinstance(encoder, JSONEncoder)
-
     @skip('msgpack package split breaks this test; it works for newer version of msgpack')
     def test_downgrade_api(self):
         # make a call to a not existing endpoint, downgrades
