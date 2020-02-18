@@ -60,8 +60,12 @@ ProfilerStatus.RUNNING = ProfilerStatus("running")
 class Profiler(object):
     """Run profiling while code is executed.
 
+    Note that the whole Python process is profiled, not only the code executed. Data from all running threads are
+    caught.
+
     If no collectors are provided, default ones are created.
     If no exporters are provided, default ones are created.
+
     """
 
     collectors = attr.ib(factory=_build_default_collectors)
@@ -93,7 +97,10 @@ class Profiler(object):
         self.status = ProfilerStatus.RUNNING
 
     def stop(self):
-        """Stop the profiler."""
+        """Stop the profiler.
+
+        This stops all the collectors and schedulers, waiting for them to finish their operations.
+        """
         for col in reversed(self.collectors):
             col.stop()
 
@@ -101,10 +108,3 @@ class Profiler(object):
             s.stop()
 
         self.status = ProfilerStatus.STOPPED
-
-    def __enter__(self):
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        return self.stop()
