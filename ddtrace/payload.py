@@ -1,4 +1,4 @@
-from .encoding import get_encoder
+from .encoding import Encoder
 
 
 class PayloadFull(Exception):
@@ -32,7 +32,7 @@ class Payload(object):
             being considered full (default: 5mb)
         """
         self.max_payload_size = max_payload_size
-        self.encoder = encoder or get_encoder()
+        self.encoder = encoder or Encoder()
         self.traces = []
         self.size = 0
 
