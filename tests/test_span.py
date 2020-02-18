@@ -1,13 +1,15 @@
 import mock
 import time
 
+import pytest
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
+from .utils import assert_is_measured, assert_is_not_measured
 
 
 class SpanTestCase(BaseTracerTestCase):
@@ -419,3 +421,51 @@ class SpanTestCase(BaseTracerTestCase):
         s.finish(finish_time=123)
         assert s.duration_ns == 1000000000
         assert s.duration == 1
+
+
+@pytest.mark.parametrize(
+    "value,assertion",
+    [
+        (None, assert_is_measured),
+        (1, assert_is_measured),
+        (1.0, assert_is_measured),
+        (-1, assert_is_measured),
+        (True, assert_is_measured),
+        ("true", assert_is_measured),
+
+        # DEV: Ends up being measured because we do `bool("false")` which is `True`
+        ("false", assert_is_measured),
+
+        (0, assert_is_not_measured),
+        (0.0, assert_is_not_measured),
+        (False, assert_is_not_measured),
+    ],
+)
+def test_set_tag_measured(value, assertion):
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY, value)
+    assertion(s)
+
+
+def test_set_tag_measured_not_set():
+    # Span is not measured by default
+    s = Span(tracer=None, name="test.span")
+    assert_is_not_measured(s)
+
+
+def test_set_tag_measured_no_value():
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY)
+    assert_is_measured(s)
+
+
+def test_set_tag_measured_change_value():
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY, True)
+    assert_is_measured(s)
+
+    s.set_tag(SPAN_MEASURED_KEY, False)
+    assert_is_not_measured(s)
+
+    s.set_tag(SPAN_MEASURED_KEY)
+    assert_is_measured(s)

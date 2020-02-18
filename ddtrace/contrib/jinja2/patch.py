@@ -3,6 +3,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...utils.formats import get_env
 from ...pin import Pin
@@ -50,6 +51,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     template_name = instance.name or DEFAULT_TEMPLATE_NAME
     with pin.tracer.trace('jinja2.render', pin.service, span_type=SpanTypes.TEMPLATE) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         try:
             return wrapped(*args, **kwargs)
         finally:

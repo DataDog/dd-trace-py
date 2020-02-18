@@ -14,7 +14,7 @@ from .app import create_app
 
 from ...opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 class PyramidBase(BaseTracerTestCase):
@@ -63,6 +63,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET index"
         assert s.error == 0
@@ -146,6 +147,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "404"
         assert s.error == 0
@@ -161,6 +163,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET raise_redirect"
         assert s.error == 0
@@ -176,6 +179,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET raise_no_content"
         assert s.error == 0
@@ -194,6 +198,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET exception"
         assert s.error == 1
@@ -210,6 +215,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET error"
         assert s.error == 1
@@ -230,6 +236,7 @@ class PyramidTestCase(PyramidBase):
         assert len(spans) == 2
         spans_by_name = {s.name: s for s in spans}
         s = spans_by_name["pyramid.request"]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET json"
         assert s.error == 0
@@ -254,6 +261,7 @@ class PyramidTestCase(PyramidBase):
         assert len(spans) == 2
         spans_by_name = {s.name: s for s in spans}
         s = spans_by_name["pyramid.request"]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "GET renderer"
         assert s.error == 0
@@ -276,6 +284,7 @@ class PyramidTestCase(PyramidBase):
         spans = writer.pop()
         assert len(spans) == 1
         s = spans[0]
+        assert_is_measured(s)
         assert s.service == "foobar"
         assert s.resource == "404"
         assert s.error == 1
@@ -347,6 +356,7 @@ class PyramidTestCase(PyramidBase):
         assert ot_span.name == "pyramid_get"
         assert ot_span.service == "pyramid_svc"
 
+        assert_is_measured(dd_span)
         assert dd_span.service == "foobar"
         assert dd_span.resource == "GET index"
         assert dd_span.error == 0

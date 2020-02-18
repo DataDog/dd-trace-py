@@ -4,7 +4,7 @@ import webtest
 
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 from ddtrace import compat
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -55,6 +55,8 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.span_type == 'web'
@@ -118,6 +120,8 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /400_return'
@@ -141,6 +145,8 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /400_raise'
@@ -164,6 +170,8 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
@@ -231,6 +239,8 @@ class TraceBottleTest(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.name == 'bottle.request'
         assert s.service == 'bottle-app'
         assert s.resource == 'GET /hi'
@@ -402,6 +412,7 @@ class TraceBottleTest(BaseTracerTestCase):
 
         assert ot_span.resource == 'ot_span'
 
+        assert_is_measured(dd_span)
         assert dd_span.name == 'bottle.request'
         assert dd_span.service == 'bottle-app'
         assert dd_span.resource == 'GET /hi/<name>'

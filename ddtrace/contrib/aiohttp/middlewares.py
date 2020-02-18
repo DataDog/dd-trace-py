@@ -2,7 +2,7 @@ import asyncio
 
 from ..asyncio import context_provider
 from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -45,6 +45,7 @@ def trace_middleware(app, handler):
             service=service,
             span_type=SpanTypes.WEB,
         )
+        request_span.set_tag(SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api

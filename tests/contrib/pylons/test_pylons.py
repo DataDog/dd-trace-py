@@ -12,7 +12,7 @@ from ddtrace.contrib.pylons import PylonsTraceMiddleware
 
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 class PylonsTestCase(BaseTracerTestCase):
@@ -48,6 +48,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'root.raise_exception'
         assert span.error == 0
@@ -78,6 +79,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'None.None'
         assert span.error == 0
@@ -106,6 +108,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'None.None'
         assert span.error == 1
@@ -128,6 +131,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'root.raise_exception'
         assert span.error == 0
@@ -150,6 +154,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'root.raise_exception'
         assert span.error == 0
@@ -172,6 +177,7 @@ class PylonsTestCase(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
+        assert_is_measured(span)
         assert span.service == 'web'
         assert span.resource == 'root.index'
         assert_span_http_status_code(span, 200)

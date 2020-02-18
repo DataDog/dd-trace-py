@@ -13,6 +13,7 @@ from ddtrace.ext import errors
 # testing
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured, assert_is_not_measured
 
 
 class TestSQLite(BaseTracerTestCase):
@@ -69,6 +70,7 @@ class TestSQLite(BaseTracerTestCase):
                 dict(name='sqlite.query', span_type='sql', resource=q, service=service, error=0),
             )
             root = self.get_root_span()
+            assert_is_measured(root)
             self.assertIsNone(root.get_tag('sql.query'))
             assert start <= root.start <= end
             assert root.duration <= end - start
@@ -87,6 +89,7 @@ class TestSQLite(BaseTracerTestCase):
                 dict(name='sqlite.query', span_type='sql', resource=q, service=service, error=1),
             )
             root = self.get_root_span()
+            assert_is_measured(root)
             self.assertIsNone(root.get_tag('sql.query'))
             self.assertIsNotNone(root.get_tag(errors.ERROR_STACK))
             self.assertIn('OperationalError', root.get_tag(errors.ERROR_TYPE))
@@ -113,9 +116,11 @@ class TestSQLite(BaseTracerTestCase):
 
             # Assert query
             query_span.assert_structure(dict(name='sqlite.query', resource=q))
+            assert_is_measured(query_span)
 
             # Assert fetchall
             fetchall_span.assert_structure(dict(name='sqlite.query.fetchall', resource=q, span_type='sql', error=0))
+            assert_is_not_measured(fetchall_span)
             self.assertIsNone(fetchall_span.get_tag('sql.query'))
 
     def test_sqlite_fetchone_is_traced(self):
@@ -137,9 +142,11 @@ class TestSQLite(BaseTracerTestCase):
             query_span, fetchone_span = self.get_root_spans()
 
             # Assert query
+            assert_is_measured(query_span)
             query_span.assert_structure(dict(name='sqlite.query', resource=q))
 
             # Assert fetchone
+            assert_is_not_measured(fetchone_span)
             fetchone_span.assert_structure(
                 dict(
                     name='sqlite.query.fetchone',
@@ -169,9 +176,11 @@ class TestSQLite(BaseTracerTestCase):
             query_span, fetchmany_span = self.get_root_spans()
 
             # Assert query
+            assert_is_measured(query_span)
             query_span.assert_structure(dict(name='sqlite.query', resource=q))
 
             # Assert fetchmany
+            assert_is_not_measured(fetchmany_span)
             fetchmany_span.assert_structure(
                 dict(
                     name='sqlite.query.fetchmany',
@@ -204,6 +213,7 @@ class TestSQLite(BaseTracerTestCase):
                 dict(name='sqlite.query', span_type='sql', resource=q, error=0),
             )
         )
+        assert_is_measured(self.get_spans()[1])
         self.reset()
 
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
@@ -223,6 +233,7 @@ class TestSQLite(BaseTracerTestCase):
                     dict(name='sqlite.query.fetchall', span_type='sql', resource=q, error=0),
                 ),
             )
+            assert_is_measured(self.get_spans()[1])
 
     def test_commit(self):
         connection = self._given_a_traced_connection(self.tracer)
