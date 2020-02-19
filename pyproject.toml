@@ -178,7 +178,6 @@ exclude = '''
     | test_helpers.py
     | test_hook.py
     | test_instance_config.py
-    | test_integration.py
     | test_payload.py
     | test_pin.py
     | test_sampler.py
