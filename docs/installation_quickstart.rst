@@ -19,6 +19,10 @@ $ pip install ddtrace
 
 We strongly suggest pinning the version of the library you deploy.
 
+If you want to use the profiler, you'll need to specify the ``profile`` flavor::
+
+  $ pip install ddtrace[profile]
+
 Quickstart
 ----------
 

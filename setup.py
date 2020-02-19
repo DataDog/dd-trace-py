@@ -104,17 +104,12 @@ setup_kwargs = dict(
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     # encoding using msgpack
-    install_requires=[
-        "enum34; python_version<'3.4'",
-        "funcsigs>=1.0.0; python_version=='2.7'",
-        "msgpack>=0.5.0",
-        "protobuf>=3",
-        "intervaltree",
-    ],
+    install_requires=["enum34; python_version<'3.4'", "funcsigs>=1.0.0; python_version=='2.7'", "msgpack>=0.5.0",],
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "profile": ["protobuf>=3", "intervaltree",],
     },
     # plugin tox
     tests_require=["tox", "flake8"],
