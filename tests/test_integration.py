@@ -1,9 +1,7 @@
 import os
-import json
 import logging
 import mock
 import ddtrace
-import msgpack
 
 from unittest import TestCase, skip, skipUnless
 
@@ -53,15 +51,6 @@ class TestWorkers(TestCase):
     Ensures that a workers interacts correctly with the main thread. These are part
     of integration tests so real calls are triggered.
     """
-    def _decode(self, payload):
-        """
-        Helper function that decodes data based on the given Encoder.
-        """
-        if isinstance(self.api._encoder, JSONEncoder):
-            return json.loads(payload)
-        elif isinstance(self.api._encoder, MsgpackEncoder):
-            return msgpack.unpackb(payload, encoding='utf-8')
-
     def setUp(self):
         """
         Create a tracer with running workers, while spying the ``_put()`` method to
@@ -93,7 +82,7 @@ class TestWorkers(TestCase):
         """
         for call, _ in calls:
             if endpoint in call[0]:
-                return call[0], self._decode(call[1])
+                return call[0], self.api._encoder.decode(call[1])
 
         return None, None
 
@@ -144,7 +133,7 @@ class TestWorkers(TestCase):
         assert endpoint == '/v0.4/traces'
         assert len(payload) == 1
         assert len(payload[0]) == 1
-        assert payload[0][0]['name'] == 'client.testing'
+        assert payload[0][0][b"name"] == b"client.testing"
 
     # DEV: If we can make the writer flushing deterministic for the case of tests, then we can re-enable this
     @skip('Writer flush intervals are impossible to time correctly to make this test not flaky')
@@ -163,8 +152,8 @@ class TestWorkers(TestCase):
         assert len(payload) == 2
         assert len(payload[0]) == 1
         assert len(payload[1]) == 1
-        assert payload[0][0]['name'] == 'client.testing'
-        assert payload[1][0]['name'] == 'client.testing'
+        assert payload[0][0][b"name"] == b"client.testing"
+        assert payload[1][0][b"name"] == b"client.testing"
 
     def test_worker_single_trace_multiple_spans(self):
         # make a single send() if a single trace with multiple spans is created before the flush
@@ -181,8 +170,8 @@ class TestWorkers(TestCase):
         assert endpoint == '/v0.4/traces'
         assert len(payload) == 1
         assert len(payload[0]) == 2
-        assert payload[0][0]['name'] == 'client.testing'
-        assert payload[0][1]['name'] == 'client.testing'
+        assert payload[0][0][b"name"] == b"client.testing"
+        assert payload[0][1][b"name"] == b"client.testing"
 
     def test_worker_http_error_logging(self):
         # Tests the logging http error logic
@@ -223,7 +212,7 @@ class TestWorkers(TestCase):
         endpoint, payload = self._get_endpoint_payload(self.api._put.call_args_list, '/v0.4/traces')
         assert endpoint == '/v0.4/traces'
         assert len(payload) == 1
-        assert payload[0][0]['name'] == 'testing.nonfilteredurl'
+        assert payload[0][0][b"name"] == b"testing.nonfilteredurl"
 
 
 @skipUnless(
