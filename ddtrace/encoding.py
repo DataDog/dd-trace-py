@@ -83,7 +83,9 @@ class MsgpackEncoder(_EncoderBase):
 
     @staticmethod
     def decode(data):
-        return msgpack.unpackb(data)
+        if msgpack.version[:2] < (0, 6):
+            return msgpack.unpackb(data)
+        return msgpack.unpackb(data, raw=True)
 
     @staticmethod
     def join_encoded(objs):
