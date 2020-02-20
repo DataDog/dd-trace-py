@@ -1,5 +1,4 @@
 import json
-import msgpack
 
 from unittest import TestCase
 
@@ -88,7 +87,7 @@ class TestEncoders(TestCase):
 
         encoder = MsgpackEncoder()
         spans = encoder.encode_traces(traces)
-        items = msgpack.unpackb(spans)
+        items = encoder.decode(spans)
 
         # test the encoded output that should be a string
         # and the output must be flatten
@@ -123,7 +122,7 @@ class TestEncoders(TestCase):
         data = encoder.join_encoded(encoded_traces)
 
         # Parse the encoded data
-        items = msgpack.unpackb(data)
+        items = encoder.decode(data)
 
         # test the encoded output that should be a string
         # and the output must be flatten
