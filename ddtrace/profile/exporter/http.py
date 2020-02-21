@@ -58,7 +58,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     endpoint = attr.ib(
-        default=os.getenv("DD_PROFILING_API_URL", "https://beta-intake.profile.datadoghq.com/v1/input"), type=str
+        default=os.getenv("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input"), type=str
     )
     api_key = attr.ib(default=os.getenv("DD_PROFILING_API_KEY", ""), type=str)
     timeout = attr.ib(default=os.getenv("DD_PROFILING_API_TIMEOUT", 10), type=float)
