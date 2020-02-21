@@ -685,9 +685,10 @@ jobs:
     executor: python38
     steps:
       - checkout
+      - setup_tox
       - run: sudo apt-get -y install rake
-      # Sphinx 1.7.5 is required otherwise docs are not properly built
-      - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
+      - run: pip install tox mkwheelhouse awscli
+      - run: tox -e docs
       - run: S3_DIR=trace rake release:docs
 
   verify_all_tests_ran:
