@@ -93,7 +93,7 @@ Migration from ddtrace<=0.33.0
 The Django integration provides automatic migration from enabling tracing using
 a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
-later.
+latter.
 
 1. Remove ``'ddtrace.config.django'`` from ``INSTALLED_APPS`` in
    ``settings.py``.

@@ -16,6 +16,7 @@ from ddtrace.ext import memcached
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 
 class PylibmcCore(object):
@@ -178,6 +179,7 @@ class PylibmcCore(object):
         assert expected_resources == resources
 
     def _verify_cache_span(self, s, start, end):
+        assert_is_measured(s)
         assert s.start > start
         assert s.start + s.duration < end
         assert s.service == self.TEST_SERVICE

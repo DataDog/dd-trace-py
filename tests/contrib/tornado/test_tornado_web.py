@@ -8,7 +8,7 @@ import pytest
 import tornado
 
 from tests.opentracer.utils import init_tracer
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 class TestTornadoWeb(TornadoTestCase):
@@ -29,6 +29,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -59,6 +60,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 2 == len(traces[0])
         # check request span
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -86,6 +88,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -107,6 +110,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -128,6 +132,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -149,6 +154,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -168,6 +174,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -189,6 +196,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -210,6 +218,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[1])
 
         redirect_span = traces[0][0]
+        assert_is_measured(redirect_span)
         assert 'tornado-web' == redirect_span.service
         assert 'tornado.request' == redirect_span.name
         assert 'web' == redirect_span.span_type
@@ -240,6 +249,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert 1 == len(traces[0])
 
         request_span = traces[0][0]
+        assert_is_measured(request_span)
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
         assert 'web' == request_span.span_type
@@ -302,6 +312,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert ot_span.name == 'tornado_op'
         assert ot_span.service == 'tornado_svc'
 
+        assert_is_measured(dd_span)
         assert 'tornado-web' == dd_span.service
         assert 'tornado.request' == dd_span.name
         assert 'web' == dd_span.span_type
