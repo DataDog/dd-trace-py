@@ -49,6 +49,7 @@ exclude = '''
       | httplib
       | jinja2
       | kombu
+      | logging
       | mako
       | molten
       | mongoengine

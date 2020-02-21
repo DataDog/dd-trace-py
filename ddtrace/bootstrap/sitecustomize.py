@@ -13,9 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace import config, constants
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
-    if config.logs_injection
-    else ""
+    "[dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] " if config.logs_injection else ""
 )
 
 if config.logs_injection:
