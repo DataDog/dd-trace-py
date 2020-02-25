@@ -103,9 +103,8 @@ services:
         working_dir: /src
         volumes:
             - ddagent:/tmp/ddagent
-            - ./ddtrace:/src/ddtrace:ro
-            # DEV: Make ddtrace/vendor rw so Tox can build C-extensions
-            - ./ddtrace/vendor:/src/ddtrace/vendor:rw
+            # DEV: Make ddtrace rw so setup.py can build C-extensions
+            - ./ddtrace:/src/ddtrace:rw
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
