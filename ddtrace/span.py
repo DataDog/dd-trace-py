@@ -4,7 +4,7 @@ import sys
 import traceback
 
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
-from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY
+from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY, SPAN_MEASURED_KEY
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
 
@@ -204,6 +204,13 @@ class Span(object):
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = priority.USER_REJECT
             return
+        elif key == SPAN_MEASURED_KEY:
+            # Set `_dd.measured` tag as a metric
+            # DEV: `set_metric` will ensure it is an integer 0 or 1
+            if value is None:
+                value = 1
+            self.set_metric(key, value)
+            return
 
         try:
             self.meta[key] = stringify(value)
@@ -238,6 +245,14 @@ class Span(object):
     def set_metric(self, key, value):
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
+
+        # Enforce a specific connstant for `_dd.measured`
+        if key == SPAN_MEASURED_KEY:
+            try:
+                value = int(bool(value))
+            except (ValueError, TypeError):
+                log.warning('failed to convert %r tag to an integer from %r', key, value)
+                return
 
         # FIXME[matt] we could push this check to serialization time as well.
         # only permit types that are commonly serializable (don't use

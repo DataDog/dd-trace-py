@@ -3,7 +3,7 @@ from ddtrace import config
 from ddtrace.http import store_request_headers, store_response_headers
 
 from ...compat import parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -68,6 +68,7 @@ def _wrap_send(func, instance, args, kwargs):
     )
 
     with tracer.trace("requests.request", span_type=SpanTypes.HTTP) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         # update the span service name before doing any action
         span.service = _extract_service_name(instance, span, hostname=hostname)
 

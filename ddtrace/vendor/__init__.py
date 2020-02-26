@@ -8,19 +8,6 @@ whenever a dependency is imported. Doing this allows us to have a little more co
 Dependencies
 ============
 
-msgpack
--------
-
-Website: https://msgpack.org/
-Source: https://github.com/msgpack/msgpack-python
-Version: 0.6.1
-License: Apache License, Version 2.0
-
-Notes:
-  If you need to update any `*.pyx` files, be sure to run `cython --cplus msgpack/_cmsgpack.pyx` to regenerate `_cmsgpack.cpp`
-
-  `_packer.pyx` and `_unpacker.pyx` were updated to import from `ddtrace.vendor.msgpack`
-
 six
 ---
 

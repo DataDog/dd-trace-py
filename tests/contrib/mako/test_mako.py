@@ -10,6 +10,7 @@ from ddtrace import Pin
 from ddtrace.contrib.mako import patch, unpatch
 from ddtrace.compat import StringIO, to_unicode
 from tests.test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')
@@ -32,6 +33,7 @@ class MakoTest(unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
 
+        assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, 'mako')
         self.assertEqual(spans[0].span_type, 'template')
         self.assertEqual(spans[0].get_tag('mako.template_name'), '<memory>')
@@ -43,6 +45,7 @@ class MakoTest(unittest.TestCase):
         self.assertEqual(t.render_unicode(name='mako'), to_unicode('Hello mako!'))
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
+        assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, 'mako')
         self.assertEqual(spans[0].span_type, 'template')
         self.assertEqual(spans[0].get_tag('mako.template_name'), '<memory>')
@@ -57,6 +60,7 @@ class MakoTest(unittest.TestCase):
         self.assertEqual(buf.getvalue(), 'Hello mako!')
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
+        assert_is_measured(spans[0])
         self.assertEqual(spans[0].service, 'mako')
         self.assertEqual(spans[0].span_type, 'template')
         self.assertEqual(spans[0].get_tag('mako.template_name'), '<memory>')
@@ -73,6 +77,7 @@ class MakoTest(unittest.TestCase):
 
         template_name = os.path.join(TMPL_DIR, 'template.html')
 
+        assert_is_measured(spans[0])
         self.assertEqual(spans[0].span_type, 'template')
         self.assertEqual(spans[0].service, 'mako')
         self.assertEqual(spans[0].get_tag('mako.template_name'), template_name)

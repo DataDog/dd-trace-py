@@ -3,7 +3,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.ext import errors as errx, http as httpx
 
 from tests.opentracer.utils import init_tracer
-from ...utils import assert_span_http_status_code
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 class FalconTestCase(object):
@@ -19,6 +19,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET 404'
@@ -39,6 +41,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceException'
@@ -55,6 +59,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'
@@ -152,6 +158,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'POST tests.contrib.falcon.app.resources.Resource201'
@@ -168,6 +176,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.Resource500'
@@ -183,6 +193,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert span.resource == 'GET tests.contrib.falcon.app.resources.ResourceNotFound'
@@ -199,6 +211,8 @@ class FalconTestCase(object):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
+
+        assert_is_measured(span)
         assert span.name == 'falcon.request'
         assert span.service == self._service
         assert_span_http_status_code(span, 404)
@@ -227,6 +241,7 @@ class FalconTestCase(object):
         assert ot_span.service == 'my_svc'
         assert ot_span.resource == 'ot_span'
 
+        assert_is_measured(dd_span)
         assert dd_span.name == 'falcon.request'
         assert dd_span.service == self._service
         assert dd_span.resource == 'GET tests.contrib.falcon.app.resources.Resource200'

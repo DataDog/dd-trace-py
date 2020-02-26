@@ -42,7 +42,7 @@ variable before starting your application and importing the library:
 
 .. list-table::
    :header-rows: 1
-   :widths: 1 1 2
+   :widths: 1 1 1 2
 
    * - Configuration Variable
      - Configuration Type
@@ -64,7 +64,7 @@ that you can use the Datadog tracer in your OpenTracing-compatible
 applications.
 
 Installation
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 Include OpenTracing with ``ddtrace``::
 
@@ -78,7 +78,7 @@ you have the following in ``setup.py``::
     ],
 
 Configuration
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 The OpenTracing convention for initializing a tracer is to define an
 initialization method that will configure and instantiate a new tracer and

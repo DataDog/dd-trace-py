@@ -5,7 +5,7 @@ from bottle import response, request, HTTPError, HTTPResponse
 import ddtrace
 
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
@@ -36,8 +36,9 @@ class TracePlugin(object):
                     self.tracer.context_provider.activate(context)
 
             with self.tracer.trace(
-                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB
+                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB,
             ) as s:
+                s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled
                 s.set_tag(
                     ANALYTICS_SAMPLE_RATE_KEY,

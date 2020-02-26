@@ -5,7 +5,7 @@ from ddtrace.vendor import wrapt
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -71,6 +71,7 @@ def trace_tween_factory(handler, registry):
                 if context.trace_id:
                     tracer.context_provider.activate(context)
             with tracer.trace('pyramid.request', service=service, resource='404', span_type=SpanTypes.WEB) as span:
+                span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
                 # DEV: pyramid is special case maintains separate configuration from config api
                 analytics_enabled = settings.get(SETTINGS_ANALYTICS_ENABLED)

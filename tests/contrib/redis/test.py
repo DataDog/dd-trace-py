@@ -10,6 +10,7 @@ from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 
 def test_redis_legacy():
@@ -46,6 +47,8 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
@@ -71,6 +74,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
@@ -116,6 +120,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
@@ -137,6 +142,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 2
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET a 1'
@@ -213,6 +219,7 @@ class TestRedisPatch(BaseTracerTestCase):
         assert ot_span.name == 'redis_get'
         assert ot_span.service == 'redis_svc'
 
+        assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == 'redis.command'
         assert dd_span.span_type == 'redis'

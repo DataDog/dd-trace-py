@@ -8,6 +8,7 @@ SAMPLING_LIMIT_DECISION = '_dd.limit_psr'
 ORIGIN_KEY = '_dd.origin'
 HOSTNAME_KEY = '_dd.hostname'
 ENV_KEY = 'env'
+SPAN_MEASURED_KEY = '_dd.measured'
 
 NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY, )
 

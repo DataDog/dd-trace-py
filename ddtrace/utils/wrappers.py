@@ -4,6 +4,13 @@ import inspect
 from .deprecation import deprecated
 
 
+def iswrapped(obj, attr=None):
+    """Returns whether an attribute is wrapped or not."""
+    if attr is not None:
+        obj = getattr(obj, attr, None)
+    return hasattr(obj, "__wrapped__") and isinstance(obj, wrapt.ObjectProxy)
+
+
 def unwrap(obj, attr):
     f = getattr(obj, attr, None)
     if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, "__wrapped__"):

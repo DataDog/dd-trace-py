@@ -1,19 +1,26 @@
-# 3rd party
-from django.apps import AppConfig, apps
+from django.apps import AppConfig
 
-# project
-from .patch import apply_django_patches
+from ddtrace.vendor.debtcollector import removals
+from ...internal.logger import get_logger
+from .patch import patch
+
+log = get_logger(__name__)
 
 
+@removals.removed_class(
+    "TracerConfig",
+    message="""Adding ddtrace.contrib.django to settings.py is no longer required, instead do:
+    import ddtrace
+    ddtrace.patch_all()
+    """,
+)
 class TracerConfig(AppConfig):
-    name = 'ddtrace.contrib.django'
-    label = 'datadog_django'
+    name = "ddtrace.contrib.django"
+    label = "datadog_django"
 
     def ready(self):
         """
-        Ready is called as soon as the registry is fully populated.
-        Tracing capabilities must be enabled in this function so that
-        all Django internals are properly configured.
+        Ready formerly was used to initiate patching of Django and DRF.
         """
-        rest_framework_is_installed = apps.is_installed('rest_framework')
-        apply_django_patches(patch_rest_framework=rest_framework_is_installed)
+        # Make sure our app is configured
+        patch()
