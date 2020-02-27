@@ -4,6 +4,7 @@ from sqlalchemy.exc import OperationalError
 
 from .mixins import SQLAlchemyTestMixin
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 
 class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
@@ -31,11 +32,12 @@ class SQLiteTestCase(SQLAlchemyTestMixin, BaseTracerTestCase):
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
         # span fields
+        assert_is_measured(span)
         self.assertEqual(span.name, '{}.query'.format(self.VENDOR))
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'SELECT * FROM a_wrong_table')
         self.assertEqual(span.get_tag('sql.db'), self.SQL_DB)
-        self.assertIsNone(span.get_tag('sql.rows'))
+        self.assertIsNone(span.get_tag('sql.rows') or span.get_metric('sql.rows'))
         self.assertEqual(span.span_type, 'sql')
         self.assertTrue(span.duration > 0)
         # check the error

@@ -24,7 +24,6 @@ from tests.contrib import config
 
 # verbosity
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-ddtrace.tracer.debug_logging = False
 
 ddtrace.patch_all()
 ddtrace.tracer.writer = None
@@ -36,9 +35,9 @@ class KitchenSink(object):
         self._redis = redis.Redis(**config.REDIS_CONFIG)
         self._pg = psycopg2.connect(**config.POSTGRES_CONFIG)
 
-        url = "%s:%s" % (
-            config.MEMCACHED_CONFIG["host"],
-            config.MEMCACHED_CONFIG["port"])
+        url = '%s:%s' % (
+            config.MEMCACHED_CONFIG['host'],
+            config.MEMCACHED_CONFIG['port'])
         self._pylibmc = pylibmc.Client([url])
 
     def ping(self, i):
@@ -48,9 +47,9 @@ class KitchenSink(object):
 
     def _ping_redis(self, i):
         with self._redis.pipeline() as p:
-            p.get("a")
-        self._redis.set("a", "b")
-        self._redis.get("a")
+            p.get('a')
+        self._redis.set('a', 'b')
+        self._redis.get('a')
 
     def _ping_pg(self, i):
         cur = self._pg.cursor()
@@ -61,9 +60,9 @@ class KitchenSink(object):
             cur.close()
 
     def _ping_pylibmc(self, i):
-        self._pylibmc.set("a", 1)
-        self._pylibmc.incr("a", 2)
-        self._pylibmc.decr("a", 1)
+        self._pylibmc.set('a', 1)
+        self._pylibmc.incr('a', 2)
+        self._pylibmc.decr('a', 1)
 
 
 if __name__ == '__main__':

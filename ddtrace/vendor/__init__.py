@@ -46,4 +46,47 @@ Notes:
   `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
   Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
+
+monotonic
+---------
+
+Website: https://pypi.org/project/monotonic/
+Source: https://github.com/atdt/monotonic
+Version: 1.5
+License: Apache License 2.0
+
+Notes:
+  The source `monotonic.py` was added as `monotonic/__init__.py`
+
+  No other changes were made
+
+debtcollector
+-------------
+
+Website: https://docs.openstack.org/debtcollector/latest/index.html
+Source: https://github.com/openstack/debtcollector
+Version: 1.22.0
+License: Apache License 2.0
+
+Notes:
+   Removed dependency on `pbr` and manually set `__version__`
+
+
+psutil
+------
+
+Website: https://github.com/giampaolo/psutil
+Source: https://github.com/giampaolo/psutil
+Version: 5.6.7
+License: BSD 3
+
+Notes:
 """
+
+# Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
+# DEV: This helps ensure if there are connection issues we do not spam their logs
+# DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
+#      not conflict with any non-vendored datadog.dogstatsd logger
+from ..internal.logger import get_logger
+from .dogstatsd import base
+base.log = get_logger('ddtrace.vendor.dogstatsd')

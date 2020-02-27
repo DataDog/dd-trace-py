@@ -7,9 +7,9 @@ instance you are using::
     from sqlalchemy import create_engine
 
     engine = create_engine('sqlite:///:memory:')
-    trace_engine(engine, tracer, "my-database")
+    trace_engine(engine, tracer, 'my-database')
 
-    engine.connect().execute("select count(*) from users")
+    engine.connect().execute('select count(*) from users')
 """
 # 3p
 from sqlalchemy.event import listen
@@ -17,9 +17,8 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import sql as sqlx
-from ...ext import net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, sql as sqlx, net as netx
 from ...pin import Pin
 from ...settings import config
 
@@ -57,14 +56,13 @@ class EngineTracer(object):
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = service or self.vendor
-        self.name = "%s.query" % self.vendor
+        self.name = '%s.query' % self.vendor
 
         # attach the PIN
         Pin(
             app=self.vendor,
             tracer=tracer,
-            service=self.service,
-            app_type=sqlx.APP_TYPE,
+            service=self.service
         ).onto(engine)
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
@@ -80,18 +78,18 @@ class EngineTracer(object):
         span = pin.tracer.trace(
             self.name,
             service=pin.service,
-            span_type=sqlx.TYPE,
+            span_type=SpanTypes.SQL,
             resource=statement,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
         # set analytics sample rate
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.sqlalchemy.get_analytics_sample_rate()
-        )
+        sample_rate = config.sqlalchemy.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
@@ -144,6 +142,6 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, 'dsn', None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span.set_tag(sqlx.DB, d.get("dbname"))
-                span.set_tag(netx.TARGET_HOST, d.get("host"))
-                span.set_tag(netx.TARGET_PORT, d.get("port"))
+                span.set_tag(sqlx.DB, d.get('dbname'))
+                span.set_tag(netx.TARGET_HOST, d.get('host'))
+                span.set_tag(netx.TARGET_PORT, d.get('port'))

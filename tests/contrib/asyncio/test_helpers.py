@@ -1,12 +1,16 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
+import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio import helpers
 from .utils import AsyncioTestCase, mark_asyncio
 
 
+@pytest.mark.skipif(
+    CONTEXTVARS_IS_AVAILABLE,
+    reason='only applicable to legacy asyncio integration'
+)
 class TestAsyncioHelpers(AsyncioTestCase):
     """
     Ensure that helpers set the ``Context`` properly when creating

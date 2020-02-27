@@ -12,6 +12,7 @@ from ddtrace.contrib.pymysql.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
+from ...utils import assert_is_measured
 from ...contrib.config import MYSQL_CONFIG
 
 
@@ -22,7 +23,6 @@ class PyMySQLCore(object):
 
     DB_INFO = {
         'out.host': MYSQL_CONFIG.get('host'),
-        'out.port': str(MYSQL_CONFIG.get('port')),
     }
     if PY2:
         DB_INFO.update({
@@ -64,10 +64,12 @@ class PyMySQLCore(object):
         assert len(spans) == 1
 
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
@@ -84,10 +86,12 @@ class PyMySQLCore(object):
             assert len(spans) == 2
 
             span = spans[0]
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(span.meta, meta)
@@ -135,26 +139,26 @@ class PyMySQLCore(object):
                 dummy_value TEXT NOT NULL)""")
         tracer.enabled = True
 
-        stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
-        data = [("foo", "this is foo"),
-                ("bar", "this is bar")]
+        stmt = 'INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)'
+        data = [('foo', 'this is foo'),
+                ('bar', 'this is bar')]
 
         # PyMySQL `executemany()` returns the rowcount
         rowcount = cursor.executemany(stmt, data)
         assert rowcount == 2
 
-        query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+        query = 'SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key'
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 2
-        assert rows[0][0] == "bar"
-        assert rows[0][1] == "this is bar"
-        assert rows[1][0] == "foo"
-        assert rows[1][1] == "this is foo"
+        assert rows[0][0] == 'bar'
+        assert rows[0][1] == 'this is bar'
+        assert rows[1][0] == 'foo'
+        assert rows[1][1] == 'this is foo'
 
         spans = writer.pop()
         assert len(spans) == 2
-        cursor.execute("drop table if exists dummy")
+        cursor.execute('drop table if exists dummy')
 
     def test_query_many_fetchall(self):
         with self.override_config('dbapi2', dict(trace_fetch_methods=True)):
@@ -170,22 +174,22 @@ class PyMySQLCore(object):
                     dummy_value TEXT NOT NULL)""")
             tracer.enabled = True
 
-            stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
-            data = [("foo", "this is foo"),
-                    ("bar", "this is bar")]
+            stmt = 'INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)'
+            data = [('foo', 'this is foo'),
+                    ('bar', 'this is bar')]
             cursor.executemany(stmt, data)
-            query = "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+            query = 'SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key'
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 2
-            assert rows[0][0] == "bar"
-            assert rows[0][1] == "this is bar"
-            assert rows[1][0] == "foo"
-            assert rows[1][1] == "this is foo"
+            assert rows[0][0] == 'bar'
+            assert rows[0][1] == 'this is bar'
+            assert rows[1][0] == 'foo'
+            assert rows[1][1] == 'this is foo'
 
             spans = writer.pop()
             assert len(spans) == 3
-            cursor.execute("drop table if exists dummy")
+            cursor.execute('drop table if exists dummy')
 
             fetch_span = spans[2]
             assert fetch_span.name == 'pymysql.query.fetchall'
@@ -197,7 +201,7 @@ class PyMySQLCore(object):
         # create a procedure
         tracer.enabled = False
         cursor = conn.cursor()
-        cursor.execute("DROP PROCEDURE IF EXISTS sp_sum")
+        cursor.execute('DROP PROCEDURE IF EXISTS sp_sum')
         cursor.execute("""
             CREATE PROCEDURE sp_sum (IN p1 INTEGER, IN p2 INTEGER, OUT p3 INTEGER)
             BEGIN
@@ -205,7 +209,7 @@ class PyMySQLCore(object):
             END;""")
 
         tracer.enabled = True
-        proc = "sp_sum"
+        proc = 'sp_sum'
         data = (40, 2, None)
 
         # spans[len(spans) - 2]
@@ -226,10 +230,12 @@ class PyMySQLCore(object):
         # typically, internal calls to execute, but at least we
         # can expect the last closed span to be our proc.
         span = spans[len(spans) - 2]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'pymysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(span.meta, meta)
@@ -241,7 +247,7 @@ class PyMySQLCore(object):
         ot_tracer = init_tracer('mysql_svc', tracer)
         with ot_tracer.start_active_span('mysql_op'):
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
 
@@ -256,10 +262,12 @@ class PyMySQLCore(object):
         assert ot_span.service == 'mysql_svc'
         assert ot_span.name == 'mysql_op'
 
+        assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == 'pymysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
+        assert dd_span.get_metric('out.port') == MYSQL_CONFIG.get('port')
         meta = {}
         meta.update(self.DB_INFO)
         assert_dict_issuperset(dd_span.meta, meta)
@@ -272,7 +280,7 @@ class PyMySQLCore(object):
             ot_tracer = init_tracer('mysql_svc', tracer)
             with ot_tracer.start_active_span('mysql_op'):
                 cursor = conn.cursor()
-                cursor.execute("SELECT 1")
+                cursor.execute('SELECT 1')
                 rows = cursor.fetchall()
                 assert len(rows) == 1
 
@@ -287,10 +295,12 @@ class PyMySQLCore(object):
             assert ot_span.service == 'mysql_svc'
             assert ot_span.name == 'mysql_op'
 
+            assert_is_measured(dd_span)
             assert dd_span.service == self.TEST_SERVICE
             assert dd_span.name == 'pymysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
+            assert dd_span.get_metric('out.port') == MYSQL_CONFIG.get('port')
             meta = {}
             meta.update(self.DB_INFO)
             assert_dict_issuperset(dd_span.meta, meta)
@@ -321,7 +331,7 @@ class PyMySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute("SELECT 1")
+        cursor.execute('SELECT 1')
         rows = cursor.fetchall()
         assert len(rows) == 1
         spans = writer.pop()
@@ -338,7 +348,7 @@ class PyMySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -355,7 +365,7 @@ class PyMySQLCore(object):
             conn, tracer = self._get_conn_tracer()
             writer = tracer.writer
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -397,7 +407,7 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             assert not conn._closed
 
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             rows = cursor.fetchall()
             assert len(rows) == 1
             spans = writer.pop()
@@ -408,6 +418,7 @@ class TestPyMysqlPatch(PyMySQLCore, BaseTracerTestCase):
             assert span.name == 'pymysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == MYSQL_CONFIG.get('port')
 
             meta = {}
             meta.update(self.DB_INFO)

@@ -1,16 +1,21 @@
 import math
 import random
 import sys
-import time
 import traceback
 
-from .compat import StringIO, stringify, iteritems, numeric_types
-from .constants import NUMERIC_TAGS
-from .ext import errors
+from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
+from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY, SPAN_MEASURED_KEY
+from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+if sys.version_info.major < 3:
+    _getrandbits = random.SystemRandom().getrandbits
+else:
+    _getrandbits = random.getrandbits
 
 
 class Span(object):
@@ -27,14 +32,14 @@ class Span(object):
         'error',
         'metrics',
         'span_type',
-        'start',
-        'duration',
+        'start_ns',
+        'duration_ns',
+        'tracer',
         # Sampler attributes
         'sampled',
         # Internal attributes
-        '_tracer',
         '_context',
-        '_finished',
+        'finished',
         '_parent',
         '__weakref__',
     ]
@@ -75,7 +80,7 @@ class Span(object):
         self.name = name
         self.service = service
         self.resource = resource or name
-        self.span_type = span_type
+        self.span_type = span_type.value if isinstance(span_type, SpanTypes) else span_type
 
         # tags / metatdata
         self.meta = {}
@@ -83,65 +88,136 @@ class Span(object):
         self.metrics = {}
 
         # timing
-        self.start = start or time.time()
-        self.duration = None
+        self.start_ns = time_ns() if start is None else int(start * 1e9)
+        self.duration_ns = None
 
         # tracing
         self.trace_id = trace_id or _new_id()
         self.span_id = span_id or _new_id()
         self.parent_id = parent_id
+        self.tracer = tracer
 
         # sampling
         self.sampled = True
 
-        self._tracer = tracer
         self._context = context
         self._parent = None
 
         # state
-        self._finished = False
+        self.finished = False
+
+    @property
+    def start(self):
+        """The start timestamp in Unix epoch seconds."""
+        return self.start_ns / 1e9
+
+    @start.setter
+    def start(self, value):
+        self.start_ns = int(value * 1e9)
+
+    @property
+    def duration(self):
+        """The span duration in seconds."""
+        if self.duration_ns is not None:
+            return self.duration_ns / 1e9
+
+    @duration.setter
+    def duration(self, value):
+        self.duration_ns = value * 1e9
 
     def finish(self, finish_time=None):
-        """ Mark the end time of the span and submit it to the tracer.
-            If the span has already been finished don't do anything
+        """Mark the end time of the span and submit it to the tracer.
+        If the span has already been finished don't do anything
 
-            :param int finish_time: the end time of the span in seconds.
-                                    Defaults to now.
+        :param int finish_time: The end time of the span in seconds.
+                                Defaults to now.
         """
-        if self._finished:
+        if self.finished:
             return
-        self._finished = True
+        self.finished = True
 
-        if self.duration is None:
-            ft = finish_time or time.time()
+        if self.duration_ns is None:
+            ft = time_ns() if finish_time is None else int(finish_time * 1e9)
             # be defensive so we don't die if start isn't set
-            self.duration = ft - (self.start or ft)
+            self.duration_ns = ft - (self.start_ns or ft)
 
-        # if a tracer is available to process the current context
-        if self._tracer and self._context:
+        if self._context:
             try:
                 self._context.close_span(self)
-                self._tracer.record(self._context)
             except Exception:
-                log.exception("error recording finished trace")
+                log.exception('error recording finished trace')
+            else:
+                # if a tracer is available to process the current context
+                if self.tracer:
+                    try:
+                        self.tracer.record(self._context)
+                    except Exception:
+                        log.exception('error recording finished trace')
 
-    def set_tag(self, key, value):
+    def set_tag(self, key, value=None):
         """ Set the given key / value tag pair on the span. Keys and values
             must be strings (or stringable). If a casting error occurs, it will
             be ignored.
         """
+        # Special case, force `http.status_code` as a string
+        # DEV: `http.status_code` *has* to be in `meta` for metrics
+        #   calculated in the trace agent
+        if key == http.STATUS_CODE:
+            value = str(value)
 
-        if key in NUMERIC_TAGS:
+        # Determine once up front
+        is_an_int = is_integer(value)
+
+        # Explicitly try to convert expected integers to `int`
+        # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
+        INT_TYPES = (net.TARGET_PORT, )
+        if key in INT_TYPES and not is_an_int:
             try:
-                self.set_metric(key, float(value))
+                value = int(value)
+                is_an_int = True
+            except (ValueError, TypeError):
+                pass
+
+        # Set integers that are less than equal to 2^53 as metrics
+        if is_an_int and abs(value) <= 2 ** 53:
+            self.set_metric(key, value)
+            return
+
+        # All floats should be set as a metric
+        elif isinstance(value, float):
+            self.set_metric(key, value)
+            return
+
+        # Key should explicitly be converted to a float if needed
+        elif key in NUMERIC_TAGS:
+            try:
+                # DEV: `set_metric` will try to cast to `float()` for us
+                self.set_metric(key, value)
             except (TypeError, ValueError):
-                log.debug("error setting numeric metric {}:{}".format(key, value))
+                log.debug('error setting numeric metric %s:%s', key, value)
 
             return
+
+        elif key == MANUAL_KEEP_KEY:
+            self.context.sampling_priority = priority.USER_KEEP
+            return
+        elif key == MANUAL_DROP_KEY:
+            self.context.sampling_priority = priority.USER_REJECT
+            return
+        elif key == SPAN_MEASURED_KEY:
+            # Set `_dd.measured` tag as a metric
+            # DEV: `set_metric` will ensure it is an integer 0 or 1
+            if value is None:
+                value = 1
+            self.set_metric(key, value)
+            return
+
         try:
             self.meta[key] = stringify(value)
+            if key in self.metrics:
+                del self.metrics[key]
         except Exception:
-            log.debug("error setting tag %s, ignoring it", key, exc_info=True)
+            log.debug('error setting tag %s, ignoring it', key, exc_info=True)
 
     def _remove_tag(self, key):
         if key in self.meta:
@@ -170,6 +246,14 @@ class Span(object):
         # This method sets a numeric tag value for the given key. It acts
         # like `set_meta()` and it simply add a tag without further processing.
 
+        # Enforce a specific connstant for `_dd.measured`
+        if key == SPAN_MEASURED_KEY:
+            try:
+                value = int(bool(value))
+            except (ValueError, TypeError):
+                log.warning('failed to convert %r tag to an integer from %r', key, value)
+                return
+
         # FIXME[matt] we could push this check to serialization time as well.
         # only permit types that are commonly serializable (don't use
         # isinstance so that we convert unserializable types like numpy
@@ -178,14 +262,16 @@ class Span(object):
             try:
                 value = float(value)
             except (ValueError, TypeError):
-                log.debug("ignoring not number metric %s:%s", key, value)
+                log.debug('ignoring not number metric %s:%s', key, value)
                 return
 
         # don't allow nan or inf
         if math.isnan(value) or math.isinf(value):
-            log.debug("ignoring not real metric %s:%s", key, value)
+            log.debug('ignoring not real metric %s:%s', key, value)
             return
 
+        if key in self.meta:
+            del self.meta[key]
         self.metrics[key] = value
 
     def set_metrics(self, metrics):
@@ -214,11 +300,11 @@ class Span(object):
         if err and type(err) == bool:
             d['error'] = 1
 
-        if self.start:
-            d['start'] = int(self.start * 1e9)  # ns
+        if self.start_ns:
+            d['start'] = self.start_ns
 
-        if self.duration:
-            d['duration'] = int(self.duration * 1e9)  # ns
+        if self.duration_ns:
+            d['duration'] = self.duration_ns
 
         if self.meta:
             d['meta'] = self.meta
@@ -241,7 +327,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = ''.join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace "error.stack" tag with "python.stack"
+            self.set_tag(errors.ERROR_STACK, tb)  # FIXME[gabin] Want to replace 'error.stack' tag with 'python.stack'
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         """ Tag the span with an error tuple as from `sys.exc_info()`. """
@@ -256,7 +342,7 @@ class Span(object):
         tb = buff.getvalue()
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
-        exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
+        exc_type_str = '%s.%s' % (exc_type.__module__, exc_type.__name__)
 
         self.set_tag(errors.ERROR_MSG, exc_val)
         self.set_tag(errors.ERROR_TYPE, exc_type_str)
@@ -273,21 +359,21 @@ class Span(object):
         """ Return a human readable version of the span. """
         lines = [
             ('name', self.name),
-            ("id", self.span_id),
-            ("trace_id", self.trace_id),
-            ("parent_id", self.parent_id),
-            ("service", self.service),
-            ("resource", self.resource),
+            ('id', self.span_id),
+            ('trace_id', self.trace_id),
+            ('parent_id', self.parent_id),
+            ('service', self.service),
+            ('resource', self.resource),
             ('type', self.span_type),
-            ("start", self.start),
-            ("end", "" if not self.duration else self.start + self.duration),
-            ("duration", "%fs" % (self.duration or 0)),
-            ("error", self.error),
-            ("tags", "")
+            ('start', self.start),
+            ('end', '' if not self.duration else self.start + self.duration),
+            ('duration', '%fs' % (self.duration or 0)),
+            ('error', self.error),
+            ('tags', '')
         ]
 
-        lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
-        return "\n".join("%10s %s" % l for l in lines)
+        lines.extend((' ', '%s:%s' % kv) for kv in sorted(self.meta.items()))
+        return '\n'.join('%10s %s' % l for l in lines)
 
     @property
     def context(self):
@@ -298,9 +384,6 @@ class Span(object):
         """
         return self._context
 
-    def tracer(self):
-        return self._tracer
-
     def __enter__(self):
         return self
 
@@ -310,10 +393,10 @@ class Span(object):
                 self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
         except Exception:
-            log.exception("error closing trace")
+            log.exception('error closing trace')
 
     def __repr__(self):
-        return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
+        return '<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>' % (
             self.span_id,
             self.trace_id,
             self.parent_id,
@@ -323,4 +406,4 @@ class Span(object):
 
 def _new_id():
     """Generate a random trace_id or span_id"""
-    return random.getrandbits(64)
+    return _getrandbits(64)

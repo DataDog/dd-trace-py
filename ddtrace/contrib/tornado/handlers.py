@@ -2,8 +2,8 @@ from tornado.web import HTTPError
 
 from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
@@ -35,8 +35,9 @@ def execute(func, handler, args, kwargs):
         request_span = tracer.trace(
             'tornado.request',
             service=service,
-            span_type=http.TYPE
+            span_type=SpanTypes.WEB,
         )
+        request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
         analytics_enabled = settings['analytics_enabled']
@@ -67,7 +68,9 @@ def on_finish(func, handler, args, kwargs):
         request_span.resource = '{}.{}'.format(klass.__module__, klass.__name__)
         request_span.set_tag('http.method', request.method)
         request_span.set_tag('http.status_code', handler.get_status())
-        request_span.set_tag('http.url', request.uri)
+        request_span.set_tag(http.URL, request.full_url().rsplit('?', 1)[0])
+        if config.tornado.trace_query_string:
+            request_span.set_tag(http.QUERY_STRING, request.query)
         request_span.finish()
 
     return func(*args, **kwargs)

@@ -1,9 +1,12 @@
+from . import SpanTypes
+
 # defaults
 APP = 'redis'
 DEFAULT_SERVICE = 'redis'
 
+# [TODO] Deprecated, remove when we remove AppTypes
 # type of the spans
-TYPE = 'redis'
+TYPE = SpanTypes.REDIS
 
 # net extension
 DB = 'out.redis_db'

@@ -17,6 +17,7 @@ from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...base import override_config
 from ...test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured
 
 
 def test_normalize_filter():
@@ -104,12 +105,13 @@ class PymongoCore(object):
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',
@@ -153,12 +155,13 @@ class PymongoCore(object):
         assert spans, spans
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == collection_name
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = [
             'drop here.are.songs',
@@ -218,12 +221,13 @@ class PymongoCore(object):
         spans = writer.pop()
         for span in spans:
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'teams'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host'), span.pprint()
-            assert span.meta.get('out.port'), span.pprint()
+            assert span.metrics.get('out.port'), span.pprint()
             assert span.start > start
             assert span.duration < end - start
 
@@ -287,12 +291,13 @@ class PymongoCore(object):
             # ensure the parenting
             assert span.parent_id == ot_span.span_id
             # ensure all the of the common metadata is set
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == 'mongodb'
             assert span.meta.get('mongodb.collection') == 'songs'
             assert span.meta.get('mongodb.db') == 'testdb'
             assert span.meta.get('out.host')
-            assert span.meta.get('out.port')
+            assert span.metrics.get('out.port')
 
         expected_resources = set([
             'drop songs',
@@ -353,7 +358,7 @@ class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
 class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()

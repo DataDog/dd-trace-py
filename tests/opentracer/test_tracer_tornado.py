@@ -5,7 +5,7 @@ from opentracing.scope_managers.tornado import TornadoScopeManager
 @pytest.fixture()
 def ot_tracer(ot_tracer_factory):
     """Fixture providing an opentracer configured for tornado usage."""
-    yield ot_tracer_factory("tornado_svc", {}, TornadoScopeManager())
+    yield ot_tracer_factory('tornado_svc', {}, TornadoScopeManager())
 
 
 class TestTracerTornado(object):

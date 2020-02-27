@@ -13,6 +13,7 @@ from tests.opentracer.utils import init_tracer
 
 from ...base import BaseTracerTestCase
 from ...util import override_global_tracer
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = 'httpbin.org'
@@ -44,7 +45,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.url") == URL_200
+        assert s.get_tag('http.url') == URL_200
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -73,7 +74,7 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == 'GET'
-            assert s.get_tag(http.STATUS_CODE) == '200'
+            assert_span_http_status_code(s, 200)
 
     def test_untraced_request(self):
         # ensure the unpatch removes tracing
@@ -104,10 +105,13 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
+        assert http.QUERY_STRING not in s.meta
 
     def test_200_send(self):
         # when calling send directly
@@ -120,24 +124,31 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
 
     def test_200_query_string(self):
         # ensure query string is removed before adding url to metadata
-        out = self.session.get(URL_200 + '?key=value&key2=value2')
+        query_string = 'key=value&key2=value2'
+        with self.override_http_config('requests', dict(trace_query_string=True)):
+            out = self.session.get(URL_200 + '?' + query_string)
         assert out.status_code == 200
         # validation
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(s, 200)
         assert s.get_tag(http.URL) == URL_200
         assert s.error == 0
-        assert s.span_type == http.TYPE
+        assert s.span_type == 'http'
+        assert s.get_tag(http.QUERY_STRING) == query_string
 
     def test_requests_module_200(self):
         # ensure the requests API is instrumented even without
@@ -149,10 +160,12 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
             spans = self.tracer.writer.pop()
             assert len(spans) == 1
             s = spans[0]
+
+            assert_is_measured(s)
             assert s.get_tag(http.METHOD) == 'GET'
-            assert s.get_tag(http.STATUS_CODE) == '200'
+            assert_span_http_status_code(s, 200)
             assert s.error == 0
-            assert s.span_type == http.TYPE
+            assert s.span_type == 'http'
 
     def test_post_500(self):
         out = self.session.post(URL_500)
@@ -161,8 +174,10 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'POST'
-        assert s.get_tag(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.error == 1
 
     def test_non_existant_url(self):
@@ -171,17 +186,19 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         except Exception:
             pass
         else:
-            assert 0, "expected error"
+            assert 0, 'expected error'
 
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
         assert s.error == 1
-        assert "Failed to establish a new connection" in s.get_tag(errors.MSG)
-        assert "Failed to establish a new connection" in s.get_tag(errors.STACK)
-        assert "Traceback (most recent call last)" in s.get_tag(errors.STACK)
-        assert "requests.exception" in s.get_tag(errors.TYPE)
+        assert 'Failed to establish a new connection' in s.get_tag(errors.MSG)
+        assert 'Failed to establish a new connection' in s.get_tag(errors.STACK)
+        assert 'Traceback (most recent call last)' in s.get_tag(errors.STACK)
+        assert 'requests.exception' in s.get_tag(errors.TYPE)
 
     def test_500(self):
         out = self.session.get(URL_500)
@@ -190,8 +207,10 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         assert len(spans) == 1
         s = spans[0]
+
+        assert_is_measured(s)
         assert s.get_tag(http.METHOD) == 'GET'
-        assert s.get_tag(http.STATUS_CODE) == '500'
+        assert_span_http_status_code(s, 500)
         assert s.error == 1
 
     def test_default_service_name(self):
@@ -363,10 +382,11 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         assert ot_span.name == 'requests_get'
         assert ot_span.service == 'requests_svc'
 
+        assert_is_measured(dd_span)
         assert dd_span.get_tag(http.METHOD) == 'GET'
-        assert dd_span.get_tag(http.STATUS_CODE) == '200'
+        assert_span_http_status_code(dd_span, 200)
         assert dd_span.error == 0
-        assert dd_span.span_type == http.TYPE
+        assert dd_span.span_type == 'http'
 
     def test_request_and_response_headers(self):
         # Disabled when not configured
@@ -435,13 +455,13 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         pin = Pin(service=__name__,
-                  app="requests",
+                  app='requests',
                   _config={
-                      "service_name": __name__,
-                      "distributed_tracing": False,
-                      "split_by_domain": False,
-                      "analytics_enabled": True,
-                      "analytics_sample_rate": 0.5,
+                      'service_name': __name__,
+                      'distributed_tracing': False,
+                      'split_by_domain': False,
+                      'analytics_enabled': True,
+                      'analytics_sample_rate': 0.5,
                   })
         pin.onto(self.session)
         self.session.get(URL_200)
@@ -458,12 +478,12 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
                 We expect the root span to have the appropriate tag
         """
         pin = Pin(service=__name__,
-                  app="requests",
+                  app='requests',
                   _config={
-                      "service_name": __name__,
-                      "distributed_tracing": False,
-                      "split_by_domain": False,
-                      "analytics_enabled": True,
+                      'service_name': __name__,
+                      'distributed_tracing': False,
+                      'split_by_domain': False,
+                      'analytics_enabled': True,
                   })
         pin.onto(self.session)
         self.session.get(URL_200)

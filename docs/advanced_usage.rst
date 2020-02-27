@@ -10,9 +10,16 @@ is a small example showcasing this::
 
     from ddtrace import tracer
 
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
-By default, these will be set to localhost and 8126 respectively.
+By default, these will be set to ``localhost``, ``8126``, and ``False`` respectively.
+
+You can also use a Unix Domain Socket to connect to the agent::
+
+    from ddtrace import tracer
+
+    tracer.configure(uds_path="/path/to/socket")
+
 
 Distributed Tracing
 -------------------
@@ -182,7 +189,7 @@ Trace Search & Analytics
 
 Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
 
-Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_ANALYTICS_ENABLED=true``:
+Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
 
 * :ref:`aiohttp`
 * :ref:`bottle`
@@ -340,8 +347,26 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-Http layer
+HTTP layer
 ----------
+
+Query String Tracing
+^^^^^^^^^^^^^^^^^^^^
+
+It is possible to store the query string of the URL — the part after the ``?``
+in your URL — in the ``url.query.string`` tag.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.http.trace_query_string = True
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_query_string = True
 
 ..  _http-headers-tracing:
 
@@ -415,6 +440,8 @@ for usage.
 | `debug`             | enable debug logging                   | `False`       |
 +---------------------+----------------------------------------+---------------+
 | `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
++---------------------+----------------------------------------+---------------+
+| `agent_https`       | use https to connect to the agent      | `False`       |
 +---------------------+----------------------------------------+---------------+
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+

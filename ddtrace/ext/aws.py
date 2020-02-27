@@ -34,6 +34,6 @@ def add_span_arg_tags(span, endpoint_name, args, args_names, args_traced):
         span.set_tags(tags)
 
 
-REGION = "aws.region"
-AGENT = "aws.agent"
-OPERATION = "aws.operation"
+REGION = 'aws.region'
+AGENT = 'aws.agent'
+OPERATION = 'aws.operation'

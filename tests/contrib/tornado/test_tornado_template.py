@@ -3,6 +3,9 @@ from tornado import template
 import pytest
 
 from .utils import TornadoTestCase
+from ...utils import assert_span_http_status_code
+
+from ddtrace.ext import http
 
 
 class TestTornadoTemplate(TornadoTestCase):
@@ -23,11 +26,11 @@ class TestTornadoTemplate(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.TemplateHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
-        assert '/template/' == request_span.get_tag('http.url')
+        assert_span_http_status_code(request_span, 200)
+        assert self.get_url('/template/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
 
         template_span = traces[0][1]
@@ -70,11 +73,11 @@ class TestTornadoTemplate(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.TemplatePartialHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '200' == request_span.get_tag('http.status_code')
-        assert '/template_partial/' == request_span.get_tag('http.url')
+        assert_span_http_status_code(request_span, 200)
+        assert self.get_url('/template_partial/') == request_span.get_tag(http.URL)
         assert 0 == request_span.error
 
         template_root = traces[0][1]
@@ -125,11 +128,11 @@ class TestTornadoTemplate(TornadoTestCase):
         request_span = traces[0][0]
         assert 'tornado-web' == request_span.service
         assert 'tornado.request' == request_span.name
-        assert 'http' == request_span.span_type
+        assert 'web' == request_span.span_type
         assert 'tests.contrib.tornado.web.app.TemplateExceptionHandler' == request_span.resource
         assert 'GET' == request_span.get_tag('http.method')
-        assert '500' == request_span.get_tag('http.status_code')
-        assert '/template_exception/' == request_span.get_tag('http.url')
+        assert_span_http_status_code(request_span, 500)
+        assert self.get_url('/template_exception/') == request_span.get_tag(http.URL)
         assert 1 == request_span.error
         assert 'ModuleThatDoesNotExist' in request_span.get_tag('error.msg')
         assert 'AttributeError' in request_span.get_tag('error.stack')

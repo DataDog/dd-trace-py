@@ -28,14 +28,8 @@ class TestHttpPropagation(TestCase):
 
             assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
             assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
-            assert (
-                int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) ==
-                span.context.sampling_priority
-            )
-            assert (
-                headers[HTTP_HEADER_ORIGIN] ==
-                span.context._dd_origin
-            )
+            assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
+            assert headers[HTTP_HEADER_ORIGIN] == span.context._dd_origin
 
     def test_extract(self):
         tracer = get_dummy_tracer()

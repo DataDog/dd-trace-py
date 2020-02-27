@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `async`
 import aiobotocore
 
 from ddtrace.contrib.aiobotocore.patch import patch, unpatch
@@ -7,6 +5,7 @@ from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 from ..utils import aiobotocore_client
 from ...asyncio.utils import AsyncioTestCase, mark_asyncio
 from ....test_tracer import get_dummy_tracer
+from ....utils import assert_span_http_status_code, assert_is_measured
 
 
 class AIOBotocoreTest(AsyncioTestCase):
@@ -37,7 +36,7 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         traces = self.tracer.writer.pop_traces()
 
-        version = aiobotocore.__version__.split(".")
+        version = aiobotocore.__version__.split('.')
         pre_08 = int(version[0]) == 0 and int(version[1]) < 8
         # Version 0.8+ generates only one span for reading an object.
         if pre_08:
@@ -46,14 +45,16 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[1]) == 1
 
             span = traces[0][0]
+            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
 
             read_span = traces[1][0]
+            assert_is_measured(read_span)
             assert read_span.get_tag('aws.operation') == 'GetObject'
-            assert read_span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(read_span, 200)
             assert read_span.service == 'aws.s3'
             assert read_span.resource == 's3.getobject'
             assert read_span.name == 's3.command.read'
@@ -65,8 +66,9 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[0]) == 1
 
             span = traces[0][0]
+            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
-            assert span.get_tag('http.status_code') == '200'
+            assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
             assert span.name == 's3.command'

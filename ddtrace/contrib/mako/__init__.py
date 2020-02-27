@@ -10,7 +10,7 @@ Auto instrumentation is available using the ``patch``. The following is an examp
     t = Template(filename="index.html")
 
 """
-from ..util import require_modules
+from ...utils.importlib import require_modules
 
 required_modules = ['mako']
 

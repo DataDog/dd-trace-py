@@ -1,10 +1,10 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
+import pytest
+import time
 
-from asyncio import BaseEventLoop
 
 from ddtrace.context import Context
+from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.provider import DefaultContextProvider
 from ddtrace.contrib.asyncio.patch import patch, unpatch
 from ddtrace.contrib.asyncio.helpers import set_call_context
@@ -13,7 +13,7 @@ from tests.opentracer.utils import init_tracer
 from .utils import AsyncioTestCase, mark_asyncio
 
 
-_orig_create_task = BaseEventLoop.create_task
+_orig_create_task = asyncio.BaseEventLoop.create_task
 
 
 class TestAsyncioTracer(AsyncioTestCase):
@@ -21,6 +21,10 @@ class TestAsyncioTracer(AsyncioTestCase):
     the same ``IOLoop``.
     """
     @mark_asyncio
+    @pytest.mark.skipif(
+        CONTEXTVARS_IS_AVAILABLE,
+        reason='only applicable to legacy asyncio provider'
+    )
     def test_get_call_context(self):
         # it should return the context attached to the current Task
         # or create a new one
@@ -131,7 +135,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         assert 2 == len(spans)
         span = spans[0]
         assert 'f2' == span.name
-        assert 1 == span.error # f2 did not catch the exception
+        assert 1 == span.error  # f2 did not catch the exception
         assert 'f1 error' == span.get_tag('error.msg')
         assert 'Exception: f1 error' in span.get_tag('error.stack')
         span = spans[1]
@@ -163,7 +167,7 @@ class TestAsyncioTracer(AsyncioTestCase):
         assert 2 == len(spans)
         span = spans[0]
         assert 'f2' == span.name
-        assert 0 == span.error # f2 caught the exception
+        assert 0 == span.error  # f2 caught the exception
         span = spans[1]
         assert 'f1' == span.name
         assert 1 == span.error
@@ -259,21 +263,32 @@ class TestAsyncioPropagation(AsyncioTestCase):
 
         with self.tracer.trace('main_task'):
             yield from asyncio.gather(f1(), f2())
+            # do additional synchronous work to confirm main context is
+            # correctly handled
+            with self.tracer.trace('main_task_child'):
+                time.sleep(0.01)
 
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 3
         assert len(traces[0]) == 1
         assert len(traces[1]) == 1
-        assert len(traces[2]) == 1
+        assert len(traces[2]) == 2
         child_1 = traces[0][0]
         child_2 = traces[1][0]
         main_task = traces[2][0]
+        main_task_child = traces[2][1]
         # check if the context has been correctly propagated
         assert child_1.trace_id == main_task.trace_id
         assert child_1.parent_id == main_task.span_id
         assert child_2.trace_id == main_task.trace_id
         assert child_2.parent_id == main_task.span_id
+        assert main_task_child.trace_id == main_task.trace_id
+        assert main_task_child.parent_id == main_task.span_id
 
+    @pytest.mark.skipif(
+        CONTEXTVARS_IS_AVAILABLE,
+        reason='only applicable to legacy asyncio provider'
+    )
     @mark_asyncio
     def test_propagation_with_set_call_context(self):
         # ensures that if a new Context is attached to the current
@@ -296,7 +311,6 @@ class TestAsyncioPropagation(AsyncioTestCase):
     def test_propagation_with_new_context(self):
         # ensures that if a new Context is activated, a trace
         # with the Context arguments is created
-        task = asyncio.Task.current_task()
         ctx = Context(trace_id=100, span_id=101)
         self.tracer.context_provider.activate(ctx)
 
@@ -315,7 +329,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
         # ensures that the event loop can be unpatched
         unpatch()
         assert isinstance(self.tracer._context_provider, DefaultContextProvider)
-        assert BaseEventLoop.create_task == _orig_create_task
+        assert asyncio.BaseEventLoop.create_task == _orig_create_task
 
     def test_event_loop_double_patch(self):
         # ensures that double patching will not double instrument

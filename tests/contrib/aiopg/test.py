@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 # stdlib
 import time
 import asyncio
@@ -18,9 +16,10 @@ from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from ...utils import assert_is_measured
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -70,6 +69,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.name == 'postgres.query'
         assert span.resource == q
         assert span.service == service
@@ -90,7 +90,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
-        assert ot_span.parent_id == None
+        assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
         assert ot_span.name == 'aiopg_op'
         assert ot_span.service == 'aiopg_svc'
@@ -120,7 +120,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
-        assert span.meta['out.port'] == TEST_PORT
+        assert span.metrics['out.port'] == TEST_PORT
         assert span.span_type == 'sql'
 
     @mark_asyncio
@@ -202,7 +202,6 @@ class AiopgTestCase(AsyncioTestCase):
 class AiopgAnalyticsTestCase(AiopgTestCase):
     @asyncio.coroutine
     def trace_spans(self):
-        service = 'db'
         conn, _ = yield from self._get_conn_and_tracer()
 
         Pin.get_from(conn).clone(service='db', tracer=self.tracer).onto(conn)

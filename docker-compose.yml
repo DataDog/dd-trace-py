@@ -13,6 +13,10 @@ services:
             - HEAP_NEWSIZE=256M
         ports:
             - "127.0.0.1:9042:9042"
+    consul:
+        image: consul:1.6.0
+        ports:
+            - "127.0.0.1:8500:8500"
     postgres:
         image: postgres:10.5-alpine
         environment:
@@ -70,12 +74,15 @@ services:
         ports:
             - "127.0.0.1:5672:5672"
     ddagent:
-        image: datadog/docker-dd-agent
+        image: datadog/agent-dev:gbbr-apm-build
         environment:
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=invalid_key_but_this_is_fine
+            - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
         ports:
             - "127.0.0.1:8126:8126"
+        volumes:
+          - ddagent:/tmp/ddagent
 
     vertica:
         image: sumitchawla/vertica
@@ -91,15 +98,28 @@ services:
         environment:
             - TOX_SKIP_DIST=True
             - TEST_DATADOG_INTEGRATION=1
+            - TEST_DATADOG_INTEGRATION_UDS=1
         network_mode: host
         working_dir: /src
         volumes:
+            - ddagent:/tmp/ddagent
             - ./ddtrace:/src/ddtrace:ro
-            - ./ddtrace_vendor:/src/ddtrace_vendor:ro
+            # DEV: Make ddtrace/vendor rw so Tox can build C-extensions
+            - ./ddtrace/vendor:/src/ddtrace/vendor:rw
             - ./tests:/src/tests:ro
             - ./setup.cfg:/src/setup.cfg:ro
             - ./setup.py:/src/setup.py:ro
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
+            - ./docs:/src/docs:ro
+            - ./pyproject.toml:/src/pyproject.toml:ro
             - ./.ddtox:/src/.tox
+            - ./scripts:/src/scripts
+            # setuptools_scm needs `.git` to figure out what version we are on
+            # DEV: We could use `SETUPTOOLS_SCM_PRETEND_VERSION` but prefer `.git`
+            #      to get the same behavior as during releases
+            - ./.git:/src/.git:ro
         command: bash
+
+volumes:
+    ddagent:

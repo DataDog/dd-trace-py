@@ -17,7 +17,7 @@ class WrappedConnect(wrapt.ObjectProxy):
 
     def __init__(self, connect):
         super(WrappedConnect, self).__init__(connect)
-        ddtrace.Pin(service=mongox.TYPE, tracer=ddtrace.tracer).onto(self)
+        ddtrace.Pin(service=mongox.SERVICE, tracer=ddtrace.tracer).onto(self)
 
     def __call__(self, *args, **kwargs):
         client = self.__wrapped__(*args, **kwargs)

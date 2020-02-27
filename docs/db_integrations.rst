@@ -1,12 +1,36 @@
 Datastore Libraries
 ===================
 
+.. _algoliasearch:
+
+Algoliasearch
+-------------
+
+.. automodule:: ddtrace.contrib.algoliasearch
+
+
 .. _cassandra:
 
 Cassandra
 ---------
 
 .. automodule:: ddtrace.contrib.cassandra
+
+
+.. _consul:
+
+Consul
+------
+
+.. automodule:: ddtrace.contrib.consul
+
+
+.. _dogpile.cache:
+
+dogpile.cache
+-------------
+
+.. automodule:: ddtrace.contrib.dogpile_cache
 
 
 .. _elasticsearch:

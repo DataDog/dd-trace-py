@@ -27,6 +27,9 @@ documentation][visualization docs].
 
 ## Development
 
+### Contributing
+
+See [docs/contributing.rst](docs/contributing.rst).
 
 ### Testing
 
@@ -62,6 +65,10 @@ For example to run the tests for `redis-py` 2.10 on Python 3.5 and 3.6:
 
     $ ./scripts/ddtest tox -e '{py35,py36}-redis{210}'
 
+If you want to run a list of tox environment (as CircleCI does) based on a
+pattern, you can use the following command:
+
+    $ scripts/ddtest scripts/run-tox-scenario '^futures_contrib-'
 
 ### Continuous Integration
 
@@ -81,12 +88,3 @@ the CLI can be found at https://circleci.com/docs/2.0/local-cli/.
 After installing the `circleci` CLI, you can run jobs by name. For example:
 
     $ circleci build --job django
-
-
-### Benchmarking
-
-When two or more approaches must be compared, please write a benchmark in the
-[benchmark.py](tests/benchmark.py) module so that we can measure the efficiency
-of the algorithm. To run your benchmark, just:
-
-    $ python -m tests.benchmark

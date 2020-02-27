@@ -24,8 +24,13 @@ class TestUtils(unittest.TestCase):
         # are not set
         value = get_env('django', 'distributed_tracing')
         self.assertIsNone(value)
-        value = get_env('django', 'distributed_tracing', False)
+        value = get_env('django', 'distributed_tracing', default=False)
         self.assertFalse(value)
+
+    def test_get_env_long(self):
+        os.environ['DD_SOME_VERY_LONG_TEST_KEY'] = '1'
+        value = get_env('some', 'very', 'long', 'test', 'key', default='2')
+        assert value == '1'
 
     def test_get_env_found(self):
         # ensure `get_env` returns a value if the environment variable is set

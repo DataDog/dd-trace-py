@@ -10,16 +10,17 @@ from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG
 from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 
 def test_redis_legacy():
     # ensure the old interface isn't broken, but doesn't trace
     tracer = get_dummy_tracer()
-    TracedRedisCache = get_traced_redis(tracer, "foo")
+    TracedRedisCache = get_traced_redis(tracer, 'foo')
     r = TracedRedisCache(port=REDIS_CONFIG['port'])
-    r.set("a", "b")
-    got = r.get("a")
-    assert compat.to_unicode(got) == "b"
+    r.set('a', 'b')
+    got = r.get('a')
+    assert compat.to_unicode(got) == 'b'
     assert not tracer.writer.pop()
 
 
@@ -46,17 +47,23 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
         assert span.error == 0
         meta = {
             'out.host': u'localhost',
-            'out.port': str(self.TEST_PORT),
-            'out.redis_db': u'0',
+        }
+        metrics = {
+            'out.port': self.TEST_PORT,
+            'out.redis_db': 0,
         }
         for k, v in meta.items():
             assert span.get_tag(k) == v
+        for k, v in metrics.items():
+            assert span.get_metric(k) == v
 
         assert span.get_tag('redis.raw_command').startswith(u'MGET 0 1 2 3')
         assert span.get_tag('redis.raw_command').endswith(u'...')
@@ -67,11 +74,12 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
         assert span.get_tag('redis.raw_command') == u'GET cheese'
         assert span.get_metric('redis.args_length') == 2
@@ -112,12 +120,13 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
         assert span.get_tag('redis.raw_command') == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
         assert span.get_metric('redis.pipeline_length') == 3
@@ -133,12 +142,13 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 2
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET a 1'
         assert span.span_type == 'redis'
         assert span.error == 0
-        assert span.get_tag('out.redis_db') == '0'
+        assert span.get_metric('out.redis_db') == 0
         assert span.get_tag('out.host') == 'localhost'
 
     def test_meta_override(self):
@@ -164,7 +174,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
         Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert spans, spans
@@ -174,7 +184,7 @@ class TestRedisPatch(BaseTracerTestCase):
         unpatch()
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert not spans, spans
@@ -184,7 +194,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         r = redis.Redis(port=REDIS_CONFIG['port'])
         Pin.get_from(r).clone(tracer=tracer).onto(r)
-        r.get("key")
+        r.get('key')
 
         spans = writer.pop()
         assert spans, spans
@@ -209,11 +219,12 @@ class TestRedisPatch(BaseTracerTestCase):
         assert ot_span.name == 'redis_get'
         assert ot_span.service == 'redis_svc'
 
+        assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == 'redis.command'
         assert dd_span.span_type == 'redis'
         assert dd_span.error == 0
-        assert dd_span.get_tag('out.redis_db') == '0'
+        assert dd_span.get_metric('out.redis_db') == 0
         assert dd_span.get_tag('out.host') == 'localhost'
         assert dd_span.get_tag('redis.raw_command') == u'GET cheese'
         assert dd_span.get_metric('redis.args_length') == 2

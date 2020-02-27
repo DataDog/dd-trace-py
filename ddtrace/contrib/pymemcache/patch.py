@@ -8,24 +8,24 @@ _Client = pymemcache.client.base.Client
 
 
 def patch():
-    if getattr(pymemcache.client, "_datadog_patch", False):
+    if getattr(pymemcache.client, '_datadog_patch', False):
         return
 
-    setattr(pymemcache.client, "_datadog_patch", True)
-    setattr(pymemcache.client.base, "Client", WrappedClient)
+    setattr(pymemcache.client, '_datadog_patch', True)
+    setattr(pymemcache.client.base, 'Client', WrappedClient)
 
     # Create a global pin with default configuration for our pymemcache clients
     Pin(
-        app=memcachedx.SERVICE, service=memcachedx.SERVICE, app_type=memcachedx.TYPE
+        app=memcachedx.SERVICE, service=memcachedx.SERVICE
     ).onto(pymemcache)
 
 
 def unpatch():
     """Remove pymemcache tracing"""
-    if not getattr(pymemcache.client, "_datadog_patch", False):
+    if not getattr(pymemcache.client, '_datadog_patch', False):
         return
-    setattr(pymemcache.client, "_datadog_patch", False)
-    setattr(pymemcache.client.base, "Client", _Client)
+    setattr(pymemcache.client, '_datadog_patch', False)
+    setattr(pymemcache.client.base, 'Client', _Client)
 
     # Remove any pins that may exist on the pymemcache reference
     setattr(pymemcache, _DD_PIN_NAME, None)
