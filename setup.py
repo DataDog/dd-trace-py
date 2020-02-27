@@ -2,10 +2,14 @@ import copy
 import os
 import sys
 
-from distutils.command.build_ext import build_ext
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
+
+# ORDER MATTERS
+# Import this after setuptools or it will fail
+from Cython.Build import cythonize  # noqa: I100
+import Cython.Distutils
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -86,11 +90,6 @@ documentation][visualization docs].
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 """
 
-# enum34 is an enum backport for earlier versions of python
-# funcsigs backport required for vendored debtcollector
-# encoding using msgpack
-install_requires = ["enum34; python_version<'3.4'", "funcsigs>=1.0.0;python_version=='2.7'", "msgpack>=0.5.0"]
-
 # Base `setup()` kwargs without any C-extension registering
 setup_kwargs = dict(
     name="ddtrace",
@@ -102,16 +101,25 @@ setup_kwargs = dict(
     long_description_content_type="text/markdown",
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
-    install_requires=install_requires,
+    # enum34 is an enum backport for earlier versions of python
+    # funcsigs backport required for vendored debtcollector
+    # encoding using msgpack
+    install_requires=["enum34; python_version<'3.4'", "funcsigs>=1.0.0; python_version=='2.7'", "msgpack>=0.5.0",],
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "profile": ["protobuf>=3", "intervaltree",],
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"test": Tox},
-    entry_points={"console_scripts": ["ddtrace-run = ddtrace.commands.ddtrace_run:main"]},
+    cmdclass={"test": Tox, "build_ext": Cython.Distutils.build_ext},
+    entry_points={
+        "console_scripts": [
+            "ddtrace-run = ddtrace.commands.ddtrace_run:main",
+            "pyddprofile = ddtrace.profile.__main__:main",
+        ]
+    },
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.7",
@@ -121,7 +129,28 @@ setup_kwargs = dict(
         "Programming Language :: Python :: 3.7",
     ],
     use_scm_version=True,
-    setup_requires=["setuptools_scm"],
+    setup_requires=["setuptools_scm", "cython"],
+    ext_modules=cythonize(
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.profile.collector.stack",
+                sources=["ddtrace/profile/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=["-DPy_BUILD_CORE"],
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profile.collector._traceback",
+                sources=["ddtrace/profile/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension("ddtrace.profile._build", sources=["ddtrace/profile/_build.pyx"], language="c",),
+        ],
+        compile_time_env={
+            "PY_MAJOR_VERSION": sys.version_info.major,
+            "PY_MINOR_VERSION": sys.version_info.minor,
+            "PY_MICRO_VERSION": sys.version_info.micro,
+        },
+    ),
 )
 
 
@@ -137,17 +166,17 @@ class BuildExtFailed(Exception):
 
 # Attempt to build a C-extension, catch exceptions so failed building skips the extension
 # DEV: This is basically what `distutils`'s' `Extension(optional=True)` does
-class optional_build_ext(build_ext):
+class optional_build_ext(Cython.Distutils.build_ext):
     def run(self):
         try:
-            build_ext.run(self)
+            Cython.Distutils.build_ext.run(self)
         except DistutilsPlatformError as e:
             extensions = [ext.name for ext in self.extensions]
             print("WARNING: Failed to build extensions %r, skipping: %s" % (extensions, e))
 
     def build_extension(self, ext):
         try:
-            build_ext.build_extension(self, ext)
+            Cython.Distutils.build_ext.build_extension(self, ext)
         except build_ext_errors as e:
             print("WARNING: Failed to build extension %s, skipping: %s" % (ext.name, e))
 
@@ -172,7 +201,7 @@ try:
             all_exts.extend(exts)
 
     kwargs = copy.deepcopy(setup_kwargs)
-    kwargs["ext_modules"] = all_exts
+    kwargs["ext_modules"] += all_exts
     # DEV: Make sure `cmdclass` exists
     kwargs.setdefault("cmdclass", dict())
     kwargs["cmdclass"]["build_ext"] = optional_build_ext

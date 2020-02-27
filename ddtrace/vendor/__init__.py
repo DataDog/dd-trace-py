@@ -80,7 +80,14 @@ Source: https://github.com/giampaolo/psutil
 Version: 5.6.7
 License: BSD 3
 
-Notes:
+attrs
+-----
+
+Website: http://www.attrs.org/
+Source: https://github.com/python-attrs/attrs
+Version: 19.3.0
+License: MIT
+
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

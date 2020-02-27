@@ -3,6 +3,9 @@
 Basic Usage
 ===========
 
+Tracer
+~~~~~~
+
 With ``ddtrace`` installed, the application can be instrumented.
 
 
@@ -105,3 +108,63 @@ API details of the decorator can be found here:
 
 - :py:meth:`ddtrace.Tracer.trace`
 - :py:meth:`ddtrace.Span.finish`.
+
+
+Profiler
+~~~~~~~~
+
+.. note::
+
+  Note that this library does not use the `Datadog agent
+  <https://docs.datadoghq.com/agent/>`_. The profiles are directly sent over
+  HTTP to Datadog's API.
+
+  Therefore, in order to use the profiler and export the profiles to Datadog,
+  you'll need to at least set ``DD_PROFILING_API_KEY`` in your application environment.
+  See :ref:`Configuration` for more details.
+
+Via module
+----------
+To automatically profile your code, you can import the `ddprofile.auto` module.
+As soon as it is imported, it will start catching CPU profiling information on
+your behalf::
+
+  import ddprofile.auto
+
+Via API
+----------
+If you want to control which part of your code should be profiled, you can use
+the `ddtrace.profiler.Profiler` object::
+
+  import ddprofile.profiler
+
+  prof = profiler.Profiler()
+  prof.start()
+
+  # At shutdown
+  prof.stop()
+
+Via command line
+----------------
+You can run your program with profiling enabled by using the wrapper
+`pyddprofile`. This will automatically enable the profiling of your
+application::
+
+  $ pyddprofile myscript.py
+
+
+Handling `os.fork`
+------------------
+
+When your process forks using `os.fork`, the profiler is stopped in the child
+process.
+
+For Python 3.7 and later on POSIX platforms, a new profiler will be started if
+you enabled the profiler via `pyddprofile` or `ddprofile.auto`.
+
+If you manually instrument the profiler, or if you rely on Python 3.6 or a
+non-POSIX platform and earlier version, you'll have to manually restart the
+profiler in your child.
+
+The global profiler instrumented by `pyddprofile` and `ddprofile.auto` can be
+started by calling `ddprofile.auto.start_profiler`.
