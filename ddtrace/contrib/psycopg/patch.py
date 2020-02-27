@@ -97,8 +97,7 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or \
-                isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
             continue
         wrapt.wrap_function_wrapper(module, func, wrapper)
 

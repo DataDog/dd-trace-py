@@ -49,8 +49,38 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         result = yield from self._trace_method(
-            self.__wrapped__.executemany, query, {'sql.executemany': 'true'},
-            query, *args, **kwargs)  # noqa: E999
+            self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
+            operation, *args, **kwargs)  # noqa: E999
+        return result
+
+    @asyncio.coroutine
+    def execute(self, query, *args, **kwargs):
+        result = yield from self._trace_method(
+            self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        return result
+
+    @asyncio.coroutine
+    def callproc(self, procname, args):
+        result = yield from self._trace_method(
+            self.__wrapped__.callproc, procname, {}, proc, args)
+        return result
+
+    @asyncio.coroutine
+    def mogrify(self, operation, parameters=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.mogrify, operation, {}, operation, parameters)
+        return result
+
+    @asyncio.coroutine
+    def fetchone(self):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchone, None, {})
+        return result
+
+    @asyncio.coroutine
+    def fetchmany(self, size=None):
+        result = yield from self._trace_method(
+            self.__wrapped__.fetchmany, None, {}, size)
         return result
 
     @asyncio.coroutine
@@ -78,9 +108,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __anext__(self):
         result = yield from self.__wrapped__.__anext__()
         return result
-
-    def __aiter__(self):
-        return self.__wrapped__.__aiter__()
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):
