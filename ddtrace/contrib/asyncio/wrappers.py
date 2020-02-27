@@ -28,6 +28,8 @@ def wrapped_create_task(wrapped, instance, args, kwargs):
             trace_id=ctx.trace_id,
             span_id=ctx.span_id,
             sampling_priority=ctx.sampling_priority,
+            service=ctx.service,
+            _dd_origin=ctx._dd_origin
         )
         setattr(new_task, CONTEXT_ATTR, new_ctx)
 
