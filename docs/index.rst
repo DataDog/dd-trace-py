@@ -1,12 +1,12 @@
 .. include:: ./shared.rst
 
-Datadog Python Trace Client
-===========================
+Datadog Python Trace and Profile Client
+=======================================
 
-``ddtrace`` is Datadog's Python tracing client. It is used to trace requests as
-they flow across web servers, databases and microservices. This enables
-developers to have greater visibility into bottlenecks and troublesome requests
-in their application.
+``ddtrace`` is Datadog's Python tracing and profiling client. It is used to
+profile code and trace requests as they flow across web servers, databases and
+microservices. This enables developers to have greater visibility into
+bottlenecks and troublesome requests in their application.
 
 Getting Started
 ---------------
@@ -139,6 +139,7 @@ Indices and tables
     :hidden:
 
     installation_quickstart
+    configuration
     web_integrations
     db_integrations
     async_integrations

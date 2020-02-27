@@ -94,7 +94,7 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel
+      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
@@ -234,6 +234,12 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
+
+  profile:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-profile'
 
   integration:
     executor: ddtrace_dev
@@ -685,9 +691,10 @@ jobs:
     executor: python38
     steps:
       - checkout
+      - setup_tox
       - run: sudo apt-get -y install rake
-      # Sphinx 1.7.5 is required otherwise docs are not properly built
-      - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
+      - run: pip install tox mkwheelhouse awscli
+      - run: tox -e docs
       - run: S3_DIR=trace rake release:docs
 
   verify_all_tests_ran:
@@ -701,7 +708,7 @@ jobs:
         # debug: shows how many time each test was executed
       - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
         # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq | tee all_executed_tests
+      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
         # list all tests in tox.ini
       - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
         # checks that all tests were executed
@@ -770,6 +777,7 @@ workflows:
       - httplib: *requires_pre_test
       - integration: *requires_pre_test
       - internal: *requires_pre_test
+      - profile: *requires_pre_test
       - jinja2: *requires_pre_test
       - kombu: *requires_pre_test
       - mako: *requires_pre_test
@@ -830,6 +838,7 @@ workflows:
             - httplib
             - integration
             - internal
+            - profile
             - jinja2
             - kombu
             - mako
@@ -839,6 +848,7 @@ workflows:
             - mysqldb
             - mysqlpython
             - opentracer
+            - profile
             - psycopg
             - pylibmc
             - pylons
