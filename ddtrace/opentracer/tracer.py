@@ -1,4 +1,3 @@
-import logging
 import opentracing
 from opentracing import Format
 from opentracing.scope_managers import ThreadLocalScopeManager
@@ -10,16 +9,18 @@ from ddtrace.settings import ConfigException
 from ddtrace.utils import merge_dicts
 from ddtrace.utils.config import get_application_name
 
+from ..internal.logger import get_logger
 from .propagation import HTTPPropagator
 from .span import Span
 from .span_context import SpanContext
 from .settings import ConfigKeys as keys, config_invalid_keys
 from .utils import get_context_provider_for_scope_manager
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
     keys.AGENT_HOSTNAME: 'localhost',
+    keys.AGENT_HTTPS: False,
     keys.AGENT_PORT: 8126,
     keys.DEBUG: False,
     keys.ENABLED: True,
@@ -80,8 +81,10 @@ class Tracer(opentracing.Tracer):
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
+        self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
         self._dd_tracer.configure(enabled=self._enabled,
                                   hostname=self._config.get(keys.AGENT_HOSTNAME),
+                                  https=self._config.get(keys.AGENT_HTTPS),
                                   port=self._config.get(keys.AGENT_PORT),
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
@@ -173,13 +176,11 @@ class Tracer(opentracing.Tracer):
                 '...',
                 references=[opentracing.child_of(parent_span)])
 
-        Note: the precedence when defining a relationship is the following:
-        (highest)
-            1. *child_of*
-            2. *references*
-            3. `scope_manager.active` (unless *ignore_active_span* is True)
-            4. None
-        (lowest)
+        Note: the precedence when defining a relationship is the following, from highest to lowest:
+        1. *child_of*
+        2. *references*
+        3. `scope_manager.active` (unless *ignore_active_span* is True)
+        4. None
 
         Currently Datadog only supports `child_of` references.
 
@@ -254,16 +255,20 @@ class Tracer(opentracing.Tracer):
 
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
-        if tags is not None:
-            ddspan.set_tags(tags)
 
         otspan = Span(self, ot_parent_context, operation_name)
         # sync up the OT span with the DD span
         otspan._associate_dd_span(ddspan)
 
+        if tags is not None:
+            for k in tags:
+                # Make sure we set the tags on the otspan to ensure that the special compatibility tags
+                # are handled correctly (resource name, span type, sampling priority, etc).
+                otspan.set_tag(k, tags[k])
+
         return otspan
 
-    def inject(self, span_context, format, carrier):
+    def inject(self, span_context, format, carrier):  # noqa: A002
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
@@ -277,7 +282,7 @@ class Tracer(opentracing.Tracer):
 
         propagator.inject(span_context, carrier)
 
-    def extract(self, format, carrier):
+    def extract(self, format, carrier):  # noqa: A002
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.

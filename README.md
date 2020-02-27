@@ -27,6 +27,9 @@ documentation][visualization docs].
 
 ## Development
 
+### Contributing
+
+See [docs/contributing.rst](docs/contributing.rst).
 
 ### Testing
 
@@ -46,20 +49,26 @@ launch them through:
 [docker-compose]: https://www.docker.com/products/docker-compose
 
 
-#### Running the Tests
+#### Running Tests in docker
 
-Once docker is up and running you should be able to run the tests. To launch a
-single test manually. For example to run the tests for `redis-py` 2.10 on Python
-3.5 and 3.6:
+Once your docker-compose environment is running, you can run the test runner image:
+
+    $ docker-compose run --rm testrunner
+
+Now you are in a bash shell. You can now run tests as you would do in your local environment:
 
     $ tox -e '{py35,py36}-redis{210}'
 
-To see the defined test commands see `tox.ini`.
+We also provide a shell script to execute commands in the provided container.
 
-To launch the complete test matrix run:
+For example to run the tests for `redis-py` 2.10 on Python 3.5 and 3.6:
 
-    $ tox
+    $ ./scripts/ddtest tox -e '{py35,py36}-redis{210}'
 
+If you want to run a list of tox environment (as CircleCI does) based on a
+pattern, you can use the following command:
+
+    $ scripts/ddtest scripts/run-tox-scenario '^futures_contrib-'
 
 ### Continuous Integration
 
@@ -74,18 +83,8 @@ The CI tests are configured through [config.yml](.circleci/config.yml).
 #### Running Locally
 
 The CI tests can be run locally using the `circleci` CLI. More information about
-the CLI can be found at https://circleci.com/docs/2.0/local-jobs/.
+the CLI can be found at https://circleci.com/docs/2.0/local-cli/.
 
 After installing the `circleci` CLI, you can run jobs by name. For example:
 
     $ circleci build --job django
-
-
-### Benchmarking
-
-When two or more approaches must be compared, please write a benchmark in the
-[benchmark.py](tests/benchmark.py) module so that we can measure the efficiency
-of the algorithm. To run your benchmark, just:
-
-    $ python -m tests.benchmark
-

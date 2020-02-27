@@ -18,6 +18,7 @@ def patch_task(task, pin=None):
     patch_app(task.app)
     return task
 
+
 def unpatch_task(task):
     """Deprecated API. The new API uses signals that can be deactivated
     via unpatch() API. This API is now a no-op implementation so it doesn't

@@ -10,9 +10,16 @@ is a small example showcasing this::
 
     from ddtrace import tracer
 
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
-By default, these will be set to localhost and 8126 respectively.
+By default, these will be set to ``localhost``, ``8126``, and ``False`` respectively.
+
+You can also use a Unix Domain Socket to connect to the agent::
+
+    from ddtrace import tracer
+
+    tracer.configure(uds_path="/path/to/socket")
+
 
 Distributed Tracing
 -------------------
@@ -27,32 +34,32 @@ To trace requests across hosts, the spans on the secondary hosts must be linked 
 Web Frameworks
 ^^^^^^^^^^^^^^
 
-Some web framework integrations support distributed tracing out of the box, you just have to enable it.
-For that, refer to the configuration of the given integration.
+Some web framework integrations support distributed tracing out of the box.
+
 Supported web frameworks:
 
 
-+-------------------+-----------------+
-| Framework/Library |  Enabled        |
-+===================+=================+
-| :ref:`aiohttp`    | False           |
-+-------------------+-----------------+
-| :ref:`bottle`     | False           |
-+-------------------+-----------------+
-| :ref:`django`     | False           |
-+-------------------+-----------------+
-| :ref:`falcon`     | False           |
-+-------------------+-----------------+
-| :ref:`flask`      | False           |
-+-------------------+-----------------+
-| :ref:`pylons`     | False           |
-+-------------------+-----------------+
-| :ref:`pyramid`    | False           |
-+-------------------+-----------------+
-| :ref:`requests`   | False           |
-+-------------------+-----------------+
-| :ref:`tornado`    | False           |
-+-------------------+-----------------+
++-------------------+---------+
+| Framework/Library | Enabled |
++===================+=========+
+| :ref:`aiohttp`    | True    |
++-------------------+---------+
+| :ref:`bottle`     | True    |
++-------------------+---------+
+| :ref:`django`     | True    |
++-------------------+---------+
+| :ref:`falcon`     | True    |
++-------------------+---------+
+| :ref:`flask`      | True    |
++-------------------+---------+
+| :ref:`pylons`     | True    |
++-------------------+---------+
+| :ref:`pyramid`    | True    |
++-------------------+---------+
+| :ref:`requests`   | True    |
++-------------------+---------+
+| :ref:`tornado`    | True    |
++-------------------+---------+
 
 
 HTTP Client
@@ -128,13 +135,10 @@ priority to the following values:
 - ``AUTO_REJECT``: the sampler automatically rejects the trace
 - ``AUTO_KEEP``: the sampler automatically keeps the trace
 
-Priority sampling is disabled by default. Enabling it ensures that your sampled
-distributed traces will be complete. To enable priority sampling::
-
-    tracer.configure(priority_sampling=True)
-
-Once enabled, the sampler will automatically assign a priority to your traces,
+Priority sampling is enabled by default.
+When enabled, the sampler will automatically assign a priority to your traces,
 depending on their service and volume.
+This ensures that your sampled distributed traces will be complete.
 
 You can also set this priority manually to either drop an uninteresting trace or
 to keep an important one.
@@ -179,6 +183,101 @@ The ``RateSampler`` randomly samples a percentage of traces::
     sample_rate = 0.2
     tracer.sampler = RateSampler(sample_rate)
 
+
+Trace Search & Analytics
+------------------------
+
+Use `Trace Search & Analytics <https://docs.datadoghq.com/tracing/visualization/search/>`_ to filter application performance metrics and APM Events by user-defined tags. An APM event is generated every time a trace is generated.
+
+Enabling APM events for all web frameworks can be accomplished by setting the environment variable ``DD_TRACE_ANALYTICS_ENABLED=true``:
+
+* :ref:`aiohttp`
+* :ref:`bottle`
+* :ref:`django`
+* :ref:`falcon`
+* :ref:`flask`
+* :ref:`molten`
+* :ref:`pylons`
+* :ref:`pyramid`
+* :ref:`requests`
+* :ref:`tornado`
+
+
+For most libraries, APM events can be enabled with the environment variable ``DD_{INTEGRATION}_ANALYTICS_ENABLED=true``:
+
++----------------------+----------------------------------------+
+|       Library        |          Environment Variable          |
++======================+========================================+
+| :ref:`aiobotocore`   | ``DD_AIOBOTOCORE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------+
+| :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------+
+| :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------+
+| :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |
++----------------------+----------------------------------------+
+| :ref:`bottle`        | ``DD_BOTTLE_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------+
+| :ref:`cassandra`     | ``DD_CASSANDRA_ANALYTICS_ENABLED``     |
++----------------------+----------------------------------------+
+| :ref:`elasticsearch` | ``DD_ELASTICSEARCH_ANALYTICS_ENABLED`` |
++----------------------+----------------------------------------+
+| :ref:`falcon`        | ``DD_FALCON_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------+
+| :ref:`flask`         | ``DD_FLASK_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------+
+| :ref:`flask_cache`   | ``DD_FLASK_CACHE_ANALYTICS_ENABLED``   |
++----------------------+----------------------------------------+
+| :ref:`grpc`          | ``DD_GRPC_ANALYTICS_ENABLED``          |
++----------------------+----------------------------------------+
+| :ref:`httplib`       | ``DD_HTTPLIB_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------+
+| :ref:`kombu`         | ``DD_KOMBU_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------+
+| :ref:`molten`        | ``DD_MOLTEN_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------+
+| :ref:`pylibmc`       | ``DD_PYLIBMC_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------+
+| :ref:`pylons`        | ``DD_PYLONS_ANALYTICS_ENABLED``        |
++----------------------+----------------------------------------+
+| :ref:`pymemcache`    | ``DD_PYMEMCACHE_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------+
+| :ref:`pymongo`       | ``DD_PYMONGO_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------+
+| :ref:`redis`         | ``DD_REDIS_ANALYTICS_ENABLED``         |
++----------------------+----------------------------------------+
+| :ref:`rediscluster`  | ``DD_REDISCLUSTER_ANALYTICS_ENABLED``  |
++----------------------+----------------------------------------+
+| :ref:`sqlalchemy`    | ``DD_SQLALCHEMY_ANALYTICS_ENABLED``    |
++----------------------+----------------------------------------+
+| :ref:`vertica`       | ``DD_VERTICA_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------+
+
+For datastore libraries that extend another, use the setting for the underlying library:
+
++------------------------+----------------------------------+
+|        Library         |       Environment Variable       |
++========================+==================================+
+| :ref:`mongoengine`     | ``DD_PYMONGO_ANALYTICS_ENABLED`` |
++------------------------+----------------------------------+
+| :ref:`mysql-connector` | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------+
+| :ref:`mysqldb`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------+
+| :ref:`psycopg2`        | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------+
+| :ref:`pymysql`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------+
+| :ref:`sqllite`         | ``DD_DBAPI2_ANALYTICS_ENABLED``  |
++------------------------+----------------------------------+
+
+Where environment variables are not used for configuring the tracer, the instructions for configuring trace analytics is provided in the library documentation:
+
+* :ref:`aiohttp`
+* :ref:`django`
+* :ref:`pyramid`
+* :ref:`requests`
+* :ref:`tornado`
 
 Resolving deprecation warnings
 ------------------------------
@@ -241,6 +340,87 @@ next step of the pipeline or ``None`` if the trace should be discarded::
 
 (see filters.py for other example implementations)
 
+.. _`Logs Injection`:
+
+Logs Injection
+--------------
+
+.. automodule:: ddtrace.contrib.logging
+
+HTTP layer
+----------
+
+Query String Tracing
+^^^^^^^^^^^^^^^^^^^^
+
+It is possible to store the query string of the URL — the part after the ``?``
+in your URL — in the ``url.query.string`` tag.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.http.trace_query_string = True
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_query_string = True
+
+..  _http-headers-tracing:
+
+Headers tracing
+^^^^^^^^^^^^^^^
+
+
+For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.trace_headers([
+        'user-agent',
+        'transfer-encoding',
+    ])
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_headers([
+        'user-agent',
+        'some-other-header',
+    ])
+
+The following rules apply:
+  - headers configuration is based on a whitelist. If a header does not appear in the whitelist, it won't be traced.
+  - headers configuration is case-insensitive.
+  - if you configure a specific integration, e.g. 'requests', then such configuration overrides the default global
+    configuration, only for the specific integration.
+  - if you do not configure a specific integration, then the default global configuration applies, if any.
+  - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
+
+Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
+structure like in the following example::
+
+    http {
+      method  GET
+      request {
+        headers {
+          user_agent  my-app/0.0.1
+        }
+      }
+      response {
+        headers {
+          transfer_encoding  chunked
+        }
+      }
+      status_code  200
+      url  https://api.github.com/events
+    }
+
 
 .. _adv_opentracing:
 
@@ -252,25 +432,27 @@ The Datadog opentracer can be configured via the ``config`` dictionary
 parameter to the tracer which accepts the following described fields. See below
 for usage.
 
-+---------------------+---------------------------------------------------------+---------------+
-| Configuration Key   |  Description                                            | Default Value |
-+=====================+=========================================================+===============+
-| `enabled`           | enable or disable the tracer                            | `True`        |
-+---------------------+---------------------------------------------------------+---------------+
-| `debug`             | enable debug logging                                    | `False`       |
-+---------------------+---------------------------------------------------------+---------------+
-| `agent_hostname`    | hostname of the Datadog agent to use                    | `localhost`   |
-+---------------------+---------------------------------------------------------+---------------+
-| `agent_port`        | port the Datadog agent is listening on                  | `8126`        |
-+---------------------+---------------------------------------------------------+---------------+
-| `global_tags`       | tags that will be applied to each span                  | `{}`          |
-+---------------------+---------------------------------------------------------+---------------+
-| `sampler`           | see `Sampling`_                                         | `AllSampler`  |
-+---------------------+---------------------------------------------------------+---------------+
-| `priority_sampling` | see `Priority Sampling`_                                | `False`       |
-+---------------------+---------------------------------------------------------+---------------+
-| `settings`          | see `Advanced Usage`_                                   | `{}`          |
-+---------------------+---------------------------------------------------------+---------------+
++---------------------+----------------------------------------+---------------+
+|  Configuration Key  |              Description               | Default Value |
++=====================+========================================+===============+
+| `enabled`           | enable or disable the tracer           | `True`        |
++---------------------+----------------------------------------+---------------+
+| `debug`             | enable debug logging                   | `False`       |
++---------------------+----------------------------------------+---------------+
+| `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
++---------------------+----------------------------------------+---------------+
+| `agent_https`       | use https to connect to the agent      | `False`       |
++---------------------+----------------------------------------+---------------+
+| `agent_port`        | port the Datadog agent is listening on | `8126`        |
++---------------------+----------------------------------------+---------------+
+| `global_tags`       | tags that will be applied to each span | `{}`          |
++---------------------+----------------------------------------+---------------+
+| `sampler`           | see `Sampling`_                        | `AllSampler`  |
++---------------------+----------------------------------------+---------------+
+| `priority_sampling` | see `Priority Sampling`_               | `True`        |
++---------------------+----------------------------------------+---------------+
+| `settings`          | see `Advanced Usage`_                  | `{}`          |
++---------------------+----------------------------------------+---------------+
 
 
 Usage
@@ -392,8 +574,9 @@ The available environment variables for ``ddtrace-run`` are:
   ``localhost``)
 * ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
   will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: false): enables :ref:`Priority
+* ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
   Sampling`
+* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 

@@ -1,13 +1,12 @@
-import logging
-
 from opentracing import InvalidCarrierException, SpanContextCorruptedException
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
 
+from ...internal.logger import get_logger
 from ..span_context import SpanContext
 from .propagator import Propagator
 
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 HTTP_BAGGAGE_PREFIX = 'ot-baggage-'
 HTTP_BAGGAGE_PREFIX_LEN = len(HTTP_BAGGAGE_PREFIX)

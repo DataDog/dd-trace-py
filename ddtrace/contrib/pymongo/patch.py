@@ -9,6 +9,6 @@ _MongoClient = pymongo.MongoClient
 def patch():
     setattr(pymongo, 'MongoClient', TracedMongoClient)
 
+
 def unpatch():
     setattr(pymongo, 'MongoClient', _MongoClient)
-

@@ -3,7 +3,6 @@ tests for parsing specs.
 """
 
 from bson.son import SON
-from nose.tools import eq_
 
 from ddtrace.contrib.pymongo.parse import parse_spec
 
@@ -12,12 +11,14 @@ def test_empty():
     cmd = parse_spec(SON([]))
     assert cmd is None
 
+
 def test_create():
-    cmd = parse_spec(SON([("create", "foo")]))
-    eq_(cmd.name, "create")
-    eq_(cmd.coll, "foo")
-    eq_(cmd.tags, {})
-    eq_(cmd.metrics ,{})
+    cmd = parse_spec(SON([('create', 'foo')]))
+    assert cmd.name == 'create'
+    assert cmd.coll == 'foo'
+    assert cmd.tags == {}
+    assert cmd.metrics == {}
+
 
 def test_insert():
     spec = SON([
@@ -26,10 +27,11 @@ def test_insert():
         ('documents', ['a', 'b']),
     ])
     cmd = parse_spec(spec)
-    eq_(cmd.name, "insert")
-    eq_(cmd.coll, "bla")
-    eq_(cmd.tags, {'mongodb.ordered':True})
-    eq_(cmd.metrics, {'mongodb.documents':2})
+    assert cmd.name == 'insert'
+    assert cmd.coll == 'bla'
+    assert cmd.tags == {'mongodb.ordered': True}
+    assert cmd.metrics == {'mongodb.documents': 2}
+
 
 def test_update():
     spec = SON([
@@ -45,6 +47,6 @@ def test_update():
         ])
     ])
     cmd = parse_spec(spec)
-    eq_(cmd.name, "update")
-    eq_(cmd.coll, "songs")
-    eq_(cmd.query, {'artist':'Neil'})
+    assert cmd.name == 'update'
+    assert cmd.coll == 'songs'
+    assert cmd.query == {'artist': 'Neil'}

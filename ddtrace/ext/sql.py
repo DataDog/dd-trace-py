@@ -1,15 +1,13 @@
+from . import SpanTypes
 
-from ddtrace.ext import AppTypes
-
-
-# the type of the spans
-TYPE = "sql"
-APP_TYPE = AppTypes.db
+# [TODO] Deprecated, remove when we remove AppTypes
+TYPE = SpanTypes.SQL
+APP_TYPE = SpanTypes.SQL
 
 # tags
-QUERY = "sql.query"   # the query text
-ROWS = "sql.rows"     # number of rows returned by a query
-DB = "sql.db"         # the name of the database
+QUERY = 'sql.query'   # the query text
+ROWS = 'sql.rows'     # number of rows returned by a query
+DB = 'sql.db'         # the name of the database
 
 
 def normalize_vendor(vendor):
@@ -19,7 +17,7 @@ def normalize_vendor(vendor):
     elif 'sqlite' in vendor:
         return 'sqlite'
     elif 'postgres' in vendor or vendor == 'psycopg2':
-        return "postgres"
+        return 'postgres'
     else:
         return vendor
 
@@ -29,7 +27,7 @@ def parse_pg_dsn(dsn):
     Return a dictionary of the components of a postgres DSN.
 
     >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')
-    {"user":"dog", "port":"1543", "dbname":"dogdata"}
+    {'user':'dog', 'port':'1543', 'dbname':'dogdata'}
     """
 
     try:
@@ -39,5 +37,5 @@ def parse_pg_dsn(dsn):
         return parsed_dsn
     except ImportError:
         # FIXME: when we deprecate psycopg2 < 2.7 remove this section
-        return {c.split("=")[0]: c.split("=")[1] for c in dsn.split() if
-                "=" in c}
+        return {c.split('=')[0]: c.split('=')[1] for c in dsn.split() if
+                '=' in c}

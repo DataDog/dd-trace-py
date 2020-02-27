@@ -11,11 +11,13 @@ def nop_tracer():
     tracer._tracer = get_dummy_tracer()
     return tracer
 
+
 @pytest.fixture
 def nop_span_ctx():
     from ddtrace.ext.priority import AUTO_KEEP
     from ddtrace.opentracer.span_context import SpanContext
-    return SpanContext(sampling_priority=AUTO_KEEP, sampled=True)
+    return SpanContext(sampling_priority=AUTO_KEEP)
+
 
 @pytest.fixture
 def nop_span(nop_tracer, nop_span_ctx):
@@ -28,12 +30,12 @@ class TestSpan(object):
     def test_init(self, nop_tracer, nop_span_ctx):
         """Very basic test for skeleton code"""
         span = Span(nop_tracer, nop_span_ctx, 'my_op_name')
-        assert not span._finished
+        assert not span.finished
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
         nop_span.set_tag('test', 23)
-        assert int(nop_span._get_tag('test')) == 23
+        assert nop_span._get_metric('test') == 23
 
     def test_set_baggage(self, nop_span):
         """Test setting baggage."""
@@ -81,7 +83,7 @@ class TestSpan(object):
         # ...and that error tags are set with the correct key
         assert nop_span._get_tag(errors.ERROR_STACK) == stack_trace
         assert nop_span._get_tag(errors.ERROR_MSG) == 'my error message'
-        assert nop_span._get_tag(errors.ERROR_TYPE) == '3'
+        assert nop_span._get_metric(errors.ERROR_TYPE) == 3
 
     def test_operation_name(self, nop_span):
         """Sanity check for setting the operation name."""
@@ -93,14 +95,14 @@ class TestSpan(object):
         """Test the span context manager."""
         import time
 
-        assert not nop_span._finished
+        assert not nop_span.finished
         # run the context manager but since the span has not been added
         # to the span context, we will not get any traces
         with nop_span:
             time.sleep(0.005)
 
         # span should be finished when the context manager exits
-        assert nop_span._finished
+        assert nop_span.finished
 
         # there should be no traces (see above comment)
         spans = nop_span.tracer._tracer.writer.pop()
@@ -120,7 +122,7 @@ class TestSpanCompatibility(object):
     """
     def test_set_tag(self, nop_span):
         nop_span.set_tag('test', 2)
-        assert nop_span._dd_span.get_tag('test') == str(2)
+        assert nop_span._get_metric('test') == 2
 
     def test_tag_resource_name(self, nop_span):
         nop_span.set_tag('resource.name', 'myresource')
@@ -143,8 +145,8 @@ class TestSpanCompatibility(object):
         assert nop_span._dd_span.get_tag('out.host') == 'peername'
 
     def test_tag_peer_port(self, nop_span):
-        nop_span.set_tag('peer.port', '55555')
-        assert nop_span._dd_span.get_tag('out.port') == '55555'
+        nop_span.set_tag('peer.port', 55555)
+        assert nop_span._get_metric('out.port') == 55555
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag('sampling.priority', '2')

@@ -1,7 +1,4 @@
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.ext import errors as errx, http as httpx, AppTypes
 from falcon import testing
-from nose.tools import eq_, ok_
 from tests.test_tracer import get_dummy_tracer
 
 from .app import get_app
@@ -16,7 +13,7 @@ class DistributedTracingTestCase(testing.TestCase):
         super(DistributedTracingTestCase, self).setUp()
         self._service = 'falcon'
         self.tracer = get_dummy_tracer()
-        self.api = get_app(tracer=self.tracer, distributed_tracing=True)
+        self.api = get_app(tracer=self.tracer)
 
     def test_distributred_tracing(self):
         headers = {
@@ -24,32 +21,32 @@ class DistributedTracingTestCase(testing.TestCase):
             'x-datadog-parent-id': '42',
         }
         out = self.simulate_get('/200', headers=headers)
-        eq_(out.status_code, 200)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 200
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
 
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
 
-        eq_(traces[0][0].parent_id, 42)
-        eq_(traces[0][0].trace_id, 100)
+        assert traces[0][0].parent_id == 42
+        assert traces[0][0].trace_id == 100
 
     def test_distributred_tracing_disabled(self):
         self.tracer = get_dummy_tracer()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app(tracer=self.tracer, distributed_tracing=False)
         headers = {
             'x-datadog-trace-id': '100',
             'x-datadog-parent-id': '42',
         }
         out = self.simulate_get('/200', headers=headers)
-        eq_(out.status_code, 200)
-        eq_(out.content.decode('utf-8'), 'Success')
+        assert out.status_code == 200
+        assert out.content.decode('utf-8') == 'Success'
 
         traces = self.tracer.writer.pop_traces()
 
-        eq_(len(traces), 1)
-        eq_(len(traces[0]), 1)
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
 
-        ok_(traces[0][0].parent_id is not 42)
-        ok_(traces[0][0].trace_id is not 100)
+        assert traces[0][0].parent_id != 42
+        assert traces[0][0].trace_id != 100

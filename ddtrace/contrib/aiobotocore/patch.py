@@ -1,12 +1,14 @@
 import asyncio
-import wrapt
+from ddtrace.vendor import wrapt
+from ddtrace import config
 import aiobotocore.client
 
 from aiobotocore.endpoint import ClientResponseContentProxy
 from ..aiohttp.patch import ENABLE_DISTRIBUTED_ATTR_NAME
 
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...compat import PYTHON_VERSION_INFO
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
@@ -22,7 +24,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(aiobotocore.client.AioBaseClient)
+    Pin(service='aws', app='aws').onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -47,8 +49,9 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
             span.meta = dict(self._self_parent_span.meta)
+            span.metrics = dict(self._self_parent_span.metrics)
 
-            result = yield from self.__wrapped__.read(*args, **kwargs)  # noqa: E999
+            result = yield from self.__wrapped__.read(*args, **kwargs)
             span.set_tag('Length', len(result))
 
         return result
@@ -67,21 +70,11 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             return response
 
 
-def truncate_arg_value(value, max_len=1024):
-    """Truncate values which are bytes and greater than `max_len`.
-    Useful for parameters like 'Body' in `put_object` operations.
-    """
-    if isinstance(value, bytes) and len(value) > max_len:
-        return b'...'
-
-    return value
-
-
 @asyncio.coroutine
 def _wrapped_api_call(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        result = yield from original_func(*args, **kwargs)  # noqa: E999
+        result = yield from original_func(*args, **kwargs)
         return result
 
     # we can't enable aiohttp distributed tracing for aiobotocore's
@@ -94,7 +87,8 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service='{}.{}'.format(pin.service, endpoint_name),
-                          span_type=http.TYPE) as span:
+                          span_type=SpanTypes.HTTP) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
 
         if len(args) > 0:
             operation = args[0]
@@ -103,12 +97,7 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
             operation = None
             span.resource = endpoint_name
 
-        # add args in TRACED_ARGS if exist to the span
-        if not aws.is_blacklist(endpoint_name):
-            for name, value in aws.unpacking_args(args, ARGS_NAME, TRACED_ARGS):
-                if name == 'params':
-                    value = {k: truncate_arg_value(v) for k, v in value.items()}
-                span.set_tag(name, (value))
+        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, 'meta.region_name')
 
@@ -119,7 +108,7 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         }
         span.set_tags(meta)
 
-        result = yield from original_func(*args, **kwargs)  # noqa: E999
+        result = yield from original_func(*args, **kwargs)
 
         body = result.get('Body')
         if isinstance(body, ClientResponseContentProxy):
@@ -138,5 +127,11 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
         request_id2 = response_headers.get('x-amz-id-2')
         if request_id2:
             span.set_tag('aws.requestid2', request_id2)
+
+        # set analytics sample rate
+        span.set_tag(
+            ANALYTICS_SAMPLE_RATE_KEY,
+            config.aiobotocore.get_analytics_sample_rate()
+        )
 
         return result

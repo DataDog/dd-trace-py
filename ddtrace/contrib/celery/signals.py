@@ -1,20 +1,14 @@
-import logging
-
 from ddtrace import Pin, config
 
 from celery import registry
 
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...internal.logger import get_logger
 from . import constants as c
-from .utils import (
-    tags_from_context,
-    retrieve_task_id,
-    attach_span,
-    detach_span,
-    retrieve_span,
-)
+from .utils import tags_from_context, retrieve_task_id, attach_span, detach_span, retrieve_span
 
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 def trace_prerun(*args, **kwargs):
@@ -22,6 +16,7 @@ def trace_prerun(*args, **kwargs):
     # changes in Celery
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
+    log.debug('prerun signal start task_id=%s', task_id)
     if task is None or task_id is None:
         log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
@@ -29,11 +24,13 @@ def trace_prerun(*args, **kwargs):
     # retrieve the task Pin or fallback to the global one
     pin = Pin.get_from(task) or Pin.get_from(task.app)
     if pin is None:
+        log.debug('no pin found on task or task.app task_id=%s', task_id)
         return
 
     # propagate the `Span` in the current task Context
     service = config.celery['worker_service_name']
-    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name)
+    span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    span.set_tag(SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
 
 
@@ -42,6 +39,7 @@ def trace_postrun(*args, **kwargs):
     # changes in Celery
     task = kwargs.get('sender')
     task_id = kwargs.get('task_id')
+    log.debug('postrun signal task_id=%s', task_id)
     if task is None or task_id is None:
         log.debug('unable to extract the Task and the task_id. This version of Celery may not be supported.')
         return
@@ -49,6 +47,7 @@ def trace_postrun(*args, **kwargs):
     # retrieve and finish the Span
     span = retrieve_span(task, task_id)
     if span is None:
+        log.warning('no existing span found for task_id=%s', task_id)
         return
     else:
         # request context tags
@@ -82,13 +81,14 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery['producer_service_name']
     span = pin.tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    span.set_tag(SPAN_MEASURED_KEY)
     span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag('celery.id', task_id)
     span.set_tags(tags_from_context(kwargs))
     # Note: adding tags from `traceback` or `state` calls will make an
     # API call to the backend for the properties so we should rely
     # only on the given `Context`
-    attach_span(task, task_id, span)
+    attach_span(task, task_id, span, is_publish=True)
 
 
 def trace_after_publish(*args, **kwargs):
@@ -102,12 +102,12 @@ def trace_after_publish(*args, **kwargs):
         return
 
     # retrieve and finish the Span
-    span = retrieve_span(task, task_id)
+    span = retrieve_span(task, task_id, is_publish=True)
     if span is None:
         return
     else:
         span.finish()
-        detach_span(task, task_id)
+        detach_span(task, task_id, is_publish=True)
 
 
 def trace_failure(*args, **kwargs):
@@ -128,6 +128,8 @@ def trace_failure(*args, **kwargs):
         # so we don't need to attach other tags here
         ex = kwargs.get('einfo')
         if ex is None:
+            return
+        if hasattr(task, 'throws') and isinstance(ex.exception, task.throws):
             return
         span.set_exc_info(ex.type, ex.exception, ex.tb)
 

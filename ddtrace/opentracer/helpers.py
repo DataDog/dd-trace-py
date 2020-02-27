@@ -5,6 +5,7 @@ import ddtrace
 Helper routines for Datadog OpenTracing.
 """
 
+
 def set_global_tracer(tracer):
     """Sets the global tracers to the given tracer."""
 

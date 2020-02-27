@@ -1,7 +1,5 @@
 import asyncio
 
-from nose.tools import eq_, ok_
-
 from ddtrace.provider import DefaultContextProvider
 from .utils import AsyncioTestCase, mark_asyncio
 
@@ -21,11 +19,11 @@ class TestAsyncioSafety(AsyncioTestCase):
     def test_get_call_context(self):
         # it should return a context even if not attached to the Task
         ctx = self.tracer.get_call_context()
-        ok_(ctx is not None)
+        assert ctx is not None
         # test that it behaves the wrong way
         task = asyncio.Task.current_task()
         task_ctx = getattr(task, '__datadog_context', None)
-        ok_(task_ctx is None)
+        assert task_ctx is None
 
     @mark_asyncio
     def test_trace_coroutine(self):
@@ -34,10 +32,10 @@ class TestAsyncioSafety(AsyncioTestCase):
             span.resource = 'base'
 
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1, len(traces[0]))
-        eq_('coroutine', traces[0][0].name)
-        eq_('base', traces[0][0].resource)
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
+        assert 'coroutine' == traces[0][0].name
+        assert 'base' == traces[0][0].resource
 
     @mark_asyncio
     def test_trace_multiple_calls(self):
@@ -54,6 +52,6 @@ class TestAsyncioSafety(AsyncioTestCase):
 
         # the trace is wrong but the Context is finished
         traces = self.tracer.writer.pop_traces()
-        eq_(1, len(traces))
-        eq_(1000, len(traces[0]))
-        eq_(0, len(ctx._trace))
+        assert 1 == len(traces)
+        assert 1000 == len(traces[0])
+        assert 0 == len(ctx._trace)

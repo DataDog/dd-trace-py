@@ -46,6 +46,15 @@ Celery
 
 .. automodule:: ddtrace.contrib.celery
 
+
+.. _kombu:
+
+Kombu
+------
+
+.. automodule:: ddtrace.contrib.kombu
+
+
 .. _httplib:
 
 httplib
@@ -59,3 +68,24 @@ Requests
 --------
 
 .. automodule:: ddtrace.contrib.requests
+
+.. _grpc:
+
+Grpc
+----
+
+.. automodule:: ddtrace.contrib.grpc
+
+.. _jinja2:
+
+Jinja2
+------
+
+.. automodule:: ddtrace.contrib.jinja2
+
+.. _mako:
+
+Mako
+------
+
+.. automodule:: ddtrace.contrib.mako

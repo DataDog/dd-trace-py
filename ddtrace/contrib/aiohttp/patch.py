@@ -2,7 +2,8 @@ import asyncio
 import functools
 import logging
 import sys
-import wrapt
+
+from ddtrace.vendor import wrapt
 
 from ...pin import Pin
 from ...utils.wrappers import unwrap
@@ -362,8 +363,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
         setattr(aiohttp_jinja2, '__datadog_patch', True)
 
         _w('aiohttp_jinja2', 'render_template', _trace_render_template)
-        Pin(app='aiohttp', service=None, app_type='web',
-            tracer=tracer).onto(aiohttp_jinja2)
+        Pin(app='aiohttp', service=None, tracer=tracer).onto(aiohttp_jinja2)
 
 
 def unpatch():

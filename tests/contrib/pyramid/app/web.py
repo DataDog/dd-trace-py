@@ -7,7 +7,6 @@ from pyramid.httpexceptions import (
     HTTPInternalServerError,
     HTTPFound,
     HTTPNotFound,
-    HTTPException,
     HTTPNoContent,
 )
 
@@ -19,7 +18,7 @@ def create_app(settings, instrument):
         return Response('idx')
 
     def error(request):
-        raise HTTPInternalServerError("oh no")
+        raise HTTPInternalServerError('oh no')
 
     def exception(request):
         1 / 0

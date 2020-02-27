@@ -2,8 +2,10 @@ import re
 
 from .ext import http
 
+
 class FilterRequestsOnUrl(object):
-    """Filter out traces from incoming http requests based on the request's url.
+    r"""Filter out traces from incoming http requests based on the request's url.
+
     This class takes as argument a list of regular expression patterns
     representing the urls to be excluded from tracing. A trace will be excluded
     if its root span contains a ``http.url`` tag and if this tag matches any of
@@ -14,18 +16,17 @@ class FilterRequestsOnUrl(object):
                          the urls that should be filtered out.
 
     Examples:
-
     To filter out http calls to domain api.example.com::
 
-        FilterRequestsOnUrl(r'http://api\.example\.com')
+        FilterRequestsOnUrl(r'http://api\\.example\\.com')
 
     To filter out http calls to all first level subdomains from example.com::
 
-        FilterRequestOnUrl(r'http://.*+\.example\.com')
+        FilterRequestOnUrl(r'http://.*+\\.example\\.com')
 
     To filter out calls to both http://test.example.com and http://example.com/healthcheck::
 
-        FilterRequestOnUrl([r'http://test\.example\.com', r'http://example\.com/healthcheck'])
+        FilterRequestOnUrl([r'http://test\\.example\\.com', r'http://example\\.com/healthcheck'])
     """
     def __init__(self, regexps):
         if isinstance(regexps, str):

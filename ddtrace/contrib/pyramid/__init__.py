@@ -1,4 +1,4 @@
-"""To trace requests from a Pyramid application, trace your application
+r"""To trace requests from a Pyramid application, trace your application
 config::
 
 
@@ -19,7 +19,8 @@ Available settings are:
 
 * ``datadog_trace_service``: change the `pyramid` service name
 * ``datadog_trace_enabled``: sets if the Tracer is enabled or not
-* ``datadog_distributed_tracing``: set it to ``True`` to enable Distributed Tracing
+* ``datadog_distributed_tracing``: set it to ``False`` to disable Distributed Tracing
+* ``datadog_analytics_enabled``: set it to ``True`` to enable generating APM events for Trace Search & Analytics
 
 If you use the ``pyramid.tweens`` settings value to set the tweens for your
 application, you need to add ``ddtrace.contrib.pyramid:trace_tween_factory``

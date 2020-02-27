@@ -1,4 +1,3 @@
-import logging
 import sys
 
 from webob import Request
@@ -8,15 +7,19 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...ext import http, AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
+from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
+from ...settings import config as ddconfig
 
-log = logging.getLogger(__name__)
+
+log = get_logger(__name__)
 
 
 class PylonsTraceMiddleware(object):
 
-    def __init__(self, app, tracer, service='pylons', distributed_tracing=False):
+    def __init__(self, app, tracer, service='pylons', distributed_tracing=True):
         self.app = app
         self._service = service
         self._distributed_tracing = distributed_tracing
@@ -28,12 +31,6 @@ class PylonsTraceMiddleware(object):
         # add template tracing
         trace_rendering()
 
-        self._tracer.set_service_info(
-            service=service,
-            app="pylons",
-            app_type=AppTypes.web,
-        )
-
     def __call__(self, environ, start_response):
         if self._distributed_tracing:
             # retrieve distributed tracing headers
@@ -44,10 +41,16 @@ class PylonsTraceMiddleware(object):
             if context.trace_id:
                 self._tracer.context_provider.activate(context)
 
-        with self._tracer.trace("pylons.request", service=self._service) as span:
+        with self._tracer.trace('pylons.request', service=self._service, span_type=SpanTypes.WEB) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be
             # set as early as possible when different services share one single agent.
-            span.span_type = http.TYPE
+
+            # set analytics sample rate with global config enabled
+            span.set_tag(
+                ANALYTICS_SAMPLE_RATE_KEY,
+                ddconfig.pylons.get_analytics_sample_rate(use_global_config=True)
+            )
 
             if not span.sampled:
                 return self.app(environ, start_response)
@@ -73,7 +76,7 @@ class PylonsTraceMiddleware(object):
                     code = int(code)
                     if not 100 <= code < 600:
                         code = 500
-                except:
+                except Exception:
                     code = 500
                 span.set_tag(http.STATUS_CODE, code)
                 span.error = 1
@@ -92,12 +95,17 @@ class PylonsTraceMiddleware(object):
                 # set resources. If this is so, don't do anything, otherwise
                 # set the resource to the controller / action that handled it.
                 if span.resource == span.name:
-                    span.resource = "%s.%s" % (controller, action)
+                    span.resource = '%s.%s' % (controller, action)
 
                 span.set_tags({
                     http.METHOD: environ.get('REQUEST_METHOD'),
-                    http.URL: environ.get('PATH_INFO'),
-                    "pylons.user": environ.get('REMOTE_USER', ''),
-                    "pylons.route.controller": controller,
-                    "pylons.route.action": action,
+                    http.URL: '%s://%s:%s%s' % (environ.get('wsgi.url_scheme'),
+                                                environ.get('SERVER_NAME'),
+                                                environ.get('SERVER_PORT'),
+                                                environ.get('PATH_INFO')),
+                    'pylons.user': environ.get('REMOTE_USER', ''),
+                    'pylons.route.controller': controller,
+                    'pylons.route.action': action,
                 })
+                if ddconfig.pylons.trace_query_string:
+                    span.set_tag(http.QUERY_STRING, environ.get('QUERY_STRING'))

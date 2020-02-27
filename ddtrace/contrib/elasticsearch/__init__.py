@@ -21,10 +21,12 @@
 """
 from ...utils.importlib import require_modules
 
-required_modules = ['elasticsearch']
+# DEV: We only require one of these modules to be available
+required_modules = ['elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5', 'elasticsearch6']
 
 with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
+    # We were able to find at least one of the required modules
+    if set(missing_modules) != set(required_modules):
         from .transport import get_traced_transport
         from .patch import patch
 

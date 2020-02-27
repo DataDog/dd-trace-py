@@ -1,10 +1,12 @@
-import logging
-
-import wrapt
 import ddtrace
 
+from ddtrace.vendor import debtcollector
 
-log = logging.getLogger(__name__)
+from .internal.logger import get_logger
+from .vendor import wrapt
+
+
+log = get_logger(__name__)
 
 
 # To set attributes on wrapt proxy objects use this prefix:
@@ -19,17 +21,17 @@ class Pin(object):
     This is useful if you wanted to, say, trace two different
     database clusters.
 
-        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> conn = sqlite.connect('/tmp/user.db')
         >>> # Override a pin for a specific connection
-        >>> pin = Pin.override(conn, service="user-db")
-        >>> conn = sqlite.connect("/tmp/image.db")
+        >>> pin = Pin.override(conn, service='user-db')
+        >>> conn = sqlite.connect('/tmp/image.db')
     """
-    __slots__ = ['app', 'app_type', 'tags', 'tracer', '_target', '_config', '_initialized']
+    __slots__ = ['app', 'tags', 'tracer', '_target', '_config', '_initialized']
 
+    @debtcollector.removals.removed_kwarg("app_type")
     def __init__(self, service, app=None, app_type=None, tags=None, tracer=None, _config=None):
         tracer = tracer or ddtrace.tracer
         self.app = app
-        self.app_type = app_type
         self.tags = tags
         self.tracer = tracer
         self._target = None
@@ -48,13 +50,32 @@ class Pin(object):
         return self._config['service_name']
 
     def __setattr__(self, name, value):
-        if getattr(self, '_initialized', False) and name is not '_target':
+        if getattr(self, '_initialized', False) and name != '_target':
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return "Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)" % (
-            self.service, self.app, self.app_type, self.tags, self.tracer)
+        return 'Pin(service=%s, app=%s, tags=%s, tracer=%s)' % (
+            self.service, self.app, self.tags, self.tracer)
+
+    @staticmethod
+    def _find(*objs):
+        """
+        Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
+
+
+            >>> pin = Pin._find(wrapper, instance, conn, app)
+
+        :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
+        :type objs: List of objects
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: The first found :class:`ddtrace.pin.Pin` or `None` is none was found
+        """
+        for obj in objs:
+            pin = Pin.get_from(obj)
+            if pin:
+                return pin
+        return None
 
     @staticmethod
     def get_from(obj):
@@ -64,6 +85,11 @@ class Pin(object):
         instance, avoiding that a specific instance overrides other pins values.
 
             >>> pin = Pin.get_from(conn)
+
+        :param obj: The object to look for a :class:`ddtrace.pin.Pin` on
+        :type obj: object
+        :rtype: :class:`ddtrace.pin.Pin`, None
+        :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
         if hasattr(obj, '__getddpin__'):
             return obj.__getddpin__()
@@ -77,15 +103,16 @@ class Pin(object):
         return pin
 
     @classmethod
+    @debtcollector.removals.removed_kwarg("app_type")
     def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Override an object with the given attributes.
 
         That's the recommended way to customize an already instrumented client, without
         losing existing attributes.
 
-            >>> conn = sqlite.connect("/tmp/user.db")
+            >>> conn = sqlite.connect('/tmp/user.db')
             >>> # Override a pin for a specific connection
-            >>> Pin.override(conn, service="user-db")
+            >>> Pin.override(conn, service='user-db')
         """
         if not obj:
             return
@@ -97,7 +124,6 @@ class Pin(object):
         pin.clone(
             service=service,
             app=app,
-            app_type=app_type,
             tags=tags,
             tracer=tracer,
         ).onto(obj)
@@ -110,15 +136,6 @@ class Pin(object):
         """Patch this pin onto the given object. If send is true, it will also
         queue the metadata to be sent to the server.
         """
-        # pinning will also queue the metadata for service submission. this
-        # feels a bit side-effecty, but bc it's async and pretty clearly
-        # communicates what we want, i think it makes sense.
-        if send:
-            try:
-                self._send()
-            except Exception:
-                log.debug("can't send pin info", exc_info=True)
-
         # Actually patch it on the object.
         try:
             if hasattr(obj, '__setddpin__'):
@@ -132,6 +149,18 @@ class Pin(object):
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 
+    def remove_from(self, obj):
+        # Remove pin from the object.
+        try:
+            pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
+
+            pin = Pin.get_from(obj)
+            if pin is not None:
+                delattr(obj, pin_name)
+        except AttributeError:
+            log.debug("can't remove pin from object. skipping", exc_info=True)
+
+    @debtcollector.removals.removed_kwarg("app_type")
     def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
@@ -149,15 +178,7 @@ class Pin(object):
         return Pin(
             service=service or self.service,
             app=app or self.app,
-            app_type=app_type or self.app_type,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,
-        )
-
-    def _send(self):
-        self.tracer.set_service_info(
-            service=self.service,
-            app=self.app,
-            app_type=self.app_type,
         )

@@ -37,10 +37,10 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
+.ddtox/
 .coverage
 .coverage.*
 .cache
-nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
@@ -94,3 +94,6 @@ ENV/
 *.swp
 # IDEA
 .idea/
+
+# VS Code
+.vscode/

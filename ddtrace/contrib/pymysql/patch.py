@@ -1,11 +1,11 @@
 # 3p
-import wrapt
+from ddtrace.vendor import wrapt
 import pymysql
 
 # project
 from ddtrace import Pin
 from ddtrace.contrib.dbapi import TracedConnection
-from ...ext import net, db, AppTypes
+from ...ext import net, db
 
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: 'host',
@@ -31,7 +31,7 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn):
     tags = {t: getattr(conn, a, '') for t, a in CONN_ATTR_BY_TAG.items()}
-    pin = Pin(service="pymysql", app="pymysql", app_type=AppTypes.db, tags=tags)
+    pin = Pin(service='pymysql', app='pymysql', tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin)

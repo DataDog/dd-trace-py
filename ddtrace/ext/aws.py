@@ -1,32 +1,39 @@
-BLACKLIST_ENDPOINT = ["kms", "sts"]
+from ..utils.formats import flatten_dict
 
 
-def is_blacklist(endpoint_name):
-    """Protecting the args sent to kms, sts to avoid security leaks
-    if kms disabled test_kms_client in test/contrib/botocore  will fail
-    if sts disabled test_sts_client in test/contrib/boto contrib will fail
+BLACKLIST_ENDPOINT = ['kms', 'sts']
+BLACKLIST_ENDPOINT_TAGS = {
+    's3': ['params.Body'],
+}
+
+
+def truncate_arg_value(value, max_len=1024):
+    """Truncate values which are bytes and greater than `max_len`.
+    Useful for parameters like 'Body' in `put_object` operations.
     """
-    return endpoint_name in BLACKLIST_ENDPOINT
+    if isinstance(value, bytes) and len(value) > max_len:
+        return b'...'
+
+    return value
 
 
-def unpacking_args(args, args_name, traced_args_list):
-    """
-    @params:
-        args: tuple of args sent to a patched function
-        args_name: tuple containing the names of all the args that can be sent
-        traced_args_list: list of names of the args we want to trace
-    Returns a list of (arg name, arg) of the args we want to trace
-    The number of args being variable from one call to another, this function
-    will parse t"""
-    index = 0
-    response = []
-    for arg in args:
-        if arg and args_name[index] in traced_args_list:
-            response += [(args_name[index], arg)]
-        index += 1
-    return response
+def add_span_arg_tags(span, endpoint_name, args, args_names, args_traced):
+    if endpoint_name not in BLACKLIST_ENDPOINT:
+        blacklisted = BLACKLIST_ENDPOINT_TAGS.get(endpoint_name, [])
+        tags = dict(
+            (name, value)
+            for (name, value) in zip(args_names, args)
+            if name in args_traced
+        )
+        tags = flatten_dict(tags)
+        tags = {
+            k: truncate_arg_value(v)
+            for k, v in tags.items()
+            if k not in blacklisted
+        }
+        span.set_tags(tags)
 
 
-REGION = "aws.region"
-AGENT = "aws.agent"
-OPERATION = "aws.operation"
+REGION = 'aws.region'
+AGENT = 'aws.agent'
+OPERATION = 'aws.operation'
