@@ -204,7 +204,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             operation_name = conf['operation_name']
             tracer = pin.tracer
             with tracer.trace(operation_name, service=pin.service, span_type=conf.get('span_type')) as span:
-                if conf.get('measured', False):
                 span.set_tags(pin.tags)
 
                 if 'span_start' in conf:
