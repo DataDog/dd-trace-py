@@ -215,17 +215,16 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
 
-def wrapped_import(name, globals=None, locals=None, fromlist=(), level=0):
+def wrapped_import(*args, **kwargs):
     """
     Wrapper for `__import__` so we can trigger hooks on module loading
     """
-    args = (name,)
-    kwargs = dict(globals=globals, locals=locals, fromlist=fromlist, level=level)
+    module_name = kwargs.get("name", args[0])
 
     # Do not call the hooks every time `import <module>` is called,
     #   only on the first time it is loaded
-    if name and name not in sys.modules:
-        return exec_and_call_hooks(name, ORIGINAL_IMPORT, args, kwargs)
+    if module_name and module_name not in sys.modules:
+        return exec_and_call_hooks(module_name, ORIGINAL_IMPORT, args, kwargs)
 
     return ORIGINAL_IMPORT(*args, **kwargs)
 
