@@ -219,7 +219,7 @@ def wrapped_import(name, globals=None, locals=None, fromlist=(), level=0):
     """
     Wrapper for `__import__` so we can trigger hooks on module loading
     """
-    args = (name, )
+    args = (name,)
     kwargs = dict(globals=globals, locals=locals, fromlist=fromlist, level=level)
 
     # Do not call the hooks every time `import <module>` is called,
