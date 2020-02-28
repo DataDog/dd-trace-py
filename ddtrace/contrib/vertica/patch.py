@@ -3,7 +3,7 @@ import importlib
 from ddtrace.vendor import wrapt
 
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes, db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
@@ -205,7 +205,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             tracer = pin.tracer
             with tracer.trace(operation_name, service=pin.service, span_type=conf.get('span_type')) as span:
                 if conf.get('measured', False):
-                    span.set_tag(SPAN_MEASURED_KEY)
                 span.set_tags(pin.tags)
 
                 if 'span_start' in conf:

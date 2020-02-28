@@ -3,7 +3,7 @@ from ddtrace.vendor import wrapt
 import inspect
 
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import SpanTypes, http, aws
 from ...utils.wrappers import unwrap
@@ -69,7 +69,6 @@ def patched_query_request(original_func, instance, args, kwargs):
         service='{}.{}'.format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag(SPAN_MEASURED_KEY)
 
         operation_name = None
         if args:
@@ -138,7 +137,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
         service='{}.{}'.format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag(SPAN_MEASURED_KEY)
         if args:
             http_method = args[0]
             span.resource = '%s.%s' % (endpoint_name, http_method.lower())

@@ -4,7 +4,7 @@ from ddtrace.vendor import wrapt
 
 # project
 from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...pin import Pin
 from ...ext import SpanTypes, redis as redisx
 from ...utils.wrappers import unwrap
@@ -64,7 +64,6 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     resource = '\n'.join(cmds)
     tracer = pin.tracer
     with tracer.trace(redisx.CMD, resource=resource, service=pin.service, span_type=SpanTypes.REDIS) as s:
-        s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
 

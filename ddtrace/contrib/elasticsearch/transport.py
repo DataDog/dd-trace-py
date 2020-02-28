@@ -4,7 +4,6 @@ from .elasticsearch import elasticsearch
 
 from .quantize import quantize
 
-from ...constants import SPAN_MEASURED_KEY
 from ...utils.deprecation import deprecated
 from ...compat import urlencode
 from ...ext import SpanTypes, http, elasticsearch as metadata
@@ -32,7 +31,6 @@ def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
                     return super(TracedTransport, self).perform_request(
                         method, url, params=params, body=body)
 
-                s.set_tag(SPAN_MEASURED_KEY)
                 s.service = self._datadog_service
                 s.set_tag(metadata.METHOD, method)
                 s.set_tag(metadata.URL, url)

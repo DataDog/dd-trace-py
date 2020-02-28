@@ -1,4 +1,3 @@
-from ...constants import SPAN_MEASURED_KEY
 from ddtrace.pin import Pin
 from ddtrace.settings import config
 from ddtrace.utils.wrappers import unwrap as _u
@@ -102,7 +101,6 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         return func(*wrapt_args, **wrapt_kwargs)
 
     with pin.tracer.trace('algoliasearch.search', service=pin.service) as span:
-        span.set_tag(SPAN_MEASURED_KEY)
 
         if not span.sampled:
             return func(*wrapt_args, **wrapt_kwargs)

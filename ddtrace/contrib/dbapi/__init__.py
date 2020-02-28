@@ -2,7 +2,7 @@
 Generic dbapi tracing code.
 """
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes, sql
 from ...internal.logger import get_logger
 from ...pin import Pin
@@ -46,7 +46,6 @@ class TracedCursor(wrapt.ObjectProxy):
         measured = name == self._self_datadog_name
         with pin.tracer.trace(name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
             if measured:
-                s.set_tag(SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
