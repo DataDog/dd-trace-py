@@ -7,7 +7,6 @@ from ddtrace.contrib.consul.patch import patch, unpatch
 
 from ..config import CONSUL_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 
 class TestConsulPatch(BaseTracerTestCase):
@@ -39,7 +38,6 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'
@@ -60,7 +58,6 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'GET'
@@ -81,7 +78,6 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'DELETE'
@@ -103,7 +99,6 @@ class TestConsulPatch(BaseTracerTestCase):
         assert len(spans) == 1
         span = spans[0]
 
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == consulx.CMD
         assert span.resource == 'PUT'

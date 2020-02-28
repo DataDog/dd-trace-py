@@ -8,7 +8,7 @@ from ddtrace.compat import stringify
 from .utils import aiobotocore_client
 from ..asyncio.utils import AsyncioTestCase, mark_asyncio
 from ...test_tracer import get_dummy_tracer
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ...utils import assert_span_http_status_code
 
 
 class AIOBotocoreTest(AsyncioTestCase):
@@ -33,7 +33,6 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.agent'), 'aiobotocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
@@ -70,7 +69,6 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.operation'), 'ListBuckets')
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'aws.s3')
@@ -90,12 +88,10 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_tag('aws.operation'), 'CreateBucket')
 
-        assert_is_measured(spans[0])
         assert_span_http_status_code(spans[0], 200)
         self.assertEqual(spans[0].service, 'aws.s3')
         self.assertEqual(spans[0].resource, 's3.createbucket')
 
-        assert_is_measured(spans[1])
         self.assertEqual(spans[1].get_tag('aws.operation'), 'PutObject')
         self.assertEqual(spans[1].resource, 's3.putobject')
         self.assertEqual(spans[1].get_tag('params.Key'), stringify(params['Key']))
@@ -114,7 +110,6 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(len(traces[0]), 1)
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.resource, 's3.listobjects')
         self.assertEqual(span.error, 1)
         self.assertTrue('NoSuchBucket' in span.get_tag('error.msg'))
@@ -143,7 +138,6 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.operation'), 'GetObject')
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'aws.s3')
@@ -171,7 +165,6 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListQueues')
         assert_span_http_status_code(span, 200)
@@ -189,7 +182,6 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListStreams')
         assert_span_http_status_code(span, 200)
@@ -208,7 +200,6 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
         assert_span_http_status_code(span, 200)
@@ -226,7 +217,6 @@ class AIOBotocoreTest(AsyncioTestCase):
 
         span = traces[0][0]
 
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'ListKeys')
         assert_span_http_status_code(span, 200)
@@ -278,7 +268,6 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(ot_span.parent_id, None)
         self.assertEqual(dd_span.parent_id, ot_span.span_id)
 
-        assert_is_measured(dd_span)
         self.assertEqual(dd_span.get_tag('aws.agent'), 'aiobotocore')
         self.assertEqual(dd_span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(dd_span.get_tag('aws.operation'), 'DescribeInstances')
@@ -322,7 +311,6 @@ class AIOBotocoreTest(AsyncioTestCase):
         self.assertEqual(dd_span2.parent_id, ot_inner_span.span_id)
         self.assertEqual(ot_inner_span2.parent_id, ot_outer_span.span_id)
 
-        assert_is_measured(dd_span)
         self.assertEqual(dd_span.get_tag('aws.operation'), 'ListBuckets')
         assert_span_http_status_code(dd_span, 200)
         self.assertEqual(dd_span.service, 'aws.s3')

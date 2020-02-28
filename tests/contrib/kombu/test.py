@@ -8,7 +8,6 @@ from ddtrace.contrib.kombu import utils
 from ddtrace.ext import kombu as kombux
 from ..config import RABBITMQ_CONFIG
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 
 class TestKombuPatch(BaseTracerTestCase):
@@ -68,7 +67,6 @@ class TestKombuPatch(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
         consumer_span = spans[0]
-        assert_is_measured(consumer_span)
         self.assertEqual(consumer_span.service, self.TEST_SERVICE)
         self.assertEqual(consumer_span.name, kombux.PUBLISH_NAME)
         self.assertEqual(consumer_span.span_type, 'worker')
@@ -81,7 +79,6 @@ class TestKombuPatch(BaseTracerTestCase):
         self.assertEqual(consumer_span.resource, 'tasks')
 
         producer_span = spans[1]
-        assert_is_measured(producer_span)
         self.assertEqual(producer_span.service, self.TEST_SERVICE)
         self.assertEqual(producer_span.name, kombux.RECEIVE_NAME)
         self.assertEqual(producer_span.span_type, 'worker')

@@ -11,7 +11,6 @@ from tests.contrib.config import MYSQL_CONFIG
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
 
 
 class MySQLCore(object):
@@ -47,7 +46,6 @@ class MySQLCore(object):
         assert len(spans) == 1
 
         span = spans[0]
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
@@ -71,7 +69,6 @@ class MySQLCore(object):
             assert len(spans) == 2
 
             span = spans[0]
-            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
@@ -212,7 +209,6 @@ class MySQLCore(object):
         # typically, internal calls to execute, but at least we
         # can expect the last closed span to be our proc.
         span = spans[len(spans) - 1]
-        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
@@ -250,7 +246,6 @@ class MySQLCore(object):
         assert ot_span.service == 'mysql_svc'
         assert ot_span.name == 'mysql_op'
 
-        assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == 'mysql.query'
         assert dd_span.span_type == 'sql'
@@ -288,7 +283,6 @@ class MySQLCore(object):
             assert ot_span.service == 'mysql_svc'
             assert ot_span.name == 'mysql_op'
 
-            assert_is_measured(dd_span)
             assert dd_span.service == self.TEST_SERVICE
             assert dd_span.name == 'mysql.query'
             assert dd_span.span_type == 'sql'

@@ -11,7 +11,7 @@ from ddtrace.compat import stringify
 # testing
 from tests.opentracer.utils import init_tracer
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ...utils import assert_span_http_status_code
 
 
 class BotocoreTest(BaseTracerTestCase):
@@ -43,7 +43,6 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 1)
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
@@ -82,7 +81,6 @@ class BotocoreTest(BaseTracerTestCase):
         assert spans
         span = spans[0]
         self.assertEqual(len(spans), 2)
-        assert_is_measured(span)
         self.assertEqual(span.get_tag('aws.operation'), 'ListBuckets')
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
@@ -112,7 +110,6 @@ class BotocoreTest(BaseTracerTestCase):
         span = spans[0]
         self.assertEqual(len(spans), 2)
         self.assertEqual(span.get_tag('aws.operation'), 'CreateBucket')
-        assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.s3')
         self.assertEqual(span.resource, 's3.createbucket')
@@ -136,7 +133,6 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListQueues')
-        assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.sqs')
         self.assertEqual(span.resource, 'sqs.listqueues')
@@ -154,7 +150,6 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListStreams')
-        assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kinesis')
         self.assertEqual(span.resource, 'kinesis.liststreams')
@@ -197,7 +192,6 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListFunctions')
-        assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.lambda')
         self.assertEqual(span.resource, 'lambda.listfunctions')
@@ -215,7 +209,6 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         self.assertEqual(span.get_tag('aws.region'), 'us-east-1')
         self.assertEqual(span.get_tag('aws.operation'), 'ListKeys')
-        assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.service, 'test-botocore-tracing.kms')
         self.assertEqual(span.resource, 'kms.listkeys')

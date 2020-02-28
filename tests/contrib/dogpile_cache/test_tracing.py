@@ -5,7 +5,6 @@ from ddtrace import Pin
 from ddtrace.contrib.dogpile_cache.patch import patch, unpatch
 
 from tests.test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
 
 
 @pytest.fixture
@@ -77,7 +76,6 @@ def test_traces_get_or_create(tracer, single_cache):
     assert len(spans) == 1
     span = spans[0]
 
-    assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
@@ -94,7 +92,6 @@ def test_traces_get_or_create(tracer, single_cache):
     assert len(spans) == 1
     span = spans[0]
 
-    assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.resource == "get_or_create"
     assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
@@ -112,7 +109,6 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     assert len(spans) == 1
     span = spans[0]
 
-    assert_is_measured(span)
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|3']"
     )
@@ -128,7 +124,6 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     spans = traces[0]
     assert len(spans) == 1
     span = spans[0]
-    assert_is_measured(span)
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
@@ -144,7 +139,6 @@ def test_traces_get_or_create_multi(tracer, multi_cache):
     spans = traces[0]
     assert len(spans) == 1
     span = spans[0]
-    assert_is_measured(span)
     assert span.meta["keys"] == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )

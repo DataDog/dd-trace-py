@@ -14,7 +14,6 @@ from tests.opentracer.utils import init_tracer
 from ..config import REDIS_CONFIG, MEMCACHED_CONFIG
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
-from ...utils import assert_is_measured
 
 
 class FlaskCacheTest(BaseTracerTestCase):
@@ -35,7 +34,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'get')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -54,7 +52,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'set')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -73,7 +70,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'add')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -92,7 +88,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'delete')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -111,7 +106,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'delete_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -130,7 +124,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'clear')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -148,7 +141,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'get_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -170,7 +162,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, self.SERVICE)
         self.assertEqual(span.resource, 'set_many')
         self.assertEqual(span.name, 'flask_cache.cmd')
@@ -247,7 +238,6 @@ class FlaskCacheTest(BaseTracerTestCase):
         self.assertEqual(ot_span.resource, 'ot_span')
         self.assertEqual(ot_span.service, 'my_svc')
 
-        assert_is_measured(dd_span)
         self.assertEqual(dd_span.service, self.SERVICE)
         self.assertEqual(dd_span.resource, 'get')
         self.assertEqual(dd_span.name, 'flask_cache.cmd')

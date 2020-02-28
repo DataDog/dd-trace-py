@@ -5,7 +5,7 @@ from ddtrace.contrib.aiobotocore.patch import patch, unpatch
 from ..utils import aiobotocore_client
 from ...asyncio.utils import AsyncioTestCase, mark_asyncio
 from ....test_tracer import get_dummy_tracer
-from ....utils import assert_span_http_status_code, assert_is_measured
+from ....utils import assert_span_http_status_code
 
 
 class AIOBotocoreTest(AsyncioTestCase):
@@ -45,14 +45,12 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[1]) == 1
 
             span = traces[0][0]
-            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
             assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'
             assert span.resource == 's3.getobject'
 
             read_span = traces[1][0]
-            assert_is_measured(read_span)
             assert read_span.get_tag('aws.operation') == 'GetObject'
             assert_span_http_status_code(read_span, 200)
             assert read_span.service == 'aws.s3'
@@ -66,7 +64,6 @@ class AIOBotocoreTest(AsyncioTestCase):
             assert len(traces[0]) == 1
 
             span = traces[0][0]
-            assert_is_measured(span)
             assert span.get_tag('aws.operation') == 'GetObject'
             assert_span_http_status_code(span, 200)
             assert span.service == 'aws.s3'

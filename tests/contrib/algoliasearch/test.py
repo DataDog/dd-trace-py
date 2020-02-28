@@ -2,7 +2,6 @@ from ddtrace import config, patch_all
 from ddtrace.contrib.algoliasearch.patch import (patch, unpatch, algoliasearch_version)
 from ddtrace.pin import Pin
 from tests.base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 
 class AlgoliasearchTest(BaseTracerTestCase):
@@ -72,7 +71,6 @@ class AlgoliasearchTest(BaseTracerTestCase):
 
         assert len(spans) == 1
         span = spans[0]
-        assert_is_measured(span)
         assert span.service == 'algoliasearch'
         assert span.name == 'algoliasearch.search'
         assert span.span_type is None

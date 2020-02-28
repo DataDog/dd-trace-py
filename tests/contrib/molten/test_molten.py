@@ -9,7 +9,7 @@ from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...base import BaseTracerTestCase
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ...utils import assert_span_http_status_code
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -47,7 +47,6 @@ class TestMolten(BaseTracerTestCase):
         # access data property
         self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.span_type, 'web')
@@ -78,7 +77,6 @@ class TestMolten(BaseTracerTestCase):
         # access data property
         self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
@@ -166,7 +164,6 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 404)
         span = spans[0]
-        assert_is_measured(span)
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET 404')
@@ -183,7 +180,6 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 500)
         span = spans[0]
-        assert_is_measured(span)
         route_error_span = spans[-1]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')

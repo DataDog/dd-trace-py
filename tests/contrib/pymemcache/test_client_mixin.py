@@ -11,7 +11,6 @@ from .utils import MockSocket
 
 from tests.test_tracer import get_dummy_tracer
 from ...base import override_config
-from ...utils import assert_is_measured
 
 
 _Client = pymemcache.client.base.Client
@@ -35,7 +34,6 @@ class PymemcacheClientTestCaseMixin(unittest.TestCase):
         self.assertEqual(num_expected, len(spans))
 
         for span, resource, query in zip(spans, resources_expected, queries_expected):
-            assert_is_measured(span)
             self.assertEqual(span.get_tag(net.TARGET_HOST), TEST_HOST)
             self.assertEqual(span.get_metric(net.TARGET_PORT), TEST_PORT)
             self.assertEqual(span.name, memcachedx.CMD)

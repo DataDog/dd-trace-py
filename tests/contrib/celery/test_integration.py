@@ -6,7 +6,6 @@ from ddtrace.contrib.celery import patch, unpatch
 from .base import CeleryBaseTestCase
 
 from tests.opentracer.utils import init_tracer
-from ...utils import assert_is_measured
 
 
 class MyException(Exception):
@@ -103,7 +102,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_task'
@@ -128,7 +126,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_task'
@@ -151,7 +148,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.apply'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_task_parameters'
@@ -174,7 +170,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.apply'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_task_parameters'
@@ -198,7 +193,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_exception'
         assert span.service == 'celery-worker'
@@ -225,7 +219,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_exception'
         assert span.service == 'celery-worker'
@@ -249,7 +242,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.fn_exception'
         assert span.service == 'celery-worker'
@@ -284,7 +276,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.BaseTask'
@@ -314,7 +305,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.BaseTask'
         assert span.service == 'celery-worker'
@@ -349,7 +339,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.name == 'celery.run'
         assert span.resource == 'tests.contrib.celery.test_integration.BaseTask'
         assert span.service == 'celery-worker'
@@ -372,7 +361,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
 
-        assert_is_measured(span)
         assert span.error == 0
         assert span.name == 'celery.run'
         assert span.service == 'celery-worker'
@@ -442,7 +430,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert ot_span.name == 'celery_op'
         assert ot_span.service == 'celery_svc'
 
-        assert_is_measured(dd_span)
         assert dd_span.error == 0
         assert dd_span.name == 'celery.apply'
         assert dd_span.resource == 'tests.contrib.celery.test_integration.fn_task_parameters'

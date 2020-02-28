@@ -8,7 +8,7 @@ from ddtrace.ext import http
 from ddtrace import Pin
 
 from ...test_tracer import get_dummy_tracer
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ...utils import assert_span_http_status_code
 
 
 class FlaskAutopatchTestCase(unittest.TestCase):
@@ -74,7 +74,6 @@ class FlaskAutopatchTestCase(unittest.TestCase):
 
         # Root request span
         req_span = spans[0]
-        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'test-flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')

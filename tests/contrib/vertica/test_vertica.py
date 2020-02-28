@@ -15,7 +15,6 @@ from tests.base import BaseTracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
-from ...utils import assert_is_measured
 
 TEST_TABLE = 'test_table'
 
@@ -205,7 +204,6 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
-        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -233,7 +231,6 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
-        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -376,7 +373,6 @@ class TestVertica(BaseTracerTestCase):
         assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
 
-        assert_is_measured(dd_span)
         assert dd_span.service == 'vertica'
         assert dd_span.span_type == 'sql'
         assert dd_span.name == 'vertica.query'
