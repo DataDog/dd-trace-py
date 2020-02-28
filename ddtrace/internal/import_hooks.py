@@ -60,6 +60,8 @@ __all__ = ["hooks", "register_module_hook", "patch", "unpatch"]
 
 log = get_logger(__name__)
 
+ORIGINAL_IMPORT = __import__
+
 
 class ModuleHookRegistry(object):
     """
@@ -213,23 +215,19 @@ def wrapped_find_and_load_unlocked(wrapped, instance, args, kwargs):
     return exec_and_call_hooks(module_name, wrapped, args, kwargs)
 
 
-def wrapped_import(wrapped, instance, args, kwargs):
+def wrapped_import(name, globals=None, locals=None, fromlist=(), level=0):
     """
     Wrapper for `__import__` so we can trigger hooks on module loading
     """
-    module_name = None
-    try:
-        module_name = args[0]
-    except Exception:
-        log.debug("Failed to determine module name when importing module: %r", args, exc_info=True)
-        return wrapped(*args, **kwargs)
+    args = (name, )
+    kwargs = dict(globals=globals, locals=locals, fromlist=fromlist, level=level)
 
     # Do not call the hooks every time `import <module>` is called,
     #   only on the first time it is loaded
-    if module_name and module_name not in sys.modules:
-        return exec_and_call_hooks(module_name, wrapped, args, kwargs)
+    if name and name not in sys.modules:
+        return exec_and_call_hooks(name, ORIGINAL_IMPORT, args, kwargs)
 
-    return wrapped(*args, **kwargs)
+    return ORIGINAL_IMPORT(*args, **kwargs)
 
 
 # Keep track of whether we have patched or not
@@ -267,7 +265,7 @@ def _patch():
     # DEV: Slightly more direct approach of patching `__import__` and `reload` functions
     elif sys.version_info >= (2, 7):
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L35-L68
-        __builtins__["__import__"] = wrapt.FunctionWrapper(__builtins__["__import__"], wrapped_import)
+        __builtins__["__import__"] = wrapped_import
 
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L2147-L2160
         __builtins__["reload"] = wrapt.FunctionWrapper(__builtins__["reload"], wrapped_reload)
@@ -316,8 +314,7 @@ def unpatch():
     # 2.7
     # DEV: Slightly more direct approach
     elif sys.version_info >= (2, 7):
-        if isinstance(__builtins__["__import__"], wrapt.FunctionWrapper):
-            __builtins__["__import__"] = __builtins__["__import__"].__wrapped__
+        __builtins__["__import__"] = ORIGINAL_IMPORT
         if isinstance(__builtins__["reload"], wrapt.FunctionWrapper):
             __builtins__["reload"] = __builtins__["reload"].__wrapped__
 
