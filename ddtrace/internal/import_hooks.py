@@ -264,7 +264,10 @@ def _patch():
     # DEV: Slightly more direct approach of patching `__import__` and `reload` functions
     elif sys.version_info >= (2, 7):
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L35-L68
-        __builtins__["__import__"] = wrapped_import
+        if __builtins__["__import__"] is not wrapped_import:
+            global ORIGINAL_IMPORT
+            ORIGINAL_IMPORT = __builtins__["__import__"]
+            __builtins__["__import__"] = wrapped_import
 
         # https://github.com/python/cpython/blob/2.7/Python/bltinmodule.c#L2147-L2160
         __builtins__["reload"] = wrapt.FunctionWrapper(__builtins__["reload"], wrapped_reload)
