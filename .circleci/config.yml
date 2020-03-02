@@ -649,7 +649,7 @@ jobs:
       - checkout
       - setup_tox
       - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli
+      - run: pip install tox mkwheelhouse awscli cython
       - run: tox -e docs
       - run: S3_DIR=trace-dev rake release:docs
       - run: S3_DIR=trace-dev rake release:wheel
