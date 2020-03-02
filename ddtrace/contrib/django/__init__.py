@@ -95,7 +95,7 @@ a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
 latter.
 
-1. Remove ``'ddtrace.config.django'`` from ``INSTALLED_APPS`` in
+1. Remove ``'ddtrace.contrib.django'`` from ``INSTALLED_APPS`` in
    ``settings.py``.
 
 2. Replace ``DATADOG_TRACE`` configuration in ``settings.py`` according to the
