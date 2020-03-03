@@ -15,7 +15,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
-from ddtrace.constants import VERSION_KEY
+from ddtrace.constants import VERSION_KEY, ENV_KEY
 
 from .base import BaseTracerTestCase
 from .util import override_global_tracer
@@ -677,3 +677,24 @@ def test_tracer_with_version():
         # explicitly set in the span
         span.set_tag(VERSION_KEY, '1.2.3')
         assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+
+def test_tracer_with_env():
+    t = ddtrace.Tracer()
+
+    # With global `config.env` defined
+    with BaseTracerTestCase.override_global_config(dict(env='prod')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(ENV_KEY) == 'prod'
+
+            # override manually
+            span.set_tag(ENV_KEY, 'prod-staging')
+            assert span.get_tag(ENV_KEY) == 'prod-staging'
+
+    # With no `config.env` defined
+    with t.trace('test.span') as span:
+        assert span.get_tag(ENV_KEY) is None
+
+        # explicitly set in the span
+        span.set_tag(ENV_KEY, 'prod-staging')
+        assert span.get_tag(ENV_KEY) == 'prod-staging'

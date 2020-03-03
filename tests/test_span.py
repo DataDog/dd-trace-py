@@ -7,7 +7,7 @@ from unittest.case import SkipTest
 from ddtrace.context import Context
 from ddtrace.constants import (
     ANALYTICS_SAMPLE_RATE_KEY, VERSION_KEY,
-    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY
+    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY
 )
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
@@ -434,6 +434,11 @@ class SpanTestCase(BaseTracerTestCase):
         s.set_tag(SERVICE_VERSION_KEY, 'service.version')
         assert s.get_tag(VERSION_KEY) == 'service.version'
         assert s.get_tag(SERVICE_VERSION_KEY) == 'service.version'
+
+    def test_set_tag_env(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(ENV_KEY, 'prod')
+        assert s.get_tag(ENV_KEY) == 'prod'
 
 
 @pytest.mark.parametrize(

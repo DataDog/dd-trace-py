@@ -4,7 +4,7 @@ from os import environ, getpid
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
@@ -381,15 +381,20 @@ class Tracer(object):
             if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
+        # add env/service/version from either DD_ENV/SERVICE/VERSION or the configured config.env/service/version
+        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
+        esv_tags = {}
+        if config.env:
+            esv_tags[ENV_KEY] = config.env
+        if config.version:
+            esv_tags[VERSION_KEY] = config.version
+
         # add common tags
-        if self.tags:
-            span.set_tags(self.tags)
+        if self.tags or esv_tags:
+            esv_tags.update(self.tags)
+            span.set_tags(esv_tags)
         if not span._parent:
             span.set_tag(system.PID, getpid())
-        # Set `version` tag based on `DD_VERSION` or configured `config.version` setting
-        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
-        if config.version:
-            span.set_tag(VERSION_KEY, config.version)
 
         # add it to the current context
         context.add_span(span)

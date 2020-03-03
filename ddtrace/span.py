@@ -6,7 +6,7 @@ import traceback
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
 from .constants import (
     NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY,
-    VERSION_KEY, SERVICE_VERSION_KEY, SPAN_MEASURED_KEY
+    VERSION_KEY, SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY
 )
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
@@ -207,9 +207,10 @@ class Span(object):
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = priority.USER_REJECT
             return
+        # DEV: Note that we do no return for version/env, we want to set both
+        elif key == ENV_KEY:
+            self.set_tag(ENV_KEY, value)
         elif key == SERVICE_VERSION_KEY:
-            # Also set the `version` tag to the same value
-            # DEV: Note that we do no return, we want to set both
             self.set_tag(VERSION_KEY, value)
         elif key == SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric

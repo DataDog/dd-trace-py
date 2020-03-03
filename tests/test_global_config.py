@@ -252,4 +252,22 @@ class GlobalConfigTestCase(TestCase):
             assert c.version == "1.2.3"
 
             c.version = "4.5.6"
-            assert c.versionn == "4.5.6"
+            assert c.version == "4.5.6"
+
+    def test_dd_env(self):
+        c = Config()
+        assert c.env is None
+
+        with override_env(dict(DD_ENV="prod")):
+            c = Config()
+            assert c.env == "prod"
+
+            # manual override still possible
+            c.env = "prod-staging"
+            assert c.env == "prod-staging"
+
+        # between DD_ENV and DATADOG_ENV, the former takes priority
+        with override_env(dict(DATADOG_ENV="prod")):
+            with override_env(dict(DD_ENV="prod-staging")):
+                c = Config()
+                assert c.env == "prod-staging"
