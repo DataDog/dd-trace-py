@@ -123,8 +123,18 @@ commands:
       wait:
         type: string
         default: ""
+      precmd:
+        type: string
+        default: ""
     steps:
       - checkout
+      - when:
+          condition:
+            << parameters.precmd >>
+          steps:
+            - run:
+                name: "Running precmd"
+                command: << parameters.precmd >>
       - setup_tox
       - restore_tox_cache
       - when:
@@ -306,6 +316,9 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^py..-profile'
+          precmd: |
+            wget https://github.com/Shopify/toxiproxy/releases/download/v2.1.4/toxiproxy_2.1.4_amd64.deb
+            dpkg -i toxiproxy_2.1.4_amd64.deb
 
   integration:
     executor: ddtrace_dev
