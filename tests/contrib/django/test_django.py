@@ -416,6 +416,19 @@ def test_middleware_trace_errors(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.ForbiddenView"
 
 
+def test_middleware_trace_staticmethod(client, test_spans):
+    # ensures that the internals are properly traced
+    assert client.get("/static-method-view/").status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag("http.status_code") == "200"
+    assert span.get_tag(http.URL) == "http://testserver/static-method-view/"
+    if django.VERSION >= (2, 2, 0):
+        assert span.resource == "GET ^static-method-view/$"
+    else:
+        assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
+
+
 def test_middleware_trace_partial_based_view(client, test_spans):
     # ensures that the internals are properly traced when using a function views
     assert client.get("/partial-view/").status_code == 200
