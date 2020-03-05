@@ -1,3 +1,4 @@
+from ...compat import parse
 from ...internal.logger import get_logger
 
 
@@ -57,3 +58,36 @@ def set_tag_array(span, prefix, value):
     else:
         for i, v in enumerate(value, start=0):
             span.set_tag("{0}.{1}".format(prefix, i), v)
+
+
+def get_request_uri(request):
+    """
+    Helper to rebuild the original request url
+
+    query string or fragments are not included.
+    """
+    # DEV: Use django.http.request.HttpRequest._get_raw_host() when available
+    # otherwise back-off to PEP 333 as done in django 1.8.x
+    if hasattr(request, "_get_raw_host"):
+        host = request._get_raw_host()
+    else:
+        try:
+            # Try to build host how Django would have
+            # https://github.com/django/django/blob/e8d0d2a5efc8012dcc8bf1809dec065ebde64c81/django/http/request.py#L85-L102
+            if "HTTP_HOST" in request.META:
+                host = request.META["HTTP_HOST"]
+            else:
+                host = request.META["SERVER_NAME"]
+                port = str(request.META["SERVER_PORT"])
+                if port != ("443" if request.is_secure() else "80"):
+                    host = "{0}:{1}".format(host, port)
+        except Exception:
+            # This really shouldn't ever happen, but lets guard here just in case
+            log.debug("Failed to build Django request host", exc_info=True)
+            host = "unknown"
+
+    # Build request url from the information available
+    # DEV: We are explicitly omitting query strings since they may contain sensitive information
+    return parse.urlunparse(
+        parse.ParseResult(scheme=request.scheme, netloc=host, path=request.path, params="", query="", fragment="",)
+    )

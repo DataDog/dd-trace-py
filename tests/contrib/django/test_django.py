@@ -1,5 +1,5 @@
 import django
-from django.test import modify_settings
+from django.test import modify_settings, override_settings
 import os
 import pytest
 
@@ -116,6 +116,17 @@ def test_v1XX_middleware(client, test_spans):
     middleware_spans = sorted(middleware_spans, key=lambda s: s.start)
     span_resources = [s.resource for s in middleware_spans]
     assert span_resources == expected_resources
+
+
+def test_disallowed_host(client, test_spans):
+    with override_settings(ALLOWED_HOSTS="not-testserver"):
+        resp = client.get("/")
+        assert resp.status_code == 400
+        assert b"Bad Request (400)" in resp.content
+
+    root_span = test_spans.get_root_span()
+    assert root_span.get_tag("http.status_code") == "400"
+    assert root_span.get_tag("http.url") == "http://testserver/"
 
 
 """
