@@ -1,4 +1,5 @@
 import mock
+import errno
 import re
 import socket
 import threading
@@ -234,7 +235,7 @@ def test_flush_connection_timeout_connect():
         assert isinstance(response, (OSError, ConnectionRefusedError))  # noqa: F821
     else:
         assert isinstance(response, socket.error)
-    assert response.errno in (99, 111)
+    assert response.errno in (errno.EADDRNOTAVAIL, errno.ECONNREFUSED)
 
 
 def test_flush_connection_timeout(endpoint_test_timeout_server):

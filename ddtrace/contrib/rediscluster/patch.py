@@ -12,6 +12,11 @@ from ..redis.patch import traced_execute_command, traced_pipeline
 from ..redis.util import format_command_args
 
 
+# DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
+#      but in `1.x.x` `__version__` is a tuple annd `VERSION` does not exist
+REDISCLUSTER_VERSION = getattr(rediscluster, 'VERSION', rediscluster.__version__)
+
+
 def patch():
     """Patch the instrumented methods
     """
@@ -20,18 +25,30 @@ def patch():
     setattr(rediscluster, '_datadog_patch', True)
 
     _w = wrapt.wrap_function_wrapper
-    _w('rediscluster', 'StrictRedisCluster.execute_command', traced_execute_command)
-    _w('rediscluster', 'StrictRedisCluster.pipeline', traced_pipeline)
-    _w('rediscluster', 'StrictClusterPipeline.execute', traced_execute_pipeline)
-    Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(rediscluster.StrictRedisCluster)
+    if REDISCLUSTER_VERSION >= (2, 0, 0):
+        _w('rediscluster', 'RedisCluster.execute_command', traced_execute_command)
+        _w('rediscluster', 'RedisCluster.pipeline', traced_pipeline)
+        _w('rediscluster', 'ClusterPipeline.execute', traced_execute_pipeline)
+        Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(rediscluster.RedisCluster)
+    else:
+        _w('rediscluster', 'StrictRedisCluster.execute_command', traced_execute_command)
+        _w('rediscluster', 'StrictRedisCluster.pipeline', traced_pipeline)
+        _w('rediscluster', 'StrictClusterPipeline.execute', traced_execute_pipeline)
+        Pin(service=redisx.DEFAULT_SERVICE, app=redisx.APP).onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():
     if getattr(rediscluster, '_datadog_patch', False):
         setattr(rediscluster, '_datadog_patch', False)
-        unwrap(rediscluster.StrictRedisCluster, 'execute_command')
-        unwrap(rediscluster.StrictRedisCluster, 'pipeline')
-        unwrap(rediscluster.StrictClusterPipeline, 'execute')
+
+        if REDISCLUSTER_VERSION >= (2, 0, 0):
+            unwrap(rediscluster.RedisCluster, 'execute_command')
+            unwrap(rediscluster.RedisCluster, 'pipeline')
+            unwrap(rediscluster.ClusterPipeline, 'execute')
+        else:
+            unwrap(rediscluster.StrictRedisCluster, 'execute_command')
+            unwrap(rediscluster.StrictRedisCluster, 'pipeline')
+            unwrap(rediscluster.StrictClusterPipeline, 'execute')
 
 
 #
