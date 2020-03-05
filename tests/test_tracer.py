@@ -681,5 +681,5 @@ def test_tracer_with_version():
     # With global tags set
     t.set_tags({VERSION_KEY: 'tags.version'})
     with BaseTracerTestCase.override_global_config(dict(version='config.version')):
-        with t.trace('test'.span) as span:
+        with t.trace('test.span') as span:
             assert span.get_tag(VERSION_KEY) == 'config.version'
