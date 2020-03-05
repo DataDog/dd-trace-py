@@ -13,7 +13,6 @@ from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, wrapt
-from ddtrace.compat import parse
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
@@ -394,21 +393,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 span.set_tag("http.route", route)
 
             # Set HTTP Request tags
-            # Build `http.url` tag value from request info
-            # DEV: We are explicitly omitting query strings since they may contain sensitive information
-            span.set_tag(
-                http.URL,
-                parse.urlunparse(
-                    parse.ParseResult(
-                        scheme=request.scheme,
-                        netloc=request.get_host(),  # this will include `host:port`
-                        path=request.path,
-                        params="",
-                        query="",
-                        fragment="",
-                    )
-                ),
-            )
+            span.set_tag(http.URL, utils.get_request_uri(request))
 
             response = func(*args, **kwargs)
 
