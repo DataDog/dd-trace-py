@@ -677,3 +677,9 @@ def test_tracer_with_version():
         # explicitly set in the span
         span.set_tag(VERSION_KEY, '1.2.3')
         assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+    # With global tags set
+    t.set_tags({VERSION_KEY: 'tags.version'})
+    with BaseTracerTestCase.override_global_config(dict(version='config.version')):
+        with t.trace('test'.span) as span:
+            assert span.get_tag(VERSION_KEY) == 'config.version'
