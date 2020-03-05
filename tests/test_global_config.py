@@ -252,4 +252,4 @@ class GlobalConfigTestCase(TestCase):
             assert c.version == "1.2.3"
 
             c.version = "4.5.6"
-            assert c.versionn == "4.5.6"
+            assert c.version == "4.5.6"
