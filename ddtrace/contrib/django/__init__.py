@@ -116,7 +116,7 @@ latter.
    ``settings.py``.
 
 3. Enable Django tracing automatically via `ddtrace-run`` or manually by
-   adding ``patch_all()`` to ``settings.py``.
+   adding ``ddtrace.patch_all()`` to ``settings.py``.
 
 The mapping from old configuration settings to new ones.
 
