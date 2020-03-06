@@ -41,6 +41,12 @@ class ForbiddenView(TemplateView):
         return HttpResponse(status=403)
 
 
+class StaticMethodView(View):
+    @staticmethod
+    def get(request):
+        return HttpResponse("")
+
+
 def function_view(request):
     return HttpResponse(status=200)
 
