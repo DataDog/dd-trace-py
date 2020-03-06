@@ -110,7 +110,7 @@ services:
             - ./setup.py:/src/setup.py:ro
             - ./conftest.py:/src/conftest.py:ro
             - ./tox.ini:/src/tox.ini:ro
-            - ./docs:/src/docs:ro
+            - ./docs:/src/docs:rw
             - ./pyproject.toml:/src/pyproject.toml:ro
             - ./.ddtox:/src/.tox
             - ./scripts:/src/scripts
