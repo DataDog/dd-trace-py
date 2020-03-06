@@ -27,6 +27,18 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 commands:
+  deploy_docs:
+    description: "Deploy docs"
+    parameters:
+      s3_dir:
+        type: string
+    steps:
+      - setup_tox
+      - run: sudo apt-get -y install rake
+      - run: pip install awscli
+      - run: tox -e docs
+      - run: S3_DIR=<< parameters.s3_dir >> rake release:docs
+
   setup_tox:
     description: "Install tox"
     steps:
@@ -647,11 +659,9 @@ jobs:
     executor: python38
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli cython
-      - run: tox -e docs
-      - run: S3_DIR=trace-dev rake release:docs
+      - deploy_docs:
+          s3_dir: trace-dev
+      - run: pip install mkwheelhouse cython
       - run: S3_DIR=trace-dev rake release:wheel
 
   jinja2:
@@ -686,16 +696,13 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_to_s3:
+  deploy_docs:
     # deploy official documentation
     executor: python38
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli
-      - run: tox -e docs
-      - run: S3_DIR=trace rake release:docs
+      - deploy_docs:
+          s3_dir: trace
 
   verify_all_tests_ran:
     executor: python38
@@ -732,7 +739,7 @@ workflows:
           type: approval
           requires:
             - build_docs
-      - deploy_to_s3:
+      - deploy_docs:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
