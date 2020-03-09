@@ -32,19 +32,27 @@ commands:
     parameters:
       s3_dir:
         type: string
+      s3_bucket:
+        type: string
+        default: "pypi.datadoghq.com"
     steps:
       - setup_tox
-      - run: sudo apt-get -y install rake
       - run: pip install awscli
       - run: tox -e docs
-      - run: S3_DIR=<< parameters.s3_dir >> rake release:docs
+      - run:
+          name: Release docs
+          command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
 
   deploy_wheels:
     description: "Deploy wheels"
     steps:
-      - run: sudo apt-get -y install rake
       - run: pip install awscli cython mkwheelhouse
-      - run: S3_DIR=trace-dev rake release:wheel
+      - run:
+          name: Release wheels to dev site
+          command: ./scripts/mkwheelhouse
+          environment:
+            S3_DIR: trace-dev
+            S3_BUCKET: pypi.datadoghq.com
 
   setup_tox:
     description: "Install tox"
