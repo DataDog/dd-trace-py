@@ -709,4 +709,4 @@ def test_tracer_with_env():
     t.set_tags({ENV_KEY: 'tags.env'})
     with BaseTracerTestCase.override_global_config(dict(env='config.env')):
         with t.trace('test.span') as span:
-            assert span.get_tag(VERSION_KEY) == 'config.env'
+            assert span.get_tag(ENV_KEY) == 'config.env'
