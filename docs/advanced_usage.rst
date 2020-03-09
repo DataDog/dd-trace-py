@@ -602,6 +602,20 @@ traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
 
 
+uWSGI
+-----
+
+The default configuration of uWSGI applications does not include the
+``--enable-threads`` setting which must be set to ``true`` for the
+tracing library to run.  This is noted in their best practices doc_.
+
+  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+
+Example run command:
+
+``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
+
+
 API
 ---
 
