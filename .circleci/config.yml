@@ -49,7 +49,11 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install tox
+      # We should be doing `pip install tox`
+      # But since ddtrace_py image has already tox, we need to force the
+      # upgrade here
+      # FIXME: remove tox from the base image
+      - run: pip install -U tox virtualenv
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
