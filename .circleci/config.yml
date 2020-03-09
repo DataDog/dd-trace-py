@@ -39,6 +39,13 @@ commands:
       - run: tox -e docs
       - run: S3_DIR=<< parameters.s3_dir >> rake release:docs
 
+  deploy_wheels:
+    description: "Deploy wheels"
+    steps:
+      - run: sudo apt-get -y install rake
+      - run: pip install awscli cython mkwheelhouse
+      - run: S3_DIR=trace-dev rake release:wheel
+
   setup_tox:
     description: "Install tox"
     steps:
@@ -654,15 +661,20 @@ jobs:
       - save_results
       - save_tox_cache
 
-  deploy_dev:
+  deploy_master:
     # build the master branch releasing development docs and wheels
     executor: python38
     steps:
       - checkout
       - deploy_docs:
           s3_dir: trace-dev
-      - run: pip install mkwheelhouse cython
-      - run: S3_DIR=trace-dev rake release:wheel
+      - deploy_wheels
+
+  deploy_staging:
+    executor: python38
+    steps:
+      - checkout
+      - deploy_wheels
 
   jinja2:
     executor: ddtrace_dev
@@ -880,9 +892,15 @@ workflows:
             - tornado
             - unit_tests
             - vertica
-      - deploy_dev:
+      - deploy_master:
           requires:
             - verify_all_tests_ran
           filters:
             branches:
               only: master
+      - deploy_staging:
+          requires:
+            - verify_all_tests_ran
+          filters:
+            branches:
+              only: staging
