@@ -27,6 +27,25 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 commands:
+  deploy_docs:
+    description: "Deploy docs"
+    parameters:
+      s3_dir:
+        type: string
+    steps:
+      - setup_tox
+      - run: sudo apt-get -y install rake
+      - run: pip install awscli
+      - run: tox -e docs
+      - run: S3_DIR=<< parameters.s3_dir >> rake release:docs
+
+  deploy_wheels:
+    description: "Deploy wheels"
+    steps:
+      - run: sudo apt-get -y install rake
+      - run: pip install awscli cython mkwheelhouse
+      - run: S3_DIR=trace-dev rake release:wheel
+
   setup_tox:
     description: "Install tox"
     steps:
@@ -646,17 +665,20 @@ jobs:
       - save_results
       - save_tox_cache
 
-  deploy_dev:
+  deploy_master:
     # build the master branch releasing development docs and wheels
     executor: python38
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli cython
-      - run: tox -e docs
-      - run: S3_DIR=trace-dev rake release:docs
-      - run: S3_DIR=trace-dev rake release:wheel
+      - deploy_docs:
+          s3_dir: trace-dev
+      - deploy_wheels
+
+  deploy_staging:
+    executor: python38
+    steps:
+      - checkout
+      - deploy_wheels
 
   jinja2:
     executor: ddtrace_dev
@@ -690,16 +712,13 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_to_s3:
+  deploy_docs:
     # deploy official documentation
     executor: python38
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli
-      - run: tox -e docs
-      - run: S3_DIR=trace rake release:docs
+      - deploy_docs:
+          s3_dir: trace
 
   verify_all_tests_ran:
     executor: python38
@@ -736,7 +755,7 @@ workflows:
           type: approval
           requires:
             - build_docs
-      - deploy_to_s3:
+      - deploy_docs:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
@@ -877,9 +896,15 @@ workflows:
             - tornado
             - unit_tests
             - vertica
-      - deploy_dev:
+      - deploy_master:
           requires:
             - verify_all_tests_ran
           filters:
             branches:
               only: master
+      - deploy_staging:
+          requires:
+            - verify_all_tests_ran
+          filters:
+            branches:
+              only: staging
