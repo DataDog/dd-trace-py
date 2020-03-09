@@ -3,6 +3,17 @@ The Django__ integration traces requests, views, template renderers, database
 and cache calls in a Django application.
 
 
+Enable Django tracing automatically via ``ddtrace-run``::
+
+    ddtrace-run python manage.py runserver
+
+
+Django tracing can also be enabled manually::
+
+    from ddtrace import patch_all
+    patch_all()
+
+
 To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
 ``settings.py`` looks similar to::
 
@@ -95,7 +106,7 @@ a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
 latter.
 
-1. Remove ``'ddtrace.config.django'`` from ``INSTALLED_APPS`` in
+1. Remove ``'ddtrace.contrib.django'`` from ``INSTALLED_APPS`` in
    ``settings.py``.
 
 2. Replace ``DATADOG_TRACE`` configuration in ``settings.py`` according to the
@@ -103,6 +114,9 @@ latter.
 
 3. Remove ``TraceMiddleware`` or ``TraceExceptionMiddleware`` if used in
    ``settings.py``.
+
+3. Enable Django tracing automatically via `ddtrace-run`` or manually by
+   adding ``ddtrace.patch_all()`` to ``settings.py``.
 
 The mapping from old configuration settings to new ones.
 
@@ -191,8 +205,9 @@ After::
    tracer.set_tags({'env': 'production'})
 
    import my.custom.tracer
-   from ddtrace import Pin
+   from ddtrace import Pin, patch_all
    import django
+   patch_all()
    Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 
 .. __: https://www.djangoproject.com/
