@@ -381,18 +381,20 @@ class Tracer(object):
             if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
-        # add env/service/version from either DD_ENV/SERVICE/VERSION or the configured config.env/service/version
-        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
-        esv_tags = {}
-        if config.env:
-            esv_tags[ENV_KEY] = config.env
-        if config.version:
-            esv_tags[VERSION_KEY] = config.version
+        # Apply default global tags
+        if self.tags:
+            span.set_tags(self.tags)
 
-        # add common tags
-        if self.tags or esv_tags:
-            esv_tags.update(self.tags)
-            span.set_tags(esv_tags)
+        # Add default env and service tags
+        # DEV: These override the default tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
+        extra_tags = {}
+        if config.env:
+            extra_tags[ENV_KEY] = config.env
+        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
+        if config.version:
+            extra_tags[VERSION_KEY] = config.version
+        span.set_tags(extra_tags)
+
         if not span._parent:
             span.set_tag(system.PID, getpid())
 
