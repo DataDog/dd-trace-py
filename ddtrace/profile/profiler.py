@@ -96,15 +96,17 @@ class Profiler(object):
 
         self.status = ProfilerStatus.RUNNING
 
-    def stop(self):
+    def stop(self, flush=True):
         """Stop the profiler.
 
         This stops all the collectors and schedulers, waiting for them to finish their operations.
+
+        :param flush: Flush the event before stopping.
         """
         for col in reversed(self.collectors):
             col.stop()
 
         for s in reversed(self.schedulers):
-            s.stop()
+            s.stop(flush=flush)
 
         self.status = ProfilerStatus.STOPPED
