@@ -686,17 +686,31 @@ jobs:
 
   deploy_master:
     # build the master branch releasing development docs and wheels
-    executor: python38
+    machine:
+      image: ubuntu-1604:201903-01
+    environment:
+      - BOTO_CONFIG: /dev/null
     steps:
       - checkout
+      - run:
+          name: Setup Python
+          command: |
+            pyenv global 3.6.5
       - deploy_docs:
           s3_dir: *s3_dir_dev
       - deploy_wheels
 
   deploy_staging:
-    executor: python38
+    machine:
+      image: ubuntu-1604:201903-01
+    environment:
+      - BOTO_CONFIG: /dev/null
     steps:
       - checkout
+      - run:
+          name: Setup Python
+          command: |
+            pyenv global 3.6.5
       - deploy_wheels
 
   jinja2:
