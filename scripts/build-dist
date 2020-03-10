@@ -3,7 +3,14 @@ set -ex
 
 # Determine where "../dist" is
 DIST_DIR="${1:-dist}"
-BUILD_DIR=$PWD/build-dist-tmp-`uuidgen`
+if which gmktemp > /dev/null 2>&1
+then
+    # For Darwin
+    MKTEMP=gmktemp
+else
+    MKTEMP=mktemp
+fi
+BUILD_DIR=$($MKTEMP --directory --tmpdir=$PWD build-dist-tmp-XXXXXX)
 mkdir -p "$BUILD_DIR"
 
 build_script=$(cat <<'EOF'
