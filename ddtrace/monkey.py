@@ -61,8 +61,8 @@ PATCH_MODULES = {
     'pylons': False,
     'pyramid': False,
 
-    # Auto-enable logging if they configure `DD_LOGS_INJECTION=true`
-    'logging': config.logs_injection,
+    # Standard library modules off by default
+    'logging': False,
 }
 
 _LOCK = threading.Lock()
