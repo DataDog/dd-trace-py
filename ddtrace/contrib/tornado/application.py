@@ -19,7 +19,7 @@ def tracer_config(__init__, app, args, kwargs):
     # default settings
     settings = {
         'tracer': ddtrace.tracer,
-        'default_service': os.environ.get('DATADOG_SERVICE_NAME', 'tornado-web'),
+        'default_service': os.getenv('DATADOG_SERVICE_NAME', 'tornado-web'),
         'distributed_tracing': True,
         'analytics_enabled': None
     }
