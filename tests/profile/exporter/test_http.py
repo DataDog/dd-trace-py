@@ -196,8 +196,8 @@ def test_get_tags():
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
 
-def test_get_malformed(environ_override):
-    environ_override("DD_PROFILING_TAGS", "mytagfoobar")
+def test_get_malformed(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_TAGS", "mytagfoobar")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -207,7 +207,7 @@ def test_get_malformed(environ_override):
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "mytagfoobar,")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "mytagfoobar,")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -217,7 +217,7 @@ def test_get_malformed(environ_override):
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", ",")
+    monkeypatch.setenv("DD_PROFILING_TAGS", ",")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -227,7 +227,7 @@ def test_get_malformed(environ_override):
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "foo:bar,")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "foo:bar,")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
@@ -239,8 +239,8 @@ def test_get_malformed(environ_override):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
 
-def test_get_tags_override(environ_override):
-    environ_override("DD_PROFILING_TAGS", "mytag:foobar")
+def test_get_tags_override(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:foobar")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 8
     assert tags["service"] == b"foobar"
@@ -251,7 +251,7 @@ def test_get_tags_override(environ_override):
     assert tags["mytag"] == b"foobar"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "mytag:foobar,author:jd")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:foobar,author:jd")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 9
     assert tags["service"] == b"foobar"
@@ -263,7 +263,7 @@ def test_get_tags_override(environ_override):
     assert tags["author"] == b"jd"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 7
     assert tags["service"] == b"foobar"
@@ -273,7 +273,7 @@ def test_get_tags_override(environ_override):
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "foobar:baz,service:mycustomservice")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "foobar:baz,service:mycustomservice")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 8
     assert tags["service"] == b"mycustomservice"
@@ -284,7 +284,7 @@ def test_get_tags_override(environ_override):
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
 
-    environ_override("DD_PROFILING_TAGS", "foobar:baz,service:🤣")
+    monkeypatch.setenv("DD_PROFILING_TAGS", "foobar:baz,service:🤣")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 8
     assert tags["service"] == u"🤣".encode("utf-8")

@@ -1,5 +1,9 @@
 version: 2.1
 
+s3_dir_dev: &s3_dir_dev trace-dev
+s3_dir_prod: &s3_dir_prod trace
+s3_bucket: &s3_bucket pypi.datadoghq.com
+
 resource_class: &resource_class small
 busybox_image: &busybox_image busybox:latest
 python38_image: &python38_image circleci/python:3.8
@@ -26,11 +30,61 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
+machine_executor: &machine_executor
+  machine:
+    image: ubuntu-1604:201903-01
+  environment:
+    - BOTO_CONFIG: /dev/null
+  steps:
+    - &pyenv-set-global
+      run:
+        name: Set global pyenv
+        command: |
+          pyenv global 3.6.5
+
 commands:
+  deploy_docs:
+    description: "Deploy docs"
+    parameters:
+      s3_dir:
+        type: string
+      s3_bucket:
+        type: string
+        default: *s3_bucket
+    steps:
+      - setup_tox
+      - run: pip install awscli
+      - run: tox -e docs
+      - run:
+          name: Release docs
+          command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
+
+  deploy_wheels:
+    description: "Deploy wheels"
+    parameters:
+      s3_dir:
+        type: string
+        default: *s3_dir_dev
+      s3_bucket:
+        type: string
+        default: *s3_bucket
+    steps:
+      - run: pip install awscli cython mkwheelhouse
+      - run:
+          name: Release wheels to dev site
+          command: scripts/mkwheelhouse
+          environment:
+            S3_DIR: << parameters.s3_dir >>
+            S3_BUCKET: << parameters.s3_bucket >>
+
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install tox
+      # We should be doing `pip install tox`
+      # But since ddtrace_py image has already tox, we need to force the
+      # upgrade here
+      # FIXME: remove tox from the base image
+      - run: pip install -U tox virtualenv
 
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
@@ -642,17 +696,22 @@ jobs:
       - save_results
       - save_tox_cache
 
-  deploy_dev:
+  deploy_master:
     # build the master branch releasing development docs and wheels
-    executor: python38
+    <<: *machine_executor
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli cython
-      - run: tox -e docs
-      - run: S3_DIR=trace-dev rake release:docs
-      - run: S3_DIR=trace-dev rake release:wheel
+      - *pyenv-set-global
+      - deploy_docs:
+          s3_dir: *s3_dir_dev
+      - deploy_wheels
+
+  deploy_staging:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - deploy_wheels
 
   jinja2:
     executor: ddtrace_dev
@@ -686,16 +745,14 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_to_s3:
+  deploy_docs:
     # deploy official documentation
-    executor: python38
+    <<: *machine_executor
     steps:
       - checkout
-      - setup_tox
-      - run: sudo apt-get -y install rake
-      - run: pip install tox mkwheelhouse awscli
-      - run: tox -e docs
-      - run: S3_DIR=trace rake release:docs
+      - *pyenv-set-global
+      - deploy_docs:
+          s3_dir: *s3_dir_prod
 
   verify_all_tests_ran:
     executor: python38
@@ -732,7 +789,7 @@ workflows:
           type: approval
           requires:
             - build_docs
-      - deploy_to_s3:
+      - deploy_docs:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
@@ -848,7 +905,6 @@ workflows:
             - mysqldb
             - mysqlpython
             - opentracer
-            - profile
             - psycopg
             - pylibmc
             - pylons
@@ -874,9 +930,15 @@ workflows:
             - tornado
             - unit_tests
             - vertica
-      - deploy_dev:
+      - deploy_master:
           requires:
             - verify_all_tests_ran
           filters:
             branches:
               only: master
+      - deploy_staging:
+          requires:
+            - verify_all_tests_ran
+          filters:
+            branches:
+              only: staging

@@ -121,11 +121,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
                     tags[key] = value
         return tags
 
-    def export(self, events, pid=None):
+    def export(self, events):
         """Export events to an HTTP endpoint.
 
         :param events: The event dictionary from a `ddtrace.profile.recorder.Recorder`.
-        :param pid: Filter events by process ID. Default is current PID. Use `False` to disable filtering.
         """
         if not self.endpoint:
             raise InvalidEndpoint("Endpoint is empty")
