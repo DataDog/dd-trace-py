@@ -1,5 +1,6 @@
 import json
 import struct
+import copy
 
 import msgpack
 
@@ -72,6 +73,51 @@ class JSONEncoder(_EncoderBase):
     def join_encoded(objs):
         """Join a list of encoded objects together as a json array"""
         return '[' + ','.join(objs) + ']'
+
+
+class JSONEncoderV2(JSONEncoder):
+    """
+    JSONEncoderV2 encodes traces to the new intake API format.
+    The main differences are all ids are 
+    """
+
+    content_type = "application/json"
+
+    @staticmethod
+    def encode(obj):
+        # Copy, so we can modify the ids to be strings without
+        # changing to original object
+
+        for trace in obj:
+            for span in trace:
+                span["trace_id"] = JSONEncoderV2._encode_id_to_hex(span["trace_id"])
+                span["parent_id"] = JSONEncoderV2._encode_id_to_hex(span["parent_id"])
+                span["span_id"] = JSONEncoderV2._encode_id_to_hex(span["span_id"])
+
+        return json.dumps(obj)
+
+    @staticmethod
+    def decode(data):
+        data = json.loads(data)
+        for trace in data:
+            for span in trace:
+                span["trace_id"] = JSONEncoderV2._decode_id_to_hex(span["trace_id"])
+                span["parent_id"] = JSONEncoderV2._decode_id_to_hex(span["parent_id"])
+                span["span_id"] = JSONEncoderV2._decode_id_to_hex(span["span_id"])
+        return data
+
+    @staticmethod
+    def join_encoded(objs):
+        """Join a list of encoded objects together as a json array"""
+        return '{"traces":[' + ",".join(objs) + "]}"
+
+    @staticmethod
+    def _encode_id_to_hex(id):
+        return "%0.16X" % int(id)
+
+    @staticmethod
+    def _decode_id_to_hex(id):
+        return int(id, 16)
 
 
 class MsgpackEncoder(_EncoderBase):
