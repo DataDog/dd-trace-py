@@ -1,4 +1,4 @@
-from ddtrace.profile import _compat
+from ddtrace import compat
 from ddtrace.vendor import attr
 
 
@@ -10,7 +10,7 @@ def event_class(klass):
 class Event(object):
     """An event happening at a point in time."""
 
-    timestamp = attr.ib(factory=_compat.time_ns)
+    timestamp = attr.ib(factory=compat.time_ns)
 
     @property
     def name(self):
