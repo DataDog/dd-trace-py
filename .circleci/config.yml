@@ -30,6 +30,18 @@ httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
+machine_executor: &machine_executor
+  machine:
+    image: ubuntu-1604:201903-01
+  environment:
+    - BOTO_CONFIG: /dev/null
+  steps:
+    - &pyenv-set-global
+      run:
+        name: Set global pyenv
+        command: |
+          pyenv global 3.6.5
+
 commands:
   deploy_docs:
     description: "Deploy docs"
@@ -686,31 +698,19 @@ jobs:
 
   deploy_master:
     # build the master branch releasing development docs and wheels
-    machine:
-      image: ubuntu-1604:201903-01
-    environment:
-      - BOTO_CONFIG: /dev/null
+    <<: *machine_executor
     steps:
       - checkout
-      - run:
-          name: Setup Python
-          command: |
-            pyenv global 3.6.5
+      - *pyenv-set-global
       - deploy_docs:
           s3_dir: *s3_dir_dev
       - deploy_wheels
 
   deploy_staging:
-    machine:
-      image: ubuntu-1604:201903-01
-    environment:
-      - BOTO_CONFIG: /dev/null
+    <<: *machine_executor
     steps:
       - checkout
-      - run:
-          name: Setup Python
-          command: |
-            pyenv global 3.6.5
+      - *pyenv-set-global
       - deploy_wheels
 
   jinja2:
@@ -747,9 +747,10 @@ jobs:
 
   deploy_docs:
     # deploy official documentation
-    executor: python38
+    <<: *machine_executor
     steps:
       - checkout
+      - *pyenv-set-global
       - deploy_docs:
           s3_dir: *s3_dir_prod
 
