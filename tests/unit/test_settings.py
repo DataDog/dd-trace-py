@@ -38,6 +38,15 @@ class TestConfig(BaseTestCase):
             config = Config()
             self.assertFalse(config.analytics_enabled)
 
+    def test_logs_injection(self):
+        with self.override_env(dict(DD_LOGS_INJECTION='True')):
+            config = Config()
+            self.assertTrue(config.logs_injection)
+
+        with self.override_env(dict(DD_LOGS_INJECTION='false')):
+            config = Config()
+            self.assertFalse(config.logs_injection)
+
 
 class TestHttpConfig(BaseTestCase):
 
