@@ -47,6 +47,7 @@ class BotocoreTest(BaseTracerTestCase):
         self.assertEqual(span.get_tag('aws.agent'), 'botocore')
         self.assertEqual(span.get_tag('aws.region'), 'us-west-2')
         self.assertEqual(span.get_tag('aws.operation'), 'DescribeInstances')
+        self.assertEqual(span.get_tag('aws.requestid'), 'fdcdcab1-ae5c-489e-9c33-4637c5dda355')
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_metric('retry_attempts'), 0)
         self.assertEqual(span.service, 'test-botocore-tracing.ec2')

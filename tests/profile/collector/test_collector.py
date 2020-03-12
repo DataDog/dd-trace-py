@@ -17,7 +17,7 @@ def _test_collector_status(collector_class):
     r = recorder.Recorder()
     c = collector_class(r)
     assert c.status == collector.CollectorStatus.STOPPED
-    with mock.patch("ddtrace.profile._compat.time_ns") as time_ns:
+    with mock.patch("ddtrace.compat.time_ns") as time_ns:
         time_ns.return_value = 123
         c.start()
     assert c.status == collector.CollectorStatus.RUNNING

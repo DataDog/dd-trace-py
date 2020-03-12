@@ -48,27 +48,27 @@ def check_pprof_file(filename):
     assert p.string_table[p.sample_type[0].type] == "cpu-samples"
 
 
-def test_call_script_pprof_output(tmp_path, environ_override):
+def test_call_script_pprof_output(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
-    environ_override("DD_PROFILING_OUTPUT_PPROF", filename)
-    environ_override("DD_PROFILING_CAPTURE_PCT", "1")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
     subp = subprocess.Popen(["pyddprofile", os.path.join(os.path.dirname(__file__), "simple_program.py")])
     assert subp.wait() == 42
     check_pprof_file(filename + "." + str(subp.pid) + ".1")
     return filename, subp.pid
 
 
-def test_call_script_pprof_output_interval(tmp_path, environ_override):
-    environ_override("DD_PROFILING_UPLOAD_INTERVAL", "0.1")
-    filename, pid = test_call_script_pprof_output(tmp_path, environ_override)
+def test_call_script_pprof_output_interval(tmp_path, monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "0.1")
+    filename, pid = test_call_script_pprof_output(tmp_path, monkeypatch)
     for i in (2, 3):
         check_pprof_file(filename + "." + str(pid) + (".%d" % i))
 
 
-def test_fork(tmp_path, environ_override):
+def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
-    environ_override("DD_PROFILING_OUTPUT_PPROF", filename)
-    environ_override("DD_PROFILING_CAPTURE_PCT", "100")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "100")
     subp = subprocess.Popen(
         ["python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py")], stdout=subprocess.PIPE
     )

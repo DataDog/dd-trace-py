@@ -1,7 +1,7 @@
 from __future__ import division
 import threading
 
-from ..vendor import monotonic
+from .. import compat
 
 
 class RateLimiter(object):
@@ -35,7 +35,7 @@ class RateLimiter(object):
         self.tokens = rate_limit
         self.max_tokens = rate_limit
 
-        self.last_update = monotonic.monotonic()
+        self.last_update = compat.monotonic()
 
         self.current_window = 0
         self.tokens_allowed = 0
@@ -60,7 +60,7 @@ class RateLimiter(object):
         return allowed
 
     def _update_rate_counts(self, allowed):
-        now = monotonic.monotonic()
+        now = compat.monotonic()
 
         # No tokens have been seen yet, start a new window
         if not self.current_window:
@@ -104,7 +104,7 @@ class RateLimiter(object):
             return
 
         # Add more available tokens based on how much time has passed
-        now = monotonic.monotonic()
+        now = compat.monotonic()
         elapsed = now - self.last_update
         self.last_update = now
 
