@@ -3,7 +3,11 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 import aiobotocore.client
 
-from aiobotocore.endpoint import ClientResponseContentProxy
+try:
+    from aiobotocore.endpoint import ClientResponseContentProxy
+except ImportError:
+    # aiobotocore>=0.11.0
+    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
