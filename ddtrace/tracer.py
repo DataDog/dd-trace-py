@@ -386,7 +386,7 @@ class Tracer(object):
             span.set_tags(self.tags)
 
         # Add default env and service tags
-        # DEV: These override the default tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
+        # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
         extra_tags = {}
         if config.env:
             extra_tags[ENV_KEY] = config.env

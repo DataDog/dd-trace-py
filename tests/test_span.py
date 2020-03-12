@@ -7,7 +7,7 @@ from unittest.case import SkipTest
 from ddtrace.context import Context
 from ddtrace.constants import (
     ANALYTICS_SAMPLE_RATE_KEY, VERSION_KEY,
-    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY
+    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY,
 )
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority

@@ -267,7 +267,6 @@ class GlobalConfigTestCase(TestCase):
             assert c.env == "prod-staging"
 
         # between DD_ENV and DATADOG_ENV, the former takes priority
-        with override_env(dict(DATADOG_ENV="prod")):
-            with override_env(dict(DD_ENV="prod-staging")):
-                c = Config()
-                assert c.env == "prod-staging"
+        with override_env(dict(DATADOG_ENV="prod", DD_ENV="prod-staging")):
+            c = Config()
+            assert c.env == "prod-staging"
