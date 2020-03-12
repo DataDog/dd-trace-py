@@ -747,10 +747,9 @@ jobs:
 
   deploy_docs:
     # deploy official documentation
-    <<: *machine_executor
+    executor: python38
     steps:
       - checkout
-      - *pyenv-set-global
       - deploy_docs:
           s3_dir: *s3_dir_prod
 
