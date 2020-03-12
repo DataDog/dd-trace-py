@@ -75,8 +75,9 @@ class Profiler(object):
     statistics = attr.ib(default=False)
 
     def __attrs_post_init__(self):
-        for rec in self.recorders:
-            self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+        if self.exporters:
+            for rec in self.recorders:
+                self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
 
     @property
     def recorders(self):
