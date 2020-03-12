@@ -15,11 +15,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
-<<<<<<< HEAD
 from ddtrace.constants import VERSION_KEY, ENV_KEY
-=======
-from ddtrace.constants import VERSION_KEY
->>>>>>> origin/master
 
 from .base import BaseTracerTestCase
 from .util import override_global_tracer
