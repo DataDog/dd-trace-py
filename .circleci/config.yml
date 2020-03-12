@@ -4,7 +4,7 @@ s3_dir_dev: &s3_dir_dev trace-dev
 s3_dir_prod: &s3_dir_prod trace
 s3_bucket: &s3_bucket pypi.datadoghq.com
 
-resource_class: &resource_class small
+resource_class: &resource_class medium
 busybox_image: &busybox_image busybox:latest
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
