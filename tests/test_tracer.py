@@ -15,6 +15,7 @@ import pytest
 import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
+from ddtrace.constants import VERSION_KEY
 
 from .base import BaseTracerTestCase
 from .util import override_global_tracer
@@ -655,3 +656,30 @@ def test_tracer_fork():
     assert original_writer._trace_queue.qsize() == 1
     assert t.writer._trace_queue.qsize() == 1
     assert [[span]] == list(t.writer._trace_queue.get())
+
+
+def test_tracer_with_version():
+    t = ddtrace.Tracer()
+
+    # With global `config.version` defined
+    with BaseTracerTestCase.override_global_config(dict(version='1.2.3')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+            # override manually
+            span.set_tag(VERSION_KEY, '4.5.6')
+            assert span.get_tag(VERSION_KEY) == '4.5.6'
+
+    # With no `config.version` defined
+    with t.trace('test.span') as span:
+        assert span.get_tag(VERSION_KEY) is None
+
+        # explicitly set in the span
+        span.set_tag(VERSION_KEY, '1.2.3')
+        assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+    # With global tags set
+    t.set_tags({VERSION_KEY: 'tags.version'})
+    with BaseTracerTestCase.override_global_config(dict(version='config.version')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(VERSION_KEY) == 'config.version'

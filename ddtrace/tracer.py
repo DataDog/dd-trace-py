@@ -4,7 +4,7 @@ from os import environ, getpid
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
@@ -13,6 +13,7 @@ from .internal.writer import AgentWriter
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
+from .settings import config
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
@@ -385,6 +386,10 @@ class Tracer(object):
             span.set_tags(self.tags)
         if not span._parent:
             span.set_tag(system.PID, getpid())
+        # Set `version` tag based on `DD_VERSION` or configured `config.version` setting
+        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
+        if config.version:
+            span.set_tag(VERSION_KEY, config.version)
 
         # add it to the current context
         context.add_span(span)

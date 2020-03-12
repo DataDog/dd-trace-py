@@ -7,6 +7,7 @@ from ddtrace import config as global_config
 from ddtrace.settings import Config
 
 from .test_tracer import get_dummy_tracer
+from .utils import override_env
 
 
 class GlobalConfigTestCase(TestCase):
@@ -241,3 +242,14 @@ class GlobalConfigTestCase(TestCase):
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
         self.config.web.hooks._emit('request', None)
+
+    def test_dd_version(self):
+        c = Config()
+        assert c.version is None
+
+        with override_env(dict(DD_VERSION="1.2.3")):
+            c = Config()
+            assert c.version == "1.2.3"
+
+            c.version = "4.5.6"
+            assert c.version == "4.5.6"

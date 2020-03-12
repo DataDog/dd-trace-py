@@ -560,6 +560,7 @@ The available environment variables for ``ddtrace-run`` are:
   any traces.
 * ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
   ``pre-prod``, ``stage``
+* ``DD_VERSION`` (no default): Set an application's version e.g. ``1.2.3``, ``6c44da20``, ``2020.02.13``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
   the tracer
 * ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
