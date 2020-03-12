@@ -71,17 +71,14 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         response_meta = result['ResponseMetadata']
 
-        http_status_code = response_meta.get('HTTPStatusCode')
-        if http_status_code:
-            span.set_tag(http.STATUS_CODE, http_status_code)
+        if 'HTTPStatusCode' in response_meta:
+            span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
 
-        retry_attempts = response_meta.get('RetryAttempts')
-        if retry_attempts:
-            span.set_tag('retry_attempts', retry_attempts)
+        if 'RetryAttempts' in response_meta:
+            span.set_tag('retry_attempts', response_meta['RetryAttempts'])
 
-        request_id = response_meta.get('RequestId')
-        if request_id:
-            span.set_tag('aws.requestid', request_id)
+        if 'RequestId' in response_meta:
+            span.set_tag('aws.requestid', response_meta['RequestId'])
 
         # set analytics sample rate
         span.set_tag(
