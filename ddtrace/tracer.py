@@ -397,6 +397,10 @@ class Tracer(object):
 
         if not span._parent:
             span.set_tag(system.PID, getpid())
+        # Set `version` tag based on `DD_VERSION` or configured `config.version` setting
+        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
+        if config.version:
+            span.set_tag(VERSION_KEY, config.version)
 
         # add it to the current context
         context.add_span(span)
