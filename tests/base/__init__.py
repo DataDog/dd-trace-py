@@ -37,22 +37,28 @@ class BaseTestCase(unittest.TestCase):
             >>> with self.override_global_config(dict(name=value,...)):
                 # Your test
         """
+        # List of global variables we allow overriding
+        # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
         global_config_keys = [
             "analytics_enabled",
             "report_hostname",
             "health_metrics_enabled",
             "version",
         ]
+
+        # Grab the current values of all keys
         originals = dict(
             (key, getattr(ddtrace.config, key)) for key in global_config_keys
         )
 
+        # Override from the passed in keys
         for key, value in values.items():
             if key in global_config_keys:
                 setattr(ddtrace.config, key, value)
         try:
             yield
         finally:
+            # Reset all to their original values
             for key, value in originals.items():
                 setattr(ddtrace.config, key, value)
 
