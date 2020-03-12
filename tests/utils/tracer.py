@@ -59,6 +59,7 @@ class DummyTracer(Tracer):
     """
     DummyTracer is a tracer which uses the DummyWriter by default
     """
+
     def __init__(self):
         super(DummyTracer, self).__init__()
         self._update_writer()

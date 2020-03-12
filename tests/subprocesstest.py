@@ -11,8 +11,8 @@ import sys
 import unittest
 
 
-SUBPROC_TEST_ATTR = '_subproc_test'
-SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
+SUBPROC_TEST_ATTR = "_subproc_test"
+SUBPROC_ENV_VAR = "SUBPROCESS_TEST"
 
 
 def run_in_subprocess(obj):
@@ -67,7 +67,7 @@ class SubprocessTestCase(unittest.TestCase):
         modpath = test.__self__.__class__.__module__
         clsname = test.__self__.__class__.__name__
         testname = test.__name__
-        testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
+        testcase_name = "{}.{}.{}".format(modpath, clsname, testname)
         return testcase_name
 
     def _run_test_in_subprocess(self, result):
@@ -76,19 +76,14 @@ class SubprocessTestCase(unittest.TestCase):
         # copy the environment and include the special subprocess environment
         # variable for the subprocess to detect
         sp_test_env = os.environ.copy()
-        sp_test_env[SUBPROC_ENV_VAR] = 'True'
-        sp_test_cmd = ['python', '-m', 'unittest', full_testcase_name]
-        sp = subprocess.Popen(
-            sp_test_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=sp_test_env,
-        )
+        sp_test_env[SUBPROC_ENV_VAR] = "True"
+        sp_test_cmd = ["python", "-m", "unittest", full_testcase_name]
+        sp = subprocess.Popen(sp_test_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=sp_test_env,)
         stdout, stderr = sp.communicate()
 
         if sp.returncode:
             try:
-                cmdf = ' '.join(sp_test_cmd)
+                cmdf = " ".join(sp_test_cmd)
                 raise Exception('Subprocess Test "{}" Failed'.format(cmdf))
             except Exception:
                 exc_info = sys.exc_info()

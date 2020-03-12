@@ -14,125 +14,117 @@ if PY2:
 
 def get_mock_open(read_data=None):
     mock_open = mock.mock_open(read_data=read_data)
-    return mock.patch('ddtrace.internal.runtime.container.open', mock_open)
+    return mock.patch("ddtrace.internal.runtime.container.open", mock_open)
 
 
 def test_cgroup_info_init():
     # Assert default all attributes to `None`
     info = CGroupInfo()
-    for attr in ('id', 'groups', 'path', 'container_id', 'controllers', 'pod_id'):
+    for attr in ("id", "groups", "path", "container_id", "controllers", "pod_id"):
         assert getattr(info, attr) is None
 
     # Assert init with property sets property
-    info = CGroupInfo(container_id='test-container-id')
-    assert info.container_id == 'test-container-id'
+    info = CGroupInfo(container_id="test-container-id")
+    assert info.container_id == "test-container-id"
 
 
 @pytest.mark.parametrize(
-    'line,expected_info',
-
+    "line,expected_info",
     # Valid generated cases + one off cases
-    cgroup_line_valid_test_cases() + [
+    cgroup_line_valid_test_cases()
+    + [
         # Valid, extra spaces
         (
-            '    13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860    ',
+            "    13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860    ",
             CGroupInfo(
-                id='13',
-                groups='name=systemd',
-                controllers=['name=systemd'],
-                path='/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
-                container_id='3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+                id="13",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
+                container_id="3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
                 pod_id=None,
             ),
         ),
         # Valid, bookended newlines
         (
-            '\r\n13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860\r\n',
+            "\r\n13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860\r\n",
             CGroupInfo(
-                id='13',
-                groups='name=systemd',
-                controllers=['name=systemd'],
-                path='/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
-                container_id='3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+                id="13",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
+                container_id="3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
                 pod_id=None,
             ),
         ),
-
         # Invalid container_ids
         (
             # One character too short
-            '13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986',
+            "13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986",
             CGroupInfo(
-                id='13',
-                groups='name=systemd',
-                controllers=['name=systemd'],
-                path='/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986',
+                id="13",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f86986",
                 container_id=None,
                 pod_id=None,
             ),
         ),
         (
             # One character too long
-            '13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600',
+            "13:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600",
             CGroupInfo(
-                id='13',
-                groups='name=systemd',
-                controllers=['name=systemd'],
-                path='/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600',
+                id="13",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f8698600",
                 container_id=None,
                 pod_id=None,
             ),
         ),
         (
             # Non-hex
-            '13:name=systemd:/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860',
+            "13:name=systemd:/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860",
             CGroupInfo(
-                id='13',
-                groups='name=systemd',
-                controllers=['name=systemd'],
-                path='/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860',
+                id="13",
+                groups="name=systemd",
+                controllers=["name=systemd"],
+                path="/docker/3726184226f5d3147c25fzyxw5b60097e378e8a720503a5e19ecfdf29f869860",
                 container_id=None,
                 pod_id=None,
             ),
         ),
-
         # Invalid id
         (
             # non-digit
-            'a:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+            "a:name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
             None,
         ),
         (
             # missing
-            ':name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+            ":name=systemd:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
             None,
         ),
-
         # Missing group
         (
             # empty
-            '13::/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+            "13::/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
             CGroupInfo(
-                id='13',
-                groups='',
+                id="13",
+                groups="",
                 controllers=[],
-                path='/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
-                container_id='3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+                path="/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
+                container_id="3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
                 pod_id=None,
             ),
         ),
         (
             # missing
-            '13:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+            "13:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
             None,
         ),
-
-
         # Empty line
-        (
-            '',
-            None,
-        ),
+        ("", None,),
     ],
 )
 def test_cgroup_info_from_line(line, expected_info):
@@ -141,12 +133,12 @@ def test_cgroup_info_from_line(line, expected_info):
     if expected_info is None:
         assert info is None, line
     else:
-        for attr in ('id', 'groups', 'path', 'container_id', 'controllers', 'pod_id'):
+        for attr in ("id", "groups", "path", "container_id", "controllers", "pod_id"):
             assert getattr(info, attr) == getattr(expected_info, attr), line
 
 
 @pytest.mark.parametrize(
-    'file_contents,container_id',
+    "file_contents,container_id",
     (
         # Docker file
         (
@@ -165,9 +157,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:cpu:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860
 1:cpuset:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860
             """,
-            '3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860',
+            "3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860",
         ),
-
         # k8s file
         (
             """
@@ -183,9 +174,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:hugetlb:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1
 1:name=systemd:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1
             """,
-            '3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1',
+            "3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1",
         ),
-
         # ECS file
         (
             """
@@ -199,9 +189,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:cpu:/ecs/test-ecs-classic/5a0d5ceddf6c44c1928d367a815d890f/38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce
 1:blkio:/ecs/test-ecs-classic/5a0d5ceddf6c44c1928d367a815d890f/38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce
             """,
-            '38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce',
+            "38fac3e99302b3622be089dd41e7ccf38aff368a86cc339972075136ee2710ce",
         ),
-
         # Fargate file
         (
             """
@@ -217,9 +206,8 @@ def test_cgroup_info_from_line(line, expected_info):
 2:memory:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
 1:name=systemd:/ecs/55091c13-b8cf-4801-b527-f4601742204d/432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da
             """,
-            '432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da',
+            "432624d2150b349fe35ba397284dea788c2bf66b885d14dfc1569b01890ca7da",
         ),
-
         # Linux non-containerized file
         (
             """
@@ -237,19 +225,11 @@ def test_cgroup_info_from_line(line, expected_info):
             """,
             None,
         ),
-
         # Empty file
-        (
-            '',
-            None,
-        ),
-
+        ("", None,),
         # Missing file
-        (
-            None,
-            None,
-        )
-    )
+        (None, None,),
+    ),
 )
 def test_get_container_info(file_contents, container_id):
     with get_mock_open(read_data=file_contents) as mock_open:
@@ -264,39 +244,34 @@ def test_get_container_info(file_contents, container_id):
         else:
             assert info.container_id == container_id
 
-        mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
+        mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 
 
 @pytest.mark.parametrize(
-    'pid,file_name',
-    (
-        ('13', '/proc/13/cgroup'),
-        (13, '/proc/13/cgroup'),
-        ('self', '/proc/self/cgroup'),
-    )
+    "pid,file_name", (("13", "/proc/13/cgroup"), (13, "/proc/13/cgroup"), ("self", "/proc/self/cgroup"),)
 )
 def test_get_container_info_with_pid(pid, file_name):
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
-    with get_mock_open(read_data='\r\n') as mock_open:
+    with get_mock_open(read_data="\r\n") as mock_open:
         assert get_container_info(pid=pid) is None
 
-        mock_open.assert_called_once_with(file_name, mode='r')
+        mock_open.assert_called_once_with(file_name, mode="r")
 
 
-@mock.patch('ddtrace.internal.runtime.container.CGroupInfo.from_line')
-@mock.patch('ddtrace.internal.runtime.container.log')
+@mock.patch("ddtrace.internal.runtime.container.CGroupInfo.from_line")
+@mock.patch("ddtrace.internal.runtime.container.log")
 def test_get_container_info_exception(mock_log, mock_from_line):
     exception = Exception()
     mock_from_line.side_effect = exception
 
     # DEV: We need at least 1 line for the loop to call `CGroupInfo.from_line`
-    with get_mock_open(read_data='\r\n') as mock_open:
+    with get_mock_open(read_data="\r\n") as mock_open:
         # Assert calling `get_container_info()` does not bubble up the exception
         assert get_container_info() is None
 
         # Assert we called everything we expected
-        mock_from_line.assert_called_once_with('\r\n')
-        mock_open.assert_called_once_with('/proc/self/cgroup', mode='r')
+        mock_from_line.assert_called_once_with("\r\n")
+        mock_open.assert_called_once_with("/proc/self/cgroup", mode="r")
 
         # Ensure we logged the exception
-        mock_log.debug.assert_called_once_with('Failed to parse cgroup file for pid %r', 'self', exc_info=True)
+        mock_log.debug.assert_called_once_with("Failed to parse cgroup file for pid %r", "self", exc_info=True)

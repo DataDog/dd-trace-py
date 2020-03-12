@@ -17,6 +17,7 @@ class Config(object):
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
@@ -24,21 +25,15 @@ class Config(object):
         # Master switch for turning on and off trace search by default
         # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = get_env('analytics', 'enabled', default=False)
+        legacy_config_value = get_env("analytics", "enabled", default=False)
 
-        self.analytics_enabled = asbool(
-            get_env('trace', 'analytics_enabled', default=legacy_config_value)
-        )
+        self.analytics_enabled = asbool(get_env("trace", "analytics_enabled", default=legacy_config_value))
 
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
-        self.report_hostname = asbool(
-            get_env('trace', 'report_hostname', default=False)
-        )
+        self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
 
-        self.health_metrics_enabled = asbool(
-            get_env('trace', 'health_metrics_enabled', default=False)
-        )
+        self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))
 
     def __getattr__(self, name):
         if name not in self._config:
@@ -54,7 +49,7 @@ class Config(object):
         """
         pin = Pin.get_from(obj)
         if pin is None:
-            log.debug('No configuration found for %s', obj)
+            log.debug("No configuration found for %s", obj)
             return {}
 
         return pin._config
@@ -110,5 +105,5 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ', '.join(self._config.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, integrations)
+        integrations = ", ".join(self._config.keys())
+        return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)

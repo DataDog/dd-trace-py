@@ -40,22 +40,21 @@ class PeriodicWorkerThread(object):
     def _atexit(self):
         self.stop()
         if self.exit_timeout is not None and self.started:
-            key = 'ctrl-break' if os.name == 'nt' else 'ctrl-c'
+            key = "ctrl-break" if os.name == "nt" else "ctrl-c"
             _LOG.debug(
-                'Waiting %d seconds for %s to finish. Hit %s to quit.',
-                self.exit_timeout, self._thread.name, key,
+                "Waiting %d seconds for %s to finish. Hit %s to quit.", self.exit_timeout, self._thread.name, key,
             )
             self.join(self.exit_timeout)
 
     def start(self):
         """Start the periodic worker."""
-        _LOG.debug('Starting %s thread', self._thread.name)
+        _LOG.debug("Starting %s thread", self._thread.name)
         self._thread.start()
         self.started = True
 
     def stop(self):
         """Stop the worker."""
-        _LOG.debug('Stopping %s thread', self._thread.name)
+        _LOG.debug("Stopping %s thread", self._thread.name)
         self._stop.set()
 
     def is_alive(self):
@@ -75,7 +74,7 @@ class PeriodicWorkerThread(object):
         pass
 
     def _on_shutdown(self):
-        _LOG.debug('Shutting down %s thread', self._thread.name)
+        _LOG.debug("Shutting down %s thread", self._thread.name)
         self.on_shutdown()
 
     @staticmethod

@@ -8,10 +8,10 @@ from .integration import IntegrationConfig
 config = Config()
 
 __all__ = [
-    'config',
-    'Config',
-    'ConfigException',
-    'HttpConfig',
-    'Hooks',
-    'IntegrationConfig',
+    "config",
+    "Config",
+    "ConfigException",
+    "HttpConfig",
+    "Hooks",
+    "IntegrationConfig",
 ]

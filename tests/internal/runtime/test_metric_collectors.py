@@ -17,13 +17,14 @@ class TestRuntimeMetricCollector(BaseTestCase):
         """Attempts to collect from a collector when it has failed to load its
         module should return no metrics gracefully.
         """
+
         class A(RuntimeMetricCollector):
-            required_modules = ['moduleshouldnotexist']
+            required_modules = ["moduleshouldnotexist"]
 
             def collect_fn(self, keys):
-                return {'k': 'v'}
+                return {"k": "v"}
 
-        self.assertIsNotNone(A().collect(), 'collect should return valid metrics')
+        self.assertIsNotNone(A().collect(), "collect should return valid metrics")
 
 
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
@@ -42,6 +43,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_gen1_changes(self):
         # disable gc
         import gc
+
         gc.disable()
 
         # start collector and get current gc counts
@@ -59,5 +61,5 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         gc.collect()
         collected_after = collector.collect([GC_COUNT_GEN0])
         assert len(collected_after) == 1
-        assert collected_after[0][0] == 'runtime.python.gc.count.gen0'
+        assert collected_after[0][0] == "runtime.python.gc.count.gen0"
         assert isinstance(collected_after[0][1], int)

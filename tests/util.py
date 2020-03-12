@@ -3,8 +3,7 @@ from contextlib import contextmanager
 
 
 def assert_dict_issuperset(a, b):
-    assert set(a.items()).issuperset(set(b.items())), \
-        '{a} is not a superset of {b}'.format(a=a, b=b)
+    assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
 
 
 @contextmanager

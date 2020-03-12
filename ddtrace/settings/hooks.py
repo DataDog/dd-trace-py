@@ -17,7 +17,8 @@ class Hooks(object):
         def on_request(span, request, response):
             pass
     """
-    __slots__ = ['_hooks']
+
+    __slots__ = ["_hooks"]
 
     def __init__(self):
         self._hooks = collections.defaultdict(set)
@@ -54,9 +55,11 @@ class Hooks(object):
         """
         # If they didn't provide a function, then return a decorator
         if not func:
+
             def wrapper(func):
                 self.register(hook, func)
                 return func
+
             return wrapper
         self._hooks[hook].add(func)
 
@@ -113,10 +116,10 @@ class Hooks(object):
                 func(span, *args, **kwargs)
             except Exception:
                 # DEV: Use log.debug instead of log.error until we have a throttled logger
-                log.debug('Failed to run hook %s function %s', hook, func, exc_info=True)
+                log.debug("Failed to run hook %s function %s", hook, func, exc_info=True)
 
     def __repr__(self):
         """Return string representation of this class instance"""
         cls = self.__class__
-        hooks = ','.join(self._hooks.keys())
-        return '{}.{}({})'.format(cls.__module__, cls.__name__, hooks)
+        hooks = ",".join(self._hooks.keys())
+        return "{}.{}({})".format(cls.__module__, cls.__name__, hooks)

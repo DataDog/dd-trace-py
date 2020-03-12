@@ -19,9 +19,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    (?!compat\.py$)[^/]+\.py$
-    | commands/
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
@@ -82,20 +80,13 @@ exclude = '''
       | util.py
       | vertica
     )
-    | ext/
-    | http/
     | opentracer/
     | profile/exporter/pprof_pb2.py$
-    | propagation/
-    | settings/
     | vendor/
   )
   | tests/
   (
-    base
-    | benchmark.py
-    | commands
-    | contrib/
+    contrib/
     (
       aiobotocore
       | aiohttp
@@ -151,51 +142,9 @@ exclude = '''
       | tornado
       | vertica
     )
-    | ddtrace_run.py
-    | internal/
-    (
-      runtime/
-      | test_context_manager.py
-      | test_hostname.py
-      | test_logger.py
-      | test_rate_limiter.py
-    )
-    | memory.py
     | opentracer/
-    (
-      conftest.py
-      | test_dd_compatibility.py
-      | test_span.py
-      | test_span_context.py
-      | test_tracer_asyncio.py
-      | test_tracer_gevent.py
-      | test_tracer_tornado.py
-      | test_utils.py
-    )
     | profile/_ast_test_file.py
-    | propagation/test_utils.py
-    | subprocesstest.py
-    | test_api.py
-    | test_compat.py
-    | test_context.py
-    | test_encoders.py
-    | test_filters.py
-    | test_global_config.py
-    | test_helpers.py
-    | test_hook.py
-    | test_instance_config.py
-    | test_payload.py
-    | test_pin.py
-    | test_sampler.py
-    | test_span.py
-    | test_tracer.py
-    | test_utils.py
-    | test_worker.py
-    | unit
-    | util.py
-    | utils
     | vendor
-    | wait-for-services.py
   )
 )
 '''

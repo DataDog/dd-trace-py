@@ -20,49 +20,47 @@ log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
-    'asyncio': False,
-    'boto': True,
-    'botocore': True,
-    'bottle': False,
-    'cassandra': True,
-    'celery': True,
-    'consul': True,
-    'django': True,
-    'elasticsearch': True,
-    'algoliasearch': True,
-    'futures': False,  # experimental propagation
-    'grpc': True,
-    'mongoengine': True,
-    'mysql': True,
-    'mysqldb': True,
-    'pymysql': True,
-    'psycopg': True,
-    'pylibmc': True,
-    'pymemcache': True,
-    'pymongo': True,
-    'redis': True,
-    'rediscluster': True,
-    'requests': True,
-    'sqlalchemy': False,  # Prefer DB client instrumentation
-    'sqlite3': True,
-    'aiohttp': True,  # requires asyncio (Python 3.4+)
-    'aiopg': True,
-    'aiobotocore': False,
-    'httplib': False,
-    'vertica': True,
-    'molten': True,
-    'jinja2': True,
-    'mako': True,
-    'flask': True,
-    'kombu': False,
-
+    "asyncio": False,
+    "boto": True,
+    "botocore": True,
+    "bottle": False,
+    "cassandra": True,
+    "celery": True,
+    "consul": True,
+    "django": True,
+    "elasticsearch": True,
+    "algoliasearch": True,
+    "futures": False,  # experimental propagation
+    "grpc": True,
+    "mongoengine": True,
+    "mysql": True,
+    "mysqldb": True,
+    "pymysql": True,
+    "psycopg": True,
+    "pylibmc": True,
+    "pymemcache": True,
+    "pymongo": True,
+    "redis": True,
+    "rediscluster": True,
+    "requests": True,
+    "sqlalchemy": False,  # Prefer DB client instrumentation
+    "sqlite3": True,
+    "aiohttp": True,  # requires asyncio (Python 3.4+)
+    "aiopg": True,
+    "aiobotocore": False,
+    "httplib": False,
+    "vertica": True,
+    "molten": True,
+    "jinja2": True,
+    "mako": True,
+    "flask": True,
+    "kombu": False,
     # Ignore some web framework integrations that might be configured explicitly in code
-    'falcon': False,
-    'pylons': False,
-    'pyramid': False,
-
+    "falcon": False,
+    "pylons": False,
+    "pyramid": False,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    'logging': config.logs_injection,
+    "logging": config.logs_injection,
 }
 
 _LOCK = threading.Lock()
@@ -74,23 +72,25 @@ _PATCHED_MODULES = set()
 # DEV: This ensures we do not patch a module until it is needed
 # DEV: <contrib name> => <list of module names that trigger a patch>
 _PATCH_ON_IMPORT = {
-    'celery': ('celery', ),
-    'flask': ('flask, '),
-    'gevent': ('gevent', ),
-    'requests': ('requests', ),
+    "celery": ("celery",),
+    "flask": ("flask, "),
+    "gevent": ("gevent",),
+    "requests": ("requests",),
 }
 
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
+
     pass
 
 
 def _on_import_factory(module, raise_errors=True):
     """Factory to create an import hook for the provided module name"""
+
     def on_import(hook):
         # Import and patch module
-        path = 'ddtrace.contrib.%s' % module
+        path = "ddtrace.contrib.%s" % module
         imported_module = importlib.import_module(path)
         imported_module.patch()
 
@@ -137,10 +137,7 @@ def patch(raise_errors=True, **patch_modules):
 
     patched_modules = get_patched_modules()
     log.info(
-        'patched %s/%s modules (%s)',
-        len(patched_modules),
-        len(modules),
-        ','.join(patched_modules),
+        "patched %s/%s modules (%s)", len(patched_modules), len(modules), ",".join(patched_modules),
     )
 
 
@@ -154,7 +151,7 @@ def patch_module(module, raise_errors=True):
     except Exception:
         if raise_errors:
             raise
-        log.debug('failed to patch %s', module, exc_info=True)
+        log.debug("failed to patch %s", module, exc_info=True)
         return False
 
 
@@ -170,10 +167,10 @@ def _patch_module(module):
     Returns if the module got patched.
     Can also raise errors if it fails.
     """
-    path = 'ddtrace.contrib.%s' % module
+    path = "ddtrace.contrib.%s" % module
     with _LOCK:
         if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
-            log.debug('already patched: %s', path)
+            log.debug("already patched: %s", path)
             return False
 
         try:
@@ -181,11 +178,11 @@ def _patch_module(module):
             imported_module.patch()
         except ImportError:
             # if the import fails, the integration is not available
-            raise PatchException('integration not available')
+            raise PatchException("integration not available")
         except AttributeError:
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
-            raise PatchException('module not installed')
+            raise PatchException("module not installed")
 
         _PATCHED_MODULES.add(module)
         return True

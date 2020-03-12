@@ -25,8 +25,9 @@ class Context(object):
 
     This data structure is thread-safe.
     """
-    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
-    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
+
+    _partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+    _partial_flush_min_spans = int(get_env("tracer", "partial_flush_min_spans", default=500))
 
     def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
         """
@@ -76,9 +77,7 @@ class Context(object):
         """
         with self._lock:
             new_ctx = Context(
-                trace_id=self._parent_trace_id,
-                span_id=self._parent_span_id,
-                sampling_priority=self._sampling_priority,
+                trace_id=self._parent_trace_id, span_id=self._parent_span_id, sampling_priority=self._sampling_priority,
             )
             new_ctx._current_span = self._current_span
             return new_ctx
@@ -141,10 +140,13 @@ class Context(object):
             if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
                 unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
-                    log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans))
+                    log.debug(
+                        'Root span "%s" closed, but the trace has %d unfinished spans:',
+                        span.name,
+                        len(unfinished_spans),
+                    )
                     for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint())
+                        log.debug("\n%s", wrong_span.pprint())
 
     def _is_sampled(self):
         return any(span.sampled for span in self._trace)

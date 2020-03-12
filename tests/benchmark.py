@@ -13,7 +13,7 @@ def tracer():
 
 def test_tracer_context(benchmark, tracer):
     def func(tracer):
-        with tracer.trace('a', service='s', resource='r', span_type='t'):
+        with tracer.trace("a", service="s", resource="r", span_type="t"):
             pass
 
     benchmark(func, tracer)
@@ -52,12 +52,12 @@ def test_tracer_wrap_instancemethod(benchmark, tracer):
 
 
 def test_tracer_start_span(benchmark, tracer):
-    benchmark(tracer.start_span, 'benchmark')
+    benchmark(tracer.start_span, "benchmark")
 
 
 def test_tracer_start_finish_span(benchmark, tracer):
     def func(tracer):
-        s = tracer.start_span('benchmark')
+        s = tracer.start_span("benchmark")
         s.finish()
 
     benchmark(func, tracer)
@@ -65,10 +65,10 @@ def test_tracer_start_finish_span(benchmark, tracer):
 
 def test_trace_simple_trace(benchmark, tracer):
     def func(tracer):
-        with tracer.trace('parent'):
+        with tracer.trace("parent"):
             for i in range(5):
-                with tracer.trace('child') as c:
-                    c.set_tag('i', i)
+                with tracer.trace("child") as c:
+                    c.set_tag("i", i)
 
     benchmark(func, tracer)
 
@@ -83,7 +83,7 @@ def test_tracer_large_trace(benchmark, tracer):
 
         # do some work
         num = random.randint(1, 10)
-        span.set_tag('num', num)
+        span.set_tag("num", num)
 
         if level < 10:
             func(tracer, level + 1)

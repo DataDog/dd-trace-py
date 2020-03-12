@@ -42,9 +42,9 @@ class BaseTestCase(unittest.TestCase):
         report_hostname_original = ddtrace.config.report_hostname
         health_metrics_enabled_original = ddtrace.config.health_metrics_enabled
 
-        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
-        ddtrace.config.report_hostname = values.get('report_hostname', report_hostname_original)
-        ddtrace.config.health_metrics_enabled = values.get('health_metrics_enabled', health_metrics_enabled_original)
+        ddtrace.config.analytics_enabled = values.get("analytics_enabled", analytics_enabled_original)
+        ddtrace.config.report_hostname = values.get("report_hostname", report_hostname_original)
+        ddtrace.config.health_metrics_enabled = values.get("health_metrics_enabled", health_metrics_enabled_original)
         try:
             yield
         finally:
@@ -63,10 +63,7 @@ class BaseTestCase(unittest.TestCase):
         """
         options = getattr(ddtrace.config, integration)
 
-        original = dict(
-            (key, options.get(key))
-            for key in values.keys()
-        )
+        original = dict((key, options.get(key)) for key in values.keys())
 
         options.update(values)
         try:
@@ -125,6 +122,7 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
     """
     BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions
     """
+
     def setUp(self):
         """Before each test case, setup a dummy tracer to use"""
         self.tracer = DummyTracer()
@@ -136,7 +134,7 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
         super(BaseTracerTestCase, self).tearDown()
 
         self.reset()
-        delattr(self, 'tracer')
+        delattr(self, "tracer")
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
@@ -163,8 +161,8 @@ class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
     def override_global_tracer(self, tracer=None):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
-        setattr(ddtrace, 'tracer', tracer)
+        setattr(ddtrace, "tracer", tracer)
         try:
             yield
         finally:
-            setattr(ddtrace, 'tracer', original)
+            setattr(ddtrace, "tracer", original)
