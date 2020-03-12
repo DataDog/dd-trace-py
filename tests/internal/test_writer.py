@@ -6,7 +6,7 @@ import mock
 
 from ddtrace.span import Span
 from ddtrace.api import API
-from ddtrace.internal.writer import AgentWriter, Q, Empty
+from ddtrace.internal.writer import AgentWriter, LogWriter, Q, Empty
 from ..base import BaseTestCase
 
 
@@ -55,6 +55,17 @@ class DummyAPI(API):
             response.status = 200
             responses.append(response)
         return responses
+
+
+class DummyOutput:
+    def __init__(self):
+        self.entries = []
+
+    def write(self, message):
+        self.entries.append(message)
+
+    def flush(self):
+        pass
 
 
 class FailingAPI(object):
@@ -192,6 +203,32 @@ class AgentWriterTests(BaseTestCase):
             histogram_calls.append(mock.call("datadog.tracer.writer.cpu_time", mock.ANY))
 
         assert histogram_calls == self.dogstatsd.histogram.mock_calls
+
+
+class LogWriterTests(BaseTestCase):
+    N_TRACES = 11
+
+    def create_writer(self, filters=None):
+        self.dogstatsd = mock.Mock()
+        self.output = DummyOutput()
+        writer = LogWriter(out=self.output, dogstatsd=self.dogstatsd, filters=filters)
+        for i in range(self.N_TRACES):
+            writer.write(
+                [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
+            )
+        return writer
+
+    def test_filters_keep_all(self):
+        filtr = KeepAllFilter()
+        self.create_writer([filtr])
+        self.assertEqual(len(self.output.entries), self.N_TRACES)
+        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
+
+    def test_filters_remove_all(self):
+        filtr = RemoveAllFilter()
+        self.create_writer([filtr])
+        self.assertEqual(len(self.output.entries), 0)
+        self.assertEqual(filtr.filtered_traces, self.N_TRACES)
 
 
 def test_queue_full():
