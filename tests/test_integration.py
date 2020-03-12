@@ -13,7 +13,7 @@ from ddtrace.tracer import Tracer
 from ddtrace.encoding import JSONEncoder, MsgpackEncoder
 from ddtrace.compat import httplib, PYTHON_INTERPRETER, PYTHON_VERSION
 from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.vendor import monotonic
+from ddtrace.compat import monotonic
 from tests.test_tracer import get_dummy_tracer
 
 
@@ -182,7 +182,7 @@ class TestWorkers(TestCase):
         log.addHandler(log_handler)
 
         self._wait_thread_flush()
-        assert tracer.writer._last_error_ts < monotonic.monotonic()
+        assert tracer.writer._last_error_ts < monotonic()
 
         logged_errors = log_handler.messages["error"]
         assert len(logged_errors) == 1

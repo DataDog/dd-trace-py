@@ -30,7 +30,11 @@ class Config(object):
             get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
+        self.env = get_env("env")
+
         self.version = get_env("version")
+
+        self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
         self.report_hostname = asbool(
             get_env('trace', 'report_hostname', default=False)
