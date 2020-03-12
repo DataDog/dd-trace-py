@@ -19,7 +19,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    [^/]+\.py
+    (?!compat\.py$)[^/]+\.py$
     | commands/
     | contrib/
     (

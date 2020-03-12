@@ -1,4 +1,4 @@
-from ..vendor import monotonic
+from .. import compat
 
 
 class StopWatch(object):
@@ -22,7 +22,7 @@ class StopWatch(object):
 
     def start(self):
         """Starts the watch."""
-        self._started_at = monotonic.monotonic()
+        self._started_at = compat.monotonic()
         return self
 
     def elapsed(self):
@@ -35,7 +35,7 @@ class StopWatch(object):
         if self._started_at is None:
             raise RuntimeError("Can not get the elapsed time of a stopwatch" " if it has not been started/stopped")
         if self._stopped_at is None:
-            now = monotonic.monotonic()
+            now = compat.monotonic()
         else:
             now = self._stopped_at
         return now - self._started_at
@@ -53,5 +53,5 @@ class StopWatch(object):
         """Stops the watch."""
         if self._started_at is None:
             raise RuntimeError("Can not stop a stopwatch that has not been" " started")
-        self._stopped_at = monotonic.monotonic()
+        self._stopped_at = compat.monotonic()
         return self

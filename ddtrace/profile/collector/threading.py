@@ -8,8 +8,8 @@ from ddtrace.vendor.six.moves import _thread
 
 from ddtrace.vendor import wrapt
 
+from ddtrace import compat
 from ddtrace.profile import _attr
-from ddtrace.profile import _compat
 from ddtrace.profile import collector
 from ddtrace.profile import event
 from ddtrace.vendor import attr
@@ -83,12 +83,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         if not self._self_capture_sampler.capture():
             return self.__wrapped__.acquire(*args, **kwargs)
 
-        start = _compat.monotonic_ns()
+        start = compat.monotonic_ns()
         try:
             return self.__wrapped__.acquire(*args, **kwargs)
         finally:
             try:
-                end = self._self_acquired_at = _compat.monotonic_ns()
+                end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
                 frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                 self._self_recorder.push_event(
@@ -112,7 +112,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
             try:
                 if hasattr(self, "_self_acquired_at"):
                     try:
-                        end = _compat.monotonic_ns()
+                        end = compat.monotonic_ns()
                         frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                         thread_id, thread_name = _current_thread()
                         self._self_recorder.push_event(

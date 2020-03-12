@@ -7,8 +7,8 @@ import sys
 import threading
 from distutils import util
 
+from ddtrace import compat
 from ddtrace.profile import _attr
-from ddtrace.profile import _compat
 from ddtrace.profile import _periodic
 from ddtrace.profile import collector
 from ddtrace.profile import event
@@ -84,10 +84,10 @@ IF UNAME_SYSNAME == "Linux":
 ELSE:
     class ThreadTime(object):
         def __init__(self):
-            self._last_process_time = _compat.process_time_ns()
+            self._last_process_time = compat.process_time_ns()
 
         def __call__(self, thread_ids):
-            current_process_time = _compat.process_time_ns()
+            current_process_time = compat.process_time_ns()
             cpu_time = current_process_time - self._last_process_time
             self._last_process_time = current_process_time
             # Spread the consumed CPU time on all threads.
@@ -303,7 +303,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def _init(self):
         self._thread_time = ThreadTime()
-        self._last_wall_time = _compat.monotonic_ns()
+        self._last_wall_time = compat.monotonic_ns()
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
@@ -311,7 +311,7 @@ class StackCollector(collector.PeriodicCollector):
 
     def _collect(self):
         # Compute wall time
-        now = _compat.monotonic_ns()
+        now = compat.monotonic_ns()
         wall_time = now - self._last_wall_time
         self._last_wall_time = now
 
@@ -319,7 +319,7 @@ class StackCollector(collector.PeriodicCollector):
             self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time,
         )
 
-        used_wall_time_ns = _compat.monotonic_ns() - now
+        used_wall_time_ns = compat.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
 
         return all_events

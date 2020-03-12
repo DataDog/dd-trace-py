@@ -61,7 +61,7 @@ PATCH_MODULES = {
     'pylons': False,
     'pyramid': False,
 
-    # Auto-enable logging if they configure `DD_LOGS_INJECTION=true`
+    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
     'logging': config.logs_injection,
 }
 
