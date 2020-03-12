@@ -43,6 +43,7 @@ class BaseTestCase(unittest.TestCase):
             "analytics_enabled",
             "report_hostname",
             "health_metrics_enabled",
+            "env",
             "version",
         ]
 
