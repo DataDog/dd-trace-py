@@ -385,15 +385,15 @@ class Tracer(object):
         if self.tags:
             span.set_tags(self.tags)
 
-        # Add default env and service tags
+        # Add env, service, and version tags
         # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
-        extra_tags = {}
+        esv_tags = {}
         if config.env:
-            extra_tags[ENV_KEY] = config.env
+            esv_tags[ENV_KEY] = config.env
         # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
         if config.version:
-            extra_tags[VERSION_KEY] = config.version
-        span.set_tags(extra_tags)
+            esv_tags[VERSION_KEY] = config.version
+        span.set_tags(esv_tags)
 
         if not span._parent:
             span.set_tag(system.PID, getpid())
