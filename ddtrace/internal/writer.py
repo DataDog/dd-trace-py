@@ -46,7 +46,7 @@ def _apply_filters(filters, traces):
 
 
 class LogWriter:
-    def __init__(self, out=sys.stdout, filters=None, sampler=None, priority_sampler=None, dogstatsd=None):
+    def __init__(self, out=sys.stdout, filters=None, sampler=None, priority_sampler=None):
         self._filters = filters
         self._sampler = sampler
         self._priority_sampler = priority_sampler
@@ -60,11 +60,7 @@ class LogWriter:
         :returns: A new :class:`LogWriter` instance
         """
         writer = self.__class__(
-            out=self.out,
-            filters=self._filters,
-            sampler=self._sampler,
-            priority_sampler=self._priority_sampler,
-            dogstatsd=self.dogstatsd,
+            out=self.out, filters=self._filters, sampler=self._sampler, priority_sampler=self._priority_sampler
         )
         return writer
 

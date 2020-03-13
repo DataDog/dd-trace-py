@@ -9,7 +9,7 @@ from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
-from .internal.writer import AgentWriter
+from .internal.writer import AgentWriter, LogWriter
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
@@ -30,27 +30,29 @@ def _parse_dogstatsd_url(url):
 
     # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
     # also support without url scheme included
-    if url.startswith('/'):
-        url = 'unix://' + url
-    elif '://' not in url:
-        url = 'udp://' + url
+    if url.startswith("/"):
+        url = "unix://" + url
+    elif "://" not in url:
+        url = "udp://" + url
 
     parsed = compat.parse.urlparse(url)
 
-    if parsed.scheme == 'unix':
+    if parsed.scheme == "unix":
         return dict(socket_path=parsed.path)
-    elif parsed.scheme == 'udp':
+    elif parsed.scheme == "udp":
         return dict(host=parsed.hostname, port=parsed.port)
     else:
-        raise ValueError('Unknown scheme `%s` for DogStatsD URL `{}`'.format(parsed.scheme))
+        raise ValueError("Unknown scheme `%s` for DogStatsD URL `{}`".format(parsed.scheme))
 
 
-_INTERNAL_APPLICATION_SPAN_TYPES = [
-    "custom",
-    "template",
-    "web",
-    "worker"
-]
+def _is_agentless_environment():
+    if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        # We are in an AWS Lambda environment
+        return True
+    return False
+
+
+_INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
 
 
 class Tracer(object):
@@ -64,14 +66,16 @@ class Tracer(object):
         from ddtrace import tracer
         trace = tracer.trace('app.request', 'web-server').finish()
     """
+
     _RUNTIME_METRICS_INTERVAL = 10
 
-    DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
-    DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', default=8125))
-    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url',
-                                    default='udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
-    DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
+    DEFAULT_HOSTNAME = environ.get("DD_AGENT_HOST", environ.get("DATADOG_TRACE_AGENT_HOSTNAME", "localhost"))
+    DEFAULT_PORT = int(environ.get("DD_TRACE_AGENT_PORT", 8126))
+    DEFAULT_DOGSTATSD_PORT = int(get_env("dogstatsd", "port", default=8125))
+    DEFAULT_DOGSTATSD_URL = get_env(
+        "dogstatsd", "url", default="udp://{}:{}".format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT)
+    )
+    DEFAULT_AGENT_URL = environ.get("DD_TRACE_AGENT_URL", "http://%s:%d" % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
     def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
@@ -90,12 +94,13 @@ class Tracer(object):
         https = None
         hostname = self.DEFAULT_HOSTNAME
         port = self.DEFAULT_PORT
+        writer = None
         if url is not None:
             url_parsed = compat.parse.urlparse(url)
-            if url_parsed.scheme in ('http', 'https'):
+            if url_parsed.scheme in ("http", "https"):
                 hostname = url_parsed.hostname
                 port = url_parsed.port
-                https = url_parsed.scheme == 'https'
+                https = url_parsed.scheme == "https"
                 # FIXME This is needed because of the way of configure() works right now, where it considers `port=None`
                 # to be "no port set so let's use the default".
                 # It should go away when we remove configure()
@@ -104,10 +109,12 @@ class Tracer(object):
                         port = 443
                     else:
                         port = 80
-            elif url_parsed.scheme == 'unix':
+            elif url_parsed.scheme == "unix":
                 uds_path = url_parsed.path
             else:
-                raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
+                raise ValueError("Unknown scheme `%s` for agent URL" % url_parsed.scheme)
+        elif _is_agentless_environment():
+            writer = LogWriter()
 
         # Apply the default configuration
         self.configure(
@@ -119,6 +126,7 @@ class Tracer(object):
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=dogstatsd_url,
+            writer=writer,
         )
 
         # globally set tags
@@ -136,18 +144,17 @@ class Tracer(object):
         return self.log.isEnabledFor(logging.DEBUG)
 
     @debug_logging.setter
-    @deprecated(message='Use logging.setLevel instead', version='1.0.0')
+    @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
-    @deprecated('Use .tracer, not .tracer()', '1.0.0')
+    @deprecated("Use .tracer, not .tracer()", "1.0.0")
     def __call__(self):
         return self
 
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
-        self._dogstatsd_client.increment('datadog.tracer.uncaught_exceptions', 1,
-                                         tags=['class:%s' % tp.__name__])
+        self._dogstatsd_client.increment("datadog.tracer.uncaught_exceptions", 1, tags=["class:%s" % tp.__name__])
 
     def get_call_context(self, *args, **kwargs):
         """
@@ -173,14 +180,30 @@ class Tracer(object):
         return self._context_provider
 
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    @debtcollector.removals.removed_kwarg("dogstatsd_host", "Use `dogstatsd_url` instead",
-                                          category=RemovedInDDTrace10Warning)
-    @debtcollector.removals.removed_kwarg("dogstatsd_port", "Use `dogstatsd_url` instead",
-                                          category=RemovedInDDTrace10Warning)
-    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
-                  dogstatsd_url=None):
+    @debtcollector.removals.removed_kwarg(
+        "dogstatsd_host", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
+    )
+    @debtcollector.removals.removed_kwarg(
+        "dogstatsd_port", "Use `dogstatsd_url` instead", category=RemovedInDDTrace10Warning
+    )
+    def configure(
+        self,
+        enabled=None,
+        hostname=None,
+        port=None,
+        uds_path=None,
+        https=None,
+        sampler=None,
+        context_provider=None,
+        wrap_executor=None,
+        priority_sampling=None,
+        settings=None,
+        collect_metrics=None,
+        dogstatsd_host=None,
+        dogstatsd_port=None,
+        dogstatsd_url=None,
+        writer=None,
+    ):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -223,18 +246,27 @@ class Tracer(object):
             self.sampler = sampler
 
         if dogstatsd_host is not None and dogstatsd_url is None:
-            dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
+            dogstatsd_url = "udp://{}:{}".format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
 
         if dogstatsd_url is not None:
             dogstatsd_kwargs = _parse_dogstatsd_url(dogstatsd_url)
-            self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
+            self.log.debug("Connecting to DogStatsd(%s)", dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
-        if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None or sampler is not None:
+        if writer:
+            self.writer = writer
+        elif (
+            hostname is not None
+            or port is not None
+            or uds_path is not None
+            or https is not None
+            or filters is not None
+            or priority_sampling is not None
+            or sampler is not None
+        ):
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
-            if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
+            if hasattr(self, "writer") and hasattr(self.writer, "api"):
                 default_hostname = self.writer.api.hostname
                 default_port = self.writer.api.port
                 if https is None:
@@ -341,13 +373,7 @@ class Tracer(object):
 
         else:
             # this is the root span of a new trace
-            span = Span(
-                self,
-                name,
-                service=service,
-                resource=resource,
-                span_type=span_type,
-            )
+            span = Span(self, name, service=service, resource=resource, span_type=span_type)
 
             span.sampled = self.sampler.sample(span)
             # Old behavior
@@ -379,7 +405,7 @@ class Tracer(object):
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
-                span.set_tag('language', 'python')
+                span.set_tag("language", "python")
 
         # Apply default global tags
         if self.tags:
@@ -422,11 +448,8 @@ class Tracer(object):
         """ Prepare runtime tags for ddstatsd.
         """
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
-        tags = [
-            '{}:{}'.format(k, v)
-            for k, v in RuntimeTags()
-        ]
-        self.log.debug('Updating constant tags %s', tags)
+        tags = ["{}:{}".format(k, v) for k, v in RuntimeTags()]
+        self.log.debug("Updating constant tags %s", tags)
         self._dogstatsd_client.constant_tags = tags
 
     def _start_runtime_worker(self):
@@ -495,13 +518,7 @@ class Tracer(object):
         # retrieve the Context using the context provider and create
         # a new Span that could be a root or a nested span
         context = self.get_call_context()
-        return self.start_span(
-            name,
-            child_of=context,
-            service=service,
-            resource=resource,
-            span_type=span_type,
-        )
+        return self.start_span(name, child_of=context, service=service, resource=resource, span_type=span_type)
 
     def current_root_span(self):
         """Returns the root span of the current context.
@@ -550,15 +567,15 @@ class Tracer(object):
             return  # nothing to do
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug('writing %s spans (enabled:%s)', len(spans), self.enabled)
+            self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug('\n%s', span.pprint())
+                self.log.debug("\n%s", span.pprint())
 
         if self.enabled and self.writer:
             # only submit the spans if we're actually enabled (and don't crash :)
             self.writer.write(spans=spans)
 
-    @deprecated(message='Manually setting service info is no longer necessary', version='1.0.0')
+    @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service.
         """
@@ -606,9 +623,10 @@ class Tracer(object):
                 span = tracer.current_span()
                 span.set_tag('a', 'b')
         """
+
         def wrap_decorator(f):
             # FIXME[matt] include the class name for methods.
-            span_name = name if name else '%s.%s' % (f.__module__, f.__name__)
+            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
             # detect if the the given function is a coroutine to use the
             # right decorator; this initial check ensures that the
@@ -619,24 +637,17 @@ class Tracer(object):
                 # code is used for compatibility reasons to prevent Syntax errors
                 # in Python 2
                 func_wrapper = compat.make_async_decorator(
-                    self, f, span_name,
-                    service=service,
-                    resource=resource,
-                    span_type=span_type,
+                    self, f, span_name, service=service, resource=resource, span_type=span_type
                 )
             else:
+
                 @functools.wraps(f)
                 def func_wrapper(*args, **kwargs):
                     # if a wrap executor has been configured, it is used instead
                     # of the default tracing function
-                    if getattr(self, '_wrap_executor', None):
+                    if getattr(self, "_wrap_executor", None):
                         return self._wrap_executor(
-                            self,
-                            f, args, kwargs,
-                            span_name,
-                            service=service,
-                            resource=resource,
-                            span_type=span_type,
+                            self, f, args, kwargs, span_name, service=service, resource=resource, span_type=span_type
                         )
 
                     # otherwise fallback to a default tracing
@@ -644,6 +655,7 @@ class Tracer(object):
                         return f(*args, **kwargs)
 
             return func_wrapper
+
         return wrap_decorator
 
     def set_tags(self, tags):

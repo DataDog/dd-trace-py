@@ -209,9 +209,8 @@ class LogWriterTests(BaseTestCase):
     N_TRACES = 11
 
     def create_writer(self, filters=None):
-        self.dogstatsd = mock.Mock()
         self.output = DummyOutput()
-        writer = LogWriter(out=self.output, dogstatsd=self.dogstatsd, filters=filters)
+        writer = LogWriter(out=self.output, filters=filters)
         for i in range(self.N_TRACES):
             writer.write(
                 [Span(tracer=None, name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(7)]
