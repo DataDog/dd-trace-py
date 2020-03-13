@@ -643,6 +643,12 @@ jobs:
           wait: rediscluster
           pattern: '^rediscluster_contrib-'
 
+  uwsgi:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^uwsgi_contrib-'
+
   vertica:
     executor: ddtrace_dev
     docker:
@@ -862,6 +868,7 @@ workflows:
       # tracer
       - tracer: *requires_pre_test
       - unit_tests: *requires_pre_test
+      - uwsgi: *requires_pre_test
       - vertica: *requires_pre_test
       - verify_all_tests_ran:
           requires:
@@ -928,6 +935,7 @@ workflows:
             - tracer
             - tornado
             - unit_tests
+            - uwsgi
             - vertica
       - deploy_master:
           requires:
