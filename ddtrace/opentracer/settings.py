@@ -10,6 +10,7 @@ CONFIG_KEY_NAMES = [
     'GLOBAL_TAGS',
     'SAMPLER',
     'PRIORITY_SAMPLING',
+    'UDS_PATH',
     'SETTINGS',
 ]
 
@@ -25,6 +26,7 @@ ConfigKeys = ConfigKeyNames(
     GLOBAL_TAGS='global_tags',
     SAMPLER='sampler',
     PRIORITY_SAMPLING='priority_sampling',
+    UDS_PATH='uds_path',
     SETTINGS='settings',
 )
 
