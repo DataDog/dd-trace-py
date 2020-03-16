@@ -110,12 +110,12 @@ class JSONEncoderV2(JSONEncoder):
         return '{"traces":[' + ",".join(objs) + "]}"
 
     @staticmethod
-    def _encode_id_to_hex(id):
-        return "%0.16X" % int(id)
+    def _encode_id_to_hex(dd_id):
+        return "%0.16X" % int(dd_id)
 
     @staticmethod
-    def _decode_id_to_hex(id):
-        return int(id, 16)
+    def _decode_id_to_hex(hex_id):
+        return int(hex_id, 16)
 
 
 class MsgpackEncoder(_EncoderBase):
