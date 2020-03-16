@@ -111,10 +111,14 @@ class JSONEncoderV2(JSONEncoder):
 
     @staticmethod
     def _encode_id_to_hex(dd_id):
+        if not dd_id:
+            return "%0.16X" % 0
         return "%0.16X" % int(dd_id)
 
     @staticmethod
     def _decode_id_to_hex(hex_id):
+        if not hex_id:
+            return 0
         return int(hex_id, 16)
 
 
