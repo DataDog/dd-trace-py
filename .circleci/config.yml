@@ -148,7 +148,7 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
+      - run: pip install twine readme_renderer[md]\<25.0 pyopenssl wheel cython
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
