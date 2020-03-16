@@ -81,33 +81,33 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
+    def encode_traces(self, traces):
+        normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
+        return self.encode({"traces": normalized_traces})
+
+    def encode_trace(self, trace):
+        return self.encode([JSONEncoderV2._convert_span(span) for span in trace])
+
     @staticmethod
     def encode(obj):
-        # Copy, so we can modify the ids to be strings without
-        # changing to original object
-
-        for trace in obj:
-            for span in trace:
-                span["trace_id"] = JSONEncoderV2._encode_id_to_hex(span["trace_id"])
-                span["parent_id"] = JSONEncoderV2._encode_id_to_hex(span["parent_id"])
-                span["span_id"] = JSONEncoderV2._encode_id_to_hex(span["span_id"])
-
         return json.dumps(obj)
 
     @staticmethod
     def decode(data):
-        data = json.loads(data)
-        for trace in data:
-            for span in trace:
-                span["trace_id"] = JSONEncoderV2._decode_id_to_hex(span["trace_id"])
-                span["parent_id"] = JSONEncoderV2._decode_id_to_hex(span["parent_id"])
-                span["span_id"] = JSONEncoderV2._decode_id_to_hex(span["span_id"])
-        return data
+        return json.loads(data)
 
     @staticmethod
     def join_encoded(objs):
         """Join a list of encoded objects together as a json array"""
         return '{"traces":[' + ",".join(objs) + "]}"
+
+    @staticmethod
+    def _convert_span(span):
+        sp = span.to_dict()
+        sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
+        sp["parent_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("parent_id"))
+        sp["span_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("span_id"))
+        return sp
 
     @staticmethod
     def _encode_id_to_hex(dd_id):
