@@ -52,6 +52,7 @@ _INTERNAL_APPLICATION_SPAN_TYPES = [
     "worker"
 ]
 
+
 def _is_agentless_environment():
     if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         # We are in an AWS Lambda environment
