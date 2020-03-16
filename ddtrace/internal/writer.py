@@ -76,7 +76,7 @@ class LogWriter:
         if len(traces) == 0:
             return
         encoded = self.encoder.encode_traces(traces)
-        self.out.write("%s\n" % encoded)
+        self.out.write(encoded + "\n")
         self.out.flush()
 
 
