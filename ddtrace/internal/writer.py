@@ -116,10 +116,10 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 if result_traces_json and "rate_by_service" in result_traces_json:
                     if self._priority_sampler:
                         self._priority_sampler.update_rate_by_service_sample_rates(
-                            result_traces_json["rate_by_service"],
+                            result_traces_json["rate_by_service"]
                         )
                     if isinstance(self._sampler, BasePrioritySampler):
-                        self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"],)
+                        self._sampler.update_rate_by_service_sample_rates(result_traces_json["rate_by_service"])
 
         # Dump statistics
         # NOTE: Do not use the buffering of dogstatsd as it's not thread-safe
@@ -201,9 +201,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
                 response.msg,
             )
         else:
-            log_level(
-                prefix + "%s", self.api, response,
-            )
+            log_level(prefix + "%s", self.api, response)
 
     def _apply_filters(self, traces):
         """
