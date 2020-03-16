@@ -92,14 +92,6 @@ class JSONEncoderV2(JSONEncoder):
         return self.encode([JSONEncoderV2._convert_span(span) for span in trace])
 
     @staticmethod
-    def encode(obj):
-        return json.dumps(obj)
-
-    @staticmethod
-    def decode(data):
-        return json.loads(data)
-
-    @staticmethod
     def join_encoded(objs):
         """Join a list of encoded objects together as a json array"""
         return '{"traces":[' + ",".join(objs) + "]}"
@@ -115,7 +107,7 @@ class JSONEncoderV2(JSONEncoder):
     @staticmethod
     def _encode_id_to_hex(dd_id):
         if not dd_id:
-            return "%0.16X" % 0
+            return "0000000000000000"
         return "%0.16X" % int(dd_id)
 
     @staticmethod
