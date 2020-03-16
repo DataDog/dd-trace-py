@@ -10,7 +10,6 @@ from .. import _worker
 from ..internal.logger import get_logger
 from ..sampler import BasePrioritySampler
 from ..settings import config
-from ..vendor import monotonic
 from ..encoding import JSONEncoderV2
 from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
@@ -264,7 +263,6 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             log_level(
                 prefix + "%s", self.api, response,
             )
-
 
 
 class Q(Queue):

@@ -51,14 +51,12 @@ _INTERNAL_APPLICATION_SPAN_TYPES = [
     "web",
     "worker"
 ]
+
 def _is_agentless_environment():
     if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         # We are in an AWS Lambda environment
         return True
     return False
-
-
-_INTERNAL_APPLICATION_SPAN_TYPES = ["custom", "template", "web", "worker"]
 
 
 class Tracer(object):
