@@ -16,7 +16,7 @@ SUBPROC_TEST_ENV_ATTR = '_subproc_test_env'
 SUBPROC_ENV_VAR = 'SUBPROCESS_TEST'
 
 
-def run_in_subprocess(env_override=None):
+def run_in_subprocess(*args, env_override=None):
     """
     Marks a test case that is to be run in its own 'clean' interpreter instance.
 
@@ -63,7 +63,12 @@ def run_in_subprocess(env_override=None):
         if env_override is not None:
             setattr(obj, SUBPROC_TEST_ENV_ATTR, env_override)
         return obj
-    return wrapper
+
+    # Support both @run_in_subprocess and @run_in_subprocess(env_override=...) usage
+    if len(args) == 1 and callable(args[0]):
+        return wrapper(args[0])
+    else:
+        return wrapper
 
 
 class SubprocessTestCase(unittest.TestCase):
