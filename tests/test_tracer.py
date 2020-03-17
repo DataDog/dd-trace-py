@@ -17,6 +17,7 @@ from ddtrace.ext import system
 from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
+from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
 from .base import BaseTracerTestCase
 from .util import override_global_tracer
 from .utils.tracer import DummyTracer
@@ -25,6 +26,26 @@ from .utils.tracer import DummyWriter  # noqa
 
 def get_dummy_tracer():
     return DummyTracer()
+
+
+class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
+    """Tracer test cases requiring environment variables.
+    """
+    @run_in_subprocess(env_override=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env(self):
+        span = self.start_span("")
+        span.assert_matches(
+            service="mysvc",
+        )
+
+    @run_in_subprocess(env_override=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env_global_config(self):
+        # Global config should have higher precedence than the environment variable
+        with self.override_global_config(dict(service="overridesvc")):
+            span = self.start_span("")
+        span.assert_matches(
+            service="overridesvc",
+        )
 
 
 class TracerTestCase(BaseTracerTestCase):
@@ -387,6 +408,40 @@ class TracerTestCase(BaseTracerTestCase):
             service='web',
             resource='/',
             span_type='http',
+        )
+
+    def test_start_span_service_default(self):
+        span = self.start_span("")
+        span.assert_matches(
+            service=None
+        )
+
+    def test_start_span_service_from_parent(self):
+        with self.start_span("parent", service="mysvc") as parent:
+            child = self.start_span("child", child_of=parent)
+
+        child.assert_matches(
+            name="child",
+            service="mysvc",
+        )
+
+    def test_start_span_service_global_config(self):
+        # When no service is provided a default
+        with self.override_global_config(dict(service="mysvc")):
+            span = self.start_span("")
+            span.assert_matches(
+                service="mysvc"
+            )
+
+    def test_start_span_service_global_config_parent(self):
+        # Parent should have precedence over global config
+        with self.override_global_config(dict(service="mysvc")):
+            with self.start_span("parent", service="parentsvc") as parent:
+                child = self.start_span("child", child_of=parent)
+
+        child.assert_matches(
+            name="child",
+            service="parentsvc",
         )
 
     def test_start_child_span(self):

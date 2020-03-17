@@ -32,6 +32,8 @@ class Config(object):
 
         self.env = get_env("env")
 
+        self.service = get_env("service")
+
         self.version = get_env("version")
 
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
