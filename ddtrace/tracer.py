@@ -9,7 +9,7 @@ from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
-from .internal.writer import AgentWriter
+from .internal.writer import AgentWriter, LogWriter
 from .provider import DefaultContextProvider
 from .context import Context
 from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
@@ -53,6 +53,13 @@ _INTERNAL_APPLICATION_SPAN_TYPES = [
 ]
 
 
+def _is_agentless_environment():
+    if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        # We are in an AWS Lambda environment
+        return True
+    return False
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -90,6 +97,7 @@ class Tracer(object):
         https = None
         hostname = self.DEFAULT_HOSTNAME
         port = self.DEFAULT_PORT
+        writer = None
         if url is not None:
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ('http', 'https'):
@@ -108,6 +116,8 @@ class Tracer(object):
                 uds_path = url_parsed.path
             else:
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
+        elif _is_agentless_environment():
+            writer = LogWriter()
 
         # Apply the default configuration
         self.configure(
@@ -119,6 +129,7 @@ class Tracer(object):
             sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=dogstatsd_url,
+            writer=writer,
         )
 
         # globally set tags
@@ -177,10 +188,24 @@ class Tracer(object):
                                           category=RemovedInDDTrace10Warning)
     @debtcollector.removals.removed_kwarg("dogstatsd_port", "Use `dogstatsd_url` instead",
                                           category=RemovedInDDTrace10Warning)
-    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
-                  dogstatsd_url=None):
+    def configure(
+        self,
+        enabled=None,
+        hostname=None,
+        port=None,
+        uds_path=None,
+        https=None,
+        sampler=None,
+        context_provider=None,
+        wrap_executor=None,
+        priority_sampling=None,
+        settings=None,
+        collect_metrics=None,
+        dogstatsd_host=None,
+        dogstatsd_port=None,
+        dogstatsd_url=None,
+        writer=None,
+    ):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -230,8 +255,17 @@ class Tracer(object):
             self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
-        if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None or sampler is not None:
+        if writer:
+            self.writer = writer
+        elif (
+            hostname is not None
+            or port is not None
+            or uds_path is not None
+            or https is not None
+            or filters is not None
+            or priority_sampling is not None
+            or sampler is not None
+        ):
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
