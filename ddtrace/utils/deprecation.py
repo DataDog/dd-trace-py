@@ -1,7 +1,8 @@
 import os
 import warnings
-
 from functools import wraps
+
+from ddtrace.vendor import debtcollector
 
 
 class RemovedInDDTrace10Warning(DeprecationWarning):
@@ -71,7 +72,7 @@ def get_service_legacy(default=None):
     """
     for old_env_key in ["DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"]:
         if old_env_key in os.environ:
-            deprecation(
+            debtcollector.deprecate(
                 "'{}' is deprecated and will be removed in a future version. Please use DD_SERVICE instead.".format(
                     old_env_key
                 )

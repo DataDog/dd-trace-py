@@ -28,26 +28,6 @@ def get_dummy_tracer():
     return DummyTracer()
 
 
-class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
-    """Tracer test cases requiring environment variables.
-    """
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_env(self):
-        span = self.start_span("")
-        span.assert_matches(
-            service="mysvc",
-        )
-
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_service_name_env_global_config(self):
-        # Global config should have higher precedence than the environment variable
-        with self.override_global_config(dict(service="overridesvc")):
-            span = self.start_span("")
-        span.assert_matches(
-            service="overridesvc",
-        )
-
-
 class TracerTestCase(BaseTracerTestCase):
     def test_tracer_vars(self):
         span = self.trace('a', service='s', resource='r', span_type='t')
@@ -765,3 +745,43 @@ def test_tracer_with_env():
     with BaseTracerTestCase.override_global_config(dict(env='config.env')):
         with t.trace('test.span') as span:
             assert span.get_tag(ENV_KEY) == 'config.env'
+
+
+class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
+    """Tracer test cases requiring environment variables.
+    """
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env(self):
+        span = self.start_span("")
+        span.assert_matches(
+            service="mysvc",
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env_global_config(self):
+        # Global config should have higher precedence than the environment variable
+        with self.override_global_config(dict(service="overridesvc")):
+            span = self.start_span("")
+        span.assert_matches(
+            service="overridesvc",
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_VERSION="0.1.2"))
+    def test_version_no_service(self):
+        # Version should be set if no service name is present
+        span = self.start_span("")
+        span.assert_matches(
+            meta={
+                VERSION_KEY: "0.1.2",
+            },
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_VERSION="0.1.2"))
+    def test_version_service(self):
+        # Version should not be applied to spans of a service that isn't user-defined
+        span = self.start_span("", service="mysql")
+        assert VERSION_KEY not in span.meta
+
+        # But should be for other spans
+        span = self.start_span("")
+        assert VERSION_KEY in span.meta and span.meta[VERSION_KEY] == "0.1.2"
