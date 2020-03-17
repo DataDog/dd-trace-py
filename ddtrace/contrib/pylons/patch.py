@@ -1,4 +1,3 @@
-import os
 from ddtrace import config
 from ddtrace.vendor import wrapt
 import pylons.wsgiapp

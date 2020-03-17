@@ -1,5 +1,3 @@
-import os
-
 from .trace import TracePlugin
 
 import bottle

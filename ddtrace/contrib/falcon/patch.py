@@ -1,9 +1,7 @@
-import os
-from ddtrace import config
-from ddtrace.vendor import wrapt
 import falcon
 
-from ddtrace import tracer
+from ddtrace import config, tracer
+from ddtrace.vendor import wrapt
 
 from .middleware import TraceMiddleware
 from ...utils.formats import asbool, get_env

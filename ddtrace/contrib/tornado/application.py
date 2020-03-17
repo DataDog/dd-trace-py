@@ -1,5 +1,3 @@
-import os
-
 import ddtrace
 from ddtrace import config
 

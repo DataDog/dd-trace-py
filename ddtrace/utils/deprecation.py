@@ -71,7 +71,11 @@ def get_service_legacy(default=None):
     """
     for old_env_key in ["DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"]:
         if old_env_key in os.environ:
-            deprecation("'{}' is deprecated and will be removed in a future version. Please use DD_SERVICE instead.".format(old_env_key))
+            deprecation(
+                "'{}' is deprecated and will be removed in a future version. Please use DD_SERVICE instead.".format(
+                    old_env_key
+                )
+            )
             return os.getenv(old_env_key)
 
     return default

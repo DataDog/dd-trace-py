@@ -112,7 +112,7 @@ class Config(object):
         """
         return self._http.header_is_traced(header_name)
 
-    def get_service(default=None):
+    def get_service(self, default=None):
         return self.service if self.service is not None else get_service_legacy(default=default)
 
     def __repr__(self):

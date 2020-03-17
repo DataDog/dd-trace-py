@@ -1,5 +1,3 @@
-import os
-
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import (
     SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING,
