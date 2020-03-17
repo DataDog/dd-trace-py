@@ -351,12 +351,12 @@ class Tracer(object):
             trace_id = context.trace_id
             parent_span_id = context.span_id
 
-        # The following precedence is used for a new span's ``service``:
-        # 1. user-provided service;
-        # 2. integration-provided default service;
-        # 3. parent (if it exists) service;
-        # 4. globally defined service ``config.service``;
-        # 5. DD_SERVICE environment variable;
+        # The following precedence is used for a new span's service:
+        # 1. Explicitly provided service name
+        #     a. User provided or integration provided service name
+        # 2. Parent's service name (if defined)
+        # 3. Globally configured service name
+        #     a. `config.service`/`DD_SERVICE`
         if service is None:
             if parent:
                 service = parent.service
@@ -431,8 +431,15 @@ class Tracer(object):
         # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
         if config.env:
             span.set_tag(ENV_KEY, config.env)
-        if service == config.service and config.version:
-            span.set_tag(VERSION_KEY, config.version)
+        if config.version:
+            root_span = self.current_root_span()
+            # if: 1. the span is the root span and the span's service matches the global config; or
+            #     2. the span is not the root, but the root span's service matches the span's service
+            #        and the root span has a version tag
+            # then the span belongs to the user application and so set the version tag
+            if (root_span is None and service == config.service) or \
+               (root_span and root_span.service == service and VERSION_KEY in root_span.meta):
+                span.set_tag(VERSION_KEY, config.version)
 
         if not span._parent:
             span.set_tag(system.PID, getpid())

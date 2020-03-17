@@ -767,21 +767,42 @@ class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
         )
 
     @run_in_subprocess(env_overrides=dict(DD_VERSION="0.1.2"))
-    def test_version_no_service(self):
+    def test_version_no_global_service(self):
         # Version should be set if no service name is present
-        span = self.start_span("")
-        span.assert_matches(
-            meta={
-                VERSION_KEY: "0.1.2",
-            },
-        )
+        with self.trace("") as span:
+            span.assert_matches(
+                meta={
+                    VERSION_KEY: "0.1.2",
+                },
+            )
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_VERSION="0.1.2"))
+        # The version will not be tagged if the service is not globally
+        # configured.
+        with self.trace("root", service="rootsvc") as root:
+            assert VERSION_KEY not in root.meta
+            with self.trace("child") as span:
+                assert VERSION_KEY not in span.meta
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
     def test_version_service(self):
-        # Version should not be applied to spans of a service that isn't user-defined
-        span = self.start_span("", service="mysql")
-        assert VERSION_KEY not in span.meta
+        # Fleshed out example of service and version tagging
 
-        # But should be for other spans
-        span = self.start_span("")
-        assert VERSION_KEY in span.meta and span.meta[VERSION_KEY] == "0.1.2"
+        # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
+
+        with self.trace("django.request") as root:
+            # Root span should be tagged
+            assert root.service == "django"
+            assert VERSION_KEY in root.meta and root.meta[VERSION_KEY] == "0.1.2"
+
+            # Child spans should be tagged
+            with self.trace("") as child1:
+                assert child1.service == "django"
+                assert VERSION_KEY in child1.meta and child1.meta[VERSION_KEY] == "0.1.2"
+
+            # Version should not be applied to spans of a service that isn't user-defined
+            with self.trace("mysql.query", service="mysql") as span:
+                assert VERSION_KEY not in span.meta
+                # Child should also not have a version
+                with self.trace("") as child2:
+                    assert child2.service == "mysql"
+                    assert VERSION_KEY not in child2.meta
