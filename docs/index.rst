@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 2.7, 3.4 and above.
+We officially support Python 2.7, 3.5 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
