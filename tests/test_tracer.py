@@ -31,14 +31,14 @@ def get_dummy_tracer():
 class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
     """Tracer test cases requiring environment variables.
     """
-    @run_in_subprocess(env_override=dict(DD_SERVICE="mysvc"))
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
         span = self.start_span("")
         span.assert_matches(
             service="mysvc",
         )
 
-    @run_in_subprocess(env_override=dict(DD_SERVICE="mysvc"))
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env_global_config(self):
         # Global config should have higher precedence than the environment variable
         with self.override_global_config(dict(service="overridesvc")):
