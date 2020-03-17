@@ -4,6 +4,7 @@ from .trace import TracePlugin
 
 import bottle
 
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 
@@ -20,7 +21,7 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
-    service = os.environ.get('DATADOG_SERVICE_NAME') or 'bottle'
+    service = config.get_service(default="bottle")
 
     plugin = TracePlugin(service=service)
     instance.install(plugin)

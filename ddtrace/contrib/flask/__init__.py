@@ -49,7 +49,7 @@ Configuration
 
    The service name reported for your Flask app.
 
-   Can also be configured via the ``DATADOG_SERVICE_NAME`` environment variable.
+   Can also be configured via the ``DD_SERVICE`` environment variable.
 
    Default: ``'flask'``
 

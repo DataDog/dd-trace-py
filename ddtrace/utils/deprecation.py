@@ -1,3 +1,4 @@
+import os
 import warnings
 
 from functools import wraps
@@ -59,3 +60,18 @@ def deprecated(message="", version=None):
         return wrapper
 
     return decorator
+
+
+def get_service_legacy(default=None):
+    """Helper to print out a warning if old service name environment variables
+    are used.
+
+    If the environment variables are not in use, no deprecation warning is
+    produced and `default` is returned.
+    """
+    for old_env_key in ["DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"]:
+        if old_env_key in os.environ:
+            deprecation("'{}' is deprecated and will be removed in a future version. Please use DD_SERVICE instead.".format(old_env_key))
+            return os.getenv(old_env_key)
+
+    return default
