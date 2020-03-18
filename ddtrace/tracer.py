@@ -351,13 +351,21 @@ class Tracer(object):
             trace_id = context.trace_id
             parent_span_id = context.span_id
 
+        # The following precedence is used for a new span's service:
+        # 1. Explicitly provided service name
+        #     a. User provided or integration provided service name
+        # 2. Parent's service name (if defined)
+        # 3. Globally configured service name
+        #     a. `config.service`/`DD_SERVICE`
+        if service is None:
+            if parent:
+                service = parent.service
+            else:
+                # ``config`` is initialized with DD_SERVICE env var if it exists.
+                service = config.service
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
-
-            # when not provided, inherit from parent's service
-            if parent:
-                service = service or parent.service
-
             span = Span(
                 self,
                 name,
@@ -421,20 +429,20 @@ class Tracer(object):
 
         # Add env, service, and version tags
         # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
-        dd_tags = {}
         if config.env:
-            dd_tags[ENV_KEY] = config.env
-        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
+            span.set_tag(ENV_KEY, config.env)
         if config.version:
-            dd_tags[VERSION_KEY] = config.version
-        span.set_tags(dd_tags)
+            root_span = self.current_root_span()
+            # if: 1. the span is the root span and the span's service matches the global config; or
+            #     2. the span is not the root, but the root span's service matches the span's service
+            #        and the root span has a version tag
+            # then the span belongs to the user application and so set the version tag
+            if (root_span is None and service == config.service) or \
+               (root_span and root_span.service == service and VERSION_KEY in root_span.meta):
+                span.set_tag(VERSION_KEY, config.version)
 
         if not span._parent:
             span.set_tag(system.PID, getpid())
-        # Set `version` tag based on `DD_VERSION` or configured `config.version` setting
-        # TODO: Only set this if `service` == `config.service` (`DD_SERVICE`)
-        if config.version:
-            span.set_tag(VERSION_KEY, config.version)
 
         # add it to the current context
         context.add_span(span)
