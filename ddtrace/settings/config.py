@@ -113,6 +113,18 @@ class Config(object):
         return self._http.header_is_traced(header_name)
 
     def get_service(self, default=None):
+        """
+        Returns the globally configured service.
+
+        If a service is not configured globally, attempts to get the service
+        using the legacy environment variables via ``get_service_legacy``
+        else ``default`` is returned.
+
+        :param default: the default service to use if none is configured or
+            found.
+        :type default: str
+        :rtype: str|None
+        """
         return self.service if self.service is not None else get_service_legacy(default=default)
 
     def __repr__(self):
