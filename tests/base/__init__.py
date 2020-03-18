@@ -37,20 +37,32 @@ class BaseTestCase(unittest.TestCase):
             >>> with self.override_global_config(dict(name=value,...)):
                 # Your test
         """
-        # DEV: Uses dict as interface but internally handled as attributes on Config instance
-        analytics_enabled_original = ddtrace.config.analytics_enabled
-        report_hostname_original = ddtrace.config.report_hostname
-        health_metrics_enabled_original = ddtrace.config.health_metrics_enabled
+        # List of global variables we allow overriding
+        # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
+        global_config_keys = [
+            "analytics_enabled",
+            "report_hostname",
+            "health_metrics_enabled",
+            "env",
+            "version",
+            "service",
+        ]
 
-        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
-        ddtrace.config.report_hostname = values.get('report_hostname', report_hostname_original)
-        ddtrace.config.health_metrics_enabled = values.get('health_metrics_enabled', health_metrics_enabled_original)
+        # Grab the current values of all keys
+        originals = dict(
+            (key, getattr(ddtrace.config, key)) for key in global_config_keys
+        )
+
+        # Override from the passed in keys
+        for key, value in values.items():
+            if key in global_config_keys:
+                setattr(ddtrace.config, key, value)
         try:
             yield
         finally:
-            ddtrace.config.analytics_enabled = analytics_enabled_original
-            ddtrace.config.report_hostname = report_hostname_original
-            ddtrace.config.health_metrics_enabled = health_metrics_enabled_original
+            # Reset all to their original values
+            for key, value in originals.items():
+                setattr(ddtrace.config, key, value)
 
     @staticmethod
     @contextlib.contextmanager

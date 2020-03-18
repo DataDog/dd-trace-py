@@ -9,7 +9,7 @@ from ddtrace.vendor.wrapt import ObjectProxy
 # project
 import ddtrace
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, mongo as mongox, net as netx
 from ...internal.logger import get_logger
 from ...settings import config
@@ -103,6 +103,7 @@ class TracedServer(ObjectProxy):
             return None
 
         span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB, service=pin.service)
+        span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(mongox.DB, cmd.db)
         span.set_tag(mongox.COLLECTION, cmd.coll)
         span.set_tags(cmd.tags)
@@ -224,6 +225,7 @@ class TracedSocket(ObjectProxy):
             span_type=SpanTypes.MONGODB,
             service=pin.service)
 
+        s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
             s.set_tag(mongox.DB, cmd.db)
         if cmd:

@@ -10,6 +10,7 @@ from ddtrace.ext import errors
 from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -63,6 +64,7 @@ class GrpcTestCase(BaseTracerTestCase):
         self._server.stop(0)
 
     def _check_client_span(self, span, service, method_name, method_kind):
+        assert_is_measured(span)
         assert span.name == 'grpc'
         assert span.resource == '/helloworld.Hello/{}'.format(method_name)
         assert span.service == service
@@ -78,6 +80,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert span.get_tag('grpc.port') == '50531'
 
     def _check_server_span(self, span, service, method_name, method_kind):
+        assert_is_measured(span)
         assert span.name == 'grpc'
         assert span.resource == '/helloworld.Hello/{}'.format(method_name)
         assert span.service == service

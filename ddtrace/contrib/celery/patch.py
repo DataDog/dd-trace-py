@@ -9,8 +9,8 @@ from ...utils.formats import get_env
 
 # Celery default settings
 config._add('celery', {
-    'producer_service_name': get_env('celery', 'producer_service_name', PRODUCER_SERVICE),
-    'worker_service_name': get_env('celery', 'worker_service_name', WORKER_SERVICE),
+    'producer_service_name': get_env('celery', 'producer_service_name', default=PRODUCER_SERVICE),
+    'worker_service_name': get_env('celery', 'worker_service_name', default=WORKER_SERVICE),
 })
 
 
