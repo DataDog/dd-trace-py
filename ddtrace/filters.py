@@ -4,7 +4,8 @@ from .ext import http
 
 
 class FilterRequestsOnUrl(object):
-    """Filter out traces from incoming http requests based on the request's url.
+    r"""Filter out traces from incoming http requests based on the request's url.
+
     This class takes as argument a list of regular expression patterns
     representing the urls to be excluded from tracing. A trace will be excluded
     if its root span contains a ``http.url`` tag and if this tag matches any of
@@ -15,7 +16,6 @@ class FilterRequestsOnUrl(object):
                          the urls that should be filtered out.
 
     Examples:
-
     To filter out http calls to domain api.example.com::
 
         FilterRequestsOnUrl(r'http://api\\.example\\.com')

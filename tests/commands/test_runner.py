@@ -22,19 +22,29 @@ def inject_sitecustomize(path):
     env = os.environ.copy()
     sitecustomize = os.path.join(root_folder, '..', path)
 
-    # Add `boostrap` module so that `sitecustomize.py` is at the bottom
-    # of the PYTHONPATH
-    python_path = list(sys.path) + [sitecustomize]
-    env['PYTHONPATH'] = ':'.join(python_path)[1:]
+    # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
+    # if `import sitecustomize` is run that it'll be the one we specify
+    python_path = [sitecustomize] + list(sys.path)
+    env['PYTHONPATH'] = ':'.join(python_path)
     return env
 
 
 class DdtraceRunTest(BaseTestCase):
-    def test_service_name_passthrough(self):
+    def test_service_name_passthrough_legacy(self):
         """
         $DATADOG_SERVICE_NAME gets passed through to the program
         """
         with self.override_env(dict(DATADOG_SERVICE_NAME='my_test_service')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_service_name_passthrough(self):
+        """
+        $DD_SERVICE gets passed through to the program
+        """
+        with self.override_env(dict(DD_SERVICE='my_test_service')):
             out = subprocess.check_output(
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
             )
@@ -83,7 +93,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_debug_enabling(self):
         """
-        DATADOG_TRACE_DEBUG=true allows setting debug_logging of the global tracer
+        DATADOG_TRACE_DEBUG=true allows setting debug logging of the global tracer
         """
         with self.override_env(dict(DATADOG_TRACE_DEBUG='false')):
             out = subprocess.check_output(
@@ -127,14 +137,52 @@ class DdtraceRunTest(BaseTestCase):
             )
             assert out.startswith(b'Test success')
 
-    def test_runtime_metrics(self):
+    def test_dogstatsd_client_env_host_and_port(self):
         """
-        DD_AGENT_HOST|DD_DOGSTATSD_PORT point to the tracer
-        to the correct host/port for submission
+        DD_AGENT_HOST and DD_DOGSTATSD_PORT used to configure dogstatsd with udp in tracer
         """
-        with self.override_env(dict(DD_RUNTIME_METRICS_ENABLED='True',
-                                    DD_AGENT_HOST='172.10.0.1',
+        with self.override_env(dict(DD_AGENT_HOST='172.10.0.1',
                                     DD_DOGSTATSD_PORT='8120')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_host_and_port(self):
+        """
+        DD_DOGSTATSD_URL=<host>:<port> used to configure dogstatsd with udp in tracer
+        """
+        with self.override_env(dict(DD_DOGSTATSD_URL='172.10.0.1:8120')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_udp(self):
+        """
+        DD_DOGSTATSD_URL=udp://<host>:<port> used to configure dogstatsd with udp in tracer
+        """
+        with self.override_env(dict(DD_DOGSTATSD_URL='udp://172.10.0.1:8120')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_unix(self):
+        """
+        DD_DOGSTATSD_URL=unix://<path> used to configure dogstatsd with socket path in tracer
+        """
+        with self.override_env(dict(DD_DOGSTATSD_URL='unix:///dogstatsd.sock')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_dogstatsd_client_env_url_path(self):
+        """
+        DD_DOGSTATSD_URL=<path> used to configure dogstatsd with socket path in tracer
+        """
+        with self.override_env(dict(DD_DOGSTATSD_URL='/dogstatsd.sock')):
             out = subprocess.check_output(
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_dogstatsd.py']
             )

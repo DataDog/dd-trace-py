@@ -1,4 +1,4 @@
-"""To trace requests from a Pyramid application, trace your application
+r"""To trace requests from a Pyramid application, trace your application
 config::
 
 

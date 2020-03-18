@@ -16,12 +16,22 @@ class HelloStub(object):
       channel: A grpc.Channel.
     """
     self.SayHello = channel.unary_unary(
-        '/Hello/SayHello',
+        '/helloworld.Hello/SayHello',
         request_serializer=hello__pb2.HelloRequest.SerializeToString,
         response_deserializer=hello__pb2.HelloReply.FromString,
         )
-    self.SayError = channel.unary_unary(
-        '/Hello/SayError',
+    self.SayHelloTwice = channel.unary_stream(
+        '/helloworld.Hello/SayHelloTwice',
+        request_serializer=hello__pb2.HelloRequest.SerializeToString,
+        response_deserializer=hello__pb2.HelloReply.FromString,
+        )
+    self.SayHelloRepeatedly = channel.stream_stream(
+        '/helloworld.Hello/SayHelloRepeatedly',
+        request_serializer=hello__pb2.HelloRequest.SerializeToString,
+        response_deserializer=hello__pb2.HelloReply.FromString,
+        )
+    self.SayHelloLast = channel.stream_unary(
+        '/helloworld.Hello/SayHelloLast',
         request_serializer=hello__pb2.HelloRequest.SerializeToString,
         response_deserializer=hello__pb2.HelloReply.FromString,
         )
@@ -38,7 +48,21 @@ class HelloServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def SayError(self, request, context):
+  def SayHelloTwice(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def SayHelloRepeatedly(self, request_iterator, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def SayHelloLast(self, request_iterator, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -53,12 +77,22 @@ def add_HelloServicer_to_server(servicer, server):
           request_deserializer=hello__pb2.HelloRequest.FromString,
           response_serializer=hello__pb2.HelloReply.SerializeToString,
       ),
-      'SayError': grpc.unary_unary_rpc_method_handler(
-          servicer.SayError,
+      'SayHelloTwice': grpc.unary_stream_rpc_method_handler(
+          servicer.SayHelloTwice,
+          request_deserializer=hello__pb2.HelloRequest.FromString,
+          response_serializer=hello__pb2.HelloReply.SerializeToString,
+      ),
+      'SayHelloRepeatedly': grpc.stream_stream_rpc_method_handler(
+          servicer.SayHelloRepeatedly,
+          request_deserializer=hello__pb2.HelloRequest.FromString,
+          response_serializer=hello__pb2.HelloReply.SerializeToString,
+      ),
+      'SayHelloLast': grpc.stream_unary_rpc_method_handler(
+          servicer.SayHelloLast,
           request_deserializer=hello__pb2.HelloRequest.FromString,
           response_serializer=hello__pb2.HelloReply.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
-      'Hello', rpc_method_handlers)
+      'helloworld.Hello', rpc_method_handlers)
   server.add_generic_rpc_handlers((generic_handler,))

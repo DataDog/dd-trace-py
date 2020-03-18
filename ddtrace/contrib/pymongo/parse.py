@@ -112,8 +112,31 @@ def parse_msg(msg_bytes):
         # If the command didn't contain namespace info, set it here.
         if not cmd.coll:
             cmd.coll = coll
+    elif op == 'msg':
+        # Skip header and flag bits
+        offset += 4
 
-    cmd.metrics[netx.BYTES_OUT] = msg_len
+        # Parse the msg kind
+        kind = ord(msg_bytes[offset:offset + 1])
+        offset += 1
+
+        # Kinds: https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#sections
+        #   - 0: BSON Object
+        #   - 1: Document Sequence
+        if kind == 0:
+            if msg_len <= MAX_MSG_PARSE_LEN:
+                codec = CodecOptions(SON)
+                spec = next(bson.decode_iter(msg_bytes[offset:], codec_options=codec))
+                cmd = parse_spec(spec, db)
+            else:
+                # let's still note that a command happened.
+                cmd = Command('command', db, 'untraced_message_too_large')
+        else:
+            # let's still note that a command happened.
+            cmd = Command('command', db, 'unsupported_msg_kind')
+
+    if cmd:
+        cmd.metrics[netx.BYTES_OUT] = msg_len
     return cmd
 
 
@@ -145,7 +168,7 @@ def parse_spec(spec, db=None):
     if not items:
         return None
     name, coll = items[0]
-    cmd = Command(name, db, coll)
+    cmd = Command(name, db or spec.get('$db'), coll)
 
     if 'ordered' in spec:  # in insert and update
         cmd.tags['mongodb.ordered'] = spec['ordered']

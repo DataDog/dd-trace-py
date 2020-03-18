@@ -13,6 +13,7 @@ import threading
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .settings import config
 
 
 log = get_logger(__name__)
@@ -25,6 +26,8 @@ PATCH_MODULES = {
     'bottle': False,
     'cassandra': True,
     'celery': True,
+    'consul': True,
+    'django': True,
     'elasticsearch': True,
     'algoliasearch': True,
     'futures': False,  # experimental propagation
@@ -38,6 +41,7 @@ PATCH_MODULES = {
     'pymemcache': True,
     'pymongo': True,
     'redis': True,
+    'rediscluster': True,
     'requests': True,
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
@@ -53,13 +57,12 @@ PATCH_MODULES = {
     'kombu': False,
 
     # Ignore some web framework integrations that might be configured explicitly in code
-    'django': False,
     'falcon': False,
     'pylons': False,
     'pyramid': False,
 
-    # Standard library modules off by default
-    'logging': False,
+    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    'logging': config.logs_injection,
 }
 
 _LOCK = threading.Lock()
@@ -148,10 +151,10 @@ def patch_module(module, raise_errors=True):
     """
     try:
         return _patch_module(module)
-    except Exception as exc:
+    except Exception:
         if raise_errors:
             raise
-        log.debug('failed to patch %s: %s', module, exc)
+        log.debug('failed to patch %s', module, exc_info=True)
         return False
 
 

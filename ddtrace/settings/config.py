@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from ..internal.logger import get_logger
 from ..pin import Pin
+from ..utils.deprecation import get_service_legacy
 from ..utils.formats import asbool
 from ..utils.merge import deepmerge
 from .http import HttpConfig
@@ -30,8 +31,17 @@ class Config(object):
             get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
+        self.env = get_env("env")
+        self.service = get_env("service")
+        self.version = get_env("version")
+        self.logs_injection = asbool(get_env("logs", "injection", default=False))
+
         self.report_hostname = asbool(
             get_env('trace', 'report_hostname', default=False)
+        )
+
+        self.health_metrics_enabled = asbool(
+            get_env('trace', 'health_metrics_enabled', default=False)
         )
 
     def __getattr__(self, name):
@@ -101,6 +111,21 @@ class Config(object):
         :rtype: bool
         """
         return self._http.header_is_traced(header_name)
+
+    def get_service(self, default=None):
+        """
+        Returns the globally configured service.
+
+        If a service is not configured globally, attempts to get the service
+        using the legacy environment variables via ``get_service_legacy``
+        else ``default`` is returned.
+
+        :param default: the default service to use if none is configured or
+            found.
+        :type default: str
+        :rtype: str|None
+        """
+        return self.service if self.service is not None else get_service_legacy(default=default)
 
     def __repr__(self):
         cls = self.__class__

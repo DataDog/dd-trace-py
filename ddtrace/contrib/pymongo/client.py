@@ -9,10 +9,8 @@ from ddtrace.vendor.wrapt import ObjectProxy
 # project
 import ddtrace
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import AppTypes
-from ...ext import mongo as mongox
-from ...ext import net as netx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, mongo as mongox, net as netx
 from ...internal.logger import get_logger
 from ...settings import config
 from ...utils.deprecation import deprecated
@@ -25,7 +23,7 @@ log = get_logger(__name__)
 
 
 @deprecated(message='Use patching instead (see the docs).', version='1.0.0')
-def trace_mongo_client(client, tracer, service=mongox.TYPE):
+def trace_mongo_client(client, tracer, service=mongox.SERVICE):
     traced_client = TracedMongoClient(client)
     ddtrace.Pin(service=service, tracer=tracer).onto(traced_client)
     return traced_client
@@ -62,7 +60,7 @@ class TracedMongoClient(ObjectProxy):
         client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.TYPE, app=mongox.TYPE, app_type=AppTypes.db).onto(self)
+        ddtrace.Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -90,7 +88,7 @@ class TracedServer(ObjectProxy):
     def __init__(self, server):
         super(TracedServer, self).__init__(server)
 
-    def send_message_with_response(self, operation, *args, **kwargs):
+    def _datadog_trace_operation(self, operation):
         cmd = None
         # Only try to parse something we think is a query.
         if self._is_query(operation):
@@ -100,40 +98,72 @@ class TracedServer(ObjectProxy):
                 log.exception('error parsing query')
 
         pin = ddtrace.Pin.get_from(self)
-
         # if we couldn't parse or shouldn't trace the message, just go.
         if not cmd or not pin or not pin.enabled():
-            return self.__wrapped__.send_message_with_response(
+            return None
+
+        span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB, service=pin.service)
+        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(mongox.DB, cmd.db)
+        span.set_tag(mongox.COLLECTION, cmd.coll)
+        span.set_tags(cmd.tags)
+
+        # set `mongodb.query` tag and resource for span
+        _set_query_metadata(span, cmd)
+
+        # set analytics sample rate
+        sample_rate = config.pymongo.get_analytics_sample_rate()
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+        return span
+
+    # Pymongo >= 3.9
+    def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
+        span = self._datadog_trace_operation(operation)
+        if not span:
+            return self.__wrapped__.run_operation_with_response(
+                sock_info,
                 operation,
                 *args,
-                **kwargs)
-
-        with pin.tracer.trace(
-                'pymongo.cmd',
-                span_type=mongox.TYPE,
-                service=pin.service) as span:
-
-            span.set_tag(mongox.DB, cmd.db)
-            span.set_tag(mongox.COLLECTION, cmd.coll)
-            span.set_tags(cmd.tags)
-
-            # set `mongodb.query` tag and resource for span
-            _set_query_metadata(span, cmd)
-
-            # set analytics sample rate
-            span.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                config.pymongo.get_analytics_sample_rate()
+                **kwargs
             )
 
-            result = self.__wrapped__.send_message_with_response(
+        try:
+            result = self.__wrapped__.run_operation_with_response(
+                sock_info,
                 operation,
                 *args,
-                **kwargs)
+                **kwargs
+            )
 
             if result and result.address:
                 _set_address_tags(span, result.address)
             return result
+        finally:
+            span.finish()
+
+    # Pymongo < 3.9
+    def send_message_with_response(self, operation, *args, **kwargs):
+        span = self._datadog_trace_operation(operation)
+        if not span:
+            return self.__wrapped__.send_message_with_response(
+                operation,
+                *args,
+                **kwargs
+            )
+
+        try:
+            result = self.__wrapped__.send_message_with_response(
+                operation,
+                *args,
+                **kwargs
+            )
+
+            if result and result.address:
+                _set_address_tags(span, result.address)
+            return result
+        finally:
+            span.finish()
 
     @contextlib.contextmanager
     def get_socket(self, *args, **kwargs):
@@ -192,9 +222,10 @@ class TracedSocket(ObjectProxy):
         pin = ddtrace.Pin.get_from(self)
         s = pin.tracer.trace(
             'pymongo.cmd',
-            span_type=mongox.TYPE,
+            span_type=SpanTypes.MONGODB,
             service=pin.service)
 
+        s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
             s.set_tag(mongox.DB, cmd.db)
         if cmd:

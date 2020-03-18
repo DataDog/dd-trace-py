@@ -3,8 +3,8 @@ from ddtrace.vendor import wrapt
 
 # Project
 from ...compat import PY2, httplib, parse
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http as ext_http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http as ext_http
 from ...http import store_request_headers, store_response_headers
 from ...internal.logger import get_logger
 from ...pin import Pin
@@ -17,7 +17,7 @@ log = get_logger(__name__)
 
 
 def _wrap_init(func, instance, args, kwargs):
-    Pin(app='httplib', service=None, app_type=ext_http.TYPE).onto(instance)
+    Pin(app='httplib', service=None).onto(instance)
     return func(*args, **kwargs)
 
 
@@ -55,7 +55,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = pin.tracer.trace(span_name, span_type=ext_http.TYPE)
+        span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
+        span.set_tag(SPAN_MEASURED_KEY)
         setattr(instance, '_datadog_span', span)
 
         method, path = args[:2]
@@ -79,6 +80,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         span.set_tag(ext_http.URL, sanitized_url)
         span.set_tag(ext_http.METHOD, method)
+        if config.httplib.trace_query_string:
+            span.set_tag(ext_http.QUERY_STRING, parsed.query)
 
         # set analytics sample rate
         span.set_tag(

@@ -86,7 +86,7 @@ def test_tracer_large_trace(benchmark, tracer):
         span.set_tag('num', num)
 
         if level < 10:
-            func(tracer, level+1)
-            func(tracer, level+1)
+            func(tracer, level + 1)
+            func(tracer, level + 1)
 
     benchmark(func, tracer)

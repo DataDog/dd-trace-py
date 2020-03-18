@@ -30,7 +30,7 @@ class TestTracerGevent(object):
         with ot_tracer.start_span('span') as span:
             span.set_tag('tag', 'value')
 
-        assert span._finished
+        assert span.finished
 
     def test_greenlets(self, ot_tracer, writer):
         def f():

@@ -8,6 +8,7 @@ from tests.opentracer.utils import init_tracer
 from ..config import MYSQL_CONFIG
 from ...base import BaseTracerTestCase
 from ...util import assert_dict_issuperset
+from ...utils import assert_is_measured
 
 
 class MySQLCore(object):
@@ -49,13 +50,14 @@ class MySQLCore(object):
         assert len(spans) == 1
 
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == 3306
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -72,13 +74,14 @@ class MySQLCore(object):
             assert len(spans) == 2
 
             span = spans[0]
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == 3306
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -96,13 +99,14 @@ class MySQLCore(object):
         assert len(spans) == 1
 
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == 3306
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -119,13 +123,14 @@ class MySQLCore(object):
             assert len(spans) == 2
 
             span = spans[0]
+            assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == 3306
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -263,13 +268,14 @@ class MySQLCore(object):
         # typically, internal calls to execute, but at least we
         # can expect the next to the last closed span to be our proc.
         span = spans[-2]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'mysql.query'
         assert span.span_type == 'sql'
         assert span.error == 0
+        assert span.get_metric('out.port') == 3306
         assert_dict_issuperset(span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -297,13 +303,14 @@ class MySQLCore(object):
         assert ot_span.service == 'mysql_svc'
         assert ot_span.name == 'mysql_op'
 
+        assert_is_measured(dd_span)
         assert dd_span.service == self.TEST_SERVICE
         assert dd_span.name == 'mysql.query'
         assert dd_span.span_type == 'sql'
         assert dd_span.error == 0
+        assert dd_span.get_metric('out.port') == 3306
         assert_dict_issuperset(dd_span.meta, {
             'out.host': u'127.0.0.1',
-            'out.port': u'3306',
             'db.name': u'test',
             'db.user': u'test',
         })
@@ -331,13 +338,14 @@ class MySQLCore(object):
             assert ot_span.service == 'mysql_svc'
             assert ot_span.name == 'mysql_op'
 
+            assert_is_measured(dd_span)
             assert dd_span.service == self.TEST_SERVICE
             assert dd_span.name == 'mysql.query'
             assert dd_span.span_type == 'sql'
             assert dd_span.error == 0
+            assert dd_span.get_metric('out.port') == 3306
             assert_dict_issuperset(dd_span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })
@@ -486,9 +494,9 @@ class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
             assert span.name == 'mysql.query'
             assert span.span_type == 'sql'
             assert span.error == 0
+            assert span.get_metric('out.port') == 3306
             assert_dict_issuperset(span.meta, {
                 'out.host': u'127.0.0.1',
-                'out.port': u'3306',
                 'db.name': u'test',
                 'db.user': u'test',
             })

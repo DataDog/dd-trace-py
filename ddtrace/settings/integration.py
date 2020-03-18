@@ -44,13 +44,19 @@ class IntegrationConfig(AttrDict):
         if analytics_enabled_env is not None:
             analytics_enabled_env = asbool(analytics_enabled_env)
         self.setdefault('analytics_enabled', analytics_enabled_env)
-        self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', 1.0)))
+        self.setdefault('analytics_sample_rate', float(get_env(name, 'analytics_sample_rate', default=1.0)))
 
     def __deepcopy__(self, memodict=None):
         new = IntegrationConfig(self.global_config, deepcopy(dict(self)))
         new.hooks = deepcopy(self.hooks)
         new.http = deepcopy(self.http)
         return new
+
+    @property
+    def trace_query_string(self):
+        if self.http.trace_query_string is not None:
+            return self.http.trace_query_string
+        return self.global_config._http.trace_query_string
 
     def header_is_traced(self, header_name):
         """
@@ -82,10 +88,14 @@ class IntegrationConfig(AttrDict):
         if self._is_analytics_enabled(use_global_config):
             analytics_sample_rate = getattr(self, 'analytics_sample_rate', None)
             # return True if attribute is None or attribute not found
-            if not analytics_sample_rate:
+            if analytics_sample_rate is None:
                 return True
             # otherwise return rate
             return analytics_sample_rate
+
+        # Use `None` as a way to say that it was not defined,
+        #   `False` would mean `0` which is a different thing
+        return None
 
     def __repr__(self):
         cls = self.__class__

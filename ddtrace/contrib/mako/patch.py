@@ -1,7 +1,8 @@
 import mako
 from mako.template import Template
 
-from ...ext import http
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
 from ...pin import Pin
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
@@ -15,7 +16,7 @@ def patch():
         return
     setattr(mako, '__datadog_patch', True)
 
-    Pin(service='mako', app='mako', app_type=http.TEMPLATE).onto(Template)
+    Pin(service='mako', app='mako').onto(Template)
 
     _w(mako, 'template.Template.render', _wrap_render)
     _w(mako, 'template.Template.render_unicode', _wrap_render)
@@ -38,7 +39,8 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = instance.filename or DEFAULT_TEMPLATE_NAME
-    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=http.TEMPLATE) as span:
+    with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         try:
             template = wrapped(*args, **kwargs)
             return template

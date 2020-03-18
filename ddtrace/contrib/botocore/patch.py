@@ -7,9 +7,9 @@ from ddtrace import config
 import botocore.client
 
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
 
@@ -17,7 +17,6 @@ from ...utils.wrappers import unwrap
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
 
-SPAN_TYPE = 'http'
 ARGS_NAME = ('action', 'params', 'path', 'verb')
 TRACED_ARGS = ['params', 'path', 'verb']
 
@@ -28,7 +27,7 @@ def patch():
     setattr(botocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('botocore.client', 'BaseClient._make_api_call', patched_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(botocore.client.BaseClient)
+    Pin(service='aws', app='aws').onto(botocore.client.BaseClient)
 
 
 def unpatch():
@@ -47,8 +46,8 @@ def patched_api_call(original_func, instance, args, kwargs):
 
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service='{}.{}'.format(pin.service, endpoint_name),
-                          span_type=SPAN_TYPE) as span:
-
+                          span_type=SpanTypes.HTTP) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
         operation = None
         if args:
             operation = args[0]
@@ -70,8 +69,16 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         result = original_func(*args, **kwargs)
 
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag('retry_attempts', result['ResponseMetadata']['RetryAttempts'])
+        response_meta = result['ResponseMetadata']
+
+        if 'HTTPStatusCode' in response_meta:
+            span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
+
+        if 'RetryAttempts' in response_meta:
+            span.set_tag('retry_attempts', response_meta['RetryAttempts'])
+
+        if 'RequestId' in response_meta:
+            span.set_tag('aws.requestid', response_meta['RequestId'])
 
         # set analytics sample rate
         span.set_tag(

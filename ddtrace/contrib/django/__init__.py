@@ -1,36 +1,18 @@
 """
-The Django integration will trace users requests, template renderers, database and cache
-calls.
+The Django__ integration traces requests, views, template renderers, database
+and cache calls in a Django application.
 
-**Note:** by default the tracer is **disabled** (will not send spans) when
-``Debug=True``. This can be overridden by explicitly enabling the tracer with
-``DATADOG_TRACE['ENABLED'] = True``, as described below.
 
-To enable the Django integration, add the application to your installed
-apps, as follows::
+Enable Django tracing automatically via ``ddtrace-run``::
 
-    INSTALLED_APPS = [
-        # your Django apps...
+    ddtrace-run python manage.py runserver
 
-        # the order is not important
-        'ddtrace.contrib.django',
-    ]
 
-The configuration for this integration is namespaced under the ``DATADOG_TRACE``
-Django setting. For example, your ``settings.py`` may contain::
+Django tracing can also be enabled manually::
 
-    DATADOG_TRACE = {
-        'DEFAULT_SERVICE': 'my-django-app',
-        'TAGS': {'env': 'production'},
-    }
+    from ddtrace import patch_all
+    patch_all()
 
-If you need to access to Datadog settings, you can::
-
-    from ddtrace.contrib.django.conf import settings
-
-    tracer = settings.TRACER
-    tracer.trace("something")
-    # your code ...
 
 To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
 ``settings.py`` looks similar to::
@@ -45,57 +27,203 @@ To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
     }
 
 
-The available settings are:
+Configuration
+~~~~~~~~~~~~~
+.. py:data:: ddtrace.config.django['distributed_tracing_enabled']
 
-* ``DEFAULT_SERVICE`` (default: ``'django'``): set the service name used by the
-  tracer. Usually this configuration must be updated with a meaningful name.
-* ``DEFAULT_DATABASE_PREFIX`` (default: ``''``): set a prefix value to database services,
-  so that your service is listed such as `prefix-defaultdb`.
-* ``DEFAULT_CACHE_SERVICE`` (default: ``''``): set the django cache service name used
-  by the tracer. Change this name if you want to see django cache spans as a cache application.
-* ``TAGS`` (default: ``{}``): set global tags that should be applied to all
-  spans.
-* ``TRACER`` (default: ``ddtrace.tracer``): set the default tracer
-  instance that is used to trace Django internals. By default the ``ddtrace``
-  tracer is used.
-* ``ENABLED`` (default: ``not django_settings.DEBUG``): defines if the tracer is
-  enabled or not. If set to false, the code is still instrumented but no spans
-  are sent to the trace agent. This setting cannot be changed at runtime
-  and a restart is required. By default the tracer is disabled when in ``DEBUG``
-  mode, enabled otherwise.
-* ``DISTRIBUTED_TRACING`` (default: ``False``): defines if the tracer should
-  use incoming X-DATADOG-* HTTP headers to extend a trace created remotely. It is
-  required for distributed tracing if this application is called remotely from another
-  instrumented application.
-  We suggest to enable it only for internal services where headers are under your control.
-* ``ANALYTICS_ENABLED`` (default: ``None``): enables APM events in Trace Search & Analytics.
-* ``AGENT_HOSTNAME`` (default: ``localhost``): define the hostname of the trace agent.
-* ``AGENT_PORT`` (default: ``8126``): define the port of the trace agent.
-* ``AUTO_INSTRUMENT`` (default: ``True``): if set to false the code will not be
-  instrumented (even if ``INSTRUMENT_DATABASE``, ``INSTRUMENT_CACHE`` or
-  ``INSTRUMENT_TEMPLATE`` are set to ``True``), while the tracer may be active
-  for your internal usage. This could be useful if you want to use the Django
-  integration, but you want to trace only particular functions or views. If set
-  to False, the request middleware will be disabled even if present.
-* ``INSTRUMENT_DATABASE`` (default: ``True``): if set to ``False`` database will not
-  be instrumented. Only configurable when ``AUTO_INSTRUMENT`` is set to ``True``.
-* ``INSTRUMENT_CACHE`` (default: ``True``): if set to ``False`` cache will not
-  be instrumented. Only configurable when ``AUTO_INSTRUMENT`` is set to ``True``.
-* ``INSTRUMENT_TEMPLATE`` (default: ``True``): if set to ``False`` template
-  rendering will not be instrumented. Only configurable when ``AUTO_INSTRUMENT``
-  is set to ``True``.
-"""
+   Whether or not to parse distributed tracing headers from requests received by your Django app.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['analytics_enabled']
+
+   Whether to generate APM events for Django in Trace Search & Analytics.
+
+   Can also be enabled with the ``DD_DJANGO_ANALYTICS_ENABLED`` environment variable.
+
+   Default: ``None``
+
+.. py:data:: ddtrace.config.django['service_name']
+
+   The service name reported for your Django app.
+
+   Can also be configured via the ``DD_SERVICE_NAME`` environment variable.
+
+   Default: ``'django'``
+
+.. py:data:: ddtrace.config.django['cache_service_name']
+
+   The service name reported for your Django app cache layer.
+
+   Can also be configured via the ``DD_DJANGO_CACHE_SERVICE_NAME`` environment variable.
+
+   Default: ``'django'``
+
+.. py:data:: ddtrace.config.django['database_service_name_prefix']
+
+   A string to be prepended to the service name reported for your Django app database layer.
+
+   Can also be configured via the ``DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX`` environment variable.
+
+   The database service name is the name of the database appended with 'db'.
+
+   Default: ``''``
+
+.. py:data:: ddtrace.config.django['instrument_databases']
+
+   Whether or not to instrument databases.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['instrument_caches']
+
+   Whether or not to instrument caches.
+
+   Default: ``True``
+
+.. py:data:: ddtrace.config.django['trace_query_string']
+
+   Whether or not to include the query string as a tag.
+
+   Default: ``False``
+
+
+Example::
+
+    from ddtrace import config
+
+    # Enable distributed tracing
+    config.django['distributed_tracing_enabled'] = True
+
+    # Override service name
+    config.django['service_name'] = 'custom-service-name'
+
+
+Migration from ddtrace<=0.33.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The Django integration provides automatic migration from enabling tracing using
+a middleware to the method consistent with our integrations. Application
+developers are encouraged to convert their configuration of the tracer to the
+latter.
+
+1. Remove ``'ddtrace.contrib.django'`` from ``INSTALLED_APPS`` in
+   ``settings.py``.
+
+2. Replace ``DATADOG_TRACE`` configuration in ``settings.py`` according to the
+   table below.
+
+3. Remove ``TraceMiddleware`` or ``TraceExceptionMiddleware`` if used in
+   ``settings.py``.
+
+3. Enable Django tracing automatically via `ddtrace-run`` or manually by
+   adding ``ddtrace.patch_all()`` to ``settings.py``.
+
+The mapping from old configuration settings to new ones.
+
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``DATADOG_TRACE``           | Configuration                                                                                                           |
++=============================+=========================================================================================================================+
+| ``AGENT_HOSTNAME``          | ``DD_AGENT_HOST`` environment variable or ``tracer.configure(hostname=)``                                               |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``AGENT_PORT``              | ``DD_TRACE_AGENT_PORT`` environment variable or ``tracer.configure(port=)``                                             |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``AUTO_INSTRUMENT``         | N/A Instrumentation is automatic                                                                                        |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``INSTRUMENT_CACHE``        | ``config.django['instrument_caches']``                                                                                  |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``INSTRUMENT_DATABASE``     | ``config.django['instrument_databases']``                                                                               |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``INSTRUMENT_TEMPLATE``     | N/A Instrumentation is automatic                                                                                        |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``DEFAULT_DATABASE_PREFIX`` | ``config.django['database_service_name_prefix']``                                                                       |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``DEFAULT_SERVICE``         | ``DD_SERVICE_NAME`` environment variable or ``config.django['service_name']``                                           |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``DEFAULT_CACHE_SERVICE``   | ``config.django['cache_service_name']``                                                                                 |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``ENABLED``                 | ``tracer.configure(enabled=)``                                                                                          |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``DISTRIBUTED_TRACING``     | ``config.django['distributed_tracing_enabled']``                                                                        |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``ANALYTICS_ENABLED``       | ``config.django['analytics_enabled']``                                                                                  |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``ANALYTICS_SAMPLE_RATE``   | ``config.django['analytics_sample_rate']``                                                                              |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``TRACE_QUERY_STRING``      | ``config.django['trace_query_string']``                                                                                 |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``TAGS``                    | ``DD_TRACE_GLOBAL_TAGS`` environment variable or ``tracer.set_tags()``                                                  |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+| ``TRACER``                  | N/A - if a particular tracer is required for the Django integration use ``Pin.override(Pin.get_from(django), tracer=)`` |
++-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
+
+Examples
+--------
+Before::
+
+   # settings.py
+   INSTALLED_APPS = [
+       # your Django apps...
+       'ddtrace.contrib.django',
+   ]
+
+   DATADOG_TRACE = {
+       'AGENT_HOSTNAME': 'localhost',
+       'AGENT_PORT': 8126,
+       'AUTO_INSTRUMENT': True,
+       'INSTRUMENT_CACHE': True,
+       'INSTRUMENT_DATABASE': True,
+       'INSTRUMENT_TEMPLATE': True,
+       'DEFAULT_SERVICE': 'my-django-app',
+       'DEFAULT_CACHE_SERVICE': 'my-cache',
+       'DEFAULT_DATABASE_PREFIX': 'my-',
+       'ENABLED': True,
+       'DISTRIBUTED_TRACING': True,
+       'ANALYTICS_ENABLED': True,
+       'ANALYTICS_SAMPLE_RATE': 0.5,
+       'TRACE_QUERY_STRING': None,
+       'TAGS': {'env': 'production'},
+       'TRACER': 'my.custom.tracer',
+   }
+
+After::
+
+   # settings.py
+   INSTALLED_APPS = [
+       # your Django apps...
+   ]
+
+   from ddtrace import config, tracer
+   tracer.configure(hostname='localhost', port=8126, enabled=True)
+   config.django['service_name'] = 'my-django-app'
+   config.django['cache_service_name'] = 'my-cache'
+   config.django['database_service_name_prefix'] = 'my-'
+   config.django['instrument_databases'] = True
+   config.django['instrument_caches'] = True
+   config.django['trace_query_string'] = True
+   config.django['analytics_enabled'] = True
+   config.django['analytics_sample_rate'] = 0.5
+   tracer.set_tags({'env': 'production'})
+
+   import my.custom.tracer
+   from ddtrace import Pin, patch_all
+   import django
+   patch_all()
+   Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
+
+.. __: https://www.djangoproject.com/
+"""  # noqa: E501
 from ...utils.importlib import require_modules
 
 
-required_modules = ['django']
+required_modules = ["django"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .middleware import TraceMiddleware, TraceExceptionMiddleware
-        from .patch import patch
-        __all__ = ['TraceMiddleware', 'TraceExceptionMiddleware', 'patch']
+        from .middleware import TraceMiddleware
+        from .patch import patch, unpatch
+
+        __all__ = ["patch", "unpatch", "TraceMiddleware"]
 
 
 # define the Django app configuration
-default_app_config = 'ddtrace.contrib.django.apps.TracerConfig'
+default_app_config = "ddtrace.contrib.django.apps.TracerConfig"
