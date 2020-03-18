@@ -37,7 +37,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     # Inject `dd.version`
     # Order of precedence:
-    #   - `version` tag on the currentl active span
+    #   - `version` tag on the currently active span
     #   - `config.version` config (`DD_VERSION` env)
     #   - empty string
     version = None
@@ -48,7 +48,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     # Inject `dd.env`
     # Order of precedence:
-    #   - `env` tag on the currentl active span
+    #   - `env` tag on the currently active span
     #   - `config.env` config (`DD_ENV` env)
     #   - empty string
     env = None
