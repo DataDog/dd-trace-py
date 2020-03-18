@@ -619,15 +619,29 @@ def test_tracer_url():
         assert str(e) == 'Unknown scheme `https` for agent URL'
 
 
-def test_tracer_shutdown():
+def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
     t.writer = mock.Mock(wraps=t.writer)
 
+    # The writer thread does not start until the first write.
+    t.shutdown()
+    assert not t.writer.stop.called
+    assert not t.writer.join.called
+
+    # Do a write to start the writer.
+    with t.trace("something"):
+        pass
     t.shutdown()
     t.writer.stop.assert_called_once_with()
     t.writer.join.assert_called_once_with(timeout=None)
 
-    t.writer.reset_mock()
+
+def test_tracer_shutdown_timeout():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+
+    with t.trace("something"):
+        pass
 
     t.shutdown(timeout=2)
     t.writer.stop.assert_called_once_with()

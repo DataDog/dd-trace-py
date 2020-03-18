@@ -705,5 +705,8 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
+        if not self.writer.is_alive():
+            return
+
         self.writer.stop()
         self.writer.join(timeout=timeout)
