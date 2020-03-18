@@ -84,7 +84,7 @@ exclude = '''
     | ext/
     | http/
     | opentracer/
-    | profile/exporter/pprof_pb2.py$
+    | profiling/exporter/pprof_pb2.py$
     | propagation/
     | settings/
     | vendor/
@@ -170,7 +170,7 @@ exclude = '''
       | test_tracer_tornado.py
       | test_utils.py
     )
-    | profile/_ast_test_file.py
+    | profiling/_ast_test_file.py
     | propagation/test_utils.py
     | subprocesstest.py
     | test_api.py

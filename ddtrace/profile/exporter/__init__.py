@@ -1,28 +1,9 @@
-from ddtrace.vendor import attr
+import importlib
+import sys
+
+from ddtrace.utils import deprecation
 
 
-class ExportError(Exception):
-    pass
+deprecation.deprecation("ddtrace.profile", "Use ddtrace.profiling instead.")
 
-
-@attr.s
-class Exporter(object):
-    """Exporter base class."""
-
-    @staticmethod
-    def export(events):
-        """Export events.
-
-        :param events: List of events to export.
-        """
-        raise NotImplementedError
-
-
-@attr.s
-class NullExporter(Exporter):
-    """Exporter that does nothing."""
-
-    @staticmethod
-    def export(events):
-        """Discard events."""
-        pass
+sys.modules[__name__] = importlib.import_module(__name__.replace("ddtrace.profile", "ddtrace.profiling"))
