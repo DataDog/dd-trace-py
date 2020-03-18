@@ -5,8 +5,7 @@ from .utils import TornadoTestCase
 
 class TestTornadoSettings(TornadoTestCase):
     """
-    Ensure that Tornado web Application configures properly
-    the given tracer.
+    Ensure that Tornado web application properly configures the given tracer.
     """
     def get_settings(self):
         # update tracer settings
@@ -37,17 +36,17 @@ class TestTornadoSettings(TornadoTestCase):
         assert isinstance(self.tracer.writer._filters[0], FilterRequestsOnUrl)
 
 
-class TestTornadoDefaultService(TornadoTestCase):
-    """ Ensure that the default service for a Tornado web application is configured
-    """
+class TestTornadoSettingsEnabled(TornadoTestCase):
     def get_settings(self):
         return {
             'datadog_trace': {
                 'default_service': 'custom-tornado',
+                'enabled': True,
             },
         }
 
     def test_service(self):
+        """Ensure that the default service for a Tornado web application is configured."""
         response = self.fetch('/success/')
         assert 200 == response.code
 
