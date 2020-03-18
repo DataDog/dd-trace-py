@@ -16,8 +16,11 @@ mkdir -p "$BUILD_DIR"
 build_script=$(cat <<'EOF'
 set -ex
 
+# This is used for pattern matching and excluding Python versions
+shopt -s extglob
+
 # Build linux wheels from the source distribution we created
-for PYBIN in /opt/python/*/bin;
+for PYBIN in /opt/python/!(cp34*)/bin;
 do
   "${PYBIN}/pip" wheel --no-deps /dd-trace-py/*.tar.gz -w /dd-trace-py
 done
