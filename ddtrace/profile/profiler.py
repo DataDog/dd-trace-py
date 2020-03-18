@@ -75,8 +75,9 @@ class Profiler(object):
     statistics = attr.ib(default=False)
 
     def __attrs_post_init__(self):
-        for rec in self.recorders:
-            self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
+        if self.exporters:
+            for rec in self.recorders:
+                self.schedulers.append(scheduler.Scheduler(recorder=rec, exporters=self.exporters))
 
     @property
     def recorders(self):
@@ -96,15 +97,17 @@ class Profiler(object):
 
         self.status = ProfilerStatus.RUNNING
 
-    def stop(self):
+    def stop(self, flush=True):
         """Stop the profiler.
 
         This stops all the collectors and schedulers, waiting for them to finish their operations.
+
+        :param flush: Flush the event before stopping.
         """
         for col in reversed(self.collectors):
             col.stop()
 
         for s in reversed(self.schedulers):
-            s.stop()
+            s.stop(flush=flush)
 
         self.status = ProfilerStatus.STOPPED
