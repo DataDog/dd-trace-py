@@ -148,7 +148,7 @@ commands:
       # DEV: `pyopenssl` needed until the following PR is released
       #      https://github.com/pypa/twine/pull/447
       # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: pip install twine readme_renderer[md]\<25.0 pyopenssl wheel cython
+      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
       # Ensure we didn't cache from previous runs
       - run: rm -rf build/ dist/
       # Manually build any extensions to ensure they succeed
@@ -688,13 +688,21 @@ jobs:
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py34,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
       - store_test_results:
           path: /tmp/test-reports
       - store_artifacts:
           path: /tmp/test-reports
       - save_results
       - save_tox_cache
+
+  build_wheels:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - run: pip install cython
+      - run: scripts/build-dist
 
   deploy_master:
     # build the master branch releasing development docs and wheels
@@ -804,8 +812,8 @@ workflows:
       - test_build_py37: *requires_pre_test
       - test_build_py36: *requires_pre_test
       - test_build_py35: *requires_pre_test
-      - test_build_py34: *requires_pre_test
       - test_build_py27: *requires_pre_test
+      - build_wheels: *requires_pre_test
 
       # Integration test suites
       - aiobotocore: *requires_pre_test
@@ -921,7 +929,6 @@ workflows:
             - test_build_py37
             - test_build_py36
             - test_build_py35
-            - test_build_py34
             - test_build_py27
             - test_utils
             - test_logging

@@ -6,7 +6,6 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-import os
 import sys
 
 from inspect import isclass, isfunction
@@ -32,7 +31,7 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=os.environ.get("DD_SERVICE_NAME") or os.environ.get("DATADOG_SERVICE_NAME") or "django",
+        service_name=config.get_service(default="django"),
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
