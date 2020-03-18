@@ -1,13 +1,18 @@
 import mock
 import time
 
+import pytest
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import (
+    ANALYTICS_SAMPLE_RATE_KEY, VERSION_KEY,
+    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY,
+)
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
+from .utils import assert_is_measured, assert_is_not_measured
 
 
 class SpanTestCase(BaseTracerTestCase):
@@ -28,12 +33,59 @@ class SpanTestCase(BaseTracerTestCase):
         s.set_tag('b', 1)
         s.set_tag('c', '1')
         d = s.to_dict()
-        expected = {
-            'a': 'a',
-            'b': '1',
-            'c': '1',
+        assert d['meta'] == dict(a='a', c='1')
+        assert d['metrics'] == dict(b=1)
+
+    def test_numeric_tags(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag('negative', -1)
+        s.set_tag('zero', 0)
+        s.set_tag('positive', 1)
+        s.set_tag('large_int', 2**53)
+        s.set_tag('really_large_int', (2**53) + 1)
+        s.set_tag('large_negative_int', -(2**53))
+        s.set_tag('really_large_negative_int', -((2**53) + 1))
+        s.set_tag('float', 12.3456789)
+        s.set_tag('negative_float', -12.3456789)
+        s.set_tag('large_float', 2.0**53)
+        s.set_tag('really_large_float', (2.0**53) + 1)
+
+        d = s.to_dict()
+        assert d['meta'] == dict(
+            really_large_int=str(((2**53) + 1)),
+            really_large_negative_int=str(-((2**53) + 1)),
+        )
+        assert d['metrics'] == {
+            'negative': -1,
+            'zero': 0,
+            'positive': 1,
+            'large_int': 2**53,
+            'large_negative_int': -(2**53),
+            'float': 12.3456789,
+            'negative_float': -12.3456789,
+            'large_float': 2.0**53,
+            'really_large_float': (2.0**53) + 1,
         }
-        assert d['meta'] == expected
+
+    def test_set_tag_bool(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag('true', True)
+        s.set_tag('false', False)
+
+        d = s.to_dict()
+        assert d['meta'] == dict(true='True', false='False')
+        assert 'metrics' not in d
+
+    def test_set_tag_metric(self):
+        s = Span(tracer=None, name='test.span')
+
+        s.set_tag('test', 'value')
+        assert s.meta == dict(test='value')
+        assert s.metrics == dict()
+
+        s.set_tag('test', 1)
+        assert s.meta == dict()
+        assert s.metrics == dict(test=1)
 
     def test_set_valid_metrics(self):
         s = Span(tracer=None, name='test.span')
@@ -324,7 +376,7 @@ class SpanTestCase(BaseTracerTestCase):
         s = Span(tracer=None, name='root.span', service='s', resource='r')
         assert s.meta == dict()
 
-        s.set_tag('custom.key', 100)
+        s.set_tag('custom.key', '100')
 
         assert s.meta == {'custom.key': '100'}
 
@@ -372,3 +424,66 @@ class SpanTestCase(BaseTracerTestCase):
         s.finish(finish_time=123)
         assert s.duration_ns == 1000000000
         assert s.duration == 1
+
+    def test_set_tag_version(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(VERSION_KEY, '1.2.3')
+        assert s.get_tag(VERSION_KEY) == '1.2.3'
+        assert s.get_tag(SERVICE_VERSION_KEY) is None
+
+        s.set_tag(SERVICE_VERSION_KEY, 'service.version')
+        assert s.get_tag(VERSION_KEY) == 'service.version'
+        assert s.get_tag(SERVICE_VERSION_KEY) == 'service.version'
+
+    def test_set_tag_env(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(ENV_KEY, 'prod')
+        assert s.get_tag(ENV_KEY) == 'prod'
+
+
+@pytest.mark.parametrize(
+    "value,assertion",
+    [
+        (None, assert_is_measured),
+        (1, assert_is_measured),
+        (1.0, assert_is_measured),
+        (-1, assert_is_measured),
+        (True, assert_is_measured),
+        ("true", assert_is_measured),
+
+        # DEV: Ends up being measured because we do `bool("false")` which is `True`
+        ("false", assert_is_measured),
+
+        (0, assert_is_not_measured),
+        (0.0, assert_is_not_measured),
+        (False, assert_is_not_measured),
+    ],
+)
+def test_set_tag_measured(value, assertion):
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY, value)
+    assertion(s)
+
+
+def test_set_tag_measured_not_set():
+    # Span is not measured by default
+    s = Span(tracer=None, name="test.span")
+    assert_is_not_measured(s)
+
+
+def test_set_tag_measured_no_value():
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY)
+    assert_is_measured(s)
+
+
+def test_set_tag_measured_change_value():
+    s = Span(tracer=None, name="test.span")
+    s.set_tag(SPAN_MEASURED_KEY, True)
+    assert_is_measured(s)
+
+    s.set_tag(SPAN_MEASURED_KEY, False)
+    assert_is_not_measured(s)
+
+    s.set_tag(SPAN_MEASURED_KEY)
+    assert_is_measured(s)

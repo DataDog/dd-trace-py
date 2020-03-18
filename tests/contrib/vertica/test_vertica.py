@@ -15,6 +15,7 @@ from tests.base import BaseTracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured
 
 TEST_TABLE = 'test_table'
 
@@ -204,6 +205,7 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
+        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -211,7 +213,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
         assert spans[0].get_tag('db.name') == 'docker'
         assert spans[0].get_tag('db.user') == 'dbadmin'
 
@@ -231,6 +233,7 @@ class TestVertica(BaseTracerTestCase):
         assert len(spans) == 2
 
         # check all the metadata
+        assert_is_measured(spans[0])
         assert spans[0].service == 'vertica'
         assert spans[0].span_type == 'sql'
         assert spans[0].name == 'vertica.query'
@@ -238,7 +241,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
         assert spans[0].get_tag('out.host') == '127.0.0.1'
-        assert spans[0].get_tag('out.port') == '5433'
+        assert spans[0].get_metric('out.port') == 5433
 
         assert spans[1].resource == 'SELECT * FROM test_table;'
 
@@ -309,7 +312,7 @@ class TestVertica(BaseTracerTestCase):
         assert spans[1].get_metric('db.rowcount') == -1
         assert spans[2].name == 'vertica.fetchone'
         assert spans[2].get_tag('out.host') == '127.0.0.1'
-        assert spans[2].get_tag('out.port') == '5433'
+        assert spans[2].get_metric('out.port') == 5433
         assert spans[2].get_metric('db.rowcount') == 1
         assert spans[3].name == 'vertica.fetchone'
         assert spans[3].get_metric('db.rowcount') == 2
@@ -373,6 +376,7 @@ class TestVertica(BaseTracerTestCase):
         assert ot_span.parent_id is None
         assert dd_span.parent_id == ot_span.span_id
 
+        assert_is_measured(dd_span)
         assert dd_span.service == 'vertica'
         assert dd_span.span_type == 'sql'
         assert dd_span.name == 'vertica.query'
@@ -380,7 +384,7 @@ class TestVertica(BaseTracerTestCase):
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert dd_span.resource == query
         assert dd_span.get_tag('out.host') == '127.0.0.1'
-        assert dd_span.get_tag('out.port') == '5433'
+        assert dd_span.get_metric('out.port') == 5433
 
     def test_analytics_default(self):
         conn, cur = self.test_conn

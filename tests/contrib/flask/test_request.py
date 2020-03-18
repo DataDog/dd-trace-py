@@ -7,6 +7,7 @@ from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
 
 from . import BaseFlaskTestCase
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 base_exception_name = 'builtins.Exception'
@@ -52,6 +53,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /')
@@ -60,16 +62,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(req_span, 200)
         assert http.QUERY_STRING not in req_span.meta
 
         # Handler span
@@ -289,6 +286,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         # Note: contains no query string
@@ -298,18 +297,13 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'index')
         # Note: contains no query string
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         # Note: contains no query string
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(req_span, 200)
 
         # Handler span
         handler_span = spans[4]
@@ -365,16 +359,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'unicode')
         self.assertEqual(req_span.get_tag('flask.url_rule'), u'/üŋïĉóđē')
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), u'http://localhost/üŋïĉóđē')
-        self.assertEqual(req_span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(req_span, 200)
 
         # Handler span
         handler_span = spans[4]
@@ -417,6 +406,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET 404')
@@ -425,13 +415,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/not-found')
-        self.assertEqual(req_span.get_tag('http.status_code'), '404')
+        assert_span_http_status_code(req_span, 404)
 
         # Dispatch span
         dispatch_span = spans[3]
@@ -482,6 +468,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /not-found')
@@ -490,14 +478,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.endpoint', 'flask.url_rule', 'flask.version',
-                 'http.url', 'http.method', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/not-found')
-        self.assertEqual(req_span.get_tag('http.status_code'), '404')
+        assert_span_http_status_code(req_span, 404)
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'not_found')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/not-found')
 
@@ -559,6 +542,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /500')
@@ -567,14 +551,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/500')
-        self.assertEqual(req_span.get_tag('http.status_code'), '500')
+        assert_span_http_status_code(req_span, 500)
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'fivehundred')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/500')
 
@@ -647,6 +626,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /501')
@@ -655,14 +635,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/501')
-        self.assertEqual(req_span.get_tag('http.status_code'), '501')
+        assert_span_http_status_code(req_span, 501)
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'fivehundredone')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/501')
 
@@ -759,6 +734,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         # Root request span
         req_span = spans[0]
+        assert_is_measured(req_span)
         self.assertEqual(req_span.service, 'flask')
         self.assertEqual(req_span.name, 'flask.request')
         self.assertEqual(req_span.resource, 'GET /500')
@@ -767,14 +743,9 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(req_span.parent_id)
 
         # Request tags
-        self.assertEqual(
-            set(['system.pid', 'flask.version', 'http.url', 'http.method',
-                 'flask.endpoint', 'flask.url_rule', 'http.status_code']),
-            set(req_span.meta.keys()),
-        )
         self.assertEqual(req_span.get_tag('http.method'), 'GET')
         self.assertEqual(req_span.get_tag(http.URL), 'http://localhost/500')
-        self.assertEqual(req_span.get_tag('http.status_code'), '500')
+        assert_span_http_status_code(req_span, 500)
         self.assertEqual(req_span.get_tag('flask.endpoint'), 'fivehundred')
         self.assertEqual(req_span.get_tag('flask.url_rule'), '/500')
 

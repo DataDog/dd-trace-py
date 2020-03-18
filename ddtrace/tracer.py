@@ -4,15 +4,16 @@ from os import environ, getpid
 
 from ddtrace.vendor import debtcollector
 
-from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY
+from .constants import FILTERS_KEY, SAMPLE_RATE_METRIC_KEY, VERSION_KEY, ENV_KEY
 from .ext import system
 from .ext.priority import AUTO_REJECT, AUTO_KEEP
 from .internal.logger import get_logger
 from .internal.runtime import RuntimeTags, RuntimeWorker
-from .internal.writer import AgentWriter
+from .internal.writer import AgentWriter, LogWriter
 from .provider import DefaultContextProvider
 from .context import Context
-from .sampler import AllSampler, DatadogSampler, RateSampler, RateByServiceSampler
+from .sampler import DatadogSampler, RateSampler, RateByServiceSampler
+from .settings import config
 from .span import Span
 from .utils.formats import get_env
 from .utils.deprecation import deprecated, RemovedInDDTrace10Warning
@@ -52,6 +53,13 @@ _INTERNAL_APPLICATION_SPAN_TYPES = [
 ]
 
 
+def _is_agentless_environment():
+    if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        # We are in an AWS Lambda environment
+        return True
+    return False
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -67,8 +75,9 @@ class Tracer(object):
 
     DEFAULT_HOSTNAME = environ.get('DD_AGENT_HOST', environ.get('DATADOG_TRACE_AGENT_HOSTNAME', 'localhost'))
     DEFAULT_PORT = int(environ.get('DD_TRACE_AGENT_PORT', 8126))
-    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', 8125))
-    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url', 'udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
+    DEFAULT_DOGSTATSD_PORT = int(get_env('dogstatsd', 'port', default=8125))
+    DEFAULT_DOGSTATSD_URL = get_env('dogstatsd', 'url',
+                                    default='udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
     DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
     def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
@@ -88,6 +97,7 @@ class Tracer(object):
         https = None
         hostname = self.DEFAULT_HOSTNAME
         port = self.DEFAULT_PORT
+        writer = None
         if url is not None:
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ('http', 'https'):
@@ -106,6 +116,8 @@ class Tracer(object):
                 uds_path = url_parsed.path
             else:
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
+        elif _is_agentless_environment():
+            writer = LogWriter()
 
         # Apply the default configuration
         self.configure(
@@ -114,9 +126,10 @@ class Tracer(object):
             port=port,
             https=https,
             uds_path=uds_path,
-            sampler=AllSampler(),
+            sampler=DatadogSampler(),
             context_provider=DefaultContextProvider(),
             dogstatsd_url=dogstatsd_url,
+            writer=writer,
         )
 
         # globally set tags
@@ -175,10 +188,24 @@ class Tracer(object):
                                           category=RemovedInDDTrace10Warning)
     @debtcollector.removals.removed_kwarg("dogstatsd_port", "Use `dogstatsd_url` instead",
                                           category=RemovedInDDTrace10Warning)
-    def configure(self, enabled=None, hostname=None, port=None, uds_path=None, https=None,
-                  sampler=None, context_provider=None, wrap_executor=None, priority_sampling=None,
-                  settings=None, collect_metrics=None, dogstatsd_host=None, dogstatsd_port=None,
-                  dogstatsd_url=None):
+    def configure(
+        self,
+        enabled=None,
+        hostname=None,
+        port=None,
+        uds_path=None,
+        https=None,
+        sampler=None,
+        context_provider=None,
+        wrap_executor=None,
+        priority_sampling=None,
+        settings=None,
+        collect_metrics=None,
+        dogstatsd_host=None,
+        dogstatsd_port=None,
+        dogstatsd_url=None,
+        writer=None,
+    ):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -220,10 +247,6 @@ class Tracer(object):
         if sampler is not None:
             self.sampler = sampler
 
-        # TODO: Remove when we remove the fallback to priority sampling
-        if isinstance(self.sampler, DatadogSampler):
-            self.sampler._priority_sampler = self.priority_sampler
-
         if dogstatsd_host is not None and dogstatsd_url is None:
             dogstatsd_url = 'udp://{}:{}'.format(dogstatsd_host, dogstatsd_port or self.DEFAULT_DOGSTATSD_PORT)
 
@@ -232,8 +255,17 @@ class Tracer(object):
             self.log.debug('Connecting to DogStatsd(%s)', dogstatsd_url)
             self._dogstatsd_client = DogStatsd(**dogstatsd_kwargs)
 
-        if hostname is not None or port is not None or uds_path is not None or https is not None or \
-                filters is not None or priority_sampling is not None:
+        if writer:
+            self.writer = writer
+        elif (
+            hostname is not None
+            or port is not None
+            or uds_path is not None
+            or https is not None
+            or filters is not None
+            or priority_sampling is not None
+            or sampler is not None
+        ):
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
             if hasattr(self, 'writer') and hasattr(self.writer, 'api'):
@@ -251,6 +283,7 @@ class Tracer(object):
                 uds_path=uds_path,
                 https=https,
                 filters=filters,
+                sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
             )
@@ -318,13 +351,21 @@ class Tracer(object):
             trace_id = context.trace_id
             parent_span_id = context.span_id
 
+        # The following precedence is used for a new span's service:
+        # 1. Explicitly provided service name
+        #     a. User provided or integration provided service name
+        # 2. Parent's service name (if defined)
+        # 3. Globally configured service name
+        #     a. `config.service`/`DD_SERVICE`
+        if service is None:
+            if parent:
+                service = parent.service
+            else:
+                # ``config`` is initialized with DD_SERVICE env var if it exists.
+                service = config.service
+
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
-
-            # when not provided, inherit from parent's service
-            if parent:
-                service = service or parent.service
-
             span = Span(
                 self,
                 name,
@@ -374,15 +415,32 @@ class Tracer(object):
                         context.sampling_priority = AUTO_REJECT
             else:
                 context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
+                # We must always mark the span as sampled so it is forwarded to the agent
+                span.sampled = True
 
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
             if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
                 span.set_tag('language', 'python')
 
-        # add common tags
+        # Apply default global tags
         if self.tags:
             span.set_tags(self.tags)
+
+        # Add env, service, and version tags
+        # DEV: These override the default global tags, `DD_VERSION` takes precedence over `DD_TAGS=version:v`
+        if config.env:
+            span.set_tag(ENV_KEY, config.env)
+        if config.version:
+            root_span = self.current_root_span()
+            # if: 1. the span is the root span and the span's service matches the global config; or
+            #     2. the span is not the root, but the root span's service matches the span's service
+            #        and the root span has a version tag
+            # then the span belongs to the user application and so set the version tag
+            if (root_span is None and service == config.service) or \
+               (root_span and root_span.service == service and VERSION_KEY in root_span.meta):
+                span.set_tag(VERSION_KEY, config.version)
+
         if not span._parent:
             span.set_tag(system.PID, getpid())
 

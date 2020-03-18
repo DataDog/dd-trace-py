@@ -22,19 +22,29 @@ def inject_sitecustomize(path):
     env = os.environ.copy()
     sitecustomize = os.path.join(root_folder, '..', path)
 
-    # Add `boostrap` module so that `sitecustomize.py` is at the bottom
-    # of the PYTHONPATH
-    python_path = list(sys.path) + [sitecustomize]
-    env['PYTHONPATH'] = ':'.join(python_path)[1:]
+    # Add `bootstrap` directory to the beginning of PYTHONTPATH so we know
+    # if `import sitecustomize` is run that it'll be the one we specify
+    python_path = [sitecustomize] + list(sys.path)
+    env['PYTHONPATH'] = ':'.join(python_path)
     return env
 
 
 class DdtraceRunTest(BaseTestCase):
-    def test_service_name_passthrough(self):
+    def test_service_name_passthrough_legacy(self):
         """
         $DATADOG_SERVICE_NAME gets passed through to the program
         """
         with self.override_env(dict(DATADOG_SERVICE_NAME='my_test_service')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_service_name_passthrough(self):
+        """
+        $DD_SERVICE gets passed through to the program
+        """
+        with self.override_env(dict(DD_SERVICE='my_test_service')):
             out = subprocess.check_output(
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
             )

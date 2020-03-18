@@ -1,29 +1,4 @@
-desc "build the docs"
-task :docs do
-    sh "pip install sphinx"
-  Dir.chdir 'docs' do
-    sh "make html"
-  end
-end
-
 # Deploy tasks
-S3_DIR = ENV['S3_DIR']
-S3_BUCKET = "pypi.datadoghq.com"
-
-desc "release the a new wheel"
-task :'release:wheel' do
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
-
-  # Use custom `mkwheelhouse` to upload wheels and source distribution from dist/ to S3 bucket
-  sh "scripts/mkwheelhouse"
-end
-
-desc "release the docs website"
-task :'release:docs' => :docs do
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
-  sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
-end
-
 namespace :pypi do
   RELEASE_DIR = './dist/'
 

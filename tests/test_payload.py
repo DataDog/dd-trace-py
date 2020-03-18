@@ -1,6 +1,6 @@
 import math
 
-from ddtrace.encoding import get_encoder, JSONEncoder
+from ddtrace.encoding import Encoder, JSONEncoder
 from ddtrace.payload import Payload, PayloadFull
 from ddtrace.span import Span
 
@@ -18,7 +18,7 @@ class PayloadTestCase(BaseTracerTestCase):
             With no encoder
                 We use the default encoder
         """
-        default_encoder_type = type(get_encoder())
+        default_encoder_type = type(Encoder())
 
         payload = Payload()
         self.assertIsInstance(payload.encoder, default_encoder_type)

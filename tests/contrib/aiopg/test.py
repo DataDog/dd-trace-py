@@ -16,9 +16,10 @@ from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from ...utils import assert_is_measured
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -68,6 +69,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.name == 'postgres.query'
         assert span.resource == q
         assert span.service == service
@@ -118,7 +120,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.meta['sql.query'] == q
         assert span.error == 1
         # assert span.meta['out.host'] == 'localhost'
-        assert span.meta['out.port'] == TEST_PORT
+        assert span.metrics['out.port'] == TEST_PORT
         assert span.span_type == 'sql'
 
     @mark_asyncio

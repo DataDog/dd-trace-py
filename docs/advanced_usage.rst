@@ -560,12 +560,14 @@ The available environment variables for ``ddtrace-run`` are:
   any traces.
 * ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
   ``pre-prod``, ``stage``
+* ``DD_ENV`` (no default): Set an application's environment e.g. ``prod``,
+  ``pre-prod``, ``stage`` (preferred over ``DATADOG_ENV``)
+* ``DD_VERSION`` (no default): Set an application's version e.g. ``1.2.3``, ``6c44da20``, ``2020.02.13``
 * ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
   the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
-  for this program. This value is passed through when setting up middleware for
-  web framework integrations (e.g. pylons, flask, django). For tracing without a
-  web integration, prefer setting the service name in code.
+* ``DD_SERVICE`` (no default): override the service name to be used for this
+  application. A default is provided for the bottle, flask, grpc, pyramid,
+  pylons, tornado, celery, django and falcon integrations.
 * ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
   ``boto:true,redis:false``: override the modules patched for this execution of
   the program (default: none)
@@ -600,6 +602,20 @@ $ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
 Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
+
+
+uWSGI
+-----
+
+The default configuration of uWSGI applications does not include the
+``--enable-threads`` setting which must be set to ``true`` for the
+tracing library to run.  This is noted in their best practices doc_.
+
+  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+
+Example run command:
+
+``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
 
 
 API

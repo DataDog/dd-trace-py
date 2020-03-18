@@ -3,9 +3,11 @@ import rediscluster
 
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
+from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
 from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 
 class TestRedisPatch(BaseTracerTestCase):
@@ -19,7 +21,10 @@ class TestRedisPatch(BaseTracerTestCase):
             {'host': self.TEST_HOST, 'port': int(port)}
             for port in self.TEST_PORTS.split(',')
         ]
-        return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
+        if REDISCLUSTER_VERSION >= (2, 0, 0):
+            return rediscluster.RedisCluster(startup_nodes=startup_nodes)
+        else:
+            return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
         super(TestRedisPatch, self).setUp()
@@ -39,6 +44,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.span_type == 'redis'
@@ -57,6 +63,7 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.service == self.TEST_SERVICE
         assert span.name == 'redis.command'
         assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'

@@ -23,80 +23,77 @@ import pytest
 class TestTracerConfig(object):
     def test_config(self):
         """Test the configuration of the tracer"""
-        config = {'enabled': True}
-        tracer = Tracer(service_name='myservice', config=config)
+        config = {"enabled": True}
+        tracer = Tracer(service_name="myservice", config=config)
 
-        assert tracer._service_name == 'myservice'
+        assert tracer._service_name == "myservice"
         assert tracer._enabled is True
 
     def test_no_service_name(self):
         """A service_name should be generated if one is not provided."""
         tracer = Tracer()
-        assert tracer._service_name == 'pytest'
+        assert tracer._service_name == "pytest"
 
     def test_multiple_tracer_configs(self):
         """Ensure that a tracer config is a copy of the passed config."""
-        config = {'enabled': True}
+        config = {"enabled": True}
 
-        tracer1 = Tracer(service_name='serv1', config=config)
-        assert tracer1._service_name == 'serv1'
+        tracer1 = Tracer(service_name="serv1", config=config)
+        assert tracer1._service_name == "serv1"
 
-        config['enabled'] = False
-        tracer2 = Tracer(service_name='serv2', config=config)
+        config["enabled"] = False
+        tracer2 = Tracer(service_name="serv2", config=config)
 
         # Ensure tracer1's config was not mutated
-        assert tracer1._service_name == 'serv1'
+        assert tracer1._service_name == "serv1"
         assert tracer1._enabled is True
 
-        assert tracer2._service_name == 'serv2'
+        assert tracer2._service_name == "serv2"
         assert tracer2._enabled is False
 
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
 
-        config = {'enabeld': False}
+        config = {"enabeld": False}
 
         # No debug flag should not raise an error
-        tracer = Tracer(service_name='mysvc', config=config)
+        tracer = Tracer(service_name="mysvc", config=config)
 
         # With debug flag should raise an error
-        config['debug'] = True
+        config["debug"] = True
         with pytest.raises(ConfigException) as ce_info:
             tracer = Tracer(config=config)
-            assert 'enabeld' in str(ce_info)
+            assert "enabeld" in str(ce_info)
             assert tracer is not None
 
         # Test with multiple incorrect keys
-        config['setttings'] = {}
+        config["setttings"] = {}
         with pytest.raises(ConfigException) as ce_info:
-            tracer = Tracer(service_name='mysvc', config=config)
-            assert ['enabeld', 'setttings'] in str(ce_info)
+            tracer = Tracer(service_name="mysvc", config=config)
+            assert ["enabeld", "setttings"] in str(ce_info)
             assert tracer is not None
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""
         config = {
-            'global_tags': {
-                'tag1': 'value1',
-                'tag2': 2,
-            },
+            "global_tags": {"tag1": "value1", "tag2": 2,},
         }
 
-        tracer = Tracer(service_name='mysvc', config=config)
-        with tracer.start_span('myop') as span:
+        tracer = Tracer(service_name="mysvc", config=config)
+        with tracer.start_span("myop") as span:
             # global tags should be attached to generated all datadog spans
-            assert span._dd_span.get_tag('tag1') == 'value1'
-            assert span._dd_span.get_tag('tag2') == '2'
+            assert span._dd_span.get_tag("tag1") == "value1"
+            assert span._dd_span.get_metric("tag2") == 2
 
-            with tracer.start_span('myop2') as span2:
-                assert span2._dd_span.get_tag('tag1') == 'value1'
-                assert span2._dd_span.get_tag('tag2') == '2'
+            with tracer.start_span("myop2") as span2:
+                assert span2._dd_span.get_tag("tag1") == "value1"
+                assert span2._dd_span.get_metric("tag2") == 2
 
 
 class TestTracer(object):
     def test_start_span(self, ot_tracer, writer):
         """Start and finish a span."""
-        with ot_tracer.start_span('myop') as span:
+        with ot_tracer.start_span("myop") as span:
             pass
 
         # span should be finished when the context manager exits
@@ -108,16 +105,16 @@ class TestTracer(object):
     def test_start_span_references(self, ot_tracer, writer):
         """Start a span using references."""
 
-        with ot_tracer.start_span('one', references=[child_of()]):
+        with ot_tracer.start_span("one", references=[child_of()]):
             pass
 
         spans = writer.pop()
         assert spans[0].parent_id is None
 
-        root = ot_tracer.start_active_span('root')
+        root = ot_tracer.start_active_span("root")
         # create a child using a parent reference that is not the context parent
-        with ot_tracer.start_active_span('one'):
-            with ot_tracer.start_active_span('two', references=[child_of(root.span)]):
+        with ot_tracer.start_active_span("one"):
+            with ot_tracer.start_active_span("two", references=[child_of(root.span)]):
                 pass
         root.close()
 
@@ -127,9 +124,9 @@ class TestTracer(object):
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
         t = 100
-        with mock.patch('ddtrace.span.time_ns') as time:
+        with mock.patch("ddtrace.span.time_ns") as time:
             time.return_value = 102 * 1e9
-            with ot_tracer.start_span('myop', start_time=t) as span:
+            with ot_tracer.start_span("myop", start_time=t) as span:
                 pass
 
         assert span._dd_span.start == t
@@ -139,8 +136,8 @@ class TestTracer(object):
         """Start and finish a span using a span context as the child_of
         reference.
         """
-        with ot_tracer.start_span('myop') as span:
-            with ot_tracer.start_span('myop', child_of=span.context) as span2:
+        with ot_tracer.start_span("myop") as span:
+            with ot_tracer.start_span("myop", child_of=span.context) as span2:
                 pass
 
         # span should be finished when the context manager exits
@@ -155,36 +152,36 @@ class TestTracer(object):
 
     def test_start_span_with_tags(self, ot_tracer):
         """Create a span with initial tags."""
-        tags = {'key': 'value', 'key2': 'value2'}
-        with ot_tracer.start_span('myop', tags=tags) as span:
+        tags = {"key": "value", "key2": "value2"}
+        with ot_tracer.start_span("myop", tags=tags) as span:
             pass
 
-        assert span._dd_span.get_tag('key') == 'value'
-        assert span._dd_span.get_tag('key2') == 'value2'
+        assert span._dd_span.get_tag("key") == "value"
+        assert span._dd_span.get_tag("key2") == "value2"
 
     def test_start_span_with_resource_name_tag(self, ot_tracer):
         """Create a span with the tag to set the resource name"""
-        tags = {'resource.name': 'value', 'key2': 'value2'}
-        with ot_tracer.start_span('myop', tags=tags) as span:
+        tags = {"resource.name": "value", "key2": "value2"}
+        with ot_tracer.start_span("myop", tags=tags) as span:
             pass
 
         # Span resource name should be set to tag value, and should not get set as
         # a tag on the underlying span.
-        assert span._dd_span.resource == 'value'
-        assert span._dd_span.get_tag('resource.name') is None
+        assert span._dd_span.resource == "value"
+        assert span._dd_span.get_tag("resource.name") is None
 
         # Other tags are set as normal
-        assert span._dd_span.get_tag('key2') == 'value2'
+        assert span._dd_span.get_tag("key2") == "value2"
 
     def test_start_active_span_multi_child(self, ot_tracer, writer):
         """Start and finish multiple child spans.
         This should ensure that child spans can be created 2 levels deep.
         """
-        with ot_tracer.start_active_span('myfirstop') as scope1:
+        with ot_tracer.start_active_span("myfirstop") as scope1:
             time.sleep(0.009)
-            with ot_tracer.start_active_span('mysecondop') as scope2:
+            with ot_tracer.start_active_span("mysecondop") as scope2:
                 time.sleep(0.007)
-                with ot_tracer.start_active_span('mythirdop') as scope3:
+                with ot_tracer.start_active_span("mythirdop") as scope3:
                     time.sleep(0.005)
 
         # spans should be finished when the context manager exits
@@ -213,11 +210,11 @@ class TestTracer(object):
         This should test to ensure a parent can have multiple child spans at the
         same level.
         """
-        with ot_tracer.start_active_span('myfirstop') as scope1:
+        with ot_tracer.start_active_span("myfirstop") as scope1:
             time.sleep(0.009)
-            with ot_tracer.start_active_span('mysecondop') as scope2:
+            with ot_tracer.start_active_span("mysecondop") as scope2:
                 time.sleep(0.007)
-            with ot_tracer.start_active_span('mythirdop') as scope3:
+            with ot_tracer.start_active_span("mythirdop") as scope3:
                 time.sleep(0.005)
 
         # spans should be finished when the context manager exits
@@ -246,11 +243,11 @@ class TestTracer(object):
         Spans should be created without parents since there will be no call
         for the active span.
         """
-        root = ot_tracer.start_span('zero')
+        root = ot_tracer.start_span("zero")
 
-        with ot_tracer.start_span('one', child_of=root):
-            with ot_tracer.start_span('two', child_of=root):
-                with ot_tracer.start_span('three', child_of=root):
+        with ot_tracer.start_span("one", child_of=root):
+            with ot_tracer.start_span("two", child_of=root):
+                with ot_tracer.start_span("three", child_of=root):
                     pass
         root.finish()
 
@@ -261,20 +258,17 @@ class TestTracer(object):
         assert spans[1].parent_id is root._dd_span.span_id
         assert spans[2].parent_id is root._dd_span.span_id
         assert spans[3].parent_id is root._dd_span.span_id
-        assert (
-            spans[0].trace_id == spans[1].trace_id and
-            spans[1].trace_id == spans[2].trace_id
-        )
+        assert spans[0].trace_id == spans[1].trace_id and spans[1].trace_id == spans[2].trace_id
 
     def test_start_span_no_active_span(self, ot_tracer, writer):
         """Start spans without using a scope manager.
         Spans should be created without parents since there will be no call
         for the active span.
         """
-        with ot_tracer.start_span('one', ignore_active_span=True):
-            with ot_tracer.start_span('two', ignore_active_span=True):
+        with ot_tracer.start_span("one", ignore_active_span=True):
+            with ot_tracer.start_span("two", ignore_active_span=True):
                 pass
-            with ot_tracer.start_span('three', ignore_active_span=True):
+            with ot_tracer.start_span("three", ignore_active_span=True):
                 pass
 
         spans = writer.pop()
@@ -285,15 +279,15 @@ class TestTracer(object):
         assert spans[2].parent_id is None
         # and that each span is a new trace
         assert (
-            spans[0].trace_id != spans[1].trace_id and
-            spans[1].trace_id != spans[2].trace_id and
-            spans[0].trace_id != spans[2].trace_id
+            spans[0].trace_id != spans[1].trace_id
+            and spans[1].trace_id != spans[2].trace_id
+            and spans[0].trace_id != spans[2].trace_id
         )
 
     def test_start_active_span_child_finish_after_parent(self, ot_tracer, writer):
         """Start a child span and finish it after its parent."""
-        span1 = ot_tracer.start_active_span('one').span
-        span2 = ot_tracer.start_active_span('two').span
+        span1 = ot_tracer.start_active_span("one").span
+        span2 = ot_tracer.start_active_span("two").span
         span1.finish()
         time.sleep(0.005)
         span2.finish()
@@ -314,7 +308,7 @@ class TestTracer(object):
         event = threading.Event()
 
         def trace_one():
-            id = 11             # noqa: A001
+            id = 11  # noqa: A001
             with ot_tracer.start_active_span(str(id)):
                 id += 1
                 with ot_tracer.start_active_span(str(id)):
@@ -323,7 +317,7 @@ class TestTracer(object):
                         event.set()
 
         def trace_two():
-            id = 21             # noqa: A001
+            id = 21  # noqa: A001
             event.wait()
             with ot_tracer.start_active_span(str(id)):
                 id += 1
@@ -347,12 +341,12 @@ class TestTracer(object):
 
         # trace_one will finish before trace_two so its spans should be written
         # before the spans from trace_two, let's confirm this
-        assert spans[0].name == '11'
-        assert spans[1].name == '12'
-        assert spans[2].name == '13'
-        assert spans[3].name == '21'
-        assert spans[4].name == '22'
-        assert spans[5].name == '23'
+        assert spans[0].name == "11"
+        assert spans[1].name == "12"
+        assert spans[2].name == "13"
+        assert spans[3].name == "21"
+        assert spans[4].name == "22"
+        assert spans[5].name == "23"
 
         # next let's ensure that each span has the correct parent:
         # trace_one
@@ -366,61 +360,53 @@ class TestTracer(object):
 
         # finally we should ensure that the trace_ids are reasonable
         # trace_one
-        assert (
-            spans[0].trace_id == spans[1].trace_id and
-            spans[1].trace_id == spans[2].trace_id
-        )
+        assert spans[0].trace_id == spans[1].trace_id and spans[1].trace_id == spans[2].trace_id
         # traces should be independent
         assert spans[2].trace_id != spans[3].trace_id
         # trace_two
-        assert (
-            spans[3].trace_id == spans[4].trace_id and
-            spans[4].trace_id == spans[5].trace_id
-        )
+        assert spans[3].trace_id == spans[4].trace_id and spans[4].trace_id == spans[5].trace_id
 
     def test_start_active_span(self, ot_tracer, writer):
-        with ot_tracer.start_active_span('one') as scope:
+        with ot_tracer.start_active_span("one") as scope:
             pass
 
-        assert scope.span._dd_span.name == 'one'
+        assert scope.span._dd_span.name == "one"
         assert scope.span.finished
         spans = writer.pop()
         assert spans
 
     def test_start_active_span_finish_on_close(self, ot_tracer, writer):
-        with ot_tracer.start_active_span('one', finish_on_close=False) as scope:
+        with ot_tracer.start_active_span("one", finish_on_close=False) as scope:
             pass
 
-        assert scope.span._dd_span.name == 'one'
+        assert scope.span._dd_span.name == "one"
         assert not scope.span.finished
         spans = writer.pop()
         assert not spans
 
     def test_start_active_span_nested(self, ot_tracer):
         """Test the active span of multiple nested calls of start_active_span."""
-        with ot_tracer.start_active_span('one') as outer_scope:
+        with ot_tracer.start_active_span("one") as outer_scope:
             assert ot_tracer.active_span == outer_scope.span
-            with ot_tracer.start_active_span('two') as inner_scope:
+            with ot_tracer.start_active_span("two") as inner_scope:
                 assert ot_tracer.active_span == inner_scope.span
-                with ot_tracer.start_active_span(
-                    'three'
-                ) as innest_scope:  # why isn't it innest? innermost so verbose
+                with ot_tracer.start_active_span("three") as innest_scope:  # why isn't it innest? innermost so verbose
                     assert ot_tracer.active_span == innest_scope.span
-            with ot_tracer.start_active_span('two') as inner_scope:
+            with ot_tracer.start_active_span("two") as inner_scope:
                 assert ot_tracer.active_span == inner_scope.span
             assert ot_tracer.active_span == outer_scope.span
         assert ot_tracer.active_span is None
 
     def test_start_active_span_trace(self, ot_tracer, writer):
         """Test the active span of multiple nested calls of start_active_span."""
-        with ot_tracer.start_active_span('one') as outer_scope:
-            outer_scope.span.set_tag('outer', 2)
-            with ot_tracer.start_active_span('two') as inner_scope:
-                inner_scope.span.set_tag('inner', 3)
-            with ot_tracer.start_active_span('two') as inner_scope:
-                inner_scope.span.set_tag('inner', 3)
-                with ot_tracer.start_active_span('three') as innest_scope:
-                    innest_scope.span.set_tag('innerest', 4)
+        with ot_tracer.start_active_span("one") as outer_scope:
+            outer_scope.span.set_tag("outer", 2)
+            with ot_tracer.start_active_span("two") as inner_scope:
+                inner_scope.span.set_tag("inner", 3)
+            with ot_tracer.start_active_span("two") as inner_scope:
+                inner_scope.span.set_tag("inner", 3)
+                with ot_tracer.start_active_span("three") as innest_scope:
+                    innest_scope.span.set_tag("innerest", 4)
 
         spans = writer.pop()
 
@@ -474,9 +460,7 @@ class TestTracerSpanContextPropagation(object):
 
     def test_http_headers_baggage(self, ot_tracer):
         """extract should undo inject for http headers."""
-        span_ctx = SpanContext(
-            trace_id=123, span_id=456, baggage={'test': 4, 'test2': 'string'}
-        )
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"})
         carrier = {}
 
         ot_tracer.inject(span_ctx, Format.HTTP_HEADERS, carrier)
@@ -497,9 +481,7 @@ class TestTracerSpanContextPropagation(object):
 
     def test_text(self, ot_tracer):
         """extract should undo inject for http headers"""
-        span_ctx = SpanContext(
-            trace_id=123, span_id=456, baggage={'test': 4, 'test2': 'string'}
-        )
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"})
         carrier = {}
 
         ot_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
@@ -512,9 +494,7 @@ class TestTracerSpanContextPropagation(object):
 
     def test_corrupted_propagated_context(self, ot_tracer):
         """Corrupted context should raise a SpanContextCorruptedException."""
-        span_ctx = SpanContext(
-            trace_id=123, span_id=456, baggage={'test': 4, 'test2': 'string'}
-        )
+        span_ctx = SpanContext(trace_id=123, span_id=456, baggage={"test": 4, "test2": "string"})
         carrier = {}
 
         ot_tracer.inject(span_ctx, Format.TEXT_MAP, carrier)
@@ -530,12 +510,12 @@ class TestTracerSpanContextPropagation(object):
 
     def test_immutable_span_context(self, ot_tracer):
         """Span contexts should be immutable."""
-        with ot_tracer.start_span('root') as root:
+        with ot_tracer.start_span("root") as root:
             ctx_before = root.context
-            root.set_baggage_item('test', 2)
+            root.set_baggage_item("test", 2)
             assert ctx_before is not root.context
-            with ot_tracer.start_span('child') as level1:
-                with ot_tracer.start_span('child') as level2:
+            with ot_tracer.start_span("child") as level1:
+                with ot_tracer.start_span("child") as level2:
                     pass
         assert root.context is not level1.context
         assert level2.context is not level1.context
@@ -543,27 +523,27 @@ class TestTracerSpanContextPropagation(object):
 
     def test_inherited_baggage(self, ot_tracer):
         """Baggage should be inherited by child spans."""
-        with ot_tracer.start_active_span('root') as root:
+        with ot_tracer.start_active_span("root") as root:
             # this should be passed down to the child
-            root.span.set_baggage_item('root', 1)
-            root.span.set_baggage_item('root2', 1)
-            with ot_tracer.start_active_span('child') as level1:
-                level1.span.set_baggage_item('level1', 1)
-                with ot_tracer.start_active_span('child') as level2:
-                    level2.span.set_baggage_item('level2', 1)
+            root.span.set_baggage_item("root", 1)
+            root.span.set_baggage_item("root2", 1)
+            with ot_tracer.start_active_span("child") as level1:
+                level1.span.set_baggage_item("level1", 1)
+                with ot_tracer.start_active_span("child") as level2:
+                    level2.span.set_baggage_item("level2", 1)
         # ensure immutability
         assert level1.span.context is not root.span.context
         assert level2.span.context is not level1.span.context
 
         # level1 should have inherited the baggage of root
-        assert level1.span.get_baggage_item('root')
-        assert level1.span.get_baggage_item('root2')
+        assert level1.span.get_baggage_item("root")
+        assert level1.span.get_baggage_item("root2")
 
         # level2 should have inherited the baggage of both level1 and level2
-        assert level2.span.get_baggage_item('root')
-        assert level2.span.get_baggage_item('root2')
-        assert level2.span.get_baggage_item('level1')
-        assert level2.span.get_baggage_item('level2')
+        assert level2.span.get_baggage_item("root")
+        assert level2.span.get_baggage_item("root2")
+        assert level2.span.get_baggage_item("level1")
+        assert level2.span.get_baggage_item("level2")
 
 
 class TestTracerCompatibility(object):
@@ -574,14 +554,14 @@ class TestTracerCompatibility(object):
         by the underlying datadog tracer.
         """
         # a service name is required
-        tracer = Tracer('service')
-        with tracer.start_span('my_span') as span:
+        tracer = Tracer("service")
+        with tracer.start_span("my_span") as span:
             assert span._dd_span.service
 
 
 def test_set_global_tracer():
     """Sanity check for set_global_tracer"""
-    my_tracer = Tracer('service')
+    my_tracer = Tracer("service")
     set_global_tracer(my_tracer)
 
     assert opentracing.tracer is my_tracer

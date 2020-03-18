@@ -1,780 +1,751 @@
-version: 2
+version: 2.1
 
+s3_dir_dev: &s3_dir_dev trace-dev
+s3_dir_prod: &s3_dir_prod trace
+s3_bucket: &s3_bucket pypi.datadoghq.com
+
+resource_class: &resource_class medium
+busybox_image: &busybox_image busybox:latest
+python38_image: &python38_image circleci/python:3.8
+python37_image: &python37_image circleci/python:3.7
+python36_image: &python36_image circleci/python:3.6
+python35_image: &python35_image circleci/python:3.5
+# The circleci/python:3.4 images are broken, we cannot do `pip install <package>`
+# https://github.com/circleci/circleci-images/issues/466
+python34_image: &python34_image python:3.4
+python27_image: &python27_image circleci/python:2.7
+ddtrace_dev_image: &ddtrace_dev_image datadog/docker-library:ddtrace_py
+datadog_agent_image: &datadog_agent_image datadog/docker-dd-agent:latest
+redis_image: &redis_image redis:4.0-alpine
+rediscluster_image: &rediscluster_image grokzen/redis-cluster:4.0.9
+memcached_image: &memcached_image memcached:1.5-alpine
+cassandra_image: &cassandra_image spotify/cassandra:latest
+consul_image: &consul_image consul:1.6.0
+moto_image: &moto_image palazzem/moto:1.0.1
+elasticsearch_image: &elasticsearch_image elasticsearch:2.3
+mysql_image: &mysql_image mysql:5.7
+postgres_image: &postgres_image postgres:10.5-alpine
+mongo_image: &mongo_image mongo:3.6
+httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+vertica_image: &vertica_image sumitchawla/vertica:latest
+rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
+
+machine_executor: &machine_executor
+  machine:
+    image: ubuntu-1604:201903-01
+  environment:
+    - BOTO_CONFIG: /dev/null
+  steps:
+    - &pyenv-set-global
+      run:
+        name: Set global pyenv
+        command: |
+          pyenv global 3.6.5
+
+commands:
+  deploy_docs:
+    description: "Deploy docs"
+    parameters:
+      s3_dir:
+        type: string
+      s3_bucket:
+        type: string
+        default: *s3_bucket
+    steps:
+      - setup_tox
+      - run: pip install awscli
+      - run: tox -e docs
+      - run:
+          name: Release docs
+          command: aws s3 cp --recursive docs/_build/html/ "s3://<< parameters.s3_bucket >>/<< parameters.s3_dir >>/docs/"
+
+  deploy_wheels:
+    description: "Deploy wheels"
+    parameters:
+      s3_dir:
+        type: string
+        default: *s3_dir_dev
+      s3_bucket:
+        type: string
+        default: *s3_bucket
+    steps:
+      - run: pip install awscli cython mkwheelhouse
+      - run:
+          name: Release wheels to dev site
+          command: scripts/mkwheelhouse
+          environment:
+            S3_DIR: << parameters.s3_dir >>
+            S3_BUCKET: << parameters.s3_bucket >>
+
+  setup_tox:
+    description: "Install tox"
+    steps:
+      # We should be doing `pip install tox`
+      # But since ddtrace_py image has already tox, we need to force the
+      # upgrade here
+      # FIXME: remove tox from the base image
+      - run: pip install -U tox virtualenv
+
+  restore_tox_cache:
+    description: "Restore .tox directory from previous runs for faster installs"
+    steps:
+      - restore_cache:
+          # In the cache key:
+          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
+          #                              much faster.
+          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
+
+  save_tox_cache:
+    description: "Save .tox directory into cache for faster installs next time"
+    steps:
+      - save_cache:
+          # In the cache key:
+          #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
+          #                              much faster.
+          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
+          paths:
+            - ".tox"
+
+  save_results:
+    description: "Persist tox *.results files to /tmp directory"
+    steps:
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - "*.results"
+
+  run_tox_scenario:
+    description: "Run scripts/run-tox-scenario with setup, caching and persistence"
+    parameters:
+      pattern:
+        type: string
+      wait:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - setup_tox
+      - restore_tox_cache
+      - when:
+          condition:
+            << parameters.wait >>
+          steps:
+            - run:
+                name: "Waiting for << parameters.wait >>"
+                command: tox -e 'wait' << parameters.wait >>
+      - run:
+          name: "Run scripts/run-tox-scenario"
+          command: scripts/run-tox-scenario '<< parameters.pattern >>'
+      - save_results
+      - save_tox_cache
+
+  test_build:
+    description: "Build the package extensions and wheel to validate builds work"
+    steps:
+      - checkout
+
+      # Install required dependencies
+      # DEV: `pyopenssl` needed until the following PR is released
+      #      https://github.com/pypa/twine/pull/447
+      # DEV: `wheel` is needed to run `bdist_wheel`
+      - run: pip install twine readme_renderer[md] pyopenssl wheel cython
+      # Ensure we didn't cache from previous runs
+      - run: rm -rf build/ dist/
+      # Manually build any extensions to ensure they succeed
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py build_ext --force
+      # Ensure source package will build
+      - run: python setup.py sdist
+      # Ensure wheel will build
+      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
+      - run: DDTRACE_BUILD_RAISE=TRUE python setup.py bdist_wheel
+      # Ensure package long description is valid and will render
+      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
+      - run: twine check dist/*
+
+
+executors:
+  python38:
+    docker:
+      - image: *python38_image
+    resource_class: *resource_class
+  python37:
+    docker:
+      - image: *python37_image
+    resource_class: *resource_class
+  python36:
+    docker:
+      - image: *python36_image
+    resource_class: *resource_class
+  python35:
+    docker:
+      - image: *python35_image
+    resource_class: *resource_class
+  python34:
+    docker:
+      - image: *python34_image
+    resource_class: *resource_class
+  python27:
+    docker:
+      - image: *python27_image
+    resource_class: *resource_class
+  ddtrace_dev:
+    docker:
+      - image: *ddtrace_dev_image
+    resource_class: *resource_class
 
 # Common configuration blocks as YAML anchors
 # See: https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 httpbin_local: &httpbin_local
-  image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+  image: *httpbin_image
   name: httpbin.org
-test_runner: &test_runner
-  image: datadog/docker-library:ddtrace_py
-restore_cache_step: &restore_cache_step
-  restore_cache:
-    keys:
-        # In the cache key:
-        #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
-        #                              much faster.
-        - tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
-resource_class: &resource_class small
-save_cache_step: &save_cache_step
-  save_cache:
-    key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}
-    paths:
-      - .tox
+
 deploy_docs_filters: &deploy_docs_filters
   filters:
     tags:
       only: /(^docs$)|(^v[0-9]+(\.[0-9]+)*$)/
     branches:
       ignore: /.*/
-persist_to_workspace_step: &persist_to_workspace_step
-  persist_to_workspace:
-    root: /tmp
-    paths:
-      - "*.results"
 
+datadog_agent: &datadog_agent
+  image: *datadog_agent_image
+  environment:
+    DD_APM_ENABLED: true
+    DD_BIND_HOST: 0.0.0.0
+    DD_API_KEY: invalid_key_but_this_is_fine
+
+mysql_server: &mysql_server
+  image: *mysql_image
+  environment:
+    - MYSQL_ROOT_PASSWORD=admin
+    - MYSQL_PASSWORD=test
+    - MYSQL_USER=test
+    - MYSQL_DATABASE=test
+
+postgres_server: &postgres_server
+  image: *postgres_image
+  environment:
+    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_USER=postgres
+    - POSTGRES_DB=postgres
 
 jobs:
   black:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: python38
     steps:
       - checkout
-      - *restore_cache_step
+      - setup_tox
       - run: tox -e 'black' --result-json /tmp/black.results
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - save_results
 
   flake8:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: python38
     steps:
       - checkout
-      - *restore_cache_step
+      - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - save_results
 
-  # Test that we can build the package properly and package long description will render
-  test_build:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+  test_build_py38:
+    executor: python38
     steps:
-      - checkout
-      - *restore_cache_step
-      # Create and activate a Python3.7 virtualenv
-      - run: virtualenv --python python3.7 .venv/build
-
-      # Install required dependencies
-      # DEV: `pyopenssl` needed until the following PR is released
-      #      https://github.com/pypa/twine/pull/447
-      # DEV: `wheel` is needed to run `bdist_wheel`
-      - run: .venv/build/bin/pip install twine readme_renderer[md] pyopenssl wheel
-      # Ensure we didn't cache from previous runs
-      - run: rm -rf build/ dist/
-      # Manually build any extensions to ensure they succeed
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py build_ext --force
-      # Ensure source package will build
-      - run: .venv/build/bin/python setup.py sdist
-      # Ensure wheel will build
-      # DEV: `DDTRACE_BUILD_RAISE=TRUE` will ensure we don't swallow any build errors
-      - run: DDTRACE_BUILD_RAISE=TRUE .venv/build/bin/python setup.py bdist_wheel
-      # Ensure package long description is valid and will render
-      # https://github.com/pypa/twine/tree/6c4d5ecf2596c72b89b969ccc37b82c160645df8#twine-check
-      - run: .venv/build/bin/twine check dist/*
-      - *save_cache_step
+      - test_build
+  test_build_py37:
+    executor: python37
+    steps:
+      - test_build
+  test_build_py36:
+    executor: python36
+    steps:
+      - test_build
+  test_build_py35:
+    executor: python35
+    steps:
+      - test_build
+  test_build_py34:
+    executor: python34
+    steps:
+      - test_build
+  test_build_py27:
+    executor: python27
+    steps:
+      - test_build
 
   tracer:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-tracer$'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-tracer'
 
   internal:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-internal'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-internal'
 
   opentracer:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-opentracer'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-opentracer'
+
+  profile:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^py..-profile'
 
   integration:
+    executor: ddtrace_dev
     docker:
-      - <<: *test_runner
-        env:
+      - image: *ddtrace_dev_image
+        environment:
           TEST_DATADOG_INTEGRATION: 1
-      - image: datadog/docker-dd-agent
-        env:
-            - DD_APM_ENABLED=true
-            - DD_BIND_HOST=0.0.0.0
-            - DD_API_KEY=invalid_key_but_this_is_fine
-    resource_class: *resource_class
+      - *datadog_agent
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-integration$'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-integration'
 
   futures:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^futures_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^futures_contrib-'
 
   boto:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^boto\(core\)\?_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^boto\(core\)\?_contrib-'
 
   ddtracerun:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: redis:4.0-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *redis_image
     steps:
-      - checkout
-      - run: scripts/run-tox-scenario '^py..-ddtracerun$'
-      - *persist_to_workspace_step
+      - run_tox_scenario:
+          pattern: '^py..-ddtracerun$'
 
   test_utils:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-test_utils$'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-test_utils$'
 
   test_logging:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^py..-test_logging$'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^py..-test_logging$'
 
   asyncio:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^asyncio_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^asyncio_contrib-'
 
   pylons:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^pylons_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^pylons_contrib-'
 
   aiohttp:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^aiohttp_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^aiohttp_contrib-'
 
   tornado:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^tornado_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^tornado_contrib-'
 
   bottle:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^bottle_contrib\(_autopatch\)\?-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^bottle_contrib\(_autopatch\)\?-'
 
   cassandra:
+    executor: ddtrace_dev
     docker:
-      - <<: *test_runner
-        env:
+      - image: *ddtrace_dev_image
+        environment:
           CASS_DRIVER_NO_EXTENSIONS: 1
-      - image: spotify/cassandra:latest
-        env:
+      - image: *cassandra_image
+        environment:
           - MAX_HEAP_SIZE=512M
           - HEAP_NEWSIZE=256M
-    resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e wait cassandra
-      - run: scripts/run-tox-scenario '^cassandra_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: cassandra
+          pattern: '^cassandra_contrib-'
 
   celery:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
+      - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
-    resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^celery_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^celery_contrib-'
 
   consul:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: consul:1.6.0
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *consul_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^consul_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^consul_contrib-'
+
+  dogpile_cache:
+    executor: ddtrace_dev
+    steps:
+      - run_tox_scenario:
+          pattern: '^dogpile_contrib-'
 
   elasticsearch:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: elasticsearch:2.3
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *elasticsearch_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^elasticsearch_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^elasticsearch_contrib-'
 
   falcon:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'falcon_contrib{,_autopatch}-{py27,py34,py35,py36}-falcon{10,11,12,13,14}' --result-json /tmp/falcon.results
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^falcon_contrib'
 
   django:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: redis:4.0-alpine
-      - image: memcached:1.5-alpine
-      - image: datadog/docker-dd-agent
-        env:
-            - DD_APM_ENABLED=true
-            - DD_BIND_HOST=0.0.0.0
-            - DD_API_KEY=invalid_key_but_this_is_fine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *redis_image
+      - image: *memcached_image
+      - *datadog_agent
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^django_'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^django_contrib'
+
+  djangorestframework:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *redis_image
+      - image: *memcached_image
+      - *datadog_agent
+    steps:
+      - run_tox_scenario:
+          pattern: '^django_drf_contrib'
 
   flask:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: redis:4.0-alpine
-      - image: memcached:1.5-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *redis_image
+      - image: *memcached_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^flask_\(cache_\)\?contrib\(_autopatch\)\?-'
 
   gevent:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^gevent_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^gevent_contrib-'
 
   httplib:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^httplib_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^httplib_contrib'
 
   grpc:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^grpc_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^grpc_contrib-'
 
   molten:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^molten_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^molten_contrib-'
 
   mysqlconnector:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mysql:5.7
-        env:
-            - MYSQL_ROOT_PASSWORD=admin
-            - MYSQL_PASSWORD=test
-            - MYSQL_USER=test
-            - MYSQL_DATABASE=test
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' mysql
-      - run: scripts/run-tox-scenario '^mysql_contrib-.*-mysqlconnector'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: mysql
+          pattern: '^mysql_contrib-.*-mysqlconnector'
 
   mysqlpython:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mysql:5.7
-        env:
-            - MYSQL_ROOT_PASSWORD=admin
-            - MYSQL_PASSWORD=test
-            - MYSQL_USER=test
-            - MYSQL_DATABASE=test
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' mysql
-      - run: scripts/run-tox-scenario '^mysqldb_contrib-.*-mysqlclient'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: mysql
+          pattern: '^mysqldb_contrib-.*-mysqlclient'
 
   mysqldb:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mysql:5.7
-        env:
-            - MYSQL_ROOT_PASSWORD=admin
-            - MYSQL_PASSWORD=test
-            - MYSQL_USER=test
-            - MYSQL_DATABASE=test
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' mysql
-      - run: scripts/run-tox-scenario '^mysqldb_contrib-.*-mysqldb'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: mysql
+          pattern: '^mysqldb_contrib-.*-mysqldb'
 
   pymysql:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mysql:5.7
-        env:
-            - MYSQL_ROOT_PASSWORD=admin
-            - MYSQL_PASSWORD=test
-            - MYSQL_USER=test
-            - MYSQL_DATABASE=test
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' mysql
-      - run: scripts/run-tox-scenario '^pymysql_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: mysql
+          pattern: '^pymysql_contrib-'
 
   pylibmc:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: memcached:1.5-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *memcached_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^pylibmc_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^pylibmc_contrib-'
 
   pymemcache:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: memcached:1.5-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *memcached_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^pymemcache_contrib\(_autopatch\)\?-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^pymemcache_contrib\(_autopatch\)\?-'
 
   mongoengine:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mongo:3.6
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *mongo_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^mongoengine_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^mongoengine_contrib-'
 
   pymongo:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: mongo:3.6
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *mongo_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^pymongo_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^pymongo_contrib-'
 
   pyramid:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^pyramid_contrib\(_autopatch\)\?-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^pyramid_contrib\(_autopatch\)\?-'
 
   requests:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
+      - image: *ddtrace_dev_image
       - *httpbin_local
-    resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^requests_contrib\(_autopatch\)\?-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^requests_contrib\(_autopatch\)\?-'
 
   requestsgevent:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^requests_gevent_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^requests_gevent_contrib-'
 
   sqlalchemy:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: postgres:10.5-alpine
-        env:
-            - POSTGRES_PASSWORD=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_DB=postgres
-      - image: mysql:5.7
-        env:
-            - MYSQL_ROOT_PASSWORD=admin
-            - MYSQL_PASSWORD=test
-            - MYSQL_USER=test
-            - MYSQL_DATABASE=test
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *postgres_server
+      - *mysql_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' postgres mysql
-      - run: scripts/run-tox-scenario '^sqlalchemy_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: postgres mysql
+          pattern: '^sqlalchemy_contrib-'
 
   dbapi:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^dbapi_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^dbapi_contrib-'
 
   psycopg:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: postgres:10.5-alpine
-        env:
-            - POSTGRES_PASSWORD=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_DB=postgres
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *postgres_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' postgres
-      - run: scripts/run-tox-scenario '^psycopg_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: postgres
+          pattern: '^psycopg_contrib-'
 
   aiobotocore:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: palazzem/moto:1.0.1
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *moto_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^aiobotocore_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^aiobotocore_contrib'
 
   aiopg:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: postgres:10.5-alpine
-        env:
-            - POSTGRES_PASSWORD=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_DB=postgres
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - *postgres_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' postgres
-      - run: scripts/run-tox-scenario '^aiopg_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: postgres
+          pattern: '^aiopg_contrib-'
 
   redis:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: redis:4.0-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *redis_image
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^redis_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^redis_contrib-'
 
   rediscluster:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: grokzen/redis-cluster:4.0.9
-        env:
+      - image: *ddtrace_dev_image
+      - image: *rediscluster_image
+        environment:
           - IP=0.0.0.0
-    resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e wait rediscluster
-      - run: scripts/run-tox-scenario '^rediscluster_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: rediscluster
+          pattern: '^rediscluster_contrib-'
 
   vertica:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: sumitchawla/vertica
-        env:
+      - image: *ddtrace_dev_image
+      - image: *vertica_image
+        environment:
           - VP_TEST_USER=dbadmin
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
-    resource_class: *resource_class
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e wait vertica
-      - run: scripts/run-tox-scenario '^vertica_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: vertica
+          pattern: '^vertica_contrib-'
 
   kombu:
+    executor: ddtrace_dev
     docker:
-    - *test_runner
-    - image: rabbitmq:3.7-alpine
-    resource_class: *resource_class
+      - image: *ddtrace_dev_image
+      - image: *rabbitmq_image
     steps:
-    - checkout
-    - *restore_cache_step
-    - run: tox -e wait rabbitmq
-    - run: scripts/run-tox-scenario '^kombu_contrib-'
-    - *persist_to_workspace_step
-    - *save_cache_step
+      - run_tox_scenario:
+          wait: rabbitmq
+          pattern: '^kombu_contrib-'
 
   sqlite3:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^sqlite3_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^sqlite3_contrib-'
 
   unit_tests:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^unit_tests-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^unit_tests-'
 
   benchmarks:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
       - checkout
-      - *restore_cache_step
+      - setup_tox
+      - restore_tox_cache
       - run:
           command: |
             mkdir -p /tmp/test-reports
-            tox -e 'benchmarks-{py27,py34,py35,py36,py37}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
+            tox -e 'benchmarks-{py27,py35,py36,py37,py38}' --result-json /tmp/benchmarks.results -- --benchmark-storage=file:///tmp/test-reports/ --benchmark-autosave
       - store_test_results:
           path: /tmp/test-reports
       - store_artifacts:
           path: /tmp/test-reports
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - save_results
+      - save_tox_cache
 
-  deploy_dev:
-    # build the master branch releasing development docs and wheels
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
+  build_wheels:
+    <<: *machine_executor
     steps:
       - checkout
-      - run: sudo apt-get -y install rake
-      - run: sudo pip install mkwheelhouse sphinx awscli
-      - run: S3_DIR=trace-dev rake release:docs
-      - run: S3_DIR=trace-dev rake release:wheel
+      - *pyenv-set-global
+      - run: pip install cython
+      - run: scripts/build-dist
+
+  deploy_master:
+    # build the master branch releasing development docs and wheels
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - deploy_docs:
+          s3_dir: *s3_dir_dev
+      - deploy_wheels
+
+  deploy_staging:
+    <<: *machine_executor
+    steps:
+      - checkout
+      - *pyenv-set-global
+      - deploy_wheels
 
   jinja2:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^jinja2_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^jinja2_contrib-'
 
   mako:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^mako_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^mako_contrib-'
 
   algoliasearch:
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+    executor: ddtrace_dev
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: scripts/run-tox-scenario '^algoliasearch_contrib-'
-      - *persist_to_workspace_step
-      - *save_cache_step
+      - run_tox_scenario:
+          pattern: '^algoliasearch_contrib-'
 
   build_docs:
     # deploy official documentation
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
+    executor: python38
     steps:
       - checkout
-      - run: sudo apt-get -y install rake
-      # Sphinx 1.7.5 is required otherwise docs are not properly built
-      - run: sudo pip install mkwheelhouse sphinx==1.7.5 wrapt
-      - run: rake docs
+      - setup_tox
+      - run: tox -e docs
       - run:
           command: |
              mkdir -p /tmp/docs
@@ -782,37 +753,36 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
-  deploy_to_s3:
+  deploy_docs:
     # deploy official documentation
-    docker:
-      - image: circleci/python:3.6
-    resource_class: *resource_class
+    executor: python38
     steps:
       - checkout
-      - run: sudo apt-get -y install rake
-      # Sphinx 1.7.5 is required otherwise docs are not properly built
-      - run: sudo pip install mkwheelhouse sphinx==1.7.5 awscli wrapt
-      - run: S3_DIR=trace rake release:docs
+      - deploy_docs:
+          s3_dir: *s3_dir_prod
 
-  wait_all_tests:
-    # this step ensures all `tox` environments are properly executed
-    docker:
-      - *test_runner
-    resource_class: *resource_class
+  verify_all_tests_ran:
+    executor: python38
     steps:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
+      - setup_tox
       - run: ls /tmp/workspace/*
         # debug: shows how many time each test was executed
       - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq -c | sort -rn
         # list all executed test
-      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | sed 's/"//g' | sort | uniq | tee all_executed_tests
+      - run: jq -s ".[]|.testenvs|keys|.[]" /tmp/workspace/* | grep -v GLOB | grep -v .package | sed 's/"//g' | sort | uniq | tee all_executed_tests
         # list all tests in tox.ini
-      - run: tox -l | grep -v "^wait$" | sort > all_tests
+      - run: tox -l | grep -v -E "^(wait$|\.)" | sort > all_tests
         # checks that all tests were executed
-      - run: diff all_tests all_executed_tests
+      - run: diff -u all_tests all_executed_tests
 
+
+requires_pre_test: &requires_pre_test
+  requires:
+    - black
+    - flake8
 
 workflows:
   version: 2
@@ -826,227 +796,85 @@ workflows:
           type: approval
           requires:
             - build_docs
-      - deploy_to_s3:
+      - deploy_docs:
           <<: *deploy_docs_filters
           requires:
             - approve_docs_deployment
   test:
     jobs:
+      # Jobs that should run before individual integration test suites
       - build_docs
       - black
       - flake8
-      - test_build
-      - aiobotocore:
+
+      # Test building the package
+      - test_build_py38: *requires_pre_test
+      - test_build_py37: *requires_pre_test
+      - test_build_py36: *requires_pre_test
+      - test_build_py35: *requires_pre_test
+      - test_build_py27: *requires_pre_test
+      - build_wheels: *requires_pre_test
+
+      # Integration test suites
+      - aiobotocore: *requires_pre_test
+      - aiohttp: *requires_pre_test
+      - aiopg: *requires_pre_test
+      - asyncio: *requires_pre_test
+      - algoliasearch: *requires_pre_test
+      - benchmarks: *requires_pre_test
+      - boto: *requires_pre_test
+      - bottle: *requires_pre_test
+      - cassandra: *requires_pre_test
+      - celery: *requires_pre_test
+      - consul: *requires_pre_test
+      - dbapi: *requires_pre_test
+      - ddtracerun: *requires_pre_test
+      - django: *requires_pre_test
+      - djangorestframework: *requires_pre_test
+      - dogpile_cache: *requires_pre_test
+      - elasticsearch: *requires_pre_test
+      - falcon: *requires_pre_test
+      - flask: *requires_pre_test
+      - futures: *requires_pre_test
+      - gevent: *requires_pre_test
+      - grpc: *requires_pre_test
+      - httplib: *requires_pre_test
+      - integration: *requires_pre_test
+      - internal: *requires_pre_test
+      - profile: *requires_pre_test
+      - jinja2: *requires_pre_test
+      - kombu: *requires_pre_test
+      - mako: *requires_pre_test
+      - molten: *requires_pre_test
+      - mongoengine: *requires_pre_test
+      - mysqlconnector: *requires_pre_test
+      - mysqldb: *requires_pre_test
+      - mysqlpython: *requires_pre_test
+      - opentracer: *requires_pre_test
+      - psycopg: *requires_pre_test
+      - pylibmc: *requires_pre_test
+      - pylons: *requires_pre_test
+      - pymemcache: *requires_pre_test
+      - pymongo: *requires_pre_test
+      - pymysql: *requires_pre_test
+      - pyramid: *requires_pre_test
+      - redis: *requires_pre_test
+      - rediscluster: *requires_pre_test
+      - requests: *requires_pre_test
+      - requestsgevent: *requires_pre_test
+      - sqlalchemy: *requires_pre_test
+      - sqlite3: *requires_pre_test
+      - test_utils: *requires_pre_test
+      - test_logging: *requires_pre_test
+      - tornado: *requires_pre_test
+      # tracer
+      - tracer: *requires_pre_test
+      - unit_tests: *requires_pre_test
+      - vertica: *requires_pre_test
+      - verify_all_tests_ran:
           requires:
-            - flake8
-            - black
-      - aiohttp:
-          requires:
-            - flake8
-            - black
-      - aiopg:
-          requires:
-            - flake8
-            - black
-      - asyncio:
-          requires:
-            - flake8
-            - black
-      - algoliasearch:
-          requires:
-            - flake8
-            - black
-      - benchmarks:
-          requires:
-            - flake8
-            - black
-      - boto:
-          requires:
-            - flake8
-            - black
-      - bottle:
-          requires:
-            - flake8
-            - black
-      - cassandra:
-          requires:
-            - flake8
-            - black
-      - celery:
-          requires:
-            - flake8
-            - black
-      - consul:
-          requires:
-            - flake8
-            - black
-      - dbapi:
-          requires:
-            - flake8
-            - black
-      - ddtracerun:
-          requires:
-            - flake8
-            - black
-      - django:
-          requires:
-            - flake8
-            - black
-      - elasticsearch:
-          requires:
-            - flake8
-            - black
-      - falcon:
-          requires:
-            - flake8
-            - black
-      - flask:
-          requires:
-            - flake8
-            - black
-      - futures:
-          requires:
-            - flake8
-            - black
-      - gevent:
-          requires:
-            - flake8
-            - black
-      - grpc:
-          requires:
-            - flake8
-            - black
-      - httplib:
-          requires:
-            - flake8
-            - black
-      - integration:
-          requires:
-            - flake8
-            - black
-      - internal:
-          requires:
-            - flake8
-            - black
-      - jinja2:
-          requires:
-            - flake8
-            - black
-      - kombu:
-          requires:
-            - flake8
-            - black
-      - mako:
-          requires:
-            - flake8
-            - black
-      - molten:
-          requires:
-            - flake8
-            - black
-      - mongoengine:
-          requires:
-            - flake8
-            - black
-      - mysqlconnector:
-          requires:
-            - flake8
-            - black
-      - mysqldb:
-          requires:
-            - flake8
-            - black
-      - mysqlpython:
-          requires:
-            - flake8
-            - black
-      - opentracer:
-          requires:
-            - flake8
-            - black
-      - psycopg:
-          requires:
-            - flake8
-            - black
-      - pylibmc:
-          requires:
-            - flake8
-            - black
-      - pylons:
-          requires:
-            - flake8
-            - black
-      - pymemcache:
-          requires:
-            - flake8
-            - black
-      - pymongo:
-          requires:
-            - flake8
-            - black
-      - pymysql:
-          requires:
-            - flake8
-            - black
-      - pyramid:
-          requires:
-            - flake8
-            - black
-      - redis:
-          requires:
-            - flake8
-            - black
-      - rediscluster:
-          requires:
-            - flake8
-            - black
-      - requests:
-          requires:
-            - flake8
-            - black
-      - requestsgevent:
-          requires:
-            - flake8
-            - black
-      - sqlalchemy:
-          requires:
-            - flake8
-            - black
-      - sqlite3:
-          requires:
-            - flake8
-            - black
-      - test_utils:
-          requires:
-            - flake8
-            - black
-      - test_logging:
-          requires:
-            - flake8
-            - black
-      - tornado:
-          requires:
-            - flake8
-            - black
-      - tracer:
-          requires:
-            - flake8
-            - black
-      - unit_tests:
-          requires:
-            - flake8
-            - black
-      - vertica:
-          requires:
-            - flake8
-            - black
-      - wait_all_tests:
-          requires:
-            # Initial jobs
+            # Individual tests do not need this to start running
             - build_docs
-            - black
-            - flake8
-            - test_build
 
             # flake8 dependent jobs
             - aiobotocore
@@ -1062,7 +890,9 @@ workflows:
             - consul
             - dbapi
             - ddtracerun
+            - dogpile_cache
             - django
+            - djangorestframework
             - elasticsearch
             - falcon
             - flask
@@ -1072,6 +902,7 @@ workflows:
             - httplib
             - integration
             - internal
+            - profile
             - jinja2
             - kombu
             - mako
@@ -1094,15 +925,26 @@ workflows:
             - requestsgevent
             - sqlalchemy
             - sqlite3
+            - test_build_py38
+            - test_build_py37
+            - test_build_py36
+            - test_build_py35
+            - test_build_py27
             - test_utils
             - test_logging
-            - tornado
             - tracer
+            - tornado
             - unit_tests
             - vertica
-      - deploy_dev:
+      - deploy_master:
           requires:
-            - wait_all_tests
+            - verify_all_tests_ran
           filters:
             branches:
               only: master
+      - deploy_staging:
+          requires:
+            - verify_all_tests_ran
+          filters:
+            branches:
+              only: staging

@@ -7,7 +7,7 @@ from ddtrace import config
 import botocore.client
 
 # project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
 from ...ext import SpanTypes, http, aws
 from ...utils.formats import deep_getattr
@@ -47,7 +47,7 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace('{}.command'.format(endpoint_name),
                           service='{}.{}'.format(pin.service, endpoint_name),
                           span_type=SpanTypes.HTTP) as span:
-
+        span.set_tag(SPAN_MEASURED_KEY)
         operation = None
         if args:
             operation = args[0]
@@ -69,8 +69,16 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         result = original_func(*args, **kwargs)
 
-        span.set_tag(http.STATUS_CODE, result['ResponseMetadata']['HTTPStatusCode'])
-        span.set_tag('retry_attempts', result['ResponseMetadata']['RetryAttempts'])
+        response_meta = result['ResponseMetadata']
+
+        if 'HTTPStatusCode' in response_meta:
+            span.set_tag(http.STATUS_CODE, response_meta['HTTPStatusCode'])
+
+        if 'RetryAttempts' in response_meta:
+            span.set_tag('retry_attempts', response_meta['RetryAttempts'])
+
+        if 'RequestId' in response_meta:
+            span.set_tag('aws.requestid', response_meta['RequestId'])
 
         # set analytics sample rate
         span.set_tag(
