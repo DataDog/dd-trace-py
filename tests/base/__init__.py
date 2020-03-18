@@ -45,6 +45,7 @@ class BaseTestCase(unittest.TestCase):
             "health_metrics_enabled",
             "env",
             "version",
+            "service",
         ]
 
         # Grab the current values of all keys

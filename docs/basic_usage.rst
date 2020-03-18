@@ -134,15 +134,23 @@ your behalf::
 Via API
 ----------
 If you want to control which part of your code should be profiled, you can use
-the `ddtrace.profiler.Profiler` object::
+the `ddtrace.profile.profiler.Profiler` object::
 
-  import ddtrace.profile.profiler
+  from ddtrace.profile.profiler import Profiler
 
-  prof = profiler.Profiler()
+  prof = Profiler()
   prof.start()
 
   # At shutdown
   prof.stop()
+
+.. important::
+
+   The profiler has been designed to be always-on. The ``start`` and ``stop``
+   methods are provided in case you need a fine-grained control over the
+   profiler lifecycle. They are not provided for starting and stopping the
+   profiler many times during your application lifecycle. Do not use them for
+   e.g. buildin a context manager.
 
 Via command line
 ----------------

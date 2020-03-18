@@ -30,11 +30,21 @@ def inject_sitecustomize(path):
 
 
 class DdtraceRunTest(BaseTestCase):
-    def test_service_name_passthrough(self):
+    def test_service_name_passthrough_legacy(self):
         """
         $DATADOG_SERVICE_NAME gets passed through to the program
         """
         with self.override_env(dict(DATADOG_SERVICE_NAME='my_test_service')):
+            out = subprocess.check_output(
+                ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
+            )
+            assert out.startswith(b'Test success')
+
+    def test_service_name_passthrough(self):
+        """
+        $DD_SERVICE gets passed through to the program
+        """
+        with self.override_env(dict(DD_SERVICE='my_test_service')):
             out = subprocess.check_output(
                 ['ddtrace-run', 'python', 'tests/commands/ddtrace_run_service.py']
             )
