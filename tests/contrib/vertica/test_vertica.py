@@ -15,6 +15,7 @@ from tests.base import BaseTracerTestCase
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
+from ...subprocesstest import run_in_subprocess
 from ...utils import assert_is_measured
 
 TEST_TABLE = 'test_table'
@@ -432,3 +433,23 @@ class TestVertica(BaseTracerTestCase):
         spans = self.test_tracer.writer.pop()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The vertica integration should not use it.
+        """
+        # Ensure that the service name was configured
+        with self.override_global_config(dict(service="mysvc")):
+            from ddtrace import config
+            assert config.service == "mysvc"
+            conn, cur = self.test_conn
+            Pin.override(cur, tracer=self.test_tracer)
+            with conn:
+                cur.execute("INSERT INTO {} (a, b) VALUES (1, 'aa');".format(TEST_TABLE))
+                cur.execute("SELECT * FROM {};".format(TEST_TABLE))
+
+        spans = self.test_tracer.writer.pop()
+        assert len(spans) == 2
+        span = spans[0]
+        assert span.service != "mysvc"

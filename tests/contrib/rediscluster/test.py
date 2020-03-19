@@ -113,7 +113,7 @@ class TestRedisPatch(BaseTracerTestCase):
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
-            The rediscluser integration should not use it.
+            The rediscluster integration should not use it.
         """
         # Ensure that the service name was configured
         from ddtrace import config
