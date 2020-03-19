@@ -12,8 +12,9 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
-from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...subprocesstest import SubprocessTestCase, run_in_subprocess
+from ...test_tracer import get_dummy_tracer
 from ...utils import assert_span_http_status_code, assert_is_measured
 
 
@@ -197,7 +198,7 @@ class ElasticsearchTest(unittest.TestCase):
         assert dd_span.resource == 'PUT /%s' % self.ES_INDEX
 
 
-class ElasticsearchPatchTest(BaseTracerTestCase):
+class ElasticsearchPatchTest(SubprocessTestCase, BaseTracerTestCase):
     """
     Elasticsearch integration test suite.
     Need a running ElasticSearch.
@@ -391,3 +392,16 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         self.reset()
         assert spans, spans
         assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The elasticsearch integration should not use it.
+        """
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        Pin(service="es", tracer=self.tracer).onto(self.es.transport)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
