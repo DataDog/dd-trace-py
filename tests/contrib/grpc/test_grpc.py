@@ -11,7 +11,7 @@ from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
-from ...subprocesstest import run_in_subprocess
+from ...subprocesstest import SubprocessTestCase, run_in_subprocess
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -20,7 +20,7 @@ _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])
 
 
-class GrpcTestCase(BaseTracerTestCase):
+class GrpcTestCase(SubprocessTestCase, BaseTracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
         patch()

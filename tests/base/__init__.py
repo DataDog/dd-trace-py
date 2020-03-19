@@ -4,7 +4,6 @@ import unittest
 
 import ddtrace
 
-from ..subprocesstest import SubprocessTestCase
 from ..utils import override_env
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
@@ -134,7 +133,7 @@ class BaseTestCase(unittest.TestCase):
 override_config = BaseTestCase.override_config
 
 
-class BaseTracerTestCase(SubprocessTestCase, TestSpanContainer, BaseTestCase):
+class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
     """
     BaseTracerTestCase is a base test case for when you need access to a dummy tracer and span assertions
     """

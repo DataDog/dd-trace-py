@@ -19,6 +19,7 @@ from ddtrace import config, Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
+from ...subprocesstest import SubprocessTestCase, run_in_subprocess
 from ...utils import assert_is_measured
 
 # Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop
@@ -459,3 +460,24 @@ def test_backwards_compat_get_traced_cassandra():
     cluster = get_traced_cassandra()
     session = cluster(port=CASSANDRA_CONFIG['port']).connect()
     session.execute('drop table if exists test.person')
+
+
+class TestCassandraConfig(SubprocessTestCase, TestCassPatchDefault):
+    """
+    Test various configurations of the Cassandra integration.
+    """
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_service(self):
+        """
+        When a user defines a service
+            The cassandra integration should not use it.
+        """
+        session, tracer = self._traced_session()
+        writer = tracer.writer
+        session.execute(self.TEST_QUERY)
+        spans = writer.pop()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service != "mysvc"
