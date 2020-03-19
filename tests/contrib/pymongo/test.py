@@ -1,6 +1,5 @@
 # stdlib
 import time
-import unittest
 
 # 3p
 import pymongo
@@ -15,7 +14,8 @@ from ddtrace.contrib.pymongo.patch import patch, unpatch
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import override_config
+from ...base import BaseTracerTestCase, override_config
+from ...subprocesstest import run_in_subprocess
 from ...test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
@@ -343,7 +343,7 @@ class PymongoCore(object):
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
-class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
+class TestPymongoTraceClient(BaseTracerTestCase, PymongoCore):
     """Test suite for pymongo with the legacy trace interface"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -355,7 +355,7 @@ class TestPymongoTraceClient(unittest.TestCase, PymongoCore):
         return tracer, client
 
 
-class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
+class TestPymongoPatchDefault(BaseTracerTestCase, PymongoCore):
     """Test suite for pymongo with the default patched library"""
 
     TEST_SERVICE = mongox.SERVICE
@@ -396,7 +396,7 @@ class TestPymongoPatchDefault(unittest.TestCase, PymongoCore):
         assert client
 
 
-class TestPymongoPatchConfigured(unittest.TestCase, PymongoCore):
+class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
     """Test suite for pymongo with a configured patched library"""
 
     TEST_SERVICE = 'test-mongo-trace-client'
@@ -448,3 +448,20 @@ class TestPymongoPatchConfigured(unittest.TestCase, PymongoCore):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The pymongo integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+        client["testdb"].drop_collection("whatever")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"

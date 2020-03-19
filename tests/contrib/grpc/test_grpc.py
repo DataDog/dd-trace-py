@@ -11,7 +11,7 @@ from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
-from ...subprocesstest import SubprocessTestCase, run_in_subprocess
+from ...subprocesstest import run_in_subprocess
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -20,7 +20,7 @@ _GRPC_PORT = 50531
 _GRPC_VERSION = tuple([int(i) for i in _GRPC_VERSION.split('.')])
 
 
-class GrpcTestCase(SubprocessTestCase, BaseTracerTestCase):
+class GrpcTestCase(BaseTracerTestCase):
     def setUp(self):
         super(GrpcTestCase, self).setUp()
         patch()
@@ -449,6 +449,10 @@ class GrpcTestCase(SubprocessTestCase, BaseTracerTestCase):
             It should be used for grpc server spans
             It should be included in grpc client spans
         """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
         channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
         stub1 = HelloStub(channel1)
         stub1.SayHello(HelloRequest(name="test"))
