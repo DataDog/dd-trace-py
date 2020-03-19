@@ -776,7 +776,7 @@ def test_tracer_with_env():
             assert span.get_tag(ENV_KEY) == 'config.env'
 
 
-class EnvTracerTestCase(BaseTracerTestCase):
+class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
     """Tracer test cases requiring environment variables.
     """
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
