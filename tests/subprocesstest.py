@@ -74,7 +74,7 @@ def run_in_subprocess(*args, **kwargs):
 
 
 class SubprocessTestCase(unittest.TestCase):
-    run_in_subprocess = run_in_subprocess
+    run_in_subprocess = staticmethod(run_in_subprocess)
 
     def _full_method_name(self):
         test = getattr(self, self._testMethodName)
