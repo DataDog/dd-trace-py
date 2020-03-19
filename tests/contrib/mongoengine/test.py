@@ -14,8 +14,7 @@ from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import override_config
-from ...subprocesstest import SubprocessTestCase, run_in_subprocess
+from ...base import BaseTracerTestCase, override_config
 from ...test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
@@ -197,7 +196,7 @@ class MongoEngineCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
@@ -214,7 +213,7 @@ class MongoEngineCore(object):
         assert spans[0].service != "mysvc"
 
 
-class TestMongoEnginePatchConnectDefault(SubprocessTestCase, MongoEngineCore):
+class TestMongoEnginePatchConnectDefault(BaseTracerTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
 
     TEST_SERVICE = mongox.SERVICE
@@ -249,7 +248,7 @@ class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
         return tracer
 
 
-class TestMongoEnginePatchClientDefault(SubprocessTestCase, MongoEngineCore):
+class TestMongoEnginePatchClientDefault(BaseTracerTestCase, MongoEngineCore):
     """Test suite with a Pin local to a specific client with default configuration"""
 
     TEST_SERVICE = mongox.SERVICE

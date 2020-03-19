@@ -7,7 +7,6 @@ from ddtrace.contrib.mysqldb.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ..config import MYSQL_CONFIG
 from ...base import BaseTracerTestCase
-from ...subprocesstest import run_in_subprocess
 from ...util import assert_dict_issuperset
 from ...utils import assert_is_measured
 
@@ -420,7 +419,7 @@ class MySQLCore(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

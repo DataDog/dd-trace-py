@@ -16,7 +16,6 @@ from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
 from ...base import BaseTracerTestCase
-from ...subprocesstest import run_in_subprocess
 
 from tests.test_tracer import get_dummy_tracer
 
@@ -321,7 +320,7 @@ class PymemcacheClientConfiguration(BaseTracerTestCase):
 
         self.assertEqual(spans[0].service, 'mysvc2')
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

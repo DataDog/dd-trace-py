@@ -13,7 +13,6 @@ from ddtrace.contrib.elasticsearch.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ..config import ELASTICSEARCH_CONFIG
 from ...base import BaseTracerTestCase
-from ...subprocesstest import run_in_subprocess
 from ...test_tracer import get_dummy_tracer
 from ...utils import assert_span_http_status_code, assert_is_measured
 
@@ -393,7 +392,7 @@ class ElasticsearchPatchTest(BaseTracerTestCase):
         assert spans, spans
         assert len(spans) == 1
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

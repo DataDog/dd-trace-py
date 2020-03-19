@@ -11,7 +11,6 @@ from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured
-from ...subprocesstest import run_in_subprocess
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -442,7 +441,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_server_service_name(self):
         """
         When a service name is specified by the user

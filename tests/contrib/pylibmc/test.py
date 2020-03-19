@@ -16,7 +16,6 @@ from ddtrace.ext import memcached
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
 from ...base import BaseTracerTestCase
-from ...subprocesstest import run_in_subprocess
 from ...utils import assert_is_measured
 
 
@@ -236,7 +235,7 @@ class PylibmcCore(object):
         finally:
             tracer.enabled = True
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app

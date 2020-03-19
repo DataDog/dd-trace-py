@@ -15,6 +15,8 @@ config._add('grpc_server', dict(
     distributed_tracing_enabled=True,
 ))
 
+# TODO[tbutt]: keeping name for client config unchanged to maintain backwards
+# compatibility but should change in future
 config._add('grpc', dict(
     service_name='{}-{}'.format(
         config.get_service(), constants.GRPC_SERVICE_CLIENT

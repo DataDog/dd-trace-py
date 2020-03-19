@@ -18,7 +18,6 @@ from ddtrace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from ...base import BaseTracerTestCase
-from ...subprocesstest import run_in_subprocess
 from ...utils import assert_is_measured
 from ...utils.tracer import DummyTracer
 
@@ -330,7 +329,7 @@ class PsycopgCore(BaseTracerTestCase):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
         When a user specifies a service for the app
