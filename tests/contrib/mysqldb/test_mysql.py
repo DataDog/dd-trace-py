@@ -7,6 +7,7 @@ from ddtrace.contrib.mysqldb.patch import patch, unpatch
 from tests.opentracer.utils import init_tracer
 from ..config import MYSQL_CONFIG
 from ...base import BaseTracerTestCase
+from ...subprocesstest import run_in_subprocess
 from ...util import assert_dict_issuperset
 from ...utils import assert_is_measured
 
@@ -418,6 +419,26 @@ class MySQLCore(object):
             self.assertEqual(len(spans), 1)
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The mysql integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1')
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = writer.pop()
+
+        assert spans[0].service != "mysvc"
 
 
 class TestMysqlPatch(MySQLCore, BaseTracerTestCase):

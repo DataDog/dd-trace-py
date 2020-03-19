@@ -383,7 +383,7 @@ class MySQLCore(object):
         conn, tracer = self._get_conn_tracer()
         writer = tracer.writer
         cursor = conn.cursor()
-        cursor.execute('SELECT 1')
+        cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
         spans = writer.pop()
