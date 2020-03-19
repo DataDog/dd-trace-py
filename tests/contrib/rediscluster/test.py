@@ -5,8 +5,9 @@ from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
 from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
-from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...subprocesstest import run_in_subprocess
+from ...test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
 
@@ -107,3 +108,22 @@ class TestRedisPatch(BaseTracerTestCase):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The rediscluser integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        r = self._get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service != "mysvc"
