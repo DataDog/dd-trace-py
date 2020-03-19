@@ -16,6 +16,7 @@ from ddtrace.ext import mongo as mongox
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
 from ...base import override_config
+from ...subprocesstest import SubprocessTestCase, run_in_subprocess
 from ...test_tracer import get_dummy_tracer
 from ...utils import assert_is_measured
 
@@ -197,8 +198,24 @@ class MongoEngineCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        from ddtrace import config
+        assert config.service == "mysvc"
 
-class TestMongoEnginePatchConnectDefault(unittest.TestCase, MongoEngineCore):
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+
+class TestMongoEnginePatchConnectDefault(SubprocessTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
 
     TEST_SERVICE = mongox.SERVICE
@@ -233,7 +250,7 @@ class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
         return tracer
 
 
-class TestMongoEnginePatchClientDefault(unittest.TestCase, MongoEngineCore):
+class TestMongoEnginePatchClientDefault(SubprocessTestCase, MongoEngineCore):
     """Test suite with a Pin local to a specific client with default configuration"""
 
     TEST_SERVICE = mongox.SERVICE
