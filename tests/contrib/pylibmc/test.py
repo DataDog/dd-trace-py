@@ -16,7 +16,7 @@ from ddtrace.ext import memcached
 from ...opentracer.utils import init_tracer
 from ...contrib.config import MEMCACHED_CONFIG as cfg
 from ...base import BaseTracerTestCase
-from ...subprocesstest import SubprocessTestCase, run_in_subprocess
+from ...subprocesstest import run_in_subprocess
 from ...utils import assert_is_measured
 
 
@@ -242,6 +242,10 @@ class PylibmcCore(object):
         When a user specifies a service for the app
             The pylibmc integration should not use it.
         """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
         client, tracer = self.get_client()
         client.set('a', 'crow')
         spans = self.get_spans()
@@ -249,7 +253,7 @@ class PylibmcCore(object):
         assert spans[0].service != "mysvc"
 
 
-class TestPylibmcLegacy(SubprocessTestCase, BaseTracerTestCase, PylibmcCore):
+class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
 
     TEST_SERVICE = 'mc-legacy'

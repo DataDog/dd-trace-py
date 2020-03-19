@@ -8,7 +8,6 @@ from pymemcache.exceptions import (
     MemcacheIllegalInputError,
 )
 import pytest
-import unittest
 from ddtrace.vendor import wrapt
 
 # project
@@ -16,7 +15,8 @@ from ddtrace import Pin
 from ddtrace.contrib.pymemcache.patch import patch, unpatch
 from .utils import MockSocket, _str
 from .test_client_mixin import PymemcacheClientTestCaseMixin, TEST_HOST, TEST_PORT
-from ...subprocesstest import SubprocessTestCase, run_in_subprocess
+from ...base import BaseTracerTestCase
+from ...subprocesstest import run_in_subprocess
 
 from tests.test_tracer import get_dummy_tracer
 
@@ -273,7 +273,7 @@ class PymemcacheHashClientTestCase(PymemcacheClientTestCaseMixin):
         self.check_spans(2, ['add', 'delete'], ['add key', 'delete key'])
 
 
-class PymemcacheClientConfiguration(SubprocessTestCase):
+class PymemcacheClientConfiguration(BaseTracerTestCase):
     """Ensure that pymemache can be configured properly."""
 
     def setUp(self):
@@ -327,6 +327,10 @@ class PymemcacheClientConfiguration(SubprocessTestCase):
         When a user specifies a service for the app
             The pymemcache integration should not use it.
         """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
         client = self.make_client([b"STORED\r\n", b"VALUE key 0 5\r\nvalue\r\nEND\r\n"])
         client.set(b"key", b"value", noreply=False)
 

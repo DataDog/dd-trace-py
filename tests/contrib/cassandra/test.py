@@ -483,6 +483,10 @@ class TestCassandraConfig(SubprocessTestCase):
         When a user specifies a service for the app
             The cassandra integration should not use it.
         """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
         self.session.execute(self.TEST_QUERY)
         spans = self.tracer.writer.pop()
         assert spans

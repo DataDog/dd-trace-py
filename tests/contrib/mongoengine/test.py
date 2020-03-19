@@ -1,6 +1,5 @@
 # stdib
 import time
-import unittest
 
 # 3p
 import mongoengine
