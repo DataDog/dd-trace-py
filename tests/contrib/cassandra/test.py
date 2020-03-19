@@ -462,21 +462,29 @@ def test_backwards_compat_get_traced_cassandra():
     session.execute('drop table if exists test.person')
 
 
-class TestCassandraConfig(SubprocessTestCase, TestCassPatchDefault):
+class TestCassandraConfig(SubprocessTestCase):
     """
     Test various configurations of the Cassandra integration.
     """
+    TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
+    TEST_KEYSPACE = "test"
+
+    def setUp(self):
+        super(TestCassandraConfig, self).setUp()
+        patch()
+        self.tracer = get_dummy_tracer()
+        self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
+        Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
+        self.session = self.cluster.connect(self.TEST_KEYSPACE)
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_service(self):
+    def test_user_specified_service(self):
         """
-        When a user defines a service
+        When a user specifies a service for the app
             The cassandra integration should not use it.
         """
-        session, tracer = self._traced_session()
-        writer = tracer.writer
-        session.execute(self.TEST_QUERY)
-        spans = writer.pop()
+        self.session.execute(self.TEST_QUERY)
+        spans = self.tracer.writer.pop()
         assert spans
         assert len(spans) == 1
         query = spans[0]
