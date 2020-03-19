@@ -459,9 +459,10 @@ class TestPymongoPatchConfigured(BaseTracerTestCase, PymongoCore):
         from ddtrace import config
         assert config.service == "mysvc"
 
+        tracer = get_dummy_tracer()
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
         client["testdb"].drop_collection("whatever")
-        spans = self.get_spans()
+        spans = tracer.writer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
