@@ -66,7 +66,7 @@ def test_collect_once():
     assert e.thread_id > 0
     # Thread name is None with gevent
     assert isinstance(e.thread_name, (str, type(None)))
-    assert len(e.frames) > 1
+    assert len(e.frames) >= 1
     assert e.frames[0][0].endswith(".py")
     assert e.frames[0][1] > 0
     assert isinstance(e.frames[0][2], str)
