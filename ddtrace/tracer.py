@@ -80,7 +80,7 @@ class Tracer(object):
                                     default='udp://{}:{}'.format(DEFAULT_HOSTNAME, DEFAULT_DOGSTATSD_PORT))
     DEFAULT_AGENT_URL = environ.get('DD_TRACE_AGENT_URL', 'http://%s:%d' % (DEFAULT_HOSTNAME, DEFAULT_PORT))
 
-    def __init__(self, url=DEFAULT_AGENT_URL, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
+    def __init__(self, url=None, dogstatsd_url=DEFAULT_DOGSTATSD_URL):
         """
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
@@ -98,7 +98,12 @@ class Tracer(object):
         hostname = self.DEFAULT_HOSTNAME
         port = self.DEFAULT_PORT
         writer = None
-        if url is not None:
+
+        if _is_agentless_environment() and not url:
+            writer = LogWriter()
+        else:
+            if not url:
+                url = Tracer.DEFAULT_AGENT_URL
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ('http', 'https'):
                 hostname = url_parsed.hostname
@@ -116,8 +121,6 @@ class Tracer(object):
                 uds_path = url_parsed.path
             else:
                 raise ValueError('Unknown scheme `%s` for agent URL' % url_parsed.scheme)
-        elif _is_agentless_environment():
-            writer = LogWriter()
 
         # Apply the default configuration
         self.configure(
