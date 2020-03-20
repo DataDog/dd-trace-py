@@ -17,7 +17,7 @@ from ddtrace.ext import system
 from ddtrace.context import Context
 from ddtrace.constants import VERSION_KEY, ENV_KEY
 
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from tests.subprocesstest import run_in_subprocess
 from .base import BaseTracerTestCase
 from .util import override_global_tracer
 from .utils.tracer import DummyTracer
@@ -777,7 +777,7 @@ def test_tracer_with_env():
             assert span.get_tag(ENV_KEY) == 'config.env'
 
 
-class EnvTracerTestCase(SubprocessTestCase, BaseTracerTestCase):
+class EnvTracerTestCase(BaseTracerTestCase):
     """Tracer test cases requiring environment variables.
     """
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
