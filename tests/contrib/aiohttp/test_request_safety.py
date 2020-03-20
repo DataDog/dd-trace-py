@@ -20,6 +20,7 @@ class TestAiohttpSafety(TraceTestCase):
     bad traces are produced but the ``Context`` object will not
     leak memory.
     """
+
     def enable_tracing(self):
         # aiohttp TestCase with the wrong context provider
         trace_app(self.app, self.tracer)
@@ -35,7 +36,7 @@ class TestAiohttpSafety(TraceTestCase):
     def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = yield from self.client.request('GET', '/template/')
+        request = yield from self.client.request("GET", "/template/")
         assert 200 == request.status
         yield from request.text()
         # the trace is created
@@ -46,13 +47,13 @@ class TestAiohttpSafety(TraceTestCase):
         template_span = traces[0][1]
         # request
         assert_is_measured(request_span)
-        assert 'aiohttp-web' == request_span.service
-        assert 'aiohttp.request' == request_span.name
-        assert 'GET /template/' == request_span.resource
+        assert "aiohttp-web" == request_span.service
+        assert "aiohttp.request" == request_span.name
+        assert "GET /template/" == request_span.resource
         # template
-        assert 'aiohttp-web' == template_span.service
-        assert 'aiohttp.template' == template_span.name
-        assert 'aiohttp.template' == template_span.resource
+        assert "aiohttp-web" == template_span.service
+        assert "aiohttp.template" == template_span.name
+        assert "aiohttp.template" == template_span.resource
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -63,8 +64,8 @@ class TestAiohttpSafety(TraceTestCase):
         # it should produce a wrong trace, but the Context must
         # be finished
         def make_requests():
-            url = self.client.make_url('/delayed/')
-            response = request.urlopen(str(url)).read().decode('utf-8')
+            url = self.client.make_url("/delayed/")
+            response = request.urlopen(str(url)).read().decode("utf-8")
             responses.append(response)
 
         # blocking call executed in different threads
@@ -78,7 +79,7 @@ class TestAiohttpSafety(TraceTestCase):
             yield from asyncio.sleep(0.001)
 
         for response in responses:
-            assert 'Done' == response
+            assert "Done" == response
 
         for t in threads:
             t.join()
