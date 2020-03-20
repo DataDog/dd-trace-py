@@ -27,7 +27,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws').onto(aiobotocore.client.AioBaseClient)
+    Pin(service=config.get_service(default='aws'), app='aws').onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -82,8 +82,9 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
 
+    service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace('{}.command'.format(endpoint_name),
-                          service='{}.{}'.format(pin.service, endpoint_name),
+                          service=service,
                           span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 
