@@ -55,8 +55,8 @@ _INTERNAL_APPLICATION_SPAN_TYPES = [
 
 def _is_agentless_environment():
     if environ.get('DD_AGENT_HOST') or \
-        environ.get('DATADOG_TRACE_AGENT_HOSTNAME') or \
-        environ.get('DD_TRACE_AGENT_URL'):
+       environ.get('DATADOG_TRACE_AGENT_HOSTNAME') or \
+       environ.get('DD_TRACE_AGENT_URL'):
         # If one of these variables are set, we definetely have an agent
         return False
     if environ.get("AWS_LAMBDA_FUNCTION_NAME"):
