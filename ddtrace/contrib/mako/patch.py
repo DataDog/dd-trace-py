@@ -4,6 +4,7 @@ from mako.template import Template
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
+from ...settings import config
 from ...utils.importlib import func_name
 from ...utils.wrappers import unwrap as _u
 from ...vendor.wrapt import wrap_function_wrapper as _w
@@ -16,7 +17,7 @@ def patch():
         return
     setattr(mako, '__datadog_patch', True)
 
-    Pin(service='mako', app='mako').onto(Template)
+    Pin(service=config.get_service(default='mako'), app='mako').onto(Template)
 
     _w(mako, 'template.Template.render', _wrap_render)
     _w(mako, 'template.Template.render_unicode', _wrap_render)
