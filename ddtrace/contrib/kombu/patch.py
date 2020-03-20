@@ -1,6 +1,5 @@
 # 3p
 import kombu
-from ddtrace import config
 from ddtrace.vendor import wrapt
 
 # project
