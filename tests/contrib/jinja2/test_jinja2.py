@@ -1,5 +1,4 @@
 import os.path
-import unittest
 
 # 3rd party
 import jinja2
