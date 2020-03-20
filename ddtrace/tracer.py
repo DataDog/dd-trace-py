@@ -106,7 +106,7 @@ class Tracer(object):
 
         if _is_agentless_environment() and url == Tracer.DEFAULT_AGENT_URL:
             writer = LogWriter()
-        elif url:
+        elif url is not None:
             url_parsed = compat.parse.urlparse(url)
             if url_parsed.scheme in ('http', 'https'):
                 hostname = url_parsed.hostname
