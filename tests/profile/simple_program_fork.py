@@ -37,18 +37,15 @@ if child_pid == 0:
 
     assert recorder is not parent_recorder
 
-    release_events_nb = len(recorder.events[cthreading.LockReleaseEvent])
-
     # Release it
     lock.release()
 
     # We don't track it
     assert test_lock_name not in set(e.lock_name for e in recorder.events[cthreading.LockReleaseEvent])
-    assert release_events_nb == len(recorder.events[cthreading.LockReleaseEvent])
 
     # We track this one though
     lock = threading.Lock()
-    test_lock_name = "simple_program_fork.py:50"
+    test_lock_name = "simple_program_fork.py:47"
     assert test_lock_name not in set(e.lock_name for e in recorder.events[cthreading.LockAcquireEvent])
     lock.acquire()
     assert test_lock_name in set(e.lock_name for e in recorder.events[cthreading.LockAcquireEvent])

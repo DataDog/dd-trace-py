@@ -93,7 +93,7 @@ The available settings are:
 
 * ``default_service`` (default: `tornado-web`): set the service name used by the tracer. Usually
   this configuration must be updated with a meaningful name. Can also be configured via the
-  ``DATADOG_SERVICE_NAME`` environment variable.
+  ``DD_SERVICE`` environment variable.
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
