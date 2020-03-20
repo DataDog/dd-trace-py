@@ -133,6 +133,10 @@ class TestKombuSettings(BaseTracerTestCase):
 
         patch()
 
+    def tearDown(self):
+        unpatch()
+        super(TestKombuSettings, self).tearDown()
+
     @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
         """
@@ -144,7 +148,7 @@ class TestKombuSettings(BaseTracerTestCase):
 
         # Callback is required
         def process_message(body, message):
-            pass
+            message.ack()
 
         self.producer.publish(to_publish,
                               exchange=task_queue.exchange,
