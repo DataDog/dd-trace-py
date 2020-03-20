@@ -441,6 +441,28 @@ class GrpcTestCase(BaseTracerTestCase):
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
 
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_server_service_name(self):
+        """
+        When a service name is specified by the user
+            It should be used for grpc server spans
+            It should be included in grpc client spans
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
+        stub1 = HelloStub(channel1)
+        stub1.SayHello(HelloRequest(name="test"))
+        channel1.close()
+
+        # DEV: make sure we have two spans before proceeding
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
+        self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
+
 
 class _HelloServicer(HelloServicer):
     def SayHello(self, request, context):
