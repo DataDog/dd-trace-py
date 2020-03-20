@@ -17,7 +17,7 @@ from flask.ext.cache import Cache
 
 log = logging.Logger(__name__)
 
-DEFAULT_SERVICE = 'flask-cache'
+DEFAULT_SERVICE = config.get_service(default="flask-cache")
 
 # standard tags
 COMMAND_KEY = 'flask_cache.key'

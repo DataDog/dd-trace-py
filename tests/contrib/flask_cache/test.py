@@ -288,3 +288,29 @@ class FlaskCacheTest(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+class TestFlaskCacheSettings(BaseTracerTestCase):
+    TEST_REDIS_PORT = REDIS_CONFIG['port']
+    TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
+
+    def setUp(self):
+        super(FlaskCacheTest, self).setUp()
+
+        # create the TracedCache instance for a Flask app
+        Cache = get_traced_cache(self.tracer)
+        app = Flask(__name__)
+        self.cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The flask-cache integration should use it as the service name
+        """
+
+        self.cache.get(u'á_complex_operation')
+        spans = self.get_spans()
+
+        for span in spans:
+            span.service == "mysvc"
