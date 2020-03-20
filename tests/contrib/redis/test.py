@@ -229,3 +229,19 @@ class TestRedisPatch(BaseTracerTestCase):
         assert dd_span.get_tag('redis.raw_command') == u'GET cheese'
         assert dd_span.get_metric('redis.args_length') == 2
         assert dd_span.resource == 'GET cheese'
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The redis integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        self.r.get("cheese")
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service != "mysvc"

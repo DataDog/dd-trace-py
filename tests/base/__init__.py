@@ -1,15 +1,15 @@
 import contextlib
 import sys
-import unittest
 
 import ddtrace
 
+from ..subprocesstest import SubprocessTestCase
 from ..utils import override_env
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
-class BaseTestCase(unittest.TestCase):
+class BaseTestCase(SubprocessTestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
 
