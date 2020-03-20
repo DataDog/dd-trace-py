@@ -17,7 +17,7 @@ MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
 
 # Configure default configuration
 config._add('molten', dict(
-    service_name=get_env('molten', 'service_name', default='molten'),
+    service_name=config.get_service(default=get_env('molten', 'service_name', default='molten')),
     app='molten',
     distributed_tracing=asbool(get_env('molten', 'distributed_tracing', default=True)),
 ))
