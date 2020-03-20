@@ -117,3 +117,51 @@ class TestKombuPatch(BaseTracerTestCase):
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
         self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+
+
+class TestKombuSettings(BaseTracerTestCase):
+    def setUp(self):
+        super(TestKombuSettings, self).setUp()
+
+        conn = kombu.Connection('amqp://guest:guest@127.0.0.1:{p}//'.format(p=RABBITMQ_CONFIG['port']))
+        conn.connect()
+        producer = conn.Producer()
+        Pin.override(producer, tracer=self.tracer)
+
+        self.conn = conn
+        self.producer = producer
+
+        patch()
+
+    def _publish_consume(self):
+        results = []
+
+        def process_message(body, message):
+            results.append(body)
+            message.ack()
+
+        task_queue = kombu.Queue('tasks', kombu.Exchange('tasks'), routing_key='tasks')
+        to_publish = {'hello': 'world'}
+        self.producer.publish(to_publish,
+                              exchange=task_queue.exchange,
+                              routing_key=task_queue.routing_key,
+                              declare=[task_queue])
+
+        with kombu.Consumer(self.conn, [task_queue], accept=['json'], callbacks=[process_message]) as consumer:
+            Pin.override(consumer, tracer=self.tracer)
+            self.conn.drain_events(timeout=2)
+
+        self.assertEqual(results[0], to_publish)
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The kombu integration should use it as the service name
+        """
+
+        self._publish_consume()
+        spans = self.get_spans()
+        self.assertEqual(len(spans), 2)
+        for span in spans:
+            assert span.service == "mysvc"
