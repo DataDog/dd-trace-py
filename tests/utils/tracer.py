@@ -64,14 +64,25 @@ class DummyTracer(Tracer):
         self._update_writer()
 
     def _update_writer(self):
-        self.writer = DummyWriter(
-            hostname=self.writer.api.hostname,
-            port=self.writer.api.port,
-            filters=self.writer._filters,
-            priority_sampler=self.writer._priority_sampler,
-        )
+        if not isinstance(self.writer, DummyWriter):
+            self.original_writer = self.writer
+        if hasattr(self.writer, 'api'):
+            self.writer = DummyWriter(
+                hostname=self.writer.api.hostname,
+                port=self.writer.api.port,
+                filters=self.writer._filters,
+                priority_sampler=self.writer._priority_sampler,
+            )
+        else:
+            self.writer = DummyWriter(
+                hostname="",
+                port=0,
+                filters=self.writer._filters,
+                priority_sampler=self.writer._priority_sampler,
+            )
 
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
+
         self._update_writer()
