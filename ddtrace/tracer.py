@@ -104,7 +104,7 @@ class Tracer(object):
         port = self.DEFAULT_PORT
         writer = None
 
-        if _is_agentless_environment() and url == Tracer.DEFAULT_AGENT_URL:
+        if _is_agentless_environment():
             writer = LogWriter()
         elif url is not None:
             url_parsed = compat.parse.urlparse(url)

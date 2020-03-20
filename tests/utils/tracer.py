@@ -64,7 +64,7 @@ class DummyTracer(Tracer):
         self._update_writer()
 
     def _update_writer(self):
-        # Track which writer the DummyWriter was created with, used 
+        # Track which writer the DummyWriter was created with, used
         # some tests
         if not isinstance(self.writer, DummyWriter):
             self.original_writer = self.writer
