@@ -295,7 +295,7 @@ class TestFlaskCacheSettings(BaseTracerTestCase):
     TEST_MEMCACHED_PORT = MEMCACHED_CONFIG['port']
 
     def setUp(self):
-        super(FlaskCacheTest, self).setUp()
+        super(TestFlaskCacheSettings, self).setUp()
 
         # create the TracedCache instance for a Flask app
         Cache = get_traced_cache(self.tracer)
