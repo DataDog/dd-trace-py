@@ -129,11 +129,11 @@ The mapping from old configuration settings to new ones.
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``AUTO_INSTRUMENT``         | N/A Instrumentation is automatic                                                                                        |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``INSTRUMENT_CACHE``        | N/A Instrumentation is automatic                                                                                        |
+| ``INSTRUMENT_CACHE``        | ``config.django['instrument_caches']``                                                                                  |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``INSTRUMENT_DATABASE``     | ``config.django['instrument_databases']``                                                                               |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``INSTRUMENT_TEMPLATE``     | ``config.django['instrument_caches']``                                                                                  |
+| ``INSTRUMENT_TEMPLATE``     | N/A Instrumentation is automatic                                                                                        |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``DEFAULT_DATABASE_PREFIX`` | ``config.django['database_service_name_prefix']``                                                                       |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
@@ -196,7 +196,7 @@ After::
    tracer.configure(hostname='localhost', port=8126, enabled=True)
    config.django['service_name'] = 'my-django-app'
    config.django['cache_service_name'] = 'my-cache'
-   config.django['django_service_name_prefix'] = 'my-'
+   config.django['database_service_name_prefix'] = 'my-'
    config.django['instrument_databases'] = True
    config.django['instrument_caches'] = True
    config.django['trace_query_string'] = True

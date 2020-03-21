@@ -26,12 +26,10 @@ wrapt
 
 Website: https://wrapt.readthedocs.io/en/latest/
 Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.11.1
+Version: 1.12.1
 License: BSD 2-Clause "Simplified" License
 
 Notes:
-  `wrapt/__init__.py` was updated to include a copy of `wrapt`'s license: https://github.com/GrahamDumpleton/wrapt/blob/1.11.1/LICENSE
-
   `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
 
 dogstatsd

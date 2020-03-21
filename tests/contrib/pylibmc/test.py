@@ -235,6 +235,22 @@ class PylibmcCore(object):
         finally:
             tracer.enabled = True
 
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The pylibmc integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        client, tracer = self.get_client()
+        client.set('a', 'crow')
+        spans = self.get_spans()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
 
 class TestPylibmcLegacy(BaseTracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""

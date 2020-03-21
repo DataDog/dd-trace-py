@@ -308,22 +308,23 @@ class TestTracer(object):
         event = threading.Event()
 
         def trace_one():
-            id = 11  # noqa: A001
-            with ot_tracer.start_active_span(str(id)):
-                id += 1
-                with ot_tracer.start_active_span(str(id)):
-                    id += 1
-                    with ot_tracer.start_active_span(str(id)):
-                        event.set()
+            _id = 11
+            with ot_tracer.start_active_span(str(_id)):
+                _id += 1
+                with ot_tracer.start_active_span(str(_id)):
+                    _id += 1
+                    with ot_tracer.start_active_span(str(_id)):
+                        pass
+            event.set()
 
         def trace_two():
-            id = 21  # noqa: A001
+            _id = 21
             event.wait()
-            with ot_tracer.start_active_span(str(id)):
-                id += 1
-                with ot_tracer.start_active_span(str(id)):
-                    id += 1
-                with ot_tracer.start_active_span(str(id)):
+            with ot_tracer.start_active_span(str(_id)):
+                _id += 1
+                with ot_tracer.start_active_span(str(_id)):
+                    _id += 1
+                with ot_tracer.start_active_span(str(_id)):
                     pass
 
         # the ordering should be
