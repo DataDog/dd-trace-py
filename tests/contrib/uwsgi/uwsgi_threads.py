@@ -14,10 +14,5 @@ uwsgi.check_threads_enabled()
 # import tracer which initializes thread workers
 from ddtrace import tracer
 
-# perhaps go with the basic sample app example and then use subprocess to send traces with curl
-
-
 # exit process
-import sys
-
 sys.exit(0)
