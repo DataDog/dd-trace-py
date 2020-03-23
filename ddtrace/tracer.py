@@ -92,7 +92,7 @@ class Tracer(object):
         port = self.DEFAULT_PORT
         writer = None
 
-        if Tracer._is_agentless_environment() and url is None:
+        if self._is_agentless_environment() and url is None:
             writer = LogWriter()
         else:
             if url is None:
