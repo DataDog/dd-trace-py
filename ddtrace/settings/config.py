@@ -32,7 +32,11 @@ class Config(object):
         )
 
         self.env = get_env("env")
+        # get_env will get DD_SERVICE or DATADOG_SERVICE (deprecated)
+        # Note that we do not call self.get_service() here because we never
+        # supported {DD,DATADOG}_SERVICE_NAME for setting the service globally.
         self.service = get_env("service")
+
         self.version = get_env("version")
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
