@@ -18,7 +18,7 @@ def assert_is_not_measured(span):
     if SPAN_MEASURED_KEY in span.meta:
         assert span.get_metric(SPAN_MEASURED_KEY) == 0
     else:
-        assert SPAN_MEASURED_KEY not in span.meta
+        assert SPAN_MEASURED_KEY not in span.metrics
 
 
 def assert_span_http_status_code(span, code):
