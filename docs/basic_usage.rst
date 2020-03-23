@@ -125,18 +125,18 @@ Profiler
 
 Via module
 ----------
-To automatically profile your code, you can import the `ddtrace.profile.auto` module.
+To automatically profile your code, you can import the `ddtrace.profiling.auto` module.
 As soon as it is imported, it will start catching CPU profiling information on
 your behalf::
 
-  import ddtrace.profile.auto
+  import ddtrace.profiling.auto
 
 Via API
 ----------
 If you want to control which part of your code should be profiled, you can use
-the `ddtrace.profile.profiler.Profiler` object::
+the `ddtrace.profiling.profiler.Profiler` object::
 
-  from ddtrace.profile.profiler import Profiler
+  from ddtrace.profiling.profiler import Profiler
 
   prof = Profiler()
   prof.start()
@@ -168,11 +168,11 @@ When your process forks using `os.fork`, the profiler is stopped in the child
 process.
 
 For Python 3.7 and later on POSIX platforms, a new profiler will be started if
-you enabled the profiler via `pyddprofile` or `ddtrace.profile.auto`.
+you enabled the profiler via `pyddprofile` or `ddtrace.profiling.auto`.
 
 If you manually instrument the profiler, or if you rely on Python 3.6 or a
 non-POSIX platform and earlier version, you'll have to manually restart the
 profiler in your child.
 
-The global profiler instrumented by `pyddprofile` and `ddtrace.profile.auto` can be
-started by calling `ddtrace.profile.auto.start_profiler`.
+The global profiler instrumented by `pyddprofile` and `ddtrace.profiling.auto`
+can be started by calling `ddtrace.profiling.auto.start_profiler`.
