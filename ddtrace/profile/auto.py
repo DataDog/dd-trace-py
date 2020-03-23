@@ -1,4 +1,9 @@
-"""Automatically starts a collector when imported."""
-from ddtrace.profile.bootstrap import sitecustomize  # noqa
+import importlib
+import sys
 
-start_profiler = sitecustomize.start_profiler
+from ddtrace.utils import deprecation
+
+
+deprecation.deprecation("ddtrace.profile", "Use ddtrace.profiling instead.")
+
+sys.modules[__name__] = importlib.import_module(__name__.replace("ddtrace.profile", "ddtrace.profiling"))
