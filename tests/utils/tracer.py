@@ -88,5 +88,4 @@ class DummyTracer(Tracer):
     def configure(self, *args, **kwargs):
         super(DummyTracer, self).configure(*args, **kwargs)
         # `.configure()` may reset the writer
-
         self._update_writer()
