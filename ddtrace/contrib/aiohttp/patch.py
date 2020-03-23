@@ -1,3 +1,4 @@
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...pin import Pin
@@ -26,7 +27,7 @@ def patch():
 
         _w = wrapt.wrap_function_wrapper
         _w('aiohttp_jinja2', 'render_template', _trace_render_template)
-        Pin(app='aiohttp', service=None).onto(aiohttp_jinja2)
+        Pin(app='aiohttp', service=config.get_service()).onto(aiohttp_jinja2)
 
 
 def unpatch():
