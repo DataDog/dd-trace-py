@@ -492,14 +492,3 @@ class TestRequests(BaseRequestTestCase, BaseTracerTestCase):
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
-
-    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
-        """
-        When a service name is specified by the user
-            The requests integration should use it as the service name
-        """
-        self.session.get(URL_200)
-        spans = self.tracer.writer.pop()
-        self.assertEqual(len(spans), 1)
-        assert spans[0].service == "mysvc"

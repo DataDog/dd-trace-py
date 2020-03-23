@@ -13,7 +13,7 @@ from .connection import _wrap_send
 
 # requests default settings
 config._add('requests', {
-    "service_name": config.get_service(default=get_env("requests", "service_name", default=DEFAULT_SERVICE)),
+    'service_name': get_env('requests', 'service_name', default=DEFAULT_SERVICE),
     'distributed_tracing': asbool(get_env('requests', 'distributed_tracing', default=True)),
     'split_by_domain': asbool(get_env('requests', 'split_by_domain', default=False)),
 })
