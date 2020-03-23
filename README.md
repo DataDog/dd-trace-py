@@ -7,7 +7,7 @@
 
 `ddtrace` is Datadog's tracing library for Python.  It is used to trace requests
 as they flow across web servers, databases and microservices so that developers
-have great visiblity into bottlenecks and troublesome requests.
+have great visibility into bottlenecks and troublesome requests.
 
 ## Getting Started
 
