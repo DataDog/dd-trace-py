@@ -4,7 +4,7 @@ import sys
 import ddtrace
 
 from ..subprocesstest import SubprocessTestCase
-from ..utils import override_env
+from ..utils import override_env, assert_is_not_measured, assert_is_measured
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
@@ -27,6 +27,10 @@ class BaseTestCase(SubprocessTestCase):
 
     # Expose `override_env` as `self.override_env`
     override_env = staticmethod(override_env)
+
+    assert_is_measured = staticmethod(assert_is_measured)
+
+    assert_is_not_measured = staticmethod(assert_is_not_measured)
 
     @staticmethod
     @contextlib.contextmanager
