@@ -134,9 +134,9 @@ your behalf::
 Via API
 ----------
 If you want to control which part of your code should be profiled, you can use
-the `ddtrace.profiling.profiler.Profiler` object::
+the `ddtrace.profiling.Profiler` object::
 
-  from ddtrace.profiling.profiler import Profiler
+  from ddtrace.profiling import Profiler
 
   prof = Profiler()
   prof.start()
