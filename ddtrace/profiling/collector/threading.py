@@ -134,6 +134,14 @@ class _ProfiledLock(wrapt.ObjectProxy):
     acquire_lock = acquire
 
 
+class FunctionWrapper(wrapt.FunctionWrapper):
+    # Override the __get__ method: whatever happens, _allocate_lock is always considered by Python like a "static"
+    # method, even when used as a class attribute. Python never tried to "bind" it to a method, because it sees it is a
+    # builtin function. Override default wrapt behavior here that tries to detect bound method.
+    def __get__(self, instance, owner=None):
+        return self
+
+
 @attr.s
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
@@ -156,12 +164,11 @@ class LockCollector(collector.CaptureSamplerCollector):
         # Nobody should use locks from `_thread`; if they do so, then it's deliberate and we don't profile.
         self.original = threading.Lock
 
-        @wrapt.function_wrapper
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
             return _ProfiledLock(lock, self.recorder, self.nframes, self._capture_sampler)
 
-        threading.Lock = _allocate_lock(self.original)
+        threading.Lock = FunctionWrapper(self.original, _allocate_lock)
 
     def unpatch(self):
         """Unpatch the threading module for tracking lock allocation."""

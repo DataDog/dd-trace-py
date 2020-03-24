@@ -22,6 +22,28 @@ def test_repr():
     )
 
 
+def test_wrapper():
+    r = recorder.Recorder()
+    collector = collector_threading.LockCollector(r)
+    with collector:
+
+        class Foobar(object):
+            lock_class = threading.Lock
+
+            def __init__(self):
+                lock = self.lock_class()
+                assert lock.acquire()
+                lock.release()
+
+        # Try to access the attribute
+        lock = Foobar.lock_class()
+        assert lock.acquire()
+        lock.release()
+
+        # Try this way too
+        Foobar()
+
+
 def test_patch():
     r = recorder.Recorder()
     lock = threading.Lock
@@ -43,13 +65,13 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:41"
+    assert event.lock_name == "test_threading.py:63"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 42, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 64, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
@@ -63,13 +85,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:59"
+    assert event.lock_name == "test_threading.py:81"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 62, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 84, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
