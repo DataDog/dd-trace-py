@@ -28,7 +28,7 @@ def patch():
 
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
-    service = config.get_service(default="pyramid")
+    service = config._get_service(default="pyramid")
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', default=True))
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks

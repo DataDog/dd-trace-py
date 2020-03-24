@@ -31,7 +31,7 @@ class Config(object):
             get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
-        # DEV: we don't use `self.get_service()` here because {DD,DATADOG}_SERVICE and
+        # DEV: we don't use `self._get_service()` here because {DD,DATADOG}_SERVICE and
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = get_env("service")
 
@@ -115,7 +115,7 @@ class Config(object):
         """
         return self._http.header_is_traced(header_name)
 
-    def get_service(self, default=None):
+    def _get_service(self, default=None):
         """
         Returns the globally configured service.
 

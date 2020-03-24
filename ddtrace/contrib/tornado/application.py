@@ -18,7 +18,7 @@ def tracer_config(__init__, app, args, kwargs):
     # default settings
     settings = {
         'tracer': ddtrace.tracer,
-        'default_service': config.get_service("tornado-web"),
+        'default_service': config._get_service("tornado-web"),
         'distributed_tracing': True,
         'analytics_enabled': None
     }

@@ -31,7 +31,7 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
     # set tracing options and create the TraceMiddleware
-    service = config.get_service(default="pylons")
+    service = config._get_service(default="pylons")
     distributed_tracing = asbool(get_env('pylons', 'distributed_tracing', default=True))
     Pin(service=service, tracer=tracer).onto(instance)
     traced_app = PylonsTraceMiddleware(instance, tracer, service=service, distributed_tracing=distributed_tracing)

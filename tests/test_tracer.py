@@ -785,13 +785,13 @@ class EnvTracerTestCase(BaseTracerTestCase):
         """
         When DATADOG_SERVICE_NAME is provided
             It should not be used by default
-            It should be used with config.get_service()
+            It should be used with config._get_service()
         """
         from ddtrace import config
         assert config.service is None
         with self.start_span("") as s:
             s.assert_matches(service=None)
-        with self.start_span("", service=config.get_service()) as s:
+        with self.start_span("", service=config._get_service()) as s:
             s.assert_matches(service="mysvc")
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE_NAME="mysvc"))
@@ -799,13 +799,13 @@ class EnvTracerTestCase(BaseTracerTestCase):
         """
         When DD_SERVICE_NAME is provided
             It should not be used by default
-            It should be used with config.get_service()
+            It should be used with config._get_service()
         """
         from ddtrace import config
         assert config.service is None
         with self.start_span("") as s:
             s.assert_matches(service=None)
-        with self.start_span("", service=config.get_service()) as s:
+        with self.start_span("", service=config._get_service()) as s:
             s.assert_matches(service="mysvc")
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
