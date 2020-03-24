@@ -22,6 +22,7 @@ from .base import BaseTracerTestCase
 from .util import override_global_tracer
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
+from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
 def get_dummy_tracer():
@@ -835,3 +836,11 @@ class EnvTracerTestCase(BaseTracerTestCase):
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
                     assert VERSION_KEY not in child2.meta
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_detect_agentless_env(self):
+        assert isinstance(self.tracer.original_writer, LogWriter)
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
+    def test_detect_agent_config(self):
+        assert isinstance(self.tracer.original_writer, AgentWriter)
