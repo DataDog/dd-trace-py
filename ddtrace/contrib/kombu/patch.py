@@ -48,10 +48,16 @@ def patch():
     _w('kombu', 'Consumer.receive', traced_receive)
 
     # We do not provide a service for producer spans since they represent
-    # external service calls to another service.
+    # external calls to another service.
     # Instead the service should be inherited from the parent.
+    if config.service:
+        prod_service = None
+    # DEV: backwards-compatibility for users who set a kombu service
+    else:
+        prod_service = get_env("kombu", "service_name", default=DEFAULT_SERVICE)
+
     Pin(
-        service=None,
+        service=prod_service,
         app="kombu",
     ).onto(kombu.messaging.Producer)
 
