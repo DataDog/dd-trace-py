@@ -21,6 +21,7 @@ from .utils import (
 )
 
 # kombu default settings
+
 config._add('kombu', {
     "service_name": config.service or get_env("kombu", "service_name", default=DEFAULT_SERVICE),
 })
@@ -45,9 +46,13 @@ def patch():
     # *  extracts/normalizes things like exchange
     _w('kombu', 'Producer._publish', traced_publish)
     _w('kombu', 'Consumer.receive', traced_receive)
+
+    # We do not provide a service for producer spans since they represent
+    # external service calls to another service.
+    # Instead the service should be inherited from the parent.
     Pin(
-        service=config.kombu['service_name'],
-        app='kombu'
+        service=None,
+        app="kombu",
     ).onto(kombu.messaging.Producer)
 
     Pin(
