@@ -29,8 +29,8 @@ Available environment variables:
     DATADOG_PATCH_MODULES=module:patch,module:patch... e.g. boto:true,redis:false : override the modules patched for this execution of the program (default: none)
     DATADOG_TRACE_AGENT_HOSTNAME=localhost: override the address of the trace agent host that the default tracer will attempt to submit to  (default: localhost)
     DATADOG_TRACE_AGENT_PORT=8126: override the port that the default tracer will submit to (default: 8126)
-    DD_SERVICE : override the service name to be used for this program (default only for select web integrations)
-    DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
+    DD_SERVICE: the service name to be used for this program (default only for select web frameworks)
+    DATADOG_PRIORITY_SAMPLING=true|false: (default: false): enables Priority Sampling.
 """  # noqa: E501
 
 

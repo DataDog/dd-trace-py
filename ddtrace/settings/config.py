@@ -31,12 +31,11 @@ class Config(object):
             get_env('trace', 'analytics_enabled', default=legacy_config_value)
         )
 
-        self.env = get_env("env")
-        # get_env will get DD_SERVICE or DATADOG_SERVICE (deprecated)
-        # Note that we do not call self.get_service() here because we never
-        # supported {DD,DATADOG}_SERVICE_NAME for setting the service globally.
+        # DEV: we don't use `self.get_service()` here because {DD,DATADOG}_SERVICE and
+        # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = get_env("service")
 
+        self.env = get_env("env")
         self.version = get_env("version")
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
@@ -123,6 +122,9 @@ class Config(object):
         If a service is not configured globally, attempts to get the service
         using the legacy environment variables via ``get_service_legacy``
         else ``default`` is returned.
+
+        When support for {DD,DATADOG}_SERVICE_NAME is removed, all usages of
+        this method can be replaced with `config.service`.
 
         :param default: the default service to use if none is configured or
             found.
