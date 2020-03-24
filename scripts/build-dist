@@ -40,10 +40,12 @@ EOF
 python setup.py sdist --dist-dir "$BUILD_DIR"
 
 # Build x86_64 linux and manylinux wheels
-docker run -it --rm -v "${BUILD_DIR}:/dd-trace-py" -e "ARCH=x86_64" quay.io/pypa/manylinux1_x86_64 /bin/bash -c "${build_script}"
+docker pull quay.io/pypa/manylinux1_x86_64
+docker run -it --rm -v "${BUILD_DIR}:/dd-trace-py" -e "ARCH=x86_64" quay.io/pypa/manylinux1_x86_64:latest /bin/bash -c "${build_script}"
 
 # Build i686 linux and manylinux wheels
-docker run -it --rm -v "${BUILD_DIR}:/dd-trace-py" -e "ARCH=i686" quay.io/pypa/manylinux1_i686 linux32 /bin/bash -c "${build_script}"
+docker pull quay.io/pypa/manylinux1_i686
+docker run -it --rm -v "${BUILD_DIR}:/dd-trace-py" -e "ARCH=i686" quay.io/pypa/manylinux1_i686:latest linux32 /bin/bash -c "${build_script}"
 
 test -e "$DIST_DIR" || mkdir "$DIST_DIR"
 mv "$BUILD_DIR"/* "$DIST_DIR"
