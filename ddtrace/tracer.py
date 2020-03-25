@@ -151,10 +151,9 @@ class Tracer(object):
     def __call__(self):
         return self
 
+    @deprecated('This method will be removed altogether', '1.0.0')
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
-        self._dogstatsd_client.increment('datadog.tracer.uncaught_exceptions', 1,
-                                         tags=['class:%s' % tp.__name__])
 
     def get_call_context(self, *args, **kwargs):
         """
