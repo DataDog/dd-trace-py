@@ -1,5 +1,3 @@
-import sys
-
 import pkg_resources
 
 # Always import and patch import hooks before loading anything else
@@ -11,7 +9,7 @@ from .pin import Pin
 from .span import Span
 from .tracer import Tracer
 from .settings import config
-
+from .utils.deprecation import deprecated
 
 try:
     __version__ = pkg_resources.get_distribution(__name__).version
@@ -34,22 +32,11 @@ __all__ = [
 ]
 
 
-_ORIGINAL_EXCEPTHOOK = sys.excepthook
-
-
-def _excepthook(tp, value, traceback):
-    tracer.global_excepthook(tp, value, traceback)
-    if _ORIGINAL_EXCEPTHOOK:
-        return _ORIGINAL_EXCEPTHOOK(tp, value, traceback)
-
-
+@deprecated('This method will be removed altogether', '1.0.0')
 def install_excepthook():
     """Install a hook that intercepts unhandled exception and send metrics about them."""
-    global _ORIGINAL_EXCEPTHOOK
-    _ORIGINAL_EXCEPTHOOK = sys.excepthook
-    sys.excepthook = _excepthook
 
 
+@deprecated('This method will be removed altogether', '1.0.0')
 def uninstall_excepthook():
     """Uninstall the global tracer except hook."""
-    sys.excepthook = _ORIGINAL_EXCEPTHOOK
