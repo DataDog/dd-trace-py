@@ -31,7 +31,7 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=config.get_service(default="django"),
+        service_name=config._get_service(default="django"),
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,

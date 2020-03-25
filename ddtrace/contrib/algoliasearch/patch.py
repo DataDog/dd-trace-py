@@ -16,7 +16,7 @@ try:
 
     # Default configuration
     config._add('algoliasearch', dict(
-        service_name=config.get_service(default=SERVICE_NAME),
+        service_name=config.service or SERVICE_NAME,
         collect_query_text=False
     ))
 except ImportError:

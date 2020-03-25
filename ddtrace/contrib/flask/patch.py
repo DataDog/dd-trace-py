@@ -23,7 +23,7 @@ FLASK_VERSION = 'flask.version'
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
-    service_name=config.get_service(default="flask"),
+    service_name=config._get_service(default="flask"),
     app='flask',
 
     collect_view_args=True,
