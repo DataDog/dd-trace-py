@@ -369,6 +369,26 @@ class MySQLCore(object):
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
 
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The mysql integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn, tracer = self._get_conn_tracer()
+        writer = tracer.writer
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        rows = cursor.fetchall()
+        assert len(rows) == 1
+        spans = writer.pop()
+
+        assert spans[0].service != "mysvc"
+
 
 class TestMysqlPatch(MySQLCore, BaseTracerTestCase):
 

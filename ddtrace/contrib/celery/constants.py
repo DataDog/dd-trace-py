@@ -1,4 +1,4 @@
-from os import getenv
+from ddtrace import config
 
 # Celery Context key
 CTX_KEY = '__dd_task_span'
@@ -16,7 +16,5 @@ TASK_RETRY_REASON_KEY = 'celery.retry.reason'
 
 # Service info
 APP = 'celery'
-# `getenv()` call must be kept for backward compatibility; we may remove it
-# later when we do a full migration to the `Config` class
-PRODUCER_SERVICE = getenv('DATADOG_SERVICE_NAME') or 'celery-producer'
-WORKER_SERVICE = getenv('DATADOG_SERVICE_NAME') or 'celery-worker'
+PRODUCER_SERVICE = config._get_service(default="celery-producer")
+WORKER_SERVICE = config._get_service(default="celery-worker")

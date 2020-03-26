@@ -18,7 +18,7 @@ from tests.opentracer.utils import init_tracer
 
 from ...base import BaseTracerTestCase
 from ...util import override_global_tracer
-from ...utils import assert_span_http_status_code, assert_is_measured
+from ...utils import assert_span_http_status_code
 
 if PY2:
     from urllib2 import urlopen, build_opener, Request
@@ -149,7 +149,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -187,7 +187,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -212,7 +212,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -236,7 +236,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -266,7 +266,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -296,7 +296,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -381,7 +381,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -406,7 +406,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -432,7 +432,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -457,7 +457,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         self.assertEqual(span.span_type, 'http')
         self.assertIsNone(span.service)
         self.assertEqual(span.name, self.SPAN_NAME)
@@ -489,7 +489,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, BaseTracerTestCase):
         self.assertEqual(ot_span.service, 'my_svc')
         self.assertEqual(ot_span.name, 'ot_span')
 
-        assert_is_measured(dd_span)
+        self.assert_is_not_measured(dd_span)
         self.assertEqual(dd_span.span_type, 'http')
         self.assertEqual(dd_span.name, self.SPAN_NAME)
         self.assertEqual(dd_span.error, 0)
@@ -562,7 +562,7 @@ if PY2:
             spans = self.tracer.writer.pop()
             self.assertEqual(len(spans), 1)
             span = spans[0]
-            assert_is_measured(span)
+            self.assert_is_not_measured(span)
             self.assertEqual(span.span_type, 'http')
             self.assertIsNone(span.service)
             self.assertEqual(span.name, 'httplib.request')
@@ -587,7 +587,7 @@ if PY2:
             spans = self.tracer.writer.pop()
             self.assertEqual(len(spans), 1)
             span = spans[0]
-            assert_is_measured(span)
+            self.assert_is_not_measured(span)
             self.assertEqual(span.span_type, 'http')
             self.assertIsNone(span.service)
             self.assertEqual(span.name, 'httplib.request')

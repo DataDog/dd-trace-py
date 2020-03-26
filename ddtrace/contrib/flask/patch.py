@@ -1,5 +1,3 @@
-import os
-
 import flask
 import werkzeug
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
@@ -25,8 +23,7 @@ FLASK_VERSION = 'flask.version'
 # Configure default configuration
 config._add('flask', dict(
     # Flask service configuration
-    # DEV: Environment variable 'DATADOG_SERVICE_NAME' used for backwards compatibility
-    service_name=os.environ.get('DATADOG_SERVICE_NAME') or 'flask',
+    service_name=config._get_service(default="flask"),
     app='flask',
 
     collect_view_args=True,

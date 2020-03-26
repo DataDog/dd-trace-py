@@ -1,5 +1,3 @@
-import os
-
 from .trace import trace_pyramid, DD_TWEEN_NAME
 from .constants import (
     SETTINGS_SERVICE, SETTINGS_DISTRIBUTED_TRACING,
@@ -10,6 +8,7 @@ from ...utils.formats import asbool, get_env
 import pyramid.config
 from pyramid.path import caller_package
 
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 DD_PATCH = '_datadog_patch'
@@ -29,7 +28,7 @@ def patch():
 
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop('settings', {})
-    service = os.environ.get('DATADOG_SERVICE_NAME') or 'pyramid'
+    service = config._get_service(default="pyramid")
     distributed_tracing = asbool(get_env('pyramid', 'distributed_tracing', default=True))
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks

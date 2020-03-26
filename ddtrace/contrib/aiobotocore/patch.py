@@ -3,7 +3,11 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 import aiobotocore.client
 
-from aiobotocore.endpoint import ClientResponseContentProxy
+try:
+    from aiobotocore.endpoint import ClientResponseContentProxy
+except ImportError:
+    # aiobotocore>=0.11.0
+    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
@@ -23,7 +27,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws').onto(aiobotocore.client.AioBaseClient)
+    Pin(service=config.service or "aws", app="aws").onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -78,8 +82,9 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
 
+    service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace('{}.command'.format(endpoint_name),
-                          service='{}.{}'.format(pin.service, endpoint_name),
+                          service=service,
                           span_type=SpanTypes.HTTP) as span:
         span.set_tag(SPAN_MEASURED_KEY)
 

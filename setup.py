@@ -101,6 +101,7 @@ setup_kwargs = dict(
     long_description_content_type="text/markdown",
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
+    python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     # encoding using msgpack
@@ -109,7 +110,9 @@ setup_kwargs = dict(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        # TODO: remove me when everything is updated to `profiling`
         "profile": ["protobuf>=3", "intervaltree",],
+        "profiling": ["protobuf>=3", "intervaltree",],
     },
     # plugin tox
     tests_require=["tox", "flake8"],
@@ -117,13 +120,12 @@ setup_kwargs = dict(
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
-            "pyddprofile = ddtrace.profile.__main__:main",
+            "pyddprofile = ddtrace.profiling.__main__:main",
         ]
     },
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
@@ -134,17 +136,19 @@ setup_kwargs = dict(
     ext_modules=cythonize(
         [
             Cython.Distutils.Extension(
-                "ddtrace.profile.collector.stack",
-                sources=["ddtrace/profile/collector/stack.pyx"],
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
                 language="c",
                 extra_compile_args=["-DPy_BUILD_CORE"],
             ),
             Cython.Distutils.Extension(
-                "ddtrace.profile.collector._traceback",
-                sources=["ddtrace/profile/collector/_traceback.pyx"],
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
             ),
-            Cython.Distutils.Extension("ddtrace.profile._build", sources=["ddtrace/profile/_build.pyx"], language="c",),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._build", sources=["ddtrace/profiling/_build.pyx"], language="c",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,

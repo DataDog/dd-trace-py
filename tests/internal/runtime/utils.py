@@ -50,9 +50,9 @@ def cgroup_line_valid_test_cases():
 
     valid_test_cases = dict(
         (
-            ':'.join([id, ','.join(groups), path.format(container_id, pod_id)]),
+            ':'.join([id_, ','.join(groups), path.format(container_id, pod_id)]),
             CGroupInfo(
-                id=id,
+                id=id_,
                 groups=','.join(groups),
                 path=path.format(container_id, pod_id),
                 controllers=groups,
@@ -60,7 +60,7 @@ def cgroup_line_valid_test_cases():
                 pod_id=pod_id if '{1}' in path else None,
             )
         )
-        for path, id, groups, container_id, pod_id
+        for path, id_, groups, container_id, pod_id
         in itertools.product(paths, ids, controllers, container_ids, pod_ids)
     )
     # Dedupe test cases

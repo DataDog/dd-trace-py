@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 2.7, 3.4 and above.
+We officially support Python 2.7, 3.5 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -60,7 +60,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`consul`                                    | >= 0.7        | Yes [3]_       |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`django`                                    | >= 1.8        | No             |
+| :ref:`django`                                    | >= 1.8        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`djangorestframework <djangorestframework>` | >= 3.4        | No             |
 +--------------------------------------------------+---------------+----------------+
