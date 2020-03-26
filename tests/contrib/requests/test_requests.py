@@ -35,6 +35,9 @@ class BaseRequestTestCase(object):
     def tearDown(self):
         unpatch()
 
+        # Reset the config after each test run
+        config.requests._reset()
+
         super(BaseRequestTestCase, self).tearDown()
 
 
