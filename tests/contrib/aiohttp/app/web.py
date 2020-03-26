@@ -2,7 +2,9 @@ import os
 import jinja2
 import asyncio
 import aiohttp_jinja2
+import functools
 
+from ddtrace.contrib.aiohttp.middlewares import middleware, AIOHTTP_2x
 from aiohttp import web
 
 
@@ -103,13 +105,19 @@ def delayed_handler(request):
 
 
 @asyncio.coroutine
-def noop_middleware(app, handler):
-    @asyncio.coroutine
-    def middleware_handler(request):
-        # noop middleware
-        response = yield from handler(request)
-        return response
-    return middleware_handler
+@middleware
+def noop_middleware_2x(request, handler):
+    # noop middleware
+    response = yield from handler(request)
+    return response
+
+
+@asyncio.coroutine
+def noop_middleware_1x(app, handler):
+    return functools.partial(noop_middleware_2x, handler=handler)
+
+
+noop_middleware = noop_middleware_2x if AIOHTTP_2x else noop_middleware_1x
 
 
 def setup_app(loop):

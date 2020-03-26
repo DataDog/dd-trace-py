@@ -20,6 +20,9 @@ class TestAiohttpSafety(TraceTestCase):
     bad traces are produced but the ``Context`` object will not
     leak memory.
     """
+    def setUp(self):
+        super().setUp()
+        asyncio.set_event_loop(self.loop)
 
     def enable_tracing(self):
         # aiohttp TestCase with the wrong context provider
