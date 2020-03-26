@@ -415,7 +415,7 @@ class Tracer(object):
 
             # add tags to root span to correlate trace with runtime metrics
             # only applied to spans with types that are internal to applications
-            if self._runtime_worker and span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES:
+            if self._runtime_worker and self._is_span_internal(span):
                 span.set_tag('language', 'python')
 
         # Apply default global tags
@@ -446,7 +446,7 @@ class Tracer(object):
         self._check_new_process()
 
         # update set of services handled by tracer
-        if service and service not in self._services:
+        if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
             # The constant tags for the dogstatsd client needs to updated with any new
@@ -717,3 +717,7 @@ class Tracer(object):
             # We are in an AWS Lambda environment
             return True
         return False
+
+    @staticmethod
+    def _is_span_internal(span):
+        return span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
