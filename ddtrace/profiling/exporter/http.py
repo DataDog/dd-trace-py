@@ -121,10 +121,12 @@ class PprofHTTPExporter(pprof.PprofExporter):
                     tags[key] = value
         return tags
 
-    def export(self, events):
+    def export(self, events, start_time_ns, end_time_ns):
         """Export events to an HTTP endpoint.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
+        :param start_time_ns: The start time of recording.
+        :param end_time_ns: The end time of recording.
         """
         if not self.endpoint:
             raise InvalidEndpoint("Endpoint is empty")
@@ -144,16 +146,18 @@ class PprofHTTPExporter(pprof.PprofExporter):
         }
 
         exceptions = []
-        profile = super(PprofHTTPExporter, self).export(events)
+        profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         s = six.BytesIO()
         with gzip.GzipFile(fileobj=s, mode="wb") as gz:
             gz.write(profile.SerializeToString())
         fields = {
             "runtime-id": RUNTIME_ID,
             "recording-start": (
-                datetime.datetime.utcfromtimestamp(profile.time_nanos // 10e8).isoformat() + "Z"
+                datetime.datetime.utcfromtimestamp(start_time_ns).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
-            "recording-end": (datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z").encode(),
+            "recording-end": (
+                datetime.datetime.utcfromtimestamp(end_time_ns).replace(microsecond=0).isoformat() + "Z"
+            ).encode(),
             "runtime": PYTHON_IMPLEMENTATION,
             "format": b"pprof",
             "type": b"cpu+alloc+exceptions",
