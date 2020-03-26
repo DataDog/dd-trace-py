@@ -2,7 +2,6 @@
 def deepmerge(source, destination):
     """
     Merge the first provided ``dict`` into the second.
-
     :param dict source: The ``dict`` to merge into ``destination``
     :param dict destination: The ``dict`` that should get updated
     :rtype: dict

@@ -77,18 +77,16 @@ class BaseTestCase(SubprocessTestCase):
             >>> with self.override_config('flask', dict(service_name='test-service')):
                 # Your test
         """
-        options = getattr(ddtrace.config, integration)
+        settings = getattr(ddtrace.config, integration)
 
-        original = dict(
-            (key, options.get(key))
-            for key in values.keys()
-        )
+        # Set as user defined
+        for key, value in values.items():
+            settings[key] = value
 
-        options.update(values)
         try:
             yield
         finally:
-            options.update(original)
+            settings._reset()
 
     @staticmethod
     @contextlib.contextmanager

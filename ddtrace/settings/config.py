@@ -4,7 +4,6 @@ from ..internal.logger import get_logger
 from ..pin import Pin
 from ..utils.deprecation import get_service_legacy
 from ..utils.formats import asbool
-from ..utils.merge import deepmerge
 from .http import HttpConfig
 from .integration import IntegrationConfig
 from ..utils.formats import get_env
@@ -18,6 +17,9 @@ class Config(object):
     this instance to register their defaults, so that they're public
     available and can be updated by users.
     """
+
+    Dec = IntegrationConfig.Dec  # Ergonomic shortcut
+
     def __init__(self):
         # use a dict as underlying storing mechanism
         self._config = {}
@@ -66,7 +68,7 @@ class Config(object):
 
         return pin._config
 
-    def _add(self, integration, settings, merge=True):
+    def _add(self, integration, settings):
         """Internal API that registers an integration with given default
         settings.
 
@@ -74,26 +76,18 @@ class Config(object):
         :param dict settings: A dictionary that contains integration settings;
             to preserve immutability of these values, the dictionary is copied
             since it contains integration defaults.
-        :param bool merge: Whether to merge any existing settings with those provided,
-            or if we should overwrite the settings with those provided;
-            Note: when merging existing settings take precedence.
         """
-        # DEV: Use `getattr()` to call our `__getattr__` helper
         existing = getattr(self, integration)
-        settings = deepcopy(settings)
-
-        if merge:
-            # DEV: This may appear backwards keeping `existing` as the "source" and `settings` as
-            #   the "destination", but we do not want to let `_add(..., merge=True)` overwrite any
-            #   existing settings
-            #
-            # >>> config.requests['split_by_domain'] = True
-            # >>> config._add('requests', dict(split_by_domain=False))
-            # >>> config.requests['split_by_domain']
-            # True
-            self._config[integration] = IntegrationConfig(self, integration, deepmerge(existing, settings))
-        else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+        # Filter to get only the user-defined items
+        user_added = {
+            k: v for k, v in existing.items()
+            if existing._is_user_defined(k)
+        }
+        # Create a new configuration with settings
+        new = IntegrationConfig(existing.global_config, integration, deepcopy(settings))
+        # Merge in the user-defined items
+        new.update(user_added)
+        self._config[integration] = new
 
     def trace_headers(self, whitelist):
         """

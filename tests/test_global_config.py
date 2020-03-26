@@ -54,47 +54,25 @@ class GlobalConfigTestCase(TestCase):
         # ensure a global configuration is available in the `ddtrace` module
         assert isinstance(global_config, Config)
 
-    def test_settings_merge(self):
+    def test_settings_merge_library(self):
         """
         When calling `config._add()`
-            when existing settings exist
-                we do not overwrite the existing settings
+            When existing library settings exist
+                We do overwrite the existing library settings
         """
-        self.config.requests['split_by_domain'] = True
+        self.config._add('requests', dict(split_by_domain=True))
         self.config._add('requests', dict(split_by_domain=False))
-        assert self.config.requests['split_by_domain'] is True
-
-    def test_settings_overwrite(self):
-        """
-        When calling `config._add(..., merge=False)`
-            when existing settings exist
-                we overwrite the existing settings
-        """
-        self.config.requests['split_by_domain'] = True
-        self.config._add('requests', dict(split_by_domain=False), merge=False)
         assert self.config.requests['split_by_domain'] is False
 
-    def test_settings_merge_deep(self):
+    def test_settings_merge_user_library(self):
         """
         When calling `config._add()`
-            when existing "deep" settings exist
-                we do not overwrite the existing settings
+            When existing user settings exist
+                We do overwrite the existing library settings
         """
-        self.config.requests['a'] = dict(
-            b=dict(
-                c=True,
-            ),
-        )
-        self.config._add('requests', dict(
-            a=dict(
-                b=dict(
-                    c=False,
-                    d=True,
-                ),
-            ),
-        ))
-        assert self.config.requests['a']['b']['c'] is True
-        assert self.config.requests['a']['b']['d'] is True
+        self.config._add('requests', dict(split_by_domain=True))
+        self.config._add('requests', dict(split_by_domain=False))
+        assert self.config.requests['split_by_domain'] is False
 
     def test_settings_hook(self):
         """
