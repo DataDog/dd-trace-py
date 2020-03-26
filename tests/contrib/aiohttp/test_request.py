@@ -11,6 +11,7 @@ from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
+from ...utils.span import TestSpan
 from ...utils import assert_is_measured
 
 
@@ -42,59 +43,71 @@ class TestRequestTracing(TraceTestCase):
         result = yield from session.get(url)
         yield from result.read()
         traces = self.tracer.writer.pop_traces()
-        eq_(3, len(traces))
+        assert len(traces) == 3
 
         # client request span
-        eq_(4, len(traces[1]))
+        assert len(traces[1]) == 4
         client_request_span = traces[1][0]
         root_span_id = client_request_span.span_id
         root_trace_id = client_request_span.trace_id
-        eq_(None, client_request_span.parent_id)
-        eq_('aiohttp.client', client_request_span.service)
-        eq_('ClientSession.request', client_request_span.name)
-        eq_('/', client_request_span.resource)
 
+        TestSpan(client_request_span).assert_matches(
+            name="ClientSession.request",
+            service="aiohttp.client",
+            parent_id=None,
+            resource="/",
+        )
         # TCPConnector.connect
         connector_connect_span = traces[1][1]
-        eq_(root_span_id, connector_connect_span.parent_id)
-        eq_(root_trace_id, connector_connect_span.trace_id)
-        eq_('aiohttp.client', connector_connect_span.service)
-        eq_('TCPConnector.connect', connector_connect_span.name)
-        eq_('/', connector_connect_span.resource)
+        TestSpan(connector_connect_span).assert_matches(
+            name="TCPConnector.connect",
+            parent_id=root_span_id,
+            trace_id=root_trace_id,
+            service="aiohttp.client",
+            resource="/",
+        )
 
         # TCPConnector._create_connection
         connector_create_connection_span = traces[1][2]
-        eq_(connector_connect_span.span_id, connector_create_connection_span.parent_id)
-        eq_(connector_connect_span.trace_id, connector_create_connection_span.trace_id)
-        eq_('aiohttp.client', connector_create_connection_span.service)
-        eq_('TCPConnector._create_connection', connector_create_connection_span.name)
-        eq_('/', connector_create_connection_span.resource)
+        TestSpan(connector_create_connection_span).assert_matches(
+            name="TCPConnector._create_connection",
+            parent_id=connector_connect_span.span_id,
+            trace_id=connector_connect_span.trace_id,
+            service="aiohttp.client",
+            resource="/",
+        )
 
         # client start span
         client_start_span = traces[1][3]
-        eq_(root_span_id, client_start_span.parent_id)
-        eq_(root_trace_id, client_start_span.trace_id)
-        eq_('aiohttp.client', client_start_span.service)
-        eq_('ClientResponse.start', client_start_span.name)
-        eq_('/', client_start_span.resource)
+        TestSpan(client_start_span).assert_matches(
+            name="ClientResponse.start",
+            parent_id=root_span_id,
+            trace_id=root_trace_id,
+            service="aiohttp.client",
+            resource="/",
+        )
 
         # web server request span
-        eq_(1, len(traces[0]))
+        assert len(traces[0]) == 1
         server_request_span = traces[0][0]
-        eq_(root_span_id, server_request_span.parent_id)
-        eq_(root_trace_id, server_request_span.trace_id)
-        eq_('aiohttp-web', server_request_span.service)
-        eq_('aiohttp.request', server_request_span.name)
-        eq_('GET /', server_request_span.resource)
+        TestSpan(server_request_span).assert_matches(
+            name="aiohttp.request",
+            service="aiohttp-web",
+            resource="GET /",
+            parent_id=root_span_id,
+            trace_id=root_trace_id,
+        )
 
         # client read span
-        eq_(1, len(traces[2]))
+        assert len(traces[2]) == 1
         read_span = traces[2][0]
-        eq_(root_span_id, read_span.parent_id)
-        eq_(root_trace_id, read_span.trace_id)
-        eq_('aiohttp.client', read_span.service)
-        eq_('ClientResponse.read', read_span.name)
-        eq_('/', read_span.resource)
+        TestSpan(read_span).assert_matches(
+            name="ClientResponse.read",
+            service="aiohttp.client",
+            resource="/",
+            parent_id=root_span_id,
+            trace_id=root_trace_id,
+        )
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -108,18 +121,23 @@ class TestRequestTracing(TraceTestCase):
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
         assert 2 == len(traces[0])
+
+        # request
         request_span = traces[0][0]
         assert_is_measured(request_span)
+        request_span.assert_matches(
+            name="aiohttp.request",
+            service="aiohttp-web",
+            resource="GET /template/",
+        )
 
-        template_span = traces[0][1]
-        # request
-        assert "aiohttp-web" == request_span.service
-        assert "aiohttp.request" == request_span.name
-        assert "GET /template/" == request_span.resource
         # template
-        assert "aiohttp-web" == template_span.service
-        assert "aiohttp.template" == template_span.name
-        assert "aiohttp.template" == template_span.resource
+        template_span = traces[0][1]
+        template_span.assert_matches(
+            name="aiohttp.template",
+            service="aiohttp-web",
+            resource="aiohttp.template",
+        )
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -158,8 +176,8 @@ class TestRequestTracing(TraceTestCase):
         request = yield from self.client.request("GET", "/template/")
         yield from request.text()
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
-        assert 2 == len(traces[0])
+        assert len(traces) == 1
+        assert len(traces[0]) == 2
 
         request_span = traces[0][0]
         assert request_span.service == "mysvc"

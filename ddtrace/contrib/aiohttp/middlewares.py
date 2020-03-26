@@ -11,6 +11,7 @@ from ...settings import config
 
 try:
     from aiohttp.web import middleware
+
     AIOHTTP_2x = True
 except ImportError:
     AIOHTTP_2x = False
@@ -19,10 +20,10 @@ except ImportError:
         return f
 
 
-CONFIG_KEY = 'datadog_trace'
-REQUEST_CONTEXT_KEY = 'datadog_context'
-REQUEST_CONFIG_KEY = '__datadog_trace_config'
-REQUEST_SPAN_KEY = '__datadog_request_span'
+CONFIG_KEY = "datadog_trace"
+REQUEST_CONTEXT_KEY = "datadog_context"
+REQUEST_CONFIG_KEY = "__datadog_trace_config"
+REQUEST_SPAN_KEY = "__datadog_request_span"
 
 
 @asyncio.coroutine
@@ -32,9 +33,9 @@ def trace_middleware_2x(request, handler, app=None):
     if app is None:
         app = request.app
 
-    tracer = app[CONFIG_KEY]['tracer']
-    service = app[CONFIG_KEY]['service']
-    distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
+    tracer = app[CONFIG_KEY]["tracer"]
+    service = app[CONFIG_KEY]["service"]
+    distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
 
     # Create a new context based on the propagated information.
     if distributed_tracing:
@@ -45,29 +46,22 @@ def trace_middleware_2x(request, handler, app=None):
             tracer.context_provider.activate(context)
 
     # trace the handler
-    request_span = tracer.trace(
-        'aiohttp.request',
-        service=service,
-            span_type=SpanTypes.WEB,
-    )
-        request_span.set_tag(SPAN_MEASURED_KEY)
+    request_span = tracer.trace("aiohttp.request", service=service, span_type=SpanTypes.WEB,)
+    request_span.set_tag(SPAN_MEASURED_KEY)
 
     # Configure trace search sample rate
     # DEV: aiohttp is special case maintains separate configuration from config api
-    analytics_enabled = app[CONFIG_KEY]['analytics_enabled']
+    analytics_enabled = app[CONFIG_KEY]["analytics_enabled"]
     if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-        request_span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            app[CONFIG_KEY].get('analytics_sample_rate', True)
-        )
+        request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, app[CONFIG_KEY].get("analytics_sample_rate", True))
 
     # attach the context and the root span to the request; the Context
     # may be freely used by the application code
     request[REQUEST_CONTEXT_KEY] = request_span.context
     request[REQUEST_SPAN_KEY] = request_span
-        request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
+    request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
     try:
-            response = yield from handler(request)
+        response = yield from handler(request)
         return response
     except Exception:
         request_span.set_traceback()
@@ -108,25 +102,25 @@ def on_prepare(request, response):
         # collect the resource name based on http resource type
         res_info = request.match_info.route.resource.get_info()
 
-        if res_info.get('path'):
-            resource = res_info.get('path')
-        elif res_info.get('formatter'):
-            resource = res_info.get('formatter')
-        elif res_info.get('prefix'):
-            resource = res_info.get('prefix')
+        if res_info.get("path"):
+            resource = res_info.get("path")
+        elif res_info.get("formatter"):
+            resource = res_info.get("formatter")
+        elif res_info.get("prefix"):
+            resource = res_info.get("prefix")
 
         # prefix the resource name by the http method
-        resource = '{} {}'.format(request.method, resource)
+        resource = "{} {}".format(request.method, resource)
 
     if 500 <= response.status < 600:
         request_span.error = 1
 
     request_span.resource = resource
-    request_span.set_tag('http.method', request.method)
-    request_span.set_tag('http.status_code', response.status)
+    request_span.set_tag("http.method", request.method)
+    request_span.set_tag("http.status_code", response.status)
     request_span.set_tag(http.URL, request.url.with_query(None))
     # DEV: aiohttp is special case maintains separate configuration from config api
-    trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
+    trace_query_string = request[REQUEST_CONFIG_KEY].get("trace_query_string")
     if trace_query_string is None:
         trace_query_string = config._http.trace_query_string
     if trace_query_string:
@@ -134,7 +128,7 @@ def on_prepare(request, response):
     request_span.finish()
 
 
-def trace_app(app, tracer, service='aiohttp-web', distributed_tracing=True):
+def trace_app(app, tracer, service="aiohttp-web", distributed_tracing=True):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
     traced using the given ``tracer``.
@@ -146,17 +140,17 @@ def trace_app(app, tracer, service='aiohttp-web', distributed_tracing=True):
     """
 
     # safe-guard: don't trace an application twice
-    if getattr(app, '__datadog_trace', False):
+    if getattr(app, "__datadog_trace", False):
         return
-    setattr(app, '__datadog_trace', True)
+    setattr(app, "__datadog_trace", True)
 
     # configure datadog settings
     app[CONFIG_KEY] = {
-        'tracer': tracer,
-        'service': config._get_service(default=service),
-        'distributed_tracing_enabled': distributed_tracing,
-        'analytics_enabled': None,
-        'analytics_sample_rate': 1.0,
+        "tracer": tracer,
+        "service": config._get_service(default=service),
+        "distributed_tracing_enabled": distributed_tracing,
+        "analytics_enabled": None,
+        "analytics_sample_rate": 1.0,
     }
 
     # the tracer must work with asynchronous Context propagation
