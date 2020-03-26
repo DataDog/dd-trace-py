@@ -115,11 +115,11 @@ class TestRuntimeWorker(BaseTracerTestCase):
 
         # check to last set of metrics returned to confirm tags were set
         for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
-            self.assertRegexpMatches(gauge, 'service:parent')
-            self.assertRegexpMatches(gauge, 'service:child')
-            self.assertNotRegexpMatches(gauge, 'service:db')
-            self.assertRegexpMatches(gauge, 'env:tests.dog')
-            self.assertRegexpMatches(gauge, 'lang_interpreter:')
-            self.assertRegexpMatches(gauge, 'lang_version:')
-            self.assertRegexpMatches(gauge, 'lang:')
-            self.assertRegexpMatches(gauge, 'tracer_version:')
+            self.assertRegex(gauge, 'service:parent')
+            self.assertRegex(gauge, 'service:child')
+            self.assertNotRegex(gauge, 'service:db')
+            self.assertRegex(gauge, 'env:tests.dog')
+            self.assertRegex(gauge, 'lang_interpreter:')
+            self.assertRegex(gauge, 'lang_version:')
+            self.assertRegex(gauge, 'lang:')
+            self.assertRegex(gauge, 'tracer_version:')
