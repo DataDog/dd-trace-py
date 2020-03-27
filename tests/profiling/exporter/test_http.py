@@ -63,7 +63,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
             items[part.get_param("name", header="content-disposition")].append(part.get_payload(decode=True))
         for key, check in {
             "recording-start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
-            "recording-end": lambda x: x[0].startswith(b"20") and x[0].endswith(b"Z"),
+            "recording-end": lambda x: b"1970-01-01T00:00:01Z",
             "runtime": lambda x: x[0] == platform.python_implementation().encode(),
             "format": lambda x: x[0] == b"pprof",
             "type": lambda x: x[0] == b"cpu+alloc+exceptions",
@@ -139,7 +139,7 @@ def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
     exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key")
     with pytest.raises(http.UploadFailed) as t:
-        exp.export(test_pprof.TEST_EVENTS)
+        exp.export(test_pprof.TEST_EVENTS, 0, 1)
         e = t.exceptions[0]
         assert isinstance(e, http.RequestFailed)
         assert e.response.status == 400
@@ -148,19 +148,19 @@ def test_wrong_api_key(endpoint_test_server):
 
 def test_export(endpoint_test_server):
     exp = http.PprofHTTPExporter(_ENDPOINT, _API_KEY)
-    exp.export(test_pprof.TEST_EVENTS)
+    exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
 def test_export_no_endpoint(endpoint_test_server):
     exp = http.PprofHTTPExporter(endpoint="")
     with pytest.raises(http.InvalidEndpoint):
-        exp.export(test_pprof.TEST_EVENTS)
+        exp.export(test_pprof.TEST_EVENTS, 0, 1)
 
 
 def test_export_server_down():
     exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY)
     with pytest.raises(http.UploadFailed) as t:
-        exp.export(test_pprof.TEST_EVENTS)
+        exp.export(test_pprof.TEST_EVENTS, 0, 1)
         e = t.exceptions[0]
         assert isinstance(e, (IOError, OSError))
         assert e.errno in (61, 99)
@@ -169,7 +169,7 @@ def test_export_server_down():
 def test_export_timeout(endpoint_test_timeout_server):
     exp = http.PprofHTTPExporter(_TIMEOUT_ENDPOINT, _API_KEY, timeout=1)
     with pytest.raises(http.UploadFailed) as t:
-        exp.export(test_pprof.TEST_EVENTS)
+        exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.exceptions[0]
     assert isinstance(e, socket.timeout)
 
@@ -177,7 +177,7 @@ def test_export_timeout(endpoint_test_timeout_server):
 def test_export_reset(endpoint_test_reset_server):
     exp = http.PprofHTTPExporter(_RESET_ENDPOINT, _API_KEY, timeout=1)
     with pytest.raises(http.UploadFailed) as t:
-        exp.export(test_pprof.TEST_EVENTS)
+        exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.exceptions[0]
     if six.PY3:
         assert isinstance(e, ConnectionResetError)
