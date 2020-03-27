@@ -263,16 +263,16 @@ class PprofExporter(exporter.Exporter):
             return a
         return max(a, b)
 
-    def export(self, events):
+    def export(self, events, start_time_ns, end_time_ns):
         """Convert events to pprof format.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
-        :return: A dict where key is the type of profiling and value is the profile objects in protobuf format.
+        :param start_time_ns: The start time of recording.
+        :param end_time_ns: The end time of recording.
+        :return: A protobuf Profile object.
         """
         program_name = self._get_program_name()
 
-        start_time_ns = None
-        stop_time_ns = None
         sum_period = 0
         nb_event = 0
 
@@ -282,8 +282,6 @@ class PprofExporter(exporter.Exporter):
         stack_events = []
         for event in events.get(stack.StackSampleEvent, []):
             stack_events.append(event)
-            start_time_ns = self.min_none(event.timestamp, start_time_ns)
-            stop_time_ns = self.max_none(event.timestamp, stop_time_ns)
             sum_period += event.sampling_period
             nb_event += 1
 
@@ -354,8 +352,6 @@ class PprofExporter(exporter.Exporter):
                 traces.extend(event.snapshot.traces._traces)
                 # Assume they are all the same
                 traceback_limit = event.snapshot.traceback_limit
-                start_time_ns = self.min_none(event.timestamp, start_time_ns)
-                stop_time_ns = self.max_none(event.timestamp, stop_time_ns)
                 # Ignore period for memory events are it's not a time-based sampling
 
             if nb_events:
@@ -369,10 +365,7 @@ class PprofExporter(exporter.Exporter):
         else:
             period = None
 
-        if stop_time_ns is not None and start_time_ns is not None:
-            duration_ns = stop_time_ns - start_time_ns
-        else:
-            duration_ns = None
+        duration_ns = end_time_ns - start_time_ns
 
         return converter._build_profile(
             start_time_ns=start_time_ns,
