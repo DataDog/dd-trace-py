@@ -6,6 +6,7 @@ s3_bucket: &s3_bucket pypi.datadoghq.com
 
 resource_class: &resource_class medium
 busybox_image: &busybox_image busybox:latest
+cimg_base_image: &cimg_base_image cimg/base:2020.01
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
@@ -165,6 +166,10 @@ commands:
 
 
 executors:
+  cimg_base:
+    docker:
+      - image: *cimg_base_image
+    resource_class: *resource_class
   python38:
     docker:
       - image: *python38_image
@@ -245,6 +250,15 @@ jobs:
       - setup_tox
       - run: tox -e 'flake8' --result-json /tmp/flake8.results
       - save_results
+
+  build-docker-ci-image:
+    executor: cimg_base
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run: |
+          docker build .
 
   test_build_py38:
     executor: python38
@@ -871,6 +885,7 @@ workflows:
       - tracer: *requires_pre_test
       - unit_tests: *requires_pre_test
       - vertica: *requires_pre_test
+      - build-docker-ci-image: *requires_pre_test
       - verify_all_tests_ran:
           requires:
             # Individual tests do not need this to start running
@@ -936,6 +951,7 @@ workflows:
             - tornado
             - unit_tests
             - vertica
+            - build-docker-ci-image
       - deploy_master:
           requires:
             - verify_all_tests_ran
