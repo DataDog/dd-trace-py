@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 
+from ddtrace import compat
 from ddtrace.profiling import _attr
 from ddtrace.profiling import _periodic
 from ddtrace.profiling import _traceback
@@ -18,6 +19,7 @@ class Scheduler(object):
     exporters = attr.ib()
     interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
     _periodic = attr.ib(init=False, default=None)
+    _last_export = attr.ib(init=False, default=None)
 
     def __enter__(self):
         self.start()
@@ -29,6 +31,7 @@ class Scheduler(object):
             self.interval, self.flush, name="%s:%s" % (__name__, self.__class__.__name__)
         )
         LOG.debug("Starting scheduler")
+        self._last_export = compat.time_ns()
         self._periodic.start()
         LOG.debug("Scheduler started")
 
@@ -53,10 +56,12 @@ class Scheduler(object):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
         events = self.recorder.reset()
+        start = self._last_export
+        self._last_export = compat.time_ns()
         total_events = sum(len(v) for v in events.values())
         for exp in self.exporters:
             try:
-                exp.export(events)
+                exp.export(events, start, self._last_export)
             except exporter.ExportError as e:
                 LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
             except Exception:
