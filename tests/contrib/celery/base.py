@@ -8,9 +8,9 @@ from ..config import REDIS_CONFIG
 from ...base import BaseTracerTestCase
 
 
-REDIS_URL = 'redis://127.0.0.1:{port}'.format(port=REDIS_CONFIG['port'])
-BROKER_URL = '{redis}/{db}'.format(redis=REDIS_URL, db=0)
-BACKEND_URL = '{redis}/{db}'.format(redis=REDIS_URL, db=1)
+REDIS_URL = "redis://127.0.0.1:{port}".format(port=REDIS_CONFIG["port"])
+BROKER_URL = "{redis}/{db}".format(redis=REDIS_URL, db=0)
+BACKEND_URL = "{redis}/{db}".format(redis=REDIS_URL, db=1)
 
 
 class CeleryBaseTestCase(BaseTracerTestCase):
@@ -23,8 +23,8 @@ class CeleryBaseTestCase(BaseTracerTestCase):
 
         # instrument Celery and create an app with Broker and Result backends
         patch()
-        self.pin = Pin(service='celery-unittest', tracer=self.tracer)
-        self.app = Celery('celery.test_app', broker=BROKER_URL, backend=BACKEND_URL)
+        self.pin = Pin(service="celery-unittest", tracer=self.tracer)
+        self.app = Celery("celery.test_app", broker=BROKER_URL, backend=BACKEND_URL)
         # override pins to use our Dummy Tracer
         Pin.override(self.app, tracer=self.tracer)
 
