@@ -55,14 +55,15 @@ class Scheduler(object):
     def flush(self):
         """Flush events from recorder to exporters."""
         LOG.debug("Flushing events")
-        events = self.recorder.reset()
-        start = self._last_export
-        self._last_export = compat.time_ns()
-        total_events = sum(len(v) for v in events.values())
-        for exp in self.exporters:
-            try:
-                exp.export(events, start, self._last_export)
-            except exporter.ExportError as e:
-                LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
-            except Exception:
-                LOG.exception("Error while exporting %d events", total_events)
+        if self.exporters:
+            events = self.recorder.reset()
+            start = self._last_export
+            self._last_export = compat.time_ns()
+            total_events = sum(len(v) for v in events.values())
+            for exp in self.exporters:
+                try:
+                    exp.export(events, start, self._last_export)
+                except exporter.ExportError as e:
+                    LOG.error("Unable to export %d events: %s", total_events, _traceback.format_exception(e))
+                except Exception:
+                    LOG.exception("Error while exporting %d events", total_events)
