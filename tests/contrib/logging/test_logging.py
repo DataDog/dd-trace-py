@@ -73,11 +73,10 @@ class LoggingTestCase(BaseTracerTestCase):
             output, span = capture_function_log(func)
             trace_id = 0
             span_id = 0
-            service = ""
+            service = ddtrace.config.service or ""
             if span:
                 trace_id = span.trace_id
                 span_id = span.span_id
-                service = span.service or ""
 
             assert output == "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
                 service, version, env, trace_id, span_id
@@ -123,11 +122,12 @@ class LoggingTestCase(BaseTracerTestCase):
             span.set_tag(VERSION_KEY, "manual.version")
             return span
 
-        self._test_logging(create_span=create_span, version="manual.version")
+        self._test_logging(create_span=create_span, version="")
 
         # Setting global config version and overriding with span specific value
+        # We always want the globals in the logs
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="manual.version", env="global.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
     def test_log_trace_env(self):
         """
@@ -139,11 +139,12 @@ class LoggingTestCase(BaseTracerTestCase):
             span.set_tag(ENV_KEY, "manual.env")
             return span
 
-        self._test_logging(create_span=create_span, env="manual.env")
+        self._test_logging(create_span=create_span, env="")
 
         # Setting global config env and overriding with span specific value
+        # We always want the globals in the logs
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="manual.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
     def test_log_no_trace(self):
         """
