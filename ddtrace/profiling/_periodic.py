@@ -13,10 +13,17 @@ class PeriodicThread(threading.Thread):
 
     """
 
-    def __init__(self, interval, target, name=None):
-        """Create the periodic thread."""
+    def __init__(self, interval, target, name=None, on_shutdown=None):
+        """Create a periodic thread.
+
+        :param interval: The interval in seconds to wait between execution of the periodic function.
+        :param target: The periodic function to execute every interval.
+        :param name: The name of the thread.
+        :param on_shutdown: The function to call when the thread shuts down.
+        """
         super(PeriodicThread, self).__init__(name=name)
         self._target = target
+        self._on_shutdown = on_shutdown
         self.interval = interval
         self.quit = threading.Event()
         self.daemon = True
@@ -32,9 +39,13 @@ class PeriodicThread(threading.Thread):
 
     def run(self):
         """Run the target function periodically."""
-        while not self.quit.wait(self.interval):
-            self._target()
-        PERIODIC_THREAD_IDS.remove(self.ident)
+        try:
+            while not self.quit.wait(self.interval):
+                self._target()
+            if self._on_shutdown is not None:
+                self._on_shutdown()
+        finally:
+            PERIODIC_THREAD_IDS.remove(self.ident)
 
 
 class _GeventPeriodicThread(PeriodicThread):
@@ -48,9 +59,15 @@ class _GeventPeriodicThread(PeriodicThread):
     # That's the value Python 2 uses in its `threading` module
     SLEEP_INTERVAL = 0.005
 
-    def __init__(self, interval, target, name=None):
-        """Create the periodic thread."""
-        super(_GeventPeriodicThread, self).__init__(interval, target, name)
+    def __init__(self, interval, target, name=None, on_shutdown=None):
+        """Create a periodic thread.
+
+        :param interval: The interval in seconds to wait between execution of the periodic function.
+        :param target: The periodic function to execute every interval.
+        :param name: The name of the thread.
+        :param on_shutdown: The function to call when the thread shuts down.
+        """
+        super(_GeventPeriodicThread, self).__init__(interval, target, name, on_shutdown)
         import gevent.monkey
 
         self._sleep = gevent.monkey.get_original("time", "sleep")
@@ -93,6 +110,8 @@ class _GeventPeriodicThread(PeriodicThread):
                 while self.quit is False and slept < self.interval:
                     self._sleep(self.SLEEP_INTERVAL)
                     slept += self.SLEEP_INTERVAL
+            if self._on_shutdown is not None:
+                self._on_shutdown()
         except Exception:
             # Exceptions might happen during interpreter shutdown.
             # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
