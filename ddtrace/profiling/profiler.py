@@ -107,6 +107,9 @@ class Profiler(object):
         for col in reversed(self.collectors):
             col.stop()
 
+        for col in reversed(self.collectors):
+            col.join()
+
         for s in reversed(self.schedulers):
             s.stop(flush=flush)
 

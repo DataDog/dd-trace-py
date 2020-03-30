@@ -46,6 +46,19 @@ def _test_repr(collector_class, s):
     assert repr(collector_class(r)) == s
 
 
+def _test_restart(collector, **kwargs):
+    r = recorder.Recorder()
+    c = collector(r, **kwargs)
+    c.start()
+    c.stop()
+    c.join()
+    c.start()
+    with pytest.raises(RuntimeError):
+        c.start()
+    c.stop()
+    c.join()
+
+
 def test_dynamic_interval():
     r = recorder.Recorder()
     c = collector.PeriodicCollector(recorder=r, interval=1)

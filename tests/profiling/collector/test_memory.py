@@ -27,6 +27,11 @@ def test_collect():
 
 
 @pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
+def test_restart():
+    test_collector._test_restart(memory.MemoryCollector)
+
+
+@pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
 def test_status():
     test_collector._test_collector_status(memory.MemoryCollector)
 

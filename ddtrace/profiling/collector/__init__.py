@@ -55,6 +55,10 @@ class Collector(object):
         """Stop collecting profiles."""
         self.status = CollectorStatus.STOPPED
 
+    @staticmethod
+    def join():
+        """Join the collector."""
+
 
 @attr.s(slots=True)
 class PeriodicCollector(Collector):
@@ -87,11 +91,11 @@ class PeriodicCollector(Collector):
 
     def stop(self):
         """Stop the periodic collector."""
-        if self._worker:
-            self._worker.stop()
-            self._worker.join()
-            self._worker = None
+        self._worker.stop()
         super(PeriodicCollector, self).stop()
+
+    def join(self, timeout=None):
+        self._worker.join(timeout)
 
     def collect(self):
         """Collect events and push them into the recorder."""
