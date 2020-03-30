@@ -30,7 +30,8 @@ Available environment variables:
     DATADOG_TRACE_AGENT_HOSTNAME=localhost: override the address of the trace agent host that the default tracer will attempt to submit to  (default: localhost)
     DATADOG_TRACE_AGENT_PORT=8126: override the port that the default tracer will submit to (default: 8126)
     DD_SERVICE: the service name to be used for this program (default only for select web frameworks)
-    DATADOG_PRIORITY_SAMPLING=true|false: (default: false): enables Priority Sampling.
+    DATADOG_PRIORITY_SAMPLING=true|false: enables Priority Sampling. (default: false)
+    DD_LOGS_INJECTION=true|false: enable injecting trace information into log records to correlate. (default: false)
 """  # noqa: E501
 
 
