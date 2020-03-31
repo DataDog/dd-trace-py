@@ -30,7 +30,7 @@ below:
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
        :ref:`falcon`.
-   * - ``DD_SERVICE`` or ``DATADOG_SERVICE_NAME``
+   * - ``DD_SERVICE_NAME`` or ``DATADOG_SERVICE_NAME``
      - String
      -
      - Deprecated: use ``DD_SERVICE``.
