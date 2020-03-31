@@ -552,11 +552,11 @@ and database modules without the need for changing your code::
 
   Append command line arguments to your program as usual.
 
-  Usage: [ENV_VARS] ddtrace-run <my_program>
+  Usage: ddtrace-run <my_program>
 
 
-The available environment variables for ``ddtrace-run`` are detailed in
-:ref:`Configuration`.
+The environment variables for ``ddtrace-run`` used to configure the tracer are
+detailed in :ref:`Configuration`.
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
