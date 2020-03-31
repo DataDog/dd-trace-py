@@ -1,5 +1,5 @@
 """
-Datadog APM traces can be integrated with Logs by:
+Datadog APM traces can be integrated with the logs product by:
 
 1. Having ``ddtrace`` patch the ``logging`` module. This will add trace
 attributes to the log record.
@@ -40,7 +40,7 @@ Manual Instrumentation
 If you prefer to instrument manually, patch the logging library then update the
 log formatter as in the following example
 
-Note that ``dd.trace_id`` and ``dd.span_id`` must come last::
+Make sure that your log format exactly matches the following::
 
     from ddtrace import patch_all; patch_all(logging=True)
     import logging
@@ -48,7 +48,7 @@ Note that ``dd.trace_id`` and ``dd.span_id`` must come last::
 
     FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] '
               '[dd.service=%(dd.service)s dd.env=%(dd.env)s '
-              'dd.version=%(dd.version)s] '
+              'dd.version=%(dd.version)s '
               'dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s]'
               '- %(message)s')
     logging.basicConfig(format=FORMAT)
