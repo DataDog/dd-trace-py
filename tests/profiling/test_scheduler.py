@@ -24,5 +24,5 @@ def test_thread_name():
     exp = exporter.NullExporter()
     s = scheduler.Scheduler(r, [exp])
     s.start()
-    assert s._periodic.name == "ddtrace.profiling.scheduler:Scheduler"
+    assert s._worker.name == "ddtrace.profiling.scheduler:Scheduler"
     s.stop()

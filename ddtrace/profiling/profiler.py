@@ -102,7 +102,7 @@ class Profiler(object):
 
         This stops all the collectors and schedulers, waiting for them to finish their operations.
 
-        :param flush: Flush the event before stopping.
+        :param flush: Wait for the flush of the remaining events before stopping.
         """
         for col in reversed(self.collectors):
             col.stop()
@@ -111,6 +111,10 @@ class Profiler(object):
             col.join()
 
         for s in reversed(self.schedulers):
-            s.stop(flush=flush)
+            s.stop()
+
+        if flush:
+            for s in reversed(self.schedulers):
+                s.join()
 
         self.status = ProfilerStatus.STOPPED

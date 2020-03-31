@@ -56,14 +56,16 @@ def test_max_capture_over():
 def _test_memory_ignore(ignore):
     r = recorder.Recorder()
     # Start a stack collector so it allocates memory
-    with stack.StackCollector(r):
+    with stack.StackCollector(r) as sc:
         r = recorder.Recorder()
         c = memory.MemoryCollector(r, ignore_profiler=ignore, capture_pct=100)
-        with c:
+        with c as mc:
             while not r.events[memory.MemorySampleEvent]:
                 _ = _alloc()
                 # Allow gevent to switch to the memory collector thread
                 time.sleep(0)
+    sc.join()
+    mc.join()
     events = r.events[memory.MemorySampleEvent]
     files = {frame.filename for event in events for trace in event.snapshot.traces for frame in trace.traceback}
     return files
