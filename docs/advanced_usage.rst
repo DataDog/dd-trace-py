@@ -555,32 +555,8 @@ and database modules without the need for changing your code::
   Usage: [ENV_VARS] ddtrace-run <my_program>
 
 
-The available environment variables for ``ddtrace-run`` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
-  library instrumentation. When false, your application code will not generate
-  any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
-  ``pre-prod``, ``stage``
-* ``DD_ENV`` (no default): Set an application's environment e.g. ``prod``,
-  ``pre-prod``, ``stage`` (preferred over ``DATADOG_ENV``)
-* ``DD_VERSION`` (no default): Set an application's version e.g. ``1.2.3``, ``6c44da20``, ``2020.02.13``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
-  the tracer
-* ``DD_SERVICE`` (no default): override the service name to be used for this
-  application. A default is provided for the bottle, flask, grpc, pyramid,
-  pylons, tornado, celery, django and falcon integrations.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
-  ``boto:true,redis:false``: override the modules patched for this execution of
-  the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
-  agent host that the default tracer will attempt to submit to  (default:
-  ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
-  will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
-  Sampling`
-* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
+The available environment variables for ``ddtrace-run`` are detailed in
+:ref:`Configuration`.
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 

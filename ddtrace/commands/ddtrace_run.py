@@ -23,13 +23,13 @@ Usage: [ENV_VARS] ddtrace-run <my_program>
 
 Available environment variables:
 
-    DATADOG_ENV : override an application's environment (no default)
     DATADOG_TRACE_ENABLED=true|false : override the value of tracer.enabled (default: true)
+    DD_ENV : set an application's environment (no default)
+    DD_SERVICE: set the service name to be used for this application (default only for select frameworks)
+    DD_VERSION: set an application's version to be added to traces and logs (no default)
     DATADOG_TRACE_DEBUG=true|false : enabled debug logging (default: false)
     DATADOG_PATCH_MODULES=module:patch,module:patch... e.g. boto:true,redis:false : override the modules patched for this execution of the program (default: none)
-    DATADOG_TRACE_AGENT_HOSTNAME=localhost: override the address of the trace agent host that the default tracer will attempt to submit to  (default: localhost)
-    DATADOG_TRACE_AGENT_PORT=8126: override the port that the default tracer will submit to (default: 8126)
-    DD_SERVICE: the service name to be used for this program (default only for select web frameworks)
+    DD_TRACE_AGENT_URL=http://localhost:8126: override the address of the trace agent host that the default tracer will attempt to submit to  (default: http://localhost:8126)
     DATADOG_PRIORITY_SAMPLING=true|false: enables Priority Sampling. (default: false)
     DD_LOGS_INJECTION=true|false: enable injecting trace information into log records to correlate. (default: false)
 """  # noqa: E501
