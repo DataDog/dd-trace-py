@@ -67,7 +67,7 @@ class EngineTracer(object):
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
-        listen(engine, 'dbapi_error', self._dbapi_error)
+        listen(engine, 'handle_error', self._handle_db_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
@@ -107,7 +107,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
-    def _dbapi_error(self, conn, cursor, statement, *args):
+    def _handle_db_error(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
         if not pin or not pin.enabled():
             # don't trace the execution
