@@ -1,6 +1,8 @@
 import os
 import threading
 
+import pytest
+
 from ddtrace.profiling import _periodic
 
 
@@ -62,3 +64,27 @@ def test_periodic_real_thread_name():
     assert t in threading.enumerate()
     t.stop()
     t.join()
+
+
+def test_periodic_service_start_stop():
+    t = _periodic.PeriodicService(1)
+    t.start()
+    with pytest.raises(RuntimeError):
+        t.start()
+    t.stop()
+    t.join()
+    t.stop()
+    t.stop()
+    t.join()
+    t.join()
+
+
+def test_periodic_join_stop_no_start():
+    t = _periodic.PeriodicService(1)
+    t.join()
+    t.stop()
+    t.join()
+    t = _periodic.PeriodicService(1)
+    t.stop()
+    t.join()
+    t.stop()

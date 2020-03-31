@@ -2,6 +2,10 @@
 import sys
 import threading
 
+from ddtrace.profiling import _service
+from ddtrace.vendor import attr
+
+
 PERIODIC_THREAD_IDS = set()
 
 
@@ -90,7 +94,8 @@ class _GeventPeriodicThread(PeriodicThread):
             del threading._limbo[self]
         PERIODIC_THREAD_IDS.add(self._tident)
 
-    def join(self):
+    def join(self, timeout=None):
+        # FIXME: handle the timeout argument
         while not self.has_quit:
             self._sleep(self.SLEEP_INTERVAL)
 
@@ -144,3 +149,55 @@ def PeriodicRealThread(*args, **kwargs):
         if gevent.monkey.is_module_patched("threading"):
             return _GeventPeriodicThread(*args, **kwargs)
     return PeriodicThread(*args, **kwargs)
+
+
+@attr.s
+class PeriodicService(_service.Service):
+    """A service that runs periodically."""
+
+    _interval = attr.ib()
+    _worker = attr.ib(default=None, init=False, repr=False)
+
+    _real_thread = False
+    "Class variable to override if the service should run in a real OS thread."
+
+    @property
+    def interval(self):
+        return self._interval
+
+    @interval.setter
+    def interval(self, value):
+        self._interval = value
+        # Update the interval of the PeriodicThread based on ours
+        if self._worker:
+            self._worker.interval = value
+
+    def start(self):
+        """Start collecting profiles."""
+        super(PeriodicService, self).start()
+        periodic_thread_class = PeriodicRealThread if self._real_thread else PeriodicThread
+        self._worker = periodic_thread_class(
+            self.interval,
+            target=self.periodic,
+            name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            on_shutdown=self.on_shutdown,
+        )
+        self._worker.start()
+
+    def join(self, timeout=None):
+        if self._worker:
+            self._worker.join(timeout)
+
+    def stop(self):
+        """Stop the periodic collector."""
+        if self._worker:
+            self._worker.stop()
+        super(PeriodicService, self).stop()
+
+    @staticmethod
+    def on_shutdown():
+        pass
+
+    @staticmethod
+    def periodic():
+        pass

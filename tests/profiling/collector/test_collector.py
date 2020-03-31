@@ -1,29 +1,9 @@
 import time
 
-import mock
-
 import pytest
 
 from ddtrace.profiling import collector
 from ddtrace.profiling import recorder
-
-
-def test_collector_status():
-    assert repr(collector.CollectorStatus.STOPPED) == "STOPPED"
-    assert repr(collector.CollectorStatus.RUNNING) == "RUNNING"
-
-
-def _test_collector_status(collector_class):
-    r = recorder.Recorder()
-    c = collector_class(r)
-    assert c.status == collector.CollectorStatus.STOPPED
-    with mock.patch("ddtrace.compat.time_ns") as time_ns:
-        time_ns.return_value = 123
-        c.start()
-    assert c.status == collector.CollectorStatus.RUNNING
-    c.stop()
-    assert c.status == collector.CollectorStatus.STOPPED
-    return r, c
 
 
 def _test_collector_collect(collector, event_type, fn=None, **kwargs):
