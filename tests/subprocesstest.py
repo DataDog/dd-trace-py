@@ -5,6 +5,7 @@ python interpreter instances.
 A base class SubprocessTestCase is provided that, when extended, will run test
 cases marked with @run_in_subprocess in a separate python interpreter.
 """
+import inspect
 import os
 import subprocess
 import sys
@@ -85,8 +86,13 @@ class SubprocessTestCase(unittest.TestCase):
         # A concrete case of this is a parent and child TestCase where the child
         # doesn't override a parent test method. The full_method_name we want
         # is that of the child test method (even though it exists on the parent).
-        modpath = test.__self__.__class__.__module__
-        clsname = test.__self__.__class__.__name__
+        # This is only true if the test method is bound by pytest; pytest>=5.4 returns a function.
+        if inspect.ismethod(test):
+            modpath = test.__self__.__class__.__module__
+            clsname = test.__self__.__class__.__name__
+        else:
+            modpath = self.__class__.__module__
+            clsname = self.__class__.__name__
         testname = test.__name__
         testcase_name = '{}.{}.{}'.format(modpath, clsname, testname)
         return testcase_name
