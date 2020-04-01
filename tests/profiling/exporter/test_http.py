@@ -8,6 +8,7 @@ import time
 
 import pytest
 
+from ddtrace import compat
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import http_client
@@ -63,7 +64,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
             items[part.get_param("name", header="content-disposition")].append(part.get_payload(decode=True))
         for key, check in {
             "recording-start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
-            "recording-end": lambda x: b"1970-01-01T00:00:01Z",
+            "recording-end": lambda x: x[0].startswith(b"20"),
             "runtime": lambda x: x[0] == platform.python_implementation().encode(),
             "format": lambda x: x[0] == b"pprof",
             "type": lambda x: x[0] == b"cpu+alloc+exceptions",
@@ -148,7 +149,7 @@ def test_wrong_api_key(endpoint_test_server):
 
 def test_export(endpoint_test_server):
     exp = http.PprofHTTPExporter(_ENDPOINT, _API_KEY)
-    exp.export(test_pprof.TEST_EVENTS, 0, 1)
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_no_endpoint(endpoint_test_server):
