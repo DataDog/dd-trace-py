@@ -100,9 +100,16 @@ class _GeventPeriodicThread(PeriodicThread):
             if sys is not None:
                 raise
         finally:
-            self.has_quit = True
-            del threading._active[self._tident]
-            PERIODIC_THREAD_IDS.remove(self.ident)
+            try:
+                self.has_quit = True
+                del threading._active[self._tident]
+                PERIODIC_THREAD_IDS.remove(self.ident)
+            except Exception:
+                # Exceptions might happen during interpreter shutdown.
+                # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
+                # See `threading.Thread._bootstrap` for details.
+                if sys is not None:
+                    raise
 
 
 def PeriodicRealThread(*args, **kwargs):
