@@ -12,6 +12,7 @@ instance you are using::
     engine.connect().execute('select count(*) from users')
 """
 # 3p
+import sqlalchemy
 from sqlalchemy.event import listen
 
 # project
@@ -67,7 +68,14 @@ class EngineTracer(object):
 
         listen(engine, 'before_cursor_execute', self._before_cur_exec)
         listen(engine, 'after_cursor_execute', self._after_cur_exec)
-        listen(engine, 'handle_error', self._handle_db_error)
+
+        # Determine name of error event to listen for
+        # Ref: https://github.com/DataDog/dd-trace-py/issues/841
+        if sqlalchemy.__version__[0] != "0":
+            error_event = "handle_error"
+        else:
+            error_event = "dbapi_error"
+        listen(engine, error_event, self._handle_db_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
         pin = Pin.get_from(self.engine)
