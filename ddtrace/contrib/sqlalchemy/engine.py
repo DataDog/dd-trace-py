@@ -115,7 +115,7 @@ class EngineTracer(object):
         finally:
             span.finish()
 
-    def _handle_db_error(self, conn, cursor, statement, *args):
+    def _handle_db_error(self, *args):
         pin = Pin.get_from(self.engine)
         if not pin or not pin.enabled():
             # don't trace the execution
