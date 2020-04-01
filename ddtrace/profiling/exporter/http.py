@@ -153,10 +153,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
         fields = {
             "runtime-id": RUNTIME_ID,
             "recording-start": (
-                datetime.datetime.utcfromtimestamp(start_time_ns).replace(microsecond=0).isoformat() + "Z"
+                datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
             "recording-end": (
-                datetime.datetime.utcfromtimestamp(end_time_ns).replace(microsecond=0).isoformat() + "Z"
+                datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
             "runtime": PYTHON_IMPLEMENTATION,
             "format": b"pprof",
