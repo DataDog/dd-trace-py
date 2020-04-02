@@ -11,6 +11,7 @@ from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import parse as urlparse
 
 import ddtrace
+from ddtrace.profiling import _attr
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
@@ -58,10 +59,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
     endpoint = attr.ib(
-        default=os.getenv("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input"), type=str
+        factory=_attr.from_env("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input", str), type=str
     )
-    api_key = attr.ib(default=os.getenv("DD_PROFILING_API_KEY", ""), type=str)
-    timeout = attr.ib(default=os.getenv("DD_PROFILING_API_TIMEOUT", 10), type=float)
+    api_key = attr.ib(factory=_attr.from_env("DD_PROFILING_API_KEY", "", str), type=str)
+    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):

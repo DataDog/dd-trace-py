@@ -530,7 +530,30 @@ the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
 application.
 
 
-**Opentracer API**
+Examples
+^^^^^^^^
+
+**Celery**
+
+Distributed Tracing across celery tasks with OpenTracing.
+
+1. Install Celery OpenTracing:
+
+    pip install Celery-OpenTracing
+
+2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+
+    from celery_opentracing import CeleryTracing
+    from ddtrace.opentracer import set_global_tracer, Tracer
+
+    ddtracer = Tracer()
+    set_global_tracer(ddtracer)
+
+    app = CeleryTracing(app, tracer=ddtracer)
+
+
+Opentracer API
+^^^^^^^^^^^^^^
 
 .. autoclass:: ddtrace.opentracer.Tracer
     :members:
