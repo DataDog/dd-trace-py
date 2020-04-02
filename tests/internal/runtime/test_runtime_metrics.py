@@ -2,6 +2,8 @@ import time
 
 import mock
 
+from ddtrace.ext import SpanTypes
+
 from ddtrace.internal.runtime.runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
@@ -81,9 +83,12 @@ class TestRuntimeWorker(BaseTracerTestCase):
             self.tracer.set_tags({'env': 'tests.dog'})
 
             with self.override_global_tracer(self.tracer):
-                root = self.start_span('parent', service='parent')
+                # spans are started for three services but only web and worker
+                # span types should be included in tags for runtime metrics
+                root = self.start_span('parent', service='parent', span_type=SpanTypes.WEB)
                 context = root.context
-                self.start_span('child', service='child', child_of=context)
+                child = self.start_span('child', service='child', span_type=SpanTypes.WORKER, child_of=context)
+                self.start_span('query', service='db', span_type=SpanTypes.SQL, child_of=child.context)
 
             time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
 
@@ -112,8 +117,9 @@ class TestRuntimeWorker(BaseTracerTestCase):
         for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
             self.assertRegexpMatches(gauge, 'service:parent')
             self.assertRegexpMatches(gauge, 'service:child')
+            self.assertNotRegexpMatches(gauge, 'service:db')
             self.assertRegexpMatches(gauge, 'env:tests.dog')
-            self.assertRegexpMatches(gauge, 'lang_interpreter:')
+            self.assertRegexpMatches(gauge, 'lang_interpreter:CPython')
             self.assertRegexpMatches(gauge, 'lang_version:')
-            self.assertRegexpMatches(gauge, 'lang:')
+            self.assertRegexpMatches(gauge, 'lang:python')
             self.assertRegexpMatches(gauge, 'tracer_version:')
