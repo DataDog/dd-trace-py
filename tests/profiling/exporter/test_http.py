@@ -186,6 +186,12 @@ def test_export_reset(endpoint_test_reset_server):
         assert isinstance(e, http_client.BadStatusLine)
 
 
+def test_default_from_env(monkeypatch):
+    monkeypatch.setenv("DD_PROFILING_API_KEY", "123")
+    exp = http.PprofHTTPExporter()
+    assert exp.api_key == "123"
+
+
 def test_get_tags():
     tags = http.PprofHTTPExporter()._get_tags("foobar")
     assert len(tags) == 7
