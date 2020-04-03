@@ -6,7 +6,11 @@ from ddtrace.profiling import _build
 
 
 def _not_compatible_abi():
-    raise ImportError("Python ABI is not compatible, you need to recompile this module")
+    raise ImportError(
+        "Python ABI is not compatible, you need to recompile this module.\n"
+        "Reinstall it with the following command:\n"
+        "  pip install --no-binary ddtrace ddtrace[profiling]"
+    )
 
 
 if (3, 7) < _build.compiled_with <= (3, 7, 3):
