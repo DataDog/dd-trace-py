@@ -912,3 +912,14 @@ class EnvTracerTestCase(BaseTracerTestCase):
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(self.tracer.original_writer, AgentWriter)
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
+    def test_dd_tags(self):
+        assert self.tracer.tags["key1"] == "value1"
+        assert self.tracer.tags["key2"] == "value2"
+
+    @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
+    def test_dd_tags_invalid(self):
+        assert "key1" in self.tracer.tags
+        assert "key2" in self.tracer.tags
+        assert "key3" not in self.tracer.tags

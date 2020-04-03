@@ -1,11 +1,11 @@
 import binascii
 import datetime
 import gzip
-import logging
 import os
 import platform
 import uuid
 
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import parse as urlparse
@@ -16,9 +16,6 @@ from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.vendor import attr
 from ddtrace.profiling.exporter import pprof
-
-
-LOG = logging.getLogger(__name__)
 
 
 RUNTIME_ID = str(uuid.uuid4()).encode()
@@ -111,15 +108,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         }
         user_tags = os.getenv("DD_PROFILING_TAGS")
         if user_tags:
-            for tag in user_tags.split(","):
-                try:
-                    key, value = tag.split(":", 1)
-                except ValueError:
-                    LOG.error("Malformed tag in DD_PROFILING_TAGS: %s", tag)
-                else:
-                    if isinstance(value, six.text_type):
-                        value = value.encode("utf-8")
-                    tags[key] = value
+            tags.update({k: six.ensure_binary(v) for k, v in parse_tags_str(user_tags).items()})
         return tags
 
     def export(self, events, start_time_ns, end_time_ns):

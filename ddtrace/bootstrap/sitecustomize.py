@@ -8,7 +8,7 @@ import imp
 import sys
 import logging
 
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.utils.formats import asbool, get_env, parse_tags_str
 from ddtrace.internal.logger import get_logger
 from ddtrace import config, constants
 
@@ -54,29 +54,15 @@ def update_patched_modules():
     modules_to_patch = os.environ.get("DATADOG_PATCH_MODULES")
     if not modules_to_patch:
         return
-    for patch in modules_to_patch.split(","):
-        if len(patch.split(":")) != 2:
-            log.debug("skipping malformed patch instruction")
-            continue
 
-        module, should_patch = patch.split(":")
-        if should_patch.lower() not in ["true", "false"]:
+    modules = parse_tags_str(modules_to_patch)
+    for module, should_patch in modules.items():
+        should_patch = should_patch.lower()
+        if should_patch not in ["true", "false"]:
             log.debug("skipping malformed patch instruction for %s", module)
             continue
 
-        EXTRA_PATCHED_MODULES.update({module: should_patch.lower() == "true"})
-
-
-def add_global_tags(tracer):
-    tags = {}
-    for tag in os.environ.get("DD_TRACE_GLOBAL_TAGS", "").split(","):
-        tag_name, _, tag_value = tag.partition(":")
-        if not tag_name or not tag_value:
-            log.debug("skipping malformed tracer tag")
-            continue
-
-        tags[tag_name] = tag_value
-    tracer.set_tags(tags)
+        EXTRA_PATCHED_MODULES[module] = should_patch == "true"
 
 
 try:
@@ -119,7 +105,8 @@ try:
         tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
-        add_global_tags(tracer)
+        env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
+        tracer.set_tags(parse_tags_str(env_tags))
 
     # Ensure sitecustomize.py is properly called if available in application directories:
     # * exclude `bootstrap_dir` from the search
