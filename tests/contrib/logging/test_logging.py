@@ -182,6 +182,6 @@ class LoggingTestCase(BaseTracerTestCase):
         out, span = capture_function_log(parent.finish, logger_arg=context_logger)
 
         assert 'Root span "parent" closed, but the trace has 1 unfinished spans' in out
-        assert 'parent_id {}'.format(parent.span_id) in out
-        assert 'trace_id {}'.format(child.trace_id) in out
-        assert 'id {}'.format(child.span_id) in out
+        assert "parent_id {}".format(parent.span_id) in out
+        assert "trace_id {}".format(child.trace_id) in out
+        assert "id {}".format(child.span_id) in out
