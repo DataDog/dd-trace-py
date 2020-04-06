@@ -180,7 +180,7 @@ class LoggingTestCase(BaseTracerTestCase):
         # finish parent span without finishing child span
         parent = self.tracer.trace("parent")
         child = self.tracer.trace("child")
-        out, span = capture_function_log(parent.finish, logger_arg=context_logger)
+        out, span = capture_function_log(parent.finish, logger_override=context_logger)
 
         assert 'Root span "parent" closed, but the trace has 1 unfinished spans' in out
         assert "parent_id {}".format(parent.span_id) in out
