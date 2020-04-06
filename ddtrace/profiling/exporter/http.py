@@ -164,12 +164,14 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "type": b"cpu+alloc+exceptions",
             "chunk-data": s.getvalue(),
         }
-        if "DD_SERVICE_NAME" in os.environ:
-            service_name = os.environ.get("DD_SERVICE_NAME")
-        elif "DATADOG_SERVICE_NAME" in os.environ:
-            service_name = os.environ.get("DATADOG_SERVICE_NAME")
+
+        for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
+            service_name = os.environ.get(service_name_var)
+            if service_name is not None:
+                break
         else:
             service_name = os.path.basename(profile.string_table[profile.mapping[0].filename])
+
         content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
         headers = common_headers.copy()
         headers["Content-Type"] = content_type
