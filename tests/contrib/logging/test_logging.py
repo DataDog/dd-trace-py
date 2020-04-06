@@ -167,7 +167,7 @@ class LoggingTestCase(BaseTracerTestCase):
     def test_unfinished_child(self):
         """
         Check that closing a span with unfinished children correctly logs out
-        unfinished spans. See #1337 for more context.
+        unfinished spans.
         """
         # unfinished child spans only logged if tracer log level is debug
         self.tracer.log.setLevel(logging.DEBUG)
