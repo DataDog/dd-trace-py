@@ -25,7 +25,7 @@ def current_span(tracer=None):
 
 
 def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
-    if logger_arg is not None:
+    if logger_override is not None:
         logger_to_capture = logger_override
     else:
         logger_to_capture = logger
