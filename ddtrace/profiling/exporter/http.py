@@ -109,6 +109,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "runtime_version": PYTHON_VERSION,
             "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
+
+        version = os.environ.get("DD_VERSION")
+        if version:
+            tags["version"] = version
+
         user_tags = os.getenv("DD_PROFILING_TAGS")
         if user_tags:
             for tag in user_tags.split(","):

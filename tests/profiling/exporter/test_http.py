@@ -201,6 +201,7 @@ def test_get_tags():
     assert tags["language"] == b"python"
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
 
 
 def test_get_malformed(monkeypatch):
@@ -257,6 +258,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["runtime"] == b"CPython"
     assert tags["mytag"] == b"foobar"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
 
     monkeypatch.setenv("DD_PROFILING_TAGS", "mytag:foobar,author:jd")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
@@ -269,6 +271,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["mytag"] == b"foobar"
     assert tags["author"] == b"jd"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
 
     monkeypatch.setenv("DD_PROFILING_TAGS", "")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
@@ -279,6 +282,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["language"] == b"python"
     assert tags["runtime"] == b"CPython"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
 
     monkeypatch.setenv("DD_PROFILING_TAGS", "foobar:baz,service:mycustomservice")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
@@ -290,6 +294,7 @@ def test_get_tags_override(monkeypatch):
     assert tags["runtime"] == b"CPython"
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
 
     monkeypatch.setenv("DD_PROFILING_TAGS", "foobar:baz,service:🤣")
     tags = http.PprofHTTPExporter()._get_tags("foobar")
@@ -301,3 +306,16 @@ def test_get_tags_override(monkeypatch):
     assert tags["runtime"] == b"CPython"
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert "version" not in tags
+
+    monkeypatch.setenv("DD_VERSION", "123")
+    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    assert len(tags) == 9
+    assert tags["service"] == u"🤣".encode("utf-8")
+    assert len(tags["host"])
+    assert len(tags["runtime-id"])
+    assert tags["language"] == b"python"
+    assert tags["runtime"] == b"CPython"
+    assert tags["foobar"] == b"baz"
+    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["version"] == "123"
