@@ -75,17 +75,6 @@ class DDLogger(logging.Logger):
         # DEV: `DD_LOGGING_RATE_LIMIT=0` means to disable all rate limiting
         self.rate_limit = int(get_env("logging", "rate_limit", default=60))
 
-    def makeRecord(self, name, level, fn, lno, msg, args, exc_info, func=None, extra=None, sinfo=None):
-        """
-        Adds an extra attribute to our log records to make sure log injection doesn't
-        attempt to get the current span on an internal log, which can lead to a deadlock.
-        """
-        if extra is None:
-            extra = {}
-        extra["__from_DDLogger"] = True
-
-        return super(DDLogger, self).makeRecord(name, level, fn, lno, msg, args, exc_info, func, extra, sinfo)
-
     def handle(self, record):
         """
         Function used to call the handlers for a log line.
