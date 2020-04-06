@@ -169,9 +169,6 @@ class LoggingTestCase(BaseTracerTestCase):
         Check that closing a span with unfinished children correctly logs out
         unfinished spans. See #1337 for more context.
         """
-        parent = self.tracer.trace("parent")
-        child = self.tracer.trace("child")
-
         # unfinished child spans only logged if tracer log level is debug
         self.tracer.log.setLevel(logging.DEBUG)
 
@@ -179,6 +176,10 @@ class LoggingTestCase(BaseTracerTestCase):
         # so debug logging has to be enabled here as well.
         context_logger = logging.getLogger("ddtrace.context")
         context_logger.setLevel(logging.DEBUG)
+
+        # finish parent span without finishing child span
+        parent = self.tracer.trace("parent")
+        child = self.tracer.trace("child")
         out, span = capture_function_log(parent.finish, logger_arg=context_logger)
 
         assert 'Root span "parent" closed, but the trace has 1 unfinished spans' in out
