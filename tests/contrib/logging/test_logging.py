@@ -24,7 +24,12 @@ def current_span(tracer=None):
     return tracer.current_span()
 
 
-def capture_function_log(func, fmt=DEFAULT_FORMAT):
+def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_arg=None):
+    if logger_arg is not None:
+        logger_to_capture = logger_arg
+    else:
+        logger_to_capture = logger
+
     # add stream handler to capture output
     out = StringIO()
     sh = logging.StreamHandler(out)
@@ -32,10 +37,10 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT):
     try:
         formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
-        logger.addHandler(sh)
+        logger_to_capture.addHandler(sh)
         result = func()
     finally:
-        logger.removeHandler(sh)
+        logger_to_capture.removeHandler(sh)
 
     return out.getvalue().strip(), result
 
@@ -158,3 +163,25 @@ class LoggingTestCase(BaseTracerTestCase):
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
+
+    def test_unfinished_child(self):
+        """
+        Check that closing a span with unfinished children correctly logs out
+        unfinished spans. See #1337 for more context.
+        """
+        parent = self.tracer.trace("parent")
+        child = self.tracer.trace("child")
+
+        # unfinished child spans only logged if tracer log level is debug
+        self.tracer.log.setLevel(logging.DEBUG)
+
+        # the actual logger used for these message is ddtrace.context logger,
+        # so debug logging has to be enabled here as well.
+        context_logger = logging.getLogger("ddtrace.context")
+        context_logger.setLevel(logging.DEBUG)
+        out, span = capture_function_log(parent.finish, logger_arg=context_logger)
+
+        assert 'Root span "parent" closed, but the trace has 1 unfinished spans' in out
+        assert 'parent_id {}'.format(parent.span_id) in out
+        assert 'trace_id {}'.format(child.trace_id) in out
+        assert 'id {}'.format(child.span_id) in out
