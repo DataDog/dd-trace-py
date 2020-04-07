@@ -9,6 +9,7 @@ except ImportError:
 from ddtrace.profiling import _attr
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.utils import formats
 from ddtrace.vendor import attr
 
 
@@ -31,7 +32,7 @@ class MemoryCollector(collector.PeriodicCollector, collector.CaptureSamplerColle
     _interval = attr.ib(default=0.1, repr=False)
 
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, bool))
+    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
 
     def __attrs_post_init__(self):
         if sys.version_info[:2] <= (3, 5):
