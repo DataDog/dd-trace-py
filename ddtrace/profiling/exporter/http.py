@@ -114,6 +114,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if version:
             tags["version"] = version
 
+        env = os.environ.get("DD_ENV")
+        if env:
+            tags["env"] = env
+
         user_tags = os.getenv("DD_PROFILING_TAGS")
         if user_tags:
             for tag in user_tags.split(","):
