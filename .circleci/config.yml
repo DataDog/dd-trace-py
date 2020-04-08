@@ -735,6 +735,17 @@ jobs:
       - *pyenv-set-global
       - deploy_wheels
 
+  deploy_reliability:
+    docker:
+      - image: circleci/python:3.8
+    steps:
+      - checkout
+      - run:
+          command: |
+            sudo pip install boto3 cython
+            export DDTRACE_VERSION=$(python setup.py --version | tail -n1)
+            python ./scripts/deploy_reliability.py
+
   jinja2:
     executor: ddtrace_dev
     steps:
@@ -820,6 +831,12 @@ workflows:
       - build_docs
       - black
       - flake8
+      - deploy_reliability:
+          filters:
+            branches:
+              only:
+                - master
+                - /.*-reliability/
 
       # Test building the package
       - test_build_py38: *requires_pre_test
@@ -890,6 +907,7 @@ workflows:
           requires:
             # Individual tests do not need this to start running
             - build_docs
+            - deploy_reliability
 
             # flake8 dependent jobs
             - aiobotocore
