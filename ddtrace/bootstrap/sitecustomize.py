@@ -26,6 +26,7 @@ if config.logs_injection:
     patch(logging=True)
 
 debug = os.environ.get("DATADOG_TRACE_DEBUG")
+user_sitecustomization_dir = os.environ.get("DATADOG_USER_SITECUSTOMIZATION_DIR")
 
 # Set here a default logging format for basicConfig
 
@@ -130,6 +131,9 @@ try:
 
     if bootstrap_dir in path:
         path.remove(bootstrap_dir)
+
+    if user_sitecustomization_dir:
+        path.insert(0, user_sitecustomization_dir)
 
     try:
         (f, path, description) = imp.find_module("sitecustomize", path)
