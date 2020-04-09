@@ -487,3 +487,20 @@ def test_set_tag_measured_change_value():
 
     s.set_tag(SPAN_MEASURED_KEY)
     assert_is_measured(s)
+
+
+@mock.patch('ddtrace.span.log')
+def test_span_key(span_log):
+    # Span tag keys must be strings
+    s = Span(tracer=None, name="test.span")
+
+    s.set_tag(123, True)
+    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", 123, True)
+    assert s.get_tag(123) is None
+    assert s.get_tag("123") is None
+
+    span_log.reset_mock()
+
+    s.set_tag(None, "val")
+    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", None, "val")
+    assert s.get_tag(123.32) is None
