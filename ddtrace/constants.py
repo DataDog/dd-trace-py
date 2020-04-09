@@ -17,3 +17,5 @@ NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY, )
 
 MANUAL_DROP_KEY = 'manual.drop'
 MANUAL_KEEP_KEY = 'manual.keep'
+
+LOG_SPAN_KEY = '__datadog_log_span'

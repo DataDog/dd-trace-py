@@ -35,7 +35,14 @@ def _w_makeRecord(func, instance, args, kwargs):
     setattr(record, RECORD_ATTR_ENV, ddtrace.config.env or "")
     setattr(record, RECORD_ATTR_SERVICE, ddtrace.config.service or "")
 
-    span = _get_current_span(tracer=ddtrace.config.logging.tracer)
+    # logs from internal logger may explicitly pass the current span to
+    # avoid deadlocks in getting the current span while already in locked code.
+    span_from_log = getattr(record, ddtrace.constants.LOG_SPAN_KEY, None)
+    if isinstance(span_from_log, ddtrace.Span):
+        span = span_from_log
+    else:
+        span = _get_current_span(tracer=ddtrace.config.logging.tracer)
+
     if span:
         setattr(record, RECORD_ATTR_TRACE_ID, span.trace_id)
         setattr(record, RECORD_ATTR_SPAN_ID, span.span_id)

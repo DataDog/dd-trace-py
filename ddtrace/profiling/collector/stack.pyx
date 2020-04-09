@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import threading
-from distutils import util
 
 from ddtrace import compat
 from ddtrace.profiling import _attr
@@ -13,6 +12,7 @@ from ddtrace.profiling import _periodic
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _traceback
+from ddtrace.utils import formats
 from ddtrace.vendor import attr
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -33,8 +33,8 @@ IF UNAME_SYSNAME == "Linux":
     from cpython.exc cimport PyErr_SetFromErrno
 
     cdef extern from "<pthread.h>":
-        # POSIX says this might be a struct, but CPython relies on it being an integer.
-        ctypedef int pthread_t
+        # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
+        ctypedef unsigned long pthread_t
         int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id)
 
     cdef p_pthread_getcpuclockid(tid):
@@ -292,7 +292,7 @@ class StackCollector(collector.PeriodicCollector):
 
     max_time_usage_pct = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 2, float))
     nframes = attr.ib(factory=_attr.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
-    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, bool))
+    ignore_profiler = attr.ib(factory=_attr.from_env("DD_PROFILING_IGNORE_PROFILER", True, formats.asbool))
     _thread_time = attr.ib(init=False, repr=False)
     _last_wall_time = attr.ib(init=False, repr=False)
 
