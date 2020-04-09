@@ -33,8 +33,8 @@ IF UNAME_SYSNAME == "Linux":
     from cpython.exc cimport PyErr_SetFromErrno
 
     cdef extern from "<pthread.h>":
-        # POSIX says this might be a struct, but CPython relies on it being an integer.
-        ctypedef int pthread_t
+        # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
+        ctypedef unsigned long pthread_t
         int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id)
 
     cdef p_pthread_getcpuclockid(tid):
