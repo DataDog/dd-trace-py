@@ -448,6 +448,17 @@ jobs:
       - run_tox_scenario:
           pattern: '^django_contrib'
 
+  django_hosts:
+    executor: ddtrace_dev
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *redis_image
+      - image: *memcached_image
+      - *datadog_agent
+    steps:
+      - run_tox_scenario:
+          pattern: '^django_hosts_contrib'
+
   djangorestframework:
     executor: ddtrace_dev
     docker:
@@ -844,6 +855,7 @@ workflows:
       - dbapi: *requires_pre_test
       - ddtracerun: *requires_pre_test
       - django: *requires_pre_test
+      - django_hosts: *requires_pre_test
       - djangorestframework: *requires_pre_test
       - dogpile_cache: *requires_pre_test
       - elasticsearch: *requires_pre_test
@@ -907,6 +919,7 @@ workflows:
             - ddtracerun
             - dogpile_cache
             - django
+            - django_hosts
             - djangorestframework
             - elasticsearch
             - falcon

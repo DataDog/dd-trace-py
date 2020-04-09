@@ -252,6 +252,96 @@ def traced_process_exception(django, name, resource=None):
     return with_traced_module(wrapped)(django)
 
 
+def traced_process_request(django, name, resource=None):
+    def wrapped(django, pin, func, instance, args, kwargs):
+        # Get the request
+        request = kwargs.get("request", args[0])
+
+        # Get the current urlconf
+        original_urlconf = getattr(request, "urlconf", None)
+
+        # Call the original method
+        with pin.tracer.trace(name, resource=resource) as span:
+            resp = func(*args, **kwargs)
+
+        # Determine the urlconf after executing the middleware
+        current_urlconf = getattr(request, "urlconf", None)
+
+        # If they are the same, the middleware did not change the urlconf, just return
+        if current_urlconf == original_urlconf:
+            return resp
+
+        # Get the current root span
+        span = pin.tracer.current_root_span()
+        if span.name != "django.request":
+            return resp
+
+        # If we do not have one, then just return
+        if not span:
+            return resp
+
+        # The urlconf has changed, lets update the span resource name
+        # Determine the resolver and resource name for this request
+        resolver = get_resolver(getattr(request, "urlconf", None))
+
+        if django.VERSION < (1, 10, 0):
+            error_type_404 = django.core.urlresolvers.Resolver404
+        else:
+            error_type_404 = django.urls.exceptions.Resolver404
+
+        route = None
+        resolver_match = None
+        new_resource = span.resource
+        try:
+            # Resolve the requested url
+            resolver_match = resolver.resolve(request.path_info)
+
+            # Determine the resource name to use
+            # In Django >= 2.2.0 we can access the original route or regex pattern
+            if django.VERSION >= (2, 2, 0):
+                route = utils.get_django_2_route(resolver, resolver_match)
+                if route:
+                    new_resource = "{0} {1}".format(request.method, route)
+                else:
+                    new_resource = request.method
+            # Older versions just use the view/handler name, e.g. `views.MyView.handler`
+            else:
+                # TODO: Validate if `resolver.pattern.regex.pattern` is available or not
+                callback, callback_args, callback_kwargs = resolver_match
+                new_resource = "{0} {1}".format(request.method, func_name(callback))
+
+        except error_type_404:
+            # Normalize all 404 requests into a single resource name
+            # DEV: This is for potential cardinality issues
+            new_resource = "{0} 404".format(request.method)
+        except Exception:
+            log.debug(
+                "Failed to resolve request path %r with path info %r",
+                request,
+                getattr(request, "path_info", "not-set"),
+                exc_info=True,
+            )
+
+        finally:
+            span.resource = new_resource
+
+            # Not a 404 request
+            if resolver_match:
+                span.set_tag("django.view", resolver_match.view_name)
+                utils.set_tag_array(span, "django.namespace", resolver_match.namespaces)
+
+                # Django >= 2.0.0
+                if hasattr(resolver_match, "app_names"):
+                    utils.set_tag_array(span, "django.app", resolver_match.app_names)
+
+            if route:
+                span.set_tag("http.route", route)
+
+            return resp
+
+    return with_traced_module(wrapped)(django)
+
+
 @with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all middlewares."""
@@ -288,7 +378,6 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
         # Instrument class-based middleware
         elif isclass(mw):
             for hook in [
-                "process_request",
                 "process_response",
                 "process_view",
                 "process_template_response",
@@ -296,6 +385,12 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             ]:
                 if hasattr(mw, hook) and not iswrapped(mw, hook):
                     wrap(mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook)))
+
+            # Do a little extra for `process_request`
+            if hasattr(mw, "process_request") and not iswrapped(mw, "process_request"):
+                res = mw_path + ".{0}".format("process_request")
+                wrap(mw, "process_request", traced_process_request(django, "django.middleware", resource=res))
+
             # Do a little extra for `process_exception`
             if hasattr(mw, "process_exception") and not iswrapped(mw, "process_exception"):
                 res = mw_path + ".{0}".format("process_exception")
