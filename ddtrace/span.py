@@ -3,6 +3,7 @@ import random
 import sys
 import traceback
 
+from .vendor import six
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
 from .constants import (
     NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY,
@@ -169,7 +170,7 @@ class Span(object):
         :type value: ``stringify``-able value
         """
 
-        if not isinstance(key, str):
+        if not isinstance(key, six.string_types):
             log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
             return
 
