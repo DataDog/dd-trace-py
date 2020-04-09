@@ -56,9 +56,9 @@ class MemoryCollector(collector.PeriodicCollector, collector.CaptureSamplerColle
     def stop(self):
         if tracemalloc is not None:
             tracemalloc.stop()
-        super(MemoryCollector, self).stop()
+            super(MemoryCollector, self).stop()
 
-    def _collect(self):
+    def collect(self):
         try:
             snapshot = tracemalloc.take_snapshot()
         except RuntimeError:
