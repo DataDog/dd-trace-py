@@ -7,7 +7,7 @@ from ddtrace.ext import errors, http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
-from ddtrace.context import Context
+
 from ...base import BaseTracerTestCase
 from ...utils import assert_span_http_status_code, assert_is_measured
 
@@ -265,10 +265,6 @@ class TestMolten(BaseTracerTestCase):
         self.assertEqual(span.parent_id, 42)
 
         # Now without tracing on
-        # NOTE: while distributed tracing is disabled, the previous context is
-        #   still active so we need to clear it
-        self.tracer.context_provider.activate(Context())
-
         with self.override_config('molten', dict(distributed_tracing=False)):
             response = molten_client(headers={
                 HTTP_HEADER_TRACE_ID: '100',

@@ -2,7 +2,6 @@
 from ddtrace.compat import PY2
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
-from ddtrace.context import Context
 from ddtrace.ext import http
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
 from flask import abort
@@ -236,10 +235,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(span.parent_id, 12345)
 
         # With distributed tracing disabled
-        # NOTE: while distributed tracing is disabled, the previous context is
-        #   still active so we need to clear it
-        self.tracer.context_provider.activate(Context())
-
         with self.override_config('flask', dict(distributed_tracing_enabled=False)):
             res = self.client.get('/', headers={
                 HTTP_HEADER_PARENT_ID: '12345',
