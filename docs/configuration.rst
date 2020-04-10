@@ -39,6 +39,11 @@ below:
      -
      - Set an application's version in traces and logs e.g. ``1.2.3``,
        ``6c44da20``, ``2020.02.13``.
+   * - ``DD_SITE``
+     - String
+     - datadoghq.com
+     - Specify which site to use for uploading profiles. Set to
+       ``datadoghq.eu`` to use EU site.
    * - ``DATADOG_TRACE_ENABLED``
      - Boolean
      - True

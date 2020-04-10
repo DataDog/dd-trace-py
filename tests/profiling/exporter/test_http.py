@@ -190,6 +190,19 @@ def test_default_from_env(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_KEY", "123")
     exp = http.PprofHTTPExporter()
     assert exp.api_key == "123"
+    assert exp.endpoint == "https://intake.profile.datadoghq.com/v1/input"
+
+    monkeypatch.setenv("DD_PROFILING_API_URL", "foobar")
+    exp = http.PprofHTTPExporter()
+    assert exp.endpoint == "foobar"
+
+    monkeypatch.setenv("DD_SITE", "datadoghq.eu")
+    exp = http.PprofHTTPExporter()
+    assert exp.endpoint == "foobar"
+
+    monkeypatch.delenv("DD_PROFILING_API_URL")
+    exp = http.PprofHTTPExporter()
+    assert exp.endpoint == "https://intake.profile.datadoghq.eu/v1/input"
 
     monkeypatch.setenv("DD_API_KEY", "456")
     exp = http.PprofHTTPExporter()
