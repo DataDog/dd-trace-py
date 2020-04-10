@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 
 def _build_default_exporters():
     exporters = []
-    if "DD_PROFILING_API_KEY" in os.environ:
+    if "DD_PROFILING_API_KEY" in os.environ or "DD_API_KEY" in os.environ:
         exporters.append(http.PprofHTTPExporter())
 
     _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
