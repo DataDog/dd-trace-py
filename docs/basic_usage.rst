@@ -120,7 +120,7 @@ Profiler
   HTTP to Datadog's API.
 
   Therefore, in order to use the profiler and export the profiles to Datadog,
-  you'll need to at least set ``DD_PROFILING_API_KEY`` in your application environment.
+  you'll need to at least set ``DD_API_KEY`` in your application environment.
   See :ref:`Configuration` for more details.
 
 Via module
