@@ -5,6 +5,7 @@ import os
 import platform
 import uuid
 
+from ddtrace.utils import deprecation
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
@@ -51,14 +52,32 @@ class UploadFailed(exporter.ExportError):
         )
 
 
+def _get_api_key():
+    legacy = _attr.from_env("DD_PROFILING_API_KEY", "", str)()
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
+        return legacy
+    return _attr.from_env("DD_API_KEY", "", str)()
+
+
+ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
+
+
+def _get_endpoint():
+    legacy = _attr.from_env("DD_PROFILING_API_URL", "", str)()
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
+        return legacy
+    site = _attr.from_env("DD_SITE", "datadoghq.com", str)()
+    return ENDPOINT_TEMPLATE.format(site)
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(
-        factory=_attr.from_env("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input", str), type=str
-    )
-    api_key = attr.ib(factory=_attr.from_env("DD_PROFILING_API_KEY", "", str), type=str)
+    endpoint = attr.ib(factory=_get_endpoint, type=str)
+    api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
 
     @staticmethod
@@ -106,6 +125,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "runtime_version": PYTHON_VERSION,
             "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
+
+        version = os.environ.get("DD_VERSION")
+        if version:
+            tags["version"] = version
+
+        env = os.environ.get("DD_ENV")
+        if env:
+            tags["env"] = env
+
         user_tags = os.getenv("DD_PROFILING_TAGS")
         if user_tags:
             tags.update({k: six.ensure_binary(v) for k, v in parse_tags_str(user_tags).items()})
@@ -153,12 +181,14 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "type": b"cpu+alloc+exceptions",
             "chunk-data": s.getvalue(),
         }
-        if "DD_SERVICE_NAME" in os.environ:
-            service_name = os.environ.get("DD_SERVICE_NAME")
-        elif "DATADOG_SERVICE_NAME" in os.environ:
-            service_name = os.environ.get("DATADOG_SERVICE_NAME")
+
+        for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
+            service_name = os.environ.get(service_name_var)
+            if service_name is not None:
+                break
         else:
             service_name = os.path.basename(profile.string_table[profile.mapping[0].filename])
+
         content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
         headers = common_headers.copy()
         headers["Content-Type"] = content_type
