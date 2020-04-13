@@ -63,13 +63,23 @@ def _get_api_key():
     return _attr.from_env("DD_API_KEY", "", str)()
 
 
+ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
+
+
+def _get_endpoint():
+    legacy = _attr.from_env("DD_PROFILING_API_URL", "", str)()
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
+        return legacy
+    site = _attr.from_env("DD_SITE", "datadoghq.com", str)()
+    return ENDPOINT_TEMPLATE.format(site)
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(
-        factory=_attr.from_env("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input", str), type=str
-    )
+    endpoint = attr.ib(factory=_get_endpoint, type=str)
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
 
