@@ -6,6 +6,7 @@ import os
 import platform
 import uuid
 
+from ddtrace.utils import deprecation
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
 from ddtrace.vendor.six.moves.urllib import parse as urlparse
@@ -54,6 +55,14 @@ class UploadFailed(exporter.ExportError):
         )
 
 
+def _get_api_key():
+    legacy = _attr.from_env("DD_PROFILING_API_KEY", "", str)()
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_KEY", "Use DD_API_KEY")
+        return legacy
+    return _attr.from_env("DD_API_KEY", "", str)()
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
@@ -61,7 +70,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     endpoint = attr.ib(
         factory=_attr.from_env("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input", str), type=str
     )
-    api_key = attr.ib(factory=_attr.from_env("DD_PROFILING_API_KEY", "", str), type=str)
+    api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
 
     @staticmethod
@@ -113,6 +122,10 @@ class PprofHTTPExporter(pprof.PprofExporter):
         version = os.environ.get("DD_VERSION")
         if version:
             tags["version"] = version
+
+        env = os.environ.get("DD_ENV")
+        if env:
+            tags["env"] = env
 
         user_tags = os.getenv("DD_PROFILING_TAGS")
         if user_tags:

@@ -191,6 +191,14 @@ def test_default_from_env(monkeypatch):
     exp = http.PprofHTTPExporter()
     assert exp.api_key == "123"
 
+    monkeypatch.setenv("DD_API_KEY", "456")
+    exp = http.PprofHTTPExporter()
+    assert exp.api_key == "123"
+
+    monkeypatch.delenv("DD_PROFILING_API_KEY")
+    exp = http.PprofHTTPExporter()
+    assert exp.api_key == "456"
+
 
 def test_get_tags():
     tags = http.PprofHTTPExporter()._get_tags("foobar")
@@ -319,3 +327,17 @@ def test_get_tags_override(monkeypatch):
     assert tags["foobar"] == b"baz"
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert tags["version"] == "123"
+    assert "env" not in tags
+
+    monkeypatch.setenv("DD_ENV", "prod")
+    tags = http.PprofHTTPExporter()._get_tags("foobar")
+    assert len(tags) == 10
+    assert tags["service"] == u"🤣".encode("utf-8")
+    assert len(tags["host"])
+    assert len(tags["runtime-id"])
+    assert tags["language"] == b"python"
+    assert tags["runtime"] == b"CPython"
+    assert tags["foobar"] == b"baz"
+    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["version"] == "123"
+    assert tags["env"] == "prod"
