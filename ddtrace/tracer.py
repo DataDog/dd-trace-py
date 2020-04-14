@@ -275,6 +275,9 @@ class Tracer(object):
                 default_hostname = self.DEFAULT_HOSTNAME
                 default_port = self.DEFAULT_PORT
 
+            if hasattr(self, "writer") and self.writer.is_alive():
+                self.writer.stop()
+
             self.writer = AgentWriter(
                 hostname or default_hostname,
                 port or default_port,
