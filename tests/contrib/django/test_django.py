@@ -1230,15 +1230,15 @@ def test_urlpatterns_repath(client, test_spans):
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 @pytest.mark.django_db
-def test_user_name_enabled(client, test_spans):
+def test_user_name_included(client, test_spans):
     """
-    When making a request to a Django app with user name enabled
+    When making a request to a Django app with user name included
         We correctly add the `django.user.name` tag to the root span
     """
     resp = client.get("/authenticated/")
     assert resp.status_code == 200
 
-    # user name should be present in root span tag
+    # user name should be present in root span tags
     root = test_spans.get_root_span()
     assert root.meta.get("django.user.name") == "Jane Doe"
     assert root.meta.get("django.user.is_authenticated") == "True"
@@ -1246,16 +1246,16 @@ def test_user_name_enabled(client, test_spans):
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 @pytest.mark.django_db
-def test_user_name_disabled(client, test_spans):
+def test_user_name_excluded(client, test_spans):
     """
-    When making a request to a Django app with user name disabled
+    When making a request to a Django app with user name excluded
         We correctly omit the `django.user.name` tag to the root span
     """
-    with BaseTestCase.override_config("django", dict(user_name_enabled=False)):
+    with BaseTestCase.override_config("django", dict(include_user_name=False)):
         resp = client.get("/authenticated/")
     assert resp.status_code == 200
 
-    # user name should not be present in root span tag
+    # user name should not be present in root span tags
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.meta
     assert root.meta.get("django.user.is_authenticated") == "True"
