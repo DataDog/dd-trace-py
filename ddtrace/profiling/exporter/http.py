@@ -75,6 +75,13 @@ def _get_endpoint():
     return ENDPOINT_TEMPLATE.format(site)
 
 
+def _get_service_name():
+    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
+        service_name = os.environ.get(service_name_var)
+        if service_name is not None:
+            return service_name
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
@@ -82,6 +89,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     endpoint = attr.ib(factory=_get_endpoint, type=str)
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
+    service_name = attr.ib(factory=_get_service_name)
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -182,12 +190,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "chunk-data": s.getvalue(),
         }
 
-        for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-            service_name = os.environ.get(service_name_var)
-            if service_name is not None:
-                break
-        else:
-            service_name = os.path.basename(profile.string_table[profile.mapping[0].filename])
+        service_name = self.service_name or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
         content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
         headers = common_headers.copy()

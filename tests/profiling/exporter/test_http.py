@@ -212,6 +212,10 @@ def test_default_from_env(monkeypatch):
     exp = http.PprofHTTPExporter()
     assert exp.api_key == "456"
 
+    monkeypatch.setenv("DD_SERVICE", "myservice")
+    exp = http.PprofHTTPExporter()
+    assert exp.service_name == "myservice"
+
 
 def test_get_tags():
     tags = http.PprofHTTPExporter()._get_tags("foobar")
