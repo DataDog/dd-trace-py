@@ -2,7 +2,6 @@
 import collections
 import email.parser
 import platform
-import socket
 import threading
 import time
 
@@ -12,6 +11,7 @@ from ddtrace import compat
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import BaseHTTPServer
 from ddtrace.vendor.six.moves import http_client
+from ddtrace.vendor.six.moves.urllib import error
 
 import ddtrace
 from ddtrace.profiling.exporter import http
@@ -141,7 +141,7 @@ def test_wrong_api_key(endpoint_test_server):
     exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key")
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-        e = t.exceptions[0]
+        e = t.exception
         assert isinstance(e, http.RequestFailed)
         assert e.response.status == 400
         assert e.content == b"Wrong API Key\n"
@@ -162,7 +162,7 @@ def test_export_server_down():
     exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-        e = t.exceptions[0]
+        e = t.exception
         assert isinstance(e, (IOError, OSError))
         assert e.errno in (61, 99)
 
@@ -171,15 +171,15 @@ def test_export_timeout(endpoint_test_timeout_server):
     exp = http.PprofHTTPExporter(_TIMEOUT_ENDPOINT, _API_KEY, timeout=1)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exceptions[0]
-    assert isinstance(e, socket.timeout)
+    e = t.value.exception
+    assert isinstance(e, error.HTTPError)
 
 
 def test_export_reset(endpoint_test_reset_server):
     exp = http.PprofHTTPExporter(_RESET_ENDPOINT, _API_KEY, timeout=1)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exceptions[0]
+    e = t.value.exception
     if six.PY3:
         assert isinstance(e, ConnectionResetError)
     else:
@@ -211,6 +211,10 @@ def test_default_from_env(monkeypatch):
     monkeypatch.delenv("DD_PROFILING_API_KEY")
     exp = http.PprofHTTPExporter()
     assert exp.api_key == "456"
+
+    monkeypatch.setenv("DD_SERVICE", "myservice")
+    exp = http.PprofHTTPExporter()
+    assert exp.service_name == "myservice"
 
 
 def test_get_tags():
