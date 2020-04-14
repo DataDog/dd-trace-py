@@ -89,7 +89,7 @@ Configuration
 
 .. py:data:: ddtrace.config.django['user_name_enabled']
 
-   Whether or not to include the authenticated user's username as a tag.
+   Whether or not to include the authenticated user's username as a tag on the root request span.
 
    Default: ``True``
 
