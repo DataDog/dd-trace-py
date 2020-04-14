@@ -57,12 +57,7 @@ def update_patched_modules():
 
     modules = parse_tags_str(modules_to_patch)
     for module, should_patch in modules.items():
-        should_patch = should_patch.lower()
-        if should_patch not in ["true", "false"]:
-            log.debug("skipping malformed patch instruction for %s", module)
-            continue
-
-        EXTRA_PATCHED_MODULES[module] = should_patch == "true"
+        EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
 
 
 try:
