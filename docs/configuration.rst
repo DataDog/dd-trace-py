@@ -18,7 +18,7 @@ below:
    * - ``DD_ENV``
      - String
      -
-     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``.
+     - Set an application's environment e.g. ``prod``, ``pre-prod``, ``stage``. Added in ``v0.36.0``.
    * - ``DATADOG_ENV``
      - String
      -
@@ -29,7 +29,7 @@ below:
      - Set the service name to be used for this application. A default is
        provided for these integrations: :ref:`bottle`, :ref:`flask`, :ref:`grpc`,
        :ref:`pyramid`, :ref:`pylons`, :ref:`tornado`, :ref:`celery`, :ref:`django` and
-       :ref:`falcon`.
+       :ref:`falcon`. Added in ``v0.36.0``.
    * - ``DD_SERVICE_NAME`` or ``DATADOG_SERVICE_NAME``
      - String
      -
@@ -38,7 +38,12 @@ below:
      - String
      -
      - Set an application's version in traces and logs e.g. ``1.2.3``,
-       ``6c44da20``, ``2020.02.13``.
+       ``6c44da20``, ``2020.02.13``. Added in ``v0.36.0``.
+   * - ``DD_SITE``
+     - String
+     - datadoghq.com
+     - Specify which site to use for uploading profiles. Set to
+       ``datadoghq.eu`` to use EU site.
    * - ``DATADOG_TRACE_ENABLED``
      - Boolean
      - True

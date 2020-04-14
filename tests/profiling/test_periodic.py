@@ -24,7 +24,7 @@ def test_periodic():
     t.join()
     assert x["OK"]
     assert x["DOWN"]
-    assert len(_periodic.PERIODIC_THREAD_IDS) == 0
+    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
 
 
 def test_periodic_error():
@@ -45,7 +45,7 @@ def test_periodic_error():
     t.stop()
     t.join()
     assert "DOWN" not in x
-    assert len(_periodic.PERIODIC_THREAD_IDS) == 0
+    assert t.ident not in _periodic.PERIODIC_THREAD_IDS
 
 
 def test_gevent_class():

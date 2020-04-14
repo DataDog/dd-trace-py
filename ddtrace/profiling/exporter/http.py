@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 import binascii
 import datetime
 import gzip
@@ -9,7 +10,8 @@ import uuid
 from ddtrace.utils import deprecation
 from ddtrace.vendor import six
 from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import parse as urlparse
+from ddtrace.vendor.six.moves.urllib import error
+from ddtrace.vendor.six.moves.urllib import request
 
 import ddtrace
 from ddtrace.profiling import _attr
@@ -47,12 +49,10 @@ class RequestFailed(exporter.ExportError):
 class UploadFailed(exporter.ExportError):
     """Upload failure."""
 
-    def __init__(self, exceptions):
+    def __init__(self, exception):
         """Create a failed upload error based on raised exceptions."""
-        self.exceptions = exceptions
-        super(UploadFailed, self).__init__(
-            "Unable to upload: " + " , ".join(map(_traceback.format_exception, exceptions))
-        )
+        self.exception = exception
+        super(UploadFailed, self).__init__("Unable to upload: " + _traceback.format_exception(exception))
 
 
 def _get_api_key():
@@ -63,15 +63,33 @@ def _get_api_key():
     return _attr.from_env("DD_API_KEY", "", str)()
 
 
+ENDPOINT_TEMPLATE = "https://intake.profile.{}/v1/input"
+
+
+def _get_endpoint():
+    legacy = _attr.from_env("DD_PROFILING_API_URL", "", str)()
+    if legacy:
+        deprecation.deprecation("DD_PROFILING_API_URL", "Use DD_SITE")
+        return legacy
+    site = _attr.from_env("DD_SITE", "datadoghq.com", str)()
+    return ENDPOINT_TEMPLATE.format(site)
+
+
+def _get_service_name():
+    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
+        service_name = os.environ.get(service_name_var)
+        if service_name is not None:
+            return service_name
+
+
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(
-        factory=_attr.from_env("DD_PROFILING_API_URL", "https://intake.profile.datadoghq.com/v1/input", str), type=str
-    )
+    endpoint = attr.ib(factory=_get_endpoint, type=str)
     api_key = attr.ib(factory=_get_api_key, type=str)
     timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
+    service_name = attr.ib(factory=_get_service_name)
 
     @staticmethod
     def _encode_multipart_formdata(fields, tags):
@@ -149,22 +167,11 @@ class PprofHTTPExporter(pprof.PprofExporter):
         """
         if not self.endpoint:
             raise InvalidEndpoint("Endpoint is empty")
-        parsed = urlparse.urlparse(self.endpoint)
-        if parsed.scheme == "https":
-            client_class = http_client.HTTPSConnection
-        else:
-            client_class = http_client.HTTPConnection
-        if ":" in parsed.netloc:
-            host, port = parsed.netloc.split(":", 1)
-        else:
-            host, port = parsed.netloc, None
-        client = client_class(host, port, timeout=self.timeout)
 
         common_headers = {
             "DD-API-KEY": self.api_key.encode(),
         }
 
-        exceptions = []
         profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
         s = six.BytesIO()
         with gzip.GzipFile(fileobj=s, mode="wb") as gz:
@@ -183,29 +190,16 @@ class PprofHTTPExporter(pprof.PprofExporter):
             "chunk-data": s.getvalue(),
         }
 
-        for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-            service_name = os.environ.get(service_name_var)
-            if service_name is not None:
-                break
-        else:
-            service_name = os.path.basename(profile.string_table[profile.mapping[0].filename])
+        service_name = self.service_name or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
         content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service_name),)
         headers = common_headers.copy()
         headers["Content-Type"] = content_type
-        try:
-            client.request("POST", parsed.path, body=body, headers=headers)
-        except (OSError, IOError, http_client.CannotSendRequest) as e:
-            exceptions.append(e)
-        else:
-            try:
-                response = client.getresponse()
-                content = response.read()  # have to read to not fail!
-            except (OSError, IOError, http_client.BadStatusLine) as e:
-                exceptions.append(e)
-            else:
-                if not 200 <= response.status < 400:
-                    exceptions.append(RequestFailed(response, content))
 
-        if exceptions:
-            raise UploadFailed(exceptions)
+        # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
+        req = request.Request(self.endpoint, data=body, headers=headers)
+
+        try:
+            request.urlopen(req)
+        except (error.HTTPError, error.URLError, http_client.HTTPException) as e:
+            raise UploadFailed(e)
