@@ -1226,3 +1226,51 @@ def test_urlpatterns_repath(client, test_spans):
 
     # Ensure the view was traced
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.django_db
+def test_user_name_enabled(client, test_spans):
+    """
+    When making a request to a Django app with user name enabled
+        We correctly add the `django.user.name` tag to the root span
+    """
+    resp = client.get("/authenticated/")
+    assert resp.status_code == 200
+
+    # user name should be present in root span tag
+    assert test_spans.get_root_span().meta == {
+        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+        "django.response.class": "django.http.response.HttpResponse",
+        "django.user.is_authenticated": "True",
+        "django.user.name": "Jane Doe",
+        "django.view": "authenticated-view",
+        "http.method": "GET",
+        "http.status_code": "200",
+        "http.route": "^authenticated/$",
+        "http.url": "http://testserver/authenticated/",
+    }
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.django_db
+def test_user_name_disabled(client, test_spans):
+    """
+    When making a request to a Django app with user name disabled
+        We correctly omit the `django.user.name` tag to the root span
+    """
+    with BaseTestCase.override_config("django", dict(user_name_enabled=False)):
+        resp = client.get("/authenticated/")
+    assert resp.status_code == 200
+
+    # user name should not be present in root span tag
+    assert test_spans.get_root_span().meta == {
+        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+        "django.response.class": "django.http.response.HttpResponse",
+        "django.user.is_authenticated": "True",
+        "django.view": "authenticated-view",
+        "http.method": "GET",
+        "http.status_code": "200",
+        "http.route": "^authenticated/$",
+        "http.url": "http://testserver/authenticated/",
+    }
