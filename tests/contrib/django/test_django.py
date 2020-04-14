@@ -1239,17 +1239,9 @@ def test_user_name_enabled(client, test_spans):
     assert resp.status_code == 200
 
     # user name should be present in root span tag
-    assert test_spans.get_root_span().meta == {
-        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
-        "django.response.class": "django.http.response.HttpResponse",
-        "django.user.is_authenticated": "True",
-        "django.user.name": "Jane Doe",
-        "django.view": "authenticated-view",
-        "http.method": "GET",
-        "http.status_code": "200",
-        "http.route": "^authenticated/$",
-        "http.url": "http://testserver/authenticated/",
-    }
+    root = test_spans.get_root_span()
+    assert root.meta.get("django.user.name") == "Jane Doe"
+    assert root.meta.get("django.user.is_authenticated") == "True"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -1264,13 +1256,6 @@ def test_user_name_disabled(client, test_spans):
     assert resp.status_code == 200
 
     # user name should not be present in root span tag
-    assert test_spans.get_root_span().meta == {
-        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
-        "django.response.class": "django.http.response.HttpResponse",
-        "django.user.is_authenticated": "True",
-        "django.view": "authenticated-view",
-        "http.method": "GET",
-        "http.status_code": "200",
-        "http.route": "^authenticated/$",
-        "http.url": "http://testserver/authenticated/",
-    }
+    root = test_spans.get_root_span()
+    assert root.meta.get("django.user.name") is None
+    assert root.meta.get("django.user.is_authenticated") == "True"
