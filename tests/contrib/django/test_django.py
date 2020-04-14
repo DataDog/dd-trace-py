@@ -1257,5 +1257,5 @@ def test_user_name_disabled(client, test_spans):
 
     # user name should not be present in root span tag
     root = test_spans.get_root_span()
-    assert root.meta.get("django.user.name") is None
+    assert "django.user.name" not in root.meta
     assert root.meta.get("django.user.is_authenticated") == "True"
