@@ -599,6 +599,29 @@ def test_tracer_shutdown_no_timeout():
     t.writer.join.assert_called_once_with(timeout=None)
 
 
+def test_tracer_configure_writer_stop_unstarted():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Make sure we aren't calling stop for an unstarted writer
+    t.configure(hostname="localhost", port=8126)
+    assert not orig_writer.stop.called
+
+
+def test_tracer_configure_writer_stop_started():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Do a write to start the writer
+    with t.trace("something"):
+        pass
+
+    t.configure(hostname="localhost", port=8126)
+    orig_writer.stop.assert_called_once_with()
+
+
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
     t.writer = mock.Mock(wraps=t.writer)
