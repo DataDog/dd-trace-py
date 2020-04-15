@@ -1,5 +1,6 @@
 # stdlib
 import itertools
+import os
 import random
 import time
 import sys
@@ -15,8 +16,6 @@ from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 
 log = get_logger(__name__)
 
-
-MAX_TRACES = 1000
 
 DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
@@ -82,6 +81,7 @@ class LogWriter:
 class AgentWriter(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
+    QUEUE_MAX_TRACES_DEFAULT = 1000
 
     def __init__(
         self,
@@ -98,7 +98,9 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         super(AgentWriter, self).__init__(
             interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self._trace_queue = Q(maxsize=MAX_TRACES)
+        # DEV: provide a _temporary_ solution to allow users to specify a custom max
+        maxsize = int(os.getenv("DD_TRACE_MAX_TRACES", self.QUEUE_MAX_TRACES_DEFAULT))
+        self._trace_queue = Q(maxsize=maxsize)
         self._filters = filters
         self._sampler = sampler
         self._priority_sampler = priority_sampler
