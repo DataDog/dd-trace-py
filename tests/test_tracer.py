@@ -935,3 +935,9 @@ class EnvTracerTestCase(BaseTracerTestCase):
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(self.tracer.original_writer, AgentWriter)
+
+
+def test_tracer_custom_max_traces(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
+    tracer = ddtrace.Tracer()
+    assert tracer.writer._trace_queue.maxsize == 2000
