@@ -85,6 +85,7 @@ class Tracer(object):
         self.sampler = None
         self.priority_sampler = None
         self._runtime_worker = None
+        self._queue_size = None
 
         uds_path = None
         https = None
@@ -200,6 +201,7 @@ class Tracer(object):
         dogstatsd_port=None,
         dogstatsd_url=None,
         writer=None,
+        queue_size=None,
     ):
         """
         Configure an existing Tracer the easy way.
@@ -260,6 +262,7 @@ class Tracer(object):
             or filters is not None
             or priority_sampling is not None
             or sampler is not None
+            or queue_size is not None
         ):
             # Preserve hostname and port when overriding filters or priority sampling
             # This is clumsy and a good reason to get rid of this configure() API
@@ -284,6 +287,7 @@ class Tracer(object):
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
                 dogstatsd=self._dogstatsd_client,
+                max_queue_size=self._get_queue_size(queue_size),
             )
 
         # HACK: since we recreated our dogstatsd agent, replace the old write one
@@ -512,6 +516,37 @@ class Tracer(object):
         self.writer = self.writer.recreate()
 
         return new_ctx
+
+    def _get_queue_size(self, given_queue_size=None):
+        """Return the queue size to use for this tracer. Precedence (in order) is as follows:
+
+        1. (If defined) The given queue size
+        2. (If defined) The queue size set on the tracer
+        3. (If defined) The DD_TRACER_QUEUE_SIZE environment variable
+
+        Validation checks are performed to avoid potential misconfiguration issues.
+        """
+        if given_queue_size is not None:
+            qsize = given_queue_size
+        elif self._queue_size is not None:
+            qsize = self._queue_size
+        elif "DD_TRACER_QUEUE_SIZE" in environ:
+            qsize = int(environ.get("DD_TRACER_QUEUE_SIZE"))
+        else:
+            qsize = None
+
+        # Perform some sanity validation
+        if qsize is not None:
+            if qsize <= 0:
+                # DEV: these values if left unchecked would result in an
+                # infinite queue size in the writer.
+                # We opt not to allow this since it would permit (with an
+                # insufficiently fast flush rate) the queue to grow indefinitely.
+                raise ValueError("Tracer queue size must be non-negative number, got '%s'." % qsize)
+            elif 0 < qsize < 1000:
+                self.log.info("Tracer queue size is small (%s). This could likely result in dropped traces.", qsize)
+
+        return qsize
 
     def trace(self, name, service=None, resource=None, span_type=None):
         """

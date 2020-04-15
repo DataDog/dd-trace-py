@@ -16,8 +16,6 @@ from ddtrace.vendor.six.moves.queue import Queue, Full, Empty
 log = get_logger(__name__)
 
 
-MAX_TRACES = 1000
-
 DEFAULT_TIMEOUT = 5
 LOG_ERR_INTERVAL = 60
 
@@ -82,6 +80,7 @@ class LogWriter:
 class AgentWriter(_worker.PeriodicWorkerThread):
 
     QUEUE_PROCESSING_INTERVAL = 1
+    QUEUE_MAX_SIZE = 1000
 
     def __init__(
         self,
@@ -94,11 +93,13 @@ class AgentWriter(_worker.PeriodicWorkerThread):
         sampler=None,
         priority_sampler=None,
         dogstatsd=None,
+        max_queue_size=None,
     ):
         super(AgentWriter, self).__init__(
             interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
-        self._trace_queue = Q(maxsize=MAX_TRACES)
+        maxsize = max_queue_size if max_queue_size is not None else self.QUEUE_MAX_SIZE
+        self._trace_queue = Q(maxsize=maxsize)
         self._filters = filters
         self._sampler = sampler
         self._priority_sampler = priority_sampler
@@ -267,7 +268,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
 
 class Q(Queue):
     """
-    Q is a threadsafe queue that let's you pop everything at once and
+    Q is a threadsafe queue that lets you pop everything at once and
     will randomly overwrite elements when it's over the max size.
 
     This queue also exposes some statistics about its length, the number of items dropped, etc.

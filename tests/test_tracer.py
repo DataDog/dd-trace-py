@@ -935,3 +935,28 @@ class EnvTracerTestCase(BaseTracerTestCase):
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         assert isinstance(self.tracer.original_writer, AgentWriter)
+
+
+def test_tracer_configure_queue_size_manual():
+    tracer = ddtrace.Tracer()
+    tracer.log = mock.MagicMock(wraps=tracer.log)
+    tracer.configure(
+        queue_size=1234,
+    )
+    assert tracer.writer._trace_queue.maxsize == 1234
+
+    with pytest.raises(ValueError):
+        tracer.configure(
+            queue_size=-12,
+        )
+
+    tracer.configure(queue_size=5)
+    tracer.log.info.assert_called_once_with(
+        "Tracer queue size is small (%s). This could likely result in dropped traces.", 5
+    )
+
+
+def test_tracer_configure_queue_size_environment(monkeypatch):
+    monkeypatch.setenv("DD_TRACER_QUEUE_SIZE", "1234")
+    tracer = ddtrace.Tracer()
+    assert tracer.writer._trace_queue.maxsize == 1234
