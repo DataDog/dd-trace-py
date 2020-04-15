@@ -59,8 +59,9 @@ def test_collect_truncate():
 def test_collect_once():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
-    s._init()
-    all_events = s._collect()
+    # Start the collector as we need to have a start time set
+    with s:
+        all_events = s.collect()
     assert len(all_events) == 2
     e = all_events[0][0]
     assert e.thread_id > 0
@@ -102,14 +103,15 @@ def test_collect():
     test_collector._test_collector_collect(stack.StackCollector, stack.StackSampleEvent)
 
 
-def test_status():
-    test_collector._test_collector_status(stack.StackCollector)
+def test_restart():
+    test_collector._test_restart(stack.StackCollector)
 
 
 def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
-        "StackCollector(recorder=Recorder(max_size=49152), max_time_usage_pct=2.0, "
+        "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
+        "recorder=Recorder(max_size=49152), max_time_usage_pct=2.0, "
         "nframes=64, ignore_profiler=True)",
     )
 
@@ -161,9 +163,9 @@ def test_stress_threads():
         threads.append(t)
 
     s = stack.StackCollector(recorder=recorder.Recorder())
-    s._init()
     number = 10000
-    exectime = timeit.timeit(s.collect, number=number)
+    with s:
+        exectime = timeit.timeit(s.collect, number=number)
     print("%.3f ms per call" % (1000.0 * exectime / number))
     for t in threads:
         t.join()
@@ -213,6 +215,6 @@ def test_exception_collection():
     if not TESTING_GEVENT:
         assert e.thread_id == _thread.get_ident()
         assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 205, "test_exception_collection")]
+    assert e.frames == [(__file__, 207, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError

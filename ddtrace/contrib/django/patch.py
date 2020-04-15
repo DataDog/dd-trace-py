@@ -40,6 +40,7 @@ config._add(
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
+        include_user_name=True,
     ),
 )
 
@@ -128,9 +129,10 @@ def _set_request_tags(span, request):
         if uid:
             span.set_tag("django.user.id", uid)
 
-        username = getattr(user, "username", None)
-        if username:
-            span.set_tag("django.user.name", username)
+        if config.django.include_user_name:
+            username = getattr(user, "username", None)
+            if username:
+                span.set_tag("django.user.name", username)
 
 
 @with_traced_module

@@ -18,7 +18,7 @@ LOG = logging.getLogger(__name__)
 
 def _build_default_exporters():
     exporters = []
-    if "DD_PROFILING_API_KEY" in os.environ:
+    if "DD_PROFILING_API_KEY" in os.environ or "DD_API_KEY" in os.environ:
         exporters.append(http.PprofHTTPExporter())
 
     _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
@@ -102,12 +102,19 @@ class Profiler(object):
 
         This stops all the collectors and schedulers, waiting for them to finish their operations.
 
-        :param flush: Flush the event before stopping.
+        :param flush: Wait for the flush of the remaining events before stopping.
         """
         for col in reversed(self.collectors):
             col.stop()
 
+        for col in reversed(self.collectors):
+            col.join()
+
         for s in reversed(self.schedulers):
-            s.stop(flush=flush)
+            s.stop()
+
+        if flush:
+            for s in reversed(self.schedulers):
+                s.join()
 
         self.status = ProfilerStatus.STOPPED

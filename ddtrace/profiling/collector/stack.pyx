@@ -33,8 +33,8 @@ IF UNAME_SYSNAME == "Linux":
     from cpython.exc cimport PyErr_SetFromErrno
 
     cdef extern from "<pthread.h>":
-        # POSIX says this might be a struct, but CPython relies on it being an integer.
-        ctypedef int pthread_t
+        # POSIX says this might be a struct, but CPython relies on it being an unsigned long.
+        ctypedef unsigned long pthread_t
         int pthread_getcpuclockid(pthread_t thread, clockid_t *clock_id)
 
     cdef p_pthread_getcpuclockid(tid):
@@ -301,15 +301,16 @@ class StackCollector(collector.PeriodicCollector):
         if value <= 0 or value > 100:
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
-    def _init(self):
+    def start(self):
         self._thread_time = ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
+        super(StackCollector, self).start()
 
     def _compute_new_interval(self, used_wall_time_ns):
         interval = (used_wall_time_ns / (self.max_time_usage_pct / 100.0)) - used_wall_time_ns
         return max(interval / 1e9, self.MIN_INTERVAL_TIME)
 
-    def _collect(self):
+    def collect(self):
         # Compute wall time
         now = compat.monotonic_ns()
         wall_time = now - self._last_wall_time

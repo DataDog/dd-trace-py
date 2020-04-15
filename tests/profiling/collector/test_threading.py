@@ -11,14 +11,11 @@ from ddtrace.profiling.collector import threading as collector_threading
 from . import test_collector
 
 
-def test_status():
-    test_collector._test_collector_status(collector_threading.LockCollector)
-
-
 def test_repr():
     test_collector._test_repr(
         collector_threading.LockCollector,
-        "LockCollector(recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64)",
+        "LockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
+        "recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64)",
     )
 
 
@@ -65,13 +62,13 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:63"
+    assert event.lock_name == "test_threading.py:60"
     assert event.thread_id == _thread.get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 64, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 61, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
@@ -85,13 +82,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:81"
+    assert event.lock_name == "test_threading.py:78"
     assert event.thread_id == _thread.get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 84, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 81, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
