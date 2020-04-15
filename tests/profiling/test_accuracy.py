@@ -75,7 +75,7 @@ def test_accuracy(monkeypatch):
     p = profiler.Profiler()
     p.start()
     spend_16()
-    p.stop(flush=False)
+    p.stop()
     recorder = list(p.recorders)[0]
     # First index is the stack position, second is the function name
     time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))

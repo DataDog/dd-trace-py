@@ -1,4 +1,5 @@
 import os
+import time
 
 try:
     import tracemalloc
@@ -27,15 +28,16 @@ def test_collect():
 
 
 @pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
-def test_status():
-    test_collector._test_collector_status(memory.MemoryCollector)
+def test_restart():
+    test_collector._test_restart(memory.MemoryCollector)
 
 
 @pytest.mark.skipif(tracemalloc is None, reason="tracemalloc is unavailable")
 def test_repr():
     test_collector._test_repr(
         memory.MemoryCollector,
-        "MemoryCollector(recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64, ignore_profiler=True)",
+        "MemoryCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
+        "recorder=Recorder(max_size=49152), capture_pct=5.0, nframes=64, ignore_profiler=True)",
     )
 
 
@@ -54,12 +56,16 @@ def test_max_capture_over():
 def _test_memory_ignore(ignore):
     r = recorder.Recorder()
     # Start a stack collector so it allocates memory
-    with stack.StackCollector(r):
+    with stack.StackCollector(r) as sc:
         r = recorder.Recorder()
         c = memory.MemoryCollector(r, ignore_profiler=ignore, capture_pct=100)
-        while not r.events[memory.MemorySampleEvent]:
-            c.collect()
-            _ = _alloc()
+        with c as mc:
+            while not r.events[memory.MemorySampleEvent]:
+                _ = _alloc()
+                # Allow gevent to switch to the memory collector thread
+                time.sleep(0)
+    sc.join()
+    mc.join()
     events = r.events[memory.MemorySampleEvent]
     files = {frame.filename for event in events for trace in event.snapshot.traces for frame in trace.traceback}
     return files
