@@ -113,19 +113,36 @@ class TestUtils(unittest.TestCase):
         tags = parse_tags_str("key:val,key2:val2,key3:1234.23")
         assert tags == dict(key="val", key2="val2", key3="1234.23")
 
-        parsed_tags = parse_tags_str("key:,key3:val1,")
-        assert parsed_tags == dict(key="", key3="val1")
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key:,key3:val1,")
+        assert tags == dict(key3="val1")
+        assert log.error.call_count == 2
 
         with mock.patch("ddtrace.utils.formats.log") as log:
-            parsed_tags = parse_tags_str("key,key2:val1")
-        assert parsed_tags == dict(key2="val1")
+            tags = parse_tags_str("")
+        assert tags == dict()
+        assert log.error.call_count == 0
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str(",")
+        assert tags == dict()
+        assert log.error.call_count == 2
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str(":,:")
+        assert tags == dict()
+        assert log.error.call_count == 2
+
+        with mock.patch("ddtrace.utils.formats.log") as log:
+            tags = parse_tags_str("key,key2:val1")
+        assert tags == dict(key2="val1")
         log.error.assert_called_once_with(
             "Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2:val1"
         )
 
         with mock.patch("ddtrace.utils.formats.log") as log:
-            parsed_tags = parse_tags_str("key,key2,key3")
-        assert parsed_tags == dict()
+            tags = parse_tags_str("key,key2,key3")
+        assert tags == dict()
         log.error.assert_has_calls([
             mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2,key3"),
             mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key2", "key,key2,key3"),

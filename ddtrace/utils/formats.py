@@ -112,8 +112,8 @@ def parse_tags_str(tags_str):
         try:
             key, value = tag.split(":", 1)
 
-            # Reject empty keys
-            if key == "":
+            # Reject empty keys or values
+            if key == "" or value == "":
                 raise ValueError
         except ValueError:
             log.error("Malformed tag in tag pair '%s' from tag string '%s'", tag, tags_str)
