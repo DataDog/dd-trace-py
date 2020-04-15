@@ -114,20 +114,20 @@ class TestUtils(unittest.TestCase):
         assert tags == dict(key="val", key2="val2", key3="1234.23")
 
         parsed_tags = parse_tags_str("key:,key3:val1,")
-        assert parsed_tags == dict(key="",key3="val1")
+        assert parsed_tags == dict(key="", key3="val1")
 
         with mock.patch("ddtrace.utils.formats.log") as log:
             parsed_tags = parse_tags_str("key,key2:val1")
         assert parsed_tags == dict(key2="val1")
         log.error.assert_called_once_with(
-            "Malformed tag in TAGS environment variable: %s", "key"
+            "Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2:val1"
         )
 
         with mock.patch("ddtrace.utils.formats.log") as log:
             parsed_tags = parse_tags_str("key,key2,key3")
         assert parsed_tags == dict()
         log.error.assert_has_calls([
-            mock.call("Malformed tag in TAGS environment variable: %s", "key"),
-            mock.call("Malformed tag in TAGS environment variable: %s", "key2"),
-            mock.call("Malformed tag in TAGS environment variable: %s", "key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key2", "key,key2,key3"),
+            mock.call("Malformed tag in tag pair '%s' from tag string '%s'", "key3", "key,key2,key3"),
         ])

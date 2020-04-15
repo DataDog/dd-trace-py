@@ -111,8 +111,12 @@ def parse_tags_str(tags_str):
     for tag in tags_str.split(","):
         try:
             key, value = tag.split(":", 1)
+
+            # Reject empty keys
+            if key == "":
+                raise ValueError
         except ValueError:
-            log.error("Malformed tag in TAGS environment variable: %s", tag)
+            log.error("Malformed tag in tag pair '%s' from tag string '%s'", tag, tags_str)
         else:
             parsed_tags[key] = value
 
