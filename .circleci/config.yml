@@ -7,6 +7,7 @@ s3_bucket: &s3_bucket pypi.datadoghq.com
 resource_class: &resource_class medium
 busybox_image: &busybox_image busybox:latest
 cimg_base_image: &cimg_base_image cimg/base:2020.01
+python38-alpine_image: &python38-alpine_image python:3.8-alpine
 python38_image: &python38_image circleci/python:3.8
 python37_image: &python37_image circleci/python:3.7
 python36_image: &python36_image circleci/python:3.6
@@ -168,6 +169,10 @@ executors:
     docker:
       - image: *cimg_base_image
     resource_class: *resource_class
+  python38-alpine:
+    docker:
+      - image: *python38-alpine_image
+    resource_class: *resource_class
   python38:
     docker:
       - image: *python38_image
@@ -258,6 +263,11 @@ jobs:
       - run: |
           docker build .
 
+  test_build_alpine:
+    executor: python38-alpine
+    steps:
+      - run: apk add git gcc musl-dev libffi-dev openssl-dev
+      - test_build
   test_build_py38:
     executor: python38
     steps:
@@ -820,6 +830,7 @@ workflows:
       - flake8
 
       # Test building the package
+      - test_build_alpine: *requires_pre_test
       - test_build_py38: *requires_pre_test
       - test_build_py37: *requires_pre_test
       - test_build_py36: *requires_pre_test
@@ -938,6 +949,7 @@ workflows:
             - requestsgevent
             - sqlalchemy
             - sqlite3
+            - test_build_alpine
             - test_build_py38
             - test_build_py37
             - test_build_py36
