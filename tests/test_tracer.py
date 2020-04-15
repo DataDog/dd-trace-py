@@ -938,6 +938,6 @@ class EnvTracerTestCase(BaseTracerTestCase):
 
 
 def test_tracer_custom_max_traces(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_MAX_TRACES", "2000")
+    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
     tracer = ddtrace.Tracer()
     assert tracer.writer._trace_queue.maxsize == 2000

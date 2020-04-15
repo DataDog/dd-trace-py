@@ -99,7 +99,7 @@ class AgentWriter(_worker.PeriodicWorkerThread):
             interval=self.QUEUE_PROCESSING_INTERVAL, exit_timeout=shutdown_timeout, name=self.__class__.__name__
         )
         # DEV: provide a _temporary_ solution to allow users to specify a custom max
-        maxsize = int(os.getenv("DD_TRACE_MAX_TRACES", self.QUEUE_MAX_TRACES_DEFAULT))
+        maxsize = int(os.getenv("DD_TRACE_MAX_TPS", self.QUEUE_MAX_TRACES_DEFAULT))
         self._trace_queue = Q(maxsize=maxsize)
         self._filters = filters
         self._sampler = sampler
