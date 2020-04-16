@@ -7,8 +7,8 @@ from .renderer import trace_rendering
 from .constants import CONFIG_MIDDLEWARE
 
 from ...compat import reraise
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from ...settings import config as ddconfig
@@ -41,10 +41,10 @@ class PylonsTraceMiddleware(object):
             if context.trace_id:
                 self._tracer.context_provider.activate(context)
 
-        with self._tracer.trace("pylons.request", service=self._service) as span:
+        with self._tracer.trace('pylons.request', service=self._service, span_type=SpanTypes.WEB) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be
             # set as early as possible when different services share one single agent.
-            span.span_type = http.TYPE
 
             # set analytics sample rate with global config enabled
             span.set_tag(
@@ -95,12 +95,17 @@ class PylonsTraceMiddleware(object):
                 # set resources. If this is so, don't do anything, otherwise
                 # set the resource to the controller / action that handled it.
                 if span.resource == span.name:
-                    span.resource = "%s.%s" % (controller, action)
+                    span.resource = '%s.%s' % (controller, action)
 
                 span.set_tags({
                     http.METHOD: environ.get('REQUEST_METHOD'),
-                    http.URL: environ.get('PATH_INFO'),
-                    "pylons.user": environ.get('REMOTE_USER', ''),
-                    "pylons.route.controller": controller,
-                    "pylons.route.action": action,
+                    http.URL: '%s://%s:%s%s' % (environ.get('wsgi.url_scheme'),
+                                                environ.get('SERVER_NAME'),
+                                                environ.get('SERVER_PORT'),
+                                                environ.get('PATH_INFO')),
+                    'pylons.user': environ.get('REMOTE_USER', ''),
+                    'pylons.route.controller': controller,
+                    'pylons.route.action': action,
                 })
+                if ddconfig.pylons.trace_query_string:
+                    span.set_tag(http.QUERY_STRING, environ.get('QUERY_STRING'))

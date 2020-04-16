@@ -1,4 +1,3 @@
-# flake8: noqa
 import os
 import jinja2
 import asyncio
@@ -61,6 +60,17 @@ def route_sub_span(request):
         span.set_tag('sub_span', 'true')
         return web.Response(text='OK')
 
+
+@asyncio.coroutine
+def uncaught_server_error(request):
+    return 1 / 0
+
+
+@asyncio.coroutine
+def caught_server_error(request):
+    return web.Response(text='NOT OK', status=503)
+
+
 @asyncio.coroutine
 def coro_2(request):
     tracer = get_tracer(request)
@@ -94,6 +104,7 @@ def delayed_handler(request):
 
 @asyncio.coroutine
 def noop_middleware(app, handler):
+    @asyncio.coroutine
     def middleware_handler(request):
         # noop middleware
         response = yield from handler(request)
@@ -122,6 +133,8 @@ def setup_app(loop):
     app.router.add_get('/async_exception', route_async_exception)
     app.router.add_get('/wrapped_coroutine', route_wrapped_coroutine)
     app.router.add_get('/sub_span', route_sub_span)
+    app.router.add_get('/uncaught_server_error', uncaught_server_error)
+    app.router.add_get('/caught_server_error', caught_server_error)
     app.router.add_static('/statics', STATIC_DIR)
     # configure templates
     set_memory_loader(app)
@@ -152,4 +165,4 @@ def get_tracer(request):
     Utility function to retrieve the tracer from the given ``request``.
     It is meant to be used only for testing purposes.
     """
-    return request['__datadog_request_span']._tracer
+    return request['__datadog_request_span'].tracer

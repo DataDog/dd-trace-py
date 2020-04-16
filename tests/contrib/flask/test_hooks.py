@@ -1,6 +1,8 @@
 from flask import Blueprint
 
+from ddtrace.ext import http
 from . import BaseFlaskTestCase
+from ...utils import assert_span_http_status_code
 
 
 class FlaskHookTestCase(BaseFlaskTestCase):
@@ -80,8 +82,8 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(root.get_tag('flask.endpoint'), 'index')
         self.assertEqual(root.get_tag('flask.url_rule'), '/')
         self.assertEqual(root.get_tag('http.method'), 'GET')
-        self.assertEqual(root.get_tag('http.status_code'), '401')
-        self.assertEqual(root.get_tag('http.url'), '/')
+        assert_span_http_status_code(root, 401)
+        self.assertEqual(root.get_tag(http.URL), 'http://localhost/')
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')
@@ -181,7 +183,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         parent = self.find_span_parent(spans, span)
 
         # Assert root span
-        self.assertEqual(root.get_tag('http.status_code'), '401')
+        assert_span_http_status_code(root, 401)
 
         # Assert hook span
         self.assertEqual(span.service, 'flask')

@@ -1,14 +1,16 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 import asyncio
-
-from nose.tools import eq_, ok_
+import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.contrib.asyncio import helpers
 from .utils import AsyncioTestCase, mark_asyncio
 
 
+@pytest.mark.skipif(
+    CONTEXTVARS_IS_AVAILABLE,
+    reason='only applicable to legacy asyncio integration'
+)
 class TestAsyncioHelpers(AsyncioTestCase):
     """
     Ensure that helpers set the ``Context`` properly when creating
@@ -20,7 +22,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
         task = asyncio.Task.current_task()
         ctx = Context()
         helpers.set_call_context(task, ctx)
-        eq_(ctx, self.tracer.get_call_context())
+        assert ctx == self.tracer.get_call_context()
 
     @mark_asyncio
     def test_ensure_future(self):
@@ -29,27 +31,27 @@ class TestAsyncioHelpers(AsyncioTestCase):
         def future_work():
             # the ctx is available in this task
             ctx = self.tracer.get_call_context()
-            eq_(1, len(ctx._trace))
-            eq_('coroutine', ctx._trace[0].name)
+            assert 1 == len(ctx._trace)
+            assert 'coroutine' == ctx._trace[0].name
             return ctx._trace[0].name
 
         self.tracer.trace('coroutine')
         # schedule future work and wait for a result
         delayed_task = helpers.ensure_future(future_work(), tracer=self.tracer)
         result = yield from asyncio.wait_for(delayed_task, timeout=1)
-        eq_('coroutine', result)
+        assert 'coroutine' == result
 
     @mark_asyncio
     def test_run_in_executor_proxy(self):
         # the wrapper should pass arguments and results properly
         def future_work(number, name):
-            eq_(42, number)
-            eq_('john', name)
+            assert 42 == number
+            assert 'john' == name
             return True
 
         future = helpers.run_in_executor(self.loop, None, future_work, 42, 'john', tracer=self.tracer)
         result = yield from future
-        ok_(result)
+        assert result
 
     @mark_asyncio
     def test_run_in_executor_traces(self):
@@ -59,8 +61,8 @@ class TestAsyncioHelpers(AsyncioTestCase):
             # the Context is empty but the reference to the latest
             # span is here to keep the parenting
             ctx = self.tracer.get_call_context()
-            eq_(0, len(ctx._trace))
-            eq_('coroutine', ctx._current_span.name)
+            assert 0 == len(ctx._trace)
+            assert 'coroutine' == ctx._current_span.name
             return True
 
         span = self.tracer.trace('coroutine')
@@ -68,7 +70,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
         # we close the Context
         span.finish()
         result = yield from future
-        ok_(result)
+        assert result
 
     @mark_asyncio
     def test_create_task(self):
@@ -77,7 +79,7 @@ class TestAsyncioHelpers(AsyncioTestCase):
         def future_work():
             # the ctx is available in this task
             ctx = self.tracer.get_call_context()
-            eq_(0, len(ctx._trace))
+            assert 0 == len(ctx._trace)
             child_span = self.tracer.trace('child_task')
             return child_span
 
@@ -85,5 +87,5 @@ class TestAsyncioHelpers(AsyncioTestCase):
         # schedule future work and wait for a result
         task = helpers.create_task(future_work())
         result = yield from task
-        eq_(root_span.trace_id, result.trace_id)
-        eq_(root_span.span_id, result.parent_id)
+        assert root_span.trace_id == result.trace_id
+        assert root_span.span_id == result.parent_id

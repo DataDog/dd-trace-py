@@ -1,35 +1,6 @@
-desc "build the docs"
-task :docs do
-    sh "pip install sphinx"
-  Dir.chdir 'docs' do
-    sh "make html"
-  end
-end
-
 # Deploy tasks
-S3_DIR = ENV['S3_DIR']
-S3_BUCKET = "pypi.datadoghq.com"
-
-desc "release the a new wheel"
-task :'release:wheel' do
-  # Use mkwheelhouse to build the wheel, push it to S3 then update the repo index
-  # If at some point, we need only the 2 first steps:
-  #  - python setup.py bdist_wheel
-  #  - aws s3 cp dist/*.whl s3://pypi.datadoghq.com/#{s3_dir}/
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
-
-  # Use custom mkwheelhouse script to build and upload an sdist to S3 bucket
-  sh "scripts/mkwheelhouse"
-end
-
-desc "release the docs website"
-task :'release:docs' => :docs do
-  fail "Missing environment variable S3_DIR" if !S3_DIR or S3_DIR.empty?
-  sh "aws s3 cp --recursive docs/_build/html/ s3://#{S3_BUCKET}/#{S3_DIR}/docs/"
-end
-
 namespace :pypi do
-  RELEASE_DIR = '/tmp/dd-trace-py-release'
+  RELEASE_DIR = './dist/'
 
   def get_version()
     return `python setup.py --version`.strip
@@ -49,7 +20,7 @@ namespace :pypi do
       abort if $stdin.gets.to_s.strip.downcase != 'y'
     end
 
-    puts "WARNING: This task will build and release a new wheel to https://pypi.org/project/ddtrace/, this action cannot be undone"
+    puts "WARNING: This task will build and release new wheels to https://pypi.org/project/ddtrace/, this action cannot be undone"
     print "         To proceed please type the version '#{ddtrace_version}': "
     $stdout.flush
 
@@ -66,20 +37,16 @@ namespace :pypi do
 
   task :build => :clean do
     puts "building release in #{RELEASE_DIR}"
-    sh "python setup.py -q sdist -d #{RELEASE_DIR}"
+    sh "scripts/build-dist"
   end
 
   task :release => [:confirm, :install, :build] do
     builds = Dir.entries(RELEASE_DIR).reject {|f| f == '.' || f == '..'}
     if builds.length == 0
         fail "no build found in #{RELEASE_DIR}"
-    elsif builds.length > 1
-        fail "multiple builds found in #{RELEASE_DIR}"
     end
 
-    build = "#{RELEASE_DIR}/#{builds[0]}"
-
-    puts "uploading #{build}"
-    sh "twine upload #{build}"
+    puts "uploading #{RELEASE_DIR}/*"
+    sh "twine upload #{RELEASE_DIR}/*"
   end
 end

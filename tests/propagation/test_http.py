@@ -1,5 +1,4 @@
 from unittest import TestCase
-from nose.tools import eq_
 from tests.test_tracer import get_dummy_tracer
 
 from ddtrace.propagation.http import (
@@ -27,16 +26,10 @@ class TestHttpPropagation(TestCase):
             propagator = HTTPPropagator()
             propagator.inject(span.context, headers)
 
-            eq_(int(headers[HTTP_HEADER_TRACE_ID]), span.trace_id)
-            eq_(int(headers[HTTP_HEADER_PARENT_ID]), span.span_id)
-            eq_(
-                int(headers[HTTP_HEADER_SAMPLING_PRIORITY]),
-                span.context.sampling_priority,
-            )
-            eq_(
-                headers[HTTP_HEADER_ORIGIN],
-                span.context._dd_origin,
-            )
+            assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
+            assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
+            assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
+            assert headers[HTTP_HEADER_ORIGIN] == span.context._dd_origin
 
     def test_extract(self):
         tracer = get_dummy_tracer()
@@ -53,10 +46,10 @@ class TestHttpPropagation(TestCase):
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            eq_(span.trace_id, 1234)
-            eq_(span.parent_id, 5678)
-            eq_(span.context.sampling_priority, 1)
-            eq_(span.context._dd_origin, "synthetics")
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == 1
+            assert span.context._dd_origin == "synthetics"
 
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
@@ -74,7 +67,7 @@ class TestHttpPropagation(TestCase):
         tracer.context_provider.activate(context)
 
         with tracer.trace("local_root_span") as span:
-            eq_(span.trace_id, 1234)
-            eq_(span.parent_id, 5678)
-            eq_(span.context.sampling_priority, 1)
-            eq_(span.context._dd_origin, "synthetics")
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == 1
+            assert span.context._dd_origin == "synthetics"

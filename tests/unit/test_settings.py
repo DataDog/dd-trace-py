@@ -1,4 +1,4 @@
-from ddtrace.settings import Config, IntegrationConfig, HttpConfig
+from ddtrace.settings import Config, HttpConfig, IntegrationConfig
 
 from ..base import BaseTestCase
 
@@ -12,6 +12,50 @@ class TestConfig(BaseTestCase):
         with self.override_env(dict(DD_ANALYTICS_ENABLED='False')):
             config = Config()
             self.assertFalse(config.analytics_enabled)
+
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+    def test_environment_analytics_overrides(self):
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False', DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='False', DD_TRACE_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True', DD_TRACE_ANALYTICS_ENABLED='True')):
+            config = Config()
+            self.assertTrue(config.analytics_enabled)
+
+        with self.override_env(dict(DD_ANALYTICS_ENABLED='True', DD_TRACE_ANALYTICS_ENABLED='False')):
+            config = Config()
+            self.assertFalse(config.analytics_enabled)
+
+    def test_logs_injection(self):
+        with self.override_env(dict(DD_LOGS_INJECTION='True')):
+            config = Config()
+            self.assertTrue(config.logs_injection)
+
+        with self.override_env(dict(DD_LOGS_INJECTION='false')):
+            config = Config()
+            self.assertFalse(config.logs_injection)
+
+    def test_service(self):
+        # If none is provided the default should be ``None``
+        with self.override_env(dict()):
+            config = Config()
+            self.assertEqual(config.service, None)
+
+        with self.override_env(dict(DD_SERVICE="my-service")):
+            config = Config()
+            self.assertEqual(config.service, "my-service")
 
 
 class TestHttpConfig(BaseTestCase):

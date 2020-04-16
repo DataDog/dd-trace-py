@@ -1,5 +1,3 @@
-# flake8: noqa
-# DEV: Skip linting, we lint with Python 2, we'll get SyntaxErrors from `yield from`
 # stdlib
 import time
 import asyncio
@@ -7,7 +5,6 @@ import asyncio
 # 3p
 import aiopg
 from psycopg2 import extras
-from nose.tools import eq_
 
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -19,9 +16,11 @@ from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from ...subprocesstest import run_in_subprocess
+from ...utils import assert_is_measured
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -65,18 +64,19 @@ class AiopgTestCase(AsyncioTestCase):
         yield from cursor.execute(q)
         rows = yield from cursor.fetchall()
         end = time.time()
-        eq_(rows, [('foobarblah',)])
+        assert rows == [('foobarblah',)]
         assert rows
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.name, 'postgres.query')
-        eq_(span.resource, q)
-        eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
-        eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
+        assert_is_measured(span)
+        assert span.name == 'postgres.query'
+        assert span.resource == q
+        assert span.service == service
+        assert span.meta['sql.query'] == q
+        assert span.error == 0
+        assert span.span_type == 'sql'
         assert start <= span.start <= end
         assert span.duration <= end - start
 
@@ -86,21 +86,21 @@ class AiopgTestCase(AsyncioTestCase):
             cursor = yield from db.cursor()
             yield from cursor.execute(q)
             rows = yield from cursor.fetchall()
-            eq_(rows, [('foobarblah',)])
+            assert rows == [('foobarblah',)]
         spans = writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         ot_span, dd_span = spans
         # confirm the parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
-        eq_(ot_span.name, 'aiopg_op')
-        eq_(ot_span.service, 'aiopg_svc')
-        eq_(dd_span.name, 'postgres.query')
-        eq_(dd_span.resource, q)
-        eq_(dd_span.service, service)
-        eq_(dd_span.meta['sql.query'], q)
-        eq_(dd_span.error, 0)
-        eq_(dd_span.span_type, 'sql')
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
+        assert ot_span.name == 'aiopg_op'
+        assert ot_span.service == 'aiopg_svc'
+        assert dd_span.name == 'postgres.query'
+        assert dd_span.resource == q
+        assert dd_span.service == service
+        assert dd_span.meta['sql.query'] == q
+        assert dd_span.error == 0
+        assert dd_span.span_type == 'sql'
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
@@ -113,16 +113,16 @@ class AiopgTestCase(AsyncioTestCase):
             assert 0, 'should have an error'
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.name, 'postgres.query')
-        eq_(span.resource, q)
-        eq_(span.service, service)
-        eq_(span.meta['sql.query'], q)
-        eq_(span.error, 1)
-        # eq_(span.meta['out.host'], 'localhost')
-        eq_(span.meta['out.port'], TEST_PORT)
-        eq_(span.span_type, 'sql')
+        assert span.name == 'postgres.query'
+        assert span.resource == q
+        assert span.service == service
+        assert span.meta['sql.query'] == q
+        assert span.error == 1
+        # assert span.meta['out.host'] == 'localhost'
+        assert span.metrics['out.port'] == TEST_PORT
+        assert span.span_type == 'sql'
 
     @mark_asyncio
     def test_disabled_execute(self):
@@ -155,7 +155,7 @@ class AiopgTestCase(AsyncioTestCase):
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {}
-        eq_(service_meta, expected)
+        assert service_meta == expected
 
     @mark_asyncio
     def test_patch_unpatch(self):
@@ -175,7 +175,7 @@ class AiopgTestCase(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -197,13 +197,32 @@ class AiopgTestCase(AsyncioTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The aiopg integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute('select \'blah\'')
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):
     @asyncio.coroutine
     def trace_spans(self):
-        service = 'db'
         conn, _ = yield from self._get_conn_and_tracer()
 
         Pin.get_from(conn).clone(service='db', tracer=self.tracer).onto(conn)

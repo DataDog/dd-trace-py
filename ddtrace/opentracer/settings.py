@@ -3,12 +3,14 @@ from collections import namedtuple
 
 CONFIG_KEY_NAMES = [
     'AGENT_HOSTNAME',
+    'AGENT_HTTPS',
     'AGENT_PORT',
     'DEBUG',
     'ENABLED',
     'GLOBAL_TAGS',
     'SAMPLER',
     'PRIORITY_SAMPLING',
+    'UDS_PATH',
     'SETTINGS',
 ]
 
@@ -17,12 +19,14 @@ ConfigKeyNames = namedtuple('ConfigKeyNames', CONFIG_KEY_NAMES)
 
 ConfigKeys = ConfigKeyNames(
     AGENT_HOSTNAME='agent_hostname',
+    AGENT_HTTPS='agent_https',
     AGENT_PORT='agent_port',
     DEBUG='debug',
     ENABLED='enabled',
     GLOBAL_TAGS='global_tags',
     SAMPLER='sampler',
     PRIORITY_SAMPLING='priority_sampling',
+    UDS_PATH='uds_path',
     SETTINGS='settings',
 )
 

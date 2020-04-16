@@ -5,8 +5,6 @@ import unittest
 from threading import Event
 
 # 3p
-from nose.tools import eq_, ok_
-from nose.plugins.attrib import attr
 from cassandra.cluster import Cluster, ResultSet
 from cassandra.query import BatchStatement, SimpleStatement
 
@@ -21,6 +19,8 @@ from ddtrace import config, Pin
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
 from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
+from ...utils import assert_is_measured
 
 # Oftentimes our tests fails because Cassandra connection timeouts during keyspace drop. Slowness in keyspace drop
 # is known and is due to 'auto_snapshot' configuration. In our test env we should disable it, but the official cassandra
@@ -70,7 +70,7 @@ class CassandraBase(object):
     TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
     TEST_QUERY_PAGINATED = 'SELECT * from test.person'
     TEST_KEYSPACE = 'test'
-    TEST_PORT = str(CASSANDRA_CONFIG['port'])
+    TEST_PORT = CASSANDRA_CONFIG['port']
     TEST_SERVICE = 'test-cassandra'
 
     def _traced_session(self):
@@ -82,7 +82,7 @@ class CassandraBase(object):
         """
         Temporarily override an integration configuration value
         >>> with self.override_config('flask', dict(service_name='test-service')):
-            # Your test
+        ... # Your test
         """
         options = getattr(config, integration)
 
@@ -102,11 +102,11 @@ class CassandraBase(object):
         self.session = self.cluster.connect()
 
     def _assert_result_correct(self, result):
-        eq_(len(result.current_rows), 1)
+        assert len(result.current_rows) == 1
         for r in result:
-            eq_(r.name, 'Cassandra')
-            eq_(r.age, 100)
-            eq_(r.description, 'A cruel mistress')
+            assert r.name == 'Cassandra'
+            assert r.age == 100
+            assert r.description == 'A cruel mistress'
 
     def _test_query_base(self, execute_fn):
         session, tracer = self._traced_session()
@@ -118,22 +118,24 @@ class CassandraBase(object):
         assert spans, spans
 
         # another for the actual query
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         query = spans[0]
-        eq_(query.service, self.TEST_SERVICE)
-        eq_(query.resource, self.TEST_QUERY)
-        eq_(query.span_type, cassx.TYPE)
 
-        eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
-        eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
-        eq_(query.get_tag(cassx.ROW_COUNT), '1')
-        eq_(query.get_tag(cassx.PAGE_NUMBER), None)
-        eq_(query.get_tag(cassx.PAGINATED), 'False')
-        eq_(query.get_tag(net.TARGET_HOST), '127.0.0.1')
+        assert_is_measured(query)
+        assert query.service == self.TEST_SERVICE
+        assert query.resource == self.TEST_QUERY
+        assert query.span_type == 'cassandra'
+
+        assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
+        assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
+        assert query.get_metric(cassx.ROW_COUNT) == 1
+        assert query.get_tag(cassx.PAGE_NUMBER) is None
+        assert query.get_tag(cassx.PAGINATED) == 'False'
+        assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
 
         # confirm no analytics sample rate set by default
-        ok_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None)
+        assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     def test_query(self):
         def execute_fn(session, query):
@@ -152,10 +154,10 @@ class CassandraBase(object):
             spans = writer.pop()
             assert spans, spans
             # another for the actual query
-            eq_(len(spans), 1)
+            assert len(spans) == 1
             query = spans[0]
             # confirm no analytics sample rate set by default
-            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+            assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     def test_query_analytics_without_rate(self):
         with self.override_config(
@@ -169,10 +171,10 @@ class CassandraBase(object):
             spans = writer.pop()
             assert spans, spans
             # another for the actual query
-            eq_(len(spans), 1)
+            assert len(spans) == 1
             query = spans[0]
             # confirm no analytics sample rate set by default
-            eq_(query.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
+            assert query.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
     def test_query_ot(self):
         """Ensure that cassandra works with the opentracer."""
@@ -191,26 +193,26 @@ class CassandraBase(object):
         assert spans, spans
 
         # another for the actual query
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         ot_span, dd_span = spans
 
         # confirm parenting
-        eq_(ot_span.parent_id, None)
-        eq_(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        eq_(ot_span.name, 'cass_op')
-        eq_(ot_span.service, 'cass_svc')
+        assert ot_span.name == 'cass_op'
+        assert ot_span.service == 'cass_svc'
 
-        eq_(dd_span.service, self.TEST_SERVICE)
-        eq_(dd_span.resource, self.TEST_QUERY)
-        eq_(dd_span.span_type, cassx.TYPE)
+        assert dd_span.service == self.TEST_SERVICE
+        assert dd_span.resource == self.TEST_QUERY
+        assert dd_span.span_type == 'cassandra'
 
-        eq_(dd_span.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
-        eq_(dd_span.get_tag(net.TARGET_PORT), self.TEST_PORT)
-        eq_(dd_span.get_tag(cassx.ROW_COUNT), '1')
-        eq_(dd_span.get_tag(cassx.PAGE_NUMBER), None)
-        eq_(dd_span.get_tag(cassx.PAGINATED), 'False')
-        eq_(dd_span.get_tag(net.TARGET_HOST), '127.0.0.1')
+        assert dd_span.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
+        assert dd_span.get_metric(net.TARGET_PORT) == self.TEST_PORT
+        assert dd_span.get_metric(cassx.ROW_COUNT) == 1
+        assert dd_span.get_tag(cassx.PAGE_NUMBER) is None
+        assert dd_span.get_tag(cassx.PAGINATED) == 'False'
+        assert dd_span.get_tag(net.TARGET_HOST) == '127.0.0.1'
 
     def test_query_async(self):
         def execute_fn(session, query):
@@ -239,7 +241,7 @@ class CassandraBase(object):
         future = session.execute_async(self.TEST_QUERY)
         future.result()
         span = getattr(future, '_ddtrace_current_span', None)
-        ok_(span is None)
+        assert span is None
 
     def test_paginated_query(self):
         session, tracer = self._traced_session()
@@ -248,30 +250,30 @@ class CassandraBase(object):
         result = session.execute(statement)
         # iterate over all pages
         results = list(result)
-        eq_(len(results), 3)
+        assert len(results) == 3
 
         spans = writer.pop()
         assert spans, spans
 
         # There are 4 spans for 3 results since the driver makes a request with
         # no result to check that it has reached the last page
-        eq_(len(spans), 4)
+        assert len(spans) == 4
 
         for i in range(4):
             query = spans[i]
-            eq_(query.service, self.TEST_SERVICE)
-            eq_(query.resource, self.TEST_QUERY_PAGINATED)
-            eq_(query.span_type, cassx.TYPE)
+            assert query.service == self.TEST_SERVICE
+            assert query.resource == self.TEST_QUERY_PAGINATED
+            assert query.span_type == 'cassandra'
 
-            eq_(query.get_tag(cassx.KEYSPACE), self.TEST_KEYSPACE)
-            eq_(query.get_tag(net.TARGET_PORT), self.TEST_PORT)
+            assert query.get_tag(cassx.KEYSPACE) == self.TEST_KEYSPACE
+            assert query.get_metric(net.TARGET_PORT) == self.TEST_PORT
             if i == 3:
-                eq_(query.get_tag(cassx.ROW_COUNT), '0')
+                assert query.get_metric(cassx.ROW_COUNT) == 0
             else:
-                eq_(query.get_tag(cassx.ROW_COUNT), '1')
-            eq_(query.get_tag(net.TARGET_HOST), '127.0.0.1')
-            eq_(query.get_tag(cassx.PAGINATED), 'True')
-            eq_(query.get_tag(cassx.PAGE_NUMBER), str(i+1))
+                assert query.get_metric(cassx.ROW_COUNT) == 1
+            assert query.get_tag(net.TARGET_HOST) == '127.0.0.1'
+            assert query.get_tag(cassx.PAGINATED) == 'True'
+            assert query.get_metric(cassx.PAGE_NUMBER) == i + 1
 
     def test_trace_with_service(self):
         session, tracer = self._traced_session()
@@ -279,9 +281,9 @@ class CassandraBase(object):
         session.execute(self.TEST_QUERY)
         spans = writer.pop()
         assert spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         query = spans[0]
-        eq_(query.service, self.TEST_SERVICE)
+        assert query.service == self.TEST_SERVICE
 
     def test_trace_error(self):
         session, tracer = self._traced_session()
@@ -297,11 +299,10 @@ class CassandraBase(object):
         spans = writer.pop()
         assert spans
         query = spans[0]
-        eq_(query.error, 1)
+        assert query.error == 1
         for k in (errors.ERROR_MSG, errors.ERROR_TYPE):
             assert query.get_tag(k)
 
-    @attr('bound')
     def test_bound_statement(self):
         session, tracer = self._traced_session()
         writer = tracer.writer
@@ -315,9 +316,9 @@ class CassandraBase(object):
         session.execute(bound_stmt)
 
         spans = writer.pop()
-        eq_(len(spans), 2)
+        assert len(spans) == 2
         for s in spans:
-            eq_(s.resource, query)
+            assert s.resource == query
 
     def test_batch_statement(self):
         session, tracer = self._traced_session()
@@ -335,14 +336,32 @@ class CassandraBase(object):
         session.execute(batch)
 
         spans = writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.resource, 'BatchStatement')
-        eq_(s.get_metric('cassandra.batch_size'), 2)
+        assert s.resource == 'BatchStatement'
+        assert s.get_metric('cassandra.batch_size') == 2
         assert 'test.person' in s.get_tag('cassandra.query')
 
+    def test_batched_bound_statement(self):
+        session, tracer = self._traced_session()
+        writer = tracer.writer
 
-class TestCassPatchDefault(CassandraBase):
+        batch = BatchStatement()
+
+        prepared_statement = session.prepare('INSERT INTO test.person_write (name, age, description) VALUES (?, ?, ?)')
+        batch.add(
+            prepared_statement.bind(('matt', 34, 'can'))
+        )
+        session.execute(batch)
+
+        spans = writer.pop()
+        assert len(spans) == 1
+        s = spans[0]
+        assert s.resource == 'BatchStatement'
+        assert s.get_tag('cassandra.query') == ''
+
+
+class TestCassPatchDefault(unittest.TestCase, CassandraBase):
     """Test Cassandra instrumentation with patching and default configuration"""
 
     TEST_SERVICE = SERVICE
@@ -415,7 +434,7 @@ class TestCassPatchOne(TestCassPatchDefault):
 
         spans = tracer.writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -440,4 +459,37 @@ class TestCassPatchOne(TestCassPatchDefault):
 def test_backwards_compat_get_traced_cassandra():
     cluster = get_traced_cassandra()
     session = cluster(port=CASSANDRA_CONFIG['port']).connect()
-    session.execute("drop table if exists test.person")
+    session.execute('drop table if exists test.person')
+
+
+class TestCassandraConfig(BaseTracerTestCase):
+    """
+    Test various configurations of the Cassandra integration.
+    """
+    TEST_QUERY = "SELECT * from test.person WHERE name = 'Cassandra'"
+    TEST_KEYSPACE = "test"
+
+    def setUp(self):
+        super(TestCassandraConfig, self).setUp()
+        patch()
+        self.tracer = get_dummy_tracer()
+        self.cluster = Cluster(port=CASSANDRA_CONFIG["port"])
+        Pin.get_from(self.cluster).clone(tracer=self.tracer).onto(self.cluster)
+        self.session = self.cluster.connect(self.TEST_KEYSPACE)
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The cassandra integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        self.session.execute(self.TEST_QUERY)
+        spans = self.tracer.writer.pop()
+        assert spans
+        assert len(spans) == 1
+        query = spans[0]
+        assert query.service != "mysvc"

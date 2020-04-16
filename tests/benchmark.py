@@ -1,86 +1,92 @@
-import timeit
-
 from ddtrace import Tracer
+import pytest
 
 from .test_tracer import DummyWriter
-from os import getpid
 
 
-REPEAT = 10
-NUMBER = 10000
-
-
-def trace_error(tracer):
-    # explicit vars
-    with tracer.trace("a", service="s", resource="r", span_type="t"):
-        1 / 0
-
-
-def benchmark_tracer_trace():
+@pytest.fixture
+def tracer():
     tracer = Tracer()
     tracer.writer = DummyWriter()
-
-    # testcase
-    def trace(tracer):
-        # explicit vars
-        with tracer.trace("a", service="s", resource="r", span_type="t") as s:
-            s.set_tag("a", "b")
-            s.set_tag("b", 1)
-            with tracer.trace("another.thing"):
-                pass
-            with tracer.trace("another.thing"):
-                pass
-
-    # benchmark
-    print("## tracer.trace() benchmark: {} loops ##".format(NUMBER))
-    timer = timeit.Timer(lambda: trace(tracer))
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- trace execution time: {:8.6f}".format(min(result)))
+    return tracer
 
 
-def benchmark_tracer_wrap():
-    tracer = Tracer()
-    tracer.writer = DummyWriter()
+def test_tracer_context(benchmark, tracer):
+    def func(tracer):
+        with tracer.trace('a', service='s', resource='r', span_type='t'):
+            pass
 
-    # testcase
+    benchmark(func, tracer)
+
+
+def test_tracer_wrap_staticmethod(benchmark, tracer):
     class Foo(object):
         @staticmethod
         @tracer.wrap()
-        def s():
-            return 0
-
-        @classmethod
-        @tracer.wrap()
-        def c(cls):
-            return 0
-
-        @tracer.wrap()
-        def m(self):
+        def func():
             return 0
 
     f = Foo()
-
-    # benchmark
-    print("## tracer.trace() wrapper benchmark: {} loops ##".format(NUMBER))
-    timer = timeit.Timer(f.s)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- staticmethod execution time: {:8.6f}".format(min(result)))
-    timer = timeit.Timer(f.c)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- classmethod execution time: {:8.6f}".format(min(result)))
-    timer = timeit.Timer(f.m)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("- method execution time: {:8.6f}".format(min(result)))
+    benchmark(f.func)
 
 
-def benchmark_getpid():
-    timer = timeit.Timer(getpid)
-    result = timer.repeat(repeat=REPEAT, number=NUMBER)
-    print("## getpid wrapper benchmark: {} loops ##".format(NUMBER))
-    print("- getpid execution time: {:8.6f}".format(min(result)))
+def test_tracer_wrap_classmethod(benchmark, tracer):
+    class Foo(object):
+        @classmethod
+        @tracer.wrap()
+        def func(cls):
+            return 0
+
+    f = Foo()
+    benchmark(f.func)
 
 
-if __name__ == '__main__':
-    benchmark_tracer_wrap()
-    benchmark_tracer_trace()
-    benchmark_getpid()
+def test_tracer_wrap_instancemethod(benchmark, tracer):
+    class Foo(object):
+        @tracer.wrap()
+        def func(self):
+            return 0
+
+    f = Foo()
+    benchmark(f.func)
+
+
+def test_tracer_start_span(benchmark, tracer):
+    benchmark(tracer.start_span, 'benchmark')
+
+
+def test_tracer_start_finish_span(benchmark, tracer):
+    def func(tracer):
+        s = tracer.start_span('benchmark')
+        s.finish()
+
+    benchmark(func, tracer)
+
+
+def test_trace_simple_trace(benchmark, tracer):
+    def func(tracer):
+        with tracer.trace('parent'):
+            for i in range(5):
+                with tracer.trace('child') as c:
+                    c.set_tag('i', i)
+
+    benchmark(func, tracer)
+
+
+def test_tracer_large_trace(benchmark, tracer):
+    import random
+
+    # generate trace with 1024 spans
+    @tracer.wrap()
+    def func(tracer, level=0):
+        span = tracer.current_span()
+
+        # do some work
+        num = random.randint(1, 10)
+        span.set_tag('num', num)
+
+        if level < 10:
+            func(tracer, level + 1)
+            func(tracer, level + 1)
+
+    benchmark(func, tracer)

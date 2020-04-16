@@ -1,17 +1,17 @@
 import sys
 
-from ddtrace.ext import http as httpx
+from ddtrace.ext import SpanTypes, http as httpx
 from ddtrace.http import store_request_headers, store_response_headers
 from ddtrace.propagation.http import HTTPPropagator
 
 from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...settings import config
 
 
 class TraceMiddleware(object):
 
-    def __init__(self, tracer, service="falcon", distributed_tracing=True):
+    def __init__(self, tracer, service='falcon', distributed_tracing=True):
         # store tracing references
         self.tracer = tracer
         self.service = service
@@ -28,10 +28,11 @@ class TraceMiddleware(object):
                 self.tracer.context_provider.activate(context)
 
         span = self.tracer.trace(
-            "falcon.request",
+            'falcon.request',
             service=self.service,
-            span_type=httpx.TYPE,
+            span_type=SpanTypes.WEB,
         )
+        span.set_tag(SPAN_MEASURED_KEY)
 
         # set analytics sample rate with global config enabled
         span.set_tag(
@@ -41,6 +42,8 @@ class TraceMiddleware(object):
 
         span.set_tag(httpx.METHOD, req.method)
         span.set_tag(httpx.URL, req.url)
+        if config.falcon.trace_query_string:
+            span.set_tag(httpx.QUERY_STRING, req.query_string)
 
         # Note: any request header set after this line will not be stored in the span
         store_request_headers(req.headers, span, config.falcon)
@@ -49,7 +52,7 @@ class TraceMiddleware(object):
         span = self.tracer.current_span()
         if not span:
             return  # unexpected
-        span.resource = "%s %s" % (req.method, _name(resource))
+        span.resource = '%s %s' % (req.method, _name(resource))
 
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeded is not a kwarg in the API, but we need that to support
@@ -68,7 +71,7 @@ class TraceMiddleware(object):
         # here. See https://github.com/falconry/falcon/issues/606
         if resource is None:
             status = '404'
-            span.resource = "%s 404" % req.method
+            span.resource = '%s 404' % req.method
             span.set_tag(httpx.STATUS_CODE, status)
             span.finish()
             return
@@ -111,4 +114,4 @@ def _detect_and_set_status_error(err_type, span):
 
 
 def _name(r):
-    return "%s.%s" % (r.__module__, r.__class__.__name__)
+    return '%s.%s' % (r.__module__, r.__class__.__name__)

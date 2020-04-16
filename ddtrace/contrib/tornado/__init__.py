@@ -1,7 +1,11 @@
-"""
+r"""
 The Tornado integration traces all ``RequestHandler`` defined in a Tornado web application.
 Auto instrumentation is available using the ``patch`` function that **must be called before**
-importing the tornado library. The following is an example::
+importing the tornado library.
+
+**Note:** Tornado 5 and 6 supported only for Python 3.7.
+
+The following is an example::
 
     # patch before importing tornado and concurrent.futures
     from ddtrace import tracer, patch
@@ -48,6 +52,23 @@ the ``trace()`` method as usual::
         def notify(self):
             # do something
 
+If you are overriding the ``on_finish`` or ``log_exception`` methods on a
+``RequestHandler``, you will need to call the super method to ensure the
+tracer's patched methods are called::
+
+    class MainHandler(tornado.web.RequestHandler):
+        @tornado.gen.coroutine
+        def get(self):
+            self.write("Hello, world")
+
+        def on_finish(self):
+            super(MainHandler, self).on_finish()
+            # do other clean-up
+
+        def log_exception(self, typ, value, tb):
+            super(MainHandler, self).log_exception(typ, value, tb)
+            # do other logging
+
 Tornado settings can be used to change some tracing configuration, like::
 
     settings = {
@@ -58,7 +79,7 @@ Tornado settings can be used to change some tracing configuration, like::
             'analytics_enabled': False,
             'settings': {
                 'FILTERS':  [
-                    FilterRequestsOnUrl(r'http://test\.example\.com'),
+                    FilterRequestsOnUrl(r'http://test\\.example\\.com'),
                 ],
             },
         },
@@ -71,7 +92,8 @@ Tornado settings can be used to change some tracing configuration, like::
 The available settings are:
 
 * ``default_service`` (default: `tornado-web`): set the service name used by the tracer. Usually
-  this configuration must be updated with a meaningful name.
+  this configuration must be updated with a meaningful name. Can also be configured via the
+  ``DD_SERVICE`` environment variable.
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
@@ -79,7 +101,6 @@ The available settings are:
   remotely from an instrumented application.
   We suggest to enable it only for internal services where headers are under your control.
 * ``analytics_enabled`` (default: `None`): enable generating APM events for Trace Search & Analytics.
-  We suggest to enable it only for internal services where headers are under your control.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.

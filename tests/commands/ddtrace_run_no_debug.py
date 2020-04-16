@@ -1,9 +1,7 @@
-from __future__ import print_function
+import logging
 
 from ddtrace import tracer
 
-from nose.tools import ok_
-
 if __name__ == '__main__':
-    ok_(not tracer.debug_logging)
-    print("Test success")
+    assert not tracer.log.isEnabledFor(logging.DEBUG)
+    print('Test success')

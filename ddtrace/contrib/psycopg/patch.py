@@ -69,7 +69,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
-    """ Wrap will patch the instance so that it's queries are traced."""
+    """ Wrap will patch the instance so that its queries are traced."""
     # ensure we've patched extensions (this is idempotent) in
     # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
@@ -79,17 +79,16 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     # fetch tags from the dsn
     dsn = sql.parse_pg_dsn(conn.dsn)
     tags = {
-        net.TARGET_HOST: dsn.get("host"),
-        net.TARGET_PORT: dsn.get("port"),
-        db.NAME: dsn.get("dbname"),
-        db.USER: dsn.get("user"),
-        "db.application": dsn.get("application_name"),
+        net.TARGET_HOST: dsn.get('host'),
+        net.TARGET_PORT: dsn.get('port'),
+        db.NAME: dsn.get('dbname'),
+        db.USER: dsn.get('user'),
+        'db.application': dsn.get('application_name'),
     }
 
     Pin(
-        service="postgres",
-        app="postgres",
-        app_type="db",
+        service='postgres',
+        app='postgres',
         tags=tags).onto(c)
 
     return c

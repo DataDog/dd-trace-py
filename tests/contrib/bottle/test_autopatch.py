@@ -3,8 +3,8 @@ import ddtrace
 import webtest
 
 from unittest import TestCase
-from nose.tools import eq_
 from tests.test_tracer import get_dummy_tracer
+from ...utils import assert_span_http_status_code
 
 from ddtrace import compat
 
@@ -40,20 +40,20 @@ class TraceBottleTest(TestCase):
 
         # make a request
         resp = self.app.get('/hi/dougie')
-        eq_(resp.status_int, 200)
-        eq_(compat.to_unicode(resp.body), u'hi dougie')
+        assert resp.status_int == 200
+        assert compat.to_unicode(resp.body) == u'hi dougie'
         # validate it's traced
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.name, 'bottle.request')
-        eq_(s.service, 'bottle-app')
-        eq_(s.resource, 'GET /hi/<name>')
-        eq_(s.get_tag('http.status_code'), '200')
-        eq_(s.get_tag('http.method'), 'GET')
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi/<name>'
+        assert_span_http_status_code(s, 200)
+        assert s.get_tag('http.method') == 'GET'
 
         services = self.tracer.writer.pop_services()
-        eq_(services, {})
+        assert services == {}
 
     def test_500(self):
         @self.app.route('/hi')
@@ -64,18 +64,18 @@ class TraceBottleTest(TestCase):
         # make a request
         try:
             resp = self.app.get('/hi')
-            eq_(resp.status_int, 500)
+            assert resp.status_int == 500
         except Exception:
             pass
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.name, 'bottle.request')
-        eq_(s.service, 'bottle-app')
-        eq_(s.resource, 'GET /hi')
-        eq_(s.get_tag('http.status_code'), '500')
-        eq_(s.get_tag('http.method'), 'GET')
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /hi'
+        assert_span_http_status_code(s, 500)
+        assert s.get_tag('http.method') == 'GET'
 
     def test_bottle_global_tracer(self):
         # without providing a Tracer instance, it should work
@@ -86,13 +86,13 @@ class TraceBottleTest(TestCase):
 
         # make a request
         resp = self.app.get('/home/')
-        eq_(resp.status_int, 200)
+        assert resp.status_int == 200
         # validate it's traced
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         s = spans[0]
-        eq_(s.name, 'bottle.request')
-        eq_(s.service, 'bottle-app')
-        eq_(s.resource, 'GET /home/')
-        eq_(s.get_tag('http.status_code'), '200')
-        eq_(s.get_tag('http.method'), 'GET')
+        assert s.name == 'bottle.request'
+        assert s.service == 'bottle-app'
+        assert s.resource == 'GET /home/'
+        assert_span_http_status_code(s, 200)
+        assert s.get_tag('http.method') == 'GET'

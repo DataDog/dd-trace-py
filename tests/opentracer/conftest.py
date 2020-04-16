@@ -16,7 +16,7 @@ def ot_tracer_factory():
     """Fixture which returns an opentracer ready to use for testing."""
 
     def make_ot_tracer(
-        service_name="my_svc", config=None, scope_manager=None, context_provider=None
+        service_name='my_svc', config=None, scope_manager=None, context_provider=None
     ):
         config = config or {}
         tracer = Tracer(

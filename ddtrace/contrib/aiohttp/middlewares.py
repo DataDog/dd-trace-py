@@ -2,14 +2,15 @@ import asyncio
 
 from ..asyncio import context_provider
 from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import http
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
 
 CONFIG_KEY = 'datadog_trace'
 REQUEST_CONTEXT_KEY = 'datadog_context'
+REQUEST_CONFIG_KEY = '__datadog_trace_config'
 REQUEST_SPAN_KEY = '__datadog_request_span'
 
 
@@ -19,8 +20,9 @@ def trace_middleware(app, handler):
     ``aiohttp`` middleware that traces the handler execution.
     Because handlers are run in different tasks for each request, we attach the Context
     instance both to the Task and to the Request objects. In this way:
-        * the Task is used by the internal automatic instrumentation
-        * the ``Context`` attached to the request can be freely used in the application code
+
+    * the Task is used by the internal automatic instrumentation
+    * the ``Context`` attached to the request can be freely used in the application code
     """
     @asyncio.coroutine
     def attach_context(request):
@@ -28,8 +30,6 @@ def trace_middleware(app, handler):
         tracer = app[CONFIG_KEY]['tracer']
         service = app[CONFIG_KEY]['service']
         distributed_tracing = app[CONFIG_KEY]['distributed_tracing_enabled']
-
-        context = tracer.context_provider.active()
 
         # Create a new context based on the propagated information.
         if distributed_tracing:
@@ -43,8 +43,9 @@ def trace_middleware(app, handler):
         request_span = tracer.trace(
             'aiohttp.request',
             service=service,
-            span_type=http.TYPE,
+            span_type=SpanTypes.WEB,
         )
+        request_span.set_tag(SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
         # DEV: aiohttp is special case maintains separate configuration from config api
@@ -59,8 +60,9 @@ def trace_middleware(app, handler):
         # may be freely used by the application code
         request[REQUEST_CONTEXT_KEY] = request_span.context
         request[REQUEST_SPAN_KEY] = request_span
+        request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
         try:
-            response = yield from handler(request)  # noqa: E999
+            response = yield from handler(request)
             return response
         except Exception:
             request_span.set_traceback()
@@ -96,10 +98,19 @@ def on_prepare(request, response):
         # prefix the resource name by the http method
         resource = '{} {}'.format(request.method, resource)
 
+    if 500 <= response.status < 600:
+        request_span.error = 1
+
     request_span.resource = resource
     request_span.set_tag('http.method', request.method)
     request_span.set_tag('http.status_code', response.status)
-    request_span.set_tag('http.url', request.path)
+    request_span.set_tag(http.URL, request.url.with_query(None))
+    # DEV: aiohttp is special case maintains separate configuration from config api
+    trace_query_string = request[REQUEST_CONFIG_KEY].get('trace_query_string')
+    if trace_query_string is None:
+        trace_query_string = config._http.trace_query_string
+    if trace_query_string:
+        request_span.set_tag(http.QUERY_STRING, request.query_string)
     request_span.finish()
 
 
@@ -121,7 +132,7 @@ def trace_app(app, tracer, service='aiohttp-web'):
     # configure datadog settings
     app[CONFIG_KEY] = {
         'tracer': tracer,
-        'service': service,
+        'service': config._get_service(default=service),
         'distributed_tracing_enabled': True,
         'analytics_enabled': None,
         'analytics_sample_rate': 1.0,

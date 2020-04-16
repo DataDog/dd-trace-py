@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import rediscluster
-from nose.tools import eq_
 
 from ddtrace import Pin
 from ddtrace.contrib.rediscluster.patch import patch, unpatch
+from ddtrace.contrib.rediscluster.patch import REDISCLUSTER_VERSION
 from ..config import REDISCLUSTER_CONFIG
-from ...test_tracer import get_dummy_tracer
 from ...base import BaseTracerTestCase
+from ...test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured
 
 
 class TestRedisPatch(BaseTracerTestCase):
@@ -20,7 +21,10 @@ class TestRedisPatch(BaseTracerTestCase):
             {'host': self.TEST_HOST, 'port': int(port)}
             for port in self.TEST_PORTS.split(',')
         ]
-        return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
+        if REDISCLUSTER_VERSION >= (2, 0, 0):
+            return rediscluster.RedisCluster(startup_nodes=startup_nodes)
+        else:
+            return rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
 
     def setUp(self):
         super(TestRedisPatch, self).setUp()
@@ -36,17 +40,18 @@ class TestRedisPatch(BaseTracerTestCase):
 
     def test_basics(self):
         us = self.r.get('cheese')
-        eq_(us, None)
+        assert us is None
         spans = self.get_spans()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'redis.command')
-        eq_(span.span_type, 'redis')
-        eq_(span.error, 0)
-        eq_(span.get_tag('redis.raw_command'), u'GET cheese')
-        eq_(span.get_metric('redis.args_length'), 2)
-        eq_(span.resource, 'GET cheese')
+        assert_is_measured(span)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'redis.command'
+        assert span.span_type == 'redis'
+        assert span.error == 0
+        assert span.get_tag('redis.raw_command') == u'GET cheese'
+        assert span.get_metric('redis.args_length') == 2
+        assert span.resource == 'GET cheese'
 
     def test_pipeline(self):
         with self.r.pipeline(transaction=False) as p:
@@ -56,15 +61,16 @@ class TestRedisPatch(BaseTracerTestCase):
             p.execute()
 
         spans = self.get_spans()
-        eq_(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
-        eq_(span.service, self.TEST_SERVICE)
-        eq_(span.name, 'redis.command')
-        eq_(span.resource, u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-        eq_(span.span_type, 'redis')
-        eq_(span.error, 0)
-        eq_(span.get_tag('redis.raw_command'), u'SET blah 32\nRPUSH foo éé\nHGETALL xxx')
-        eq_(span.get_metric('redis.pipeline_length'), 3)
+        assert_is_measured(span)
+        assert span.service == self.TEST_SERVICE
+        assert span.name == 'redis.command'
+        assert span.resource == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
+        assert span.span_type == 'redis'
+        assert span.error == 0
+        assert span.get_tag('redis.raw_command') == u'SET blah 32\nRPUSH foo éé\nHGETALL xxx'
+        assert span.get_metric('redis.pipeline_length') == 3
 
     def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
@@ -80,7 +86,7 @@ class TestRedisPatch(BaseTracerTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
 
         # Test unpatch
         unpatch()
@@ -100,4 +106,23 @@ class TestRedisPatch(BaseTracerTestCase):
 
         spans = writer.pop()
         assert spans, spans
-        eq_(len(spans), 1)
+        assert len(spans) == 1
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The rediscluster integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        r = self._get_test_client()
+        Pin.get_from(r).clone(tracer=self.tracer).onto(r)
+        r.get("key")
+
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.service != "mysvc"

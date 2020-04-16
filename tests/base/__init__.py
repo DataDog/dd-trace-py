@@ -1,36 +1,15 @@
 import contextlib
-import os
-import unittest
+import sys
 
 import ddtrace
 
+from ..subprocesstest import SubprocessTestCase
+from ..utils import override_env, assert_is_not_measured, assert_is_measured
 from ..utils.tracer import DummyTracer
 from ..utils.span import TestSpanContainer, TestSpan, NO_CHILDREN
 
 
-# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
-@contextlib.contextmanager
-def override_config(integration, values):
-    """
-    Temporarily override an integration configuration value
-    >>> with .override_config('flask', dict(service_name='test-service')):
-        # Your test
-    """
-    options = getattr(ddtrace.config, integration)
-
-    original = dict(
-        (key, options.get(key))
-        for key in values.keys()
-    )
-
-    options.update(values)
-    try:
-        yield
-    finally:
-        options.update(original)
-
-
-class BaseTestCase(unittest.TestCase):
+class BaseTestCase(SubprocessTestCase):
     """
     BaseTestCase extends ``unittest.TestCase`` to provide some useful helpers/assertions
 
@@ -46,47 +25,57 @@ class BaseTestCase(unittest.TestCase):
                     pass
     """
 
-    @contextlib.contextmanager
-    def override_env(self, env):
-        """
-        Temporarily override ``os.environ`` with provided values
-        >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
-            # Your test
-        """
-        # Copy the full original environment
-        original = dict(os.environ)
+    # Expose `override_env` as `self.override_env`
+    override_env = staticmethod(override_env)
 
-        # Update based on the passed in arguments
-        os.environ.update(env)
+    assert_is_measured = staticmethod(assert_is_measured)
+
+    assert_is_not_measured = staticmethod(assert_is_not_measured)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def override_global_config(values):
+        """
+        Temporarily override an global configuration::
+
+            >>> with self.override_global_config(dict(name=value,...)):
+                # Your test
+        """
+        # List of global variables we allow overriding
+        # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
+        global_config_keys = [
+            "analytics_enabled",
+            "report_hostname",
+            "health_metrics_enabled",
+            "env",
+            "version",
+            "service",
+        ]
+
+        # Grab the current values of all keys
+        originals = dict(
+            (key, getattr(ddtrace.config, key)) for key in global_config_keys
+        )
+
+        # Override from the passed in keys
+        for key, value in values.items():
+            if key in global_config_keys:
+                setattr(ddtrace.config, key, value)
         try:
             yield
         finally:
-            # Full clear the environment out and reset back to the original
-            os.environ.clear()
-            os.environ.update(original)
+            # Reset all to their original values
+            for key, value in originals.items():
+                setattr(ddtrace.config, key, value)
 
+    @staticmethod
     @contextlib.contextmanager
-    def override_global_config(self, values):
+    def override_config(integration, values):
         """
-        Temporarily override an global configuration
-        >>> with self.override_global_config(dict(name=value,...)):
-            # Your test
-        """
-        # DEV: Uses dict as interface but internally handled as attributes on Config instance
-        analytics_enabled_original = ddtrace.config.analytics_enabled
+        Temporarily override an integration configuration value::
 
-        ddtrace.config.analytics_enabled = values.get('analytics_enabled', analytics_enabled_original)
-        try:
-            yield
-        finally:
-            ddtrace.config.analytics_enabled = analytics_enabled_original
-
-    @contextlib.contextmanager
-    def override_config(self, integration, values):
-        """
-        Temporarily override an integration configuration value
-        >>> with self.override_config('flask', dict(service_name='test-service')):
-            # Your test
+            >>> with self.override_config('flask', dict(service_name='test-service')):
+                # Your test
         """
         options = getattr(ddtrace.config, integration)
 
@@ -100,6 +89,52 @@ class BaseTestCase(unittest.TestCase):
             yield
         finally:
             options.update(original)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def override_http_config(integration, values):
+        """
+        Temporarily override an integration configuration for HTTP value::
+
+            >>> with self.override_http_config('flask', dict(trace_query_string=True)):
+                # Your test
+        """
+        options = getattr(ddtrace.config, integration).http
+
+        original = {}
+        for key, value in values.items():
+            original[key] = getattr(options, key)
+            setattr(options, key, value)
+
+        try:
+            yield
+        finally:
+            for key, value in original.items():
+                setattr(options, key, value)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def override_sys_modules(modules):
+        """
+        Temporarily override ``sys.modules`` with provided dictionary of modules::
+
+            >>> mock_module = mock.MagicMock()
+            >>> mock_module.fn.side_effect = lambda: 'test'
+            >>> with self.override_sys_modules(dict(A=mock_module)):
+                # Your test
+        """
+        original = dict(sys.modules)
+
+        sys.modules.update(modules)
+        try:
+            yield
+        finally:
+            sys.modules.clear()
+            sys.modules.update(original)
+
+
+# TODO[tbutt]: Remove this once all tests are properly using BaseTracerTestCase
+override_config = BaseTestCase.override_config
 
 
 class BaseTracerTestCase(TestSpanContainer, BaseTestCase):
