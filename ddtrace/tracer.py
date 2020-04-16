@@ -380,6 +380,7 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
+                span.sampled = parent.sampled
                 span._parent = parent
 
         else:
