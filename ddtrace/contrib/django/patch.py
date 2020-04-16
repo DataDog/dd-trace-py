@@ -11,7 +11,7 @@ import sys
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
-from ddtrace.vendor import debtcollector, wrapt
+from ddtrace.vendor import debtcollector, six, wrapt
 from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
@@ -410,7 +410,12 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     span.error = 1
                 span.set_tag("django.response.class", func_name(response))
                 if hasattr(response, "template_name"):
-                    utils.set_tag_array(span, "django.response.template", response.template_name)
+                    # template_name can either be a string or an iterable of strings
+                    if isinstance(response.template_name, six.string_types):
+                        span.set_tag("django.response.template", response.template_name)
+                    else:
+                        utils.set_tag_array(span, "django.response.template", response.template_name)
+
             return response
 
 
