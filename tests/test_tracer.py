@@ -946,3 +946,9 @@ class EnvTracerTestCase(BaseTracerTestCase):
         assert "key1" in self.tracer.tags
         assert "key2" in self.tracer.tags
         assert "key3" not in self.tracer.tags
+
+        
+def test_tracer_custom_max_traces(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
+    tracer = ddtrace.Tracer()
+    assert tracer.writer._trace_queue.maxsize == 2000
