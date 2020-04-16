@@ -46,14 +46,6 @@ class Context(object):
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
 
-        self._root_state = {
-            'parent_trace_id': trace_id,
-            'parent_span_id': span_id,
-            'parent_service': service,
-            'sampling_priority': sampling_priority,
-            'dd_origin': _dd_origin,
-        }
-
     @property
     def trace_id(self):
         """Return current context trace_id."""
@@ -197,11 +189,6 @@ class Context(object):
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
-                self._parent_trace_id = self._root_state['parent_trace_id']
-                self._parent_span_id = self._root_state['parent_span_id']
-                self._parent_service = self._root_state['parent_service']
-                self._sampling_priority = self._root_state['sampling_priority']
-                self._dd_origin = self._root_state['dd_origin']
 
                 return trace, sampled
 
