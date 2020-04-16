@@ -225,9 +225,16 @@ class TestAsyncioPropagation(AsyncioTestCase):
     @mark_asyncio
     def test_tasks_chaining(self):
         # ensures that the context is propagated between different tasks
+
+        tracer = self.tracer
+        service = 'spawn_service'
+
         @self.tracer.wrap('spawn_task')
         @asyncio.coroutine
         def coro_3():
+            span = tracer.current_span()
+            assert span.service == service
+
             yield from asyncio.sleep(0.01)
 
         @asyncio.coroutine
@@ -236,12 +243,18 @@ class TestAsyncioPropagation(AsyncioTestCase):
             # new context works correctly, second run will test if when we
             # pop off the last span on the context if it is still parented
             # correctly
+            span = tracer.current_span()
+            assert span.service == service
+
             yield from coro_3()
             yield from coro_3()
 
-        @self.tracer.wrap('main_task')
+        @self.tracer.wrap('main_task', service=service)
         @asyncio.coroutine
         def coro_1():
+            span = tracer.current_span()
+            assert span.service == service
+
             yield from asyncio.ensure_future(coro_2())
 
         yield from coro_1()

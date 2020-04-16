@@ -76,11 +76,9 @@ class Context(object):
         """
         with self._lock:
             new_ctx = Context(
-                trace_id=self._parent_trace_id,
-                span_id=self._parent_span_id,
                 sampling_priority=self._sampling_priority,
             )
-            new_ctx._current_span = self._current_span
+            new_ctx._set_current_span(self._current_span)
             return new_ctx
 
     def get_current_root_span(self):
@@ -183,12 +181,6 @@ class Context(object):
                 self._trace = []
                 self._finished_spans = 0
 
-                # Don't clear out the parent trace IDs as this may be a cloned
-                # context in a new thread/task without a outer span
-                if not self._parent_trace_id or (trace and trace[0].trace_id == self._parent_trace_id):
-                    self._parent_trace_id = None
-                    self._parent_span_id = None
-                    self._sampling_priority = None
                 return trace, sampled
 
             elif self._partial_flush_enabled:
