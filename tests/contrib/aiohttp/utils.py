@@ -12,6 +12,7 @@ class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
     Base class that provides a valid ``aiohttp`` application with
     the async tracer.
     """
+
     def enable_tracing(self):
         pass
 

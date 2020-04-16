@@ -1,8 +1,4 @@
-import asyncio
-import functools
-import logging
-import sys
-
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...pin import Pin
@@ -363,7 +359,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None,
         setattr(aiohttp_jinja2, '__datadog_patch', True)
 
         _w('aiohttp_jinja2', 'render_template', _trace_render_template)
-        Pin(app='aiohttp', service=None, tracer=tracer).onto(aiohttp_jinja2)
+        Pin(app='aiohttp', service=config.service, tracer=tracer).onto(aiohttp_jinja2)
 
 
 def unpatch():

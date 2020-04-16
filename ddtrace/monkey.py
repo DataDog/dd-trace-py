@@ -13,6 +13,7 @@ import threading
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .settings import config
 
 
 log = get_logger(__name__)
@@ -61,8 +62,8 @@ PATCH_MODULES = {
     'pylons': False,
     'pyramid': False,
 
-    # Standard library modules off by default
-    'logging': False,
+    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    'logging': config.logs_injection,
 }
 
 _LOCK = threading.Lock()

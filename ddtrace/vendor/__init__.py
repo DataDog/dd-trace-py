@@ -13,12 +13,11 @@ six
 
 Website: https://six.readthedocs.io/
 Source: https://github.com/benjaminp/six
-Version: 1.11.0
+Version: 1.14.0
 License: MIT
 
 Notes:
   `six/__init__.py` is just the source code's `six.py`
-  `curl https://raw.githubusercontent.com/benjaminp/six/1.11.0/six.py > ddtrace/vendor/six/__init__.py`
 
 
 wrapt
@@ -26,12 +25,10 @@ wrapt
 
 Website: https://wrapt.readthedocs.io/en/latest/
 Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.11.1
+Version: 1.12.1
 License: BSD 2-Clause "Simplified" License
 
 Notes:
-  `wrapt/__init__.py` was updated to include a copy of `wrapt`'s license: https://github.com/GrahamDumpleton/wrapt/blob/1.11.1/LICENSE
-
   `setup.py` will attempt to build the `wrapt/_wrappers.c` C module
 
 dogstatsd
@@ -80,7 +77,14 @@ Source: https://github.com/giampaolo/psutil
 Version: 5.6.7
 License: BSD 3
 
-Notes:
+attrs
+-----
+
+Website: http://www.attrs.org/
+Source: https://github.com/python-attrs/attrs
+Version: 19.3.0
+License: MIT
+
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger

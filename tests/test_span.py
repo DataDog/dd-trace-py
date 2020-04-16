@@ -5,7 +5,10 @@ import pytest
 from unittest.case import SkipTest
 
 from ddtrace.context import Context
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ddtrace.constants import (
+    ANALYTICS_SAMPLE_RATE_KEY, VERSION_KEY,
+    SERVICE_VERSION_KEY, SPAN_MEASURED_KEY, ENV_KEY,
+)
 from ddtrace.span import Span
 from ddtrace.ext import SpanTypes, errors, priority
 from .base import BaseTracerTestCase
@@ -422,6 +425,21 @@ class SpanTestCase(BaseTracerTestCase):
         assert s.duration_ns == 1000000000
         assert s.duration == 1
 
+    def test_set_tag_version(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(VERSION_KEY, '1.2.3')
+        assert s.get_tag(VERSION_KEY) == '1.2.3'
+        assert s.get_tag(SERVICE_VERSION_KEY) is None
+
+        s.set_tag(SERVICE_VERSION_KEY, 'service.version')
+        assert s.get_tag(VERSION_KEY) == 'service.version'
+        assert s.get_tag(SERVICE_VERSION_KEY) == 'service.version'
+
+    def test_set_tag_env(self):
+        s = Span(tracer=None, name='test.span')
+        s.set_tag(ENV_KEY, 'prod')
+        assert s.get_tag(ENV_KEY) == 'prod'
+
 
 @pytest.mark.parametrize(
     "value,assertion",
@@ -469,3 +487,20 @@ def test_set_tag_measured_change_value():
 
     s.set_tag(SPAN_MEASURED_KEY)
     assert_is_measured(s)
+
+
+@mock.patch('ddtrace.span.log')
+def test_span_key(span_log):
+    # Span tag keys must be strings
+    s = Span(tracer=None, name="test.span")
+
+    s.set_tag(123, True)
+    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", 123, True)
+    assert s.get_tag(123) is None
+    assert s.get_tag("123") is None
+
+    span_log.reset_mock()
+
+    s.set_tag(None, "val")
+    span_log.warning.assert_called_once_with("Ignoring tag pair %s:%s. Key must be a string.", None, "val")
+    assert s.get_tag(123.32) is None

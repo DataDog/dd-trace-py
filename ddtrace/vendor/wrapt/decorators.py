@@ -6,16 +6,8 @@ as well as some commonly used decorators.
 import sys
 
 PY2 = sys.version_info[0] == 2
-PY3 = sys.version_info[0] == 3
 
-if PY3:
-    string_types = str,
-
-    import builtins
-    exec_ = getattr(builtins, "exec")
-    del builtins
-
-else:
+if PY2:
     string_types = basestring,
 
     def exec_(_code_, _globs_=None, _locs_=None):
@@ -29,6 +21,14 @@ else:
         elif _locs_ is None:
             _locs_ = _globs_
         exec("""exec _code_ in _globs_, _locs_""")
+
+else:
+    string_types = str,
+
+    import builtins
+
+    exec_ = getattr(builtins, "exec")
+    del builtins
 
 from functools import partial
 from inspect import ismethod, isclass, formatargspec
@@ -99,11 +99,6 @@ class _AdapterFunctionSurrogate(CallableObjectProxy):
         if 'signature' not in globals():
             return self._self_adapter.__signature__
         else:
-            # Can't allow this to fail on Python 3 else it falls
-            # through to using __wrapped__, but that will be the
-            # wrong function we want to derive the signature
-            # from. Thus generate the signature ourselves.
-
             return signature(self._self_adapter)
 
     if PY2:
@@ -116,6 +111,13 @@ class _BoundAdapterWrapper(BoundFunctionWrapper):
     def __func__(self):
         return _AdapterFunctionSurrogate(self.__wrapped__.__func__,
                 self._self_parent._self_adapter)
+
+    @property
+    def __signature__(self):
+        if 'signature' not in globals():
+            return self.__wrapped__.__signature__
+        else:
+            return signature(self._self_parent._self_adapter)
 
     if PY2:
         im_func = __func__
@@ -393,9 +395,12 @@ def decorator(wrapper=None, enabled=None, adapter=None):
 
         # We first return our magic function wrapper here so we can
         # determine in what context the decorator factory was used. In
-        # other words, it is itself a universal decorator.
+        # other words, it is itself a universal decorator. The decorator
+        # function is used as the adapter so that linters see a signature
+        # corresponding to the decorator and not the wrapper it is being
+        # applied to.
 
-        return _build(wrapper, _wrapper)
+        return _build(wrapper, _wrapper, adapter=decorator)
 
     else:
         # The wrapper still has not been provided, so we are just
@@ -493,7 +498,7 @@ def synchronized(wrapped):
         # desired context is held. If instance is None then the
         # wrapped function is used as the context.
 
-        with _synchronized_lock(instance or wrapped):
+        with _synchronized_lock(instance if instance is not None else wrapped):
             return wrapped(*args, **kwargs)
 
     class _FinalDecorator(FunctionWrapper):

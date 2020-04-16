@@ -317,3 +317,14 @@ class TestMolten(BaseTracerTestCase):
         molten_client()
         spans = self.tracer.writer.pop()
         self.assertTrue(len(spans) > 0)
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The molten integration should use it as the service name
+        """
+        molten_client()
+        spans = self.tracer.writer.pop()
+        for span in spans:
+            assert span.service == "mysvc"

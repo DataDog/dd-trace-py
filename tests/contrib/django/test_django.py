@@ -1,5 +1,5 @@
 import django
-from django.test import modify_settings
+from django.test import modify_settings, override_settings
 import os
 import pytest
 
@@ -116,6 +116,17 @@ def test_v1XX_middleware(client, test_spans):
     middleware_spans = sorted(middleware_spans, key=lambda s: s.start)
     span_resources = [s.resource for s in middleware_spans]
     assert span_resources == expected_resources
+
+
+def test_disallowed_host(client, test_spans):
+    with override_settings(ALLOWED_HOSTS="not-testserver"):
+        resp = client.get("/")
+        assert resp.status_code == 400
+        assert b"Bad Request (400)" in resp.content
+
+    root_span = test_spans.get_root_span()
+    assert root_span.get_tag("http.status_code") == "400"
+    assert root_span.get_tag("http.url") == "http://testserver/"
 
 
 """
@@ -403,6 +414,19 @@ def test_middleware_trace_errors(client, test_spans):
         assert span.resource == "GET ^fail-view/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.ForbiddenView"
+
+
+def test_middleware_trace_staticmethod(client, test_spans):
+    # ensures that the internals are properly traced
+    assert client.get("/static-method-view/").status_code == 200
+
+    span = test_spans.get_root_span()
+    assert span.get_tag("http.status_code") == "200"
+    assert span.get_tag(http.URL) == "http://testserver/static-method-view/"
+    if django.VERSION >= (2, 2, 0):
+        assert span.resource == "GET ^static-method-view/$"
+    else:
+        assert span.resource == "GET tests.contrib.django.views.StaticMethodView"
 
 
 def test_middleware_trace_partial_based_view(client, test_spans):
@@ -1202,3 +1226,36 @@ def test_urlpatterns_repath(client, test_spans):
 
     # Ensure the view was traced
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.django_db
+def test_user_name_included(client, test_spans):
+    """
+    When making a request to a Django app with user name included
+        We correctly add the `django.user.name` tag to the root span
+    """
+    resp = client.get("/authenticated/")
+    assert resp.status_code == 200
+
+    # user name should be present in root span tags
+    root = test_spans.get_root_span()
+    assert root.meta.get("django.user.name") == "Jane Doe"
+    assert root.meta.get("django.user.is_authenticated") == "True"
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.django_db
+def test_user_name_excluded(client, test_spans):
+    """
+    When making a request to a Django app with user name excluded
+        We correctly omit the `django.user.name` tag to the root span
+    """
+    with BaseTestCase.override_config("django", dict(include_user_name=False)):
+        resp = client.get("/authenticated/")
+    assert resp.status_code == 200
+
+    # user name should not be present in root span tags
+    root = test_spans.get_root_span()
+    assert "django.user.name" not in root.meta
+    assert root.meta.get("django.user.is_authenticated") == "True"

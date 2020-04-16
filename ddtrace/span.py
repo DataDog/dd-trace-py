@@ -3,8 +3,13 @@ import random
 import sys
 import traceback
 
+from .vendor import six
 from .compat import StringIO, stringify, iteritems, numeric_types, time_ns, is_integer
-from .constants import NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY, SPAN_MEASURED_KEY
+from .constants import (
+    NUMERIC_TAGS, MANUAL_DROP_KEY, MANUAL_KEEP_KEY,
+    VERSION_KEY, SERVICE_VERSION_KEY, SPAN_MEASURED_KEY,
+    SERVICE_KEY,
+)
 from .ext import SpanTypes, errors, priority, net, http
 from .internal.logger import get_logger
 
@@ -155,10 +160,20 @@ class Span(object):
                         log.exception('error recording finished trace')
 
     def set_tag(self, key, value=None):
-        """ Set the given key / value tag pair on the span. Keys and values
-            must be strings (or stringable). If a casting error occurs, it will
-            be ignored.
+        """Set a tag key/value pair on the span.
+
+        Keys must be strings, values must be ``stringify``-able.
+
+        :param key: Key to use for the tag
+        :type key: str
+        :param value: Value to assign for the tag
+        :type value: ``stringify``-able value
         """
+
+        if not isinstance(key, six.string_types):
+            log.warning("Ignoring tag pair %s:%s. Key must be a string.", key, value)
+            return
+
         # Special case, force `http.status_code` as a string
         # DEV: `http.status_code` *has* to be in `meta` for metrics
         #   calculated in the trace agent
@@ -166,20 +181,20 @@ class Span(object):
             value = str(value)
 
         # Determine once up front
-        is_an_int = is_integer(value)
+        val_is_an_int = is_integer(value)
 
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         INT_TYPES = (net.TARGET_PORT, )
-        if key in INT_TYPES and not is_an_int:
+        if key in INT_TYPES and not val_is_an_int:
             try:
                 value = int(value)
-                is_an_int = True
+                val_is_an_int = True
             except (ValueError, TypeError):
                 pass
 
         # Set integers that are less than equal to 2^53 as metrics
-        if is_an_int and abs(value) <= 2 ** 53:
+        if val_is_an_int and abs(value) <= 2 ** 53:
             self.set_metric(key, value)
             return
 
@@ -194,7 +209,7 @@ class Span(object):
                 # DEV: `set_metric` will try to cast to `float()` for us
                 self.set_metric(key, value)
             except (TypeError, ValueError):
-                log.debug('error setting numeric metric %s:%s', key, value)
+                log.warning("error setting numeric metric %s:%s", key, value)
 
             return
 
@@ -204,6 +219,12 @@ class Span(object):
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = priority.USER_REJECT
             return
+        elif key == SERVICE_KEY:
+            self.service = value
+        elif key == SERVICE_VERSION_KEY:
+            # Also set the `version` tag to the same value
+            # DEV: Note that we do no return, we want to set both
+            self.set_tag(VERSION_KEY, value)
         elif key == SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
@@ -217,7 +238,7 @@ class Span(object):
             if key in self.metrics:
                 del self.metrics[key]
         except Exception:
-            log.debug('error setting tag %s, ignoring it', key, exc_info=True)
+            log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     def _remove_tag(self, key):
         if key in self.meta:

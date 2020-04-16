@@ -31,7 +31,6 @@ To change Celery service name, you can use the ``Config`` API as follows::
 By default, reported service names are:
     * ``celery-producer`` when tasks are enqueued for processing
     * ``celery-worker`` when tasks are processed by a Celery process
-
 """
 from ...utils.importlib import require_modules
 

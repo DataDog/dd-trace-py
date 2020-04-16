@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools >= 40.6.0", "setuptools-scm", "cython"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 120
-target_version = ['py27', 'py34', 'py35', 'py36', 'py37', 'py38']
+target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
 exclude = '''
 (
   \.eggs
@@ -15,7 +19,7 @@ exclude = '''
   | build/
   | dist/
   | ddtrace/(
-    [^/]+\.py
+    (?!compat\.py$)[^/]+\.py$
     | commands/
     | contrib/
     (
@@ -49,7 +53,6 @@ exclude = '''
       | httplib
       | jinja2
       | kombu
-      | logging
       | mako
       | molten
       | mongoengine
@@ -81,6 +84,7 @@ exclude = '''
     | ext/
     | http/
     | opentracer/
+    | profiling/exporter/pprof_pb2.py$
     | propagation/
     | settings/
     | vendor/
@@ -101,7 +105,6 @@ exclude = '''
       | botocore
       | bottle
       | cassandra
-      | celery
       | config.py
       | consul
       | dbapi
@@ -116,7 +119,6 @@ exclude = '''
       | httplib
       | jinja2
       | kombu
-      | logging
       | mako
       | molten
       | mongoengine
@@ -167,6 +169,7 @@ exclude = '''
       | test_tracer_tornado.py
       | test_utils.py
     )
+    | profiling/_ast_test_file.py
     | propagation/test_utils.py
     | subprocesstest.py
     | test_api.py

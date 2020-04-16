@@ -4,7 +4,6 @@ tests for Tracer and utilities.
 import contextlib
 import multiprocessing
 from os import getpid
-import sys
 import warnings
 
 from unittest.case import SkipTest
@@ -15,11 +14,13 @@ import pytest
 import ddtrace
 from ddtrace.ext import system
 from ddtrace.context import Context
+from ddtrace.constants import VERSION_KEY, ENV_KEY
 
+from tests.subprocesstest import run_in_subprocess
 from .base import BaseTracerTestCase
-from .util import override_global_tracer
 from .utils.tracer import DummyTracer
 from .utils.tracer import DummyWriter  # noqa
+from ddtrace.internal.writer import LogWriter, AgentWriter
 
 
 def get_dummy_tracer():
@@ -388,6 +389,40 @@ class TracerTestCase(BaseTracerTestCase):
             span_type='http',
         )
 
+    def test_start_span_service_default(self):
+        span = self.start_span("")
+        span.assert_matches(
+            service=None
+        )
+
+    def test_start_span_service_from_parent(self):
+        with self.start_span("parent", service="mysvc") as parent:
+            child = self.start_span("child", child_of=parent)
+
+        child.assert_matches(
+            name="child",
+            service="mysvc",
+        )
+
+    def test_start_span_service_global_config(self):
+        # When no service is provided a default
+        with self.override_global_config(dict(service="mysvc")):
+            span = self.start_span("")
+            span.assert_matches(
+                service="mysvc"
+            )
+
+    def test_start_span_service_global_config_parent(self):
+        # Parent should have precedence over global config
+        with self.override_global_config(dict(service="mysvc")):
+            with self.start_span("parent", service="parentsvc") as parent:
+                child = self.start_span("child", child_of=parent)
+
+        child.assert_matches(
+            name="child",
+            service="parentsvc",
+        )
+
     def test_start_child_span(self):
         # it should create a child Span for the given parent
         parent = self.start_span('web.request')
@@ -520,42 +555,6 @@ class TracerTestCase(BaseTracerTestCase):
             self.assertIsNone(child.get_tag('language'))
 
 
-def test_installed_excepthook():
-    ddtrace.install_excepthook()
-    assert sys.excepthook is ddtrace._excepthook
-    ddtrace.uninstall_excepthook()
-    assert sys.excepthook is not ddtrace._excepthook
-    ddtrace.install_excepthook()
-    assert sys.excepthook is ddtrace._excepthook
-
-
-def test_excepthook():
-    ddtrace.install_excepthook()
-
-    class Foobar(Exception):
-        pass
-
-    called = {}
-
-    def original(tp, value, traceback):
-        called['yes'] = True
-
-    sys.excepthook = original
-    ddtrace.install_excepthook()
-
-    e = Foobar()
-
-    tracer = ddtrace.Tracer()
-    tracer._dogstatsd_client = mock.Mock()
-    with override_global_tracer(tracer):
-        sys.excepthook(e.__class__, e, None)
-
-    tracer._dogstatsd_client.increment.assert_has_calls((
-        mock.call('datadog.tracer.uncaught_exceptions', 1, tags=['class:Foobar']),
-    ))
-    assert called
-
-
 def test_tracer_url():
     t = ddtrace.Tracer()
     assert t.writer.api.hostname == 'localhost'
@@ -581,6 +580,58 @@ def test_tracer_url():
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(url='foo://foobar:12')
         assert str(e) == 'Unknown scheme `https` for agent URL'
+
+
+def test_tracer_shutdown_no_timeout():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+
+    # The writer thread does not start until the first write.
+    t.shutdown()
+    assert not t.writer.stop.called
+    assert not t.writer.join.called
+
+    # Do a write to start the writer.
+    with t.trace("something"):
+        pass
+    t.shutdown()
+    t.writer.stop.assert_called_once_with()
+    t.writer.join.assert_called_once_with(timeout=None)
+
+
+def test_tracer_configure_writer_stop_unstarted():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Make sure we aren't calling stop for an unstarted writer
+    t.configure(hostname="localhost", port=8126)
+    assert not orig_writer.stop.called
+
+
+def test_tracer_configure_writer_stop_started():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+    orig_writer = t.writer
+
+    # Do a write to start the writer
+    with t.trace("something"):
+        pass
+
+    t.configure(hostname="localhost", port=8126)
+    orig_writer.stop.assert_called_once_with()
+
+
+def test_tracer_shutdown_timeout():
+    t = ddtrace.Tracer()
+    t.writer = mock.Mock(wraps=t.writer)
+
+    with t.trace("something"):
+        pass
+
+    t.shutdown(timeout=2)
+    t.writer.stop.assert_called_once_with()
+    t.writer.join.assert_called_once_with(timeout=2)
 
 
 def test_tracer_dogstatsd_url():
@@ -630,7 +681,7 @@ def test_tracer_fork():
                 assert t.writer._trace_queue != original_writer._trace_queue
 
         # Assert the trace got written into the correct queue
-        assert original_writer._trace_queue.qsize() == 0
+        assert original_writer._trace_queue.empty()
         assert t.writer._trace_queue.qsize() == 1
         assert [[span]] == list(t.writer._trace_queue.get())
 
@@ -642,8 +693,7 @@ def test_tracer_fork():
     finally:
         p.join(timeout=2)
 
-    while errors.qsize() > 0:
-        raise errors.get()
+    assert errors.empty(), errors.get()
 
     # Ensure writing into the tracer in this process still works as expected
     with t.trace('test', service='test') as span:
@@ -655,3 +705,239 @@ def test_tracer_fork():
     assert original_writer._trace_queue.qsize() == 1
     assert t.writer._trace_queue.qsize() == 1
     assert [[span]] == list(t.writer._trace_queue.get())
+
+
+def test_tracer_trace_across_fork():
+    """
+    When a trace is started in a parent process and a child process is spawned
+        The trace should be continued in the child process
+    """
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    def task(tracer, q):
+        tracer.writer = DummyWriter()
+        with tracer.trace("child"):
+            pass
+        spans = tracer.writer.pop()
+        q.put([dict(trace_id=s.trace_id, parent_id=s.parent_id) for s in spans])
+
+    # Assert tracer in a new process correctly recreates the writer
+    q = multiprocessing.Queue()
+    with tracer.trace("parent") as parent:
+        p = multiprocessing.Process(target=task, args=(tracer, q))
+        p.start()
+        p.join()
+
+    children = q.get()
+    assert len(children) == 1
+    child, = children
+    assert parent.trace_id == child["trace_id"]
+    assert child["parent_id"] == parent.span_id
+
+
+def test_tracer_trace_across_multiple_forks():
+    """
+    When a trace is started and crosses multiple process boundaries
+        The trace should be continued in the child processes
+    """
+    tracer = ddtrace.Tracer()
+    tracer.writer = DummyWriter()
+
+    # Start a span in this process then start a child process which itself
+    # starts a span and spawns another child process which starts a span.
+    def task(tracer, q):
+        tracer.writer = DummyWriter()
+
+        def task2(tracer, q):
+            tracer.writer = DummyWriter()
+
+            with tracer.trace("child2"):
+                pass
+
+            spans = tracer.writer.pop()
+            q.put([dict(trace_id=s.trace_id, parent_id=s.parent_id) for s in spans])
+
+        with tracer.trace("child1"):
+            q2 = multiprocessing.Queue()
+            p = multiprocessing.Process(target=task2, args=(tracer, q2))
+            p.start()
+            p.join()
+
+        task2_spans = q2.get()
+        spans = tracer.writer.pop()
+        q.put([
+            dict(trace_id=s.trace_id, parent_id=s.parent_id, span_id=s.span_id)
+            for s in spans
+        ] + task2_spans)
+
+    # Assert tracer in a new process correctly recreates the writer
+    q = multiprocessing.Queue()
+    with tracer.trace("parent") as parent:
+        p = multiprocessing.Process(target=task, args=(tracer, q))
+        p.start()
+        p.join()
+
+    children = q.get()
+    assert len(children) == 2
+    child1, child2 = children
+    assert parent.trace_id == child1["trace_id"] == child2["trace_id"]
+    assert child1["parent_id"] == parent.span_id
+    assert child2["parent_id"] == child1["span_id"]
+
+
+def test_tracer_with_version():
+    t = ddtrace.Tracer()
+
+    # With global `config.version` defined
+    with BaseTracerTestCase.override_global_config(dict(version='1.2.3')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+            # override manually
+            span.set_tag(VERSION_KEY, '4.5.6')
+            assert span.get_tag(VERSION_KEY) == '4.5.6'
+
+    # With no `config.version` defined
+    with t.trace('test.span') as span:
+        assert span.get_tag(VERSION_KEY) is None
+
+        # explicitly set in the span
+        span.set_tag(VERSION_KEY, '1.2.3')
+        assert span.get_tag(VERSION_KEY) == '1.2.3'
+
+    # With global tags set
+    t.set_tags({VERSION_KEY: 'tags.version'})
+    with BaseTracerTestCase.override_global_config(dict(version='config.version')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(VERSION_KEY) == 'config.version'
+
+
+def test_tracer_with_env():
+    t = ddtrace.Tracer()
+
+    # With global `config.env` defined
+    with BaseTracerTestCase.override_global_config(dict(env='prod')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(ENV_KEY) == 'prod'
+
+            # override manually
+            span.set_tag(ENV_KEY, 'prod-staging')
+            assert span.get_tag(ENV_KEY) == 'prod-staging'
+
+    # With no `config.env` defined
+    with t.trace('test.span') as span:
+        assert span.get_tag(ENV_KEY) is None
+
+        # explicitly set in the span
+        span.set_tag(ENV_KEY, 'prod-staging')
+        assert span.get_tag(ENV_KEY) == 'prod-staging'
+
+    # With global tags set
+    t.set_tags({ENV_KEY: 'tags.env'})
+    with BaseTracerTestCase.override_global_config(dict(env='config.env')):
+        with t.trace('test.span') as span:
+            assert span.get_tag(ENV_KEY) == 'config.env'
+
+
+class EnvTracerTestCase(BaseTracerTestCase):
+    """Tracer test cases requiring environment variables.
+    """
+    @run_in_subprocess(env_overrides=dict(DATADOG_SERVICE_NAME="mysvc"))
+    def test_service_name_legacy_DATADOG_SERVICE_NAME(self):
+        """
+        When DATADOG_SERVICE_NAME is provided
+            It should not be used by default
+            It should be used with config._get_service()
+        """
+        from ddtrace import config
+        assert config.service is None
+        with self.start_span("") as s:
+            s.assert_matches(service=None)
+        with self.start_span("", service=config._get_service()) as s:
+            s.assert_matches(service="mysvc")
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE_NAME="mysvc"))
+    def test_service_name_legacy_DD_SERVICE_NAME(self):
+        """
+        When DD_SERVICE_NAME is provided
+            It should not be used by default
+            It should be used with config._get_service()
+        """
+        from ddtrace import config
+        assert config.service is None
+        with self.start_span("") as s:
+            s.assert_matches(service=None)
+        with self.start_span("", service=config._get_service()) as s:
+            s.assert_matches(service="mysvc")
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env(self):
+        span = self.start_span("")
+        span.assert_matches(
+            service="mysvc",
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_service_name_env_global_config(self):
+        # Global config should have higher precedence than the environment variable
+        with self.override_global_config(dict(service="overridesvc")):
+            span = self.start_span("")
+        span.assert_matches(
+            service="overridesvc",
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_VERSION="0.1.2"))
+    def test_version_no_global_service(self):
+        # Version should be set if no service name is present
+        with self.trace("") as span:
+            span.assert_matches(
+                meta={
+                    VERSION_KEY: "0.1.2",
+                },
+            )
+
+        # The version will not be tagged if the service is not globally
+        # configured.
+        with self.trace("root", service="rootsvc") as root:
+            assert VERSION_KEY not in root.meta
+            with self.trace("child") as span:
+                assert VERSION_KEY not in span.meta
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
+    def test_version_service(self):
+        # Fleshed out example of service and version tagging
+
+        # Our app is called django, we provide DD_SERVICE=django and DD_VERSION=0.1.2
+
+        with self.trace("django.request") as root:
+            # Root span should be tagged
+            assert root.service == "django"
+            assert VERSION_KEY in root.meta and root.meta[VERSION_KEY] == "0.1.2"
+
+            # Child spans should be tagged
+            with self.trace("") as child1:
+                assert child1.service == "django"
+                assert VERSION_KEY in child1.meta and child1.meta[VERSION_KEY] == "0.1.2"
+
+            # Version should not be applied to spans of a service that isn't user-defined
+            with self.trace("mysql.query", service="mysql") as span:
+                assert VERSION_KEY not in span.meta
+                # Child should also not have a version
+                with self.trace("") as child2:
+                    assert child2.service == "mysql"
+                    assert VERSION_KEY not in child2.meta
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_detect_agentless_env(self):
+        assert isinstance(self.tracer.original_writer, LogWriter)
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
+    def test_detect_agent_config(self):
+        assert isinstance(self.tracer.original_writer, AgentWriter)
+
+
+def test_tracer_custom_max_traces(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_MAX_TPS", "2000")
+    tracer = ddtrace.Tracer()
+    assert tracer.writer._trace_queue.maxsize == 2000

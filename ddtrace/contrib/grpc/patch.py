@@ -1,5 +1,4 @@
 import grpc
-import os
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ddtrace import config, Pin
@@ -12,7 +11,7 @@ from .server_interceptor import create_server_interceptor
 
 
 config._add('grpc_server', dict(
-    service_name=os.environ.get('DATADOG_SERVICE_NAME', constants.GRPC_SERVICE_SERVER),
+    service_name=config._get_service(default=constants.GRPC_SERVICE_SERVER),
     distributed_tracing_enabled=True,
 ))
 
@@ -20,8 +19,8 @@ config._add('grpc_server', dict(
 # compatibility but should change in future
 config._add('grpc', dict(
     service_name='{}-{}'.format(
-        os.environ.get('DATADOG_SERVICE_NAME'), constants.GRPC_SERVICE_CLIENT
-    ) if os.environ.get('DATADOG_SERVICE_NAME') else constants.GRPC_SERVICE_CLIENT,
+        config._get_service(), constants.GRPC_SERVICE_CLIENT
+    ) if config._get_service() else constants.GRPC_SERVICE_CLIENT,
     distributed_tracing_enabled=True,
 ))
 
