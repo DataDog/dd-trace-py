@@ -27,6 +27,7 @@ DEFAULT_CONFIG = {
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
     keys.PRIORITY_SAMPLING: None,
+    keys.UDS_PATH: None,
     keys.SETTINGS: {
         FILTERS_KEY: [],
     },
@@ -89,6 +90,7 @@ class Tracer(opentracing.Tracer):
                                   sampler=self._config.get(keys.SAMPLER),
                                   settings=self._config.get(keys.SETTINGS),
                                   priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
+                                  uds_path=self._config.get(keys.UDS_PATH),
                                   context_provider=dd_context_provider,
                                   )
         self._propagators = {

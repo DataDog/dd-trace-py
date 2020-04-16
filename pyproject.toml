@@ -105,7 +105,6 @@ exclude = '''
       | botocore
       | bottle
       | cassandra
-      | celery
       | config.py
       | consul
       | dbapi

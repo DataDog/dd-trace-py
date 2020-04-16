@@ -1,7 +1,7 @@
 import logging
 import threading
 
-from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, LOG_SPAN_KEY
 from .internal.logger import get_logger
 from .internal import hostname
 from .settings import config
@@ -139,12 +139,13 @@ class Context(object):
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
             if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
+                extra = {LOG_SPAN_KEY: span}
                 unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
                     log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans))
+                              span.name, len(unfinished_spans), extra=extra)
                     for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint())
+                        log.debug('\n%s', wrong_span.pprint(), extra=extra)
 
     def _is_sampled(self):
         return any(span.sampled for span in self._trace)

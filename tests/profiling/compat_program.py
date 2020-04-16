@@ -4,7 +4,7 @@ import time
 import ddtrace.profile.auto  # noqa
 
 from ddtrace.profile import bootstrap
-from ddtrace.profile import collector
+from ddtrace.profile import collector  # noqa
 from ddtrace.profile.collector import stack
 
 for running_collector in bootstrap.profiler.collectors:
@@ -15,7 +15,6 @@ else:
 
 
 print("hello world")
-assert running_collector.status == collector.CollectorStatus.RUNNING
 print(running_collector.interval)
 
 t0 = time.time()

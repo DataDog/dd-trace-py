@@ -395,7 +395,7 @@ def test_ppprof_exporter():
     exp = pprof.PprofExporter()
     exp._get_program_name = mock.Mock()
     exp._get_program_name.return_value = "bonjour"
-    exports = exp.export(TEST_EVENTS)
+    exports = exp.export(TEST_EVENTS, 1, 7)
     if tracemalloc:
         if stack.FEATURES["stack-exceptions"]:
             filename = "test-pprof-exporter_tracemalloc+stack-exceptions.txt"
@@ -410,7 +410,7 @@ def test_ppprof_exporter():
 
 def test_pprof_exporter_empty():
     exp = pprof.PprofExporter()
-    export = exp.export({})
+    export = exp.export({}, 0, 1)
     assert len(export.sample) == 0
 
 
@@ -575,5 +575,5 @@ period_type {
   unit: 8
 }
 """ == str(
-            exp.export(events)
+            exp.export(events, 1, 2)
         )
