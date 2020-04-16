@@ -349,16 +349,9 @@ class Tracer(object):
         if parent:
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
-            parent_service = parent.service
-            parent_sampled = parent.sampled
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
-            parent_service = context._service
-            parent_sampled = context.is_sampled()
-
-        # when not provided, inherit from parent's service
-        service = service or parent_service
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -371,7 +364,7 @@ class Tracer(object):
                 service = parent.service
             else:
                 # ``config`` is initialized with DD_SERVICE env var if it exists.
-                service = context._service or config.service
+                service = config.service
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -386,7 +379,6 @@ class Tracer(object):
             )
 
             # Extra attributes when from a local parent
-            span.sampled = parent_sampled
             if parent:
                 span._parent = parent
 

@@ -42,14 +42,8 @@ class Context(object):
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
-        self._parent_service = None
-        self._parent_sampled = True
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
-
-    @property
-    def _service(self):
-        return self._parent_service
 
     @property
     def trace_id(self):
@@ -113,8 +107,6 @@ class Context(object):
         if span:
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
-            self._parent_sampled = span.sampled
-            self._parent_service = span.service
         else:
             self._parent_span_id = None
 
@@ -154,7 +146,7 @@ class Context(object):
                         log.debug('\n%s', wrong_span.pprint(), extra=extra)
 
     def _is_sampled(self):
-        return any(span.sampled for span in self._trace) if self._trace else self._parent_sampled
+        return any(span.sampled for span in self._trace)
 
     def get(self):
         """
@@ -188,10 +180,7 @@ class Context(object):
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
-                # TODO: validate these can be nulled safely
                 self._parent_trace_id = None
-                self._parent_sampled = None
-                self._parent_service = None
                 self._parent_span_id = None
                 self._sampling_priority = None
                 return trace, sampled
