@@ -49,4 +49,4 @@ class AiopgTestCase(AsyncioTestCase):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == 'postgres.query'
+        assert span.name == 'postgres.execute'
