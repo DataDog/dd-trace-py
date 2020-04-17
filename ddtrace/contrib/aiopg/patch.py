@@ -20,7 +20,6 @@ def _create_pin(tags):
     pin = Pin.get_from(aiopg)
     service = pin.service if pin and pin.service else 'postgres_%s' % tags[db.NAME]
     app = pin.app if pin and pin.app else 'postgres'
-    app_type = pin.app_type if pin and pin.app_type else 'db'
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
@@ -28,7 +27,7 @@ def _create_pin(tags):
         tags = dict(tags)
         tags.update(pin.tags)
 
-    return Pin(service=service, app=app, app_type=app_type, tags=tags,
+    return Pin(service=service, app=app, app_type=sql.APP_TYPE, tags=tags,
                tracer=tracer)
 
 

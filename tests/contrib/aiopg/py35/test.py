@@ -7,7 +7,7 @@ from ddtrace import Pin
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio, mark_sync
+from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
@@ -58,7 +58,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         # https://github.com/DataDog/dd-trace-py/issues/228
         yield from self._test_cursor_ctx_manager()
 
-    @mark_sync
+    @mark_asyncio
     async def test_pool(self):
         Pin(None, tracer=self.tracer).onto(aiopg)
 

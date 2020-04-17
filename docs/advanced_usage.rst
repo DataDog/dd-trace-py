@@ -212,6 +212,8 @@ For most libraries, APM events can be enabled with the environment variable ``DD
 +----------------------+----------------------------------------+
 | :ref:`aiopg`         | ``DD_AIOPG_ANALYTICS_ENABLED``         |
 +----------------------+----------------------------------------+
+| :ref:`asyncpg`       | ``DD_ASYNCPG_ANALYTICS_ENABLED``       |
++----------------------+----------------------------------------+
 | :ref:`boto`          | ``DD_BOTO_ANALYTICS_ENABLED``          |
 +----------------------+----------------------------------------+
 | :ref:`botocore`      | ``DD_BOTOCORE_ANALYTICS_ENABLED``      |

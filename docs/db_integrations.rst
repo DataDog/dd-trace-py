@@ -132,7 +132,7 @@ psycopg
 
 .. automodule:: ddtrace.contrib.psycopg
 
-.. asyncpg:
+.. _asyncpg:
 
 asyncpg
 ^^^^^^^

@@ -1,10 +1,15 @@
-from enum import Enum
+from enum import Enum, unique
 
 from ..vendor.debtcollector import removals
 from ..utils import removed_classproperty
 
 
-class SpanTypes(Enum):
+class StrEnum(str, Enum):
+    pass
+
+
+@unique
+class SpanTypes(StrEnum):
     CACHE = "cache"
     CASSANDRA = "cassandra"
     ELASTICSEARCH = "elasticsearch"
