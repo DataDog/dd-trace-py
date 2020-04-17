@@ -349,13 +349,9 @@ class Tracer(object):
         if parent:
             trace_id = parent.trace_id
             parent_span_id = parent.span_id
-            parent_service = parent.service
-            parent_sampled = parent.sampled
         else:
             trace_id = context.trace_id
             parent_span_id = context.span_id
-            parent_service = context.service
-            parent_sampled = True
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -383,8 +379,8 @@ class Tracer(object):
             )
 
             # Extra attributes when from a local parent
-            span.sampled = parent_sampled
             if parent:
+                span.sampled = parent.sampled
                 span._parent = parent
 
         else:

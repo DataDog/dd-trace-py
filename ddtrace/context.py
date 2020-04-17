@@ -28,7 +28,7 @@ class Context(object):
     _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
     _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
 
-    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None, service=None):
+    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
         """
         Initialize a new thread-safe ``Context``.
 
@@ -42,7 +42,6 @@ class Context(object):
 
         self._parent_trace_id = trace_id
         self._parent_span_id = span_id
-        self._parent_service = service
         self._sampling_priority = sampling_priority
         self._dd_origin = _dd_origin
 
@@ -57,12 +56,6 @@ class Context(object):
         """Return current context span_id."""
         with self._lock:
             return self._parent_span_id
-
-    @property
-    def service(self):
-        """Return current service."""
-        with self._lock:
-            return self._parent_service
 
     @property
     def sampling_priority(self):
@@ -116,7 +109,6 @@ class Context(object):
         if span:
             self._parent_trace_id = span.trace_id
             self._parent_span_id = span.span_id
-            self._parent_service = span.service
         else:
             self._parent_span_id = None
 
@@ -190,7 +182,9 @@ class Context(object):
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
-
+                self._parent_trace_id = None
+                self._parent_span_id = None
+                self._sampling_priority = None
                 return trace, sampled
 
             elif self._partial_flush_enabled:

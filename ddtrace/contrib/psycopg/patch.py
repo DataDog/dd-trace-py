@@ -96,9 +96,9 @@ def _patch_extensions(_extensions):
     # we must patch extensions all the time (it's pretty harmless) so split
     # from global patching of connections. must be idempotent.
     for _, module, func, wrapper in _extensions:
-        if not hasattr(module, func) or isinstance(getattr(module, func), wrapt.ObjectProxy):
+        if not hasattr(module, func) or \
+                isinstance(getattr(module, func), wrapt.ObjectProxy):
             continue
-
         wrapt.wrap_function_wrapper(module, func, wrapper)
 
 
@@ -135,7 +135,6 @@ def _extensions_register_type(func, _, args, kwargs):
 def _extensions_quote_ident(func, _, args, kwargs):
     def _unroll_args(obj, scope=None):
         return obj, scope
-
     obj, scope = _unroll_args(*args, **kwargs)
 
     # register_type performs a c-level check of the object
@@ -150,7 +149,6 @@ def _extensions_adapt(func, _, args, kwargs):
     adapt = func(*args, **kwargs)
     if hasattr(adapt, 'prepare'):
         return AdapterWrapper(adapt)
-
     return adapt
 
 
@@ -159,7 +157,6 @@ class AdapterWrapper(wrapt.ObjectProxy):
         func = self.__wrapped__.prepare
         if not args:
             return func(*args, **kwargs)
-
         conn = args[0]
 
         # prepare performs a c-level check of the object type so

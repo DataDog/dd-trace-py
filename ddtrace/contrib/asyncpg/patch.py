@@ -7,9 +7,9 @@ from asyncpg.protocol import Protocol as orig_Protocol
 import asyncpg.protocol
 import asyncpg.connect_utils
 import asyncpg.pool
-import wrapt
 
 # project
+from ddtrace.vendor import wrapt
 from ddtrace.ext import net, db
 from ddtrace.pin import Pin
 from .connection import AIOTracedProtocol
@@ -23,13 +23,12 @@ def _create_pin(tags):
     db_name = tags.get(db.NAME)
     service = pin.service if pin and pin.service else "postgres_%s" % db_name if db_name else "postgres"
     app = pin.app if pin and pin.app else "postgres"
-    app_type = pin.app_type if pin and pin.app_type else "db"
     tracer = pin.tracer if pin else None
 
     if pin and pin.tags:
         tags = {**tags, **pin.tags}  # noqa: E999
 
-    return Pin(service=service, app=app, app_type=app_type, tags=tags, tracer=tracer)
+    return Pin(service=service, app=app, app_type=sql.APP_TYPE, tags=tags, tracer=tracer)
 
 
 def protocol_factory(protocol_cls, *args, **kwargs):
@@ -56,6 +55,8 @@ def protocol_factory(protocol_cls, *args, **kwargs):
 
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs):
+    assert connect_func != _patched_connect
+
     tags = {
         net.TARGET_HOST: kwargs["addr"][0],
         net.TARGET_PORT: kwargs["addr"][1],
@@ -105,7 +106,7 @@ def _get_parsed_tags(**connect_kwargs):
             db.USER: params.user,
         }
         return tags
-    except:
+    except Exception:
         # This same exception will presumably be raised during the actual conn
         return {}
 

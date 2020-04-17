@@ -125,19 +125,19 @@ aiopg
 
 .. automodule:: ddtrace.contrib.aiopg
 
-
 .. _psycopg2:
-
-asyncpg
-^^^^^
- .. automodule:: ddtrace.contrib.asyncpg
-
 
 psycopg
 ^^^^^^^
 
 .. automodule:: ddtrace.contrib.psycopg
 
+.. _asyncpg:
+
+asyncpg
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.asyncpg
 
 
 Redis
