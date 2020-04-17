@@ -127,6 +127,7 @@ class TestPsycopgPatch(AsyncioTestCase):
     async def test_copy_from(self):
         # This test is here to ensure we don't break the params
         async with self._get_conn_ctx() as conn:
+
             async def consumer(input):
                 pass
 
