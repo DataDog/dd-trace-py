@@ -161,8 +161,11 @@ class TestPsycopgPatch(AsyncioTestCase):
             assert spans[2].name == "postgres.query"
 
             # the ordering changes between python3.5 and later
-            assert {spans[3].name, spans[4].name, spans[5].name} == \
-                   {"postgres.pool.release",  "postgres.query", "postgres.close"}
+            assert {spans[3].name, spans[4].name, spans[5].name} == {
+                "postgres.pool.release",
+                "postgres.query",
+                "postgres.close",
+            }
 
     @mark_asyncio
     async def test_disabled_execute(self):
