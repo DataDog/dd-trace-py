@@ -635,23 +635,14 @@ jobs:
           pattern: '^aiopg_contrib-'
 
   asyncpg:
+    executor: ddtrace_dev
     docker:
-      - *test_runner
-      - image: postgres:10.5-alpine
-        env:
-            - POSTGRES_PASSWORD=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_DB=postgres
+      - image: *ddtrace_dev_image
+      - *postgres_server
     steps:
-      - checkout
-      - *restore_cache_step
-      - run: tox -e 'wait' postgres
-      - run: tox -e 'asyncpg_contrib-{py35,py36}-asyncpg{014}' --result-json /tmp/asyncpg.results
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - asyncpg.results
-      - *save_cache_step
+      - run_tox_scenario:
+          wait: postgres
+          pattern: '^asyncpg_contrib-'
 
   redis:
     executor: ddtrace_dev

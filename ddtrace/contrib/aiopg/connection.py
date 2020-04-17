@@ -27,8 +27,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         name = (pin.app or 'sql') + '.' + method.__name__
         with pin.tracer.trace(name, service=service,
-                              resource=query or self.query.decode('utf-8'), span_type=SpanTypes.SQL) as s:
-            s.set_tag(SPAN_MEASURED_KEY)
+                              resource=query or self.query.decode('utf-8'),
+                              span_type=SpanTypes.SQL) as s:
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -108,9 +108,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __anext__(self):
         result = yield from self.__wrapped__.__anext__()
         return result
-
-    def __aiter__(self):
-        return self.__wrapped__.__aiter__()
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):

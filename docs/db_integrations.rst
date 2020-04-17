@@ -127,17 +127,17 @@ aiopg
 
 .. _psycopg2:
 
-asyncpg
-^^^^^
-
-.. automodule:: ddtrace.contrib.asyncpg
-
-
 psycopg
 ^^^^^^^
 
 .. automodule:: ddtrace.contrib.psycopg
 
+.. asyncpg:
+
+asyncpg
+^^^^^^^
+
+.. automodule:: ddtrace.contrib.asyncpg
 
 
 Redis
