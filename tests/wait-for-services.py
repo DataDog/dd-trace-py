@@ -57,7 +57,6 @@ def check_cassandra():
         conn.execute('SELECT now() FROM system.local')
 
 
-
 @try_until_timeout(Exception)
 def check_mysql():
     conn = mysql.connector.connect(**MYSQL_CONFIG)
