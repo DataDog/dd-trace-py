@@ -21,8 +21,7 @@ def _create_pin(tags):
     # Will propagate info from global pin
     pin = Pin.get_from(asyncpg)
     db_name = tags.get(db.NAME)
-    service = pin.service if pin and pin.service else "postgres_%s" % db_name \
-        if db_name else 'postgres'
+    service = pin.service if pin and pin.service else "postgres_%s" % db_name if db_name else "postgres"
     app = pin.app if pin and pin.app else "postgres"
     app_type = pin.app_type if pin and pin.app_type else "db"
     tracer = pin.tracer if pin else None
@@ -30,8 +29,7 @@ def _create_pin(tags):
     if pin and pin.tags:
         tags = {**tags, **pin.tags}  # noqa: E999
 
-    return Pin(service=service, app=app, app_type=app_type, tags=tags,
-               tracer=tracer)
+    return Pin(service=service, app=app, app_type=app_type, tags=tags, tracer=tracer)
 
 
 def protocol_factory(protocol_cls, *args, **kwargs):
@@ -59,10 +57,10 @@ def protocol_factory(protocol_cls, *args, **kwargs):
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs):
     tags = {
-        net.TARGET_HOST: kwargs['addr'][0],
-        net.TARGET_PORT: kwargs['addr'][1],
-        db.NAME: kwargs['params'].database,
-        db.USER: kwargs['params'].user,
+        net.TARGET_HOST: kwargs["addr"][0],
+        net.TARGET_PORT: kwargs["addr"][1],
+        db.NAME: kwargs["params"].database,
+        db.USER: kwargs["params"].user,
         # "db.application" : dsn.get("application_name"),
     }
 
@@ -72,8 +70,7 @@ def _patched_connect(connect_func, _, args, kwargs):
         conn = yield from connect_func(*args, **kwargs)
         return conn
 
-    with pin.tracer.trace((pin.app or 'sql') + '.connect',
-                          service=pin.service) as s:
+    with pin.tracer.trace((pin.app or "sql") + ".connect", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
@@ -84,13 +81,9 @@ def _patched_connect(connect_func, _, args, kwargs):
 
 
 _connect_args = inspect.signature(asyncpg.connection.connect).parameters
-_parse_connect_dsn_and_args_params = \
-    inspect.signature(
-        asyncpg.connect_utils._parse_connect_dsn_and_args).parameters
+_parse_connect_dsn_and_args_params = inspect.signature(asyncpg.connect_utils._parse_connect_dsn_and_args).parameters
 
-_connect_parse_arg_mapping = {
-    'connect_timeout': 'timeout'
-}
+_connect_parse_arg_mapping = {"connect_timeout": "timeout"}
 
 
 def _get_parsed_tags(**connect_kwargs):
@@ -103,8 +96,7 @@ def _get_parsed_tags(**connect_kwargs):
         parse_args[param_name] = connect_kwargs.get(param_name, default)
 
     try:
-        addrs, params, *_ = asyncpg.connect_utils._parse_connect_dsn_and_args(
-            **parse_args)
+        addrs, params, *_ = asyncpg.connect_utils._parse_connect_dsn_and_args(**parse_args)
 
         tags = {
             net.TARGET_HOST: addrs[0][0],
@@ -130,7 +122,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
         }
     else:
         conn = instance._queue._queue[0]
-        if hasattr(conn, '_connect_kwargs'):
+        if hasattr(conn, "_connect_kwargs"):
             kwargs_copy = dict(conn._connect_kwargs)
             connect_args = conn._connect_args
         else:
@@ -140,7 +132,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
 
         tags = {}
         if len(connect_args) == 1:
-            kwargs_copy['dsn'] = connect_args[0]
+            kwargs_copy["dsn"] = connect_args[0]
             tags = _get_parsed_tags(**kwargs_copy)
         else:
             warnings.warn("Unrecognized parameters to asyncpg connect")
@@ -151,8 +143,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
         conn = yield from acquire_func(*args, **kwargs)
         return conn
 
-    with pin.tracer.trace((pin.app or 'sql') + '.pool.acquire',
-                          service=pin.service) as s:
+    with pin.tracer.trace((pin.app or "sql") + ".pool.acquire", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
         conn = yield from acquire_func(*args, **kwargs)
@@ -176,8 +167,7 @@ def _patched_release(release_func, instance, args, kwargs):
         conn = yield from release_func(*args, **kwargs)
         return conn
 
-    with pin.tracer.trace((pin.app or 'sql') + '.pool.release',
-                          service=pin.service) as s:
+    with pin.tracer.trace((pin.app or "sql") + ".pool.release", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
@@ -190,30 +180,29 @@ def patch():
     """ Patch monkey patches various items in asyncpg so that the requests
     will be traced
     """
-    if getattr(asyncpg, '_datadog_patch', False):
+    if getattr(asyncpg, "_datadog_patch", False):
         return
-    setattr(asyncpg, '_datadog_patch', True)
+    setattr(asyncpg, "_datadog_patch", True)
 
-    wrapt.wrap_object(asyncpg.protocol, 'Protocol', protocol_factory)
+    wrapt.wrap_object(asyncpg.protocol, "Protocol", protocol_factory)
 
     # we use _connect_addr to avoid having to parse the dsn and it gets called
     # once per address (there can be multiple)
-    wrapt.wrap_function_wrapper(asyncpg.connect_utils,
-                                '_connect_addr', _patched_connect)
+    wrapt.wrap_function_wrapper(asyncpg.connect_utils, "_connect_addr", _patched_connect)
 
     # tracing acquire since it may block waiting for a connection from the pool
-    wrapt.wrap_function_wrapper(asyncpg.pool.Pool, '_acquire', _patched_acquire)
+    wrapt.wrap_function_wrapper(asyncpg.pool.Pool, "_acquire", _patched_acquire)
 
     # tracing release to match acquire
-    wrapt.wrap_function_wrapper(asyncpg.pool.Pool, 'release', _patched_release)
+    wrapt.wrap_function_wrapper(asyncpg.pool.Pool, "release", _patched_release)
 
 
 def unpatch():
-    if getattr(asyncpg, '_datadog_patch', False):
-        setattr(asyncpg, '_datadog_patch', False)
-        _u(asyncpg.connect_utils, '_connect_addr')
-        _u(asyncpg.pool.Pool, '_acquire')
-        _u(asyncpg.pool.Pool, 'release')
+    if getattr(asyncpg, "_datadog_patch", False):
+        setattr(asyncpg, "_datadog_patch", False)
+        _u(asyncpg.connect_utils, "_connect_addr")
+        _u(asyncpg.pool.Pool, "_acquire")
+        _u(asyncpg.pool.Pool, "release")
 
         # we can't use unwrap because wrapt does a simple attribute replacement
         asyncpg.protocol.Protocol = orig_Protocol

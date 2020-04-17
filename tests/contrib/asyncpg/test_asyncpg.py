@@ -16,15 +16,15 @@ from tests.contrib.asyncio.utils import AsyncioTestCase, mark_sync
 
 # Update to asyncpg way
 POSTGRES_CONFIG = dict(POSTGRES_CONFIG)  # make copy
-POSTGRES_CONFIG['database'] = POSTGRES_CONFIG['dbname']
-del POSTGRES_CONFIG['dbname']
+POSTGRES_CONFIG["database"] = POSTGRES_CONFIG["dbname"]
+del POSTGRES_CONFIG["dbname"]
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = str(POSTGRES_CONFIG["port"])
 
 
 class TestPsycopgPatch(AsyncioTestCase):
     # default service
-    TEST_SERVICE = 'postgres'
+    TEST_SERVICE = "postgres"
 
     def setUp(self):
         super().setUp()
@@ -58,11 +58,11 @@ class TestPsycopgPatch(AsyncioTestCase):
         writer.pop()
 
         # Ensure we can run a query and it's correctly traced
-        q = 'select \'foobarblah\''
+        q = "select 'foobarblah'"
         start = time.time()
         rows = await db.fetch(q, timeout=5)
         end = time.time()
-        eq_(rows, [('foobarblah',)])
+        eq_(rows, [("foobarblah",)])
         assert rows
         spans = writer.pop()
         assert spans
@@ -70,54 +70,53 @@ class TestPsycopgPatch(AsyncioTestCase):
 
         # prepare span
         span = spans[0]
-        eq_(span.name, 'postgres.prepare')
+        eq_(span.name, "postgres.prepare")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
+        eq_(span.span_type, "sql")
         assert start <= span.start <= end
         assert span.duration <= end - start
 
         # execute span
         span = spans[1]
-        eq_(span.name, 'postgres.bind_execute')
+        eq_(span.name, "postgres.bind_execute")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.error, 0)
-        eq_(span.span_type, 'sql')
-        eq_(span.metrics['db.rowcount'], 1)
+        eq_(span.span_type, "sql")
+        eq_(span.metrics["db.rowcount"], 1)
         assert start <= span.start <= end
         assert span.duration <= end - start
 
         # run a query with an error and ensure all is well
-        q = 'select * from some_non_existant_table'
+        q = "select * from some_non_existant_table"
         try:
             await db.fetch(q)
         except Exception:
             pass
         else:
-            assert 0, 'should have an error'
+            assert 0, "should have an error"
 
         spans = writer.pop()
         assert spans, spans
         eq_(len(spans), 1)
         span = spans[0]
-        eq_(span.name, 'postgres.prepare')
+        eq_(span.name, "postgres.prepare")
         eq_(span.resource, q)
         eq_(span.service, service)
         eq_(span.error, 1)
-        eq_(span.meta['out.host'], 'localhost')
-        eq_(span.meta['out.port'], TEST_PORT)
-        eq_(span.span_type, 'sql')
+        eq_(span.meta["out.host"], "localhost")
+        eq_(span.meta["out.port"], TEST_PORT)
+        eq_(span.span_type, "sql")
 
     @mark_sync
     async def test_pool_dsn(self):
         Pin(None, tracer=self.tracer).onto(asyncpg)
-        dsn = 'postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s' % POSTGRES_CONFIG
-        async with asyncpg.create_pool(dsn,
-                                       min_size=1, max_size=1) as pool:
+        dsn = "postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(database)s" % POSTGRES_CONFIG
+        async with asyncpg.create_pool(dsn, min_size=1, max_size=1) as pool:
             async with pool.acquire() as conn:
-                await conn.execute('select 1;')
+                await conn.execute("select 1;")
 
     @mark_sync
     async def test_copy_from(self):
@@ -128,27 +127,23 @@ class TestPsycopgPatch(AsyncioTestCase):
         async def consumer(input):
             pass
 
-        await conn.execute('''CREATE TABLE IF NOT EXISTS mytable (a int);''')
+        await conn.execute("""CREATE TABLE IF NOT EXISTS mytable (a int);""")
 
         try:
-            await conn.execute(
-                '''INSERT INTO mytable (a) VALUES (100), (200), (300);''')
+            await conn.execute("""INSERT INTO mytable (a) VALUES (100), (200), (300);""")
 
-            result = await conn.copy_from_query(
-                'SELECT * FROM mytable WHERE a > $1', 10, output=consumer,
-                format='csv')
+            result = await conn.copy_from_query("SELECT * FROM mytable WHERE a > $1", 10, output=consumer, format="csv")
         finally:
-            await conn.execute('DROP TABLE IF EXISTS mytable')
+            await conn.execute("DROP TABLE IF EXISTS mytable")
 
     @mark_sync
     async def test_pool(self):
         Pin(None, tracer=self.tracer).onto(asyncpg)
 
         for min_size in [0, 1]:
-            async with asyncpg.create_pool(**POSTGRES_CONFIG,
-                                           min_size=min_size, max_size=1) as pool:
+            async with asyncpg.create_pool(**POSTGRES_CONFIG, min_size=min_size, max_size=1) as pool:
                 async with pool.acquire() as conn:
-                    await conn.execute('select 1;')
+                    await conn.execute("select 1;")
 
             spans = self.tracer.writer.pop()
             eq_(len(spans), 6)
@@ -169,15 +164,15 @@ class TestPsycopgPatch(AsyncioTestCase):
         self.tracer.enabled = False
         conn, tracer = await self._get_conn_and_tracer()
         # these calls were crashing with a previous version of the code.
-        await conn.execute('select \'blah\'')
-        await conn.execute('select \'blah\'')
+        await conn.execute("select 'blah'")
+        await conn.execute("select 'blah'")
         assert not tracer.writer.pop()
 
     @mark_sync
     async def test_connect_factory(self):
         tracer = get_dummy_tracer()
 
-        services = ['db', 'another']
+        services = ["db", "another"]
         for service in services:
             conn, _ = await self._get_conn_and_tracer(service, tracer)
             await self.assert_conn_is_traced(tracer, conn, service)
@@ -186,8 +181,8 @@ class TestPsycopgPatch(AsyncioTestCase):
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
         expected = {
-            'db': {'app': 'postgres', 'app_type': 'db'},
-            'another': {'app': 'postgres', 'app_type': 'db'},
+            "db": {"app": "postgres", "app_type": "db"},
+            "another": {"app": "postgres", "app_type": "db"},
         }
         eq_(service_meta, expected)
 
@@ -200,11 +195,11 @@ class TestPsycopgPatch(AsyncioTestCase):
         patch()
         patch()
 
-        service = 'fo'
+        service = "fo"
         Pin(service, tracer=tracer).onto(asyncpg)
 
         conn = await asyncpg.connect(**POSTGRES_CONFIG)
-        await conn.execute('select \'blah\'')
+        await conn.execute("select 'blah'")
         await conn.close()
 
         spans = writer.pop()
@@ -215,7 +210,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         unpatch()
 
         conn = await asyncpg.connect(**POSTGRES_CONFIG)
-        await conn.execute('select \'blah\'')
+        await conn.execute("select 'blah'")
         await conn.close()
 
         spans = writer.pop()
@@ -224,7 +219,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         # Test patch again
         patch()
         conn = await asyncpg.connect(**POSTGRES_CONFIG)
-        await conn.execute('select \'blah\'')
+        await conn.execute("select 'blah'")
         await conn.close()
 
         spans = writer.pop()
