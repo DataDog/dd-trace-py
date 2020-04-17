@@ -1,5 +1,5 @@
 # 3p
-import psycopg2
+import psycopg2.extensions
 from ddtrace.vendor import wrapt
 
 # project
@@ -68,8 +68,8 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
 
 def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
     """ Wrap will patch the instance so that its queries are traced."""
-    # ensure we've patched extensions (this is idempotent) in case we're
-    # only tracing some connections.
+    # ensure we've patched extensions (this is idempotent) in
+    # case we're only tracing some connections.
     _patch_extensions(_psycopg2_extensions)
 
     c = traced_conn_cls(conn)

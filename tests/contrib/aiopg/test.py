@@ -93,6 +93,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.duration <= end - start
 
         span = spans[1]
+        assert_is_measured(span)
         assert span.name == 'postgres.fetchall'
         assert span.service == service
         assert span.error == 0

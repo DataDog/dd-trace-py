@@ -27,7 +27,8 @@ def _create_pin(tags):
         tags = dict(tags)
         tags.update(pin.tags)
 
-    return Pin(service=service, app=app, tags=tags, tracer=tracer)
+    return Pin(service=service, app=app, app_type=sql.APP_TYPE, tags=tags,
+               tracer=tracer)
 
 
 def _make_dsn(dsn, **kwargs):
