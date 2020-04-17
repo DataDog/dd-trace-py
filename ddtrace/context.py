@@ -76,11 +76,9 @@ class Context(object):
         """
         with self._lock:
             new_ctx = Context(
-                trace_id=self._parent_trace_id,
-                span_id=self._parent_span_id,
                 sampling_priority=self._sampling_priority,
             )
-            new_ctx._current_span = self._current_span
+            new_ctx._set_current_span(self._current_span)
             return new_ctx
 
     def get_current_root_span(self):
