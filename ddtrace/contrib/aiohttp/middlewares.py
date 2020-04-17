@@ -8,6 +8,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
+from ...context import Context
 
 import aiohttp
 
@@ -43,9 +44,13 @@ def trace_middleware_2x(request, handler, app=None):
     if distributed_tracing:
         propagator = HTTPPropagator()
         context = propagator.extract(request.headers)
-        # Only need to active the new context if something was propagated
+
         if context.trace_id:
+            # activate propagated context
             tracer.context_provider.activate(context)
+        else:
+            # clear out any existing context for new request
+            tracer.context_provider.activate(Context())
 
     # trace the handler
     request_span = tracer.trace("aiohttp.request", service=service, span_type=SpanTypes.WEB,)
