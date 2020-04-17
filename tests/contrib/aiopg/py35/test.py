@@ -7,7 +7,7 @@ from ddtrace import Pin
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio, mark_sync
+from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
@@ -36,8 +36,8 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     async def _test_cursor_ctx_manager(self):
         conn, tracer = await self._get_conn_and_tracer()
-        cur = await conn.cursor()
-        t = type(cur)
+        async with conn.cursor() as cur:
+            t = type(cur)
 
         async with conn.cursor() as cur:
             assert t == type(cur), '%s != %s' % (t, type(cur))
@@ -58,7 +58,7 @@ class TestPsycopgPatch(AsyncioTestCase):
         # https://github.com/DataDog/dd-trace-py/issues/228
         yield from self._test_cursor_ctx_manager()
 
-    @mark_sync
+    @mark_asyncio
     async def test_pool(self):
         Pin(None, tracer=self.tracer).onto(aiopg)
 
@@ -69,9 +69,9 @@ class TestPsycopgPatch(AsyncioTestCase):
                     await cur.execute('select 1;')
 
         spans = self.tracer.writer.pop()
-        eq_(len(spans), 4)
+        assert len(spans) == 4
 
-        eq_(spans[0].name, "postgres.connect")
-        eq_(spans[1].name, "postgres.pool.acquire")
-        eq_(spans[2].name, "postgres.execute")
-        eq_(spans[3].name, "postgres.pool.release")
+        assert spans[0].name == 'postgres.connect'
+        assert spans[1].name == 'postgres.pool.acquire'
+        assert spans[2].name == 'postgres.execute'
+        assert spans[3].name == 'postgres.pool.release'

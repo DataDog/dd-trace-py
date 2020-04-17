@@ -31,7 +31,7 @@ def connection_factory(tracer, service='postgres'):
     return functools.partial(
         TracedConnection,
         datadog_tracer=tracer,
-        datadog_service=service
+        datadog_service=service,
     )
 
 

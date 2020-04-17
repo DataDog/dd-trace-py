@@ -21,6 +21,6 @@ required_modules = ["asyncpg"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch
+        from .patch import patch, unpatch
 
-        __all__ = ["patch"]
+        __all__ = ["patch", "unpatch"]

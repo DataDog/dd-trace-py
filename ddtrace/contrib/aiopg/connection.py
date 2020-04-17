@@ -5,7 +5,7 @@ from aiopg.utils import _ContextManager
 
 from .. import dbapi
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, sql
+from ...ext import SpanTypes
 from ...pin import Pin
 from ...settings import config
 
@@ -25,7 +25,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             return result
         service = pin.service
 
-        name = (pin.app or 'sql') + "." + method.__name__
+        name = (pin.app or 'sql') + '.' + method.__name__
         with pin.tracer.trace(name, service=service,
                               resource=query or self.query.decode('utf-8'),
                               span_type=SpanTypes.SQL) as s:
@@ -51,7 +51,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # with different libs.
         result = yield from self._trace_method(
             self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
-            operation, *args, **kwargs)  # noqa: E999
+            operation, *args, **kwargs)
         return result
 
     @asyncio.coroutine
@@ -63,43 +63,43 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     @asyncio.coroutine
     def callproc(self, procname, args):
         result = yield from self._trace_method(
-            self.__wrapped__.callproc, procname, {}, procname, args)  # noqa: E999
+            self.__wrapped__.callproc, procname, {}, procname, args)
         return result
 
     @asyncio.coroutine
     def mogrify(self, operation, parameters=None):
         result = yield from self._trace_method(
-            self.__wrapped__.mogrify, operation, {}, operation, parameters)  # noqa: E999
+            self.__wrapped__.mogrify, operation, {}, operation, parameters)
         return result
 
     @asyncio.coroutine
     def fetchone(self):
         result = yield from self._trace_method(
-            self.__wrapped__.fetchone, None, {})  # noqa: E999
+            self.__wrapped__.fetchone, None, {})
         return result
 
     @asyncio.coroutine
     def fetchmany(self, size=None):
         result = yield from self._trace_method(
-            self.__wrapped__.fetchmany, None, {}, size)  # noqa: E999
+            self.__wrapped__.fetchmany, None, {}, size)
         return result
 
     @asyncio.coroutine
     def fetchall(self):
         result = yield from self._trace_method(
-            self.__wrapped__.fetchall, None, {})  # noqa: E999
+            self.__wrapped__.fetchall, None, {})
         return result
 
     @asyncio.coroutine
-    def scroll(self, value, mode="relative"):
+    def scroll(self, value, mode='relative'):
         result = yield from self._trace_method(
-            self.__wrapped__.scroll, None, {}, value, mode)  # noqa: E999
+            self.__wrapped__.scroll, None, {}, value, mode)
         return result
 
     @asyncio.coroutine
     def nextset(self):
         result = yield from self._trace_method(
-            self.__wrapped__.nextset, None, {})  # noqa: E999
+            self.__wrapped__.nextset, None, {})
         return result
 
     def __aiter__(self):
