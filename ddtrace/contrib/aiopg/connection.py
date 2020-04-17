@@ -5,7 +5,7 @@ from aiopg.utils import _ContextManager
 
 from .. import dbapi
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, sql
+from ...ext import SpanTypes
 from ...pin import Pin
 from ...settings import config
 
@@ -109,9 +109,6 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __anext__(self):
         result = yield from self.__wrapped__.__anext__()
         return result
-
-    def __aiter__(self):
-        return self.__wrapped__.__aiter__()
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):
