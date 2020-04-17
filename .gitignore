@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/profiling/collector/_traceback.c
+ddtrace/profiling/collector/stack.c
+ddtrace/profiling/_build.c
 *.so
 
 # Distribution / packaging

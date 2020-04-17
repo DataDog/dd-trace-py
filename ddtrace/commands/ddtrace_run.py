@@ -17,23 +17,10 @@ log = logging.getLogger(__name__)
 
 USAGE = """
 Execute the given Python program after configuring it to emit Datadog traces.
+
 Append command line arguments to your program as usual.
 
-Usage: [ENV_VARS] ddtrace-run <my_program>
-
-Available environment variables:
-
-    DATADOG_ENV : override an application's environment (no default)
-    DATADOG_TRACE_ENABLED=true|false : override the value of tracer.enabled (default: true)
-    DATADOG_TRACE_DEBUG=true|false : enabled debug logging (default: false)
-    DATADOG_PATCH_MODULES=module:patch,module:patch... e.g. boto:true,redis:false : override the modules patched for this execution of the program (default: none)
-    DATADOG_TRACE_AGENT_HOSTNAME=localhost: override the address of the trace agent host that the default tracer will attempt to submit to  (default: localhost)
-    DATADOG_TRACE_AGENT_PORT=8126: override the port that the default tracer will submit to (default: 8126)
-    DATADOG_SERVICE_NAME : override the service name to be used for this program (no default)
-                           This value is passed through when setting up middleware for web framework integrations.
-                           (e.g. pylons, flask, django)
-                           For tracing without a web integration, prefer setting the service name in code.
-    DATADOG_PRIORITY_SAMPLING=true|false : (default: false): enables Priority Sampling.
+Usage: ddtrace-run <my_program>
 """  # noqa: E501
 
 

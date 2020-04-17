@@ -6,14 +6,13 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-import os
 import sys
 
 from inspect import isclass, isfunction
 
 from ddtrace import config, Pin
 from ddtrace.vendor import debtcollector, wrapt
-from ddtrace.compat import parse
+from ddtrace.compat import getattr_static
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib import func_name, dbapi
 from ddtrace.ext import http, sql as sqlx, SpanTypes
@@ -32,7 +31,7 @@ log = get_logger(__name__)
 config._add(
     "django",
     dict(
-        service_name=os.environ.get("DD_SERVICE_NAME") or os.environ.get("DATADOG_SERVICE_NAME") or "django",
+        service_name=config._get_service(default="django"),
         cache_service_name=get_env("django", "cache_service_name") or "django",
         database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
         distributed_tracing_enabled=True,
@@ -41,6 +40,7 @@ config._add(
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
+        include_user_name=True,
     ),
 )
 
@@ -129,9 +129,10 @@ def _set_request_tags(span, request):
         if uid:
             span.set_tag("django.user.id", uid)
 
-        username = getattr(user, "username", None)
-        if username:
-            span.set_tag("django.user.name", username)
+        if config.django.include_user_name:
+            username = getattr(user, "username", None)
+            if username:
+                span.set_tag("django.user.name", username)
 
 
 @with_traced_module
@@ -394,21 +395,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                 span.set_tag("http.route", route)
 
             # Set HTTP Request tags
-            # Build `http.url` tag value from request info
-            # DEV: We are explicitly omitting query strings since they may contain sensitive information
-            span.set_tag(
-                http.URL,
-                parse.urlunparse(
-                    parse.ParseResult(
-                        scheme=request.scheme,
-                        netloc=request.get_host(),  # this will include `host:port`
-                        path=request.path,
-                        params="",
-                        query="",
-                        fragment="",
-                    )
-                ),
-            )
+            span.set_tag(http.URL, utils.get_request_uri(request))
 
             response = func(*args, **kwargs)
 
@@ -448,7 +435,6 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
 def instrument_view(django, view):
     """Helper to wrap Django views."""
-
     # All views should be callable, double check before doing anything
     if not callable(view) or isinstance(view, wrapt.ObjectProxy):
         return view
@@ -458,13 +444,18 @@ def instrument_view(django, view):
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
-            func = getattr(view, name, None)
+            # View methods can be staticmethods
+            func = getattr_static(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-            wrap(view, name, traced_func(django, name=op_name, resource=resource))
+
+            # Set attribute here rather than using wrapt.wrappers.wrap_function_wrapper
+            # since it will not resolve attribute to staticmethods
+            wrapper = wrapt.FunctionWrapper(func, traced_func(django, name=op_name, resource=resource))
+            setattr(view, name, wrapper)
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 

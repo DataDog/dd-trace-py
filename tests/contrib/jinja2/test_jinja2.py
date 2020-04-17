@@ -1,5 +1,4 @@
 import os.path
-import unittest
 
 # 3rd party
 import jinja2
@@ -7,13 +6,14 @@ import jinja2
 from ddtrace import Pin, config
 from ddtrace.contrib.jinja2 import patch, unpatch
 from tests.test_tracer import get_dummy_tracer
+from ...base import BaseTracerTestCase
 from ...utils import assert_is_measured, assert_is_not_measured
 
 TEST_DIR = os.path.dirname(os.path.realpath(__file__))
 TMPL_DIR = os.path.join(TEST_DIR, 'templates')
 
 
-class Jinja2Test(unittest.TestCase):
+class Jinja2Test(BaseTracerTestCase):
     def setUp(self):
         patch()
         # prevent cache effects when using Template('code...')
@@ -128,3 +128,19 @@ class Jinja2Test(unittest.TestCase):
 
         for span in spans:
             assert span.service == 'web'
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The jinja integration should use it as the service name
+        """
+
+        loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
+        env = jinja2.Environment(loader=loader)
+        t = env.get_template("template.html")
+        assert t.render(name="Jinja") == "Message: Hello Jinja!"
+
+        spans = self.tracer.writer.pop()
+        for span in spans:
+            assert span.service == "mysvc"

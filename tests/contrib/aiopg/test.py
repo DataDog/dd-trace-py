@@ -16,6 +16,7 @@ from tests.opentracer.utils import init_tracer
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.test_tracer import get_dummy_tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from ...subprocesstest import run_in_subprocess
 from ...utils import assert_is_measured
 
 
@@ -225,6 +226,26 @@ class AiopgTestCase(AsyncioTestCase):
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The aiopg integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        yield from (yield from conn.cursor()).execute('select \'blah\'')
+        conn.close()
+
+        spans = self.get_spans()
+        assert spans, spans
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):

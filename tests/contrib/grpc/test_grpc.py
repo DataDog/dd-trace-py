@@ -10,7 +10,6 @@ from ddtrace.ext import errors
 from ddtrace import Pin
 
 from ...base import BaseTracerTestCase
-from ...utils import assert_is_measured
 
 from .hello_pb2 import HelloRequest, HelloReply
 from .hello_pb2_grpc import add_HelloServicer_to_server, HelloStub, HelloServicer
@@ -64,7 +63,7 @@ class GrpcTestCase(BaseTracerTestCase):
         self._server.stop(0)
 
     def _check_client_span(self, span, service, method_name, method_kind):
-        assert_is_measured(span)
+        self.assert_is_not_measured(span)
         assert span.name == 'grpc'
         assert span.resource == '/helloworld.Hello/{}'.format(method_name)
         assert span.service == service
@@ -80,7 +79,7 @@ class GrpcTestCase(BaseTracerTestCase):
         assert span.get_tag('grpc.port') == '50531'
 
     def _check_server_span(self, span, service, method_name, method_kind):
-        assert_is_measured(span)
+        self.assert_is_measured(span)
         assert span.name == 'grpc'
         assert span.resource == '/helloworld.Hello/{}'.format(method_name)
         assert span.service == service
@@ -440,6 +439,28 @@ class GrpcTestCase(BaseTracerTestCase):
         assert server_span.get_tag(errors.ERROR_TYPE) == 'StatusCode.RESOURCE_EXHAUSTED'
         assert 'Traceback' in server_span.get_tag(errors.ERROR_STACK)
         assert 'grpc.StatusCode.RESOURCE_EXHAUSTED' in server_span.get_tag(errors.ERROR_STACK)
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_server_service_name(self):
+        """
+        When a service name is specified by the user
+            It should be used for grpc server spans
+            It should be included in grpc client spans
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+        assert config.service == "mysvc"
+
+        channel1 = grpc.insecure_channel('localhost:%d' % (_GRPC_PORT))
+        stub1 = HelloStub(channel1)
+        stub1.SayHello(HelloRequest(name="test"))
+        channel1.close()
+
+        # DEV: make sure we have two spans before proceeding
+        spans = self.get_spans_with_sync_and_assert(size=2)
+
+        self._check_server_span(spans[0], "mysvc", "SayHello", "unary")
+        self._check_client_span(spans[1], "mysvc-grpc-client", "SayHello", "unary")
 
 
 class _HelloServicer(HelloServicer):

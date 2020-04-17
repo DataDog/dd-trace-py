@@ -3,6 +3,17 @@ The Django__ integration traces requests, views, template renderers, database
 and cache calls in a Django application.
 
 
+Enable Django tracing automatically via ``ddtrace-run``::
+
+    ddtrace-run python manage.py runserver
+
+
+Django tracing can also be enabled manually::
+
+    from ddtrace import patch_all
+    patch_all()
+
+
 To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
 ``settings.py`` looks similar to::
 
@@ -76,6 +87,12 @@ Configuration
 
    Default: ``False``
 
+.. py:data:: ddtrace.config.django['include_user_name']
+
+   Whether or not to include the authenticated user's username as a tag on the root request span.
+
+   Default: ``True``
+
 
 Example::
 
@@ -95,7 +112,7 @@ a middleware to the method consistent with our integrations. Application
 developers are encouraged to convert their configuration of the tracer to the
 latter.
 
-1. Remove ``'ddtrace.config.django'`` from ``INSTALLED_APPS`` in
+1. Remove ``'ddtrace.contrib.django'`` from ``INSTALLED_APPS`` in
    ``settings.py``.
 
 2. Replace ``DATADOG_TRACE`` configuration in ``settings.py`` according to the
@@ -103,6 +120,9 @@ latter.
 
 3. Remove ``TraceMiddleware`` or ``TraceExceptionMiddleware`` if used in
    ``settings.py``.
+
+3. Enable Django tracing automatically via `ddtrace-run`` or manually by
+   adding ``ddtrace.patch_all()`` to ``settings.py``.
 
 The mapping from old configuration settings to new ones.
 
@@ -115,11 +135,11 @@ The mapping from old configuration settings to new ones.
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``AUTO_INSTRUMENT``         | N/A Instrumentation is automatic                                                                                        |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``INSTRUMENT_CACHE``        | N/A Instrumentation is automatic                                                                                        |
+| ``INSTRUMENT_CACHE``        | ``config.django['instrument_caches']``                                                                                  |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``INSTRUMENT_DATABASE``     | ``config.django['instrument_databases']``                                                                               |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
-| ``INSTRUMENT_TEMPLATE``     | ``config.django['instrument_caches']``                                                                                  |
+| ``INSTRUMENT_TEMPLATE``     | N/A Instrumentation is automatic                                                                                        |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
 | ``DEFAULT_DATABASE_PREFIX`` | ``config.django['database_service_name_prefix']``                                                                       |
 +-----------------------------+-------------------------------------------------------------------------------------------------------------------------+
@@ -182,7 +202,7 @@ After::
    tracer.configure(hostname='localhost', port=8126, enabled=True)
    config.django['service_name'] = 'my-django-app'
    config.django['cache_service_name'] = 'my-cache'
-   config.django['django_service_name_prefix'] = 'my-'
+   config.django['database_service_name_prefix'] = 'my-'
    config.django['instrument_databases'] = True
    config.django['instrument_caches'] = True
    config.django['trace_query_string'] = True
@@ -191,8 +211,9 @@ After::
    tracer.set_tags({'env': 'production'})
 
    import my.custom.tracer
-   from ddtrace import Pin
+   from ddtrace import Pin, patch_all
    import django
+   patch_all()
    Pin.override(Pin.get_from(django), tracer=my.custom.tracer)
 
 .. __: https://www.djangoproject.com/

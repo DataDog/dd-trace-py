@@ -422,3 +422,22 @@ class TraceBottleTest(BaseTracerTestCase):
 
         services = self.tracer.writer.pop_services()
         assert services == {}
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The bottle integration should use it as the service name
+        """
+
+        @self.app.route("/hi/<name>")
+        def hi(name):
+            return "hi %s" % name
+
+        self._trace_app(self.tracer)
+        resp = self.app.get("/hi/dougie")
+        assert resp.status_int == 200
+        root = self.get_root_span()
+        root.assert_matches(
+            name="bottle.request", service="mysvc",
+        )
