@@ -180,7 +180,9 @@ class Context(object):
                 # clean the current state
                 self._trace = []
                 self._finished_spans = 0
-
+                self._parent_trace_id = None
+                self._parent_span_id = None
+                self._sampling_priority = None
                 return trace, sampled
 
             elif self._partial_flush_enabled:

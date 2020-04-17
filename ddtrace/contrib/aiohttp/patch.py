@@ -1,7 +1,6 @@
 import asyncio
 import functools
 import logging
-import sys
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
