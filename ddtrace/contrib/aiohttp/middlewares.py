@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import pkg_resources
 
 from ..asyncio import context_provider
 from ...compat import stringify
@@ -8,12 +9,13 @@ from ...ext import SpanTypes, http
 from ...propagation.http import HTTPPropagator
 from ...settings import config
 
+import aiohttp
 
-try:
+if pkg_resources.parse_version(aiohttp.__version__) < pkg_resources.parse_version('3'):
     from aiohttp.web import middleware
 
     AIOHTTP_2x = True
-except ImportError:
+else:
     AIOHTTP_2x = False
 
     def middleware(f):

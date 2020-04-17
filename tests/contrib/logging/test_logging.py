@@ -24,7 +24,12 @@ def current_span(tracer=None):
     return tracer.current_span()
 
 
-def capture_function_log(func, fmt=DEFAULT_FORMAT):
+def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None):
+    if logger_override is not None:
+        logger_to_capture = logger_override
+    else:
+        logger_to_capture = logger
+
     # add stream handler to capture output
     out = StringIO()
     sh = logging.StreamHandler(out)
@@ -32,10 +37,10 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT):
     try:
         formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
-        logger.addHandler(sh)
+        logger_to_capture.addHandler(sh)
         result = func()
     finally:
-        logger.removeHandler(sh)
+        logger_to_capture.removeHandler(sh)
 
     return out.getvalue().strip(), result
 
@@ -73,11 +78,10 @@ class LoggingTestCase(BaseTracerTestCase):
             output, span = capture_function_log(func)
             trace_id = 0
             span_id = 0
-            service = ""
+            service = ddtrace.config.service or ""
             if span:
                 trace_id = span.trace_id
                 span_id = span.span_id
-                service = span.service or ""
 
             assert output == "Hello! - dd.service={} dd.version={} dd.env={} dd.trace_id={} dd.span_id={}".format(
                 service, version, env, trace_id, span_id
@@ -123,11 +127,12 @@ class LoggingTestCase(BaseTracerTestCase):
             span.set_tag(VERSION_KEY, "manual.version")
             return span
 
-        self._test_logging(create_span=create_span, version="manual.version")
+        self._test_logging(create_span=create_span, version="")
 
         # Setting global config version and overriding with span specific value
+        # We always want the globals in the logs
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="manual.version", env="global.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
     def test_log_trace_env(self):
         """
@@ -139,11 +144,12 @@ class LoggingTestCase(BaseTracerTestCase):
             span.set_tag(ENV_KEY, "manual.env")
             return span
 
-        self._test_logging(create_span=create_span, env="manual.env")
+        self._test_logging(create_span=create_span, env="")
 
         # Setting global config env and overriding with span specific value
+        # We always want the globals in the logs
         with self.override_global_config(dict(version="global.version", env="global.env")):
-            self._test_logging(create_span=create_span, version="global.version", env="manual.env")
+            self._test_logging(create_span=create_span, version="global.version", env="global.env")
 
     def test_log_no_trace(self):
         """
@@ -157,3 +163,26 @@ class LoggingTestCase(BaseTracerTestCase):
 
         with self.override_global_config(dict(version="global.version", env="global.env")):
             self._test_logging(create_span=create_span, version="global.version", env="global.env")
+
+    def test_unfinished_child(self):
+        """
+        Check that closing a span with unfinished children correctly logs out
+        unfinished spans.
+        """
+        # unfinished child spans only logged if tracer log level is debug
+        self.tracer.log.setLevel(logging.DEBUG)
+
+        # the actual logger used for these message is ddtrace.context logger,
+        # so debug logging has to be enabled here as well.
+        context_logger = logging.getLogger("ddtrace.context")
+        context_logger.setLevel(logging.DEBUG)
+
+        # finish parent span without finishing child span
+        parent = self.tracer.trace("parent")
+        child = self.tracer.trace("child")
+        out, span = capture_function_log(parent.finish, logger_override=context_logger)
+
+        assert 'Root span "parent" closed, but the trace has 1 unfinished spans' in out
+        assert "parent_id {}".format(parent.span_id) in out
+        assert "trace_id {}".format(child.trace_id) in out
+        assert "id {}".format(child.span_id) in out

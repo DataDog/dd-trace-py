@@ -1,7 +1,7 @@
 import logging
 import threading
 
-from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY
+from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, LOG_SPAN_KEY
 from .internal.logger import get_logger
 from .internal import hostname
 from .settings import config
@@ -76,11 +76,9 @@ class Context(object):
         """
         with self._lock:
             new_ctx = Context(
-                trace_id=self._parent_trace_id,
-                span_id=self._parent_span_id,
                 sampling_priority=self._sampling_priority,
             )
-            new_ctx._current_span = self._current_span
+            new_ctx._set_current_span(self._current_span)
             return new_ctx
 
     def get_current_root_span(self):
@@ -139,12 +137,13 @@ class Context(object):
             # some children. On the other hand, asynchronous web frameworks still expect
             # to close the root span after all the children.
             if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
+                extra = {LOG_SPAN_KEY: span}
                 unfinished_spans = [x for x in self._trace if not x.finished]
                 if unfinished_spans:
                     log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans))
+                              span.name, len(unfinished_spans), extra=extra)
                     for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint())
+                        log.debug('\n%s', wrong_span.pprint(), extra=extra)
 
     def _is_sampled(self):
         return any(span.sampled for span in self._trace)
@@ -182,12 +181,6 @@ class Context(object):
                 self._trace = []
                 self._finished_spans = 0
 
-                # Don't clear out the parent trace IDs as this may be a cloned
-                # context in a new thread/task without a outer span
-                if not self._parent_trace_id or (trace and trace[0].trace_id == self._parent_trace_id):
-                    self._parent_trace_id = None
-                    self._parent_span_id = None
-                    self._sampling_priority = None
                 return trace, sampled
 
             elif self._partial_flush_enabled:
