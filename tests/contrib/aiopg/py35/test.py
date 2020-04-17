@@ -8,6 +8,7 @@ from ddtrace import Pin
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
+from ..test import ConnCtx
 
 
 TEST_PORT = str(POSTGRES_CONFIG['port'])
@@ -19,44 +20,37 @@ class TestPsycopgPatch(AsyncioTestCase):
 
     def setUp(self):
         super().setUp()
-        self._conn = None
         patch()
 
     def tearDown(self):
         super().tearDown()
-        if self._conn and not self._conn.closed:
-            self._conn.close()
-
         unpatch()
 
-    async def _get_conn_and_tracer(self):
+    def _get_conn(self):
         Pin(None, tracer=self.tracer).onto(aiopg)
-        conn = self._conn = await aiopg.connect(**POSTGRES_CONFIG)
-        return conn, self.tracer
+        return ConnCtx(None)
 
-    async def _test_cursor_ctx_manager(self):
-        conn, tracer = await self._get_conn_and_tracer()
-        async with conn.cursor() as cur:
-            t = type(cur)
+    @mark_asyncio
+    async def test_cursor_ctx_manager(self):
+        # ensure cursors work with context managers
+        # https://github.com/DataDog/dd-trace-py/issues/228
 
-        async with conn.cursor() as cur:
-            assert t == type(cur), '%s != %s' % (t, type(cur))
-            await cur.execute(operation='select \'blah\'')
-            rows = await cur.fetchall()
-            assert len(rows) == 1
-            assert rows[0][0] == 'blah'
+        async with self._get_conn() as conn:
+            async with conn.cursor() as cur:
+                t = type(cur)
 
-        spans = tracer.writer.pop()
+            async with conn.cursor() as cur:
+                assert t == type(cur), '%s != %s' % (t, type(cur))
+                await cur.execute(operation='select \'blah\'')
+                rows = await cur.fetchall()
+                assert len(rows) == 1
+                assert rows[0][0] == 'blah'
+
+        spans = self.tracer.writer.pop()
         assert len(spans) == 3
         assert spans[0].name == 'postgres.connect'
         assert spans[1].name == 'postgres.execute'
         assert spans[2].name == 'postgres.fetchall'
-
-    @mark_asyncio
-    def test_cursor_ctx_manager(self):
-        # ensure cursors work with context managers
-        # https://github.com/DataDog/dd-trace-py/issues/228
-        yield from self._test_cursor_ctx_manager()
 
     @mark_asyncio
     async def test_pool(self):

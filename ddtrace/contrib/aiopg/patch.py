@@ -6,8 +6,8 @@ import aiopg.pool
 import psycopg2.extensions
 from ddtrace.vendor import wrapt
 
-# ddtrace
-from .connection import AIOTracedConnection
+# project
+from .connection import AIOTracedConnection, AIOPG_1X
 from ..psycopg.patch import _patch_extensions, \
     _unpatch_extensions
 from ...utils.wrappers import unwrap as _u
@@ -84,6 +84,35 @@ def _patched_connect(connect_func, _, args, kwargs_param):
 
     result = yield from unwrap(*args, **kwargs_param)
     return result
+
+
+@wrapt.decorator
+def _patched_v1_connect(wrapped, instance, args, kwargs_param):
+    def unwrap(
+            dsn, timeout, echo,
+            *, enable_json=True, enable_hstore=True,
+            enable_uuid=True, **kwargs
+    ):
+        parsed_dsn = _make_dsn(dsn, **kwargs)
+
+        tags = {
+            net.TARGET_HOST: parsed_dsn.get('host'),
+            net.TARGET_PORT: parsed_dsn.get('port'),
+            db.NAME: parsed_dsn.get('dbname'),
+            db.USER: parsed_dsn.get('user'),
+            'db.application': parsed_dsn.get('application_name'),
+        }
+
+        pin = _create_pin(tags)
+
+        conn = wrapped(*args, **kwargs_param)
+        if not pin.enabled():
+            return conn
+
+        conn = AIOTracedConnection(conn, pin)
+        return conn
+
+    return unwrap(*args, **kwargs_param)
 
 
 def _extensions_register_type(func, _, args, kwargs):
@@ -172,7 +201,10 @@ def patch():
 
     setattr(aiopg, '_datadog_patch', True)
 
-    wrapt.wrap_function_wrapper(aiopg.connection, '_connect', _patched_connect)
+    if AIOPG_1X:
+        wrapt.wrap_object(aiopg.connection, 'Connection', _patched_v1_connect)
+    else:
+        wrapt.wrap_function_wrapper(aiopg.connection, '_connect', _patched_connect)
 
     # tracing acquire since it may block waiting for a connection from the pool
     wrapt.wrap_function_wrapper(aiopg.pool.Pool, '_acquire', _patched_acquire)
@@ -186,7 +218,13 @@ def patch():
 def unpatch():
     if getattr(aiopg, '_datadog_patch', False):
         setattr(aiopg, '_datadog_patch', False)
-        _u(aiopg.connection, '_connect')
+
+        if AIOPG_1X:
+            _u(aiopg.connection, 'Connection')
+        else:
+            _u(aiopg.connection, '_connect')
+
         _u(aiopg.pool.Pool, '_acquire')
         _u(aiopg.pool.Pool, 'release')
         _unpatch_extensions(_aiopg_extensions)
+
