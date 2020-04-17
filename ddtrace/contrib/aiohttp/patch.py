@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import logging
 
@@ -75,25 +74,23 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         return _get_fallback_service(pin)
 
-    @asyncio.coroutine
-    def connect(self, req, *args, **kwargs):
+    async def connect(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace('{}.connect'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE, service=self._fallback_service) as span:
             _set_request_tags(span, _get_url_obj(req))
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
-            result = yield from self.__wrapped__.__class__.connect(self, req, *args, **kwargs)
+            result = await self.__wrapped__.__class__.connect(self, req, *args, **kwargs)
             return result
 
-    @asyncio.coroutine
-    def _create_connection(self, req, *args, **kwargs):
+    async def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace(
                 '{}._create_connection'.format(self.__class__.__name__),
                 span_type=ext_http.TYPE, service=self._fallback_service) as span:
             _set_request_tags(span, _get_url_obj(req))
-            result = yield from self.__wrapped__._create_connection(req, *args, **kwargs)
+            result = await self.__wrapped__._create_connection(req, *args, **kwargs)
             return result
 
 
@@ -119,8 +116,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         pin = Pin.get_from(self)
         return _get_fallback_service(pin)
 
-    @asyncio.coroutine
-    def start(self, *args, **kwargs):
+    async def start(self, *args, **kwargs):
         # This will get called once per connect
         pin = Pin.get_from(self)
 
@@ -129,7 +125,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                               span_type=ext_http.TYPE, service=self._fallback_service) as span:
             _set_request_tags(span, _get_url_obj(self))
 
-            resp = yield from self.__wrapped__.start(*args, **kwargs)
+            resp = await self.__wrapped__.start(*args, **kwargs)
 
             if self._self_trace_headers:
                 tags = {hdr: resp.headers[hdr]
@@ -142,8 +138,7 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
 
         return resp
 
-    @asyncio.coroutine
-    def read(self, *args, **kwargs):
+    async def read(self, *args, **kwargs):
         pin = Pin.get_from(self)
         # This may not have an immediate parent as the request completed
         with pin.tracer.trace('{}.read'.format(self.__class__.__name__),
@@ -156,20 +151,18 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
                 span.parent_id = self._self_parent_span_id
 
             _set_request_tags(span, _get_url_obj(self))
-            result = yield from self.__wrapped__.read(*args, **kwargs)
+            result = await self.__wrapped__.read(*args, **kwargs)
             span.set_tag(ext_http.STATUS_CODE, self.status)
             span.set_tag('Length', len(result))
 
         return result
 
-    @asyncio.coroutine
-    def __aenter__(self):
-        result = yield from self.__wrapped__.__aenter__()
+    async def __aenter__(self):
+        result = await self.__wrapped__.__aenter__()
         return result
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc_val, exc_tb):
-        result = yield from self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        result = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         return result
 
 
@@ -182,10 +175,9 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
         self._self_trace_context = trace_context
         self._self_have_context = False
 
-    @asyncio.coroutine
-    def _handle_response(self, coro):
+    async def _handle_response(self, coro):
         try:
-            resp = yield from coro
+            resp = await coro
 
             if self._self_trace_headers:
                 tags = {hdr: resp.headers[hdr]
@@ -204,27 +196,21 @@ class _WrappedRequestContext(wrapt.ObjectProxy):
                 self._self_span.finish()
 
     # this will get when called without a context
-    @asyncio.coroutine
     def __iter__(self):
-        resp = yield from self._handle_response(self.__wrapped__.__iter__())
-        return resp
+        return self.__await__()
 
     def __await__(self):
-        resp = yield from self._handle_response(
-            self.__wrapped__.__await__())
+        resp = self._handle_response(self.__wrapped__).__await__()
         return resp
 
-    @asyncio.coroutine
-    def __aenter__(self):
+    async def __aenter__(self):
         self._self_have_context = True
-        resp = yield from self._handle_response(
-            self.__wrapped__.__aenter__())
+        resp = await self._handle_response(self.__wrapped__.__aenter__())
         return resp
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         try:
-            resp = yield from self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+            resp = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
             if self._self_have_context and self._self_trace_context:
                 self._self_span.finish()
@@ -337,7 +323,7 @@ def patch(tracer=None, enable_distributed=False, trace_headers=None, trace_conte
     _w = wrapt.wrap_function_wrapper
     if not getattr(aiohttp, '__datadog_patch', False):
         setattr(aiohttp, '__datadog_patch', True)
-        pin = Pin(service='aiohttp.client', app='aiohttp', app_type=ext_http.TYPE, tracer=tracer)
+        pin = Pin(service='aiohttp.client', app='aiohttp', tracer=tracer)
         pin.onto(aiohttp.ClientSession)
 
         wrapper = functools.partial(_wrap_clientsession_init, trace_headers)

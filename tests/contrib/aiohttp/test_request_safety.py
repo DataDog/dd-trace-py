@@ -3,7 +3,6 @@ import asyncio
 import aiohttp_jinja2
 
 from urllib import request
-from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
 from ddtrace.provider import DefaultContextProvider
@@ -12,6 +11,7 @@ from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
 from ...utils import assert_is_measured
+from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
 
 
 class TestAiohttpSafety(TraceTestCase):
@@ -34,14 +34,13 @@ class TestAiohttpSafety(TraceTestCase):
     def disable_tracing(self):
         unpatch()
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_full_request(self):
+    @mark_asyncio
+    async def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = yield from self.client.request("GET", "/template/")
+        request = await self.client.request("GET", "/template/")
         assert 200 == request.status
-        yield from request.text()
+        await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
@@ -58,9 +57,8 @@ class TestAiohttpSafety(TraceTestCase):
         assert "aiohttp.template" == template_span.name
         assert "aiohttp.template" == template_span.resource
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_multiple_full_request(self):
+    @mark_asyncio
+    async def test_multiple_full_request(self):
         NUMBER_REQUESTS = 10
         responses = []
 
@@ -79,7 +77,7 @@ class TestAiohttpSafety(TraceTestCase):
 
         # yield back to the event loop until all requests are processed
         while len(responses) < NUMBER_REQUESTS:
-            yield from asyncio.sleep(0.001)
+            await asyncio.sleep(0.001)
 
         for response in responses:
             assert "Done" == response

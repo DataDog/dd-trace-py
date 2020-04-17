@@ -1,13 +1,11 @@
-import asyncio
 import aiohttp_jinja2
-
-from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 
 from .utils import TraceTestCase
 from .app.web import set_filesystem_loader, set_package_loader
+from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
 
 
 class TestTraceTemplate(TraceTestCase):
@@ -22,13 +20,12 @@ class TestTraceTemplate(TraceTestCase):
     def disable_tracing(self):
         unpatch()
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_template_rendering(self):
+    @mark_asyncio
+    async def test_template_rendering(self):
         # it should trace a template rendering
-        request = yield from self.client.request("GET", "/template/")
+        request = await self.client.request("GET", "/template/")
         assert 200 == request.status
-        text = yield from request.text()
+        text = await request.text()
         assert "OK" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -41,14 +38,13 @@ class TestTraceTemplate(TraceTestCase):
         assert "/template.jinja2" == span.get_tag("aiohttp.template")
         assert 0 == span.error
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_template_rendering_filesystem(self):
+    @mark_asyncio
+    async def test_template_rendering_filesystem(self):
         # it should trace a template rendering with a FileSystemLoader
         set_filesystem_loader(self.app)
-        request = yield from self.client.request("GET", "/template/")
+        request = await self.client.request("GET", "/template/")
         assert 200 == request.status
-        text = yield from request.text()
+        text = await request.text()
         assert "OK" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -61,14 +57,13 @@ class TestTraceTemplate(TraceTestCase):
         assert "/template.jinja2" == span.get_tag("aiohttp.template")
         assert 0 == span.error
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_template_rendering_package(self):
+    @mark_asyncio
+    async def test_template_rendering_package(self):
         # it should trace a template rendering with a PackageLoader
         set_package_loader(self.app)
-        request = yield from self.client.request("GET", "/template/")
+        request = await self.client.request("GET", "/template/")
         assert 200 == request.status
-        text = yield from request.text()
+        text = await request.text()
         assert "OK" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -81,13 +76,12 @@ class TestTraceTemplate(TraceTestCase):
         assert "templates/template.jinja2" == span.get_tag("aiohttp.template")
         assert 0 == span.error
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_template_decorator(self):
+    @mark_asyncio
+    async def test_template_decorator(self):
         # it should trace a template rendering
-        request = yield from self.client.request("GET", "/template_decorator/")
+        request = await self.client.request("GET", "/template_decorator/")
         assert 200 == request.status
-        text = yield from request.text()
+        text = await request.text()
         assert "OK" == text
         # the trace is created
         traces = self.tracer.writer.pop_traces()
@@ -100,13 +94,12 @@ class TestTraceTemplate(TraceTestCase):
         assert "/template.jinja2" == span.get_tag("aiohttp.template")
         assert 0 == span.error
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_template_error(self):
+    @mark_asyncio
+    async def test_template_error(self):
         # it should trace a template rendering
-        request = yield from self.client.request("GET", "/template_error/")
+        request = await self.client.request("GET", "/template_error/")
         assert 500 == request.status
-        yield from request.text()
+        await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 1 == len(traces)
