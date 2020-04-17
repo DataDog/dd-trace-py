@@ -245,7 +245,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
             # correctly
             span = tracer.current_span()
             assert span.service == service
-
+            
             yield from coro_3()
             yield from coro_3()
 
