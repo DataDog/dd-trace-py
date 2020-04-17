@@ -4,13 +4,13 @@ import aiohttp
 import aiohttp_jinja2
 
 from urllib import request
-from aiohttp.test_utils import unittest_run_loop
 
 from ddtrace.pin import Pin
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ddtrace.contrib.aiohttp.middlewares import trace_app
 
 from .utils import TraceTestCase
+from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
 from ...utils.span import TestSpan
 from ...utils import assert_is_measured
 
@@ -35,13 +35,12 @@ class TestRequestTracing(TraceTestCase):
     def disable_tracing(self):
         unpatch()
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_aiohttp_client_tracer(self):
+    @mark_asyncio
+    async def test_aiohttp_client_tracer(self):
         session = aiohttp.ClientSession()
         url = self.client.make_url('/')
-        result = yield from session.get(url)
-        yield from result.read()
+        result = await session.get(url)
+        await result.read()
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 3
 
@@ -109,14 +108,13 @@ class TestRequestTracing(TraceTestCase):
             trace_id=root_trace_id,
         )
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_full_request(self):
+    @mark_asyncio
+    async def test_full_request(self):
         # it should create a root span when there is a handler hit
         # with the proper tags
-        request = yield from self.client.request("GET", "/template/")
+        request = await self.client.request("GET", "/template/")
         assert 200 == request.status
-        yield from request.text()
+        await request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
         assert 2 == len(traces)
@@ -142,9 +140,8 @@ class TestRequestTracing(TraceTestCase):
         # client spans
         assert 4 == len(traces[1])  # these are tested via client tests
 
-    @unittest_run_loop
-    @asyncio.coroutine
-    def test_multiple_full_request(self):
+    @mark_asyncio
+    async def test_multiple_full_request(self):
         # it should handle multiple requests using the same loop
         def make_requests():
             url = self.client.make_url("/delayed/")
@@ -159,7 +156,7 @@ class TestRequestTracing(TraceTestCase):
 
         # we should yield so that this loop can handle
         # threads' requests
-        yield from asyncio.sleep(0.5)
+        await asyncio.sleep(0.5)
         for t in threads:
             t.join(timeout=0.5)
 
@@ -168,16 +165,15 @@ class TestRequestTracing(TraceTestCase):
         assert 10 == len(traces)
         assert 1 == len(traces[0])
 
-    @unittest_run_loop
-    @asyncio.coroutine
+    @mark_asyncio
     @TraceTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    async def test_user_specified_service(self):
         """
         When a service name is specified by the user
             The aiohttp integration should use it as the service name
         """
-        request = yield from self.client.request("GET", "/template/")
-        yield from request.text()
+        request = await self.client.request("GET", "/template/")
+        await request.text()
         traces = self.tracer.writer.pop_traces()
         assert len(traces) == 2
         assert len(traces[0]) == 2

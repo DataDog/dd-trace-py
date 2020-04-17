@@ -1,8 +1,17 @@
+import pkg_resources
+
+import aiohttp
 from aiohttp.test_utils import AioHTTPTestCase
 
 from .app.web import setup_app
 from ddtrace.contrib.asyncio import context_provider
 from ...base import BaseTracerTestCase
+
+
+if pkg_resources.parse_version(aiohttp.__version__) >= pkg_resources.parse_version('3.3.0'):
+    AIOHTTP_33x = True
+else:
+    AIOHTTP_33x = False
 
 
 class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
@@ -28,7 +37,10 @@ class TraceTestCase(BaseTracerTestCase, AioHTTPTestCase):
         """
         # aiohttp 2.0+ stores the loop instance in self.loop; for
         # backward compatibility, we should expect a `loop` argument
-        loop = loop or self.loop
+        # However since 3.3+ it's been deprecated
+        if not AIOHTTP_33x:
+            loop = loop or self.loop
+
         # create the app with the testing loop
         self.app = setup_app(loop)
         # trace the app
