@@ -42,7 +42,7 @@ def _get_fallback_service(pin: Pin):
     child_of = pin.tracer.get_call_context()
     parent = child_of.get_current_span() if child_of else None
 
-    if parent or config.service:
+    if parent.service or config.service:
         return None  # will trigger code in start_span
 
     return pin.service  # fallback to pin.  TODO: should this be higher priority?

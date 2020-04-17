@@ -9,6 +9,7 @@ from ddtrace.contrib.asyncio.patch import patch as aio_patch, \
     unpatch as aio_unpatch
 from ddtrace.contrib.aiohttp.patch import patch, unpatch
 from ..utils import TraceTestCase
+from ....utils.span import TestSpan
 
 
 class AIOHttpTest(TraceTestCase):
@@ -41,10 +42,10 @@ class AIOHttpTest(TraceTestCase):
                 await asyncio.wait_for(doit(), 20)
 
             traces = self.tracer.writer.pop_traces()
-            self.assert_trace_count(2)
+            self.assert_trace_count(1)
 
             # outer span
-            assert len(traces[1] == 1)
+            assert len(traces[1]) == 1
             root_span = traces[1][0]
             root_span_id = root_span.span_id
 
