@@ -1,13 +1,20 @@
+# stdlib
 import asyncio
-from ddtrace.vendor import wrapt
+import pkg_resources
 
+# 3p
+import aiopg
 from aiopg.utils import _ContextManager
 
+from ddtrace.vendor import wrapt
 from .. import dbapi
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...pin import Pin
 from ...settings import config
+from ddtrace.ext import sql
+
+
+AIOPG_1X = pkg_resources.parse_version(aiopg.__version__) >= pkg_resources.parse_version('1.0.0')
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
@@ -28,7 +35,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         name = (pin.app or 'sql') + '.' + method.__name__
         with pin.tracer.trace(name, service=service,
                               resource=query or self.query.decode('utf-8'),
-                              span_type=SpanTypes.SQL) as s:
+                              span_type=sql.TYPE) as s:
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
@@ -137,3 +144,20 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         if not pin:
             return cursor
         return self._self_cursor_cls(cursor, pin)
+
+    if AIOPG_1X:
+        async def _await_helper(self):
+            pin = Pin.get_from(self)
+            name = (pin.app or 'sql') + '.connect'
+            with pin.tracer.trace(name, service=pin.service) as s:
+                s.span_type = sql.TYPE
+                s.set_tags(pin.tags)
+                await self.__wrapped__._connect()
+            return self
+
+        def __await__(self):
+            return self._await_helper().__await__()
+
+        async def __aenter__(self):
+            await self.__wrapped__.__aenter__()
+            return self

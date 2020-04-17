@@ -1,6 +1,5 @@
 # stdlib
 import time
-import asyncio
 
 # 3p
 import aiopg
@@ -8,7 +7,7 @@ from psycopg2 import extras
 
 # project
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.aiopg.patch import patch, unpatch
+from ddtrace.contrib.aiopg.patch import patch, unpatch, AIOPG_1X
 from ddtrace import Pin
 
 # testing
@@ -24,14 +23,51 @@ TEST_PORT = POSTGRES_CONFIG['port']
 
 
 class CursorCtx:
-    def __init__(self, cursor):
-        self._cursor = cursor
+    def __init__(self, conn):
+        self._conn = conn
 
-    def __enter__(self):
-        return self._cursor
+    async def __aenter__(self):
+        if AIOPG_1X:
+            self._cursor = self._conn.cursor()
+            cursor = await self._cursor.__aenter__()
+        else:
+            cursor = self._cursor = await self._conn.cursor()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cursor.close()
+        return cursor
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if AIOPG_1X:
+            await self._cursor.__aexit__(exc_type, exc_val, exc_tb)
+        else:
+            self._cursor.close()
+
+
+class ConnCtx:
+    def __init__(self, tracer):
+        self._tracer = tracer
+
+    async def __aenter__(self) -> aiopg.Connection:
+        if AIOPG_1X:
+            self._conn = aiopg.connect(**POSTGRES_CONFIG)
+            conn = await self._conn.__aenter__()
+        else:
+            conn = self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+
+        if self._tracer:
+            Pin.get_from(conn).clone(tracer=self._tracer).onto(conn)
+
+        return conn
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if not self._conn:
+            return
+
+        if AIOPG_1X:
+            await self._conn.__aexit__(exc_type, exc_val, exc_tb)
+        else:
+            self._conn.close()
+
+        self._conn = None
 
 
 class AiopgTestCase(AsyncioTestCase):
@@ -40,30 +76,22 @@ class AiopgTestCase(AsyncioTestCase):
 
     def setUp(self):
         super().setUp()
-        self._conn = None
         patch()
 
     def tearDown(self):
         super().tearDown()
-        if self._conn and not self._conn.closed:
-            self._conn.close()
-
         unpatch()
 
-    @asyncio.coroutine
-    def _get_conn_and_tracer(self):
+    def _get_conn(self):
         Pin(None, tracer=get_dummy_tracer()).onto(aiopg)
-        conn = self._conn = yield from aiopg.connect(**POSTGRES_CONFIG)
+        return ConnCtx(None)
 
-        return conn, self.tracer
-
-    @asyncio.coroutine
-    def assert_conn_is_traced(self, tracer, db, service):
+    async def assert_conn_is_traced(self, tracer, conn: aiopg.Connection, service):
 
         # ensure the trace aiopg client doesn't add non-standard
         # methods
         try:
-            yield from db.execute('select \'foobar\'')
+            await conn.execute('select \'foobar\'')
         except AttributeError:
             pass
 
@@ -71,9 +99,9 @@ class AiopgTestCase(AsyncioTestCase):
         # Ensure we can run a query and it's correctly traced
         q = 'select \'foobarblah\''
         start = time.time()
-        with CursorCtx((yield from db.cursor())) as cursor:
-            yield from cursor.execute(q)
-            rows = yield from cursor.fetchall()
+        async with CursorCtx(conn) as cursor:
+            await cursor.execute(q)
+            rows = await cursor.fetchall()
 
         end = time.time()
         assert rows == [('foobarblah',)]
@@ -104,9 +132,9 @@ class AiopgTestCase(AsyncioTestCase):
         # Ensure OpenTracing compatibility
         ot_tracer = init_tracer('aiopg_svc', tracer)
         with ot_tracer.start_active_span('aiopg_op'):
-            with CursorCtx((yield from db.cursor())) as cursor:
-                yield from cursor.execute(q)
-                rows = yield from cursor.fetchall()
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute(q)
+                rows = await cursor.fetchall()
             assert rows == [('foobarblah',)]
         spans = writer.pop()
         assert len(spans) == 3
@@ -132,13 +160,15 @@ class AiopgTestCase(AsyncioTestCase):
 
         # run a query with an error and ensure all is well
         q = 'select * from some_non_existant_table'
-        cur = yield from db.cursor()
-        try:
-            yield from cur.execute(q)
-        except Exception:
-            pass
-        else:
-            assert 0, 'should have an error'
+
+        async with CursorCtx(conn) as cur:
+            try:
+                await cur.execute(q)
+            except Exception:
+                pass
+            else:
+                assert 0, 'should have an error'
+
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
@@ -151,35 +181,35 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.span_type == 'sql'
 
     @mark_asyncio
-    def test_disabled_execute(self):
-        conn, tracer = yield from self._get_conn_and_tracer()
-        tracer.enabled = False
-        # these calls were crashing with a previous version of the code.
-        with CursorCtx((yield from conn.cursor())) as cursor:
-            yield from cursor.execute(operation='select \'blah\'')
+    async def test_disabled_execute(self):
+        async with self._get_conn() as conn:
+            self.tracer.enabled = False
+            # these calls were crashing with a previous version of the code.
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute(operation='select \'blah\'')
 
-        with CursorCtx((yield from conn.cursor())) as cursor:
-            yield from cursor.execute('select \'blah\'')
-        assert not tracer.writer.pop()
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute('select \'blah\'')
 
-    @mark_asyncio
-    def test_manual_wrap_extension_types(self):
-        conn, _ = yield from self._get_conn_and_tracer()
-        # NOTE: this will crash if it doesn't work.
-        #   _ext.register_type(_ext.UUID, conn_or_curs)
-        #   TypeError: argument 2 must be a connection, cursor or None
-        extras.register_uuid(conn_or_curs=conn)
+        assert not self.tracer.writer.pop()
 
     @mark_asyncio
-    def test_connect_factory(self):
+    async def test_manual_wrap_extension_types(self):
+        async with self._get_conn() as conn:
+            # NOTE: this will crash if it doesn't work.
+            #   _ext.register_type(_ext.UUID, conn_or_curs)
+            #   TypeError: argument 2 must be a connection, cursor or None
+            extras.register_uuid(conn_or_curs=conn)
+
+    @mark_asyncio
+    async def test_connect_factory(self):
         tracer = get_dummy_tracer()
 
         services = ['db', 'another']
         for service in services:
-            conn, _ = yield from self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-            yield from self.assert_conn_is_traced(tracer, conn, service)
-            conn.close()
+            async with self._get_conn() as conn:
+                Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+                await self.assert_conn_is_traced(tracer, conn, service)
 
         # ensure we have the service types
         service_meta = tracer.writer.pop_services()
@@ -187,7 +217,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert service_meta == expected
 
     @mark_asyncio
-    def test_patch_unpatch(self):
+    async def test_patch_unpatch(self):
         tracer = get_dummy_tracer()
         writer = tracer.writer
 
@@ -197,10 +227,10 @@ class AiopgTestCase(AsyncioTestCase):
 
         service = 'fo'
 
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-        yield from (yield from conn.cursor()).execute('select \'blah\'')
-        conn.close()
+        async with self._get_conn() as conn:
+            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute('select \'blah\'')
 
         spans = writer.pop()
         assert spans, spans
@@ -209,9 +239,8 @@ class AiopgTestCase(AsyncioTestCase):
         # Test unpatch
         unpatch()
 
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        yield from (yield from conn.cursor()).execute('select \'blah\'')
-        conn.close()
+        async with self._get_conn() as conn, CursorCtx(conn) as cursor:
+            await cursor.execute('select \'blah\'')
 
         spans = writer.pop()
         assert not spans, spans
@@ -219,17 +248,18 @@ class AiopgTestCase(AsyncioTestCase):
         # Test patch again
         patch()
 
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
-        yield from (yield from conn.cursor()).execute('select \'blah\'')
-        conn.close()
+        async with self._get_conn() as conn:
+            Pin.get_from(conn).clone(service=service, tracer=tracer).onto(conn)
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute('select \'blah\'')
 
         spans = writer.pop()
         assert spans, spans
         assert len(spans) == 1
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    @mark_asyncio
+    async def test_user_specified_service(self):
         """
         When a user specifies a service for the app
             The aiopg integration should not use it.
@@ -238,10 +268,10 @@ class AiopgTestCase(AsyncioTestCase):
         from ddtrace import config
         assert config.service == "mysvc"
 
-        conn = yield from aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
-        yield from (yield from conn.cursor()).execute('select \'blah\'')
-        conn.close()
+        async with self._get_conn() as conn:
+            Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute('select \'blah\'')
 
         spans = self.get_spans()
         assert spans, spans
@@ -250,41 +280,39 @@ class AiopgTestCase(AsyncioTestCase):
 
 
 class AiopgAnalyticsTestCase(AiopgTestCase):
-    @asyncio.coroutine
-    def trace_spans(self):
-        conn, _ = yield from self._get_conn_and_tracer()
+    async def trace_spans(self):
+        async with self._get_conn() as conn:
+            Pin.get_from(conn).clone(service='db', tracer=self.tracer).onto(conn)
 
-        Pin.get_from(conn).clone(service='db', tracer=self.tracer).onto(conn)
-
-        cursor = yield from conn.cursor()
-        yield from cursor.execute('select \'foobar\'')
-        rows = yield from cursor.fetchall()
-        assert rows
+            async with CursorCtx(conn) as cursor:
+                await cursor.execute('select \'foobar\'')
+                rows = await cursor.fetchall()
+                assert rows
 
         return self.get_spans()
 
     @mark_asyncio
-    def test_analytics_default(self):
-        spans = yield from self.trace_spans()
+    async def test_analytics_default(self):
+        spans = await self.trace_spans()
         assert len(spans) == 2
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     @mark_asyncio
-    def test_analytics_with_rate(self):
+    async def test_analytics_with_rate(self):
         with self.override_config(
             'aiopg',
             dict(analytics_enabled=True, analytics_sample_rate=0.5)
         ):
-            spans = yield from self.trace_spans()
+            spans = await self.trace_spans()
             assert len(spans) == 2
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     @mark_asyncio
-    def test_analytics_without_rate(self):
+    async def test_analytics_without_rate(self):
         with self.override_config(
             'aiopg',
             dict(analytics_enabled=True)
         ):
-            spans = yield from self.trace_spans()
+            spans = await self.trace_spans()
             assert len(spans) == 2
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
