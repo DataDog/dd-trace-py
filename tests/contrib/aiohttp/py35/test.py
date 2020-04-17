@@ -48,7 +48,7 @@ class AIOHttpTest(TraceTestCase):
             root_span = traces[1][0]
             root_span_id = root_span.span_id
 
-            root_span.assert_matches(
+            TestSpan(root_span).assert_matches(
                 name="foo",
                 service=None,
                 resource="foo",
@@ -57,7 +57,7 @@ class AIOHttpTest(TraceTestCase):
 
             assert len(traces[0]) == 4
             client_request_span = traces[0][0]
-            client_request_span.assert_matches(
+            TestSpan(client_request_span).assert_matches(
                 name="ClientSession.request",
                 service="aiohttp.client",
                 resource="/",
@@ -66,7 +66,7 @@ class AIOHttpTest(TraceTestCase):
 
             # TCPConnector.connect
             connector_connect_span = traces[0][1]
-            connector_connect_span.assert_matches(
+            TestSpan(connector_connect_span).assert_matches(
                 name="TCPConnector.connect",
                 service="aiohttp.client",
                 resource="/",
@@ -76,7 +76,7 @@ class AIOHttpTest(TraceTestCase):
 
             # TCPConnector._create_connection
             connector_create_connection_span = traces[0][2]
-            connector_create_connection_span.assert_matches(
+            TestSpan(connector_create_connection_span).assert_matches(
                 name="TCPConnector._create_connection",
                 service="aiohttp.client",
                 resource="/",
@@ -86,7 +86,7 @@ class AIOHttpTest(TraceTestCase):
 
             # client start span
             client_start_span = traces[0][3]
-            client_start_span.assert_matches(
+            TestSpan(client_start_span).assert_matches(
                 name="ClientResponse.start",
                 service="aiohttp.client",
                 resource="/",

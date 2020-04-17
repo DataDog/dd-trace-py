@@ -119,13 +119,13 @@ class TestRequestTracing(TraceTestCase):
         yield from request.text()
         # the trace is created
         traces = self.tracer.writer.pop_traces()
-        assert 1 == len(traces)
+        assert 2 == len(traces)
         assert 2 == len(traces[0])
 
         # request
         request_span = traces[0][0]
         assert_is_measured(request_span)
-        request_span.assert_matches(
+        TestSpan(request_span).assert_matches(
             name="aiohttp.request",
             service="aiohttp-web",
             resource="GET /template/",
@@ -133,11 +133,14 @@ class TestRequestTracing(TraceTestCase):
 
         # template
         template_span = traces[0][1]
-        template_span.assert_matches(
+        TestSpan(template_span).assert_matches(
             name="aiohttp.template",
             service="aiohttp-web",
             resource="aiohttp.template",
         )
+
+        # client spans
+        assert 4 == len(traces[1])  # these are tested via client tests
 
     @unittest_run_loop
     @asyncio.coroutine
@@ -176,7 +179,7 @@ class TestRequestTracing(TraceTestCase):
         request = yield from self.client.request("GET", "/template/")
         yield from request.text()
         traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 1
+        assert len(traces) == 2
         assert len(traces[0]) == 2
 
         request_span = traces[0][0]
@@ -184,3 +187,6 @@ class TestRequestTracing(TraceTestCase):
 
         template_span = traces[0][1]
         assert template_span.service == "mysvc"
+
+        # client spans
+        assert len(traces[1]) == 4  # these are tested via client tests
