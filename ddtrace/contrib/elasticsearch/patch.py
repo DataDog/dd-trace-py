@@ -5,15 +5,15 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .quantize import quantize
 
 from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import elasticsearch as metadata, http, AppTypes
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, elasticsearch as metadata, http
 from ...pin import Pin
 from ...utils.wrappers import unwrap as _u
 from ...settings import config
 
 
 def _es_modules():
-    module_names = ('elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5')
+    module_names = ('elasticsearch', 'elasticsearch1', 'elasticsearch2', 'elasticsearch5', 'elasticsearch6')
     for module_name in module_names:
         try:
             yield import_module(module_name)
@@ -32,7 +32,7 @@ def _patch(elasticsearch):
         return
     setattr(elasticsearch, '_datadog_patch', True)
     _w(elasticsearch.transport, 'Transport.perform_request', _get_perform_request(elasticsearch))
-    Pin(service=metadata.SERVICE, app=metadata.APP, app_type=AppTypes.db).onto(elasticsearch.transport.Transport)
+    Pin(service=metadata.SERVICE, app=metadata.APP).onto(elasticsearch.transport.Transport)
 
 
 def unpatch():
@@ -52,7 +52,9 @@ def _get_perform_request(elasticsearch):
         if not pin or not pin.enabled():
             return func(*args, **kwargs)
 
-        with pin.tracer.trace('elasticsearch.query') as span:
+        with pin.tracer.trace('elasticsearch.query', span_type=SpanTypes.ELASTICSEARCH) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
+
             # Don't instrument if the trace is not sampled
             if not span.sampled:
                 return func(*args, **kwargs)
@@ -62,10 +64,11 @@ def _get_perform_request(elasticsearch):
             body = kwargs.get('body')
 
             span.service = pin.service
-            span.span_type = metadata.TYPE
             span.set_tag(metadata.METHOD, method)
             span.set_tag(metadata.URL, url)
             span.set_tag(metadata.PARAMS, urlencode(params))
+            if config.elasticsearch.trace_query_string:
+                span.set_tag(http.QUERY_STRING, urlencode(params))
             if method == 'GET':
                 span.set_tag(metadata.BODY, instance.serializer.dumps(body))
             status = None

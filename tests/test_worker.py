@@ -56,3 +56,16 @@ def test_restart():
 
     with pytest.raises(RuntimeError):
         w.start()
+
+
+def test_atexit():
+    w = _worker.PeriodicWorkerThread(exit_timeout=1)
+    w.start()
+    assert w.started
+    w._atexit()
+
+
+def test_atexit_not_started():
+    w = _worker.PeriodicWorkerThread(exit_timeout=1)
+    assert not w.started
+    w._atexit()

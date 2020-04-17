@@ -10,9 +10,16 @@ is a small example showcasing this::
 
     from ddtrace import tracer
 
-    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>)
+    tracer.configure(hostname=<YOUR_HOST>, port=<YOUR_PORT>, https=<True/False>)
 
-By default, these will be set to localhost and 8126 respectively.
+By default, these will be set to ``localhost``, ``8126``, and ``False`` respectively.
+
+You can also use a Unix Domain Socket to connect to the agent::
+
+    from ddtrace import tracer
+
+    tracer.configure(uds_path="/path/to/socket")
+
 
 Distributed Tracing
 -------------------
@@ -340,8 +347,26 @@ Logs Injection
 
 .. automodule:: ddtrace.contrib.logging
 
-Http layer
+HTTP layer
 ----------
+
+Query String Tracing
+^^^^^^^^^^^^^^^^^^^^
+
+It is possible to store the query string of the URL — the part after the ``?``
+in your URL — in the ``url.query.string`` tag.
+
+Configuration can be provided both at the global level and at the integration level.
+
+Examples::
+
+    from ddtrace import config
+
+    # Global config
+    config.http.trace_query_string = True
+
+    # Integration level config, e.g. 'falcon'
+    config.falcon.http.trace_query_string = True
 
 ..  _http-headers-tracing:
 
@@ -416,6 +441,8 @@ for usage.
 +---------------------+----------------------------------------+---------------+
 | `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
 +---------------------+----------------------------------------+---------------+
+| `agent_https`       | use https to connect to the agent      | `False`       |
++---------------------+----------------------------------------+---------------+
 | `agent_port`        | port the Datadog agent is listening on | `8126`        |
 +---------------------+----------------------------------------+---------------+
 | `global_tags`       | tags that will be applied to each span | `{}`          |
@@ -423,6 +450,8 @@ for usage.
 | `sampler`           | see `Sampling`_                        | `AllSampler`  |
 +---------------------+----------------------------------------+---------------+
 | `priority_sampling` | see `Priority Sampling`_               | `True`        |
++---------------------+----------------------------------------+---------------+
+| `uds_path`          | unix socket of agent to connect to     | `None`        |
 +---------------------+----------------------------------------+---------------+
 | `settings`          | see `Advanced Usage`_                  | `{}`          |
 +---------------------+----------------------------------------+---------------+
@@ -501,7 +530,30 @@ the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
 application.
 
 
-**Opentracer API**
+Examples
+^^^^^^^^
+
+**Celery**
+
+Distributed Tracing across celery tasks with OpenTracing.
+
+1. Install Celery OpenTracing:
+
+    pip install Celery-OpenTracing
+
+2. Replace your Celery app with the version that comes with Celery-OpenTracing:
+
+    from celery_opentracing import CeleryTracing
+    from ddtrace.opentracer import set_global_tracer, Tracer
+
+    ddtracer = Tracer()
+    set_global_tracer(ddtracer)
+
+    app = CeleryTracing(app, tracer=ddtracer)
+
+
+Opentracer API
+^^^^^^^^^^^^^^
 
 .. autoclass:: ddtrace.opentracer.Tracer
     :members:
@@ -523,33 +575,11 @@ and database modules without the need for changing your code::
 
   Append command line arguments to your program as usual.
 
-  Usage: [ENV_VARS] ddtrace-run <my_program>
+  Usage: ddtrace-run <my_program>
 
 
-The available environment variables for ``ddtrace-run`` are:
-
-* ``DATADOG_TRACE_ENABLED=true|false`` (default: true): Enable web framework and
-  library instrumentation. When false, your application code will not generate
-  any traces.
-* ``DATADOG_ENV`` (no default): Set an application's environment e.g. ``prod``,
-  ``pre-prod``, ``stage``
-* ``DATADOG_TRACE_DEBUG=true|false`` (default: false): Enable debug logging in
-  the tracer
-* ``DATADOG_SERVICE_NAME`` (no default): override the service name to be used
-  for this program. This value is passed through when setting up middleware for
-  web framework integrations (e.g. pylons, flask, django). For tracing without a
-  web integration, prefer setting the service name in code.
-* ``DATADOG_PATCH_MODULES=module:patch,module:patch...`` e.g.
-  ``boto:true,redis:false``: override the modules patched for this execution of
-  the program (default: none)
-* ``DATADOG_TRACE_AGENT_HOSTNAME=localhost``: override the address of the trace
-  agent host that the default tracer will attempt to submit to  (default:
-  ``localhost``)
-* ``DATADOG_TRACE_AGENT_PORT=8126``: override the port that the default tracer
-  will submit to  (default: 8126)
-* ``DATADOG_PRIORITY_SAMPLING`` (default: true): enables :ref:`Priority
-  Sampling`
-* ``DD_LOGS_INJECTION`` (default: false): enables :ref:`Logs Injection`
+The environment variables for ``ddtrace-run`` used to configure the tracer are
+detailed in :ref:`Configuration`.
 
 ``ddtrace-run`` respects a variety of common entrypoints for web applications:
 
@@ -573,6 +603,20 @@ $ DATADOG_TRACE_DEBUG=true ddtrace-run ipython
 Because iPython uses SQLite, it will be automatically instrumented and your
 traces should be sent off. If an error occurs, a message will be displayed in
 the console, and changes can be made as needed.
+
+
+uWSGI
+-----
+
+The default configuration of uWSGI applications does not include the
+``--enable-threads`` setting which must be set to ``true`` for the
+tracing library to run.  This is noted in their best practices doc_.
+
+  .. _doc: https://uwsgi-docs.readthedocs.io/en/latest/ThingsToKnow.html
+
+Example run command:
+
+``ddtrace-run uwsgi --http :9090 --wsgi-file your_app.py --enable-threads``
 
 
 API

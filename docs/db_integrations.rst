@@ -17,6 +17,22 @@ Cassandra
 .. automodule:: ddtrace.contrib.cassandra
 
 
+.. _consul:
+
+Consul
+------
+
+.. automodule:: ddtrace.contrib.consul
+
+
+.. _dogpile.cache:
+
+dogpile.cache
+-------------
+
+.. automodule:: ddtrace.contrib.dogpile_cache
+
+
 .. _elasticsearch:
 
 Elasticsearch

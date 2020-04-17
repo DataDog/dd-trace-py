@@ -1,23 +1,24 @@
 import time
 
+import mock
+
+from ddtrace.ext import SpanTypes
+
 from ddtrace.internal.runtime.runtime_metrics import (
     RuntimeTags,
     RuntimeMetrics,
-    RuntimeWorker,
 )
 from ddtrace.internal.runtime.constants import (
     DEFAULT_RUNTIME_METRICS,
-    DEFAULT_RUNTIME_TAGS,
     GC_COUNT_GEN0,
-    RUNTIME_ID,
+    SERVICE,
+    ENV
 )
-from ddtrace.vendor.dogstatsd import DogStatsd
 
 from ...base import (
     BaseTestCase,
     BaseTracerTestCase,
 )
-from ...utils.tracer import FakeSocket
 
 
 class TestRuntimeTags(BaseTracerTestCase):
@@ -25,13 +26,41 @@ class TestRuntimeTags(BaseTracerTestCase):
         with self.override_global_tracer():
             with self.trace('test', service='test'):
                 tags = set([k for (k, v) in RuntimeTags()])
-                self.assertSetEqual(tags, DEFAULT_RUNTIME_TAGS)
+                assert SERVICE in tags
+                # no env set by default
+                assert ENV not in tags
 
     def test_one_tag(self):
         with self.override_global_tracer():
             with self.trace('test', service='test'):
-                tags = [k for (k, v) in RuntimeTags(enabled=[RUNTIME_ID])]
-                self.assertEqual(tags, [RUNTIME_ID])
+                tags = [k for (k, v) in RuntimeTags(enabled=[SERVICE])]
+                self.assertEqual(tags, [SERVICE])
+
+    def test_env_tag(self):
+        def filter_only_env_tags(tags):
+            return [
+                (k, v)
+                for (k, v) in RuntimeTags()
+                if k == 'env'
+            ]
+
+        with self.override_global_tracer():
+            # first without env tag set in tracer
+            with self.trace('first-test', service='test'):
+                tags = filter_only_env_tags(RuntimeTags())
+                assert tags == []
+
+            # then with an env tag set
+            self.tracer.set_tags({'env': 'tests.dog'})
+            with self.trace('second-test', service='test'):
+                tags = filter_only_env_tags(RuntimeTags())
+                assert tags == [('env', 'tests.dog')]
+
+            # check whether updating env works
+            self.tracer.set_tags({'env': 'staging.dog'})
+            with self.trace('third-test', service='test'):
+                tags = filter_only_env_tags(RuntimeTags())
+                assert tags == [('env', 'staging.dog')]
 
 
 class TestRuntimeMetrics(BaseTestCase):
@@ -46,52 +75,51 @@ class TestRuntimeMetrics(BaseTestCase):
 
 class TestRuntimeWorker(BaseTracerTestCase):
     def test_tracer_metrics(self):
-        # mock dogstatsd client before configuring tracer for runtime metrics
-        self.tracer._dogstatsd_client = DogStatsd()
-        self.tracer._dogstatsd_client.socket = FakeSocket()
-
-        default_flush_interval = RuntimeWorker.FLUSH_INTERVAL
-        try:
-            # lower flush interval
-            RuntimeWorker.FLUSH_INTERVAL = 1./4
-
+        # Mock socket.socket to hijack the dogstatsd socket
+        with mock.patch('socket.socket'):
             # configure tracer for runtime metrics
+            self.tracer._RUNTIME_METRICS_INTERVAL = 1. / 4
             self.tracer.configure(collect_metrics=True)
-        finally:
-            # reset flush interval
-            RuntimeWorker.FLUSH_INTERVAL = default_flush_interval
+            self.tracer.set_tags({'env': 'tests.dog'})
 
-        with self.override_global_tracer(self.tracer):
-            root = self.start_span('parent', service='parent')
-            context = root.context
-            self.start_span('child', service='child', child_of=context)
+            with self.override_global_tracer(self.tracer):
+                # spans are started for three services but only web and worker
+                # span types should be included in tags for runtime metrics
+                root = self.start_span('parent', service='parent', span_type=SpanTypes.WEB)
+                context = root.context
+                child = self.start_span('child', service='child', span_type=SpanTypes.WORKER, child_of=context)
+                self.start_span('query', service='db', span_type=SpanTypes.SQL, child_of=child.context)
 
-            time.sleep(self.tracer._runtime_worker.interval * 2)
-            self.tracer._runtime_worker.stop()
-            self.tracer._runtime_worker.join()
+            time.sleep(self.tracer._RUNTIME_METRICS_INTERVAL * 2)
 
-            # get all received metrics
-            received = []
-            while True:
-                new = self.tracer._dogstatsd_client.socket.recv()
-                if not new:
-                    break
+            # Get the socket before it disappears
+            statsd_socket = self.tracer._dogstatsd_client.socket
+            # now stop collection
+            self.tracer.configure(collect_metrics=False)
 
-                received.append(new)
+        received = [
+            s.args[0].decode('utf-8') for s in statsd_socket.send.mock_calls
+        ]
 
-            # expect received all default metrics
-            # we expect more than one flush since it is also called on shutdown
-            assert len(received) / len(DEFAULT_RUNTIME_METRICS) > 1
+        # we expect more than one flush since it is also called on shutdown
+        assert len(received) > 1
 
-            # expect all metrics in default set are received
-            # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
-            self.assertSetEqual(
-                set([gauge.split(':')[0] for gauge in received]),
-                DEFAULT_RUNTIME_METRICS
-            )
+        # expect all metrics in default set are received
+        # DEV: dogstatsd gauges in form "{metric_name}:{metric_value}|g#t{tag_name}:{tag_value},..."
+        self.assertSetEqual(
+            set([gauge.split(':')[0]
+                 for packet in received
+                 for gauge in packet.split('\n')]),
+            DEFAULT_RUNTIME_METRICS
+        )
 
-            # check to last set of metrics returned to confirm tags were set
-            for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
-                self.assertRegexpMatches(gauge, 'runtime-id:')
-                self.assertRegexpMatches(gauge, 'service:parent')
-                self.assertRegexpMatches(gauge, 'service:child')
+        # check to last set of metrics returned to confirm tags were set
+        for gauge in received[-len(DEFAULT_RUNTIME_METRICS):]:
+            self.assertRegexpMatches(gauge, 'service:parent')
+            self.assertRegexpMatches(gauge, 'service:child')
+            self.assertNotRegexpMatches(gauge, 'service:db')
+            self.assertRegexpMatches(gauge, 'env:tests.dog')
+            self.assertRegexpMatches(gauge, 'lang_interpreter:CPython')
+            self.assertRegexpMatches(gauge, 'lang_version:')
+            self.assertRegexpMatches(gauge, 'lang:python')
+            self.assertRegexpMatches(gauge, 'tracer_version:')

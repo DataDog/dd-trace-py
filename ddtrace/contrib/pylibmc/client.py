@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import random
 
 # 3p
@@ -6,9 +7,8 @@ import pylibmc
 
 # project
 import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import memcached
-from ...ext import net
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, memcached, net
 from ...internal.logger import get_logger
 from ...settings import config
 from .addrs import parse_addresses
@@ -121,22 +121,29 @@ class TracedClient(ObjectProxy):
 
             return method(*args, **kwargs)
 
+    @contextmanager
+    def _no_span(self):
+        yield None
+
     def _span(self, cmd_name):
         """ Return a span timing the given command. """
         pin = ddtrace.Pin.get_from(self)
-        if pin and pin.enabled():
-            span = pin.tracer.trace(
-                'memcached.cmd',
-                service=pin.service,
-                resource=cmd_name,
-                # TODO(Benjamin): set a better span type
-                span_type='cache')
+        if not pin or not pin.enabled():
+            return self._no_span()
 
-            try:
-                self._tag_span(span)
-            except Exception:
-                log.debug('error tagging span', exc_info=True)
-            return span
+        span = pin.tracer.trace(
+            'memcached.cmd',
+            service=pin.service,
+            resource=cmd_name,
+            span_type=SpanTypes.CACHE,
+        )
+        span.set_tag(SPAN_MEASURED_KEY)
+
+        try:
+            self._tag_span(span)
+        except Exception:
+            log.debug('error tagging span', exc_info=True)
+        return span
 
     def _tag_span(self, span):
         # FIXME[matt] the host selection is buried in c code. we can't tell what it's actually

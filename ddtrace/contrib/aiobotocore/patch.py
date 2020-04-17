@@ -3,11 +3,15 @@ from ddtrace.vendor import wrapt
 from ddtrace import config
 import aiobotocore.client
 
-from aiobotocore.endpoint import ClientResponseContentProxy
+try:
+    from aiobotocore.endpoint import ClientResponseContentProxy
+except ImportError:
+    # aiobotocore>=0.11.0
+    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
 from ...pin import Pin
-from ...ext import http, aws
+from ...ext import SpanTypes, http, aws
 from ...compat import PYTHON_VERSION_INFO
 from ...utils.formats import deep_getattr
 from ...utils.wrappers import unwrap
@@ -23,7 +27,7 @@ def patch():
     setattr(aiobotocore.client, '_datadog_patch', True)
 
     wrapt.wrap_function_wrapper('aiobotocore.client', 'AioBaseClient._make_api_call', _wrapped_api_call)
-    Pin(service='aws', app='aws', app_type='web').onto(aiobotocore.client.AioBaseClient)
+    Pin(service=config.service or "aws", app="aws").onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
@@ -48,6 +52,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
             span.meta = dict(self._self_parent_span.meta)
+            span.metrics = dict(self._self_parent_span.metrics)
 
             result = yield from self.__wrapped__.read(*args, **kwargs)
             span.set_tag('Length', len(result))
@@ -77,9 +82,11 @@ def _wrapped_api_call(original_func, instance, args, kwargs):
 
     endpoint_name = deep_getattr(instance, '_endpoint._endpoint_prefix')
 
+    service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
     with pin.tracer.trace('{}.command'.format(endpoint_name),
-                          service='{}.{}'.format(pin.service, endpoint_name),
-                          span_type=http.TYPE) as span:
+                          service=service,
+                          span_type=SpanTypes.HTTP) as span:
+        span.set_tag(SPAN_MEASURED_KEY)
 
         if len(args) > 0:
             operation = args[0]

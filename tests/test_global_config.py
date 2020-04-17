@@ -7,6 +7,7 @@ from ddtrace import config as global_config
 from ddtrace.settings import Config
 
 from .test_tracer import get_dummy_tracer
+from .utils import override_env
 
 
 class GlobalConfigTestCase(TestCase):
@@ -185,7 +186,7 @@ class GlobalConfigTestCase(TestCase):
         # Create our span
         span = self.tracer.start_span('web.request')
         assert 'web.request' not in span.meta
-        assert 'web.status' not in span.meta
+        assert 'web.status' not in span.metrics
         assert 'web.method' not in span.meta
 
         # Emit the span
@@ -193,7 +194,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Assert we updated the span as expected
         assert span.get_tag('web.request') == '/'
-        assert span.get_tag('web.status') == '200'
+        assert span.get_metric('web.status') == 200
         assert span.get_tag('web.method') == 'GET'
 
     def test_settings_hook_failure(self):
@@ -241,3 +242,31 @@ class GlobalConfigTestCase(TestCase):
         # Emit the span
         # DEV: This is the test, to ensure no exceptions are raised
         self.config.web.hooks._emit('request', None)
+
+    def test_dd_version(self):
+        c = Config()
+        assert c.version is None
+
+        with override_env(dict(DD_VERSION="1.2.3")):
+            c = Config()
+            assert c.version == "1.2.3"
+
+            c.version = "4.5.6"
+            assert c.version == "4.5.6"
+
+    def test_dd_env(self):
+        c = Config()
+        assert c.env is None
+
+        with override_env(dict(DD_ENV="prod")):
+            c = Config()
+            assert c.env == "prod"
+
+            # manual override still possible
+            c.env = "prod-staging"
+            assert c.env == "prod-staging"
+
+        # between DD_ENV and DATADOG_ENV, the former takes priority
+        with override_env(dict(DATADOG_ENV="prod", DD_ENV="prod-staging")):
+            c = Config()
+            assert c.env == "prod-staging"

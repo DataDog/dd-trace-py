@@ -1,6 +1,5 @@
 # stdib
 import time
-import unittest
 
 # 3p
 import mongoengine
@@ -15,8 +14,9 @@ from ddtrace.ext import mongo as mongox
 # testing
 from tests.opentracer.utils import init_tracer
 from ..config import MONGO_CONFIG
-from ...base import override_config
+from ...base import BaseTracerTestCase, override_config
 from ...test_tracer import get_dummy_tracer
+from ...utils import assert_is_measured
 
 
 class Artist(mongoengine.Document):
@@ -45,6 +45,8 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+
+        assert_is_measured(span)
         assert span.resource == 'drop artist'
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -61,6 +63,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.resource == 'insert artist'
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -80,6 +83,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.resource == '{} artist'.format(name)
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -97,6 +101,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.resource == '{} artist {{"first_name": "?"}}'.format(name)
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -111,6 +116,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.resource == 'update artist {"_id": "?"}'
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -124,6 +130,7 @@ class MongoEngineCore(object):
         spans = tracer.writer.pop()
         assert len(spans) == 1
         span = spans[0]
+        assert_is_measured(span)
         assert span.resource == 'delete artist {"_id": "?"}'
         assert span.span_type == 'mongodb'
         assert span.service == self.TEST_SERVICE
@@ -151,6 +158,7 @@ class MongoEngineCore(object):
         assert ot_span.name == 'ot_span'
         assert ot_span.service == 'my_svc'
 
+        assert_is_measured(dd_span)
         assert dd_span.resource == 'drop artist'
         assert dd_span.span_type == 'mongodb'
         assert dd_span.service == self.TEST_SERVICE
@@ -188,11 +196,27 @@ class MongoEngineCore(object):
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The mongoengine integration should not use it.
+        """
+        from ddtrace import config
+        assert config.service == "mysvc"
 
-class TestMongoEnginePatchConnectDefault(unittest.TestCase, MongoEngineCore):
+        tracer = self.get_tracer_and_connect()
+        Artist.drop_collection()
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        assert spans[0].service != "mysvc"
+
+
+class TestMongoEnginePatchConnectDefault(BaseTracerTestCase, MongoEngineCore):
     """Test suite with a global Pin for the connect function with the default configuration"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()
@@ -224,10 +248,10 @@ class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
         return tracer
 
 
-class TestMongoEnginePatchClientDefault(unittest.TestCase, MongoEngineCore):
+class TestMongoEnginePatchClientDefault(BaseTracerTestCase, MongoEngineCore):
     """Test suite with a Pin local to a specific client with default configuration"""
 
-    TEST_SERVICE = mongox.TYPE
+    TEST_SERVICE = mongox.SERVICE
 
     def setUp(self):
         patch()

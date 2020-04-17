@@ -83,13 +83,12 @@ class TestValueCollector(BaseTestCase):
             collect.assert_not_called()
 
         calls = [
-            mock.call((
-                'Could not import module "moduleshouldnotexist" for '
-                '<ValueCollector(enabled=False,periodic=False,required_modules=[\'moduleshouldnotexist\'])>. '
-                'Disabling collector.'
-            ))
+            mock.call(
+                'Could not import module "%s" for %s. Disabling collector.',
+                'moduleshouldnotexist', vc,
+            )
         ]
-        log_mock.warn.assert_has_calls(calls)
+        log_mock.warning.assert_has_calls(calls)
 
     def test_collected_values(self):
         class V(ValueCollector):

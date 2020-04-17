@@ -1,12 +1,12 @@
 .. include:: ./shared.rst
 
-Datadog Python Trace Client
-===========================
+Datadog Python Trace and Profile Client
+=======================================
 
-``ddtrace`` is Datadog's Python tracing client. It is used to trace requests as
-they flow across web servers, databases and microservices. This enables
-developers to have greater visibility into bottlenecks and troublesome requests
-in their application.
+``ddtrace`` is Datadog's Python tracing and profiling client. It is used to
+profile code and trace requests as they flow across web servers, databases and
+microservices. This enables developers to have greater visibility into
+bottlenecks and troublesome requests in their application.
 
 Getting Started
 ---------------
@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 2.7, 3.4 and above.
+We officially support Python 2.7, 3.5 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -60,7 +60,9 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`cassandra`                                 | >= 3.5        | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`django`                                    | >= 1.8        | No             |
+| :ref:`consul`                                    | >= 0.7        | Yes [3]_       |
++--------------------------------------------------+---------------+----------------+
+| :ref:`django`                                    | >= 1.8        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`djangorestframework <djangorestframework>` | >= 3.4        | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -125,6 +127,8 @@ contacting support.
 
 .. [2] only third-party modules such as aiohttp_jinja2
 
+.. [3] only the syncronous client
+
 
 Indices and tables
 ==================
@@ -137,6 +141,7 @@ Indices and tables
     :hidden:
 
     installation_quickstart
+    configuration
     web_integrations
     db_integrations
     async_integrations

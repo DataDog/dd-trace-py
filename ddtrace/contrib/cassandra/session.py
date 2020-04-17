@@ -8,8 +8,8 @@ import cassandra.cluster
 
 # project
 from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import net, cassandra as cassx, errors
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...ext import SpanTypes, net, cassandra as cassx, errors
 from ...internal.logger import get_logger
 from ...pin import Pin
 from ...settings import config
@@ -32,7 +32,7 @@ def patch():
     """ patch will add tracing to the cassandra library. """
     setattr(cassandra.cluster.Cluster, 'connect',
             wrapt.FunctionWrapper(_connect, traced_connect))
-    Pin(service=SERVICE, app=SERVICE, app_type='db').onto(cassandra.cluster.Cluster)
+    Pin(service=SERVICE, app=SERVICE).onto(cassandra.cluster.Cluster)
 
 
 def unpatch():
@@ -54,8 +54,8 @@ def _close_span_on_success(result, future):
         return
     try:
         span.set_tags(_extract_result_metas(cassandra.cluster.ResultSet(future, result)))
-    except Exception as e:
-        log.debug('an exception occured while setting tags: %s', e)
+    except Exception:
+        log.debug('an exception occured while setting tags', exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)
@@ -78,8 +78,8 @@ def _close_span_on_error(exc, future):
         span.error = 1
         span.set_tag(errors.ERROR_MSG, exc.args[0])
         span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
-    except Exception as e:
-        log.debug('traced_set_final_exception was not able to set the error, failed with error: %s', e)
+    except Exception:
+        log.debug('traced_set_final_exception was not able to set the error, failed with error', exc_info=True)
     finally:
         span.finish()
         delattr(future, CURRENT_SPAN)
@@ -181,7 +181,8 @@ def traced_execute_async(func, instance, args, kwargs):
 def _start_span_and_set_tags(pin, query, session, cluster):
     service = pin.service
     tracer = pin.tracer
-    span = tracer.trace('cassandra.query', service=service, span_type=cassx.TYPE)
+    span = tracer.trace('cassandra.query', service=service, span_type=SpanTypes.CASSANDRA)
+    span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)
     span.set_tags(_extract_session_metas(session))     # FIXME[matt] do once?
     span.set_tags(_extract_cluster_metas(cluster))
@@ -261,7 +262,15 @@ def _sanitize_query(span, query):
         resource = getattr(query, 'query_string', query)
     elif t == 'BatchStatement':
         resource = 'BatchStatement'
-        q = '; '.join(q[1] for q in query._statements_and_parameters[:2])
+        # Each element in `_statements_and_parameters` is:
+        #   (is_prepared, statement, parameters)
+        #  ref:https://github.com/datastax/python-driver/blob/13d6d72be74f40fcef5ec0f2b3e98538b3b87459/cassandra/query.py#L844
+        #
+        # For prepared statements, the `statement` value is just the query_id
+        #   which is not a statement and when trying to join with other strings
+        #   raises an error in python3 around joining bytes to unicode, so this
+        #   just filters out prepared statements from this tag value
+        q = '; '.join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
         span.set_tag('cassandra.query', q)
         span.set_metric('cassandra.batch_size', len(query._statements_and_parameters))
     elif t == 'BoundStatement':

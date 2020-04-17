@@ -50,7 +50,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, 'flask.render_template')
         self.assertEqual(spans[0].resource, 'test.html')
-        self.assertEqual(set(spans[0].meta.keys()), set(['system.pid', 'flask.template_name']))
+        self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name']))
         self.assertEqual(spans[0].meta['flask.template_name'], 'test.html')
 
         self.assertEqual(spans[1].name, 'flask.do_teardown_request')
@@ -91,7 +91,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, 'flask.render_template_string')
         self.assertEqual(spans[0].resource, '<memory>')
-        self.assertEqual(set(spans[0].meta.keys()), set(['system.pid', 'flask.template_name']))
+        self.assertEqual(set(spans[0].meta.keys()), set(['flask.template_name']))
         self.assertEqual(spans[0].meta['flask.template_name'], '<memory>')
 
         self.assertEqual(spans[1].name, 'flask.do_teardown_request')

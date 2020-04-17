@@ -9,6 +9,7 @@ from ddtrace.contrib.molten import patch, unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 
 from ...base import BaseTracerTestCase
+from ...utils import assert_span_http_status_code, assert_is_measured
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -16,13 +17,11 @@ def hello(name: str, age: int) -> str:
     return f'Hello {age} year old named {name}!'
 
 
-def molten_client(headers=None):
+def molten_client(headers=None, params=None):
     app = molten.App(routes=[molten.Route('/hello/{name}/{age}', hello)])
     client = TestClient(app)
     uri = app.reverse_uri('hello', name='Jim', age=24)
-    if headers:
-        return client.request('GET', uri, headers=headers)
-    return client.get(uri)
+    return client.request('GET', uri, headers=headers, params=params)
 
 
 class TestMolten(BaseTracerTestCase):
@@ -48,12 +47,15 @@ class TestMolten(BaseTracerTestCase):
         # access data property
         self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.span_type, 'web')
         self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
-        self.assertEqual(span.get_tag('http.status_code'), '200')
+        assert_span_http_status_code(span, 200)
+        assert http.QUERY_STRING not in span.meta
 
         # See test_resources below for specifics of this difference
         if MOLTEN_VERSION >= (0, 7, 2):
@@ -66,6 +68,24 @@ class TestMolten(BaseTracerTestCase):
         response = molten_client()
         spans = self.tracer.writer.pop()
         self.assertEqual(spans[0].service, 'molten-patch')
+
+    def test_route_success_query_string(self):
+        with self.override_http_config('molten', dict(trace_query_string=True)):
+            response = molten_client(params={'foo': 'bar'})
+        spans = self.tracer.writer.pop()
+        self.assertEqual(response.status_code, 200)
+        # TestResponse from TestClient is wrapper around Response so we must
+        # access data property
+        self.assertEqual(response.data, '"Hello 24 year old named Jim!"')
+        span = spans[0]
+        assert_is_measured(span)
+        self.assertEqual(span.service, 'molten')
+        self.assertEqual(span.name, 'molten.request')
+        self.assertEqual(span.resource, 'GET /hello/{name}/{age}')
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/hello/Jim/24')
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.get_tag(http.QUERY_STRING), 'foo=bar')
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -146,12 +166,13 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 404)
         span = spans[0]
+        assert_is_measured(span)
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
         self.assertEqual(span.resource, 'GET 404')
         self.assertEqual(span.get_tag(http.URL), 'http://127.0.0.1:8000/goodbye')
         self.assertEqual(span.get_tag('http.method'), 'GET')
-        self.assertEqual(span.get_tag('http.status_code'), '404')
+        assert_span_http_status_code(span, 404)
 
     def test_route_exception(self):
         def route_error() -> str:
@@ -162,6 +183,7 @@ class TestMolten(BaseTracerTestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(response.status_code, 500)
         span = spans[0]
+        assert_is_measured(span)
         route_error_span = spans[-1]
         self.assertEqual(span.service, 'molten')
         self.assertEqual(span.name, 'molten.request')
@@ -295,3 +317,14 @@ class TestMolten(BaseTracerTestCase):
         molten_client()
         spans = self.tracer.writer.pop()
         self.assertTrue(len(spans) > 0)
+
+    @BaseTracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    def test_user_specified_service(self):
+        """
+        When a service name is specified by the user
+            The molten integration should use it as the service name
+        """
+        molten_client()
+        spans = self.tracer.writer.pop()
+        for span in spans:
+            assert span.service == "mysvc"

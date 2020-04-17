@@ -42,11 +42,10 @@ class SQLAlchemyTestMixin(object):
     To support a new engine, create a new `TestCase` that inherits from
     `SQLAlchemyTestMixin` and `TestCase`. Then you must define the following
     static class variables:
-      * VENDOR: the database vendor name
-      * SQL_DB: the `sql.db` tag that we expect (it's the name of the database
-        available in the `.env` file)
-      * SERVICE: the service that we expect by default
-      * ENGINE_ARGS: all arguments required to create the engine
+    * VENDOR: the database vendor name
+    * SQL_DB: the `sql.db` tag that we expect (it's the name of the database available in the `.env` file)
+    * SERVICE: the service that we expect by default
+    * ENGINE_ARGS: all arguments required to create the engine
 
     To check specific tags in each test, you must implement the
     `check_meta(self, span)` method.
@@ -115,7 +114,7 @@ class SQLAlchemyTestMixin(object):
         assert span.service == self.SERVICE
         assert 'INSERT INTO players' in span.resource
         assert span.get_tag('sql.db') == self.SQL_DB
-        assert span.get_tag('sql.rows') == '1'
+        assert span.get_metric('sql.rows') == 1
         self.check_meta(span)
         assert span.span_type == 'sql'
         assert span.error == 0
