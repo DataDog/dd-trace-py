@@ -48,8 +48,8 @@ def _make_dsn(dsn, **kwargs):
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs_param):
     async def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,
-               enable_json=True, enable_hstore=True, enable_uuid=True,
-               echo=False, **kwargs):
+                     enable_json=True, enable_hstore=True, enable_uuid=True,
+                     echo=False, **kwargs):
 
         parsed_dsn = _make_dsn(dsn, **kwargs)
 

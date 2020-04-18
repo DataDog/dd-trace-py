@@ -25,7 +25,7 @@ def connection_factory(tracer, service='postgres'):
     tracer.set_service_info(
         service=service,
         app="postgres",
-        app_type=AppTypes.db,
+        app_type=sql.APP_TYPE,
     )
 
     return functools.partial(

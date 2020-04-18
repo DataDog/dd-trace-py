@@ -115,9 +115,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         return result
 
     async def copy_out(self, copy_stmt, sink, timeout):
-        result = await self._trace_method(
-            self.__wrapped__.copy_out, copy_stmt, None, {}, copy_stmt, sink, timeout
-        )
+        result = await self._trace_method(self.__wrapped__.copy_out, copy_stmt, None, {}, copy_stmt, sink, timeout)
         return result
 
     async def copy_in(self, copy_stmt, reader, data, records, record_stmt, timeout):
@@ -127,9 +125,7 @@ class AIOTracedProtocol(wrapt.ObjectProxy):
         return result
 
     async def close_statement(self, state, timeout):
-        result = await self._trace_method(
-            self.__wrapped__.close_statement, state.query, None, {}, state, timeout
-        )
+        result = await self._trace_method(self.__wrapped__.close_statement, state.query, None, {}, state, timeout)
         return result
 
     async def close(self, timeout):
