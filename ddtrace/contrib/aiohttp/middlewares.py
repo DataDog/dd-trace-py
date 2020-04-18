@@ -1,5 +1,4 @@
 import functools
-import pkg_resources
 
 from ..asyncio import context_provider
 from ...compat import stringify
@@ -9,14 +8,12 @@ from ...propagation.http import HTTPPropagator
 from ...settings import config
 from ...context import Context
 
-import aiohttp
-
-if pkg_resources.parse_version(aiohttp.__version__) < pkg_resources.parse_version('3'):
+try:
     from aiohttp.web import middleware
 
-    AIOHTTP_2x = True
-else:
-    AIOHTTP_2x = False
+    AIOHTTP_HAS_MIDDLEWARE = True
+except ImportError:
+    AIOHTTP_HAS_MIDDLEWARE = False
 
     def middleware(f):
         return f
@@ -85,7 +82,7 @@ async def trace_middleware_1x(app, handler):
     return functools.partial(trace_middleware_2x, handler=handler, app=app)
 
 
-trace_middleware = trace_middleware_2x if AIOHTTP_2x else trace_middleware_1x
+trace_middleware = trace_middleware_2x if AIOHTTP_HAS_MIDDLEWARE else trace_middleware_1x
 
 
 async def on_prepare(request, response):

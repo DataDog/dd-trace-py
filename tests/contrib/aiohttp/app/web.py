@@ -4,7 +4,7 @@ import asyncio
 import aiohttp_jinja2
 import functools
 
-from ddtrace.contrib.aiohttp.middlewares import middleware, AIOHTTP_2x
+from ddtrace.contrib.aiohttp.middlewares import middleware, AIOHTTP_HAS_MIDDLEWARE
 from aiohttp import web
 
 
@@ -101,7 +101,7 @@ async def noop_middleware_1x(app, handler):
     return functools.partial(noop_middleware_2x, handler=handler)
 
 
-noop_middleware = noop_middleware_2x if AIOHTTP_2x else noop_middleware_1x
+noop_middleware = noop_middleware_2x if AIOHTTP_HAS_MIDDLEWARE else noop_middleware_1x
 
 
 def setup_app(loop):
