@@ -224,6 +224,7 @@ class TestAsyncioPropagation(AsyncioTestCase):
 
     @mark_asyncio
     def test_tasks_chaining(self):
+
         tracer = self.tracer
         service = 'spawn_service'
 
