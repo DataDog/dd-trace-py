@@ -24,11 +24,10 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
 
-    @asyncio.coroutine
-    def _trace_method(self, method, query, extra_tags, *args, **kwargs):
+    async def _trace_method(self, method, query, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
-            result = yield from method(*args, **kwargs)
+            result = await method(*args, **kwargs)
             return result
         service = pin.service
 
@@ -47,74 +46,64 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             )
 
             try:
-                result = yield from method(*args, **kwargs)
+                result = await method(*args, **kwargs)
                 return result
             finally:
                 s.set_metric('db.rowcount', self.rowcount)
 
-    @asyncio.coroutine
-    def executemany(self, operation, *args, **kwargs):
+    async def executemany(self, operation, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        result = yield from self._trace_method(
+        result = await self._trace_method(
             self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
             operation, *args, **kwargs)
         return result
 
-    @asyncio.coroutine
-    def execute(self, operation, *args, **kwargs):
-        result = yield from self._trace_method(
+    async def execute(self, operation, *args, **kwargs):
+        result = await self._trace_method(
             self.__wrapped__.execute, operation, {}, operation, *args, **kwargs)
         return result
 
-    @asyncio.coroutine
-    def callproc(self, procname, args):
-        result = yield from self._trace_method(
+    async def callproc(self, procname, args):
+        result = await self._trace_method(
             self.__wrapped__.callproc, procname, {}, procname, args)
         return result
 
-    @asyncio.coroutine
-    def mogrify(self, operation, parameters=None):
-        result = yield from self._trace_method(
+    async def mogrify(self, operation, parameters=None):
+        result = await self._trace_method(
             self.__wrapped__.mogrify, operation, {}, operation, parameters)
         return result
 
-    @asyncio.coroutine
-    def fetchone(self):
-        result = yield from self._trace_method(
+    async def fetchone(self):
+        result = await self._trace_method(
             self.__wrapped__.fetchone, None, {})
         return result
 
-    @asyncio.coroutine
-    def fetchmany(self, size=None):
-        result = yield from self._trace_method(
+    async def fetchmany(self, size=None):
+        result = await self._trace_method(
             self.__wrapped__.fetchmany, None, {}, size)
         return result
 
-    @asyncio.coroutine
-    def fetchall(self):
-        result = yield from self._trace_method(
+    async def fetchall(self):
+        result = await self._trace_method(
             self.__wrapped__.fetchall, None, {})
         return result
 
-    @asyncio.coroutine
-    def scroll(self, value, mode='relative'):
-        result = yield from self._trace_method(
+    async def scroll(self, value, mode='relative'):
+        result = await self._trace_method(
             self.__wrapped__.scroll, None, {}, value, mode)
         return result
 
-    @asyncio.coroutine
-    def nextset(self):
-        result = yield from self._trace_method(
+    async def nextset(self):
+        result = await self._trace_method(
             self.__wrapped__.nextset, None, {})
         return result
 
     def __aiter__(self):
         return self.__wrapped__.__aiter__()
 
-    @asyncio.coroutine
-    def __anext__(self):
-        result = yield from self.__wrapped__.__anext__()
+    async def __anext__(self):
+        result = await self.__wrapped__.__anext__()
         return result
 
 
@@ -137,7 +126,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         coro = self._cursor(*args, **kwargs)
         return _ContextManager(coro)
 
-    @asyncio.coroutine
+    @asyncio.coroutine  # here for aiopg < 1.0
     def _cursor(self, *args, **kwargs):
         cursor = yield from self.__wrapped__._cursor(*args, **kwargs)
         pin = Pin.get_from(self)
