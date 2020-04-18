@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import warnings
 
@@ -53,8 +52,7 @@ def protocol_factory(protocol_cls, *args, **kwargs):
     return unwrapped
 
 
-@asyncio.coroutine
-def _patched_connect(connect_func, _, args, kwargs):
+async def _patched_connect(connect_func, _, args, kwargs):
     assert connect_func != _patched_connect
 
     tags = {
@@ -68,14 +66,14 @@ def _patched_connect(connect_func, _, args, kwargs):
     pin = _create_pin(tags)
 
     if not pin.tracer.enabled:
-        conn = yield from connect_func(*args, **kwargs)
+        conn = await connect_func(*args, **kwargs)
         return conn
 
     with pin.tracer.trace((pin.app or "sql") + ".connect", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
-        conn = yield from connect_func(*args, **kwargs)
+        conn = await connect_func(*args, **kwargs)
 
     # NOTE: we can't pin anything to the connection object as it's closed
     return conn
@@ -111,8 +109,7 @@ def _get_parsed_tags(**connect_kwargs):
         return {}
 
 
-@asyncio.coroutine
-def _patched_acquire(acquire_func, instance, args, kwargs):
+async def _patched_acquire(acquire_func, instance, args, kwargs):
     if instance._working_addr:
         tags = {
             net.TARGET_HOST: instance._working_addr[0],
@@ -141,19 +138,18 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
     pin = _create_pin(tags)
 
     if not pin.tracer.enabled:
-        conn = yield from acquire_func(*args, **kwargs)
+        conn = await acquire_func(*args, **kwargs)
         return conn
 
     with pin.tracer.trace((pin.app or "sql") + ".pool.acquire", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
-        conn = yield from acquire_func(*args, **kwargs)
+        conn = await acquire_func(*args, **kwargs)
 
     return conn
 
 
-@asyncio.coroutine
-def _patched_release(release_func, instance, args, kwargs):
+async def _patched_release(release_func, instance, args, kwargs):
     tags = {
         net.TARGET_HOST: instance._working_addr[0],
         net.TARGET_PORT: instance._working_addr[1],
@@ -165,14 +161,14 @@ def _patched_release(release_func, instance, args, kwargs):
     pin = _create_pin(tags)
 
     if not pin.tracer.enabled:
-        conn = yield from release_func(*args, **kwargs)
+        conn = await release_func(*args, **kwargs)
         return conn
 
     with pin.tracer.trace((pin.app or "sql") + ".pool.release", service=pin.service) as s:
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
-        conn = yield from release_func(*args, **kwargs)
+        conn = await release_func(*args, **kwargs)
 
     return conn
 
