@@ -44,10 +44,10 @@ def _make_dsn(dsn, **kwargs):
         return sql.parse_pg_dsn(dsn) if dsn else kwargs
 
 
+# This is left as a coroutine due to how aiopg < 1.0 incorrectly yields from an __await__
 @asyncio.coroutine
 def _patched_connect(connect_func, _, args, kwargs_param):
-    @asyncio.coroutine
-    def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,  # noqa: E999
+    async def unwrap(dsn=None, *, timeout=aiopg.connection.TIMEOUT, loop=None,  # noqa: E999
                enable_json=True, enable_hstore=True, enable_uuid=True,
                echo=False, **kwargs):
 
@@ -68,14 +68,14 @@ def _patched_connect(connect_func, _, args, kwargs_param):
             with pin.tracer.trace(name, service=pin.service) as s:
                 s.span_type = sql.TYPE
                 s.set_tags(pin.tags)
-                conn = yield from connect_func(
+                conn = await connect_func(
                     dsn, timeout=timeout, loop=loop, enable_json=enable_json,
                     enable_hstore=enable_hstore, enable_uuid=enable_uuid,
                     echo=echo, **kwargs)
 
             conn = AIOTracedConnection(conn, pin)
         else:
-            conn = yield from connect_func(
+            conn = await connect_func(
                 dsn, timeout=timeout, loop=loop, enable_json=enable_json,
                 enable_hstore=enable_hstore, enable_uuid=enable_uuid, echo=echo,
                 **kwargs)
@@ -137,8 +137,7 @@ _aiopg_extensions = [
 ]
 
 
-@asyncio.coroutine
-def _patched_acquire(acquire_func, instance, args, kwargs):
+async def _patched_acquire(acquire_func, instance, args, kwargs):
     parsed_dsn = _make_dsn(instance._dsn, **instance._conn_kwargs)
 
     tags = {
@@ -152,7 +151,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
     pin = _create_pin(tags)
 
     if not pin.tracer.enabled:
-        conn = yield from acquire_func(*args, **kwargs)
+        conn = await acquire_func(*args, **kwargs)
         return conn
 
     with pin.tracer.trace((pin.app or 'sql') + '.pool.acquire',
@@ -160,7 +159,7 @@ def _patched_acquire(acquire_func, instance, args, kwargs):
         s.span_type = sql.TYPE
         s.set_tags(pin.tags)
 
-        conn = yield from acquire_func(*args, **kwargs)
+        conn = await acquire_func(*args, **kwargs)
 
     return conn
 
