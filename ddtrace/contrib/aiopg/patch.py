@@ -227,4 +227,3 @@ def unpatch():
         _u(aiopg.pool.Pool, '_acquire')
         _u(aiopg.pool.Pool, 'release')
         _unpatch_extensions(_aiopg_extensions)
-
